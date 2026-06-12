@@ -6,8 +6,27 @@ A web app for learning the Louisiana card game **Bourré**. It includes:
   table's house rules.
 - **Interactive Tutorial** — a step-by-step walkthrough of a full hand with
   elegant card visuals and a hands-on "pick the legal play" exercise.
+- **Private Room** — an in-memory table lobby with an invite code, scorekeeping,
+  and per-player risk points.
 
 Built with Vite + React + TypeScript.
+
+## Social app + Firebase Auth (`docs/`)
+
+The `docs/` folder is a separate, **static-friendly** (GitHub Pages) social app
+written in modular vanilla JS. It adds Firebase Authentication (Email/Password and
+Google) with a logged-out state, a profile dropdown, and protected Private Rooms /
+Leagues. There is no money/wallet functionality.
+
+- Copy your Firebase web config into `docs/firebase-config.js` (it ships as a
+  placeholder). The SDK loads from the gstatic CDN, so no build step is needed.
+- Local development uses the Firebase Auth emulator automatically when served from
+  `localhost`:
+
+  ```bash
+  npm run emulators   # Firebase Auth emulator (needs Java)
+  npm run social      # serve docs/ at http://localhost:8080
+  ```
 
 ## Getting started
 
@@ -20,7 +39,9 @@ npm run dev      # start the dev server (http://localhost:5173)
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start the Vite dev server |
+| `npm run dev` | Start the Vite dev server (React app) |
 | `npm run build` | Type-check and build for production |
 | `npm run lint` | Run ESLint |
 | `npm run preview` | Preview the production build |
+| `npm run social` | Serve the static social app (`docs/`) on port 8080 |
+| `npm run emulators` | Start the Firebase Auth emulator for local auth dev |

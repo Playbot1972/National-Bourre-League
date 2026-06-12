@@ -27,6 +27,15 @@ function isAuthed() {
   return session !== null;
 }
 
+// Apply a session and re-render. Used both by the auth-state listener and
+// directly after sign-up (where updateProfile sets the display name but does
+// not re-trigger onAuthStateChanged).
+function setSession(user) {
+  session = user;
+  renderSession();
+  showView();
+}
+
 // ---------------------------------------------------------------------------
 // Auth modal
 // ---------------------------------------------------------------------------
@@ -103,7 +112,8 @@ authForm.addEventListener("submit", async (event) => {
   setBusy(true);
   try {
     if (mode === "signup") {
-      await signUpWithEmail({ name, email, password });
+      const user = await signUpWithEmail({ name, email, password });
+      setSession(user);
     } else {
       await signInWithEmail({ email, password });
     }
@@ -334,11 +344,8 @@ renderLeagues();
 showView();
 
 onAuthChange((user) => {
-  session = user;
-  renderSession();
-  showView();
+  setSession(user);
 });
 
 // In case auth resolves synchronously from cache.
-session = currentUser();
-renderSession();
+setSession(currentUser());
