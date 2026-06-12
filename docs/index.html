@@ -16,6 +16,7 @@
       <nav class="nav" aria-label="Primary">
         <a class="nav__link" href="#home">Home</a>
         <a class="nav__link" href="#rooms" data-requires-auth>Private Rooms</a>
+        <a class="nav__link" href="#leaderboard" data-requires-auth>Leaderboard</a>
         <a class="nav__link" href="#leagues" data-requires-auth>Leagues</a>
       </nav>
 
@@ -115,6 +116,26 @@
 
             <!-- Detail view (rendered by app.js) -->
             <div id="room-detail-view" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Leaderboard (protected) -->
+      <section class="view" id="view-leaderboard" hidden>
+        <span class="eyebrow">Ape Score · TrueSkill ranking</span>
+        <h2>Leaderboard</h2>
+        <div class="protected" data-protected>
+          <div class="locked" data-locked hidden>
+            <p>Sign in to view the Ape Score leaderboard.</p>
+            <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
+          </div>
+          <div class="protected__content" data-protected-content>
+            <p class="muted">
+              Ape Score = <code>round(max(0, mu − 3·sigma))</code> — a conservative,
+              skill-based TrueSkill rating. Entertainment only; never tied to money.
+              Scores update after each completed session.
+            </p>
+            <div class="leaderboard" id="leaderboard-list"></div>
           </div>
         </div>
       </section>

@@ -16,6 +16,7 @@ import {
 } from "./auth.js";
 import {
   ensureUserDoc,
+  ensurePlayerDoc,
   createRoom,
   joinRoomByCode,
   subscribeMyRooms,
@@ -26,7 +27,12 @@ import {
   createSession,
   updateScore,
   updateSessionNotes,
+  addSessionPlayer,
+  getPlayers,
+  applyRankingResults,
+  subscribeLeaderboard,
 } from "./firestore.js";
+import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -266,7 +272,7 @@ function renderSession() {
 // ---------------------------------------------------------------------------
 // Simple hash router
 // ---------------------------------------------------------------------------
-const PROTECTED = new Set(["rooms", "leagues"]);
+const PROTECTED = new Set(["rooms", "leaderboard", "leagues"]);
 
 function showView() {
   let view = location.hash.replace("#", "") || "home";
@@ -339,6 +345,10 @@ function startRoomsSubscription() {
   stopRoomsSubscription();
   if (!session) return;
   ensureUserDoc(session).catch((e) => console.warn("ensureUserDoc:", e));
+  // Ensure the signed-in user has a ranking doc so they appear on the leaderboard.
+  ensurePlayerDoc(session.uid, session.displayName).catch((e) =>
+    console.warn("ensurePlayerDoc:", e),
+  );
   myRoomsUnsub = subscribeMyRooms(session.uid, (rooms) => {
     myRooms = rooms;
     if (!currentRoomId) renderRoomsList();
@@ -575,6 +585,8 @@ function renderRoomDetail() {
 }
 
 function renderSessionPanel(s) {
+  const isFinal = s.status === "final";
+  const disabled = isFinal ? "disabled" : "";
   const rows = openScores
     .map(
       (sc) => `
@@ -582,13 +594,13 @@ function renderSessionPanel(s) {
         <td>${escapeHtml(sc.displayName)}</td>
         <td>
           <div class="stepper">
-            <button class="room__step" data-score-step="-1" aria-label="Decrease tricks">−</button>
-            <input class="num-input" type="number" min="0" value="${sc.tricksWon}" data-score-input aria-label="${escapeHtml(sc.displayName)} tricks won" />
-            <button class="room__step" data-score-step="1" aria-label="Increase tricks">+</button>
+            <button class="room__step" data-score-step="-1" aria-label="Decrease tricks" ${disabled}>−</button>
+            <input class="num-input" type="number" min="0" value="${sc.tricksWon}" data-score-input aria-label="${escapeHtml(sc.displayName)} tricks won" ${disabled} />
+            <button class="room__step" data-score-step="1" aria-label="Increase tricks" ${disabled}>+</button>
           </div>
         </td>
         <td>
-          <select class="num-select" data-risk-select aria-label="${escapeHtml(sc.displayName)} risk points">
+          <select class="num-select" data-risk-select aria-label="${escapeHtml(sc.displayName)} risk points" ${disabled}>
             ${[0, 1, 2, 3, 4, 5]
               .map((n) => `<option value="${n}" ${n === sc.riskPoints ? "selected" : ""}>${n} pt${n === 1 ? "" : "s"}</option>`)
               .join("")}
@@ -598,6 +610,32 @@ function renderSessionPanel(s) {
       </tr>`,
     )
     .join("");
+
+  const resultsBlock =
+    isFinal && Array.isArray(s.results)
+      ? `<div class="session-results">
+           <h5>Ape Score results</h5>
+           <ul>
+             ${[...s.results]
+               .sort((a, b) => a.placement - b.placement)
+               .map(
+                 (r) =>
+                   `<li><span class="place">#${r.placement}</span> ${escapeHtml(r.displayName)}
+                      → Ape Score <strong>${r.apeScore}</strong>
+                      <span class="momentum ${r.momentum >= 0 ? "up" : "down"}">${r.momentum >= 0 ? "▲" : "▼"} ${Math.abs(r.momentum)}</span></li>`,
+               )
+               .join("")}
+           </ul>
+         </div>`
+      : "";
+
+  const controls = isFinal
+    ? `<span class="badge badge--closed">Session final</span>`
+    : `<form class="add-player-form" id="add-player-form">
+         <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" />
+         <button class="btn btn--sm" type="submit">Add player</button>
+       </form>
+       <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
 
   return `
     <div class="session">
@@ -611,8 +649,11 @@ function renderSessionPanel(s) {
         </tfoot>
       </table>
 
+      <div class="session-controls">${controls}</div>
+      ${resultsBlock}
+
       <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
-      <textarea id="session-notes" class="notes-field" rows="3"
+      <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
         placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
       <p class="muted small">Informational only. This app never tracks or moves money.</p>
     </div>`;
@@ -677,6 +718,133 @@ function wireSessionControls() {
       }, 500);
     });
   }
+
+  const addPlayerForm = $("#add-player-form", roomDetailView);
+  if (addPlayerForm) {
+    addPlayerForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = $("#add-player-name", roomDetailView);
+      const name = input.value.trim();
+      if (!name) return;
+      const guestId = `guest_${Math.random().toString(36).slice(2, 10)}`;
+      addSessionPlayer(currentRoomId, openSessionId, guestId, name).catch((err) =>
+        console.error("addSessionPlayer:", err),
+      );
+      input.value = "";
+    });
+  }
+
+  const completeBtn = $("#complete-session", roomDetailView);
+  if (completeBtn) {
+    completeBtn.addEventListener("click", onCompleteSession);
+  }
+}
+
+async function onCompleteSession() {
+  if (!currentRoomId || !openSessionId) return;
+  const sObj = currentSessions.find((s) => s.id === openSessionId);
+  if (!sObj || sObj.status === "final") return;
+  if (openScores.length === 0) return;
+
+  try {
+    const ids = openScores.map((sc) => sc.playerId);
+    const ratings = await getPlayers(ids);
+    const input = openScores.map((sc) => ({
+      id: sc.playerId,
+      displayName: sc.displayName,
+      rating: ratings[sc.playerId]
+        ? {
+            mu: ratings[sc.playerId].mu,
+            sigma: ratings[sc.playerId].sigma,
+            matchesPlayed: ratings[sc.playerId].matchesPlayed || 0,
+          }
+        : newRating(),
+      score: sc.tricksWon || 0,
+    }));
+
+    const results = rankMatch(input).map((r) => ({
+      ...r,
+      apeClass: apeClass(r.apeScore),
+      apeStatus: apeStatus({
+        mu: r.mu,
+        sigma: r.sigma,
+        matchesPlayed: r.matchesPlayed,
+      }),
+    }));
+
+    await applyRankingResults(currentRoomId, openSessionId, results);
+  } catch (err) {
+    console.error("completeSession:", err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Leaderboard — Ape Score (TrueSkill), persisted in Firestore
+// ---------------------------------------------------------------------------
+let leaderboardUnsub = null;
+let leaderboard = [];
+
+function startLeaderboardSubscription() {
+  stopLeaderboardSubscription();
+  leaderboardUnsub = subscribeLeaderboard((players) => {
+    leaderboard = players;
+    renderLeaderboard();
+  });
+}
+
+function stopLeaderboardSubscription() {
+  if (leaderboardUnsub) {
+    leaderboardUnsub();
+    leaderboardUnsub = null;
+  }
+  leaderboard = [];
+}
+
+const APE_CLASS_EMOJI = {
+  Gibbon: "🐒",
+  Bonobo: "🐒",
+  Chimp: "🦧",
+  Orangutan: "🦧",
+  Gorilla: "🦍",
+  Silverback: "🦍",
+};
+
+function renderLeaderboard() {
+  const list = $("#leaderboard-list");
+  if (!list) return;
+  if (leaderboard.length === 0) {
+    list.innerHTML = `<p class="muted">No ranked players yet. Complete a session to put apes on the board.</p>`;
+    return;
+  }
+  list.innerHTML = leaderboard
+    .map((p, i) => {
+      const cls = p.apeClass || "Gibbon";
+      const status = p.apeStatus || "Provisional";
+      const momentum = p.momentum || 0;
+      const statusKey = status.toLowerCase().replace(/\s+/g, "-");
+      return `
+      <article class="rank-card">
+        <div class="rank-card__rank">#${i + 1}</div>
+        <div class="rank-card__main">
+          <div class="rank-card__name">${escapeHtml(p.displayName || "Player")}</div>
+          <div class="rank-card__labels">
+            <span class="ape-class">${APE_CLASS_EMOJI[cls] || "🐒"} ${escapeHtml(cls)}</span>
+            <span class="ape-status ape-status--${statusKey}">${escapeHtml(status)}</span>
+          </div>
+          <div class="rank-card__meta">
+            ${p.matchesPlayed || 0} match${(p.matchesPlayed || 0) === 1 ? "" : "es"} ·
+            <span class="momentum ${momentum >= 0 ? "up" : "down"}">
+              ${momentum >= 0 ? "▲" : "▼"} ${Math.abs(momentum)}
+            </span> momentum
+          </div>
+        </div>
+        <div class="rank-card__score">
+          <span class="rank-card__score-num">${p.apeScore ?? 0}</span>
+          <span class="rank-card__score-label">Ape Score</span>
+        </div>
+      </article>`;
+    })
+    .join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -719,12 +887,18 @@ onAuthChange((user) => {
   setSession(user);
   if (user) {
     startRoomsSubscription();
+    startLeaderboardSubscription();
   } else if (wasAuthed) {
     stopRoomsSubscription();
+    stopLeaderboardSubscription();
     renderRoomsList();
+    renderLeaderboard();
   }
 });
 
 // In case auth resolves synchronously from cache.
 setSession(currentUser());
-if (session) startRoomsSubscription();
+if (session) {
+  startRoomsSubscription();
+  startLeaderboardSubscription();
+}

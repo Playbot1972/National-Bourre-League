@@ -78,7 +78,13 @@ const {
   where,
   serverTimestamp,
   writeBatch,
+  arrayUnion,
 } = await import(`${CDN}/firebase-firestore.js`);
+
+// Initial TrueSkill rating for a brand-new player (kept in sync with
+// ranking.js; duplicated here so the data layer has no UI/logic dependency).
+const RATING_INITIAL = { mu: 25, sigma: 25 / 3, matchesPlayed: 0 };
+const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 
 const db = getFirestore(app);
 
@@ -325,6 +331,123 @@ export async function finalizeSession(roomId, sessionId) {
     status: "final",
     updatedAt: serverTimestamp(),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Players + Ape Score ranking (TrueSkill). See docs/ranking.js for the math.
+// players/{playerId}: { displayName, mu, sigma, matchesPlayed, apeScore,
+//                       apeClass, apeStatus, momentum, updatedAt }
+// playerId is the auth uid for signed-in users, or a generated id for guests
+// added to a table. Rankings are entertainment-only — never money.
+// ---------------------------------------------------------------------------
+const playerDoc = (playerId) => doc(db, "players", playerId);
+
+/** Create a player ranking doc with the initial rating if it doesn't exist. */
+export async function ensurePlayerDoc(playerId, displayName) {
+  const ref = playerDoc(playerId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      displayName,
+      mu: RATING_INITIAL.mu,
+      sigma: RATING_INITIAL.sigma,
+      matchesPlayed: 0,
+      apeScore: RATING_INITIAL_APE,
+      momentum: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else if (displayName && snap.data().displayName !== displayName) {
+    await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
+  }
+  return playerId;
+}
+
+/** Fetch current ratings for a set of player ids → { [id]: ratingData }. */
+export async function getPlayers(ids) {
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      const snap = await getDoc(playerDoc(id));
+      return [id, snap.exists() ? snap.data() : null];
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
+/** Real-time leaderboard: all players, sorted by Ape Score (desc). */
+export function subscribeLeaderboard(callback) {
+  return onSnapshot(collection(db, "players"), (snap) => {
+    callback(
+      snap.docs
+        .map(withId)
+        .sort(
+          (a, b) =>
+            (b.apeScore ?? 0) - (a.apeScore ?? 0) ||
+            (b.matchesPlayed ?? 0) - (a.matchesPlayed ?? 0),
+        ),
+    );
+  });
+}
+
+/** Add a (guest) player to an in-progress session, with a fresh score row. */
+export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
+  await ensurePlayerDoc(playerId, displayName);
+  const batch = writeBatch(db);
+  batch.update(sessionDoc(roomId, sessionId), {
+    players: arrayUnion({ playerId, displayName }),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(scoreDoc(roomId, sessionId, playerId), {
+    sessionId,
+    roomId,
+    playerId,
+    displayName,
+    tricksWon: 0,
+    riskPoints: 1,
+    total: 0,
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+}
+
+/**
+ * Persist ranking results from a completed session and finalize it.
+ * @param {string} roomId
+ * @param {string} sessionId
+ * @param {{id, displayName, placement, mu, sigma, matchesPlayed, apeScore,
+ *          apeClass, apeStatus, momentum}[]} results
+ */
+export async function applyRankingResults(roomId, sessionId, results) {
+  const batch = writeBatch(db);
+  results.forEach((r) => {
+    batch.set(
+      playerDoc(r.id),
+      {
+        displayName: r.displayName,
+        mu: r.mu,
+        sigma: r.sigma,
+        matchesPlayed: r.matchesPlayed,
+        apeScore: r.apeScore,
+        apeClass: r.apeClass,
+        apeStatus: r.apeStatus,
+        momentum: r.momentum,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  });
+  batch.update(sessionDoc(roomId, sessionId), {
+    status: "final",
+    results: results.map((r) => ({
+      playerId: r.id,
+      displayName: r.displayName,
+      placement: r.placement,
+      apeScore: r.apeScore,
+      momentum: r.momentum,
+    })),
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
 }
 
 // Firestore Timestamp | server placeholder | undefined → comparable seconds.

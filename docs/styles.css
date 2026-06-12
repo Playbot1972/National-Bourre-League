@@ -778,6 +778,148 @@ button {
   font-size: 12px;
 }
 
+/* Session controls + results */
+.session-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.add-player-form {
+  display: flex;
+  gap: 8px;
+}
+.session-results {
+  background: rgba(54, 185, 124, 0.1);
+  border: 1px solid rgba(54, 185, 124, 0.4);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.session-results h5 {
+  margin: 0 0 8px;
+  font-family: "Georgia", serif;
+  color: #b6f0d4;
+}
+.session-results ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+.session-results .place {
+  display: inline-block;
+  width: 28px;
+  color: var(--gold-300);
+  font-weight: 700;
+}
+
+.momentum {
+  font-weight: 600;
+}
+.momentum.up {
+  color: #6fe0a8;
+}
+.momentum.down {
+  color: #f0a39c;
+}
+
+/* Leaderboard cards */
+.leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.rank-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(7, 28, 20, 0.55);
+  border: 1px solid rgba(244, 213, 141, 0.18);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.rank-card__rank {
+  font-family: "Georgia", serif;
+  font-size: 22px;
+  color: var(--gold-300);
+  width: 42px;
+  flex: none;
+  text-align: center;
+}
+.rank-card__main {
+  flex: 1;
+  min-width: 0;
+}
+.rank-card__name {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.rank-card__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ape-class {
+  font-size: 13px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(244, 213, 141, 0.14);
+  border: 1px solid rgba(244, 213, 141, 0.4);
+  color: var(--gold-300);
+}
+.ape-status {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 201, 191, 0.4);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ape-status--provisional {
+  border-color: rgba(185, 201, 191, 0.5);
+  color: var(--text-dim);
+}
+.ape-status--heating-up {
+  border-color: var(--gold-400);
+  color: var(--gold-300);
+}
+.ape-status--locked-in {
+  border-color: #36b97c;
+  color: #b6f0d4;
+}
+.rank-card__meta {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.rank-card__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  min-width: 76px;
+}
+.rank-card__score-num {
+  font-family: "Georgia", serif;
+  font-size: 34px;
+  color: var(--gold-300);
+  line-height: 1;
+}
+.rank-card__score-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .footer {
   padding: 18px;
   text-align: center;

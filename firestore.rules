@@ -73,5 +73,15 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
+
+    // Player ranking docs ("Ape Score" — TrueSkill). Readable by any signed-in
+    // user (public leaderboard) and writable by signed-in users when a session
+    // is completed. Entertainment/skill only; never money.
+    // NOTE: For production you would likely move rating writes to a trusted
+    // server / Cloud Function so clients cannot tamper with their own ranking.
+    match /players/{playerId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
   }
 }
