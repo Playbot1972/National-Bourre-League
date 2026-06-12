@@ -480,6 +480,19 @@ function renderRoomDetail() {
     roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
     return;
   }
+
+  // Preserve an in-progress notes edit across re-renders (snapshots can fire
+  // while the user is typing). Capture value + caret if the notes field is
+  // focused, and restore it after the re-render below.
+  const activeNotes = document.activeElement;
+  const editingNotes =
+    activeNotes && activeNotes.id === "session-notes"
+      ? {
+          value: activeNotes.value,
+          start: activeNotes.selectionStart,
+          end: activeNotes.selectionEnd,
+        }
+      : null;
   const hr = currentRoom.houseRules || {};
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
 
@@ -545,6 +558,20 @@ function renderRoomDetail() {
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
   wireSessionControls();
+
+  // Restore an in-progress notes edit (see capture above).
+  if (editingNotes) {
+    const notesEl = $("#session-notes", roomDetailView);
+    if (notesEl) {
+      notesEl.value = editingNotes.value;
+      notesEl.focus();
+      try {
+        notesEl.setSelectionRange(editingNotes.start, editingNotes.end);
+      } catch {
+        /* ignore caret restore errors */
+      }
+    }
+  }
 }
 
 function renderSessionPanel(s) {
