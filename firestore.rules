@@ -3,11 +3,16 @@ rules_version = '2';
 // Firestore security rules for the National Bourré League social app.
 //
 // Data model (see docs/firestore.js for details):
-//   users/{uid}                    profile
-//   rooms/{roomId}                 inviteCode, ownerId, houseRules, status, createdAt
-//   roomMembers/{roomId}_{uid}     roomId, userId, displayName, role, joinedAt
-//   sessions/{sessionId}           roomId, players, rounds, notes, totals, ...
-//   scores/{sessionId}_{playerId}  per-player tricksWon, riskPoints, total
+//   users/{uid}                                    profile
+//   rooms/{roomId}                                 inviteCode, ownerId, houseRules, status, createdAt
+//   roomMembers/{roomId}_{uid}                     roomId, userId, displayName, role, joinedAt
+//   rooms/{roomId}/sessions/{sessionId}            players, rounds, notes, totals, ...
+//   rooms/{roomId}/sessions/{sId}/scores/{playerId} per-player tricksWon, riskPoints, total
+//
+// Sessions/scores are subcollections of the room so rules authorize them by the
+// {roomId} path wildcard. Top-level collections with a roomId field cannot be
+// used here: Firestore evaluates `list`/query rules without per-document
+// `resource.data`, so a `resource.data.roomId` check fails for queries.
 //
 // IMPORTANT: notes / tricksWon / riskPoints / total are informational
 // (scorekeeping + bragging rights). Nothing here represents money, and these
@@ -44,34 +49,29 @@ service cloud.firestore {
     }
 
     // Rooms: members can read; only the owner (as recorded on create) may
-    // create/update/delete the room document.
+    // create/update/delete the room document. Sessions and scores live as
+    // subcollections and are authorized by the {roomId} path wildcard.
     match /rooms/{roomId} {
       allow read: if isMember(roomId) || resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isRoomOwner(roomId);
+
+      // Any member of the room may read/write its sessions and scores.
+      match /sessions/{sessionId} {
+        allow read, write: if isMember(roomId);
+
+        match /scores/{scoreId} {
+          allow read, write: if isMember(roomId);
+        }
+      }
     }
 
     // Membership rows: any signed-in user can read (to look up rooms by invite);
-    // a user may only create or delete their OWN membership row.
+    // a user may only create / update / delete their OWN membership row.
     match /roomMembers/{memberId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
-    }
-
-    // Sessions: any member of the owning room can read and write.
-    match /sessions/{sessionId} {
-      allow read: if isMember(resource.data.roomId);
-      allow create: if isMember(request.resource.data.roomId);
-      allow update, delete: if isMember(resource.data.roomId);
-    }
-
-    // Scores: any member of the owning room can read and write.
-    match /scores/{scoreId} {
-      allow read: if isMember(resource.data.roomId);
-      allow create: if isMember(request.resource.data.roomId);
-      allow update, delete: if isMember(resource.data.roomId);
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
   }
 }

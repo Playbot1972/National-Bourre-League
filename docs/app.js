@@ -26,7 +26,6 @@ import {
   createSession,
   updateScore,
   updateSessionNotes,
-  finalizeSession,
 } from "./firestore.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -469,7 +468,7 @@ function closeRoom() {
 function openSession(sessionId) {
   if (scoresUnsub) scoresUnsub();
   openSessionId = sessionId;
-  scoresUnsub = subscribeScores(sessionId, (scores) => {
+  scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
     renderRoomDetail();
   });
@@ -621,19 +620,19 @@ function wireSessionControls() {
       btn.addEventListener("click", () => {
         const delta = Number(btn.dataset.scoreStep);
         const next = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
-        updateScore(openSessionId, playerId, { tricksWon: next }).catch((e) =>
-          console.error("updateScore:", e),
+        updateScore(currentRoomId, openSessionId, playerId, { tricksWon: next }).catch(
+          (e) => console.error("updateScore:", e),
         );
       }),
     );
     input.addEventListener("change", () => {
       const next = Math.max(0, parseInt(input.value, 10) || 0);
-      updateScore(openSessionId, playerId, { tricksWon: next }).catch((e) =>
-        console.error("updateScore:", e),
+      updateScore(currentRoomId, openSessionId, playerId, { tricksWon: next }).catch(
+        (e) => console.error("updateScore:", e),
       );
     });
     riskSelect.addEventListener("change", () => {
-      updateScore(openSessionId, playerId, {
+      updateScore(currentRoomId, openSessionId, playerId, {
         riskPoints: parseInt(riskSelect.value, 10),
       }).catch((e) => console.error("updateScore:", e));
     });
@@ -645,7 +644,7 @@ function wireSessionControls() {
     notes.addEventListener("input", () => {
       clearTimeout(t);
       t = setTimeout(() => {
-        updateSessionNotes(openSessionId, notes.value).catch((e) =>
+        updateSessionNotes(currentRoomId, openSessionId, notes.value).catch((e) =>
           console.error("updateSessionNotes:", e),
         );
       }, 500);

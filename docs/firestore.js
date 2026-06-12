@@ -16,16 +16,22 @@
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
 //   { roomId, userId, displayName, role: "owner" | "player", joinedAt }
 //
-// sessions/{sessionId}
+// rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
 //   { roomId, status: "in_progress" | "final", rounds,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
 //     totals: { byPlayer: { [playerId]: tricks }, tricks },
 //     createdAt, updatedAt }
 //
-// scores/{sessionId}_{playerId}       (one row per player per session)
+// rooms/{roomId}/sessions/{sessionId}/scores/{playerId}   (one row per player)
 //   { sessionId, roomId, playerId, displayName, tricksWon, riskPoints, total,
 //     updatedAt }
+//
+// Sessions + scores are nested UNDER the room so security rules can authorize
+// them by the {roomId} path wildcard. (Top-level collections with a roomId
+// field cannot be used in `list` rules — Firestore evaluates list/query rules
+// without per-document `resource.data`, so `resource.data.roomId` is undefined
+// there. Subcollections avoid that entirely and scale cleanly.)
 //
 // NOTE: `notes`, `riskPoints`, `tricksWon`, and `total` are for scorekeeping and
 // bragging rights only. Nothing in this schema represents currency, wallets, or
@@ -45,11 +51,11 @@
 //     allow create, delete: if request.auth.uid == request.resource.data.userId
 //                              || request.auth.uid == resource.data.userId;
 //   }
-//   match /sessions/{sessionId} {
-//     allow read, create, update: if isMember(resource.data.roomId);
-//   }
-//   match /scores/{scoreId} {
-//     allow read, write: if isMember(resource.data.roomId);
+//   match /rooms/{roomId}/sessions/{sessionId} {
+//     allow read, write: if isMember(roomId);          // roomId from the PATH
+//     match /scores/{scoreId} {
+//       allow read, write: if isMember(roomId);
+//     }
 //   }
 // ---------------------------------------------------------------------------
 
@@ -98,7 +104,6 @@ export function generateInviteCode() {
 }
 
 const memberId = (roomId, uid) => `${roomId}_${uid}`;
-const scoreId = (sessionId, playerId) => `${sessionId}_${playerId}`;
 
 function withId(snap) {
   return { id: snap.id, ...snap.data() };
@@ -226,10 +231,18 @@ export function subscribeRoomMembers(roomId, callback) {
 }
 
 // ---------------------------------------------------------------------------
-// Sessions + scores
+// Sessions + scores (subcollections under each room)
 // ---------------------------------------------------------------------------
+const sessionsCol = (roomId) => collection(db, "rooms", roomId, "sessions");
+const scoresCol = (roomId, sessionId) =>
+  collection(db, "rooms", roomId, "sessions", sessionId, "scores");
+const sessionDoc = (roomId, sessionId) =>
+  doc(db, "rooms", roomId, "sessions", sessionId);
+const scoreDoc = (roomId, sessionId, playerId) =>
+  doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
+
 export async function createSession(roomId, players) {
-  const sessionRef = doc(collection(db, "sessions"));
+  const sessionRef = doc(sessionsCol(roomId));
   const batch = writeBatch(db);
   batch.set(sessionRef, {
     roomId,
@@ -242,7 +255,7 @@ export async function createSession(roomId, players) {
     updatedAt: serverTimestamp(),
   });
   players.forEach((p) => {
-    batch.set(doc(db, "scores", scoreId(sessionRef.id, p.playerId)), {
+    batch.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
       sessionId: sessionRef.id,
       roomId,
       playerId: p.playerId,
@@ -258,8 +271,7 @@ export async function createSession(roomId, players) {
 }
 
 export function subscribeSessions(roomId, callback) {
-  const q = query(collection(db, "sessions"), where("roomId", "==", roomId));
-  return onSnapshot(q, (snap) => {
+  return onSnapshot(sessionsCol(roomId), (snap) => {
     callback(
       snap.docs
         .map(withId)
@@ -268,53 +280,48 @@ export function subscribeSessions(roomId, callback) {
   });
 }
 
-export function subscribeScores(sessionId, callback) {
-  const q = query(collection(db, "scores"), where("sessionId", "==", sessionId));
-  return onSnapshot(q, (snap) => {
+export function subscribeScores(roomId, sessionId, callback) {
+  return onSnapshot(scoresCol(roomId, sessionId), (snap) => {
     callback(snap.docs.map(withId).sort((a, b) => b.total - a.total));
   });
 }
 
 /** Update one player's score row, then recompute the session totals. */
-export async function updateScore(sessionId, playerId, fields) {
-  const ref = doc(db, "scores", scoreId(sessionId, playerId));
+export async function updateScore(roomId, sessionId, playerId, fields) {
   const patch = { ...fields, updatedAt: serverTimestamp() };
   if (typeof fields.tricksWon === "number") {
     patch.total = Math.max(0, fields.tricksWon); // bragging-rights total only
   }
-  await updateDoc(ref, patch);
-  await recomputeSessionTotals(sessionId);
+  await updateDoc(scoreDoc(roomId, sessionId, playerId), patch);
+  await recomputeSessionTotals(roomId, sessionId);
 }
 
-export async function recomputeSessionTotals(sessionId) {
-  const q = query(collection(db, "scores"), where("sessionId", "==", sessionId));
-  const snap = await getDocs(q);
+export async function recomputeSessionTotals(roomId, sessionId) {
+  const snap = await getDocs(scoresCol(roomId, sessionId));
   const byPlayer = {};
   let tricks = 0;
-  let rounds = 0;
   snap.docs.forEach((d) => {
     const s = d.data();
     byPlayer[s.playerId] = s.tricksWon || 0;
     tricks += s.tricksWon || 0;
   });
-  rounds = tricks; // each trick won counts as a played round in this simple model
-  await updateDoc(doc(db, "sessions", sessionId), {
+  await updateDoc(sessionDoc(roomId, sessionId), {
     totals: { byPlayer, tricks },
-    rounds,
+    rounds: tricks, // each trick won counts as a played round in this simple model
     updatedAt: serverTimestamp(),
   });
 }
 
 /** Notes are informational only — never money. */
-export async function updateSessionNotes(sessionId, notes) {
-  await updateDoc(doc(db, "sessions", sessionId), {
+export async function updateSessionNotes(roomId, sessionId, notes) {
+  await updateDoc(sessionDoc(roomId, sessionId), {
     notes: String(notes).slice(0, 2000),
     updatedAt: serverTimestamp(),
   });
 }
 
-export async function finalizeSession(sessionId) {
-  await updateDoc(doc(db, "sessions", sessionId), {
+export async function finalizeSession(roomId, sessionId) {
+  await updateDoc(sessionDoc(roomId, sessionId), {
     status: "final",
     updatedAt: serverTimestamp(),
   });
