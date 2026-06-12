@@ -24,7 +24,9 @@ const {
   signOut,
 } = await import(`${CDN}/firebase-auth.js`);
 
-const app = initializeApp(firebaseConfig);
+// Initialize once and share the FirebaseApp instance with other modules
+// (e.g. firestore.js) so they don't call initializeApp again.
+export const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
 // Connect to the local Auth emulator during development.

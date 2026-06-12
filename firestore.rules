@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// Firestore security rules for the National Bourré League social app.
+//
+// Data model (see docs/firestore.js for details):
+//   users/{uid}                    profile
+//   rooms/{roomId}                 inviteCode, ownerId, houseRules, status, createdAt
+//   roomMembers/{roomId}_{uid}     roomId, userId, displayName, role, joinedAt
+//   sessions/{sessionId}           roomId, players, rounds, notes, totals, ...
+//   scores/{sessionId}_{playerId}  per-player tricksWon, riskPoints, total
+//
+// IMPORTANT: notes / tricksWon / riskPoints / total are informational
+// (scorekeeping + bragging rights). Nothing here represents money, and these
+// rules do not grant any money-movement capability.
+//
+// These rules are a SAMPLE/STARTING POINT. Review before deploying to prod.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // True if the current user has a membership row for the given room.
+    function isMember(roomId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/roomMembers/$(roomId + '_' + request.auth.uid));
+    }
+
+    function isRoomOwner(roomId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerId == request.auth.uid;
+    }
+
+    // Users can read any profile but only write their own.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isUser(uid);
+    }
+
+    // Rooms: members can read; only the owner (as recorded on create) may
+    // create/update/delete the room document.
+    match /rooms/{roomId} {
+      allow read: if isMember(roomId) || resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isRoomOwner(roomId);
+    }
+
+    // Membership rows: any signed-in user can read (to look up rooms by invite);
+    // a user may only create or delete their OWN membership row.
+    match /roomMembers/{memberId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // Sessions: any member of the owning room can read and write.
+    match /sessions/{sessionId} {
+      allow read: if isMember(resource.data.roomId);
+      allow create: if isMember(request.resource.data.roomId);
+      allow update, delete: if isMember(resource.data.roomId);
+    }
+
+    // Scores: any member of the owning room can read and write.
+    match /scores/{scoreId} {
+      allow read: if isMember(resource.data.roomId);
+      allow create: if isMember(request.resource.data.roomId);
+      allow update, delete: if isMember(resource.data.roomId);
+    }
+  }
+}

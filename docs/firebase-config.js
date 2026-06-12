@@ -28,3 +28,10 @@ const isLocalhost =
   (location.hostname === "localhost" || location.hostname === "127.0.0.1");
 
 export const AUTH_EMULATOR_URL = isLocalhost ? "http://127.0.0.1:9099" : null;
+
+// Firestore emulator (local dev only). Port 8088 to avoid clashing with the
+// static dev server on 8080. In production this is null and the real Firestore
+// backend is used.
+export const FIRESTORE_EMULATOR = isLocalhost
+  ? { host: "127.0.0.1", port: 8088 }
+  : null;
