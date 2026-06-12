@@ -20,11 +20,17 @@ Leagues. There is no money/wallet functionality.
 
 - Copy your Firebase web config into `docs/firebase-config.js` (it ships as a
   placeholder). The SDK loads from the gstatic CDN, so no build step is needed.
-- Local development uses the Firebase Auth emulator automatically when served from
-  `localhost`:
+- Private rooms are persisted to **Firestore** (`docs/firestore.js`): collections
+  for `users`, `rooms`, `roomMembers`, and—nested under each room—`sessions` and
+  `scores`. Rooms carry an invite code, owner, house rules, status, and created
+  time; sessions store players, rounds, tricks won, risk points, notes, and
+  totals. Notes are informational only and never represent money. Live updates use
+  Firestore `onSnapshot`. Sample security rules are in `firestore.rules`.
+- Local development uses the Firebase **Auth + Firestore emulators** automatically
+  when served from `localhost`:
 
   ```bash
-  npm run emulators   # Firebase Auth emulator (needs Java)
+  npm run emulators   # Auth (9099) + Firestore (8088) emulators (needs Java)
   npm run social      # serve docs/ at http://localhost:8080
   ```
 

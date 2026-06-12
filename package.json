@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "social": "npx serve docs -l 8080",
-    "emulators": "firebase emulators:start --only auth --project demo-national-bourre-league"
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {
     "react": "^19.2.6",

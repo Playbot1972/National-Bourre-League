@@ -18,8 +18,9 @@ This repo contains two front-ends:
   placeholders) and `tutorial.ts` (the step-by-step hand walkthrough).
 - `src/types.ts` — `Card`/`Suit`/`Rank` model and helpers.
 - `docs/` — the static social app: `index.html`, `styles.css`, `firebase-config.js`
-  (placeholder config), `auth.js` (Firebase Auth wrapper), `app.js` (session +
-  protected views). No payment/wallet/money features anywhere.
+  (placeholder config), `auth.js` (Firebase Auth wrapper), `firestore.js`
+  (Firestore data model + persistence), `app.js` (session + protected views).
+  `firestore.rules` holds sample security rules. No payment/wallet/money features.
 
 ## Cursor Cloud specific instructions
 
@@ -43,10 +44,31 @@ This repo contains two front-ends:
 - `firebase-config.js` is a **placeholder**; real keys are not committed. It
   auto-connects to the Firebase **Auth emulator** when served from `localhost`
   (`AUTH_EMULATOR_URL`), so local dev needs no real Firebase project.
-- To exercise auth locally, start the emulator with `npm run emulators` (Auth on
-  `127.0.0.1:9099`, emulator UI on `:4000`; requires Java, already present). Then
-  open the app via `localhost:8080`. Clear test users with:
-  `curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts"`.
+- To exercise auth + data locally, start the emulators with `npm run emulators`
+  (Auth on `127.0.0.1:9099`, Firestore on `127.0.0.1:8088`, emulator UI on `:4000`;
+  requires Java, already present). Then open the app via `localhost:8080`. Clear
+  test data with:
+  `curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts"`
+  and
+  `curl -X DELETE "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents"`.
+  (Firestore emulator uses port 8088 so it doesn't clash with the static server on 8080.)
+
+### Firestore data model (`docs/firestore.js` + `firestore.rules`)
+
+- Collections: `users`, `rooms`, `roomMembers` (flat, id `${roomId}_${uid}` for
+  easy membership lookups), and `sessions` + `scores` nested **under each room**
+  (`rooms/{roomId}/sessions/{sessionId}/scores/{playerId}`).
+- Gotcha (important): sessions/scores are subcollections on purpose. A top-level
+  collection with a `roomId` field CANNOT be authorized for `list`/query in
+  security rules — Firestore evaluates list rules without per-document
+  `resource.data`, so `resource.data.roomId` is undefined and the query is denied
+  (this broke `recomputeSessionTotals`). Subcollections let rules authorize via the
+  `{roomId}` path wildcard (`isMember(roomId)`), which works for queries.
+- Live updates use `onSnapshot`. `renderRoomDetail()` rebuilds the panel on every
+  snapshot, so the notes textarea preserves its value/caret across re-renders when
+  focused — keep that logic if you refactor, or typing into notes will be wiped.
+- Notes / tricksWon / riskPoints / totals are informational scorekeeping only;
+  nothing represents money. Keep it that way (rules grant no money capability).
 - Gotcha: anything toggled via the HTML `hidden` attribute must keep working even
   when its CSS class sets `display`. `styles.css` has a global
   `[hidden]{display:none!important}` reset — keep it, or modals/menus render
