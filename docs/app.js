@@ -133,6 +133,11 @@ authForm.addEventListener("submit", async (event) => {
     if (mode === "signup") {
       const user = await signUpWithEmail({ name, email, password });
       setSession(user);
+      // Ensure the ranking doc carries the chosen display name (the auth-state
+      // listener may have created it with the email-prefix fallback first).
+      ensurePlayerDoc(user.uid, user.displayName).catch((e) =>
+        console.warn("ensurePlayerDoc:", e),
+      );
     } else {
       await signInWithEmail({ email, password });
     }
