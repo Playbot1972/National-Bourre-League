@@ -1,0 +1,24 @@
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.hand__slot {
+  display: flex;
+}
+
+.hand--fan {
+  gap: 0;
+}
+.hand--fan .hand__slot:not(:first-child) {
+  margin-left: -18px;
+}
+.hand--fan .hand__slot {
+  transition: transform 160ms ease;
+}
+.hand--fan .hand__slot:hover {
+  z-index: 2;
+}

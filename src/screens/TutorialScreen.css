@@ -1,0 +1,244 @@
+.tut {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.tut__head {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.tut__head h1 {
+  font-size: clamp(28px, 5vw, 44px);
+}
+
+.tut__dots {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.tut__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(244, 213, 141, 0.5);
+  background: transparent;
+  padding: 0;
+  transition: all 160ms ease;
+}
+.tut__dot.is-done {
+  background: rgba(244, 213, 141, 0.45);
+}
+.tut__dot.is-active {
+  background: var(--gold-300);
+  transform: scale(1.25);
+  box-shadow: 0 0 0 4px rgba(244, 213, 141, 0.2);
+}
+
+.tut__stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  animation: fade-in 240ms ease;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tut__phase {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-300);
+  font-weight: 600;
+}
+.tut__title {
+  font-size: clamp(22px, 3.5vw, 30px);
+}
+
+.tut__visual {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.tut__narration {
+  max-width: 64ch;
+  color: var(--text-dim);
+  line-height: 1.65;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tut__narration p {
+  margin: 0;
+}
+
+.tut__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tut__counter {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* Trump badge */
+.tut__trump {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.tut__trump-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold-300);
+}
+
+.tut__hand-label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  letter-spacing: 0.04em;
+}
+
+.tut__intro {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+}
+
+.tut__deal,
+.tut__draw,
+.tut__trick,
+.tut__interactive {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+}
+
+.tut__reco {
+  margin: 0;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(54, 185, 124, 0.14);
+  border: 1px solid rgba(54, 185, 124, 0.5);
+  color: #b6f0d4;
+  font-size: 14px;
+}
+
+.tut__draw-arrow {
+  color: var(--gold-300);
+  letter-spacing: 0.2em;
+  font-size: 13px;
+}
+.tut__draw-row {
+  text-align: center;
+}
+
+.tut__trick-plays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  justify-content: center;
+  align-items: flex-end;
+}
+.tut__play {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 130px;
+}
+.tut__play-player {
+  font-size: 13px;
+  color: var(--gold-300);
+  font-weight: 600;
+}
+.tut__play-note {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.tut__led,
+.tut__pick {
+  text-align: center;
+}
+
+.tut__feedback {
+  max-width: 60ch;
+  margin: 0;
+  padding: 12px 18px;
+  border-radius: 12px;
+  line-height: 1.5;
+  font-size: 14px;
+  animation: fade-in 200ms ease;
+}
+.tut__feedback.is-correct {
+  background: rgba(54, 185, 124, 0.16);
+  border: 1px solid rgba(54, 185, 124, 0.55);
+  color: #c2f3da;
+}
+.tut__feedback.is-ok {
+  background: rgba(244, 213, 141, 0.14);
+  border: 1px solid rgba(244, 213, 141, 0.5);
+  color: var(--gold-300);
+}
+.tut__feedback.is-wrong {
+  background: rgba(192, 50, 43, 0.16);
+  border: 1px solid rgba(192, 50, 43, 0.55);
+  color: #f3b9b5;
+}
+
+.tut__summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.tut__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.tut__score-num {
+  font-size: 64px;
+  font-family: "Georgia", serif;
+  color: var(--gold-300);
+  line-height: 1;
+}
+.tut__score-label {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.tut__summary-cards {
+  display: flex;
+  gap: 12px;
+}
+.tut__pot {
+  font-size: 20px;
+  color: var(--text-light);
+  margin: 0;
+}
