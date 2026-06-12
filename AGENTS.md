@@ -19,7 +19,8 @@ This repo contains two front-ends:
 - `src/types.ts` — `Card`/`Suit`/`Rank` model and helpers.
 - `docs/` — the static social app: `index.html`, `styles.css`, `firebase-config.js`
   (placeholder config), `auth.js` (Firebase Auth wrapper), `firestore.js`
-  (Firestore data model + persistence), `app.js` (session + protected views).
+  (Firestore data model + persistence), `ranking.js` (TrueSkill "Ape Score"
+  engine, pure/no-deps), `app.js` (session + protected views + leaderboard).
   `firestore.rules` holds sample security rules. No payment/wallet/money features.
 
 ## Cursor Cloud specific instructions
@@ -69,6 +70,21 @@ This repo contains two front-ends:
   focused — keep that logic if you refactor, or typing into notes will be wiped.
 - Notes / tricksWon / riskPoints / totals are informational scorekeeping only;
   nothing represents money. Keep it that way (rules grant no money capability).
+
+### Ape Score ranking (`docs/ranking.js` + `players` collection)
+
+- `ranking.js` is a pure, dependency-free, documented TrueSkill-inspired engine
+  (easy to unit-test with `node`). Public formula: `round(max(0, mu − 3*sigma))`;
+  new players start `mu=25`, `sigma=25/3`. Multiplayer update is an averaged
+  pairwise TrueSkill approximation (ranked by tricks won; ties = draws). Exposes
+  `rankMatch`, `apeScore`, `apeClass`, `apeStatus`, `newRating`.
+- Ratings persist in the top-level `players` collection (id = uid for accounts, or
+  a generated `guest_*` id for table guests). Completing a session
+  (`applyRankingResults`) writes every participant's new rating + finalizes the
+  session with per-player results; the Leaderboard view reads `players` live.
+- Entertainment/skill only — never money. If you harden for production, move
+  rating writes server-side (Cloud Function) so clients can't edit their own rank;
+  the sample rule currently allows any signed-in write to `players`.
 - Gotcha: anything toggled via the HTML `hidden` attribute must keep working even
   when its CSS class sets `display`. `styles.css` has a global
   `[hidden]{display:none!important}` reset — keep it, or modals/menus render

@@ -21,11 +21,19 @@ Leagues. There is no money/wallet functionality.
 - Copy your Firebase web config into `docs/firebase-config.js` (it ships as a
   placeholder). The SDK loads from the gstatic CDN, so no build step is needed.
 - Private rooms are persisted to **Firestore** (`docs/firestore.js`): collections
-  for `users`, `rooms`, `roomMembers`, and—nested under each room—`sessions` and
-  `scores`. Rooms carry an invite code, owner, house rules, status, and created
-  time; sessions store players, rounds, tricks won, risk points, notes, and
-  totals. Notes are informational only and never represent money. Live updates use
-  Firestore `onSnapshot`. Sample security rules are in `firestore.rules`.
+  for `users`, `rooms`, `roomMembers`, `players` (rankings), and—nested under each
+  room—`sessions` and `scores`. Rooms carry an invite code, owner, house rules,
+  status, and created time; sessions store players, rounds, tricks won, risk
+  points, notes, and totals. Notes are informational only and never represent
+  money. Live updates use Firestore `onSnapshot`. Sample security rules are in
+  `firestore.rules`.
+- **Ape Score** (`docs/ranking.js`) is a TrueSkill-inspired, skill-only ranking
+  (entertainment only — never tied to money/payouts/rewards). Each player tracks
+  `mu`/`sigma`/`matchesPlayed` (new players start at `mu=25`, `sigma=25/3`). The
+  public score is `round(max(0, mu − 3·sigma))`. Completing a multiplayer session
+  ranks players by tricks won and updates every player's rating. Players get an
+  **Ape Class** (Gibbon → Silverback) and **Ape Status** (Provisional / Heating Up
+  / Locked In), shown with momentum and matches played on the Leaderboard.
 - Local development uses the Firebase **Auth + Firestore emulators** automatically
   when served from `localhost`:
 
