@@ -2,9 +2,10 @@ import { useState } from "react";
 import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
+import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import "./App.css";
 
-export type Screen = "home" | "rules" | "tutorial";
+export type Screen = "home" | "rules" | "tutorial" | "room";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
@@ -35,6 +36,12 @@ export default function App() {
           >
             Tutorial
           </button>
+          <button
+            className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
+            onClick={() => setScreen("room")}
+          >
+            Private Room
+          </button>
         </nav>
       </header>
 
@@ -42,6 +49,7 @@ export default function App() {
         {screen === "home" && <HomeScreen onNavigate={setScreen} />}
         {screen === "rules" && <RulesScreen />}
         {screen === "tutorial" && <TutorialScreen />}
+        {screen === "room" && <PrivateRoomScreen />}
       </main>
 
       <footer className="app__footer">
