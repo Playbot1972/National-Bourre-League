@@ -922,8 +922,17 @@ button {
 .score-table .net-down {
   color: #e5989b;
 }
+.score-table .hand-trick-leader {
+  color: var(--gold-300);
+  font-weight: 600;
+}
+.score-table .hand-winner-row td:first-child {
+  font-weight: 600;
+}
 .score-table .net-imbalance {
   color: #f5b041;
+}
+
 }
 
 .settlement-actions {

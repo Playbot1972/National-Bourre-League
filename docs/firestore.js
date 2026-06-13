@@ -105,6 +105,32 @@ const db = getFirestore(app);
 export const BOURRE_TRICKS_TO_WIN = 3;
 export const MAX_TRICKS_PER_HAND = 5;
 
+/** Who leads this hand from trick counts (ties at 3+ are co-winners). */
+export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
+  const participants = [...new Set((participantIds || []).filter(Boolean))];
+  if (participants.length < 2) {
+    return { ready: false, winnerIds: [], maxTricks: 0 };
+  }
+  let maxTricks = 0;
+  for (const pid of participants) {
+    maxTricks = Math.max(maxTricks, tricksByPlayer?.[pid] || 0);
+  }
+  if (maxTricks < BOURRE_TRICKS_TO_WIN) {
+    return { ready: false, winnerIds: [], maxTricks };
+  }
+  const winnerIds = participants.filter((pid) => (tricksByPlayer?.[pid] || 0) === maxTricks);
+  return { ready: true, winnerIds, maxTricks };
+}
+
+function sameCoWinProposal(a, b) {
+  if (!a || !b) return false;
+  const ap = [...(a.participantIds || [])].sort().join(",");
+  const bp = [...(b.participantIds || [])].sort().join(",");
+  const aw = [...(a.winnerIds || [])].sort().join(",");
+  const bw = [...(b.winnerIds || [])].sort().join(",");
+  return ap === bp && aw === bw;
+}
+
 if (FIRESTORE_EMULATOR) {
   try {
     connectFirestoreEmulator(db, FIRESTORE_EMULATOR.host, FIRESTORE_EMULATOR.port);
@@ -661,12 +687,27 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
 
   tricksByPlayer[playerId] = next;
 
-  if (next >= BOURRE_TRICKS_TO_WIN) {
-    if (participantIds.length < 2) {
-      throw new Error("At least two players must be in the hand");
+  const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+
+  if (!ready) {
+    const patch = {
+      currentHand: { tricksByPlayer, participantIds },
+      updatedAt: serverTimestamp(),
+    };
+    if (sessionData.pendingCoWinSettlement) {
+      patch.pendingCoWinSettlement = deleteField();
     }
+    await updateDoc(sessionDoc(roomId, sessionId), patch);
+    return;
+  }
+
+  if (participantIds.length < 2) {
+    throw new Error("At least two players must be in the hand");
+  }
+
+  if (winnerIds.length === 1) {
     await recordHand(roomId, sessionId, {
-      winnerIds: [playerId],
+      winnerIds,
       participantIds,
       settlement: "win",
       recordedBy,
@@ -674,8 +715,15 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
     return;
   }
 
+  const pending = sessionData.pendingCoWinSettlement;
+  const proposal = { participantIds, winnerIds };
+  const nextPending = sameCoWinProposal(pending, proposal)
+    ? pending
+    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+
   await updateDoc(sessionDoc(roomId, sessionId), {
     currentHand: { tricksByPlayer, participantIds },
+    pendingCoWinSettlement: nextPending,
     updatedAt: serverTimestamp(),
   });
 }
