@@ -164,3 +164,8 @@ Create the service account in Google Cloud → IAM → Service accounts → Crea
 Grant **Firebase Hosting Admin** and **Firebase Rules Admin** (or **Firebase Admin**).
 Generate a JSON key and paste the entire file into `FIREBASE_SERVICE_ACCOUNT`.
 You can also trigger a manual deploy from the Actions tab via **workflow_dispatch**.
+
+**Automated one-time setup:** on your machine (with `firebase login` and `gh auth login`),
+run `./scripts/one-time-setup.sh [project-id] [auth-domain]`. It creates the Firebase
+project (if needed), prompts for web-app config, creates a deploy service account,
+sets all GitHub secrets, and runs the first deploy. Default domain: `booray.win`.

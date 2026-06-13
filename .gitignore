@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 .firebase
+.firebase-sa-key.json
 dist-ssr
 *.local
 
