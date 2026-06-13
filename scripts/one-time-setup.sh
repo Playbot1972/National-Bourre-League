@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # One-time production setup for booray.win
 #
-# Prerequisites (run once on your machine):
-#   npm install -g firebase-tools
-#   firebase login
-#   gh auth login          # needs repo admin to set secrets
-#   gcloud auth login      # optional; uses Firebase/GCP project IAM
+# No global installs required — uses firebase-tools from npm devDependencies.
+#
+# Before running:
+#   cd National-Bourre-League
+#   npm ci
+#   npx firebase login
+#   (optional) brew install gh && gh auth login   — or set secrets in GitHub UI
 #
 # Usage:
 #   ./scripts/one-time-setup.sh [project-id] [auth-domain]
@@ -22,30 +24,43 @@ REGION="us-central1"
 SA_NAME="github-firebase-deploy"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FB="npx firebase"
 
 cd "$ROOT"
 
+echo "==> Installing local dependencies…"
+npm ci
+
 echo "==> Checking prerequisites…"
-command -v firebase >/dev/null || { echo "Install firebase-tools: npm i -g firebase-tools"; exit 1; }
-command -v gh >/dev/null || { echo "Install GitHub CLI: https://cli.github.com"; exit 1; }
-firebase login:list 2>/dev/null | grep -q "Logged in" || { echo "Run: firebase login"; exit 1; }
-gh auth status >/dev/null 2>&1 || { echo "Run: gh auth login"; exit 1; }
+if ! $FB login:list 2>/dev/null | grep -q "Logged in"; then
+  echo "Not logged in to Firebase. Run:"
+  echo "  npx firebase login"
+  exit 1
+fi
+
+HAS_GH=false
+if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+  HAS_GH=true
+else
+  echo "    GitHub CLI (gh) not available — secrets will be printed for manual entry."
+  echo "    Install later: brew install gh && gh auth login"
+fi
 
 echo "==> Firebase project: ${PROJECT_ID}"
-if ! firebase projects:list 2>/dev/null | grep -q "${PROJECT_ID}"; then
+if ! $FB projects:list 2>/dev/null | grep -q "${PROJECT_ID}"; then
   echo "    Creating project (may take a minute)…"
-  firebase projects:create "${PROJECT_ID}" --display-name "${DISPLAY_NAME}"
+  $FB projects:create "${PROJECT_ID}" --display-name "${DISPLAY_NAME}"
 else
   echo "    Project already exists."
 fi
 
-firebase use "${PROJECT_ID}"
+$FB use "${PROJECT_ID}"
 
 echo "==> Enabling Firestore…"
-if firebase firestore:databases:list 2>/dev/null | grep -q "(default)"; then
+if $FB firestore:databases:list 2>/dev/null | grep -q "(default)"; then
   echo "    Firestore already enabled."
 else
-  firebase firestore:databases:create "(default)" --location "${REGION}" || true
+  $FB firestore:databases:create "(default)" --location "${REGION}" || true
 fi
 
 echo "==> Writing .firebaserc"
@@ -83,6 +98,7 @@ export FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN="${AUTH_DOMAIN}" FIREBASE_PROJECT_I
 node scripts/write-firebase-config.js
 
 echo "==> Service account for GitHub Actions…"
+KEY_FILE="${ROOT}/.firebase-sa-key.json"
 if command -v gcloud >/dev/null; then
   gcloud config set project "${PROJECT_ID}" 2>/dev/null || true
   if ! gcloud iam service-accounts describe "${SA_EMAIL}" >/dev/null 2>&1; then
@@ -95,7 +111,6 @@ if command -v gcloud >/dev/null; then
       --role "${ROLE}" \
       --quiet >/dev/null
   done
-  KEY_FILE="${ROOT}/.firebase-sa-key.json"
   gcloud iam service-accounts keys create "${KEY_FILE}" \
     --iam-account "${SA_EMAIL}"
   echo "    Service account key: ${KEY_FILE}"
@@ -103,20 +118,43 @@ else
   echo "    gcloud not found — create a service account manually:"
   echo "    https://console.cloud.google.com/iam-admin/serviceaccounts?project=${PROJECT_ID}"
   echo "    Roles: Firebase Hosting Admin + Firebase Rules Admin"
-  read -r -p "Path to downloaded JSON key file: " KEY_FILE
+  echo "    Download JSON key, then save it as: ${KEY_FILE}"
+  read -r -p "Press Enter when the key file is saved at ${KEY_FILE}…"
+  if [[ ! -f "${KEY_FILE}" ]]; then
+    read -r -p "Or paste path to downloaded JSON key file: " KEY_FILE
+  fi
 fi
 
-echo "==> Setting GitHub Actions secrets…"
-gh secret set FIREBASE_API_KEY --body "${FIREBASE_API_KEY}"
-gh secret set FIREBASE_AUTH_DOMAIN --body "${AUTH_DOMAIN}"
-gh secret set FIREBASE_PROJECT_ID --body "${PROJECT_ID}"
-gh secret set FIREBASE_APP_ID --body "${FIREBASE_APP_ID}"
-gh secret set FIREBASE_SERVICE_ACCOUNT < "${KEY_FILE}"
+if [[ ! -f "${KEY_FILE}" ]]; then
+  echo "Service account key file not found."
+  exit 1
+fi
+
+echo "==> GitHub Actions secrets…"
+if $HAS_GH; then
+  gh secret set FIREBASE_API_KEY --body "${FIREBASE_API_KEY}"
+  gh secret set FIREBASE_AUTH_DOMAIN --body "${AUTH_DOMAIN}"
+  gh secret set FIREBASE_PROJECT_ID --body "${PROJECT_ID}"
+  gh secret set FIREBASE_APP_ID --body "${FIREBASE_APP_ID}"
+  gh secret set FIREBASE_SERVICE_ACCOUNT < "${KEY_FILE}"
+  echo "    Secrets set via gh."
+else
+  echo ""
+  echo "    Add these at:"
+  echo "    https://github.com/Playbot1972/National-Bourre-League/settings/secrets/actions"
+  echo ""
+  echo "    FIREBASE_API_KEY          = ${FIREBASE_API_KEY}"
+  echo "    FIREBASE_AUTH_DOMAIN      = ${AUTH_DOMAIN}"
+  echo "    FIREBASE_PROJECT_ID       = ${PROJECT_ID}"
+  echo "    FIREBASE_APP_ID           = ${FIREBASE_APP_ID}"
+  echo "    FIREBASE_SERVICE_ACCOUNT  = (paste entire contents of ${KEY_FILE})"
+  echo ""
+  read -r -p "Press Enter after adding secrets in GitHub…"
+fi
 
 echo "==> First deploy (Hosting + Firestore rules)…"
-npm ci
 npm run build:hosting
-firebase deploy --only hosting,firestore:rules --project "${PROJECT_ID}"
+$FB deploy --only hosting,firestore:rules --project "${PROJECT_ID}"
 
 echo ""
 echo "==> Custom domain (${AUTH_DOMAIN})"

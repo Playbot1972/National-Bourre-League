@@ -11,8 +11,9 @@
     "social": "npx serve docs -l 8080",
     "build:hosting": "npm run build && node scripts/prepare-hosting.js",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
-    "deploy": "npm run build:hosting && firebase deploy --only hosting,firestore:rules",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
+    "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
+    "setup": "./scripts/one-time-setup.sh",
+    "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {
     "react": "^19.2.6",
