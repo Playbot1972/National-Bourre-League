@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>National Bourré League · Social</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#home">
+        <span class="brand__mark">&spades;</span>
+        <span class="brand__text">National <em>Bourré</em> League</span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <a class="nav__link" href="/">Tutorial</a>
+        <a class="nav__link" href="#home">Home</a>
+        <a class="nav__link" href="#rooms" data-requires-auth>Private Rooms</a>
+        <a class="nav__link" href="#leaderboard" data-requires-auth>Leaderboard</a>
+        <a class="nav__link" href="#leagues" data-requires-auth>Leagues</a>
+      </nav>
+
+      <!-- Auth controls: swapped by app.js depending on session -->
+      <div class="auth-controls">
+        <!-- Logged-out -->
+        <div class="auth-controls__out" data-auth-state="logged-out">
+          <button class="btn" id="open-signin">Sign in</button>
+          <button class="btn btn--primary" id="open-signup">Create account</button>
+        </div>
+
+        <!-- Logged-in: profile dropdown -->
+        <div class="auth-controls__in" data-auth-state="logged-in" hidden>
+          <div class="profile" id="profile">
+            <button
+              class="profile__trigger"
+              id="profile-trigger"
+              aria-haspopup="true"
+              aria-expanded="false"
+            >
+              <img class="profile__avatar" id="profile-avatar" alt="" />
+              <span class="profile__avatar-fallback" id="profile-avatar-fallback"></span>
+              <span class="profile__name" id="profile-name">Player</span>
+              <span class="profile__caret" aria-hidden="true">&#9662;</span>
+            </button>
+            <div class="profile__menu" id="profile-menu" role="menu" hidden>
+              <div class="profile__header">
+                <img class="profile__menu-avatar" id="profile-menu-avatar" alt="" />
+                <span class="profile__menu-avatar-fallback" id="profile-menu-avatar-fallback"></span>
+                <div>
+                  <div class="profile__menu-name" id="profile-menu-name">Player</div>
+                  <div class="profile__menu-email" id="profile-menu-email"></div>
+                </div>
+              </div>
+              <a class="profile__menu-item" href="#rooms" role="menuitem">My Private Rooms</a>
+              <a class="profile__menu-item" href="#leagues" role="menuitem">My Leagues</a>
+              <button class="profile__menu-item profile__menu-item--danger" id="sign-out" role="menuitem">
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <!-- Home (public) -->
+      <section class="view" id="view-home">
+        <p class="eyebrow">Louisiana's trick-taking classic, together</p>
+        <h1 class="hero-title">Play <em>Bourré</em> with your crew</h1>
+        <p class="hero-lede">
+          Sign in to spin up private rooms and run friendly leagues with friends.
+          Scores and bragging rights only — never money.
+        </p>
+        <div class="hero-cta" data-auth-state="logged-out">
+          <button class="btn btn--primary" id="hero-signup">Create your account</button>
+          <button class="btn" id="hero-signin">Sign in</button>
+        </div>
+        <div class="hero-cta" data-auth-state="logged-in" hidden>
+          <a class="btn btn--primary" href="#rooms">Go to your rooms</a>
+          <a class="btn" href="#leagues">View leagues</a>
+        </div>
+        <p class="hero-note">No payments, wallets, or money transfers — ever.</p>
+      </section>
+
+      <!-- Private Rooms (protected) -->
+      <section class="view" id="view-rooms" hidden>
+        <span class="eyebrow">Private Rooms</span>
+        <h2>Your private rooms</h2>
+        <div class="protected" data-protected>
+          <div class="locked" data-locked hidden>
+            <p>Sign in to view and create private rooms.</p>
+            <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
+          </div>
+          <div class="protected__content" data-protected-content>
+            <!-- List view -->
+            <div id="rooms-list-view">
+              <p class="muted">
+                Signed in as <strong data-current-name>player</strong>. Create a room or
+                join one with an invite code. Rooms are saved to Firestore.
+              </p>
+              <div class="room-actions">
+                <button class="btn btn--primary" id="create-room">+ Create a room</button>
+                <form class="join-form" id="join-form">
+                  <input
+                    class="text-input"
+                    id="join-code"
+                    placeholder="Invite code (e.g. ABC-D23)"
+                    aria-label="Invite code"
+                  />
+                  <button class="btn" type="submit">Join</button>
+                </form>
+              </div>
+              <p class="form-error" id="rooms-error" role="alert" hidden></p>
+              <div class="cards" id="rooms-list"></div>
+            </div>
+
+            <!-- Detail view (rendered by app.js) -->
+            <div id="room-detail-view" hidden></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Leaderboard (protected) -->
+      <section class="view" id="view-leaderboard" hidden>
+        <span class="eyebrow">Ape Score · TrueSkill ranking</span>
+        <h2>Leaderboard</h2>
+        <div class="protected" data-protected>
+          <div class="locked" data-locked hidden>
+            <p>Sign in to view the Ape Score leaderboard.</p>
+            <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
+          </div>
+          <div class="protected__content" data-protected-content>
+            <p class="muted">
+              Ape Score = <code>round(max(0, mu − 3·sigma))</code> — a conservative,
+              skill-based TrueSkill rating. Entertainment only; never tied to money.
+              Scores update after each completed session.
+            </p>
+            <div class="leaderboard" id="leaderboard-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Leagues (protected) -->
+      <section class="view" id="view-leagues" hidden>
+        <span class="eyebrow">Leagues</span>
+        <h2>Your leagues</h2>
+        <div class="protected" data-protected>
+          <div class="locked" data-locked hidden>
+            <p>Sign in to view and manage leagues.</p>
+            <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
+          </div>
+          <div class="protected__content" data-protected-content>
+            <p class="muted">Track standings across many nights of play.</p>
+            <div class="cards" id="leagues-list"></div>
+            <button class="btn btn--primary" id="create-league">+ Start a league</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Auth modal -->
+    <div class="modal" id="auth-modal" hidden>
+      <div class="modal__backdrop" data-close-auth></div>
+      <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <button class="modal__close" id="close-auth" aria-label="Close">&times;</button>
+        <h2 class="modal__title" id="auth-title">Sign in</h2>
+
+        <div class="modal__tabs" role="tablist">
+          <button class="modal__tab is-active" id="tab-signin" role="tab">Sign in</button>
+          <button class="modal__tab" id="tab-signup" role="tab">Create account</button>
+        </div>
+
+        <form class="auth-form" id="auth-form" novalidate>
+          <label class="auth-form__field" data-field="name" hidden>
+            <span>Display name</span>
+            <input type="text" id="auth-name" autocomplete="name" placeholder="Boudreaux" />
+          </label>
+          <label class="auth-form__field">
+            <span>Email</span>
+            <input type="email" id="auth-email" autocomplete="email" required placeholder="you@example.com" />
+          </label>
+          <label class="auth-form__field">
+            <span>Password</span>
+            <input type="password" id="auth-password" autocomplete="current-password" required placeholder="••••••••" />
+          </label>
+
+          <p class="auth-form__error" id="auth-error" role="alert" hidden></p>
+
+          <button type="submit" class="btn btn--primary btn--block" id="auth-submit">Sign in</button>
+        </form>
+
+        <div class="auth-divider"><span>or</span></div>
+
+        <button class="btn btn--google btn--block" id="google-signin">
+          <span class="g-mark">G</span> Continue with Google
+        </button>
+
+        <p class="auth-hint" id="auth-emulator-hint" hidden>
+          Dev mode: connected to the Firebase Auth emulator.
+        </p>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span>National Bourré League · social features · scores &amp; bragging rights only</span>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
