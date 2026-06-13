@@ -5,6 +5,9 @@ import { resolve } from "node:path";
 /** Builds the live-session card table bundle into docs/ for /social/ */
 export default defineConfig({
   plugins: [react()],
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     outDir: "docs",
     emptyOutDir: false,
