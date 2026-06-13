@@ -317,6 +317,12 @@ function escapeHtml(value) {
   );
 }
 
+function normalizeInviteCodeDisplay(code) {
+  let c = code.trim().toUpperCase().replace(/\s+/g, "");
+  if (/^[A-Z0-9]{6}$/.test(c)) c = `${c.slice(0, 3)}-${c.slice(3)}`;
+  return c;
+}
+
 // ---------------------------------------------------------------------------
 // Private Rooms — persisted in Firestore
 // ---------------------------------------------------------------------------
@@ -360,6 +366,13 @@ function startRoomsSubscription() {
   );
   myRoomsUnsub = subscribeMyRooms(session.uid, (rooms) => {
     myRooms = rooms;
+    for (const r of rooms) {
+      if (r.ownerId === session.uid && r.role === "owner") {
+        ensureInviteLookupForRoom(r.id).catch((e) =>
+          console.warn("ensureInviteLookupForRoom:", e),
+        );
+      }
+    }
     if (!currentRoomId) renderRoomsList();
   });
 }
@@ -449,6 +462,7 @@ $("#create-room").addEventListener("click", async () => {
   showRoomsError("");
   try {
     const roomId = await createRoom({ owner: session, name: "" });
+    await ensureInviteLookupForRoom(roomId);
     openRoom(roomId);
   } catch (err) {
     console.error(err);
@@ -466,7 +480,7 @@ $("#join-form").addEventListener("submit", async (e) => {
     const roomId = await joinRoomByCode(code, session);
     if (!roomId) {
       showRoomsError(
-        `No room found for code "${code.trim().toUpperCase()}". Ask the host to create a new room after the latest deploy.`,
+        `No room found for code "${normalizeInviteCodeDisplay(code)}". Ask the host to open Private Rooms on their phone (wait a few seconds), then try again.`,
       );
       return;
     }
