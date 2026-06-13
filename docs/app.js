@@ -33,6 +33,7 @@ import {
   updateHandTrick,
   recordHand,
   addSessionPlayer,
+  syncSessionWithRoomMembers,
   subscribeHands,
   sortScoresForDisplay,
   getPlayers,
@@ -357,6 +358,39 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let pendingHandStake = 1;
+let syncMembersPromise = null;
+
+function mergeScoresWithMembers(scores, members) {
+  const map = new Map(scores.map((s) => [s.playerId, s]));
+  for (const m of members) {
+    if (!m.userId || map.has(m.userId)) continue;
+    map.set(m.userId, {
+      playerId: m.userId,
+      displayName: m.displayName,
+      tricksWon: 0,
+      handsWon: 0,
+      net: 0,
+      total: 0,
+    });
+  }
+  return [...map.values()];
+}
+
+function scheduleSyncSessionMembers() {
+  if (!currentRoomId || !openSessionId || currentMembers.length === 0) return;
+  const sObj = currentSessions.find((s) => s.id === openSessionId);
+  if (!sObj || sObj.status === "final") return;
+  if (syncMembersPromise) return;
+  syncMembersPromise = syncSessionWithRoomMembers(
+    currentRoomId,
+    openSessionId,
+    currentMembers,
+  )
+    .catch((e) => console.error("syncSessionWithRoomMembers:", e))
+    .finally(() => {
+      syncMembersPromise = null;
+    });
+}
 
 function showRoomsError(msg) {
   roomsError.textContent = msg;
@@ -573,6 +607,7 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeRoomMembers(roomId, (members) => {
       currentMembers = members;
+      scheduleSyncSessionMembers();
       renderRoomDetail();
     }),
   );
@@ -603,6 +638,7 @@ function openSession(sessionId) {
   openHands = [];
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    scheduleSyncSessionMembers();
     renderRoomDetail();
   });
   handsUnsub = subscribeHands(currentRoomId, sessionId, (hands) => {
@@ -768,7 +804,9 @@ function renderSessionPanel(s) {
   const handCount = s.handCount ?? 0;
   const nextHand = handCount + 1;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
-  const displayScores = sortScoresForDisplay(openScores, s.players || []);
+  const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
+  const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
+  const displayScores = sortScoresForDisplay(mergedScores, playerOrder.length ? playerOrder : s.players || []);
 
   const rows = displayScores
     .map((sc) => {
@@ -835,7 +873,7 @@ function renderSessionPanel(s) {
     .join("");
 
   const recordHandBlock =
-    isFinal || openScores.length < 2
+    isFinal || displayScores.length < 2
       ? ""
       : `<div class="record-hand">
            <h5>Record hand #${nextHand}</h5>
@@ -852,7 +890,7 @@ function renderSessionPanel(s) {
                ${participantOptions}
              </fieldset>
            </div>
-           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * openScores.length)}</p>
+           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * displayScores.length)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
          </div>`;
 

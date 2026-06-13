@@ -510,8 +510,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   tricksByPlayer[playerId] = next;
 
   if (next >= BOURRE_TRICKS_TO_WIN) {
-    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-    const participantIds = scoreSnap.docs.map((d) => d.id);
+    const participantIds = await participantIdsForSession(roomId, sessionId);
     await recordHand(roomId, sessionId, {
       winnerId: playerId,
       participantIds,
@@ -625,15 +624,33 @@ export function subscribeLeaderboard(callback) {
   });
 }
 
-/** Add a (guest) player to an in-progress session, with a fresh score row. */
+/** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
+  await ensureSessionPlayer(roomId, sessionId, playerId, displayName);
+}
+
+/** Add player to session only if they are not already on the score sheet. */
+export async function ensureSessionPlayer(roomId, sessionId, playerId, displayName) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return false;
+  if (sessionSnap.data().status === "final") return false;
+
+  const scoreRef = scoreDoc(roomId, sessionId, playerId);
+  const scoreSnap = await getDoc(scoreRef);
+  if (scoreSnap.exists()) {
+    if (displayName && scoreSnap.data().displayName !== displayName) {
+      await updateDoc(scoreRef, { displayName, updatedAt: serverTimestamp() });
+    }
+    return false;
+  }
+
   await ensurePlayerDoc(playerId, displayName);
   const batch = writeBatch(db);
   batch.update(sessionDoc(roomId, sessionId), {
     players: arrayUnion({ playerId, displayName }),
     updatedAt: serverTimestamp(),
   });
-  batch.set(scoreDoc(roomId, sessionId, playerId), {
+  batch.set(scoreRef, {
     sessionId,
     roomId,
     playerId,
@@ -645,6 +662,39 @@ export async function addSessionPlayer(roomId, sessionId, playerId, displayName)
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
+  return true;
+}
+
+/**
+ * When someone joins the room mid-session, add them to every in-progress session
+ * so they appear in the score table and record-hand checkboxes.
+ */
+export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const existingIds = new Set(scoreSnap.docs.map((d) => d.id));
+
+  const missing = members.filter((m) => m.userId && !existingIds.has(m.userId));
+  await Promise.all(
+    missing.map((m) => ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName)),
+  );
+}
+
+/** All score-sheet player ids, syncing room members into the session first. */
+async function participantIdsForSession(roomId, sessionId) {
+  const membersSnap = await getDocs(
+    query(collection(db, "roomMembers"), where("roomId", "==", roomId)),
+  );
+  await Promise.all(
+    membersSnap.docs.map((d) => {
+      const m = d.data();
+      return ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName);
+    }),
+  );
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  return scoreSnap.docs.map((d) => d.id);
 }
 
 /**
