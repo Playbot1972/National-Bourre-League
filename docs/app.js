@@ -32,6 +32,7 @@ import {
   updateSessionHandStake,
   updateHandTrick,
   recordHand,
+  voteCoWinSettlement,
   addSessionPlayer,
   syncSessionWithRoomMembers,
   updateSessionHandParticipants,
@@ -782,6 +783,16 @@ function renderRoomDetail() {
     $$("[data-hand-winner]", roomDetailView).forEach((cb) => {
       cb.checked = recordHandState.winnerIds.includes(cb.value);
     });
+  } else if (openSessionObj?.pendingCoWinSettlement) {
+    const pending = openSessionObj.pendingCoWinSettlement;
+    $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
+      cb.checked = pending.participantIds?.includes(cb.value) ?? cb.checked;
+    });
+    $$("[data-hand-winner]", roomDetailView).forEach((cb) => {
+      cb.checked = pending.winnerIds?.includes(cb.value) ?? cb.checked;
+    });
+  }
+  if ($("#record-hand", roomDetailView)) {
     updateHandPotPreview();
     updateCoWinnerUI();
   }
@@ -903,12 +914,13 @@ function renderSessionPanel(s) {
            <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
            <div class="settlement-actions" id="co-winner-settlement" hidden>
-             <p class="muted small">Co-winners decide at the table — then a co-winner taps:</p>
+             <p class="muted small">Co-winners each vote <strong>Push</strong> or <strong>Split</strong>. Split only if all agree; otherwise pot pushes and ante goes up for everyone.</p>
              <div class="settlement-actions__btns">
                <button class="btn btn--sm" type="button" id="settle-push">Push pot</button>
                <button class="btn btn--sm" type="button" id="settle-split">Split pot</button>
              </div>
-             <p class="muted small" id="settlement-hint">Only signed-in co-winners can settle.</p>
+             <p class="muted small" id="settlement-hint">Only signed-in co-winners can vote.</p>
+             <p class="muted small" id="settlement-votes"></p>
            </div>
          </div>`;
 
@@ -989,6 +1001,10 @@ function formatHandHistoryLine(h, scores) {
   if (h.settlement === "push") {
     return `#${h.handNumber} Push — ${pot} carries over (${n} players)`;
   }
+  if (h.settlement === "ante_up") {
+    const next = h.newHandStake ? ` · ante now ${formatRiskStake(h.newHandStake)}` : "";
+    return `#${h.handNumber} No agreement — ${pot} pushed, ante raised${next} (${n} players)`;
+  }
   if (h.settlement === "split") {
     return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
   }
@@ -1005,14 +1021,35 @@ function getHandFormSelection() {
   return { participantIds, winnerIds };
 }
 
+function renderSettlementVoteStatus(s, displayScores) {
+  const pending = s?.pendingCoWinSettlement;
+  if (!pending?.winnerIds?.length) return "";
+  return pending.winnerIds
+    .map((wid) => {
+      const name = displayScores.find((sc) => sc.playerId === wid)?.displayName || wid;
+      const vote = pending.votes?.[wid];
+      if (vote === "split") return `${name}: Split ✓`;
+      if (vote === "push") return `${name}: Push ✓`;
+      return `${name}: waiting…`;
+    })
+    .join(" · ");
+}
+
 function updateCoWinnerUI() {
+  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const { participantIds, winnerIds } = getHandFormSelection();
   const recordBtn = $("#record-hand", roomDetailView);
   const settlement = $("#co-winner-settlement", roomDetailView);
   const pushBtn = $("#settle-push", roomDetailView);
   const splitBtn = $("#settle-split", roomDetailView);
   const hint = $("#settlement-hint", roomDetailView);
+  const votesEl = $("#settlement-votes", roomDetailView);
   if (!recordBtn) return;
+
+  if (votesEl && openSessionObj) {
+    const status = renderSettlementVoteStatus(openSessionObj, mergeScoresWithMembers(openScores, currentMembers));
+    votesEl.textContent = status;
+  }
 
   if (winnerIds.length >= 2) {
     recordBtn.hidden = true;
@@ -1022,8 +1059,8 @@ function updateCoWinnerUI() {
     if (splitBtn) splitBtn.disabled = !isCoWinner;
     if (hint) {
       hint.textContent = isCoWinner
-        ? "You are a co-winner — tap Push or Split after you agree at the table."
-        : "Waiting for a co-winner to tap Push or Split.";
+        ? "Tap Push or Split — both co-winners must vote. Split only if you all pick Split."
+        : "Waiting for co-winners to vote Push or Split.";
     }
   } else {
     recordBtn.hidden = false;
@@ -1178,25 +1215,34 @@ async function onRecordHand() {
   }
 }
 
-async function onSettleHand(settlement) {
+async function onSettleHand(choice) {
   if (!currentRoomId || !openSessionId || !session) return;
   const { participantIds, winnerIds } = getHandFormSelection();
   if (winnerIds.length < 2) return;
   if (!winnerIds.includes(session.uid)) {
-    showRoomsError("Only a co-winner can push or split the pot.");
+    showRoomsError("Only a co-winner can vote.");
     return;
   }
   try {
-    await recordHand(currentRoomId, openSessionId, {
-      winnerIds,
+    const result = await voteCoWinSettlement(currentRoomId, openSessionId, {
       participantIds,
-      settlement,
+      winnerIds,
+      voterId: session.uid,
+      choice,
       recordedBy: session.uid,
     });
-    showRoomsError("");
+    if (result.status === "pending") {
+      showRoomsError("");
+    } else if (result.settlement === "split") {
+      showRoomsError("");
+    } else if (result.settlement === "push") {
+      showRoomsError("");
+    } else if (result.settlement === "ante_up") {
+      showRoomsError("Co-winners disagreed — pot pushed and ante raised for next hand.");
+    }
   } catch (err) {
-    console.error("recordHand:", err);
-    showRoomsError(err.message || "Could not settle hand");
+    console.error("voteCoWinSettlement:", err);
+    showRoomsError(err.message || "Could not record vote");
   }
 }
 

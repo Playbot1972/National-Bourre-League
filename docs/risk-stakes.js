@@ -21,3 +21,12 @@ export function formatNet(amount) {
   if (n < 0) return `−${formatRiskStake(Math.abs(n))}`;
   return formatRiskStake(0);
 }
+
+/** Next bill denomination up from the current hand stake (cap at max). */
+export function nextRiskStake(amount) {
+  const idx = RISK_STAKE_OPTIONS.indexOf(amount);
+  if (idx >= 0 && idx < RISK_STAKE_OPTIONS.length - 1) {
+    return RISK_STAKE_OPTIONS[idx + 1];
+  }
+  return amount;
+}
