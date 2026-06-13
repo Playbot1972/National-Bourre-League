@@ -13,19 +13,36 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Check Firebase secrets are configured
+        id: cfg
+        env:
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::warning::Firebase secrets not configured — skipping deploy."
+            echo "Run ./scripts/one-time-setup.sh on your machine to finish setup."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.cfg.outputs.ready == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Node
+        if: steps.cfg.outputs.ready == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
       - name: Install dependencies
+        if: steps.cfg.outputs.ready == 'true'
         run: npm ci
 
       - name: Write production Firebase config
+        if: steps.cfg.outputs.ready == 'true'
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
@@ -34,12 +51,15 @@ jobs:
         run: node scripts/write-firebase-config.js
 
       - name: Build hosting bundle
+        if: steps.cfg.outputs.ready == 'true'
         run: npm run build:hosting
 
       - name: Authenticate to Google Cloud
+        if: steps.cfg.outputs.ready == 'true'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy Hosting + Firestore rules
+        if: steps.cfg.outputs.ready == 'true'
         run: npx firebase deploy --only hosting,firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
