@@ -824,14 +824,6 @@ function renderRoomDetail() {
           end: activeNotes.selectionEnd,
         }
       : null;
-  const editingNotes =
-    activeNotes && activeNotes.id === "session-notes"
-      ? {
-          value: activeNotes.value,
-          start: activeNotes.selectionStart,
-          end: activeNotes.selectionEnd,
-        }
-      : null;
   const hr = currentRoom.houseRules || {};
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
 
