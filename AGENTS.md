@@ -143,11 +143,28 @@ npm run emulators       # terminal 1
 npm run preview:hosting # terminal 2 → http://localhost:5000
 ```
 
-**Custom domain (`booray.win`):** Firebase Console → Hosting → Add custom domain →
-add the DNS records at your registrar. Then add `booray.win` and `www.booray.win` to
-Authentication → Settings → Authorized domains, and add the same origins to your
-Google OAuth client if using Google sign-in. Optionally set `authDomain` in
-`docs/firebase-config.js` to `"booray.win"`.
+**Custom domain (`booray.win`):**
+
+1. Register domains in Firebase Hosting (or skip if already added):
+   ```bash
+   npm run setup:domain -- national-bourre-league booray.win
+   ```
+2. **DNS + Auth domains** — fetches A/TXT/CNAME from Firebase and adds authorized
+   domains automatically (run after step 1, even if `setup:domain` timed out):
+   ```bash
+   npm run domain:finish -- national-bourre-league booray.win
+   ```
+   Copy the printed table into your registrar (where you bought `booray.win`).
+   Manual fallback: Firebase Console → Hosting → click `booray.win` → copy DNS
+   records; Authentication → Settings → Authorized domains → add `booray.win` and
+   `www.booray.win`.
+3. After Firebase shows a green check and SSL is active, point the client at the
+   custom domain and redeploy:
+   ```bash
+   npm run setup:webapp -- national-bourre-league booray.win
+   npm run build:hosting && npx firebase deploy --only hosting
+   ```
+   Add the same origins to your Google OAuth client if using Google sign-in.
 
 **GitHub Actions auto-deploy:** pushes to `main` run `.github/workflows/deploy.yml`.
 Add these repository secrets (Settings → Secrets and variables → Actions):

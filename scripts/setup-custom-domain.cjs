@@ -62,15 +62,35 @@ async function createCustomDomain(domainName) {
   if (body?.name && body.done !== true) {
     const opPath = operationPath(body.name);
     if (opPath) {
-      body = await pollOperation({
-        apiOrigin: hostingApiOrigin(),
-        apiVersion: "v1beta1",
-        operationResourceName: opPath,
-        masterTimeout: 120000,
-      });
+      try {
+        body = await pollOperation({
+          apiOrigin: hostingApiOrigin(),
+          apiVersion: "v1beta1",
+          operationResourceName: opPath,
+          masterTimeout: 300000,
+        });
+      } catch (err) {
+        const msg = err?.message || String(err);
+        if (/timed out/i.test(msg)) {
+          console.log(`    ${domainName} provisioning still running — will fetch DNS next…`);
+          return await getCustomDomainDetail(domainName);
+        }
+        throw err;
+      }
     }
   }
   return body?.response || body;
+}
+
+async function getCustomDomainDetail(domainName) {
+  try {
+    const res = await hostingClient.get(
+      `/projects/${projectId}/sites/${siteId}/customDomains/${domainName}`,
+    );
+    return res.body;
+  } catch {
+    return null;
+  }
 }
 
 async function createLegacyDomain(domainName) {
@@ -178,8 +198,9 @@ async function main() {
   console.log("\n    Hosting domains on file:");
   for (const d of custom) {
     const id = d.name?.split("/").pop() || d.customDomainId || "custom";
-    console.log(`      • ${id} (${d.hostState || "pending"})`);
-    printDns(d, id);
+    const detail = (await getCustomDomainDetail(id)) || d;
+    console.log(`      • ${id} (${detail.hostState || detail.ownershipState || "pending"})`);
+    printDns(detail, id);
   }
   for (const d of legacy) {
     console.log(`      • ${d.domainName} (${d.status || "pending"})`);
@@ -190,6 +211,8 @@ async function main() {
 
   console.log("\n==> Step 2: DNS at your registrar");
   console.log(`    Log in where you bought ${apexDomain} and add the records above.`);
+  console.log(`    For a copy-paste table, run:`);
+  console.log(`      npm run domain:finish -- ${projectId} ${apexDomain}`);
   console.log(
     `    Console: https://console.firebase.google.com/project/${projectId}/hosting/sites/${siteId}/domains`,
   );
@@ -199,7 +222,7 @@ async function main() {
   await addAuthDomain(apexDomain);
   await addAuthDomain(wwwDomain);
 
-  console.log("\n==> Step 3b: Update client authDomain + redeploy (if not already booray.win)");
+  console.log("\n==> Step 3b: Update client authDomain + redeploy (if not already on custom domain)");
   console.log(`    npm run setup:webapp -- ${projectId} ${apexDomain}`);
   console.log("    npm run build:hosting && npx firebase deploy --only hosting");
 
