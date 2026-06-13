@@ -140,6 +140,13 @@ function withId(snap) {
   return { id: snap.id, ...snap.data() };
 }
 
+/** Per-player ante override (non-winners after co-win split fails). */
+function stakeForPlayer(scoreById, playerId, sessionStake) {
+  const row = scoreById[playerId];
+  const n = row?.perHandStake ?? sessionStake;
+  return Math.max(1, Number(n) || sessionStake);
+}
+
 export const DEFAULT_HOUSE_RULES = {
   ante: "1 chip (bragging rights only)",
   forcedPlay: "Dealer must play",
@@ -465,8 +472,6 @@ export async function recordHand(
 
   const stake = sessionData.handStake ?? 1;
   const carryIn = sessionData.carryOverPot || 0;
-  const antePot = stake * participants.length;
-  const grossPot = antePot + carryIn;
   const handNumber = (sessionData.handCount || 0) + 1;
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
@@ -475,28 +480,41 @@ export async function recordHand(
     if (!scoreById[pid]) throw new Error("Unknown player in hand");
   }
 
+  const antePot = participants.reduce(
+    (sum, pid) => sum + stakeForPlayer(scoreById, pid, stake),
+    0,
+  );
+  const grossPot = antePot + carryIn;
+
   const deltas = {};
   let carryOverPot = 0;
-  let nextHandStake = stake;
 
-  if (mode === "push" || mode === "ante_up") {
+  if (mode === "push") {
     participants.forEach((pid) => {
       deltas[pid] = 0;
     });
     carryOverPot = grossPot;
-    if (mode === "ante_up") {
-      nextHandStake = nextRiskStake(stake);
-    }
+  } else if (mode === "non_winner_ante_up") {
+    carryOverPot = grossPot;
+    participants.forEach((pid) => {
+      if (winners.includes(pid)) {
+        deltas[pid] = 0;
+      } else {
+        deltas[pid] = -nextRiskStake(stakeForPlayer(scoreById, pid, stake));
+      }
+    });
   } else if (mode === "split") {
     const share = grossPot / winners.length;
     participants.forEach((pid) => {
-      deltas[pid] = winners.includes(pid) ? share - stake : -stake;
+      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      deltas[pid] = winners.includes(pid) ? share - playerStake : -playerStake;
     });
     carryOverPot = 0;
   } else {
     const winner = winners[0];
     participants.forEach((pid) => {
-      deltas[pid] = pid === winner ? grossPot - stake : -stake;
+      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      deltas[pid] = pid === winner ? grossPot - playerStake : -playerStake;
     });
     carryOverPot = 0;
   }
@@ -511,7 +529,6 @@ export async function recordHand(
     stake,
     pot: grossPot,
     carryIn,
-    newHandStake: mode === "ante_up" ? nextHandStake : null,
     deltas,
     recordedBy: recordedBy || null,
     createdAt: serverTimestamp(),
@@ -531,13 +548,19 @@ export async function recordHand(
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
     }
+    if (mode === "non_winner_ante_up") {
+      if (winners.includes(pid)) {
+        patch.perHandStake = deleteField();
+      } else {
+        patch.perHandStake = nextRiskStake(stakeForPlayer(scoreById, pid, stake));
+      }
+    }
     batch.update(scoreDoc(roomId, sessionId, pid), patch);
   });
 
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
-    handStake: nextHandStake,
     carryOverPot,
     pendingCoWinSettlement: deleteField(),
     currentHand: {
@@ -554,9 +577,8 @@ export async function recordHand(
 }
 
 /**
- * Co-winners vote push or split. Split applies only if every co-winner votes split.
- * Unanimous push carries the pot. Any disagreement pushes the pot and raises
- * the hand stake for everyone on the next hand.
+ * Co-winners vote split or decline. Split only if every co-winner votes split.
+ * Otherwise the pot pushes and non-winners ante up (not co-winners).
  */
 export async function voteCoWinSettlement(
   roomId,
@@ -602,9 +624,7 @@ export async function voteCoWinSettlement(
   }
 
   const choices = winners.map((w) => votes[w]);
-  let settlement = "ante_up";
-  if (choices.every((c) => c === "split")) settlement = "split";
-  else if (choices.every((c) => c === "push")) settlement = "push";
+  const settlement = choices.every((c) => c === "split") ? "split" : "non_winner_ante_up";
 
   await recordHand(roomId, sessionId, {
     winnerIds: winners,
