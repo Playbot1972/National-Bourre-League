@@ -14,6 +14,7 @@ const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 const { initializeApp } = await import(`${CDN}/firebase-app.js`);
 const {
   getAuth,
+  initializeAuth,
   connectAuthEmulator,
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -22,12 +23,42 @@ const {
   GoogleAuthProvider,
   updateProfile,
   signOut,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
 } = await import(`${CDN}/firebase-auth.js`);
+
+/** Match authDomain to the page host on custom domains (fixes iOS Safari sign-out on refresh). */
+function resolveAuthDomain(config) {
+  if (typeof location === "undefined") return config.authDomain;
+  const host = location.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1") return config.authDomain;
+  if (host.endsWith(".firebaseapp.com") || host.endsWith(".web.app")) {
+    return config.authDomain;
+  }
+  return host;
+}
+
+const appConfig = {
+  ...firebaseConfig,
+  authDomain: resolveAuthDomain(firebaseConfig),
+};
 
 // Initialize once and share the FirebaseApp instance with other modules
 // (e.g. firestore.js) so they don't call initializeApp again.
-export const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+export const app = initializeApp(appConfig);
+
+let auth;
+try {
+  auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+  });
+} catch (err) {
+  if (err?.code === "auth/already-initialized") {
+    auth = getAuth(app);
+  } else {
+    throw err;
+  }
+}
 
 // Connect to the local Auth emulator during development.
 export const usingEmulator = Boolean(AUTH_EMULATOR_URL);
