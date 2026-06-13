@@ -385,6 +385,7 @@ function nextDealerId(scoreSnap, currentDealerId) {
   return ids[(base + 1) % ids.length];
 }
 
+export async function createSession(roomId, players, handStake = 1) {
   const stake = Math.max(1, Number(handStake) || 1);
   const sessionRef = doc(sessionsCol(roomId));
   const batch = writeBatch(db);
