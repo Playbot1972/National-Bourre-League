@@ -3,6 +3,7 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
+import { APP_VERSION } from "./version";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
@@ -58,6 +59,9 @@ export default function App() {
       <footer className="app__footer">
         <span>National Bourré League · learn the Louisiana classic</span>
       </footer>
+      <div className="app-version" aria-label="App version">
+        v{APP_VERSION}
+      </div>
     </div>
   );
 }

@@ -141,6 +141,10 @@ npm run build:hosting   # vite build + copy docs/ → dist/social/
 firebase deploy --only hosting,firestore:rules
 ```
 
+**App version:** bump `version.json` (e.g. `1.00.01`) before each release; `npm run version:sync`
+updates `package.json`, `src/version.ts`, and `docs/version.js`. Displayed bottom-right as
+`v1.00.00` on `/` and `/social/`.
+
 **Preview the combined site locally** (React at `/`, social at `/social/`, emulators
 still auto-connect on localhost):
 ```bash

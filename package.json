@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.00.00",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "social": "npx serve docs -l 8080",
-    "build:hosting": "npm run build && node scripts/prepare-hosting.js",
+    "build:hosting": "npm run version:sync && npm run build && node scripts/prepare-hosting.js",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
     "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
     "deploy:rules": "npx firebase deploy --only firestore:rules",
@@ -25,6 +25,7 @@
     "domain:dns": "./scripts/apply-registrar-dns.sh",
     "setup:google-oauth": "./scripts/setup-google-oauth.sh",
     "backfill:invites": "./scripts/backfill-invite-lookups.sh",
+    "version:sync": "node scripts/sync-version.js",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {
