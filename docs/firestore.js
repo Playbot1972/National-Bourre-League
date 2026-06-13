@@ -346,7 +346,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handCount: 0,
     handStake: stake,
     handStakeLocked: false,
-    currentHand: { tricksByPlayer: {} },
+    currentHand: { tricksByPlayer: {}, participantIds: players.map((p) => p.playerId) },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
     notes: "",
@@ -364,6 +364,7 @@ export async function createSession(roomId, players, handStake = 1) {
       handsWon: 0,
       net: 0,
       total: 0,
+      joinedAtHandCount: 0,
       updatedAt: serverTimestamp(),
     });
   });
@@ -484,7 +485,12 @@ export async function recordHand(roomId, sessionId, { winnerId, participantIds, 
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
-    currentHand: { tricksByPlayer: {} },
+    currentHand: {
+      tricksByPlayer: {},
+      participantIds: scoreSnap.docs
+        .filter((d) => (d.data().joinedAtHandCount ?? 0) <= handNumber)
+        .map((d) => d.id),
+    },
     updatedAt: serverTimestamp(),
   });
 
@@ -509,8 +515,16 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
 
   tricksByPlayer[playerId] = next;
 
+  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
+  let participantIds = [...(currentHand.participantIds || [])];
+  if (!participantIds.includes(playerId)) {
+    participantIds.push(playerId);
+  }
+
   if (next >= BOURRE_TRICKS_TO_WIN) {
-    const participantIds = await participantIdsForSession(roomId, sessionId);
+    if (participantIds.length < 2) {
+      throw new Error("At least two players must be in the hand");
+    }
     await recordHand(roomId, sessionId, {
       winnerId: playerId,
       participantIds,
@@ -520,7 +534,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   }
 
   await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: { tricksByPlayer },
+    currentHand: { tricksByPlayer, participantIds },
     updatedAt: serverTimestamp(),
   });
 }
@@ -626,14 +640,21 @@ export function subscribeLeaderboard(callback) {
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
-  await ensureSessionPlayer(roomId, sessionId, playerId, displayName);
+  await ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
 }
 
 /** Add player to session only if they are not already on the score sheet. */
-export async function ensureSessionPlayer(roomId, sessionId, playerId, displayName) {
+export async function ensureSessionPlayer(
+  roomId,
+  sessionId,
+  playerId,
+  displayName,
+  { joinCurrentHand = false } = {},
+) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return false;
-  if (sessionSnap.data().status === "final") return false;
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return false;
 
   const scoreRef = scoreDoc(roomId, sessionId, playerId);
   const scoreSnap = await getDoc(scoreRef);
@@ -644,10 +665,20 @@ export async function ensureSessionPlayer(roomId, sessionId, playerId, displayNa
     return false;
   }
 
+  const handCount = sessionData.handCount || 0;
+  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
+  const participantIds = joinCurrentHand
+    ? [...new Set([...(currentHand.participantIds || []), playerId])]
+    : currentHand.participantIds || [];
+
   await ensurePlayerDoc(playerId, displayName);
   const batch = writeBatch(db);
   batch.update(sessionDoc(roomId, sessionId), {
     players: arrayUnion({ playerId, displayName }),
+    currentHand: {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds,
+    },
     updatedAt: serverTimestamp(),
   });
   batch.set(scoreRef, {
@@ -659,6 +690,7 @@ export async function ensureSessionPlayer(roomId, sessionId, playerId, displayNa
     handsWon: 0,
     net: 0,
     total: 0,
+    joinedAtHandCount: handCount,
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
@@ -678,23 +710,45 @@ export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
 
   const missing = members.filter((m) => m.userId && !existingIds.has(m.userId));
   await Promise.all(
-    missing.map((m) => ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName)),
+    missing.map((m) =>
+      ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName, { joinCurrentHand: false }),
+    ),
   );
+  await ensureCurrentHandParticipants(roomId, sessionId);
 }
 
-/** All score-sheet player ids, syncing room members into the session first. */
-async function participantIdsForSession(roomId, sessionId) {
-  const membersSnap = await getDocs(
-    query(collection(db, "roomMembers"), where("roomId", "==", roomId)),
-  );
-  await Promise.all(
-    membersSnap.docs.map((d) => {
-      const m = d.data();
-      return ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName);
-    }),
-  );
+/** Backfill participantIds for sessions created before v1.00.08. */
+export async function ensureCurrentHandParticipants(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
+  const currentHand = sessionSnap.data().currentHand || {};
+  if (Array.isArray(currentHand.participantIds)) return;
+
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  return scoreSnap.docs.map((d) => d.id);
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    currentHand: {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds: scoreSnap.docs.map((d) => d.id),
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Update who is in the current hand (ante paid). New room joiners default unchecked. */
+export async function updateSessionHandParticipants(roomId, sessionId, participantIds) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  if (sessionSnap.data().status === "final") throw new Error("Session is final");
+
+  const ids = [...new Set(participantIds.filter(Boolean))];
+  const currentHand = sessionSnap.data().currentHand || { tricksByPlayer: {} };
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    currentHand: {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds: ids,
+    },
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**

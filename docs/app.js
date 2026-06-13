@@ -34,6 +34,8 @@ import {
   recordHand,
   addSessionPlayer,
   syncSessionWithRoomMembers,
+  updateSessionHandParticipants,
+  ensureCurrentHandParticipants,
   subscribeHands,
   sortScoresForDisplay,
   getPlayers,
@@ -386,6 +388,7 @@ function scheduleSyncSessionMembers() {
     openSessionId,
     currentMembers,
   )
+    .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
     .catch((e) => console.error("syncSessionWithRoomMembers:", e))
     .finally(() => {
       syncMembersPromise = null;
@@ -807,6 +810,10 @@ function renderSessionPanel(s) {
   const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
   const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
   const displayScores = sortScoresForDisplay(mergedScores, playerOrder.length ? playerOrder : s.players || []);
+  const handParticipantIds = s.currentHand?.participantIds;
+  const isInCurrentHand = (playerId) =>
+    Array.isArray(handParticipantIds) ? handParticipantIds.includes(playerId) : true;
+  const checkedParticipantCount = displayScores.filter((sc) => isInCurrentHand(sc.playerId)).length;
 
   const rows = displayScores
     .map((sc) => {
@@ -859,7 +866,7 @@ function renderSessionPanel(s) {
     .map(
       (sc) =>
         `<label class="hand-participant">
-           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" checked />
+           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" ${isInCurrentHand(sc.playerId) ? "checked" : ""} />
            ${escapeHtml(sc.displayName)}
          </label>`,
     )
@@ -877,7 +884,7 @@ function renderSessionPanel(s) {
       ? ""
       : `<div class="record-hand">
            <h5>Record hand #${nextHand}</h5>
-           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Or tap + until a player reaches ${BOURRE_TRICKS_TO_WIN} tricks.</p>
+           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Net shows profit (e.g. $1 stake, 2 opponents → +$2). Or tap + until ${BOURRE_TRICKS_TO_WIN} tricks.</p>
            <div class="record-hand__grid">
              <label class="record-hand__field">
                <span>Winner</span>
@@ -890,7 +897,7 @@ function renderSessionPanel(s) {
                ${participantOptions}
              </fieldset>
            </div>
-           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * displayScores.length)}</p>
+           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
          </div>`;
 
@@ -1021,7 +1028,15 @@ function wireSessionControls() {
   }
 
   $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
-    cb.addEventListener("change", updateHandPotPreview);
+    cb.addEventListener("change", () => {
+      updateHandPotPreview();
+      const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
+        (el) => el.value,
+      );
+      updateSessionHandParticipants(currentRoomId, openSessionId, participantIds).catch((e) =>
+        console.error("updateSessionHandParticipants:", e),
+      );
+    });
   });
 
   const recordBtn = $("#record-hand", roomDetailView);
