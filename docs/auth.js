@@ -20,6 +20,8 @@ const {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   updateProfile,
   signOut,
@@ -72,6 +74,30 @@ if (usingEmulator) {
 
 const googleProvider = new GoogleAuthProvider();
 
+/** Popups often fail on iOS/Safari and show a blank Google account picker. */
+export function shouldUseGoogleRedirect() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const isIOS =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (isIOS) return true;
+  const isSafari = /Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Chromium\//.test(ua);
+  if (isSafari) return true;
+  if (/Android|webOS|Mobile/i.test(ua)) return true;
+  return false;
+}
+
+function isPopupFallbackError(error) {
+  const code = error && typeof error === "object" ? error.code : "";
+  return (
+    code === "auth/popup-blocked" ||
+    code === "auth/popup-closed-by-user" ||
+    code === "auth/cancelled-popup-request" ||
+    code === "auth/operation-not-supported-in-this-environment"
+  );
+}
+
 /**
  * Subscribe to auth state changes. The callback receives a normalized user
  * object (or null when signed out).
@@ -103,10 +129,35 @@ export async function signInWithEmail({ email, password }) {
   return normalizeUser(cred.user);
 }
 
-/** Sign in with Google via a popup. */
+/** Sign in with Google via popup or full-page redirect (Safari/mobile). */
 export async function signInWithGoogle() {
-  const cred = await signInWithPopup(auth, googleProvider);
-  return normalizeUser(cred.user);
+  if (usingEmulator) {
+    const cred = await signInWithPopup(auth, googleProvider);
+    return normalizeUser(cred.user);
+  }
+
+  if (shouldUseGoogleRedirect()) {
+    await signInWithRedirect(auth, googleProvider);
+    return null;
+  }
+
+  try {
+    const cred = await signInWithPopup(auth, googleProvider);
+    return normalizeUser(cred.user);
+  } catch (err) {
+    if (isPopupFallbackError(err)) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
+    throw err;
+  }
+}
+
+/** Call on page load to finish a Google redirect sign-in. */
+export async function completeGoogleRedirectSignIn() {
+  if (usingEmulator) return null;
+  const result = await getRedirectResult(auth);
+  return result?.user ? normalizeUser(result.user) : null;
 }
 
 export function signOutUser() {
@@ -135,7 +186,13 @@ export function describeAuthError(error) {
     case "auth/popup-closed-by-user":
       return "Google sign-in was cancelled.";
     case "auth/popup-blocked":
-      return "Your browser blocked the sign-in popup. Allow popups and retry.";
+      return "Your browser blocked the sign-in popup. Allow popups, or try again — we'll redirect to Google instead.";
+    case "auth/unauthorized-domain":
+      return "This site isn't authorized for sign-in. Contact the host.";
+    case "auth/operation-not-allowed":
+      return "Google sign-in isn't enabled for this app.";
+    case "auth/account-exists-with-different-credential":
+      return "An account already exists with this email using email/password. Sign in that way instead.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
