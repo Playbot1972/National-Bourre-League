@@ -8,14 +8,15 @@ rules_version = '2';
 //   roomMembers/{roomId}_{uid}                     roomId, userId, displayName, role, joinedAt
 //   inviteLookups/{inviteCode}                     roomId, ownerId (join-by-code without listing rooms)
 //   rooms/{roomId}/sessions/{sessionId}            players, rounds, notes, totals, ...
-//   rooms/{roomId}/sessions/{sId}/scores/{playerId} per-player tricksWon, riskPoints, total
+//   rooms/{roomId}/sessions/{sId}/scores/{playerId} per-player tricksWon, handsWon, net, total
+//   rooms/{roomId}/sessions/{sId}/hands/{handId}     per-hand ledger (informational)
 //
 // Sessions/scores are subcollections of the room so rules authorize them by the
 // {roomId} path wildcard. Top-level collections with a roomId field cannot be
 // used here: Firestore evaluates `list`/query rules without per-document
 // `resource.data`, so a `resource.data.roomId` check fails for queries.
 //
-// IMPORTANT: notes / tricksWon / riskPoints / total are informational
+// IMPORTANT: notes / handStake / net / tricksWon / total are informational
 // (scorekeeping + bragging rights). Nothing here represents money, and these
 // rules do not grant any money-movement capability.
 //
@@ -62,6 +63,10 @@ service cloud.firestore {
         allow read, write: if isMember(roomId);
 
         match /scores/{scoreId} {
+          allow read, write: if isMember(roomId);
+        }
+
+        match /hands/{handId} {
           allow read, write: if isMember(roomId);
         }
       }

@@ -1,14 +1,6 @@
 import { useMemo, useState } from "react";
 import "./PrivateRoomScreen.css";
 
-interface Player {
-  id: string;
-  name: string;
-  score: number;
-  riskPoints: number;
-}
-
-/** US bill denominations — thematic stake labels only, no money movement. */
 const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
 
 function riskStakeOptionsFor(current: number) {
@@ -24,6 +16,27 @@ function formatRiskStake(amount: number) {
   return `$${amount.toLocaleString("en-US")}`;
 }
 
+function formatNet(amount: number) {
+  if (amount > 0) return `+${formatRiskStake(amount)}`;
+  if (amount < 0) return `−${formatRiskStake(Math.abs(amount))}`;
+  return formatRiskStake(0);
+}
+
+interface Player {
+  id: string;
+  name: string;
+  tricksWon: number;
+  handsWon: number;
+  net: number;
+}
+
+interface HandRecord {
+  handNumber: number;
+  winnerId: string;
+  participantIds: string[];
+  pot: number;
+}
+
 function generateInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -37,9 +50,9 @@ let nextId = 1;
 const makeId = () => `p${nextId++}`;
 
 const SEED_PLAYERS: Player[] = [
-  { id: makeId(), name: "You (host)", score: 0, riskPoints: 1 },
-  { id: makeId(), name: "Marie", score: 0, riskPoints: 1 },
-  { id: makeId(), name: "Thibodeaux", score: 0, riskPoints: 2 },
+  { id: makeId(), name: "You (host)", tricksWon: 0, handsWon: 0, net: 0 },
+  { id: makeId(), name: "Marie", tricksWon: 0, handsWon: 0, net: 0 },
+  { id: makeId(), name: "Thibodeaux", tricksWon: 0, handsWon: 0, net: 0 },
 ];
 
 export function PrivateRoomScreen() {
@@ -48,15 +61,24 @@ export function PrivateRoomScreen() {
   const [players, setPlayers] = useState<Player[]>(SEED_PLAYERS);
   const [newName, setNewName] = useState("");
   const [notes, setNotes] = useState("");
+  const [handStake, setHandStake] = useState(1);
+  const [handStakeLocked, setHandStakeLocked] = useState(false);
+  const [hands, setHands] = useState<HandRecord[]>([]);
+  const [winnerId, setWinnerId] = useState(SEED_PLAYERS[0]?.id ?? "");
+  const [participants, setParticipants] = useState<Set<string>>(
+    () => new Set(SEED_PLAYERS.map((p) => p.id)),
+  );
 
-  const totalRisk = useMemo(
-    () => players.reduce((sum, p) => sum + p.riskPoints, 0),
+  const handCount = hands.length;
+  const leaderHands = useMemo(
+    () => players.reduce((max, p) => Math.max(max, p.handsWon), 0),
     [players],
   );
-  const leaderScore = useMemo(
-    () => players.reduce((max, p) => Math.max(max, p.score), 0),
-    [players],
-  );
+
+  const potPreview = useMemo(() => {
+    const count = participants.size;
+    return formatRiskStake(handStake * count);
+  }, [handStake, participants]);
 
   const copyCode = async () => {
     try {
@@ -76,41 +98,83 @@ export function PrivateRoomScreen() {
   const addPlayer = () => {
     const name = newName.trim();
     if (!name) return;
-    setPlayers((prev) => [
-      ...prev,
-      { id: makeId(), name, score: 0, riskPoints: 1 },
-    ]);
+    const id = makeId();
+    setPlayers((prev) => [...prev, { id, name, tricksWon: 0, handsWon: 0, net: 0 }]);
+    setParticipants((prev) => new Set([...prev, id]));
     setNewName("");
   };
 
   const removePlayer = (id: string) => {
     setPlayers((prev) => prev.filter((p) => p.id !== id));
+    setParticipants((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (winnerId === id) {
+      setWinnerId(players.find((p) => p.id !== id)?.id ?? "");
+    }
   };
 
-  const adjustScore = (id: string, delta: number) => {
+  const adjustTricks = (id: string, delta: number) => {
     setPlayers((prev) =>
       prev.map((p) =>
-        p.id === id ? { ...p, score: Math.max(0, p.score + delta) } : p,
+        p.id === id ? { ...p, tricksWon: Math.max(0, p.tricksWon + delta) } : p,
       ),
     );
   };
 
-  const setScore = (id: string, value: number) => {
+  const setTricks = (id: string, value: number) => {
     setPlayers((prev) =>
       prev.map((p) =>
-        p.id === id ? { ...p, score: Number.isFinite(value) ? Math.max(0, value) : 0 } : p,
+        p.id === id
+          ? { ...p, tricksWon: Number.isFinite(value) ? Math.max(0, value) : 0 }
+          : p,
       ),
     );
   };
 
-  const setRisk = (id: string, value: number) => {
+  const toggleParticipant = (id: string) => {
+    setParticipants((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const recordHand = () => {
+    const participantIds = players.filter((p) => participants.has(p.id)).map((p) => p.id);
+    if (participantIds.length < 2) return;
+    if (!participantIds.includes(winnerId)) return;
+
+    const pot = handStake * participantIds.length;
+    const handNumber = handCount + 1;
+
     setPlayers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, riskPoints: value } : p)),
+      prev.map((p) => {
+        if (!participantIds.includes(p.id)) return p;
+        const delta = p.id === winnerId ? handStake * (participantIds.length - 1) : -handStake;
+        const tricksWon = p.tricksWon + (p.id === winnerId ? 1 : 0);
+        return {
+          ...p,
+          net: p.net + delta,
+          handsWon: p.handsWon + (p.id === winnerId ? 1 : 0),
+          tricksWon,
+        };
+      }),
     );
+    setHands((prev) => [
+      { handNumber, winnerId, participantIds, pot },
+      ...prev,
+    ]);
+    setHandStakeLocked(true);
   };
 
   const resetScores = () => {
-    setPlayers((prev) => prev.map((p) => ({ ...p, score: 0 })));
+    setPlayers((prev) => prev.map((p) => ({ ...p, tricksWon: 0, handsWon: 0, net: 0 })));
+    setHands([]);
+    setHandStakeLocked(false);
   };
 
   return (
@@ -119,7 +183,7 @@ export function PrivateRoomScreen() {
         <p className="eyebrow">Private room</p>
         <h1>Table lobby</h1>
         <p className="room__lede">
-          Invite friends, keep score, and track per-player stakes for a friendly game.
+          Invite friends, record hands, and track per-hand stakes for a friendly game.
         </p>
         <p className="room__memory" role="note">
           In-memory only — nothing is saved. Refreshing the page clears the room.
@@ -153,22 +217,90 @@ export function PrivateRoomScreen() {
               <span className="room__stat-label">players</span>
             </li>
             <li>
-              <span className="room__stat-num">{leaderScore}</span>
-              <span className="room__stat-label">leading score</span>
+              <span className="room__stat-num">{handCount}</span>
+              <span className="room__stat-label">hands played</span>
             </li>
             <li>
-              <span className="room__stat-num">{totalRisk}</span>
-              <span className="room__stat-label">total at stake</span>
+              <span className="room__stat-num">{leaderHands}</span>
+              <span className="room__stat-label">most hands won</span>
             </li>
           </ul>
         </section>
       </div>
 
+      <section className="panel room__session" aria-label="Session scorekeeping">
+        <div className="room__session-stake">
+          <span className="room__panel-title">Hand stake (per hand)</span>
+          {handStakeLocked ? (
+            <p className="room__stake-locked">
+              <strong>{formatRiskStake(handStake)}</strong>
+              <span className="room__stake-badge">Locked</span>
+            </p>
+          ) : (
+            <select
+              className="room__select"
+              value={handStake}
+              aria-label="Hand stake for this session"
+              onChange={(e) => setHandStake(parseInt(e.target.value, 10))}
+            >
+              {riskStakeOptionsFor(handStake).map((n) => (
+                <option key={n} value={n}>
+                  {formatRiskStake(n)}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="room__stake-hint">Host sets stake · locks after the first hand.</p>
+        </div>
+
+        {players.length >= 2 && (
+          <div className="room__record-hand">
+            <span className="room__panel-title">Record hand #{handCount + 1}</span>
+            <label className="room__record-field">
+              Winner
+              <select
+                className="room__select"
+                value={winnerId}
+                aria-label="Hand winner"
+                onChange={(e) => setWinnerId(e.target.value)}
+              >
+                {players.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <fieldset className="room__participants">
+              <legend>In this hand</legend>
+              {players.map((p) => (
+                <label key={p.id} className="room__participant">
+                  <input
+                    type="checkbox"
+                    checked={participants.has(p.id)}
+                    onChange={() => toggleParticipant(p.id)}
+                  />
+                  {p.name}
+                </label>
+              ))}
+            </fieldset>
+            <p className="room__pot-preview">Pot this hand: {potPreview}</p>
+            <button
+              className="btn btn--primary"
+              onClick={recordHand}
+              disabled={participants.size < 2}
+            >
+              Record hand
+            </button>
+          </div>
+        )}
+      </section>
+
       <section className="panel room__players" aria-label="Players and scorekeeping">
         <div className="room__players-head">
           <span className="room__panel-title">Players &amp; scorekeeping</span>
           <button className="room__reset" onClick={resetScores}>
-            Reset scores
+            Reset session
           </button>
         </div>
 
@@ -192,15 +324,18 @@ export function PrivateRoomScreen() {
         <ul className="room__list">
           <li className="room__row room__row--header" aria-hidden="true">
             <span>Player</span>
-            <span>Score</span>
-            <span>Risk stake</span>
+            <span>Hands</span>
+            <span>Tricks</span>
+            <span>Net</span>
             <span></span>
           </li>
           {players.length === 0 && (
             <li className="room__empty">No players yet — add someone to start.</li>
           )}
           {players.map((p) => {
-            const isLeader = p.score > 0 && p.score === leaderScore;
+            const isLeader = p.handsWon > 0 && p.handsWon === leaderHands;
+            const netClass =
+              p.net > 0 ? "room__net--up" : p.net < 0 ? "room__net--down" : "";
             return (
               <li className={`room__row ${isLeader ? "is-leader" : ""}`} key={p.id}>
                 <span className="room__player-name">
@@ -208,11 +343,13 @@ export function PrivateRoomScreen() {
                   {isLeader && <span className="room__leader-tag">Lead</span>}
                 </span>
 
+                <span className="room__hands-won">{p.handsWon}</span>
+
                 <span className="room__score">
                   <button
                     className="room__step"
-                    onClick={() => adjustScore(p.id, -1)}
-                    aria-label={`Decrease ${p.name} score`}
+                    onClick={() => adjustTricks(p.id, -1)}
+                    aria-label={`Decrease ${p.name} tricks`}
                   >
                     −
                   </button>
@@ -220,33 +357,20 @@ export function PrivateRoomScreen() {
                     className="room__score-input"
                     type="number"
                     min={0}
-                    value={p.score}
-                    aria-label={`${p.name} score`}
-                    onChange={(e) => setScore(p.id, parseInt(e.target.value, 10))}
+                    value={p.tricksWon}
+                    aria-label={`${p.name} tricks won`}
+                    onChange={(e) => setTricks(p.id, parseInt(e.target.value, 10))}
                   />
                   <button
                     className="room__step"
-                    onClick={() => adjustScore(p.id, 1)}
-                    aria-label={`Increase ${p.name} score`}
+                    onClick={() => adjustTricks(p.id, 1)}
+                    aria-label={`Increase ${p.name} tricks`}
                   >
                     +
                   </button>
                 </span>
 
-                <span className="room__risk">
-                  <select
-                    className="room__select"
-                    value={p.riskPoints}
-                    aria-label={`${p.name} risk stake`}
-                    onChange={(e) => setRisk(p.id, parseInt(e.target.value, 10))}
-                  >
-                    {riskStakeOptionsFor(p.riskPoints).map((n) => (
-                      <option key={n} value={n}>
-                        {formatRiskStake(n)}
-                      </option>
-                    ))}
-                  </select>
-                </span>
+                <span className={`room__net ${netClass}`}>{formatNet(p.net)}</span>
 
                 <span className="room__row-actions">
                   <button
@@ -261,6 +385,23 @@ export function PrivateRoomScreen() {
             );
           })}
         </ul>
+
+        {hands.length > 0 && (
+          <div className="room__hand-history">
+            <span className="room__panel-title">Hand history</span>
+            <ul>
+              {hands.slice(0, 8).map((h) => {
+                const winner = players.find((p) => p.id === h.winnerId);
+                return (
+                  <li key={h.handNumber}>
+                    <span className="room__hand-num">#{h.handNumber}</span>
+                    {winner?.name ?? "Unknown"} won {formatRiskStake(h.pot)}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </section>
 
       <section className="panel room__notes" aria-label="Side notes">
@@ -276,7 +417,7 @@ export function PrivateRoomScreen() {
           onChange={(e) => setNotes(e.target.value)}
         />
         <p className="room__notes-hint">
-          For fun and record-keeping only. The app does not track or move money.
+          Informational ledger only. The app does not track or move money.
         </p>
       </section>
     </div>

@@ -30,32 +30,25 @@ import {
   createSession,
   updateScore,
   updateSessionNotes,
+  updateSessionHandStake,
+  recordHand,
   addSessionPlayer,
+  subscribeHands,
   getPlayers,
   applyRankingResults,
   subscribeLeaderboard,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
+import {
+  RISK_STAKE_OPTIONS,
+  riskStakeOptionsFor,
+  formatRiskStake,
+  formatNet,
+} from "./risk-stakes.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
-
-/** US bill denominations — thematic stake labels only, no money movement. */
-const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
-
-function riskStakeOptionsFor(current) {
-  const options = [...RISK_STAKE_OPTIONS];
-  if (typeof current === "number" && !options.includes(current)) {
-    options.push(current);
-    options.sort((a, b) => a - b);
-  }
-  return options;
-}
-
-function formatRiskStake(amount) {
-  return `$${amount.toLocaleString("en-US")}`;
-}
 
 // ---------------------------------------------------------------------------
 // Session state
@@ -350,6 +343,7 @@ const roomsError = $("#rooms-error");
 let myRoomsUnsub = null;
 const detailUnsubs = [];
 let scoresUnsub = null;
+let handsUnsub = null;
 
 let myRooms = [];
 let currentRoomId = null;
@@ -358,6 +352,8 @@ let currentMembers = [];
 let currentSessions = [];
 let openSessionId = null;
 let openScores = [];
+let openHands = [];
+let pendingHandStake = 1;
 
 function showRoomsError(msg) {
   roomsError.textContent = msg;
@@ -369,6 +365,10 @@ function clearDetailSubs() {
   if (scoresUnsub) {
     scoresUnsub();
     scoresUnsub = null;
+  }
+  if (handsUnsub) {
+    handsUnsub();
+    handsUnsub = null;
   }
 }
 
@@ -594,9 +594,16 @@ function closeRoom() {
 
 function openSession(sessionId) {
   if (scoresUnsub) scoresUnsub();
+  if (handsUnsub) handsUnsub();
   openSessionId = sessionId;
+  openScores = [];
+  openHands = [];
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    renderRoomDetail();
+  });
+  handsUnsub = subscribeHands(currentRoomId, sessionId, (hands) => {
+    openHands = hands;
     renderRoomDetail();
   });
 }
@@ -608,9 +615,7 @@ function renderRoomDetail() {
     return;
   }
 
-  // Preserve an in-progress notes edit across re-renders (snapshots can fire
-  // while the user is typing). Capture value + caret if the notes field is
-  // focused, and restore it after the re-render below.
+  // Preserve in-progress form state across snapshot re-renders.
   const activeNotes = document.activeElement;
   const editingNotes =
     activeNotes && activeNotes.id === "session-notes"
@@ -620,6 +625,14 @@ function renderRoomDetail() {
           end: activeNotes.selectionEnd,
         }
       : null;
+  const recordHandState = (() => {
+    const winnerEl = $("#hand-winner", roomDetailView);
+    if (!winnerEl) return null;
+    return {
+      winnerId: winnerEl.value,
+      participantIds: $$("[data-hand-participant]:checked", roomDetailView).map((cb) => cb.value),
+    };
+  })();
   const hr = currentRoom.houseRules || {};
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
 
@@ -668,14 +681,29 @@ function renderRoomDetail() {
     <section class="subpanel">
       <div class="subpanel__head">
         <h4>Sessions</h4>
-        <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
+        <div class="session-new">
+          ${
+            session?.uid === currentRoom.ownerId
+              ? `<label class="session-new__stake">
+                   <span class="muted">Hand stake</span>
+                   <select class="num-select" id="new-session-stake" aria-label="Hand stake for new session">
+                     ${RISK_STAKE_OPTIONS.map(
+                       (n) =>
+                         `<option value="${n}" ${n === pendingHandStake ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                     ).join("")}
+                   </select>
+                 </label>`
+              : ""
+          }
+          <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
+        </div>
       </div>
       <div class="session-tabs">
         ${currentSessions
           .map(
             (s, i) =>
               `<button class="session-tab ${s.id === openSessionId ? "is-active" : ""}" data-open-session="${s.id}">
-                 Session ${currentSessions.length - i} · ${s.totals?.tricks ?? 0} tricks
+                 Session ${currentSessions.length - i} · ${s.handCount ?? 0} hands
                </button>`,
           )
           .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
@@ -694,12 +722,26 @@ function renderRoomDetail() {
     leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
   }
   $("#new-session").addEventListener("click", onNewSession);
+  const newSessionStake = $("#new-session-stake", roomDetailView);
+  if (newSessionStake) {
+    newSessionStake.addEventListener("change", () => {
+      pendingHandStake = parseInt(newSessionStake.value, 10) || 1;
+    });
+  }
   $$("[data-open-session]", roomDetailView).forEach((btn) =>
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
   wireSessionControls();
 
-  // Restore an in-progress notes edit (see capture above).
+  // Restore in-progress form state (see capture above).
+  if (recordHandState) {
+    const winnerEl = $("#hand-winner", roomDetailView);
+    if (winnerEl) winnerEl.value = recordHandState.winnerId;
+    $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
+      cb.checked = recordHandState.participantIds.includes(cb.value);
+    });
+    updateHandPotPreview();
+  }
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
@@ -717,11 +759,20 @@ function renderRoomDetail() {
 function renderSessionPanel(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
+  const isOwner = session?.uid === currentRoom?.ownerId;
+  const handStake = s.handStake ?? 1;
+  const stakeLocked = Boolean(s.handStakeLocked);
+  const handCount = s.handCount ?? 0;
+  const nextHand = handCount + 1;
+
   const rows = openScores
-    .map(
-      (sc) => `
+    .map((sc) => {
+      const net = sc.net ?? 0;
+      const netClass = net > 0 ? "net-up" : net < 0 ? "net-down" : "";
+      return `
       <tr data-player="${escapeHtml(sc.playerId)}">
         <td>${escapeHtml(sc.displayName)}</td>
+        <td class="num">${sc.handsWon ?? 0}</td>
         <td>
           <div class="stepper">
             <button class="room__step" data-score-step="-1" aria-label="Decrease tricks" ${disabled}>−</button>
@@ -729,17 +780,96 @@ function renderSessionPanel(s) {
             <button class="room__step" data-score-step="1" aria-label="Increase tricks" ${disabled}>+</button>
           </div>
         </td>
-        <td>
-          <select class="num-select" data-risk-select aria-label="${escapeHtml(sc.displayName)} risk stake" ${disabled}>
-            ${riskStakeOptionsFor(sc.riskPoints)
-              .map((n) => `<option value="${n}" ${n === sc.riskPoints ? "selected" : ""}>${formatRiskStake(n)}</option>`)
-              .join("")}
-          </select>
-        </td>
-        <td class="num">${sc.total}</td>
-      </tr>`,
+        <td class="num ${netClass}">${escapeHtml(formatNet(net))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const stakeControl = stakeLocked
+    ? `<div class="session-stake">
+         <span class="session-stake__label">Hand stake</span>
+         <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
+         <span class="badge badge--closed">Locked</span>
+         <p class="muted small">Set by host · applies to every hand this session.</p>
+       </div>`
+    : isOwner
+      ? `<div class="session-stake">
+           <label class="session-stake__label" for="session-hand-stake">Hand stake (per hand)</label>
+           <select class="num-select" id="session-hand-stake" aria-label="Hand stake for this session">
+             ${riskStakeOptionsFor(handStake)
+               .map(
+                 (n) =>
+                   `<option value="${n}" ${n === handStake ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+               )
+               .join("")}
+           </select>
+           <p class="muted small">Host sets the stake for this session. Locks after the first hand.</p>
+         </div>`
+      : `<div class="session-stake">
+           <span class="session-stake__label">Hand stake</span>
+           <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
+           <p class="muted small">Host set · locks after the first hand.</p>
+         </div>`;
+
+  const participantOptions = openScores
+    .map(
+      (sc) =>
+        `<label class="hand-participant">
+           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" checked />
+           ${escapeHtml(sc.displayName)}
+         </label>`,
     )
     .join("");
+
+  const winnerOptions = openScores
+    .map(
+      (sc) =>
+        `<option value="${escapeHtml(sc.playerId)}">${escapeHtml(sc.displayName)}</option>`,
+    )
+    .join("");
+
+  const recordHandBlock =
+    isFinal || openScores.length < 2
+      ? ""
+      : `<div class="record-hand">
+           <h5>Record hand #${nextHand}</h5>
+           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot.</p>
+           <div class="record-hand__grid">
+             <label class="record-hand__field">
+               <span>Winner</span>
+               <select class="num-select" id="hand-winner" aria-label="Hand winner">
+                 ${winnerOptions}
+               </select>
+             </label>
+             <fieldset class="record-hand__participants">
+               <legend>In this hand</legend>
+               ${participantOptions}
+             </fieldset>
+           </div>
+           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * openScores.length)}</p>
+           <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
+         </div>`;
+
+  const handHistory =
+    openHands.length === 0
+      ? ""
+      : `<div class="hand-history">
+           <h5>Hand history</h5>
+           <ul>
+             ${openHands
+               .slice(0, 12)
+               .map((h) => {
+                 const winner = openScores.find((sc) => sc.playerId === h.winnerId);
+                 const winnerName = winner?.displayName || h.winnerId;
+                 return `<li>
+                   <span class="hand-history__num">#${h.handNumber}</span>
+                   ${escapeHtml(winnerName)} won ${escapeHtml(formatRiskStake(h.pot ?? 0))}
+                   <span class="muted">(${h.participantIds?.length ?? 0} players)</span>
+                 </li>`;
+               })
+               .join("")}
+           </ul>
+         </div>`;
 
   const resultsBlock =
     isFinal && Array.isArray(s.results)
@@ -769,24 +899,35 @@ function renderSessionPanel(s) {
 
   return `
     <div class="session">
+      ${stakeControl}
+      ${recordHandBlock}
       <table class="score-table">
         <thead>
-          <tr><th>Player</th><th>Tricks won</th><th>Risk stake</th><th class="num">Total</th></tr>
+          <tr><th>Player</th><th class="num">Hands won</th><th>Tricks won</th><th class="num">Net</th></tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
-          <tr><td colspan="3">Total tricks</td><td class="num">${s.totals?.tricks ?? 0}</td></tr>
+          <tr><td colspan="3">${handCount} hand${handCount === 1 ? "" : "s"} played</td><td class="num"></td></tr>
         </tfoot>
       </table>
-
+      ${handHistory}
       <div class="session-controls">${controls}</div>
       ${resultsBlock}
 
       <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
       <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
         placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
-      <p class="muted small">Informational only. This app never tracks or moves money.</p>
+      <p class="muted small">Informational ledger only. This app never tracks or moves money.</p>
     </div>`;
+}
+
+function updateHandPotPreview() {
+  const preview = $("#hand-pot-preview", roomDetailView);
+  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  if (!preview || !openSessionObj) return;
+  const stake = openSessionObj.handStake ?? 1;
+  const count = $$("[data-hand-participant]:checked", roomDetailView).length;
+  preview.textContent = `Pot this hand: ${formatRiskStake(stake * count)}`;
 }
 
 async function onNewSession() {
@@ -798,8 +939,10 @@ async function onNewSession() {
   if (players.length === 0 && session) {
     players.push({ playerId: session.uid, displayName: session.displayName });
   }
+  const stakeEl = $("#new-session-stake", roomDetailView);
+  const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
   try {
-    const sid = await createSession(currentRoomId, players);
+    const sid = await createSession(currentRoomId, players, handStake);
     openSession(sid);
   } catch (err) {
     console.error("createSession:", err);
@@ -812,7 +955,6 @@ function wireSessionControls() {
   $$("tr[data-player]", roomDetailView).forEach((row) => {
     const playerId = row.dataset.player;
     const input = $("[data-score-input]", row);
-    const riskSelect = $("[data-risk-select]", row);
 
     $$("[data-score-step]", row).forEach((btn) =>
       btn.addEventListener("click", () => {
@@ -829,12 +971,27 @@ function wireSessionControls() {
         (e) => console.error("updateScore:", e),
       );
     });
-    riskSelect.addEventListener("change", () => {
-      updateScore(currentRoomId, openSessionId, playerId, {
-        riskPoints: parseInt(riskSelect.value, 10),
-      }).catch((e) => console.error("updateScore:", e));
-    });
   });
+
+  const handStakeSelect = $("#session-hand-stake", roomDetailView);
+  if (handStakeSelect) {
+    handStakeSelect.addEventListener("change", () => {
+      updateSessionHandStake(
+        currentRoomId,
+        openSessionId,
+        parseInt(handStakeSelect.value, 10),
+      ).catch((e) => console.error("updateSessionHandStake:", e));
+    });
+  }
+
+  $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
+    cb.addEventListener("change", updateHandPotPreview);
+  });
+
+  const recordBtn = $("#record-hand", roomDetailView);
+  if (recordBtn) {
+    recordBtn.addEventListener("click", onRecordHand);
+  }
 
   const notes = $("#session-notes", roomDetailView);
   if (notes) {
@@ -867,6 +1024,25 @@ function wireSessionControls() {
   const completeBtn = $("#complete-session", roomDetailView);
   if (completeBtn) {
     completeBtn.addEventListener("click", onCompleteSession);
+  }
+}
+
+async function onRecordHand() {
+  if (!currentRoomId || !openSessionId || !session) return;
+  const winnerEl = $("#hand-winner", roomDetailView);
+  if (!winnerEl) return;
+  const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
+    (cb) => cb.value,
+  );
+  try {
+    await recordHand(currentRoomId, openSessionId, {
+      winnerId: winnerEl.value,
+      participantIds,
+      recordedBy: session.uid,
+    });
+  } catch (err) {
+    console.error("recordHand:", err);
+    showRoomsError(err.message || "Could not record hand");
   }
 }
 
