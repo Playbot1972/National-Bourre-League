@@ -10,6 +10,8 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
+  completeGoogleRedirectSignIn,
+  shouldUseGoogleRedirect,
   signOutUser,
   describeAuthError,
   usingEmulator,
@@ -171,11 +173,11 @@ $("#google-signin").addEventListener("click", async () => {
   clearError();
   setBusy(true);
   try {
-    await signInWithGoogle();
-    closeAuth();
+    const user = await signInWithGoogle();
+    if (user) closeAuth();
+    else submitBtn.textContent = "Redirecting to Google…";
   } catch (err) {
     showError(describeAuthError(err));
-  } finally {
     setBusy(false);
   }
 });
@@ -198,6 +200,11 @@ document.addEventListener("keydown", (e) => {
 
 if (usingEmulator) {
   $("#auth-emulator-hint").hidden = false;
+}
+
+const googleRedirectHint = $("#google-redirect-hint");
+if (googleRedirectHint && shouldUseGoogleRedirect()) {
+  googleRedirectHint.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1330,6 +1337,12 @@ if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 renderRoomsList();
 renderLeagues();
 showView();
+
+completeGoogleRedirectSignIn().catch((err) => {
+  console.error("Google redirect sign-in:", err);
+  openAuth("signin");
+  showError(describeAuthError(err));
+});
 
 onAuthChange((user) => {
   const wasAuthed = isAuthed();
