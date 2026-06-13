@@ -142,7 +142,8 @@ async function main() {
 
   console.log("\n==> Next");
   console.log("    1. DNS at registrar → wait for Firebase green check");
-  console.log(`    2. Redeploy with ${apexDomain} authDomain:`);
+  console.log(`    2. Google sign-in: npm run setup:google-oauth -- ${projectId} ${apexDomain} --open`);
+  console.log(`    3. Redeploy with ${apexDomain} authDomain:`);
   console.log(`       npm run setup:webapp -- ${projectId} ${apexDomain}`);
   console.log("       npm run build:hosting && npx firebase deploy --only hosting");
   console.log(`\n    Live after DNS: https://${apexDomain}/ and https://${apexDomain}/social/`);
