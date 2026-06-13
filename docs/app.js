@@ -412,20 +412,25 @@ $("#join-form").addEventListener("submit", async (e) => {
   try {
     const roomId = await joinRoomByCode(code, session);
     if (!roomId) {
-      showRoomsError("No room found with that invite code.");
+      showRoomsError(
+        `No room found for code "${code.trim().toUpperCase()}". Ask the host to create a new room after the latest deploy.`,
+      );
       return;
     }
     $("#join-code").value = "";
     openRoom(roomId);
   } catch (err) {
-    console.error(err);
-    const code = err && typeof err === "object" ? err.code : "";
-    if (code === "permission-denied") {
+    console.error("joinRoomByCode:", err);
+    const fbCode = err && typeof err === "object" ? err.code : "";
+    const msg = err && typeof err === "object" ? err.message : String(err);
+    if (fbCode === "permission-denied") {
       showRoomsError(
-        "Join blocked — the site needs an update. Host: run npm run deploy on the latest code, create a new room, then share that invite code.",
+        "Join blocked by Firestore rules. Deploy firestore:rules, then create a new room.",
       );
+    } else if (/offline|network/i.test(msg)) {
+      showRoomsError("Network error — check connection and try again.");
     } else {
-      showRoomsError("Could not join that room. Please try again.");
+      showRoomsError(`Could not join (${fbCode || "error"}). ${msg}`.slice(0, 160));
     }
   }
 });

@@ -113,7 +113,11 @@ export function generateInviteCode() {
 }
 
 function normalizeInviteCode(code) {
-  return code.trim().toUpperCase();
+  let c = code.trim().toUpperCase().replace(/\s+/g, "");
+  if (/^[A-Z0-9]{6}$/.test(c)) {
+    c = `${c.slice(0, 3)}-${c.slice(3)}`;
+  }
+  return c;
 }
 
 const memberId = (roomId, uid) => `${roomId}_${uid}`;
