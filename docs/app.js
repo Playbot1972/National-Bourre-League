@@ -35,7 +35,7 @@ import {
   voteCoWinSettlement,
   addSessionPlayer,
   syncSessionWithRoomMembers,
-  updateSessionHandParticipants,
+  setHandParticipation,
   ensureCurrentHandParticipants,
   subscribeHands,
   sortScoresForDisplay,
@@ -825,10 +825,12 @@ function renderSessionPanel(s) {
   const displayScores = sortScoresForDisplay(mergedScores, playerOrder.length ? playerOrder : s.players || []);
   const handParticipantIds = s.currentHand?.participantIds;
   const isInCurrentHand = (playerId) =>
-    Array.isArray(handParticipantIds) ? handParticipantIds.includes(playerId) : true;
+    Array.isArray(handParticipantIds) && handParticipantIds.includes(playerId);
   const checkedParticipantCount = displayScores.filter((sc) => isInCurrentHand(sc.playerId)).length;
   const netTotal = displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0);
   const netTotalClass = netTotal === 0 ? "" : " net-imbalance";
+
+  const myUid = session?.uid ?? null;
 
   const rows = displayScores
     .map((sc) => {
@@ -836,21 +838,26 @@ function renderSessionPanel(s) {
       const netClass = net > 0 ? "net-up" : net < 0 ? "net-down" : "";
       const handTricks = tricksThisHand[sc.playerId] ?? 0;
       const playerStake = sc.perHandStake ?? handStake;
+      const inHand = isInCurrentHand(sc.playerId);
+      const isSelf = sc.playerId === myUid;
+      const canEditTricks = !isFinal && inHand && isSelf;
+      const trickDisabled = canEditTricks ? "" : "disabled";
       const stakeNote =
         playerStake !== handStake
           ? ` <span class="muted small">(${formatRiskStake(playerStake)} ante)</span>`
           : "";
+      const tricksCell = canEditTricks
+        ? `<div class="stepper">
+            <button class="room__step" data-hand-trick-step="-1" aria-label="Decrease ${escapeHtml(sc.displayName)} tricks this hand" ${trickDisabled}>−</button>
+            <input class="num-input" type="number" min="0" max="${MAX_TRICKS_PER_HAND}" value="${handTricks}" data-hand-trick-input aria-label="${escapeHtml(sc.displayName)} tricks this hand" readonly />
+            <button class="room__step" data-hand-trick-step="1" aria-label="Increase ${escapeHtml(sc.displayName)} tricks this hand" ${trickDisabled}>+</button>
+          </div>`
+        : `<span class="num muted">${inHand ? handTricks : "—"}</span>`;
       return `
       <tr data-player-id="${escapeHtml(sc.playerId)}">
         <td>${escapeHtml(sc.displayName)}${stakeNote}</td>
         <td class="num">${sc.handsWon ?? 0}</td>
-        <td>
-          <div class="stepper">
-            <button class="room__step" data-hand-trick-step="-1" aria-label="Decrease ${escapeHtml(sc.displayName)} tricks this hand" ${disabled}>−</button>
-            <input class="num-input" type="number" min="0" max="${MAX_TRICKS_PER_HAND}" value="${handTricks}" data-hand-trick-input aria-label="${escapeHtml(sc.displayName)} tricks this hand" readonly />
-            <button class="room__step" data-hand-trick-step="1" aria-label="Increase ${escapeHtml(sc.displayName)} tricks this hand" ${disabled}>+</button>
-          </div>
-        </td>
+        <td>${tricksCell}</td>
         <td class="num ${netClass}">${escapeHtml(formatNet(net))}</td>
       </tr>`;
     })
@@ -884,13 +891,14 @@ function renderSessionPanel(s) {
          </div>`;
 
   const participantOptions = displayScores
-    .map(
-      (sc) =>
-        `<label class="hand-participant">
-           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" ${isInCurrentHand(sc.playerId) ? "checked" : ""} />
+    .map((sc) => {
+      const isSelf = sc.playerId === myUid;
+      const canToggle = isSelf && !isFinal;
+      return `<label class="hand-participant${canToggle ? "" : " hand-participant--readonly"}">
+           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" ${isInCurrentHand(sc.playerId) ? "checked" : ""} ${canToggle ? "" : "disabled"} />
            ${escapeHtml(sc.displayName)}
-         </label>`,
-    )
+         </label>`;
+    })
     .join("");
 
   const winnerOptions = displayScores
@@ -909,9 +917,9 @@ function renderSessionPanel(s) {
       ? ""
       : `<div class="record-hand">
            <h5>Record hand #${nextHand}</h5>
-           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Co-winners choose <strong>push</strong> (carry pot) or <strong>split</strong>. Or tap + until ${BOURRE_TRICKS_TO_WIN} tricks.</p>
+           <p class="muted small">Check <strong>In this hand</strong> for yourself only. Tricks can only be added when you are in the hand. Winner takes the pot; co-winners choose push or split. Or tap + until ${BOURRE_TRICKS_TO_WIN} tricks.</p>
            <fieldset class="record-hand__participants">
-             <legend>In this hand</legend>
+             <legend>In this hand (check yourself only)</legend>
              ${participantOptions}
            </fieldset>
            <fieldset class="record-hand__participants">
@@ -1123,7 +1131,10 @@ function wireSessionControls() {
       btn.addEventListener("click", () => {
         const delta = Number(btn.dataset.handTrickStep);
         updateHandTrick(currentRoomId, openSessionId, playerId, delta, session?.uid).catch(
-          (e) => console.error("updateHandTrick:", e),
+          (e) => {
+            console.error("updateHandTrick:", e);
+            showRoomsError(e.message || "Could not update tricks");
+          },
         );
       }),
     );
@@ -1140,16 +1151,20 @@ function wireSessionControls() {
     });
   }
 
-  $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
+  $$("[data-hand-participant]:not([disabled])", roomDetailView).forEach((cb) => {
     cb.addEventListener("change", () => {
+      if (!session?.uid) return;
       updateHandPotPreview();
       updateCoWinnerUI();
-      const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
-        (el) => el.value,
-      );
-      updateSessionHandParticipants(currentRoomId, openSessionId, participantIds).catch((e) =>
-        console.error("updateSessionHandParticipants:", e),
-      );
+      setHandParticipation(currentRoomId, openSessionId, {
+        playerId: cb.value,
+        inHand: cb.checked,
+        actorId: session.uid,
+      }).catch((e) => {
+        console.error("setHandParticipation:", e);
+        cb.checked = !cb.checked;
+        showRoomsError(e.message || "Could not update hand participation");
+      });
     });
   });
 

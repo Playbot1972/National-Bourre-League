@@ -883,6 +883,10 @@ button {
   margin: 4px 12px 4px 0;
   font-size: 14px;
 }
+.hand-participant--readonly {
+  opacity: 0.75;
+  cursor: default;
+}
 
 .hand-history {
   margin-bottom: 16px;
