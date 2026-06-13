@@ -68,7 +68,8 @@ This repo contains two front-ends:
 ### Firestore data model (`docs/firestore.js` + `firestore.rules`)
 
 - Collections: `users`, `rooms`, `roomMembers` (flat, id `${roomId}_${uid}` for
-  easy membership lookups), `players` (top-level Ape Score rankings; doc id =
+  easy membership lookups), `inviteLookups` (doc id = invite code → `roomId`;
+  used for join-by-code without listing all rooms), `players` (top-level Ape Score rankings; doc id =
   auth uid or a generated `guest_*` id for table guests), and `sessions` +
   `scores` nested **under each room**
   (`rooms/{roomId}/sessions/{sessionId}/scores/{playerId}`).
