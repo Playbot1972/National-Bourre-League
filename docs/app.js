@@ -919,7 +919,7 @@ function renderSessionPanel(s) {
            <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
            <div class="settlement-actions" id="co-winner-settlement" hidden>
-             <p class="muted small">Co-winners each vote. <strong>Split</strong> only if all co-winners agree; otherwise pot pushes and <strong>non-winners ante up</strong> (not co-winners).</p>
+             <p class="muted small">Co-winners vote: <strong>one Decline</strong> ends split (pot pushes, non-winners ante up). <strong>All</strong> must tap Agree to split.</p>
              <div class="settlement-actions__btns">
                <button class="btn btn--sm" type="button" id="settle-push">Decline split</button>
                <button class="btn btn--sm" type="button" id="settle-split">Agree to split</button>
