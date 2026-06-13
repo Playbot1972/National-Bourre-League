@@ -73,29 +73,43 @@ cat > .firebaserc <<EOF
 EOF
 
 echo ""
-echo "==> MANUAL STEPS in Firebase Console (cannot be fully automated via CLI):"
-echo "    1. https://console.firebase.google.com/project/${PROJECT_ID}/authentication/providers"
-echo "       Enable Email/Password and Google sign-in."
-echo "    2. https://console.firebase.google.com/project/${PROJECT_ID}/settings/general"
-echo "       Add a Web app if you haven't → copy apiKey and appId."
-echo "    3. https://console.firebase.google.com/project/${PROJECT_ID}/hosting/sites"
-echo "       Get started with Hosting (first deploy below will finish this)."
-echo "    4. https://console.firebase.google.com/project/${PROJECT_ID}/authentication/settings"
-echo "       Authorized domains → add: ${AUTH_DOMAIN}, www.${AUTH_DOMAIN}"
+echo "==> Console checklist (skip items already done):"
+echo "    Auth:  https://console.firebase.google.com/project/${PROJECT_ID}/authentication/providers"
+echo "    Domains: https://console.firebase.google.com/project/${PROJECT_ID}/authentication/settings"
+echo "           → add ${AUTH_DOMAIN}, www.${AUTH_DOMAIN}"
 echo ""
-read -r -p "Press Enter after completing the console steps and copying web app config…"
 
-read -r -p "Firebase apiKey: " FIREBASE_API_KEY
-read -r -p "Firebase appId: " FIREBASE_APP_ID
-
-if [[ -z "${FIREBASE_API_KEY}" || -z "${FIREBASE_APP_ID}" ]]; then
-  echo "apiKey and appId are required."
-  exit 1
+CONFIG_READY=false
+if [[ -f docs/firebase-config.js ]] && ! grep -q 'REPLACE_WITH' docs/firebase-config.js; then
+  FIREBASE_API_KEY="$(node --input-type=module -e "
+import { readFileSync } from 'node:fs';
+const src = readFileSync('docs/firebase-config.js', 'utf8');
+console.log(src.match(/apiKey:\\s*\"([^\"]+)\"/)?.[1] || '');
+")"
+  FIREBASE_APP_ID="$(node --input-type=module -e "
+import { readFileSync } from 'node:fs';
+const src = readFileSync('docs/firebase-config.js', 'utf8');
+console.log(src.match(/appId:\\s*\"([^\"]+)\"/)?.[1] || '');
+")"
+  if [[ -n "${FIREBASE_API_KEY}" && -n "${FIREBASE_APP_ID}" ]]; then
+    CONFIG_READY=true
+    echo "==> Using docs/firebase-config.js from Step 3 (setup:webapp)"
+  fi
 fi
 
-echo "==> Writing local production config (for manual deploys)"
-export FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN="${AUTH_DOMAIN}" FIREBASE_PROJECT_ID="${PROJECT_ID}" FIREBASE_APP_ID
-node scripts/write-firebase-config.js
+if [[ "${CONFIG_READY}" != "true" ]]; then
+  echo "    No web app config yet — run: npm run setup:webapp -- ${PROJECT_ID} ${AUTH_DOMAIN}"
+  read -r -p "Press Enter after Step 3 (web app) is done, or to enter config manually…"
+  read -r -p "Firebase apiKey: " FIREBASE_API_KEY
+  read -r -p "Firebase appId: " FIREBASE_APP_ID
+  if [[ -z "${FIREBASE_API_KEY}" || -z "${FIREBASE_APP_ID}" ]]; then
+    echo "apiKey and appId are required."
+    exit 1
+  fi
+  echo "==> Writing docs/firebase-config.js"
+  export FIREBASE_API_KEY FIREBASE_AUTH_DOMAIN="${AUTH_DOMAIN}" FIREBASE_PROJECT_ID="${PROJECT_ID}" FIREBASE_APP_ID
+  node scripts/write-firebase-config.js
+fi
 
 echo "==> Service account for GitHub Actions…"
 KEY_FILE="${ROOT}/.firebase-sa-key.json"

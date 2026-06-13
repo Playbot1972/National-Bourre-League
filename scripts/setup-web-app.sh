@@ -23,6 +23,9 @@ SDK_FILE="$(mktemp)"
 
 cd "$ROOT"
 
+echo "==> Installing local dependencies…"
+npm ci
+
 cleanup() {
   rm -f "${SDK_FILE}"
 }
@@ -54,8 +57,8 @@ else
 fi
 
 echo "==> Fetching web app config…"
-$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" --non-interactive > "${SDK_FILE}" 2>/dev/null || \
-  $FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" > "${SDK_FILE}"
+SDK_FILE="$(mktemp -u "/tmp/firebase-sdk-XXXXXX.json")"
+$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" -o "${SDK_FILE}" --non-interactive
 
 echo "==> Writing docs/firebase-config.js"
 node scripts/apply-sdkconfig.js "${SDK_FILE}" "${PROJECT_ID}" "${AUTH_DOMAIN}"
