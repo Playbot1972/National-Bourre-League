@@ -22,6 +22,7 @@
     "setup:domain": "./scripts/setup-custom-domain.sh",
     "domain:finish": "./scripts/finish-domain-setup.sh",
     "domain:dns": "./scripts/apply-registrar-dns.sh",
+    "setup:google-oauth": "./scripts/setup-google-oauth.sh",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {

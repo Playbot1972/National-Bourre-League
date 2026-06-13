@@ -176,7 +176,12 @@ npm run preview:hosting # terminal 2 → http://localhost:5000
    npm run setup:webapp -- national-bourre-league booray.win
    npm run build:hosting && npx firebase deploy --only hosting
    ```
-   Add the same origins to your Google OAuth client if using Google sign-in.
+   Add the same origins to your Google OAuth client if using Google sign-in:
+   ```bash
+   npm run setup:google-oauth -- national-bourre-league booray.win --open
+   ```
+   Fixes `redirect_uri_mismatch` by opening Firebase → Google provider and printing
+   the exact JavaScript origins + redirect URIs for your OAuth Web client.
 
 **GitHub Actions auto-deploy:** pushes to `main` run `.github/workflows/deploy.yml`.
 Add these repository secrets (Settings → Secrets and variables → Actions):
