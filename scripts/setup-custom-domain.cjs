@@ -6,14 +6,12 @@
  *
  * Usage:
  *   node scripts/setup-custom-domain.cjs [project-id] [domain] [site-id]
- *
- * Example:
- *   node scripts/setup-custom-domain.cjs national-bourre-league booray.win
  */
 
 const { initFirebaseSession } = require("./lib/firebase-session.cjs");
 const { Client } = require("firebase-tools/lib/apiv2");
 const { hostingApiOrigin } = require("firebase-tools/lib/api");
+const { pollOperation } = require("firebase-tools/lib/operation-poller");
 const authGcp = require("firebase-tools/lib/gcp/auth");
 const hostingApi = require("firebase-tools/lib/hosting/api");
 
@@ -29,49 +27,127 @@ const hostingClient = new Client({
   auth: true,
 });
 
-async function listDomains() {
-  return hostingApi.getSiteDomains(projectId, siteId);
+function operationPath(name) {
+  if (!name) return null;
+  const idx = name.indexOf("/v1beta1/");
+  return idx >= 0 ? name.slice(idx + "/v1beta1".length) : name;
+}
+
+async function listCustomDomains() {
+  try {
+    const res = await hostingClient.get(
+      `/projects/${projectId}/sites/${siteId}/customDomains`,
+    );
+    return res.body.customDomains || [];
+  } catch {
+    return [];
+  }
+}
+
+async function listLegacyDomains() {
+  try {
+    return await hostingApi.getSiteDomains(projectId, siteId);
+  } catch {
+    return [];
+  }
+}
+
+async function createCustomDomain(domainName) {
+  const res = await hostingClient.post(
+    `/projects/${projectId}/sites/${siteId}/customDomains`,
+    {},
+    { queryParams: { customDomainId: domainName } },
+  );
+  let body = res.body;
+  if (body?.name && body.done !== true) {
+    const opPath = operationPath(body.name);
+    if (opPath) {
+      body = await pollOperation({
+        apiOrigin: hostingApiOrigin(),
+        apiVersion: "v1beta1",
+        operationResourceName: opPath,
+        masterTimeout: 120000,
+      });
+    }
+  }
+  return body?.response || body;
+}
+
+async function createLegacyDomain(domainName) {
+  const res = await hostingClient.post(
+    `/projects/${projectId}/sites/${siteId}/domains`,
+    { domainName, site: siteId },
+  );
+  return res.body;
 }
 
 async function createDomain(domainName) {
   try {
-    const res = await hostingClient.post(
-      `/projects/${projectId}/sites/${siteId}/domains`,
-      { domainName },
-    );
-    return res.body;
+    return await createCustomDomain(domainName);
   } catch (err) {
     const msg = err?.message || String(err);
     if (/already exists|ALREADY_EXISTS|409/i.test(msg)) {
       console.log(`    ${domainName} already registered in Hosting.`);
       return null;
     }
-    throw err;
+    console.log(`    customDomains API failed (${msg.slice(0, 80)}…), trying legacy API…`);
+    try {
+      return await createLegacyDomain(domainName);
+    } catch (err2) {
+      const msg2 = err2?.message || String(err2);
+      if (/already exists|ALREADY_EXISTS|409/i.test(msg2)) {
+        console.log(`    ${domainName} already registered in Hosting.`);
+        return null;
+      }
+      throw err2;
+    }
   }
 }
 
-function printDns(domainRecord) {
+function printDnsRecord(type, host, value) {
+  console.log(`    ${type}  ${host || "@"}  →  ${value}`);
+}
+
+function printDns(domainRecord, label) {
   if (!domainRecord) return;
-  console.log(`\n--- DNS for ${domainRecord.domainName || domainRecord} ---`);
-  const status = domainRecord.status || domainRecord.provisioning?.certStatus;
-  if (status) console.log(`    Status: ${status}`);
+  const name =
+    label ||
+    domainRecord.domainName ||
+    domainRecord.name?.split("/").pop() ||
+    "domain";
+  console.log(`\n--- DNS for ${name} ---`);
+
+  const hostState = domainRecord.hostState || domainRecord.status;
+  if (hostState) console.log(`    Status: ${hostState}`);
+
+  const desired = domainRecord.requiredDnsUpdates?.desired;
+  if (Array.isArray(desired)) {
+    for (const set of desired) {
+      for (const rec of set.records || []) {
+        printDnsRecord(rec.type, rec.domainName?.replace(/\.$/, ""), rec.rdata);
+      }
+    }
+    return;
+  }
 
   const updates =
     domainRecord.requiredDnsUpdates ||
     domainRecord.provisioning?.dnsUpdates ||
     domainRecord.dnsUpdates;
-  if (updates?.length) {
+  if (Array.isArray(updates)) {
     for (const u of updates) {
-      console.log(`    ${u.type || u.recordType}  ${u.host || u.domainName || "@"}  →  ${u.rdata || u.value || u.requiredValue}`);
+      printDnsRecord(
+        u.type || u.recordType,
+        u.host || u.domainName,
+        u.rdata || u.value || u.requiredValue,
+      );
     }
     return;
   }
 
-  // Fallback: common Firebase Hosting A records (Quick Setup)
-  console.log("    Add at your registrar (Firebase Quick Setup):");
-  console.log(`    A     @     199.36.158.100`);
-  console.log(`    TXT   @     (verification record from Firebase Console if shown)`);
-  console.log(`    CNAME www   ${siteId}.web.app`);
+  console.log("    Add at your registrar (or check Firebase Console for exact values):");
+  printDnsRecord("A", "@", "199.36.158.100");
+  printDnsRecord("CNAME", "www", `${siteId}.web.app`);
 }
 
 async function addAuthDomain(name) {
@@ -94,12 +170,18 @@ async function main() {
   for (const d of [apexDomain, wwwDomain]) {
     console.log(`    Adding ${d}…`);
     const created = await createDomain(d);
-    if (created) printDns(created);
+    if (created) printDns(created, d);
   }
 
-  const domains = await listDomains();
+  const custom = await listCustomDomains();
+  const legacy = await listLegacyDomains();
   console.log("\n    Hosting domains on file:");
-  for (const d of domains) {
+  for (const d of custom) {
+    const id = d.name?.split("/").pop() || d.customDomainId || "custom";
+    console.log(`      • ${id} (${d.hostState || "pending"})`);
+    printDns(d, id);
+  }
+  for (const d of legacy) {
     console.log(`      • ${d.domainName} (${d.status || "pending"})`);
     if (d.domainName === apexDomain || d.domainName === wwwDomain) {
       printDns(d);
