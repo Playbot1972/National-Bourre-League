@@ -20,15 +20,19 @@
 //   { roomId, ownerId, createdAt }
 //
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
-//   { roomId, status: "in_progress" | "final", rounds,
+//   { roomId, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
-//     totals: { byPlayer: { [playerId]: tricks }, tricks },
+//     totals: { byPlayer: { [playerId]: tricks }, netByPlayer: { [playerId]: net }, tricks },
 //     createdAt, updatedAt }
 //
 // rooms/{roomId}/sessions/{sessionId}/scores/{playerId}   (one row per player)
-//   { sessionId, roomId, playerId, displayName, tricksWon, riskPoints, total,
+//   { sessionId, roomId, playerId, displayName, tricksWon, handsWon, net, total,
 //     updatedAt }
+//
+// rooms/{roomId}/sessions/{sessionId}/hands/{handId}
+//   { handNumber, winnerId, participantIds, stake, pot, deltas: { [playerId]: netDelta },
+//     recordedBy, createdAt }
 //
 // Sessions + scores are nested UNDER the room so security rules can authorize
 // them by the {roomId} path wildcard. (Top-level collections with a roomId
@@ -36,7 +40,7 @@
 // without per-document `resource.data`, so `resource.data.roomId` is undefined
 // there. Subcollections avoid that entirely and scale cleanly.)
 //
-// NOTE: `notes`, `riskPoints`, `tricksWon`, and `total` are for scorekeeping and
+// NOTE: `notes`, `handStake`, `net`, `tricksWon`, and `total` are for scorekeeping and
 // bragging rights only. Nothing in this schema represents currency, wallets, or
 // money transfers, and the security rules below intentionally keep it that way.
 //
@@ -57,6 +61,9 @@
 //   match /rooms/{roomId}/sessions/{sessionId} {
 //     allow read, write: if isMember(roomId);          // roomId from the PATH
 //     match /scores/{scoreId} {
+//       allow read, write: if isMember(roomId);
+//     }
+//     match /hands/{handId} {
 //       allow read, write: if isMember(roomId);
 //     }
 //   }
@@ -318,21 +325,27 @@ export function subscribeRoomMembers(roomId, callback) {
 const sessionsCol = (roomId) => collection(db, "rooms", roomId, "sessions");
 const scoresCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "scores");
+const handsCol = (roomId, sessionId) =>
+  collection(db, "rooms", roomId, "sessions", sessionId, "hands");
 const sessionDoc = (roomId, sessionId) =>
   doc(db, "rooms", roomId, "sessions", sessionId);
 const scoreDoc = (roomId, sessionId, playerId) =>
   doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
 
-export async function createSession(roomId, players) {
+export async function createSession(roomId, players, handStake = 1) {
+  const stake = Math.max(1, Number(handStake) || 1);
   const sessionRef = doc(sessionsCol(roomId));
   const batch = writeBatch(db);
   batch.set(sessionRef, {
     roomId,
     status: "in_progress",
+    handCount: 0,
+    handStake: stake,
+    handStakeLocked: false,
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
     notes: "",
-    totals: { byPlayer: {}, tricks: 0 },
+    totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -343,7 +356,8 @@ export async function createSession(roomId, players) {
       playerId: p.playerId,
       displayName: p.displayName,
       tricksWon: 0,
-      riskPoints: 1,
+      handsWon: 0,
+      net: 0,
       total: 0,
       updatedAt: serverTimestamp(),
     });
@@ -368,6 +382,96 @@ export function subscribeScores(roomId, sessionId, callback) {
   });
 }
 
+export function subscribeHands(roomId, sessionId, callback) {
+  return onSnapshot(handsCol(roomId, sessionId), (snap) => {
+    callback(
+      snap.docs
+        .map(withId)
+        .sort((a, b) => (b.handNumber ?? 0) - (a.handNumber ?? 0)),
+    );
+  });
+}
+
+/** Room owner may change hand stake until the first hand is recorded. */
+export async function updateSessionHandStake(roomId, sessionId, handStake) {
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!snap.exists()) throw new Error("Session not found");
+  const data = snap.data();
+  if (data.status === "final") throw new Error("Session is final");
+  if (data.handStakeLocked) throw new Error("Hand stake is locked after the first hand");
+  const stake = Number(handStake);
+  if (!Number.isFinite(stake) || stake <= 0) throw new Error("Invalid hand stake");
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    handStake: stake,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Record one hand: winner takes the pot; each participant antes the session stake.
+ * Informational ledger only — no money movement.
+ */
+export async function recordHand(roomId, sessionId, { winnerId, participantIds, recordedBy }) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const stake = sessionData.handStake ?? 1;
+  const participants = [...new Set(participantIds.filter(Boolean))];
+  if (participants.length < 2) throw new Error("At least two players must be in the hand");
+  if (!participants.includes(winnerId)) throw new Error("Winner must be in the hand");
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  for (const pid of participants) {
+    if (!scoreById[pid]) throw new Error("Unknown player in hand");
+  }
+
+  const pot = stake * participants.length;
+  const handNumber = (sessionData.handCount || 0) + 1;
+  const deltas = {};
+  participants.forEach((pid) => {
+    deltas[pid] = pid === winnerId ? stake * (participants.length - 1) : -stake;
+  });
+
+  const batch = writeBatch(db);
+  batch.set(doc(handsCol(roomId, sessionId)), {
+    handNumber,
+    winnerId,
+    participantIds: participants,
+    stake,
+    pot,
+    deltas,
+    recordedBy: recordedBy || null,
+    createdAt: serverTimestamp(),
+  });
+
+  participants.forEach((pid) => {
+    const current = scoreById[pid];
+    const tricksWon = (current.tricksWon || 0) + (pid === winnerId ? 1 : 0);
+    const patch = {
+      net: (current.net || 0) + deltas[pid],
+      updatedAt: serverTimestamp(),
+    };
+    if (pid === winnerId) {
+      patch.handsWon = (current.handsWon || 0) + 1;
+      patch.tricksWon = tricksWon;
+      patch.total = Math.max(0, tricksWon);
+    }
+    batch.update(scoreDoc(roomId, sessionId, pid), patch);
+  });
+
+  batch.update(sessionDoc(roomId, sessionId), {
+    handCount: handNumber,
+    handStakeLocked: true,
+    updatedAt: serverTimestamp(),
+  });
+
+  await batch.commit();
+  await recomputeSessionTotals(roomId, sessionId);
+}
+
 /** Update one player's score row, then recompute the session totals. */
 export async function updateScore(roomId, sessionId, playerId, fields) {
   const patch = { ...fields, updatedAt: serverTimestamp() };
@@ -381,15 +485,17 @@ export async function updateScore(roomId, sessionId, playerId, fields) {
 export async function recomputeSessionTotals(roomId, sessionId) {
   const snap = await getDocs(scoresCol(roomId, sessionId));
   const byPlayer = {};
+  const netByPlayer = {};
   let tricks = 0;
   snap.docs.forEach((d) => {
     const s = d.data();
     byPlayer[s.playerId] = s.tricksWon || 0;
+    netByPlayer[s.playerId] = s.net || 0;
     tricks += s.tricksWon || 0;
   });
   await updateDoc(sessionDoc(roomId, sessionId), {
-    totals: { byPlayer, tricks },
-    rounds: tricks, // each trick won counts as a played round in this simple model
+    totals: { byPlayer, netByPlayer, tricks },
+    rounds: tricks,
     updatedAt: serverTimestamp(),
   });
 }
@@ -479,7 +585,8 @@ export async function addSessionPlayer(roomId, sessionId, playerId, displayName)
     playerId,
     displayName,
     tricksWon: 0,
-    riskPoints: 1,
+    handsWon: 0,
+    net: 0,
     total: 0,
     updatedAt: serverTimestamp(),
   });
