@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "1.00.15",
+  "version": "1.00.16",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "social": "npx serve docs -l 8080",
-    "build:hosting": "npm run version:sync && npm run build && node scripts/prepare-hosting.js",
+    "build:hosting": "npm run version:sync && npm run build && npm run build:table && node scripts/prepare-hosting.js",
+    "build:table": "vite build --config vite.table.config.ts",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
     "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
     "deploy:rules": "npx firebase deploy --only firestore:rules",

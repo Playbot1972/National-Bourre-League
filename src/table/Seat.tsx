@@ -1,0 +1,98 @@
+import type { CSSProperties } from "react";
+import { PlayingCard } from "../components/PlayingCard";
+import { formatNet, initials } from "./logic";
+import type { TablePlayer } from "./types";
+
+interface SeatProps {
+  player: TablePlayer;
+  style: CSSProperties;
+  onToggleInHand: () => void;
+  onTrickDelta: (delta: number) => void;
+}
+
+export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps) {
+  const trickCount = player.tricksThisHand;
+  const stackDepth = Math.min(trickCount, 3);
+
+  return (
+    <div
+      className={[
+        "bseat",
+        player.inHand ? "bseat--in-hand" : "",
+        player.isSelf ? "bseat--self" : "",
+        player.isWinner ? "bseat--winner" : "",
+        player.isDealer ? "bseat--dealer" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={style}
+    >
+      <div className="bseat__tricks" aria-label={`${trickCount} tricks this hand`}>
+        {player.inHand && trickCount > 0 ? (
+          <>
+            {Array.from({ length: stackDepth }, (_, i) => (
+              <div
+                key={i}
+                className="bseat__trick-card"
+                style={{ ["--stack-i" as string]: i }}
+              >
+                <PlayingCard faceDown size="sm" />
+              </div>
+            ))}
+            {trickCount > 0 && <span className="bseat__trick-count">{trickCount}</span>}
+          </>
+        ) : (
+          <div className="bseat__trick-empty" />
+        )}
+      </div>
+
+      <div className="bseat__avatar-wrap">
+        {player.isDealer && <span className="bseat__dealer">D</span>}
+        {player.photoURL ? (
+          <img className="bseat__avatar" src={player.photoURL} alt="" />
+        ) : (
+          <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+            {initials(player.displayName)}
+          </span>
+        )}
+        {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+      </div>
+
+      <div className="bseat__info">
+        <span className="bseat__name">{player.displayName}</span>
+        <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
+          {formatNet(player.net)}
+        </span>
+      </div>
+
+      {player.canToggleInHand && (
+        <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
+          {player.inHand ? "Sit out" : "I'm in"}
+        </button>
+      )}
+
+      {player.canEditTricks && (
+        <div className="bseat__controls">
+          <button
+            type="button"
+            className="bseat__trick-btn"
+            aria-label="Remove trick"
+            disabled={trickCount <= 0}
+            onClick={() => onTrickDelta(-1)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="bseat__trick-btn bseat__trick-btn--plus"
+            aria-label="Won a trick"
+            disabled={trickCount >= 5}
+            onClick={() => onTrickDelta(1)}
+          >
+            +
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

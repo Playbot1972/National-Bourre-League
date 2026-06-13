@@ -371,7 +371,20 @@ const sessionDoc = (roomId, sessionId) =>
 const scoreDoc = (roomId, sessionId, playerId) =>
   doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
 
-export async function createSession(roomId, players, handStake = 1) {
+function nextDealerId(scoreSnap, currentDealerId) {
+  const ids = scoreSnap.docs
+    .map((d) => d.id)
+    .sort((a, b) => {
+      const na = scoreSnap.docs.find((d) => d.id === a)?.data()?.displayName || "";
+      const nb = scoreSnap.docs.find((d) => d.id === b)?.data()?.displayName || "";
+      return na.localeCompare(nb);
+    });
+  if (ids.length === 0) return null;
+  const idx = ids.indexOf(currentDealerId);
+  const base = idx >= 0 ? idx : 0;
+  return ids[(base + 1) % ids.length];
+}
+
   const stake = Math.max(1, Number(handStake) || 1);
   const sessionRef = doc(sessionsCol(roomId));
   const batch = writeBatch(db);
@@ -382,6 +395,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handStake: stake,
     handStakeLocked: false,
     carryOverPot: 0,
+    dealerId: players[0]?.playerId ?? null,
     currentHand: { tricksByPlayer: {}, participantIds: [] },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
@@ -580,6 +594,7 @@ export async function recordHand(
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
+    dealerId: nextDealerId(scoreSnap, sessionData.dealerId),
     pendingCoWinSettlement: deleteField(),
     currentHand: {
       tricksByPlayer: {},

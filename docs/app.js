@@ -43,7 +43,6 @@ import {
   subscribeLeaderboard,
   deriveWinnersFromTricks,
   BOURRE_TRICKS_TO_WIN,
-  MAX_TRICKS_PER_HAND,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
@@ -51,7 +50,6 @@ import {
   RISK_STAKE_OPTIONS,
   riskStakeOptionsFor,
   formatRiskStake,
-  formatNet,
 } from "./risk-stakes.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -629,9 +627,167 @@ function openRoom(roomId) {
 
 function closeRoom() {
   clearDetailSubs();
+  unmountTableSessionHost();
   currentRoomId = null;
   openSessionId = null;
   renderRoomsList();
+}
+
+/** Lazy-loaded React card table bundle (built via npm run build:table). */
+let tableMountApi = null;
+
+async function loadTableMount() {
+  if (!tableMountApi) {
+    tableMountApi = await import("./table-session.js");
+  }
+  return tableMountApi;
+}
+
+function unmountTableSessionHost() {
+  if (tableMountApi) {
+    tableMountApi.unmountTableSession();
+  }
+}
+
+function buildTableLeaderLabel(displayScores, participantIds, tricksThisHand, activeWinnerIds, handReady, maxTricks) {
+  if (!participantIds.length) return "Tap I'm in when you're ready to play.";
+  if (handReady && activeWinnerIds.length === 1) {
+    const name =
+      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
+    return `${name} wins (${maxTricks} tricks)`;
+  }
+  if (handReady && activeWinnerIds.length >= 2) {
+    const names = activeWinnerIds
+      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
+      .join(" & ");
+    return `Tie — ${names} (${maxTricks} tricks each)`;
+  }
+  if (maxTricks > 0) {
+    const leaders = participantIds.filter((id) => (tricksThisHand[id] || 0) === maxTricks);
+    const names = leaders
+      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
+      .join(" & ");
+    return `Leader: ${names} (${maxTricks} — need ${BOURRE_TRICKS_TO_WIN} to win)`;
+  }
+  return `Tap + when you take a trick (first to ${BOURRE_TRICKS_TO_WIN} wins).`;
+}
+
+function buildTableSessionProps(s) {
+  const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
+  const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
+  const displayScores = sortScoresForDisplay(
+    mergedScores,
+    playerOrder.length ? playerOrder : s.players || [],
+  );
+  const handParticipantIds = s.currentHand?.participantIds || [];
+  const tricksThisHand = s.currentHand?.tricksByPlayer || {};
+  const handStake = s.handStake ?? 1;
+  const isFinal = s.status === "final";
+  const myUid = session?.uid ?? null;
+  const dealerId = s.dealerId ?? null;
+
+  const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
+    tricksThisHand,
+    handParticipantIds,
+  );
+  const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
+  const activeWinnerIds =
+    handReady && derivedWinnerIds.length > 0
+      ? derivedWinnerIds
+      : pendingWinners?.length
+        ? pendingWinners
+        : [];
+
+  const antePot = handParticipantIds.reduce((sum, pid) => {
+    const sc = displayScores.find((x) => x.playerId === pid);
+    return sum + (sc?.perHandStake ?? handStake);
+  }, 0);
+  const potAmount = antePot + (s.carryOverPot ?? 0);
+
+  const showCoWinSettlement =
+    (handReady && derivedWinnerIds.length >= 2) ||
+    (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2);
+
+  return {
+    session: {
+      sessionId: s.id,
+      handNumber: (s.handCount ?? 0) + 1,
+      handStake,
+      carryOverPot: s.carryOverPot ?? 0,
+      isFinal,
+      dealerId,
+      participantIds: handParticipantIds,
+      tricksByPlayer: tricksThisHand,
+      pendingCoWinSettlement: s.pendingCoWinSettlement,
+    },
+    players: displayScores.map((sc) => ({
+      playerId: sc.playerId,
+      displayName: sc.displayName,
+      photoURL: sc.playerId === myUid ? session?.photoURL : null,
+      handsWon: sc.handsWon ?? 0,
+      net: sc.net ?? 0,
+      perHandStake: sc.perHandStake,
+      inHand: handParticipantIds.includes(sc.playerId),
+      tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
+      isSelf: sc.playerId === myUid,
+      isDealer: sc.playerId === dealerId,
+      isWinner: handReady && activeWinnerIds.includes(sc.playerId),
+      canToggleInHand: sc.playerId === myUid && !isFinal,
+      canEditTricks:
+        !isFinal && handParticipantIds.includes(sc.playerId) && sc.playerId === myUid,
+    })),
+    potAmount,
+    netTotal: displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0),
+    leaderLabel: buildTableLeaderLabel(
+      displayScores,
+      handParticipantIds,
+      tricksThisHand,
+      activeWinnerIds,
+      handReady,
+      maxTricks,
+    ),
+    showCoWinSettlement,
+    voteStatus: renderSettlementVoteStatus(s, displayScores),
+    currentUserId: myUid,
+    actions: {
+      onToggleInHand: (inHand) => {
+        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        setHandParticipation(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          inHand,
+          actorId: session.uid,
+        }).catch((e) => showRoomsError(e.message || "Could not update hand participation"));
+      },
+      onTrickDelta: (delta) => {
+        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        updateHandTrick(currentRoomId, openSessionId, session.uid, delta, session.uid).catch(
+          (e) => showRoomsError(e.message || "Could not update tricks"),
+        );
+      },
+      onSettle: (choice) => onSettleHand(choice),
+    },
+  };
+}
+
+async function syncTableSession(openSessionObj) {
+  const host = $("#table-session-root", roomDetailView);
+  if (!host) return;
+
+  if (!openSessionObj || openSessionObj.status === "final" || openScores.length < 2) {
+    unmountTableSessionHost();
+    if (host && openSessionObj?.status !== "final" && openScores.length < 2) {
+      host.innerHTML = `<p class="muted small">Need at least two players for the table.</p>`;
+    }
+    return;
+  }
+
+  try {
+    const api = await loadTableMount();
+    api.mountTableSession(host, buildTableSessionProps(openSessionObj));
+  } catch (err) {
+    console.error("table-session mount:", err);
+    host.innerHTML = `<p class="muted small">Table UI failed to load. Run <code>npm run build:table</code> and redeploy.</p>`;
+  }
 }
 
 function openSession(sessionId) {
@@ -668,12 +824,14 @@ function renderRoomDetail() {
           end: activeNotes.selectionEnd,
         }
       : null;
-  const recordHandState = (() => {
-    if (!$("[data-hand-participant]", roomDetailView)) return null;
-    return {
-      participantIds: $$("[data-hand-participant]:checked", roomDetailView).map((cb) => cb.value),
-    };
-  })();
+  const editingNotes =
+    activeNotes && activeNotes.id === "session-notes"
+      ? {
+          value: activeNotes.value,
+          start: activeNotes.selectionStart,
+          end: activeNotes.selectionEnd,
+        }
+      : null;
   const hr = currentRoom.houseRules || {};
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
 
@@ -773,22 +931,7 @@ function renderRoomDetail() {
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
   wireSessionControls();
-
-  // Restore in-progress form state (see capture above).
-  if (recordHandState) {
-    $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
-      cb.checked = recordHandState.participantIds.includes(cb.value);
-    });
-  } else if (openSessionObj?.pendingCoWinSettlement) {
-    const pending = openSessionObj.pendingCoWinSettlement;
-    $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
-      cb.checked = pending.participantIds?.includes(cb.value) ?? cb.checked;
-    });
-  }
-  if ($("[data-hand-participant]", roomDetailView)) {
-    updateHandPotPreview();
-    updateCoWinnerUI();
-  }
+  syncTableSession(openSessionObj);
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
@@ -810,88 +953,7 @@ function renderSessionPanel(s) {
   const handStake = s.handStake ?? 1;
   const stakeLocked = Boolean(s.handStakeLocked);
   const handCount = s.handCount ?? 0;
-  const nextHand = handCount + 1;
   const carryOverPot = s.carryOverPot ?? 0;
-  const tricksThisHand = s.currentHand?.tricksByPlayer || {};
-  const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
-  const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
-  const displayScores = sortScoresForDisplay(mergedScores, playerOrder.length ? playerOrder : s.players || []);
-  const handParticipantIds = s.currentHand?.participantIds;
-  const isInCurrentHand = (playerId) =>
-    Array.isArray(handParticipantIds) && handParticipantIds.includes(playerId);
-  const checkedParticipantCount = displayScores.filter((sc) => isInCurrentHand(sc.playerId)).length;
-  const netTotal = displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0);
-  const netTotalClass = netTotal === 0 ? "" : " net-imbalance";
-  const participantIdsForHand = Array.isArray(handParticipantIds) ? handParticipantIds : [];
-  const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
-    tricksThisHand,
-    participantIdsForHand,
-  );
-  const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
-  const activeWinnerIds =
-    handReady && derivedWinnerIds.length > 0
-      ? derivedWinnerIds
-      : pendingWinners?.length
-        ? pendingWinners
-        : [];
-  const leaderLabel = (() => {
-    if (!participantIdsForHand.length) return "Check in to play this hand.";
-    if (handReady && activeWinnerIds.length === 1) {
-      const name =
-        displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
-      return `${name} wins (${maxTricks} tricks)`;
-    }
-    if (handReady && activeWinnerIds.length >= 2) {
-      const names = activeWinnerIds
-        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-        .join(" & ");
-      return `Tie — ${names} (${maxTricks} tricks each)`;
-    }
-    if (maxTricks > 0) {
-      const leaders = participantIdsForHand.filter(
-        (id) => (tricksThisHand[id] || 0) === maxTricks,
-      );
-      const names = leaders
-        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-        .join(" & ");
-      return `Leader: ${names} (${maxTricks} — need ${BOURRE_TRICKS_TO_WIN} to win)`;
-    }
-    return `Tap + when you take a trick (first to ${BOURRE_TRICKS_TO_WIN} wins).`;
-  })();
-
-  const myUid = session?.uid ?? null;
-
-  const rows = displayScores
-    .map((sc) => {
-      const net = sc.net ?? 0;
-      const netClass = net > 0 ? "net-up" : net < 0 ? "net-down" : "";
-      const handTricks = tricksThisHand[sc.playerId] ?? 0;
-      const playerStake = sc.perHandStake ?? handStake;
-      const inHand = isInCurrentHand(sc.playerId);
-      const isSelf = sc.playerId === myUid;
-      const isWinner = handReady && activeWinnerIds.includes(sc.playerId);
-      const canEditTricks = !isFinal && inHand && isSelf;
-      const trickDisabled = canEditTricks ? "" : "disabled";
-      const stakeNote =
-        playerStake !== handStake
-          ? ` <span class="muted small">(${formatRiskStake(playerStake)} ante)</span>`
-          : "";
-      const tricksCell = canEditTricks
-        ? `<div class="stepper">
-            <button class="room__step" data-hand-trick-step="-1" aria-label="Decrease ${escapeHtml(sc.displayName)} tricks this hand" ${trickDisabled}>−</button>
-            <input class="num-input" type="number" min="0" max="${MAX_TRICKS_PER_HAND}" value="${handTricks}" data-hand-trick-input aria-label="${escapeHtml(sc.displayName)} tricks this hand" readonly />
-            <button class="room__step" data-hand-trick-step="1" aria-label="Increase ${escapeHtml(sc.displayName)} tricks this hand" ${trickDisabled}>+</button>
-          </div>`
-        : `<span class="num ${isWinner ? "hand-trick-leader" : "muted"}">${inHand ? handTricks : "—"}</span>`;
-      return `
-      <tr data-player-id="${escapeHtml(sc.playerId)}"${isWinner ? ' class="hand-winner-row"' : ""}>
-        <td>${escapeHtml(sc.displayName)}${stakeNote}</td>
-        <td class="num">${sc.handsWon ?? 0}</td>
-        <td>${tricksCell}</td>
-        <td class="num ${netClass}">${escapeHtml(formatNet(net))}</td>
-      </tr>`;
-    })
-    .join("");
 
   const stakeControl = stakeLocked
     ? `<div class="session-stake">
@@ -918,44 +980,6 @@ function renderSessionPanel(s) {
            <span class="session-stake__label">Hand stake</span>
            <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
            <p class="muted small">Host set · locks after the first hand.</p>
-         </div>`;
-
-  const participantOptions = displayScores
-    .map((sc) => {
-      const isSelf = sc.playerId === myUid;
-      const canToggle = isSelf && !isFinal;
-      return `<label class="hand-participant${canToggle ? "" : " hand-participant--readonly"}">
-           <input type="checkbox" data-hand-participant value="${escapeHtml(sc.playerId)}" ${isInCurrentHand(sc.playerId) ? "checked" : ""} ${canToggle ? "" : "disabled"} />
-           ${escapeHtml(sc.displayName)}
-         </label>`;
-    })
-    .join("");
-
-  const showCoWinSettlement =
-    (handReady && derivedWinnerIds.length >= 2) ||
-    (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2);
-
-  const recordHandBlock =
-    isFinal || displayScores.length < 2
-      ? ""
-      : `<div class="record-hand">
-           <h5>Hand #${nextHand}</h5>
-           <p class="muted small">Check <strong>In this hand</strong> for yourself, then tap + as you take tricks. Winner is set automatically at ${BOURRE_TRICKS_TO_WIN}+ tricks (ties = co-winners).</p>
-           <fieldset class="record-hand__participants">
-             <legend>In this hand (check yourself only)</legend>
-             ${participantOptions}
-           </fieldset>
-           <p class="record-hand__leaders" id="hand-leaders">${escapeHtml(leaderLabel)}</p>
-           <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
-           <div class="settlement-actions" id="co-winner-settlement" ${showCoWinSettlement ? "" : "hidden"}>
-             <p class="muted small">Co-winners vote: <strong>one Decline</strong> ends split (pot pushes, non-winners ante up). <strong>All</strong> must tap Agree to split.</p>
-             <div class="settlement-actions__btns">
-               <button class="btn btn--sm" type="button" id="settle-push">Decline split</button>
-               <button class="btn btn--sm" type="button" id="settle-split">Agree to split</button>
-             </div>
-             <p class="muted small" id="settlement-hint">Only signed-in co-winners can vote.</p>
-             <p class="muted small" id="settlement-votes"></p>
-           </div>
          </div>`;
 
   const handHistory =
@@ -997,28 +1021,23 @@ function renderSessionPanel(s) {
        </form>
        <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
 
-  return `
-    <div class="session">
-      ${stakeControl}
-      ${recordHandBlock}
-      <table class="score-table">
-        <thead>
-          <tr><th>Player</th><th class="num">Hands won</th><th>Tricks this hand</th><th class="num">Net</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-        <tfoot>
-          <tr><td colspan="3" class="num"><strong>Session total</strong></td><td class="num ${netTotalClass}"><strong>${escapeHtml(formatNet(netTotal))}</strong></td></tr>
-          <tr><td colspan="4" class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · ${BOURRE_TRICKS_TO_WIN} tricks wins the hand (of ${MAX_TRICKS_PER_HAND}) · session total should always be ${formatRiskStake(0)}</td></tr>
-        </tfoot>
-      </table>
-      ${handHistory}
-      <div class="session-controls">${controls}</div>
-      ${resultsBlock}
+  const tableHost =
+    isFinal || openScores.length < 2
+      ? ""
+      : `<div id="table-session-root" class="table-session-root" aria-label="Live card table"></div>`;
 
-      <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
-      <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
-        placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
-      <p class="muted small">Informational ledger only. This app never tracks or moves money.</p>
+  return `
+    <div class="session session--table">
+      ${isFinal ? resultsBlock : tableHost}
+      <aside class="session-sidebar">
+        ${stakeControl}
+        ${handHistory}
+        <div class="session-controls">${controls}</div>
+        <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
+        <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
+          placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
+        <p class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · informational ledger only</p>
+      </aside>
     </div>`;
 }
 
@@ -1079,91 +1098,8 @@ function renderSettlementVoteStatus(s, displayScores) {
     .join(" · ");
 }
 
-function updateCoWinnerUI() {
-  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  const { participantIds, winnerIds } = getCurrentHandState();
-  const settlement = $("#co-winner-settlement", roomDetailView);
-  const pushBtn = $("#settle-push", roomDetailView);
-  const splitBtn = $("#settle-split", roomDetailView);
-  const hint = $("#settlement-hint", roomDetailView);
-  const votesEl = $("#settlement-votes", roomDetailView);
-  if (!settlement) return;
-
-  if (votesEl && openSessionObj) {
-    const status = renderSettlementVoteStatus(openSessionObj, mergeScoresWithMembers(openScores, currentMembers));
-    votesEl.textContent = status;
-  }
-
-  if (winnerIds.length >= 2 && participantIds.length >= 2) {
-    settlement.hidden = false;
-    const isCoWinner = session && winnerIds.includes(session.uid);
-    if (pushBtn) pushBtn.disabled = !isCoWinner;
-    if (splitBtn) splitBtn.disabled = !isCoWinner;
-    if (hint) {
-      hint.textContent = isCoWinner
-        ? "Decline split takes effect immediately. All co-winners must Agree to split."
-        : "Waiting for co-winners to vote.";
-    }
-  } else {
-    settlement.hidden = true;
-  }
-}
-
-function updateHandPotPreview() {
-  const preview = $("#hand-pot-preview", roomDetailView);
-  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  if (!preview || !openSessionObj) return;
-  const sessionStake = openSessionObj.handStake ?? 1;
-  const carry = openSessionObj.carryOverPot ?? 0;
-  const merged = mergeScoresWithMembers(openScores, currentMembers);
-  const checked = $$("[data-hand-participant]:checked", roomDetailView);
-  const ante = checked.reduce((sum, cb) => {
-    const sc = merged.find((s) => s.playerId === cb.value);
-    return sum + (sc?.perHandStake ?? sessionStake);
-  }, 0);
-  preview.textContent =
-    carry > 0
-      ? `Pot this hand: ${formatRiskStake(ante)} + ${formatRiskStake(carry)} carry = ${formatRiskStake(ante + carry)}`
-      : `Pot this hand: ${formatRiskStake(ante)}`;
-}
-
-async function onNewSession() {
-  if (!currentRoomId) return;
-  const players = currentMembers.map((m) => ({
-    playerId: m.userId,
-    displayName: m.displayName,
-  }));
-  if (players.length === 0 && session) {
-    players.push({ playerId: session.uid, displayName: session.displayName });
-  }
-  const stakeEl = $("#new-session-stake", roomDetailView);
-  const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
-  try {
-    const sid = await createSession(currentRoomId, players, handStake);
-    openSession(sid);
-  } catch (err) {
-    console.error("createSession:", err);
-  }
-}
-
 function wireSessionControls() {
   if (!openSessionId) return;
-
-  $$("tr[data-player-id]", roomDetailView).forEach((row) => {
-    const playerId = row.dataset.playerId;
-
-    $$("[data-hand-trick-step]", row).forEach((btn) =>
-      btn.addEventListener("click", () => {
-        const delta = Number(btn.dataset.handTrickStep);
-        updateHandTrick(currentRoomId, openSessionId, playerId, delta, session?.uid).catch(
-          (e) => {
-            console.error("updateHandTrick:", e);
-            showRoomsError(e.message || "Could not update tricks");
-          },
-        );
-      }),
-    );
-  });
 
   const handStakeSelect = $("#session-hand-stake", roomDetailView);
   if (handStakeSelect) {
@@ -1175,35 +1111,6 @@ function wireSessionControls() {
       ).catch((e) => console.error("updateSessionHandStake:", e));
     });
   }
-
-  $$("[data-hand-participant]:not([disabled])", roomDetailView).forEach((cb) => {
-    cb.addEventListener("change", () => {
-      if (!session?.uid) return;
-      updateHandPotPreview();
-      updateCoWinnerUI();
-      setHandParticipation(currentRoomId, openSessionId, {
-        playerId: cb.value,
-        inHand: cb.checked,
-        actorId: session.uid,
-      }).catch((e) => {
-        console.error("setHandParticipation:", e);
-        cb.checked = !cb.checked;
-        showRoomsError(e.message || "Could not update hand participation");
-      });
-    });
-  });
-
-  const pushBtn = $("#settle-push", roomDetailView);
-  if (pushBtn) {
-    pushBtn.addEventListener("click", () => onSettleHand("push"));
-  }
-
-  const splitBtn = $("#settle-split", roomDetailView);
-  if (splitBtn) {
-    splitBtn.addEventListener("click", () => onSettleHand("split"));
-  }
-
-  updateCoWinnerUI();
 
   const notes = $("#session-notes", roomDetailView);
   if (notes) {
@@ -1236,6 +1143,25 @@ function wireSessionControls() {
   const completeBtn = $("#complete-session", roomDetailView);
   if (completeBtn) {
     completeBtn.addEventListener("click", onCompleteSession);
+  }
+}
+
+async function onNewSession() {
+  if (!currentRoomId) return;
+  const players = currentMembers.map((m) => ({
+    playerId: m.userId,
+    displayName: m.displayName,
+  }));
+  if (players.length === 0 && session) {
+    players.push({ playerId: session.uid, displayName: session.displayName });
+  }
+  const stakeEl = $("#new-session-stake", roomDetailView);
+  const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+  try {
+    const sid = await createSession(currentRoomId, players, handStake);
+    openSession(sid);
+  } catch (err) {
+    console.error("createSession:", err);
   }
 }
 

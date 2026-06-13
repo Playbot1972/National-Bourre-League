@@ -30,6 +30,7 @@ for (const name of readdirSync(socialDest)) {
   const filePath = join(socialDest, name);
   let content = readFileSync(filePath, "utf8");
   content = content.replace(/from "\.\/([^"]+\.js)"/g, `from "./$1?v=${buildId}"`);
+  content = content.replace(/import\("\.\/([^"]+\.js)"\)/g, `import("./$1?v=${buildId}")`);
   writeFileSync(filePath, content);
 }
 
@@ -38,6 +39,10 @@ let html = readFileSync(indexPath, "utf8");
 html = html.replace(
   '<script type="module" src="./app.js"></script>',
   `<script type="module" src="./app.js?v=${buildId}"></script>`,
+);
+html = html.replace(
+  '<link rel="stylesheet" href="./table-session.css" />',
+  `<link rel="stylesheet" href="./table-session.css?v=${buildId}" />`,
 );
 writeFileSync(indexPath, html);
 
