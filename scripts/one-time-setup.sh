@@ -47,20 +47,20 @@ else
 fi
 
 echo "==> Firebase project: ${PROJECT_ID}"
-if ! $FB projects:list 2>/dev/null | grep -q "${PROJECT_ID}"; then
-  echo "    Creating project (may take a minute)…"
-  $FB projects:create "${PROJECT_ID}" --display-name "${DISPLAY_NAME}"
-else
-  echo "    Project already exists."
+if ! $FB use "${PROJECT_ID}" 2>/dev/null; then
+  echo "    Could not select project \"${PROJECT_ID}\"."
+  echo "    Confirm the project id in Firebase Console → Project settings → General."
+  echo "    Then run: npx firebase use ${PROJECT_ID}"
+  exit 1
 fi
-
-$FB use "${PROJECT_ID}"
+echo "    Using existing project."
 
 echo "==> Enabling Firestore…"
-if $FB firestore:databases:list 2>/dev/null | grep -q "(default)"; then
-  echo "    Firestore already enabled."
+if $FB firestore:databases:list --project "${PROJECT_ID}" 2>/dev/null | grep -q "(default)"; then
+  echo "    Firestore already enabled (Step 2 done)."
 else
-  $FB firestore:databases:create "(default)" --location "${REGION}" || true
+  echo "    Run Step 2 first: npm run setup:firestore -- ${PROJECT_ID}"
+  exit 1
 fi
 
 echo "==> Writing .firebaserc"
