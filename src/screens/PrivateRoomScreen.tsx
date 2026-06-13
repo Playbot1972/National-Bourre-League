@@ -9,7 +9,7 @@ interface Player {
 }
 
 /** US bill denominations — thematic stake labels only, no money movement. */
-const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100];
+const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
 
 function riskStakeOptionsFor(current: number) {
   const options = [...RISK_STAKE_OPTIONS];
@@ -21,7 +21,7 @@ function riskStakeOptionsFor(current: number) {
 }
 
 function formatRiskStake(amount: number) {
-  return `$${amount}`;
+  return `$${amount.toLocaleString("en-US")}`;
 }
 
 function generateInviteCode(): string {

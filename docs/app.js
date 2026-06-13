@@ -42,7 +42,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 /** US bill denominations — thematic stake labels only, no money movement. */
-const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100];
+const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
 
 function riskStakeOptionsFor(current) {
   const options = [...RISK_STAKE_OPTIONS];
@@ -54,7 +54,7 @@ function riskStakeOptionsFor(current) {
 }
 
 function formatRiskStake(amount) {
-  return `$${amount}`;
+  return `$${amount.toLocaleString("en-US")}`;
 }
 
 // ---------------------------------------------------------------------------
