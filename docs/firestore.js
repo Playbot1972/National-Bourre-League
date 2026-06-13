@@ -356,7 +356,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handStake: stake,
     handStakeLocked: false,
     carryOverPot: 0,
-    currentHand: { tricksByPlayer: {}, participantIds: players.map((p) => p.playerId) },
+    currentHand: { tricksByPlayer: {}, participantIds: [] },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
     notes: "",
@@ -565,9 +565,7 @@ export async function recordHand(
     pendingCoWinSettlement: deleteField(),
     currentHand: {
       tricksByPlayer: {},
-      participantIds: scoreSnap.docs
-        .filter((d) => (d.data().joinedAtHandCount ?? 0) <= handNumber)
-        .map((d) => d.id),
+      participantIds: [],
     },
     updatedAt: serverTimestamp(),
   });
@@ -654,18 +652,22 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") throw new Error("Session is final");
 
-  const tricksByPlayer = { ...(sessionData.currentHand?.tricksByPlayer || {}) };
+  if (recordedBy && recordedBy !== playerId) {
+    throw new Error("You can only update your own tricks");
+  }
+
+  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
+  const participantIds = [...(currentHand.participantIds || [])];
+  if (!participantIds.includes(playerId)) {
+    throw new Error("You must be in this hand to record tricks");
+  }
+
+  const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
   const current = tricksByPlayer[playerId] || 0;
   const next = Math.max(0, Math.min(MAX_TRICKS_PER_HAND, current + delta));
   if (next === current && delta !== 0) return;
 
   tricksByPlayer[playerId] = next;
-
-  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
-  let participantIds = [...(currentHand.participantIds || [])];
-  if (!participantIds.includes(playerId)) {
-    participantIds.push(playerId);
-  }
 
   if (next >= BOURRE_TRICKS_TO_WIN) {
     if (participantIds.length < 2) {
@@ -875,13 +877,42 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
   await updateDoc(sessionDoc(roomId, sessionId), {
     currentHand: {
       tricksByPlayer: currentHand.tricksByPlayer || {},
-      participantIds: scoreSnap.docs.map((d) => d.id),
+      participantIds: [],
     },
     updatedAt: serverTimestamp(),
   });
 }
 
-/** Update who is in the current hand (ante paid). New room joiners default unchecked. */
+/** Each signed-in player toggles only their own participation in the current hand. */
+export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
+  if (!playerId || !actorId) throw new Error("Missing player");
+  if (playerId !== actorId) throw new Error("You can only change your own hand participation");
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  if (sessionSnap.data().status === "final") throw new Error("Session is final");
+
+  const currentHand = sessionSnap.data().currentHand || { tricksByPlayer: {} };
+  const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
+  let participantIds = [...(currentHand.participantIds || [])];
+
+  if (inHand) {
+    if (!participantIds.includes(playerId)) participantIds.push(playerId);
+  } else {
+    participantIds = participantIds.filter((id) => id !== playerId);
+    delete tricksByPlayer[playerId];
+  }
+
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    currentHand: {
+      tricksByPlayer,
+      participantIds,
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** @deprecated Use setHandParticipation — kept for compatibility. */
 export async function updateSessionHandParticipants(roomId, sessionId, participantIds) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) throw new Error("Session not found");
