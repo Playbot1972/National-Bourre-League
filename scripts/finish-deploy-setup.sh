@@ -23,7 +23,15 @@ echo "==> Step 2: Google Cloud CLI"
 source "${ROOT}/scripts/lib/gcloud-path.sh"
 if ! ensure_gcloud; then
   echo "Could not find or install gcloud."
-  gcloud_install_hint
+  if ! command -v brew >/dev/null 2>&1; then
+    echo ""
+    echo "Homebrew is not installed. Use the manual path instead:"
+    echo "  npm run finish-setup:manual -- ${PROJECT_ID} ${AUTH_DOMAIN}"
+    echo ""
+    echo "Or install Homebrew first: https://brew.sh"
+  else
+    gcloud_install_hint
+  fi
   exit 1
 fi
 echo "    $(gcloud --version 2>&1 | head -1)"
