@@ -15,6 +15,7 @@
     "setup": "./scripts/one-time-setup.sh",
     "setup:firestore": "./scripts/setup-firestore.sh",
     "setup:webapp": "./scripts/setup-web-app.sh",
+    "setup:service-account": "./scripts/setup-service-account.sh",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {

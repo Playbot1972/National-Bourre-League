@@ -21,8 +21,6 @@ PROJECT_ID="${1:-national-bourre-league}"
 AUTH_DOMAIN="${2:-booray.win}"
 DISPLAY_NAME="National Bourré League"
 REGION="us-central1"
-SA_NAME="github-firebase-deploy"
-SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FB="npx firebase"
 
@@ -113,29 +111,27 @@ fi
 
 echo "==> Service account for GitHub Actions…"
 KEY_FILE="${ROOT}/.firebase-sa-key.json"
-if command -v gcloud >/dev/null; then
-  gcloud config set project "${PROJECT_ID}" 2>/dev/null || true
-  if ! gcloud iam service-accounts describe "${SA_EMAIL}" >/dev/null 2>&1; then
-    gcloud iam service-accounts create "${SA_NAME}" \
-      --display-name "GitHub Actions Firebase deploy"
-  fi
-  for ROLE in roles/firebasehosting.admin roles/firebaserules.admin; do
-    gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
-      --member "serviceAccount:${SA_EMAIL}" \
-      --role "${ROLE}" \
-      --quiet >/dev/null
-  done
-  gcloud iam service-accounts keys create "${KEY_FILE}" \
-    --iam-account "${SA_EMAIL}"
-  echo "    Service account key: ${KEY_FILE}"
+if [[ -f "${KEY_FILE}" ]]; then
+  echo "    Using existing key: ${KEY_FILE}"
+elif command -v gcloud >/dev/null; then
+  "${ROOT}/scripts/setup-service-account.sh" "${PROJECT_ID}"
 else
-  echo "    gcloud not found — create a service account manually:"
+  echo "    Run in another terminal (automated):"
+  echo "      brew install --cask google-cloud-sdk"
+  echo "      gcloud auth login"
+  echo "      ./scripts/setup-service-account.sh ${PROJECT_ID}"
+  echo ""
+  echo "    Or manually:"
   echo "    https://console.cloud.google.com/iam-admin/serviceaccounts?project=${PROJECT_ID}"
   echo "    Roles: Firebase Hosting Admin + Firebase Rules Admin"
-  echo "    Download JSON key, then save it as: ${KEY_FILE}"
-  read -r -p "Press Enter when the key file is saved at ${KEY_FILE}…"
+  echo "    Save JSON as: ${KEY_FILE}"
+  read -r -p "Press Enter when ${KEY_FILE} exists…"
   if [[ ! -f "${KEY_FILE}" ]]; then
-    read -r -p "Or paste path to downloaded JSON key file: " KEY_FILE
+    read -r -p "Path to downloaded JSON key file: " KEY_FILE
+    if [[ -f "${KEY_FILE}" && "${KEY_FILE}" != "${ROOT}/.firebase-sa-key.json" ]]; then
+      cp "${KEY_FILE}" "${ROOT}/.firebase-sa-key.json"
+      KEY_FILE="${ROOT}/.firebase-sa-key.json"
+    fi
   fi
 fi
 
