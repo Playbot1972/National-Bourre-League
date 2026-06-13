@@ -23,8 +23,7 @@ echo "==> Step 2: Google Cloud CLI"
 source "${ROOT}/scripts/lib/gcloud-path.sh"
 if ! ensure_gcloud; then
   echo "Could not find or install gcloud."
-  echo "  brew install --cask google-cloud-sdk"
-  echo "  Then re-run: npm run finish-setup"
+  gcloud_install_hint
   exit 1
 fi
 echo "    $(gcloud --version 2>&1 | head -1)"
