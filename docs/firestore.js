@@ -346,6 +346,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handCount: 0,
     handStake: stake,
     handStakeLocked: false,
+    carryOverPot: 0,
     currentHand: { tricksByPlayer: {}, participantIds: players.map((p) => p.playerId) },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
@@ -428,19 +429,43 @@ export async function updateSessionHandStake(roomId, sessionId, handStake) {
 }
 
 /**
- * Record one hand: winner takes the pot; each participant antes the session stake.
- * Informational ledger only — no money movement.
+ * Record one hand. Single winner takes the pot. Co-winners must pass settlement
+ * 'push' (pot carries) or 'split' (divide among winners).
  */
-export async function recordHand(roomId, sessionId, { winnerId, participantIds, recordedBy }) {
+export async function recordHand(
+  roomId,
+  sessionId,
+  { winnerId, winnerIds, participantIds, settlement, recordedBy },
+) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) throw new Error("Session not found");
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") throw new Error("Session is final");
 
-  const stake = sessionData.handStake ?? 1;
+  const winners = [
+    ...new Set((winnerIds?.length ? winnerIds : winnerId ? [winnerId] : []).filter(Boolean)),
+  ];
   const participants = [...new Set(participantIds.filter(Boolean))];
   if (participants.length < 2) throw new Error("At least two players must be in the hand");
-  if (!participants.includes(winnerId)) throw new Error("Winner must be in the hand");
+  if (winners.length === 0) throw new Error("Select at least one winner");
+  for (const wid of winners) {
+    if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
+  }
+
+  let mode = settlement || (winners.length === 1 ? "win" : null);
+  if (winners.length >= 2 && !mode) {
+    throw new Error("Co-winners must choose push or split");
+  }
+  if (winners.length === 1 && mode !== "win") mode = "win";
+  if (winners.length >= 2 && mode === "win") {
+    throw new Error("Use push or split when there are co-winners");
+  }
+
+  const stake = sessionData.handStake ?? 1;
+  const carryIn = sessionData.carryOverPot || 0;
+  const antePot = stake * participants.length;
+  const grossPot = antePot + carryIn;
+  const handNumber = (sessionData.handCount || 0) + 1;
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
@@ -448,20 +473,38 @@ export async function recordHand(roomId, sessionId, { winnerId, participantIds, 
     if (!scoreById[pid]) throw new Error("Unknown player in hand");
   }
 
-  const pot = stake * participants.length;
-  const handNumber = (sessionData.handCount || 0) + 1;
   const deltas = {};
-  participants.forEach((pid) => {
-    deltas[pid] = pid === winnerId ? stake * (participants.length - 1) : -stake;
-  });
+  let carryOverPot = 0;
+
+  if (mode === "push") {
+    participants.forEach((pid) => {
+      deltas[pid] = 0;
+    });
+    carryOverPot = grossPot;
+  } else if (mode === "split") {
+    const share = grossPot / winners.length;
+    participants.forEach((pid) => {
+      deltas[pid] = winners.includes(pid) ? share - stake : -stake;
+    });
+    carryOverPot = 0;
+  } else {
+    const winner = winners[0];
+    participants.forEach((pid) => {
+      deltas[pid] = pid === winner ? grossPot - stake : -stake;
+    });
+    carryOverPot = 0;
+  }
 
   const batch = writeBatch(db);
   batch.set(doc(handsCol(roomId, sessionId)), {
     handNumber,
-    winnerId,
+    winnerId: winners.length === 1 ? winners[0] : null,
+    winnerIds: winners,
+    settlement: mode,
     participantIds: participants,
     stake,
-    pot,
+    pot: grossPot,
+    carryIn,
     deltas,
     recordedBy: recordedBy || null,
     createdAt: serverTimestamp(),
@@ -469,12 +512,13 @@ export async function recordHand(roomId, sessionId, { winnerId, participantIds, 
 
   participants.forEach((pid) => {
     const current = scoreById[pid];
-    const tricksWon = (current.tricksWon || 0) + (pid === winnerId ? 1 : 0);
+    const isWinner = winners.includes(pid);
+    const tricksWon = (current.tricksWon || 0) + (isWinner && mode !== "push" ? 1 : 0);
     const patch = {
       net: (current.net || 0) + deltas[pid],
       updatedAt: serverTimestamp(),
     };
-    if (pid === winnerId) {
+    if (isWinner && mode !== "push") {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
@@ -485,6 +529,7 @@ export async function recordHand(roomId, sessionId, { winnerId, participantIds, 
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
+    carryOverPot,
     currentHand: {
       tricksByPlayer: {},
       participantIds: scoreSnap.docs
@@ -526,8 +571,9 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
       throw new Error("At least two players must be in the hand");
     }
     await recordHand(roomId, sessionId, {
-      winnerId: playerId,
+      winnerIds: [playerId],
       participantIds,
+      settlement: "win",
       recordedBy,
     });
     return;
