@@ -154,7 +154,19 @@ npm run preview:hosting # terminal 2 → http://localhost:5000
    ```bash
    npm run domain:finish -- national-bourre-league booray.win
    ```
-   Copy the printed table into your registrar (where you bought `booray.win`).
+   **Automate DNS at your registrar** (Cloudflare, Namecheap, or Porkbun):
+   ```bash
+   # Cloudflare (domain must use Cloudflare nameservers)
+   export REGISTRAR_DNS_PROVIDER=cloudflare
+   export CLOUDFLARE_API_TOKEN=your_token   # DNS Edit on the zone
+   npm run domain:dns -- national-bourre-league booray.win --dry-run
+   npm run domain:dns -- national-bourre-league booray.win
+
+   # Or combine with domain:finish:
+   npm run domain:finish -- national-bourre-league booray.win --apply-dns
+   ```
+   Namecheap: `NAMECHEAP_API_USER`, `NAMECHEAP_API_KEY`, `NAMECHEAP_CLIENT_IP`.
+   Porkbun: `PORKBUN_API_KEY`, `PORKBUN_SECRET_API_KEY`.
    Manual fallback: Firebase Console → Hosting → click `booray.win` → copy DNS
    records; Authentication → Settings → Authorized domains → add `booray.win` and
    `www.booray.win`.

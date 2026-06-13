@@ -1,125 +1,61 @@
 #!/usr/bin/env node
 /**
  * Fetch DNS records + set Auth authorized domains (steps 2–3 after domain registered).
+ * Optionally apply DNS at registrar with --apply-dns (see domain:dns).
  *
  * Usage:
- *   node scripts/finish-domain-setup.cjs [project-id] [domain] [site-id]
+ *   node scripts/finish-domain-setup.cjs [project-id] [domain] [site-id] [options]
+ *
+ * Options:
+ *   --apply-dns              push DNS to registrar (needs REGISTRAR_DNS_PROVIDER + creds)
+ *   --provider <name>        cloudflare | namecheap | porkbun
+ *   --dry-run                with --apply-dns, preview registrar changes only
  *
  * Example:
  *   node scripts/finish-domain-setup.cjs national-bourre-league booray.win
+ *   REGISTRAR_DNS_PROVIDER=cloudflare CLOUDFLARE_API_TOKEN=xxx \
+ *     node scripts/finish-domain-setup.cjs national-bourre-league booray.win --apply-dns
  */
 
 const { initFirebaseSession } = require("./lib/firebase-session.cjs");
-const { Client } = require("firebase-tools/lib/apiv2");
-const { hostingApiOrigin } = require("firebase-tools/lib/api");
 const authGcp = require("firebase-tools/lib/gcp/auth");
-const hostingApi = require("firebase-tools/lib/hosting/api");
+const {
+  fetchFirebaseHostingDns,
+  printRegistrarTable,
+} = require("./lib/firebase-hosting-dns.cjs");
+const {
+  applyRegistrarDns,
+  printApplyResults,
+  providerHelp,
+} = require("./lib/registrar-dns.cjs");
 
-const projectId = process.argv[2] || "national-bourre-league";
-const domain = process.argv[3] || "booray.win";
-const wwwDomain = domain.startsWith("www.") ? domain : `www.${domain}`;
-const apexDomain = domain.replace(/^www\./, "");
-const siteId = process.argv[4] || projectId;
-
-const hostingClient = new Client({
-  urlPrefix: hostingApiOrigin(),
-  apiVersion: "v1beta1",
-  auth: true,
-});
-
-/** @type {{ type: string, host: string, value: string }[]} */
-const allRecords = [];
-
-function hostLabel(domainName, apex) {
-  if (!domainName) return "@";
-  const d = domainName.replace(/\.$/, "");
-  if (d === apex || d === "@") return "@";
-  if (d.startsWith(`${apex}.`) || d.includes(apex)) {
-    const sub = d.replace(`.${apex}`, "").replace(apex, "");
-    return sub || "@";
-  }
-  return d;
-}
-
-function collectRecords(domainRecord, apex) {
-  const rows = [];
-  const desired = domainRecord?.requiredDnsUpdates?.desired;
-  if (Array.isArray(desired)) {
-    for (const set of desired) {
-      for (const rec of set.records || []) {
-        rows.push({
-          type: rec.type,
-          host: hostLabel(rec.domainName, apex),
-          value: rec.rdata,
-        });
-      }
+function parseArgs(argv) {
+  const flags = {
+    applyDns: false,
+    dryRun: false,
+    provider: process.env.REGISTRAR_DNS_PROVIDER || "",
+  };
+  const positional = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--apply-dns") flags.applyDns = true;
+    else if (a === "--dry-run") flags.dryRun = true;
+    else if (a === "--provider") flags.provider = argv[++i] || "";
+    else if (a.startsWith("--provider=")) flags.provider = a.slice("--provider=".length);
+    else if (a.startsWith("-")) {
+      console.error(`Unknown option: ${a}`);
+      process.exit(1);
+    } else {
+      positional.push(a);
     }
   }
-  const prov = domainRecord?.provisioning;
-  if (prov?.dnsUpdates?.length) {
-    for (const u of prov.dnsUpdates) {
-      rows.push({
-        type: u.type || u.recordType,
-        host: hostLabel(u.host || u.domainName, apex),
-        value: u.rdata || u.value || u.requiredValue,
-      });
-    }
+  if (flags.applyDns && !flags.provider && process.env.REGISTRAR_DNS_PROVIDER) {
+    flags.provider = process.env.REGISTRAR_DNS_PROVIDER;
   }
-  return rows;
+  return { flags, positional };
 }
 
-function printRegistrarTable(domainLabel, rows) {
-  if (!rows.length) return false;
-  console.log(`\n╔══════════════════════════════════════════════════════════════╗`);
-  console.log(`║  DNS for ${domainLabel.padEnd(50)}║`);
-  console.log(`╠════════╤══════════════════╤════════════════════════════════╣`);
-  console.log(`║  Type  │  Host / Name     │  Value / Points to             ║`);
-  console.log(`╠════════╪══════════════════╪════════════════════════════════╣`);
-  for (const r of rows) {
-    const type = (r.type || "").padEnd(6);
-    const host = (r.host || "@").padEnd(16);
-    const val = (r.value || "").slice(0, 30);
-    console.log(`║  ${type} │  ${host} │  ${val.padEnd(30)} ║`);
-    if ((r.value || "").length > 30) {
-      console.log(`║        │                  │  ${r.value.slice(30).padEnd(30)} ║`);
-    }
-    allRecords.push({ domain: domainLabel, ...r });
-  }
-  console.log(`╚════════╧══════════════════╧════════════════════════════════╝`);
-  return true;
-}
-
-async function getCustomDomain(domainName) {
-  try {
-    const res = await hostingClient.get(
-      `/projects/${projectId}/sites/${siteId}/customDomains/${domainName}`,
-    );
-    return res.body;
-  } catch {
-    return null;
-  }
-}
-
-async function listCustomDomains() {
-  try {
-    const res = await hostingClient.get(
-      `/projects/${projectId}/sites/${siteId}/customDomains`,
-    );
-    return res.body.customDomains || [];
-  } catch {
-    return [];
-  }
-}
-
-async function listLegacyDomains() {
-  try {
-    return await hostingApi.getSiteDomains(projectId, siteId);
-  } catch {
-    return [];
-  }
-}
-
-async function addAuthDomain(name) {
+async function addAuthDomain(projectId, name) {
   const current = (await authGcp.getAuthDomains(projectId)) || [];
   if (current.includes(name)) {
     console.log(`    ✓ ${name} (already authorized)`);
@@ -130,48 +66,37 @@ async function addAuthDomain(name) {
 }
 
 async function main() {
+  const { flags, positional } = parseArgs(process.argv.slice(2));
+  const projectId = positional[0] || "national-bourre-league";
+  const domain = positional[1] || "booray.win";
+  const siteId = positional[2] || projectId;
+  const apexDomain = domain.replace(/^www\./, "");
+  const wwwDomain = domain.startsWith("www.") ? domain : `www.${apexDomain}`;
+
   initFirebaseSession();
   console.log(`==> Project: ${projectId}  Domains: ${apexDomain}, ${wwwDomain}\n`);
 
+  console.log("==> Step 2: DNS records from Firebase\n");
+
+  const { records, states } = await fetchFirebaseHostingDns({
+    projectId,
+    siteId,
+    apexDomain,
+    wwwDomain,
+  });
+
   let foundDns = false;
-
-  console.log("==> Step 2: DNS records from Firebase (add at your registrar)\n");
-
-  for (const d of [apexDomain, wwwDomain]) {
-    const detail = await getCustomDomain(d);
-    if (detail) {
-      const state = detail.hostState || detail.ownershipState || "pending";
-      console.log(`    ${d} — ${state}`);
-      if (printRegistrarTable(d, collectRecords(detail, apexDomain))) {
-        foundDns = true;
-      }
-      continue;
-    }
-    const legacy = (await listLegacyDomains()).find((x) => x.domainName === d);
-    if (legacy) {
-      console.log(`    ${d} — ${legacy.status || "pending"}`);
-      if (printRegistrarTable(d, collectRecords(legacy, apexDomain))) {
-        foundDns = true;
-      }
-    } else {
-      console.log(`    ${d} — not found in Hosting yet`);
-    }
+  for (const [label, state] of Object.entries(states)) {
+    console.log(`    ${label} — ${state}`);
   }
 
-  if (!foundDns) {
-    const listed = await listCustomDomains();
-    if (listed.length) {
-      console.log("\n    Domains registered (fetching DNS…):"); 
-      for (const d of listed) {
-        const id = d.name?.split("/").pop();
-        const detail = id ? await getCustomDomain(id) : d;
-        const label = id || "custom";
-        console.log(`    ${label} — ${detail?.hostState || "pending"}`);
-        if (printRegistrarTable(label, collectRecords(detail || d, apexDomain))) {
-          foundDns = true;
-        }
-      }
-    }
+  const byDomain = new Map();
+  for (const r of records) {
+    if (!byDomain.has(r.domain)) byDomain.set(r.domain, []);
+    byDomain.get(r.domain).push(r);
+  }
+  for (const [label, rows] of byDomain) {
+    if (printRegistrarTable(label, rows)) foundDns = true;
   }
 
   if (!foundDns) {
@@ -180,16 +105,34 @@ async function main() {
       `    Open: https://console.firebase.google.com/project/${projectId}/hosting/sites/${siteId}/domains`,
     );
     console.log("    Re-run in a few minutes: npm run domain:finish");
+  } else if (flags.applyDns) {
+    if (!flags.provider) {
+      console.error("\n--apply-dns requires REGISTRAR_DNS_PROVIDER or --provider.");
+      console.error(providerHelp());
+      process.exit(1);
+    }
+    console.log(`\n==> Step 2b: Apply DNS at registrar (${flags.provider})`);
+    const applyRows = records.map(({ type, host, value }) => ({ type, host, value }));
+    const results = await applyRegistrarDns(flags.provider, apexDomain, applyRows, {
+      dryRun: flags.dryRun,
+    });
+    printApplyResults(results, { dryRun: flags.dryRun, provider: flags.provider });
+    if (flags.dryRun) {
+      console.log("\n    Re-run with --apply-dns (no --dry-run) to write records.");
+    }
   } else {
-    console.log(`\n    At your registrar for ${apexDomain}, add each row above:`);
+    console.log(`\n    Add at your registrar for ${apexDomain}, or automate:`);
+    console.log(
+      `      REGISTRAR_DNS_PROVIDER=cloudflare CLOUDFLARE_API_TOKEN=xxx npm run domain:dns -- ${projectId} ${apexDomain}`,
+    );
     console.log("      • Type = record type (A, TXT, CNAME)");
     console.log("      • Host = @ for root, or www for www subdomain");
     console.log("      • Value = exactly as shown");
   }
 
   console.log("\n==> Step 3: Firebase Auth authorized domains");
-  await addAuthDomain(apexDomain);
-  await addAuthDomain(wwwDomain);
+  await addAuthDomain(projectId, apexDomain);
+  await addAuthDomain(projectId, wwwDomain);
 
   const authDomains = await authGcp.getAuthDomains(projectId);
   console.log("\n    Current authorized domains:");
@@ -198,7 +141,7 @@ async function main() {
   }
 
   console.log("\n==> Next");
-  console.log("    1. Add DNS records at registrar → wait for Firebase green check");
+  console.log("    1. DNS at registrar → wait for Firebase green check");
   console.log(`    2. Redeploy with ${apexDomain} authDomain:`);
   console.log(`       npm run setup:webapp -- ${projectId} ${apexDomain}`);
   console.log("       npm run build:hosting && npx firebase deploy --only hosting");
