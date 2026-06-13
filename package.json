@@ -20,6 +20,7 @@
     "finish-setup:manual": "./scripts/finish-deploy-manual.sh",
     "setup:github-secrets": "./scripts/setup-github-secrets.sh",
     "setup:domain": "./scripts/setup-custom-domain.sh",
+    "domain:finish": "./scripts/finish-domain-setup.sh",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
   },
   "dependencies": {
