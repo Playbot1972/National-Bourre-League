@@ -577,8 +577,8 @@ export async function recordHand(
 }
 
 /**
- * Co-winners vote split or decline. Split only if every co-winner votes split.
- * Otherwise the pot pushes and non-winners ante up (not co-winners).
+ * Co-winners vote to split or decline. One decline settles immediately (non-winners
+ * ante up). Split only when every co-winner has agreed to split.
  */
 export async function voteCoWinSettlement(
   roomId,
@@ -586,7 +586,7 @@ export async function voteCoWinSettlement(
   { participantIds, winnerIds, voterId, choice, recordedBy },
 ) {
   if (choice !== "push" && choice !== "split") {
-    throw new Error("Vote must be push or split");
+    throw new Error("Vote must be decline or agree to split");
   }
 
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
@@ -599,6 +599,20 @@ export async function voteCoWinSettlement(
   if (winners.length < 2) throw new Error("Co-winners only");
   if (!winners.includes(voterId)) throw new Error("Only co-winners can vote");
 
+  const recordArgs = {
+    winnerIds: winners,
+    participantIds: participants,
+    recordedBy,
+  };
+
+  if (choice === "push") {
+    await recordHand(roomId, sessionId, {
+      ...recordArgs,
+      settlement: "non_winner_ante_up",
+    });
+    return { status: "settled", settlement: "non_winner_ante_up", votes: { [voterId]: "push" } };
+  }
+
   const pending = sessionData.pendingCoWinSettlement;
   const sameProposal =
     pending &&
@@ -607,10 +621,10 @@ export async function voteCoWinSettlement(
     pending.participantIds?.length === participants.length &&
     pending.participantIds.every((p) => participants.includes(p));
 
-  const votes = sameProposal ? { ...(pending.votes || {}), [voterId]: choice } : { [voterId]: choice };
+  const votes = sameProposal ? { ...(pending.votes || {}), [voterId]: "split" } : { [voterId]: "split" };
 
-  const allVoted = winners.every((w) => votes[w] === "push" || votes[w] === "split");
-  if (!allVoted) {
+  const allAgreeSplit = winners.every((w) => votes[w] === "split");
+  if (!allAgreeSplit) {
     await updateDoc(sessionDoc(roomId, sessionId), {
       pendingCoWinSettlement: {
         participantIds: participants,
@@ -623,16 +637,11 @@ export async function voteCoWinSettlement(
     return { status: "pending", votes };
   }
 
-  const choices = winners.map((w) => votes[w]);
-  const settlement = choices.every((c) => c === "split") ? "split" : "non_winner_ante_up";
-
   await recordHand(roomId, sessionId, {
-    winnerIds: winners,
-    participantIds: participants,
-    settlement,
-    recordedBy,
+    ...recordArgs,
+    settlement: "split",
   });
-  return { status: "settled", settlement, votes };
+  return { status: "settled", settlement: "split", votes };
 }
 
 /**
