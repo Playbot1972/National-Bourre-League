@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import "./PrivateRoomScreen.css";
 
 const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
+const BOURRE_TRICKS_TO_WIN = 3;
+const MAX_TRICKS_PER_HAND = 5;
 
 function riskStakeOptionsFor(current: number) {
   const options = [...RISK_STAKE_OPTIONS];
@@ -25,7 +27,6 @@ function formatNet(amount: number) {
 interface Player {
   id: string;
   name: string;
-  tricksWon: number;
   handsWon: number;
   net: number;
 }
@@ -50,9 +51,9 @@ let nextId = 1;
 const makeId = () => `p${nextId++}`;
 
 const SEED_PLAYERS: Player[] = [
-  { id: makeId(), name: "You (host)", tricksWon: 0, handsWon: 0, net: 0 },
-  { id: makeId(), name: "Marie", tricksWon: 0, handsWon: 0, net: 0 },
-  { id: makeId(), name: "Thibodeaux", tricksWon: 0, handsWon: 0, net: 0 },
+  { id: makeId(), name: "You (host)", handsWon: 0, net: 0 },
+  { id: makeId(), name: "Marie", handsWon: 0, net: 0 },
+  { id: makeId(), name: "Thibodeaux", handsWon: 0, net: 0 },
 ];
 
 export function PrivateRoomScreen() {
@@ -64,6 +65,7 @@ export function PrivateRoomScreen() {
   const [handStake, setHandStake] = useState(1);
   const [handStakeLocked, setHandStakeLocked] = useState(false);
   const [hands, setHands] = useState<HandRecord[]>([]);
+  const [tricksThisHand, setTricksThisHand] = useState<Record<string, number>>({});
   const [winnerId, setWinnerId] = useState(SEED_PLAYERS[0]?.id ?? "");
   const [participants, setParticipants] = useState<Set<string>>(
     () => new Set(SEED_PLAYERS.map((p) => p.id)),
@@ -79,6 +81,26 @@ export function PrivateRoomScreen() {
     const count = participants.size;
     return formatRiskStake(handStake * count);
   }, [handStake, participants]);
+
+  const applyHandWin = (winningId: string, participantIds: string[]) => {
+    const pot = handStake * participantIds.length;
+    const handNumber = handCount + 1;
+
+    setPlayers((prev) =>
+      prev.map((p) => {
+        if (!participantIds.includes(p.id)) return p;
+        const delta = p.id === winningId ? handStake * (participantIds.length - 1) : -handStake;
+        return {
+          ...p,
+          net: p.net + delta,
+          handsWon: p.handsWon + (p.id === winningId ? 1 : 0),
+        };
+      }),
+    );
+    setHands((prev) => [{ handNumber, winnerId: winningId, participantIds, pot }, ...prev]);
+    setTricksThisHand({});
+    setHandStakeLocked(true);
+  };
 
   const copyCode = async () => {
     try {
@@ -99,7 +121,7 @@ export function PrivateRoomScreen() {
     const name = newName.trim();
     if (!name) return;
     const id = makeId();
-    setPlayers((prev) => [...prev, { id, name, tricksWon: 0, handsWon: 0, net: 0 }]);
+    setPlayers((prev) => [...prev, { id, name, handsWon: 0, net: 0 }]);
     setParticipants((prev) => new Set([...prev, id]));
     setNewName("");
   };
@@ -111,27 +133,28 @@ export function PrivateRoomScreen() {
       next.delete(id);
       return next;
     });
+    setTricksThisHand((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     if (winnerId === id) {
       setWinnerId(players.find((p) => p.id !== id)?.id ?? "");
     }
   };
 
-  const adjustTricks = (id: string, delta: number) => {
-    setPlayers((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, tricksWon: Math.max(0, p.tricksWon + delta) } : p,
-      ),
-    );
-  };
+  const adjustHandTrick = (id: string, delta: number) => {
+    const current = tricksThisHand[id] ?? 0;
+    const next = Math.max(0, Math.min(MAX_TRICKS_PER_HAND, current + delta));
+    if (next === current) return;
 
-  const setTricks = (id: string, value: number) => {
-    setPlayers((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, tricksWon: Number.isFinite(value) ? Math.max(0, value) : 0 }
-          : p,
-      ),
-    );
+    if (next >= BOURRE_TRICKS_TO_WIN) {
+      const participantIds = players.map((p) => p.id);
+      applyHandWin(id, participantIds);
+      return;
+    }
+
+    setTricksThisHand((prev) => ({ ...prev, [id]: next }));
   };
 
   const toggleParticipant = (id: string) => {
@@ -147,33 +170,13 @@ export function PrivateRoomScreen() {
     const participantIds = players.filter((p) => participants.has(p.id)).map((p) => p.id);
     if (participantIds.length < 2) return;
     if (!participantIds.includes(winnerId)) return;
-
-    const pot = handStake * participantIds.length;
-    const handNumber = handCount + 1;
-
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (!participantIds.includes(p.id)) return p;
-        const delta = p.id === winnerId ? handStake * (participantIds.length - 1) : -handStake;
-        const tricksWon = p.tricksWon + (p.id === winnerId ? 1 : 0);
-        return {
-          ...p,
-          net: p.net + delta,
-          handsWon: p.handsWon + (p.id === winnerId ? 1 : 0),
-          tricksWon,
-        };
-      }),
-    );
-    setHands((prev) => [
-      { handNumber, winnerId, participantIds, pot },
-      ...prev,
-    ]);
-    setHandStakeLocked(true);
+    applyHandWin(winnerId, participantIds);
   };
 
   const resetScores = () => {
-    setPlayers((prev) => prev.map((p) => ({ ...p, tricksWon: 0, handsWon: 0, net: 0 })));
+    setPlayers((prev) => prev.map((p) => ({ ...p, handsWon: 0, net: 0 })));
     setHands([]);
+    setTricksThisHand({});
     setHandStakeLocked(false);
   };
 
@@ -255,7 +258,10 @@ export function PrivateRoomScreen() {
 
         {players.length >= 2 && (
           <div className="room__record-hand">
-            <span className="room__panel-title">Record hand #{handCount + 1}</span>
+            <span className="room__panel-title">Record hand #{handCount + 1} manually</span>
+            <p className="room__stake-hint">
+              Or use + on tricks this hand — {BOURRE_TRICKS_TO_WIN} tricks auto-wins the pot.
+            </p>
             <label className="room__record-field">
               Winner
               <select
@@ -325,7 +331,7 @@ export function PrivateRoomScreen() {
           <li className="room__row room__row--header" aria-hidden="true">
             <span>Player</span>
             <span>Hands</span>
-            <span>Tricks</span>
+            <span>This hand</span>
             <span>Net</span>
             <span></span>
           </li>
@@ -334,6 +340,7 @@ export function PrivateRoomScreen() {
           )}
           {players.map((p) => {
             const isLeader = p.handsWon > 0 && p.handsWon === leaderHands;
+            const handTricks = tricksThisHand[p.id] ?? 0;
             const netClass =
               p.net > 0 ? "room__net--up" : p.net < 0 ? "room__net--down" : "";
             return (
@@ -348,8 +355,8 @@ export function PrivateRoomScreen() {
                 <span className="room__score">
                   <button
                     className="room__step"
-                    onClick={() => adjustTricks(p.id, -1)}
-                    aria-label={`Decrease ${p.name} tricks`}
+                    onClick={() => adjustHandTrick(p.id, -1)}
+                    aria-label={`Decrease ${p.name} tricks this hand`}
                   >
                     −
                   </button>
@@ -357,14 +364,15 @@ export function PrivateRoomScreen() {
                     className="room__score-input"
                     type="number"
                     min={0}
-                    value={p.tricksWon}
-                    aria-label={`${p.name} tricks won`}
-                    onChange={(e) => setTricks(p.id, parseInt(e.target.value, 10))}
+                    max={MAX_TRICKS_PER_HAND}
+                    value={handTricks}
+                    readOnly
+                    aria-label={`${p.name} tricks this hand`}
                   />
                   <button
                     className="room__step"
-                    onClick={() => adjustTricks(p.id, 1)}
-                    aria-label={`Increase ${p.name} tricks`}
+                    onClick={() => adjustHandTrick(p.id, 1)}
+                    aria-label={`Increase ${p.name} tricks this hand`}
                   >
                     +
                   </button>
