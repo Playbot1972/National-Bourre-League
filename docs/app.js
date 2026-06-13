@@ -41,6 +41,22 @@ import { APP_VERSION } from "./version.js";
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+/** US bill denominations — thematic stake labels only, no money movement. */
+const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100];
+
+function riskStakeOptionsFor(current) {
+  const options = [...RISK_STAKE_OPTIONS];
+  if (typeof current === "number" && !options.includes(current)) {
+    options.push(current);
+    options.sort((a, b) => a - b);
+  }
+  return options;
+}
+
+function formatRiskStake(amount) {
+  return `$${amount}`;
+}
+
 // ---------------------------------------------------------------------------
 // Session state
 // ---------------------------------------------------------------------------
@@ -714,9 +730,9 @@ function renderSessionPanel(s) {
           </div>
         </td>
         <td>
-          <select class="num-select" data-risk-select aria-label="${escapeHtml(sc.displayName)} risk points" ${disabled}>
-            ${[0, 1, 2, 3, 4, 5]
-              .map((n) => `<option value="${n}" ${n === sc.riskPoints ? "selected" : ""}>${n} pt${n === 1 ? "" : "s"}</option>`)
+          <select class="num-select" data-risk-select aria-label="${escapeHtml(sc.displayName)} risk stake" ${disabled}>
+            ${riskStakeOptionsFor(sc.riskPoints)
+              .map((n) => `<option value="${n}" ${n === sc.riskPoints ? "selected" : ""}>${formatRiskStake(n)}</option>`)
               .join("")}
           </select>
         </td>
@@ -755,7 +771,7 @@ function renderSessionPanel(s) {
     <div class="session">
       <table class="score-table">
         <thead>
-          <tr><th>Player</th><th>Tricks won</th><th>Risk points</th><th class="num">Total</th></tr>
+          <tr><th>Player</th><th>Tricks won</th><th>Risk stake</th><th class="num">Total</th></tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
