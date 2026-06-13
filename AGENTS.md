@@ -148,3 +148,19 @@ add the DNS records at your registrar. Then add `booray.win` and `www.booray.win
 Authentication → Settings → Authorized domains, and add the same origins to your
 Google OAuth client if using Google sign-in. Optionally set `authDomain` in
 `docs/firebase-config.js` to `"booray.win"`.
+
+**GitHub Actions auto-deploy:** pushes to `main` run `.github/workflows/deploy.yml`.
+Add these repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `FIREBASE_API_KEY` | Web app `apiKey` from Firebase console |
+| `FIREBASE_AUTH_DOMAIN` | e.g. `booray.win` (or `{projectId}.firebaseapp.com`) |
+| `FIREBASE_PROJECT_ID` | Firebase project id |
+| `FIREBASE_APP_ID` | Web app `appId` |
+| `FIREBASE_SERVICE_ACCOUNT` | Full JSON key for a deploy service account |
+
+Create the service account in Google Cloud → IAM → Service accounts → Create.
+Grant **Firebase Hosting Admin** and **Firebase Rules Admin** (or **Firebase Admin**).
+Generate a JSON key and paste the entire file into `FIREBASE_SERVICE_ACCOUNT`.
+You can also trigger a manual deploy from the Actions tab via **workflow_dispatch**.
