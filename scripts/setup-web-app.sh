@@ -54,31 +54,15 @@ else
 fi
 
 echo "==> Fetching web app config…"
-$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" > "${SDK_FILE}"
-
-read -r FIREBASE_API_KEY FIREBASE_APP_ID <<EOF
-$(node --input-type=module -e "
-import { readFileSync } from 'node:fs';
-const raw = readFileSync('${SDK_FILE}', 'utf8');
-const cfg = JSON.parse(raw);
-if (!cfg.apiKey || !cfg.appId) {
-  console.error('sdkconfig missing apiKey or appId');
-  process.exit(1);
-}
-console.log(cfg.apiKey);
-console.log(cfg.appId);
-")
-EOF
+$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" --non-interactive > "${SDK_FILE}" 2>/dev/null || \
+  $FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" > "${SDK_FILE}"
 
 echo "==> Writing docs/firebase-config.js"
-export FIREBASE_API_KEY FIREBASE_APP_ID FIREBASE_PROJECT_ID="${PROJECT_ID}" FIREBASE_AUTH_DOMAIN="${AUTH_DOMAIN}"
-node scripts/write-firebase-config.js
+node scripts/apply-sdkconfig.js "${SDK_FILE}" "${PROJECT_ID}" "${AUTH_DOMAIN}"
 
 echo ""
 echo "==> Step 3 complete."
-echo "    apiKey:  ${FIREBASE_API_KEY}"
-echo "    appId:   ${FIREBASE_APP_ID}"
 echo "    project: ${PROJECT_ID}"
 echo ""
 echo "    Next: ./scripts/one-time-setup.sh ${PROJECT_ID} ${AUTH_DOMAIN}"
-echo "    (Skip re-entering apiKey/appId — config is already written for deploy.)"
+echo "    (firebase-config.js is already written — skip apiKey/appId prompts if offered.)"
