@@ -99,6 +99,10 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 
 const db = getFirestore(app);
 
+/** Bourré: first player to 3 of 5 tricks wins the hand (majority). */
+export const BOURRE_TRICKS_TO_WIN = 3;
+export const MAX_TRICKS_PER_HAND = 5;
+
 if (FIRESTORE_EMULATOR) {
   try {
     connectFirestoreEmulator(db, FIRESTORE_EMULATOR.host, FIRESTORE_EMULATOR.port);
@@ -342,6 +346,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handCount: 0,
     handStake: stake,
     handStakeLocked: false,
+    currentHand: { tricksByPlayer: {} },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
     notes: "",
@@ -376,9 +381,23 @@ export function subscribeSessions(roomId, callback) {
   });
 }
 
+export function sortScoresForDisplay(scores, players = []) {
+  const order = new Map(players.map((p, i) => [p.playerId, i]));
+  return [...scores].sort((a, b) => {
+    const ai = order.has(a.playerId) ? order.get(a.playerId) : 999;
+    const bi = order.has(b.playerId) ? order.get(b.playerId) : 999;
+    if (ai !== bi) return ai - bi;
+    return (a.displayName || "").localeCompare(b.displayName || "");
+  });
+}
+
 export function subscribeScores(roomId, sessionId, callback) {
   return onSnapshot(scoresCol(roomId, sessionId), (snap) => {
-    callback(snap.docs.map(withId).sort((a, b) => b.total - a.total));
+    callback(
+      snap.docs
+        .map(withId)
+        .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || "")),
+    );
   });
 }
 
@@ -465,11 +484,46 @@ export async function recordHand(roomId, sessionId, { winnerId, participantIds, 
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
+    currentHand: { tricksByPlayer: {} },
     updatedAt: serverTimestamp(),
   });
 
   await batch.commit();
   await recomputeSessionTotals(roomId, sessionId);
+}
+
+/**
+ * Track tricks within the current hand (0–5). At 3 tricks (Bourré majority),
+ * the hand is won and recorded automatically.
+ */
+export async function updateHandTrick(roomId, sessionId, playerId, delta, recordedBy) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const tricksByPlayer = { ...(sessionData.currentHand?.tricksByPlayer || {}) };
+  const current = tricksByPlayer[playerId] || 0;
+  const next = Math.max(0, Math.min(MAX_TRICKS_PER_HAND, current + delta));
+  if (next === current && delta !== 0) return;
+
+  tricksByPlayer[playerId] = next;
+
+  if (next >= BOURRE_TRICKS_TO_WIN) {
+    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+    const participantIds = scoreSnap.docs.map((d) => d.id);
+    await recordHand(roomId, sessionId, {
+      winnerId: playerId,
+      participantIds,
+      recordedBy,
+    });
+    return;
+  }
+
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    currentHand: { tricksByPlayer },
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /** Update one player's score row, then recompute the session totals. */

@@ -28,15 +28,18 @@ import {
   subscribeSessions,
   subscribeScores,
   createSession,
-  updateScore,
   updateSessionNotes,
   updateSessionHandStake,
+  updateHandTrick,
   recordHand,
   addSessionPlayer,
   subscribeHands,
+  sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
   subscribeLeaderboard,
+  BOURRE_TRICKS_TO_WIN,
+  MAX_TRICKS_PER_HAND,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
@@ -764,20 +767,23 @@ function renderSessionPanel(s) {
   const stakeLocked = Boolean(s.handStakeLocked);
   const handCount = s.handCount ?? 0;
   const nextHand = handCount + 1;
+  const tricksThisHand = s.currentHand?.tricksByPlayer || {};
+  const displayScores = sortScoresForDisplay(openScores, s.players || []);
 
-  const rows = openScores
+  const rows = displayScores
     .map((sc) => {
       const net = sc.net ?? 0;
       const netClass = net > 0 ? "net-up" : net < 0 ? "net-down" : "";
+      const handTricks = tricksThisHand[sc.playerId] ?? 0;
       return `
-      <tr data-player="${escapeHtml(sc.playerId)}">
+      <tr data-player-id="${escapeHtml(sc.playerId)}">
         <td>${escapeHtml(sc.displayName)}</td>
         <td class="num">${sc.handsWon ?? 0}</td>
         <td>
           <div class="stepper">
-            <button class="room__step" data-score-step="-1" aria-label="Decrease tricks" ${disabled}>−</button>
-            <input class="num-input" type="number" min="0" value="${sc.tricksWon}" data-score-input aria-label="${escapeHtml(sc.displayName)} tricks won" ${disabled} />
-            <button class="room__step" data-score-step="1" aria-label="Increase tricks" ${disabled}>+</button>
+            <button class="room__step" data-hand-trick-step="-1" aria-label="Decrease ${escapeHtml(sc.displayName)} tricks this hand" ${disabled}>−</button>
+            <input class="num-input" type="number" min="0" max="${MAX_TRICKS_PER_HAND}" value="${handTricks}" data-hand-trick-input aria-label="${escapeHtml(sc.displayName)} tricks this hand" readonly />
+            <button class="room__step" data-hand-trick-step="1" aria-label="Increase ${escapeHtml(sc.displayName)} tricks this hand" ${disabled}>+</button>
           </div>
         </td>
         <td class="num ${netClass}">${escapeHtml(formatNet(net))}</td>
@@ -811,7 +817,7 @@ function renderSessionPanel(s) {
            <p class="muted small">Host set · locks after the first hand.</p>
          </div>`;
 
-  const participantOptions = openScores
+  const participantOptions = displayScores
     .map(
       (sc) =>
         `<label class="hand-participant">
@@ -821,7 +827,7 @@ function renderSessionPanel(s) {
     )
     .join("");
 
-  const winnerOptions = openScores
+  const winnerOptions = displayScores
     .map(
       (sc) =>
         `<option value="${escapeHtml(sc.playerId)}">${escapeHtml(sc.displayName)}</option>`,
@@ -833,7 +839,7 @@ function renderSessionPanel(s) {
       ? ""
       : `<div class="record-hand">
            <h5>Record hand #${nextHand}</h5>
-           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot.</p>
+           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Or tap + until a player reaches ${BOURRE_TRICKS_TO_WIN} tricks.</p>
            <div class="record-hand__grid">
              <label class="record-hand__field">
                <span>Winner</span>
@@ -903,11 +909,11 @@ function renderSessionPanel(s) {
       ${recordHandBlock}
       <table class="score-table">
         <thead>
-          <tr><th>Player</th><th class="num">Hands won</th><th>Tricks won</th><th class="num">Net</th></tr>
+          <tr><th>Player</th><th class="num">Hands won</th><th>Tricks this hand</th><th class="num">Net</th></tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
-          <tr><td colspan="3">${handCount} hand${handCount === 1 ? "" : "s"} played</td><td class="num"></td></tr>
+          <tr><td colspan="4" class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · ${BOURRE_TRICKS_TO_WIN} tricks wins the hand (of ${MAX_TRICKS_PER_HAND})</td></tr>
         </tfoot>
       </table>
       ${handHistory}
@@ -952,25 +958,17 @@ async function onNewSession() {
 function wireSessionControls() {
   if (!openSessionId) return;
 
-  $$("tr[data-player]", roomDetailView).forEach((row) => {
-    const playerId = row.dataset.player;
-    const input = $("[data-score-input]", row);
+  $$("tr[data-player-id]", roomDetailView).forEach((row) => {
+    const playerId = row.dataset.playerId;
 
-    $$("[data-score-step]", row).forEach((btn) =>
+    $$("[data-hand-trick-step]", row).forEach((btn) =>
       btn.addEventListener("click", () => {
-        const delta = Number(btn.dataset.scoreStep);
-        const next = Math.max(0, (parseInt(input.value, 10) || 0) + delta);
-        updateScore(currentRoomId, openSessionId, playerId, { tricksWon: next }).catch(
-          (e) => console.error("updateScore:", e),
+        const delta = Number(btn.dataset.handTrickStep);
+        updateHandTrick(currentRoomId, openSessionId, playerId, delta, session?.uid).catch(
+          (e) => console.error("updateHandTrick:", e),
         );
       }),
     );
-    input.addEventListener("change", () => {
-      const next = Math.max(0, parseInt(input.value, 10) || 0);
-      updateScore(currentRoomId, openSessionId, playerId, { tricksWon: next }).catch(
-        (e) => console.error("updateScore:", e),
-      );
-    });
   });
 
   const handStakeSelect = $("#session-hand-stake", roomDetailView);
