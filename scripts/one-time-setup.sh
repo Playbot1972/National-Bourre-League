@@ -111,28 +111,22 @@ fi
 
 echo "==> Service account for GitHub Actions…"
 KEY_FILE="${ROOT}/.firebase-sa-key.json"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/lib/gcloud-path.sh"
+ensure_gcloud >/dev/null 2>&1 || true
+
 if [[ -f "${KEY_FILE}" ]]; then
   echo "    Using existing key: ${KEY_FILE}"
 elif command -v gcloud >/dev/null; then
   "${ROOT}/scripts/setup-service-account.sh" "${PROJECT_ID}"
 else
-  echo "    Run in another terminal (automated):"
-  echo "      brew install --cask google-cloud-sdk"
-  echo "      gcloud auth login"
-  echo "      ./scripts/setup-service-account.sh ${PROJECT_ID}"
+  echo "    Automated path (recommended):"
+  echo "      npm run finish-setup -- ${PROJECT_ID} ${AUTH_DOMAIN}"
   echo ""
-  echo "    Or manually:"
-  echo "    https://console.cloud.google.com/iam-admin/serviceaccounts?project=${PROJECT_ID}"
-  echo "    Roles: Firebase Hosting Admin + Firebase Rules Admin"
-  echo "    Save JSON as: ${KEY_FILE}"
-  read -r -p "Press Enter when ${KEY_FILE} exists…"
-  if [[ ! -f "${KEY_FILE}" ]]; then
-    read -r -p "Path to downloaded JSON key file: " KEY_FILE
-    if [[ -f "${KEY_FILE}" && "${KEY_FILE}" != "${ROOT}/.firebase-sa-key.json" ]]; then
-      cp "${KEY_FILE}" "${ROOT}/.firebase-sa-key.json"
-      KEY_FILE="${ROOT}/.firebase-sa-key.json"
-    fi
-  fi
+  echo "    Or install gcloud manually:"
+  echo "      brew install --cask google-cloud-sdk"
+  echo "      npm run setup:service-account -- ${PROJECT_ID}"
+  exit 1
 fi
 
 if [[ ! -f "${KEY_FILE}" ]]; then
