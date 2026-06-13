@@ -76,6 +76,7 @@ const {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   onSnapshot,
   query,
   where,
@@ -219,6 +220,31 @@ export async function joinRoomByCode(code, user) {
     { merge: true },
   );
   return roomId;
+}
+
+/** Remove this user from a room (hides it from their list). */
+export async function leaveRoom(roomId, user) {
+  if (!user?.uid) throw new Error("Not signed in");
+  await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
+}
+
+/** Delete a room entirely (owner only). */
+export async function deleteRoom(roomId, user) {
+  if (!user?.uid) throw new Error("Not signed in");
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) return;
+  const data = roomSnap.data();
+  if (data.ownerId !== user.uid) {
+    throw new Error("Only the room owner can delete this room");
+  }
+  const inviteCode = normalizeInviteCode(data.inviteCode || "");
+  const batch = writeBatch(db);
+  batch.delete(doc(db, "roomMembers", memberId(roomId, user.uid)));
+  batch.delete(doc(db, "rooms", roomId));
+  if (inviteCode) {
+    batch.delete(doc(db, "inviteLookups", inviteCode));
+  }
+  await batch.commit();
 }
 
 export async function updateRoomStatus(roomId, status) {

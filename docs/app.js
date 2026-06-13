@@ -19,6 +19,8 @@ import {
   ensurePlayerDoc,
   createRoom,
   joinRoomByCode,
+  leaveRoom,
+  deleteRoom,
   ensureInviteLookupForRoom,
   subscribeMyRooms,
   subscribeRoom,
@@ -381,15 +383,53 @@ function renderRoomsList() {
     return;
   }
   list.innerHTML = myRooms
-    .map(
-      (room) => `
-      <article class="mini-card mini-card--button" data-open-room="${room.id}" role="button" tabindex="0">
-        <span class="mini-card__title">${escapeHtml(room.name)}</span>
-        <span class="mini-card__code">${escapeHtml(room.inviteCode)}</span>
-        <span class="mini-card__meta">${escapeHtml(room.role || "player")} · ${escapeHtml(room.status)}</span>
-      </article>`,
-    )
+    .map((room) => {
+      const isOwner = room.role === "owner";
+      const actionLabel = isOwner ? "Delete" : "Leave";
+      const actionAttr = isOwner ? "data-delete-room" : "data-leave-room";
+      return `
+      <article class="mini-card mini-card--with-action">
+        <div class="mini-card__main mini-card--button" data-open-room="${room.id}" role="button" tabindex="0">
+          <span class="mini-card__title">${escapeHtml(room.name)}</span>
+          <span class="mini-card__code">${escapeHtml(room.inviteCode)}</span>
+          <span class="mini-card__meta">${escapeHtml(room.role || "player")} · ${escapeHtml(room.status)}</span>
+        </div>
+        <button type="button" class="btn btn--sm btn--danger mini-card__action" ${actionAttr}="${room.id}">${actionLabel}</button>
+      </article>`;
+    })
     .join("");
+}
+
+async function onLeaveRoom(roomId) {
+  if (!session) return;
+  if (!window.confirm("Leave this room? It will disappear from your list.")) return;
+  showRoomsError("");
+  try {
+    await leaveRoom(roomId, session);
+    if (currentRoomId === roomId) closeRoom();
+  } catch (err) {
+    console.error(err);
+    showRoomsError("Could not leave the room. Please try again.");
+  }
+}
+
+async function onDeleteRoom(roomId) {
+  if (!session) return;
+  if (
+    !window.confirm(
+      "Delete this room for everyone? Sessions and scores will no longer be accessible.",
+    )
+  ) {
+    return;
+  }
+  showRoomsError("");
+  try {
+    await deleteRoom(roomId, session);
+    if (currentRoomId === roomId) closeRoom();
+  } catch (err) {
+    console.error(err);
+    showRoomsError("Could not delete the room. Please try again.");
+  }
 }
 
 $("#create-room").addEventListener("click", async () => {
@@ -438,6 +478,18 @@ $("#join-form").addEventListener("submit", async (e) => {
 
 // Open a room (event delegation on the list).
 $("#rooms-list").addEventListener("click", (e) => {
+  if (e.target.closest("[data-delete-room]")) {
+    e.preventDefault();
+    e.stopPropagation();
+    onDeleteRoom(e.target.closest("[data-delete-room]").dataset.deleteRoom);
+    return;
+  }
+  if (e.target.closest("[data-leave-room]")) {
+    e.preventDefault();
+    e.stopPropagation();
+    onLeaveRoom(e.target.closest("[data-leave-room]").dataset.leaveRoom);
+    return;
+  }
   const card = e.target.closest("[data-open-room]");
   if (card) openRoom(card.dataset.openRoom);
 });
@@ -540,6 +592,11 @@ function renderRoomDetail() {
         <span class="muted">Invite code</span>
         <strong>${escapeHtml(currentRoom.inviteCode)}</strong>
       </div>
+      ${
+        session?.uid === currentRoom.ownerId
+          ? `<button type="button" class="btn btn--sm btn--danger" id="delete-room">Delete room</button>`
+          : `<button type="button" class="btn btn--sm btn--danger" id="leave-room">Leave room</button>`
+      }
     </div>
 
     <div class="room-detail__grid">
@@ -586,6 +643,14 @@ function renderRoomDetail() {
 
   // Wire detail controls
   $("#back-to-rooms").addEventListener("click", closeRoom);
+  const deleteRoomBtn = $("#delete-room", roomDetailView);
+  if (deleteRoomBtn) {
+    deleteRoomBtn.addEventListener("click", () => onDeleteRoom(currentRoomId));
+  }
+  const leaveRoomBtn = $("#leave-room", roomDetailView);
+  if (leaveRoomBtn) {
+    leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
+  }
   $("#new-session").addEventListener("click", onNewSession);
   $$("[data-open-session]", roomDetailView).forEach((btn) =>
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),

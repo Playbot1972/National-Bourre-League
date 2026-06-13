@@ -537,6 +537,37 @@ button {
   border-color: var(--gold-300);
 }
 
+.mini-card--with-action {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.mini-card__main {
+  flex: 1;
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.mini-card__action {
+  align-self: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.btn--danger {
+  background: rgba(180, 60, 60, 0.2);
+  border: 1px solid rgba(220, 100, 100, 0.45);
+  color: #ffb4b4;
+}
+
+.btn--danger:hover {
+  background: rgba(180, 60, 60, 0.35);
+  border-color: rgba(255, 140, 140, 0.6);
+}
+
 /* Room detail */
 .link-back {
   background: none;
