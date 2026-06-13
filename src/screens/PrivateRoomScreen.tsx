@@ -8,7 +8,21 @@ interface Player {
   riskPoints: number;
 }
 
-const RISK_OPTIONS = [0, 1, 2, 3, 4, 5];
+/** US bill denominations — thematic stake labels only, no money movement. */
+const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
+
+function riskStakeOptionsFor(current: number) {
+  const options = [...RISK_STAKE_OPTIONS];
+  if (!options.includes(current)) {
+    options.push(current);
+    options.sort((a, b) => a - b);
+  }
+  return options;
+}
+
+function formatRiskStake(amount: number) {
+  return `$${amount.toLocaleString("en-US")}`;
+}
 
 function generateInviteCode(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -105,7 +119,7 @@ export function PrivateRoomScreen() {
         <p className="eyebrow">Private room</p>
         <h1>Table lobby</h1>
         <p className="room__lede">
-          Invite friends, keep score, and track risk points for a friendly game.
+          Invite friends, keep score, and track per-player stakes for a friendly game.
         </p>
         <p className="room__memory" role="note">
           In-memory only — nothing is saved. Refreshing the page clears the room.
@@ -144,7 +158,7 @@ export function PrivateRoomScreen() {
             </li>
             <li>
               <span className="room__stat-num">{totalRisk}</span>
-              <span className="room__stat-label">total risk pts</span>
+              <span className="room__stat-label">total at stake</span>
             </li>
           </ul>
         </section>
@@ -179,7 +193,7 @@ export function PrivateRoomScreen() {
           <li className="room__row room__row--header" aria-hidden="true">
             <span>Player</span>
             <span>Score</span>
-            <span>Risk points</span>
+            <span>Risk stake</span>
             <span></span>
           </li>
           {players.length === 0 && (
@@ -223,12 +237,12 @@ export function PrivateRoomScreen() {
                   <select
                     className="room__select"
                     value={p.riskPoints}
-                    aria-label={`${p.name} risk points`}
+                    aria-label={`${p.name} risk stake`}
                     onChange={(e) => setRisk(p.id, parseInt(e.target.value, 10))}
                   >
-                    {RISK_OPTIONS.map((n) => (
+                    {riskStakeOptionsFor(p.riskPoints).map((n) => (
                       <option key={n} value={n}>
-                        {n} pt{n === 1 ? "" : "s"}
+                        {formatRiskStake(n)}
                       </option>
                     ))}
                   </select>
