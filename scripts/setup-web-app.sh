@@ -19,7 +19,7 @@ AUTH_DOMAIN="${2:-booray.win}"
 DISPLAY_NAME="Booray Web"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 FB="npx firebase"
-SDK_FILE="$(mktemp /tmp/firebase-sdk.XXXXXX.json)"
+SDK_FILE="$(mktemp)"
 
 cd "$ROOT"
 
@@ -54,7 +54,7 @@ else
 fi
 
 echo "==> Fetching web app config…"
-$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" -o "${SDK_FILE}"
+$FB apps:sdkconfig WEB "${APP_ID}" --project "${PROJECT_ID}" > "${SDK_FILE}"
 
 read -r FIREBASE_API_KEY FIREBASE_APP_ID <<EOF
 $(node --input-type=module -e "
