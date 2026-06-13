@@ -178,7 +178,27 @@ export async function createRoom({ owner, name, houseRules }) {
     joinedAt: serverTimestamp(),
   });
   await batch.commit();
+  await ensureInviteLookupForRoom(roomRef.id);
   return roomRef.id;
+}
+
+/** Ensure inviteLookups/{code} exists (repairs rooms created before the join fix). */
+export async function ensureInviteLookupForRoom(roomId) {
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) return false;
+  const data = roomSnap.data();
+  const inviteCode = normalizeInviteCode(data.inviteCode || "");
+  if (!inviteCode) return false;
+  await setDoc(
+    doc(db, "inviteLookups", inviteCode),
+    {
+      roomId,
+      ownerId: data.ownerId,
+      createdAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return true;
 }
 
 /** Join an existing room by invite code. Returns the roomId or null. */
