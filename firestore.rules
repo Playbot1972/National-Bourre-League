@@ -6,6 +6,7 @@ rules_version = '2';
 //   users/{uid}                                    profile
 //   rooms/{roomId}                                 inviteCode, ownerId, houseRules, status, createdAt
 //   roomMembers/{roomId}_{uid}                     roomId, userId, displayName, role, joinedAt
+//   inviteLookups/{inviteCode}                     roomId, ownerId (join-by-code without listing rooms)
 //   rooms/{roomId}/sessions/{sessionId}            players, rounds, notes, totals, ...
 //   rooms/{roomId}/sessions/{sId}/scores/{playerId} per-player tricksWon, riskPoints, total
 //
@@ -64,6 +65,14 @@ service cloud.firestore {
           allow read, write: if isMember(roomId);
         }
       }
+    }
+
+    // Invite code → room id. Readable by any signed-in user so join-by-code works
+    // without opening list access on all rooms/{roomId} documents.
+    match /inviteLookups/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
     // Membership rows: any signed-in user can read (to look up rooms by invite);

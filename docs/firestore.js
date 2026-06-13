@@ -16,6 +16,9 @@
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
 //   { roomId, userId, displayName, role: "owner" | "player", joinedAt }
 //
+// inviteLookups/{inviteCode}          (doc id = normalized code, e.g. ABC-D23)
+//   { roomId, ownerId, createdAt }
+//
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
 //   { roomId, status: "in_progress" | "final", rounds,
 //     players: [{ playerId, displayName }],
@@ -109,6 +112,10 @@ export function generateInviteCode() {
   return `${s.slice(0, 3)}-${s.slice(3)}`;
 }
 
+function normalizeInviteCode(code) {
+  return code.trim().toUpperCase();
+}
+
 const memberId = (roomId, uid) => `${roomId}_${uid}`;
 
 function withId(snap) {
@@ -144,13 +151,19 @@ export async function ensureUserDoc(user) {
 // ---------------------------------------------------------------------------
 export async function createRoom({ owner, name, houseRules }) {
   const roomRef = doc(collection(db, "rooms"));
+  const inviteCode = generateInviteCode();
   const batch = writeBatch(db);
   batch.set(roomRef, {
-    inviteCode: generateInviteCode(),
+    inviteCode,
     ownerId: owner.uid,
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: houseRules || DEFAULT_HOUSE_RULES,
     status: "open",
+    createdAt: serverTimestamp(),
+  });
+  batch.set(doc(db, "inviteLookups", inviteCode), {
+    roomId: roomRef.id,
+    ownerId: owner.uid,
     createdAt: serverTimestamp(),
   });
   batch.set(doc(db, "roomMembers", memberId(roomRef.id, owner.uid)), {
@@ -166,17 +179,14 @@ export async function createRoom({ owner, name, houseRules }) {
 
 /** Join an existing room by invite code. Returns the roomId or null. */
 export async function joinRoomByCode(code, user) {
-  const q = query(
-    collection(db, "rooms"),
-    where("inviteCode", "==", code.trim().toUpperCase()),
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  const room = snap.docs[0];
+  const inviteCode = normalizeInviteCode(code);
+  const lookupSnap = await getDoc(doc(db, "inviteLookups", inviteCode));
+  if (!lookupSnap.exists()) return null;
+  const roomId = lookupSnap.data().roomId;
   await setDoc(
-    doc(db, "roomMembers", memberId(room.id, user.uid)),
+    doc(db, "roomMembers", memberId(roomId, user.uid)),
     {
-      roomId: room.id,
+      roomId,
       userId: user.uid,
       displayName: user.displayName,
       role: "player",
@@ -184,7 +194,7 @@ export async function joinRoomByCode(code, user) {
     },
     { merge: true },
   );
-  return room.id;
+  return roomId;
 }
 
 export async function updateRoomStatus(roomId, status) {
