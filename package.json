@@ -12,6 +12,7 @@
     "build:hosting": "npm run build && node scripts/prepare-hosting.js",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
     "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
+    "deploy:rules": "npx firebase deploy --only firestore:rules",
     "setup": "./scripts/one-time-setup.sh",
     "setup:firestore": "./scripts/setup-firestore.sh",
     "setup:webapp": "./scripts/setup-web-app.sh",
