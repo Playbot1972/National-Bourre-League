@@ -57,6 +57,10 @@ This repo contains two front-ends:
   when its CSS class sets `display`. `styles.css` has a global
   `[hidden]{display:none!important}` reset — keep it, or modals/menus render
   permanently open.
+- Gotcha: on custom domains, session persistence on **iOS Safari** requires the
+  auth iframe to match the page host. `auth.js` sets `authDomain` from
+  `location.hostname` on custom domains and uses IndexedDB + localStorage
+  persistence. Redeploy after auth changes.
 - Gotcha: on email sign-up, `createUserWithEmailAndPassword` fires
   `onAuthStateChanged` *before* `updateProfile` sets the display name, and a
   profile update does not re-emit the event. `app.js` therefore applies the
