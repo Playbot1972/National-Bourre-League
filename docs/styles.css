@@ -918,6 +918,9 @@ button {
 .score-table .net-down {
   color: #e5989b;
 }
+.score-table .net-imbalance {
+  color: #f5b041;
+}
 
 .settlement-actions {
   margin-top: 12px;

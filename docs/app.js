@@ -827,6 +827,8 @@ function renderSessionPanel(s) {
   const isInCurrentHand = (playerId) =>
     Array.isArray(handParticipantIds) ? handParticipantIds.includes(playerId) : true;
   const checkedParticipantCount = displayScores.filter((sc) => isInCurrentHand(sc.playerId)).length;
+  const netTotal = displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0);
+  const netTotalClass = netTotal === 0 ? "" : " net-imbalance";
 
   const rows = displayScores
     .map((sc) => {
@@ -978,7 +980,8 @@ function renderSessionPanel(s) {
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
-          <tr><td colspan="4" class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · ${BOURRE_TRICKS_TO_WIN} tricks wins the hand (of ${MAX_TRICKS_PER_HAND})</td></tr>
+          <tr><td colspan="3" class="num"><strong>Session total</strong></td><td class="num ${netTotalClass}"><strong>${escapeHtml(formatNet(netTotal))}</strong></td></tr>
+          <tr><td colspan="4" class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · ${BOURRE_TRICKS_TO_WIN} tricks wins the hand (of ${MAX_TRICKS_PER_HAND}) · session total should always be ${formatRiskStake(0)}</td></tr>
         </tfoot>
       </table>
       ${handHistory}

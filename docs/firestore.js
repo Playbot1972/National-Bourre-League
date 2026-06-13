@@ -489,19 +489,11 @@ export async function recordHand(
   const deltas = {};
   let carryOverPot = 0;
 
-  if (mode === "push") {
-    participants.forEach((pid) => {
-      deltas[pid] = 0;
-    });
-    carryOverPot = grossPot;
-  } else if (mode === "non_winner_ante_up") {
+  if (mode === "push" || mode === "non_winner_ante_up") {
     carryOverPot = grossPot;
     participants.forEach((pid) => {
-      if (winners.includes(pid)) {
-        deltas[pid] = 0;
-      } else {
-        deltas[pid] = -nextRiskStake(stakeForPlayer(scoreById, pid, stake));
-      }
+      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      deltas[pid] = -playerStake;
     });
   } else if (mode === "split") {
     const share = grossPot / winners.length;
