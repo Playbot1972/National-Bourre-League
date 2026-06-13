@@ -53,11 +53,24 @@ This repo contains two front-ends:
   and
   `curl -X DELETE "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents"`.
   (Firestore emulator uses port 8088 so it doesn't clash with the static server on 8080.)
+- Gotcha: anything toggled via the HTML `hidden` attribute must keep working even
+  when its CSS class sets `display`. `styles.css` has a global
+  `[hidden]{display:none!important}` reset — keep it, or modals/menus render
+  permanently open.
+- Gotcha: on email sign-up, `createUserWithEmailAndPassword` fires
+  `onAuthStateChanged` *before* `updateProfile` sets the display name, and a
+  profile update does not re-emit the event. `app.js` therefore applies the
+  returned user via `setSession()` after sign-up so the display name shows
+  immediately (otherwise the UI falls back to the email prefix until reload).
+  It also calls `ensurePlayerDoc(uid, displayName)` right after sign-up so the
+  `players` doc gets the chosen name, not the email-prefix fallback.
 
 ### Firestore data model (`docs/firestore.js` + `firestore.rules`)
 
 - Collections: `users`, `rooms`, `roomMembers` (flat, id `${roomId}_${uid}` for
-  easy membership lookups), and `sessions` + `scores` nested **under each room**
+  easy membership lookups), `players` (top-level Ape Score rankings; doc id =
+  auth uid or a generated `guest_*` id for table guests), and `sessions` +
+  `scores` nested **under each room**
   (`rooms/{roomId}/sessions/{sessionId}/scores/{playerId}`).
 - Gotcha (important): sessions/scores are subcollections on purpose. A top-level
   collection with a `roomId` field CANNOT be authorized for `list`/query in
@@ -79,18 +92,25 @@ This repo contains two front-ends:
   pairwise TrueSkill approximation (ranked by tricks won; ties = draws). Exposes
   `rankMatch`, `apeScore`, `apeClass`, `apeStatus`, `newRating`.
 - Ratings persist in the top-level `players` collection (id = uid for accounts, or
-  a generated `guest_*` id for table guests). Completing a session
-  (`applyRankingResults`) writes every participant's new rating + finalizes the
-  session with per-player results; the Leaderboard view reads `players` live.
+  a generated `guest_*` id for table guests). Each doc stores
+  `{ displayName, mu, sigma, matchesPlayed, apeScore, apeClass, apeStatus,
+  momentum, updatedAt }`.
+- **End-to-end flow** (all wired in `app.js` + `firestore.js`):
+  1. **Sign-in / sign-up** — `startRoomsSubscription()` calls
+     `ensurePlayerDoc(uid, displayName)` so the signed-in user has a ranking doc
+     (initial rating, Ape Score 0) and appears on the leaderboard even before
+     playing. Sign-up also re-calls `ensurePlayerDoc` after `setSession()` so the
+     doc carries the chosen display name.
+  2. **Start session** — room members (or the solo host) become session players;
+     score rows track `tricksWon` / `riskPoints`. Guests added at the table get a
+     `guest_*` id via `addSessionPlayer`, which also creates their `players` doc.
+  3. **Complete session** — `onCompleteSession()` loads current ratings with
+     `getPlayers`, ranks by `tricksWon` via `rankMatch()` (ties = draws), attaches
+     `apeClass` / `apeStatus`, then `applyRankingResults()` batch-writes every
+     participant's updated rating and marks the session `final` with a results
+     snapshot on the session doc.
+  4. **Leaderboard** — `subscribeLeaderboard()` listens to the `players`
+     collection live, sorted by `apeScore` desc (then `matchesPlayed`).
 - Entertainment/skill only — never money. If you harden for production, move
   rating writes server-side (Cloud Function) so clients can't edit their own rank;
   the sample rule currently allows any signed-in write to `players`.
-- Gotcha: anything toggled via the HTML `hidden` attribute must keep working even
-  when its CSS class sets `display`. `styles.css` has a global
-  `[hidden]{display:none!important}` reset — keep it, or modals/menus render
-  permanently open.
-- Gotcha: on email sign-up, `createUserWithEmailAndPassword` fires
-  `onAuthStateChanged` *before* `updateProfile` sets the display name, and a
-  profile update does not re-emit the event. `app.js` therefore applies the
-  returned user via `setSession()` after sign-up so the display name shows
-  immediately (otherwise the UI falls back to the email prefix until reload).
