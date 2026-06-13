@@ -114,3 +114,37 @@ This repo contains two front-ends:
 - Entertainment/skill only — never money. If you harden for production, move
   rating writes server-side (Cloud Function) so clients can't edit their own rank;
   the sample rule currently allows any signed-in write to `players`.
+
+### Deploy to production (`booray.win` or any custom domain)
+
+The site ships as **one Firebase Hosting site** with two apps:
+
+| URL path | App | Source |
+| --- | --- | --- |
+| `/` | React tutorial (rules, tutorial, in-memory room) | Vite build → `dist/` |
+| `/social/` | Static social app (auth, rooms, Ape Score) | `docs/` copied to `dist/social/` |
+
+**Build & deploy:**
+```bash
+npm install
+firebase login
+firebase use YOUR_REAL_PROJECT_ID
+# Put real Firebase web config in docs/firebase-config.js (projectId, apiKey, …)
+npm run deploy          # build:hosting + deploy hosting + firestore rules
+# or step-by-step:
+npm run build:hosting   # vite build + copy docs/ → dist/social/
+firebase deploy --only hosting,firestore:rules
+```
+
+**Preview the combined site locally** (React at `/`, social at `/social/`, emulators
+still auto-connect on localhost):
+```bash
+npm run emulators       # terminal 1
+npm run preview:hosting # terminal 2 → http://localhost:5000
+```
+
+**Custom domain (`booray.win`):** Firebase Console → Hosting → Add custom domain →
+add the DNS records at your registrar. Then add `booray.win` and `www.booray.win` to
+Authentication → Settings → Authorized domains, and add the same origins to your
+Google OAuth client if using Google sign-in. Optionally set `authDomain` in
+`docs/firebase-config.js` to `"booray.win"`.

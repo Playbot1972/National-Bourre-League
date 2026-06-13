@@ -85,6 +85,17 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             Open a room →
           </button>
         </article>
+        <article className="panel home__feature">
+          <span className="home__feature-icon">🦍</span>
+          <h2>Social &amp; Ape Score</h2>
+          <p>
+            Sign in for persistent private rooms, leagues, and the TrueSkill
+            leaderboard — bragging rights only, never money.
+          </p>
+          <a className="home__feature-link" href="/social/">
+            Go to social app →
+          </a>
+        </article>
       </section>
     </div>
   );

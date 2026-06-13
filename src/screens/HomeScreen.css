@@ -69,11 +69,15 @@
 }
 .home__feature-link {
   margin-top: auto;
+  display: inline-block;
   background: none;
   border: none;
   color: var(--gold-300);
   font-size: 15px;
   padding: 4px 0;
+  text-decoration: none;
+  cursor: pointer;
+  font-family: inherit;
 }
 .home__feature-link:hover {
   text-decoration: underline;

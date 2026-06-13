@@ -50,6 +50,8 @@
   gap: 8px;
 }
 .app__nav-link {
+  display: inline-flex;
+  align-items: center;
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-dim);
@@ -57,6 +59,7 @@
   border-radius: 999px;
   font-size: 15px;
   transition: all 140ms ease;
+  text-decoration: none;
 }
 .app__nav-link:hover {
   color: var(--text-light);

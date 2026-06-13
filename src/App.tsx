@@ -42,6 +42,9 @@ export default function App() {
           >
             Private Room
           </button>
+          <a className="app__nav-link app__nav-link--external" href="/social/">
+            Social
+          </a>
         </nav>
       </header>
 
