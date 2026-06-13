@@ -833,9 +833,14 @@ function renderSessionPanel(s) {
       const net = sc.net ?? 0;
       const netClass = net > 0 ? "net-up" : net < 0 ? "net-down" : "";
       const handTricks = tricksThisHand[sc.playerId] ?? 0;
+      const playerStake = sc.perHandStake ?? handStake;
+      const stakeNote =
+        playerStake !== handStake
+          ? ` <span class="muted small">(${formatRiskStake(playerStake)} ante)</span>`
+          : "";
       return `
       <tr data-player-id="${escapeHtml(sc.playerId)}">
-        <td>${escapeHtml(sc.displayName)}</td>
+        <td>${escapeHtml(sc.displayName)}${stakeNote}</td>
         <td class="num">${sc.handsWon ?? 0}</td>
         <td>
           <div class="stepper">
@@ -914,10 +919,10 @@ function renderSessionPanel(s) {
            <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
            <div class="settlement-actions" id="co-winner-settlement" hidden>
-             <p class="muted small">Co-winners each vote <strong>Push</strong> or <strong>Split</strong>. Split only if all agree; otherwise pot pushes and ante goes up for everyone.</p>
+             <p class="muted small">Co-winners each vote. <strong>Split</strong> only if all co-winners agree; otherwise pot pushes and <strong>non-winners ante up</strong> (not co-winners).</p>
              <div class="settlement-actions__btns">
-               <button class="btn btn--sm" type="button" id="settle-push">Push pot</button>
-               <button class="btn btn--sm" type="button" id="settle-split">Split pot</button>
+               <button class="btn btn--sm" type="button" id="settle-push">Decline split</button>
+               <button class="btn btn--sm" type="button" id="settle-split">Agree to split</button>
              </div>
              <p class="muted small" id="settlement-hint">Only signed-in co-winners can vote.</p>
              <p class="muted small" id="settlement-votes"></p>
@@ -1001,9 +1006,8 @@ function formatHandHistoryLine(h, scores) {
   if (h.settlement === "push") {
     return `#${h.handNumber} Push — ${pot} carries over (${n} players)`;
   }
-  if (h.settlement === "ante_up") {
-    const next = h.newHandStake ? ` · ante now ${formatRiskStake(h.newHandStake)}` : "";
-    return `#${h.handNumber} No agreement — ${pot} pushed, ante raised${next} (${n} players)`;
+  if (h.settlement === "non_winner_ante_up" || h.settlement === "ante_up") {
+    return `#${h.handNumber} No split agreement — ${pot} pushed, non-winners ante up (${n} players)`;
   }
   if (h.settlement === "split") {
     return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
@@ -1028,8 +1032,8 @@ function renderSettlementVoteStatus(s, displayScores) {
     .map((wid) => {
       const name = displayScores.find((sc) => sc.playerId === wid)?.displayName || wid;
       const vote = pending.votes?.[wid];
-      if (vote === "split") return `${name}: Split ✓`;
-      if (vote === "push") return `${name}: Push ✓`;
+      if (vote === "split") return `${name}: Agree ✓`;
+      if (vote === "push") return `${name}: Decline ✓`;
       return `${name}: waiting…`;
     })
     .join(" · ");
@@ -1059,8 +1063,8 @@ function updateCoWinnerUI() {
     if (splitBtn) splitBtn.disabled = !isCoWinner;
     if (hint) {
       hint.textContent = isCoWinner
-        ? "Tap Push or Split — both co-winners must vote. Split only if you all pick Split."
-        : "Waiting for co-winners to vote Push or Split.";
+        ? "Tap Agree to split or Decline split — split only if all co-winners agree."
+        : "Waiting for co-winners to vote.";
     }
   } else {
     recordBtn.hidden = false;
@@ -1073,10 +1077,14 @@ function updateHandPotPreview() {
   const preview = $("#hand-pot-preview", roomDetailView);
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   if (!preview || !openSessionObj) return;
-  const stake = openSessionObj.handStake ?? 1;
+  const sessionStake = openSessionObj.handStake ?? 1;
   const carry = openSessionObj.carryOverPot ?? 0;
-  const count = $$("[data-hand-participant]:checked", roomDetailView).length;
-  const ante = stake * count;
+  const merged = mergeScoresWithMembers(openScores, currentMembers);
+  const checked = $$("[data-hand-participant]:checked", roomDetailView);
+  const ante = checked.reduce((sum, cb) => {
+    const sc = merged.find((s) => s.playerId === cb.value);
+    return sum + (sc?.perHandStake ?? sessionStake);
+  }, 0);
   preview.textContent =
     carry > 0
       ? `Pot this hand: ${formatRiskStake(ante)} + ${formatRiskStake(carry)} carry = ${formatRiskStake(ante + carry)}`
@@ -1235,10 +1243,8 @@ async function onSettleHand(choice) {
       showRoomsError("");
     } else if (result.settlement === "split") {
       showRoomsError("");
-    } else if (result.settlement === "push") {
-      showRoomsError("");
-    } else if (result.settlement === "ante_up") {
-      showRoomsError("Co-winners disagreed — pot pushed and ante raised for next hand.");
+    } else if (result.settlement === "non_winner_ante_up") {
+      showRoomsError("No split agreement — pot pushed; non-winners ante increased.");
     }
   } catch (err) {
     console.error("voteCoWinSettlement:", err);
