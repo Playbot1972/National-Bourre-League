@@ -19,6 +19,7 @@ import {
   ensurePlayerDoc,
   createRoom,
   joinRoomByCode,
+  ensureInviteLookupForRoom,
   subscribeMyRooms,
   subscribeRoom,
   subscribeRoomMembers,
@@ -464,6 +465,11 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
       currentRoom = room;
+      if (room && session?.uid === room.ownerId) {
+        ensureInviteLookupForRoom(roomId).catch((e) =>
+          console.error("ensureInviteLookupForRoom:", e),
+        );
+      }
       renderRoomDetail();
     }),
   );
