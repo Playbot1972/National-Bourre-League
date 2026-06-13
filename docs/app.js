@@ -668,11 +668,10 @@ function renderRoomDetail() {
         }
       : null;
   const recordHandState = (() => {
-    const winnerEl = $("#hand-winner", roomDetailView);
-    if (!winnerEl) return null;
+    if (!$("#record-hand", roomDetailView)) return null;
     return {
-      winnerId: winnerEl.value,
       participantIds: $$("[data-hand-participant]:checked", roomDetailView).map((cb) => cb.value),
+      winnerIds: $$("[data-hand-winner]:checked", roomDetailView).map((cb) => cb.value),
     };
   })();
   const hr = currentRoom.houseRules || {};
@@ -777,12 +776,14 @@ function renderRoomDetail() {
 
   // Restore in-progress form state (see capture above).
   if (recordHandState) {
-    const winnerEl = $("#hand-winner", roomDetailView);
-    if (winnerEl) winnerEl.value = recordHandState.winnerId;
     $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
       cb.checked = recordHandState.participantIds.includes(cb.value);
     });
+    $$("[data-hand-winner]", roomDetailView).forEach((cb) => {
+      cb.checked = recordHandState.winnerIds.includes(cb.value);
+    });
     updateHandPotPreview();
+    updateCoWinnerUI();
   }
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
@@ -806,6 +807,7 @@ function renderSessionPanel(s) {
   const stakeLocked = Boolean(s.handStakeLocked);
   const handCount = s.handCount ?? 0;
   const nextHand = handCount + 1;
+  const carryOverPot = s.carryOverPot ?? 0;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
   const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
@@ -841,6 +843,7 @@ function renderSessionPanel(s) {
          <span class="session-stake__label">Hand stake</span>
          <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
          <span class="badge badge--closed">Locked</span>
+         ${carryOverPot > 0 ? `<span class="badge">Carry-over ${escapeHtml(formatRiskStake(carryOverPot))}</span>` : ""}
          <p class="muted small">Set by host · applies to every hand this session.</p>
        </div>`
     : isOwner
@@ -873,9 +876,13 @@ function renderSessionPanel(s) {
     .join("");
 
   const winnerOptions = displayScores
+    .filter((sc) => isInCurrentHand(sc.playerId))
     .map(
       (sc) =>
-        `<option value="${escapeHtml(sc.playerId)}">${escapeHtml(sc.displayName)}</option>`,
+        `<label class="hand-participant">
+           <input type="checkbox" data-hand-winner value="${escapeHtml(sc.playerId)}" />
+           ${escapeHtml(sc.displayName)}
+         </label>`,
     )
     .join("");
 
@@ -884,21 +891,25 @@ function renderSessionPanel(s) {
       ? ""
       : `<div class="record-hand">
            <h5>Record hand #${nextHand}</h5>
-           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Net shows profit (e.g. $1 stake, 2 opponents → +$2). Or tap + until ${BOURRE_TRICKS_TO_WIN} tricks.</p>
-           <div class="record-hand__grid">
-             <label class="record-hand__field">
-               <span>Winner</span>
-               <select class="num-select" id="hand-winner" aria-label="Hand winner">
-                 ${winnerOptions}
-               </select>
-             </label>
-             <fieldset class="record-hand__participants">
-               <legend>In this hand</legend>
-               ${participantOptions}
-             </fieldset>
-           </div>
+           <p class="muted small">Each checked player antes ${escapeHtml(formatRiskStake(handStake))}; winner takes the pot. Co-winners choose <strong>push</strong> (carry pot) or <strong>split</strong>. Or tap + until ${BOURRE_TRICKS_TO_WIN} tricks.</p>
+           <fieldset class="record-hand__participants">
+             <legend>In this hand</legend>
+             ${participantOptions}
+           </fieldset>
+           <fieldset class="record-hand__participants">
+             <legend>Winner(s)</legend>
+             ${winnerOptions || `<span class="muted">Check who played first.</span>`}
+           </fieldset>
            <p class="record-hand__pot muted small" id="hand-pot-preview">Pot this hand: ${formatRiskStake(handStake * checkedParticipantCount)}</p>
            <button class="btn btn--primary btn--sm" type="button" id="record-hand">Record hand</button>
+           <div class="settlement-actions" id="co-winner-settlement" hidden>
+             <p class="muted small">Co-winners decide at the table — then a co-winner taps:</p>
+             <div class="settlement-actions__btns">
+               <button class="btn btn--sm" type="button" id="settle-push">Push pot</button>
+               <button class="btn btn--sm" type="button" id="settle-split">Split pot</button>
+             </div>
+             <p class="muted small" id="settlement-hint">Only signed-in co-winners can settle.</p>
+           </div>
          </div>`;
 
   const handHistory =
@@ -909,15 +920,7 @@ function renderSessionPanel(s) {
            <ul>
              ${openHands
                .slice(0, 12)
-               .map((h) => {
-                 const winner = openScores.find((sc) => sc.playerId === h.winnerId);
-                 const winnerName = winner?.displayName || h.winnerId;
-                 return `<li>
-                   <span class="hand-history__num">#${h.handNumber}</span>
-                   ${escapeHtml(winnerName)} won ${escapeHtml(formatRiskStake(h.pot ?? 0))}
-                   <span class="muted">(${h.participantIds?.length ?? 0} players)</span>
-                 </li>`;
-               })
+               .map((h) => `<li>${escapeHtml(formatHandHistoryLine(h, openScores))}</li>`)
                .join("")}
            </ul>
          </div>`;
@@ -972,13 +975,75 @@ function renderSessionPanel(s) {
     </div>`;
 }
 
+function formatHandHistoryLine(h, scores) {
+  const winnerIds = h.winnerIds?.length
+    ? h.winnerIds
+    : h.winnerId
+      ? [h.winnerId]
+      : [];
+  const names = winnerIds.map(
+    (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
+  );
+  const pot = formatRiskStake(h.pot ?? 0);
+  const n = h.participantIds?.length ?? 0;
+  if (h.settlement === "push") {
+    return `#${h.handNumber} Push — ${pot} carries over (${n} players)`;
+  }
+  if (h.settlement === "split") {
+    return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
+  }
+  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
+}
+
+function getHandFormSelection() {
+  const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
+    (cb) => cb.value,
+  );
+  const winnerIds = $$("[data-hand-winner]:checked", roomDetailView)
+    .map((cb) => cb.value)
+    .filter((id) => participantIds.includes(id));
+  return { participantIds, winnerIds };
+}
+
+function updateCoWinnerUI() {
+  const { participantIds, winnerIds } = getHandFormSelection();
+  const recordBtn = $("#record-hand", roomDetailView);
+  const settlement = $("#co-winner-settlement", roomDetailView);
+  const pushBtn = $("#settle-push", roomDetailView);
+  const splitBtn = $("#settle-split", roomDetailView);
+  const hint = $("#settlement-hint", roomDetailView);
+  if (!recordBtn) return;
+
+  if (winnerIds.length >= 2) {
+    recordBtn.hidden = true;
+    if (settlement) settlement.hidden = false;
+    const isCoWinner = session && winnerIds.includes(session.uid);
+    if (pushBtn) pushBtn.disabled = !isCoWinner;
+    if (splitBtn) splitBtn.disabled = !isCoWinner;
+    if (hint) {
+      hint.textContent = isCoWinner
+        ? "You are a co-winner — tap Push or Split after you agree at the table."
+        : "Waiting for a co-winner to tap Push or Split.";
+    }
+  } else {
+    recordBtn.hidden = false;
+    if (settlement) settlement.hidden = true;
+    recordBtn.disabled = winnerIds.length !== 1 || participantIds.length < 2;
+  }
+}
+
 function updateHandPotPreview() {
   const preview = $("#hand-pot-preview", roomDetailView);
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   if (!preview || !openSessionObj) return;
   const stake = openSessionObj.handStake ?? 1;
+  const carry = openSessionObj.carryOverPot ?? 0;
   const count = $$("[data-hand-participant]:checked", roomDetailView).length;
-  preview.textContent = `Pot this hand: ${formatRiskStake(stake * count)}`;
+  const ante = stake * count;
+  preview.textContent =
+    carry > 0
+      ? `Pot this hand: ${formatRiskStake(ante)} + ${formatRiskStake(carry)} carry = ${formatRiskStake(ante + carry)}`
+      : `Pot this hand: ${formatRiskStake(ante)}`;
 }
 
 async function onNewSession() {
@@ -1030,6 +1095,7 @@ function wireSessionControls() {
   $$("[data-hand-participant]", roomDetailView).forEach((cb) => {
     cb.addEventListener("change", () => {
       updateHandPotPreview();
+      updateCoWinnerUI();
       const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
         (el) => el.value,
       );
@@ -1039,10 +1105,26 @@ function wireSessionControls() {
     });
   });
 
+  $$("[data-hand-winner]", roomDetailView).forEach((cb) => {
+    cb.addEventListener("change", updateCoWinnerUI);
+  });
+
   const recordBtn = $("#record-hand", roomDetailView);
   if (recordBtn) {
     recordBtn.addEventListener("click", onRecordHand);
   }
+
+  const pushBtn = $("#settle-push", roomDetailView);
+  if (pushBtn) {
+    pushBtn.addEventListener("click", () => onSettleHand("push"));
+  }
+
+  const splitBtn = $("#settle-split", roomDetailView);
+  if (splitBtn) {
+    splitBtn.addEventListener("click", () => onSettleHand("split"));
+  }
+
+  updateCoWinnerUI();
 
   const notes = $("#session-notes", roomDetailView);
   if (notes) {
@@ -1080,20 +1162,41 @@ function wireSessionControls() {
 
 async function onRecordHand() {
   if (!currentRoomId || !openSessionId || !session) return;
-  const winnerEl = $("#hand-winner", roomDetailView);
-  if (!winnerEl) return;
-  const participantIds = $$("[data-hand-participant]:checked", roomDetailView).map(
-    (cb) => cb.value,
-  );
+  const { participantIds, winnerIds } = getHandFormSelection();
+  if (winnerIds.length !== 1) return;
   try {
     await recordHand(currentRoomId, openSessionId, {
-      winnerId: winnerEl.value,
+      winnerIds,
       participantIds,
+      settlement: "win",
       recordedBy: session.uid,
     });
+    showRoomsError("");
   } catch (err) {
     console.error("recordHand:", err);
     showRoomsError(err.message || "Could not record hand");
+  }
+}
+
+async function onSettleHand(settlement) {
+  if (!currentRoomId || !openSessionId || !session) return;
+  const { participantIds, winnerIds } = getHandFormSelection();
+  if (winnerIds.length < 2) return;
+  if (!winnerIds.includes(session.uid)) {
+    showRoomsError("Only a co-winner can push or split the pot.");
+    return;
+  }
+  try {
+    await recordHand(currentRoomId, openSessionId, {
+      winnerIds,
+      participantIds,
+      settlement,
+      recordedBy: session.uid,
+    });
+    showRoomsError("");
+  } catch (err) {
+    console.error("recordHand:", err);
+    showRoomsError(err.message || "Could not settle hand");
   }
 }
 

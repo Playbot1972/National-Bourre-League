@@ -919,6 +919,18 @@ button {
   color: #e5989b;
 }
 
+.settlement-actions {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(244, 213, 141, 0.15);
+}
+.settlement-actions__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+}
+
 .session-controls {
   display: flex;
   flex-wrap: wrap;
