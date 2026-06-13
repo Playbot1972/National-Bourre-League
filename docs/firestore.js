@@ -70,6 +70,7 @@
 // ---------------------------------------------------------------------------
 
 import { app } from "./auth.js";
+import { nextRiskStake } from "./risk-stakes.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR } from "./firebase-config.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -90,6 +91,7 @@ const {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  deleteField,
 } = await import(`${CDN}/firebase-firestore.js`);
 
 // Initial TrueSkill rating for a brand-new player (kept in sync with
@@ -475,12 +477,16 @@ export async function recordHand(
 
   const deltas = {};
   let carryOverPot = 0;
+  let nextHandStake = stake;
 
-  if (mode === "push") {
+  if (mode === "push" || mode === "ante_up") {
     participants.forEach((pid) => {
       deltas[pid] = 0;
     });
     carryOverPot = grossPot;
+    if (mode === "ante_up") {
+      nextHandStake = nextRiskStake(stake);
+    }
   } else if (mode === "split") {
     const share = grossPot / winners.length;
     participants.forEach((pid) => {
@@ -505,6 +511,7 @@ export async function recordHand(
     stake,
     pot: grossPot,
     carryIn,
+    newHandStake: mode === "ante_up" ? nextHandStake : null,
     deltas,
     recordedBy: recordedBy || null,
     createdAt: serverTimestamp(),
@@ -513,12 +520,13 @@ export async function recordHand(
   participants.forEach((pid) => {
     const current = scoreById[pid];
     const isWinner = winners.includes(pid);
-    const tricksWon = (current.tricksWon || 0) + (isWinner && mode !== "push" ? 1 : 0);
+    const tricksWon =
+      (current.tricksWon || 0) + (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
     const patch = {
       net: (current.net || 0) + deltas[pid],
       updatedAt: serverTimestamp(),
     };
-    if (isWinner && mode !== "push") {
+    if (isWinner && (mode === "split" || mode === "win")) {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
@@ -529,7 +537,9 @@ export async function recordHand(
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
+    handStake: nextHandStake,
     carryOverPot,
+    pendingCoWinSettlement: deleteField(),
     currentHand: {
       tricksByPlayer: {},
       participantIds: scoreSnap.docs
@@ -541,6 +551,68 @@ export async function recordHand(
 
   await batch.commit();
   await recomputeSessionTotals(roomId, sessionId);
+}
+
+/**
+ * Co-winners vote push or split. Split applies only if every co-winner votes split.
+ * Unanimous push carries the pot. Any disagreement pushes the pot and raises
+ * the hand stake for everyone on the next hand.
+ */
+export async function voteCoWinSettlement(
+  roomId,
+  sessionId,
+  { participantIds, winnerIds, voterId, choice, recordedBy },
+) {
+  if (choice !== "push" && choice !== "split") {
+    throw new Error("Vote must be push or split");
+  }
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const winners = [...new Set(winnerIds.filter(Boolean))];
+  const participants = [...new Set(participantIds.filter(Boolean))];
+  if (winners.length < 2) throw new Error("Co-winners only");
+  if (!winners.includes(voterId)) throw new Error("Only co-winners can vote");
+
+  const pending = sessionData.pendingCoWinSettlement;
+  const sameProposal =
+    pending &&
+    pending.winnerIds?.length === winners.length &&
+    pending.winnerIds.every((w) => winners.includes(w)) &&
+    pending.participantIds?.length === participants.length &&
+    pending.participantIds.every((p) => participants.includes(p));
+
+  const votes = sameProposal ? { ...(pending.votes || {}), [voterId]: choice } : { [voterId]: choice };
+
+  const allVoted = winners.every((w) => votes[w] === "push" || votes[w] === "split");
+  if (!allVoted) {
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      pendingCoWinSettlement: {
+        participantIds: participants,
+        winnerIds: winners,
+        votes,
+        updatedAt: serverTimestamp(),
+      },
+      updatedAt: serverTimestamp(),
+    });
+    return { status: "pending", votes };
+  }
+
+  const choices = winners.map((w) => votes[w]);
+  let settlement = "ante_up";
+  if (choices.every((c) => c === "split")) settlement = "split";
+  else if (choices.every((c) => c === "push")) settlement = "push";
+
+  await recordHand(roomId, sessionId, {
+    winnerIds: winners,
+    participantIds: participants,
+    settlement,
+    recordedBy,
+  });
+  return { status: "settled", settlement, votes };
 }
 
 /**
