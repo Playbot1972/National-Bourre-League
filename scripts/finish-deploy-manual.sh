@@ -69,22 +69,28 @@ echo "    OK: ${KEY_FILE} ($(wc -c < "${KEY_FILE}" | tr -d ' ') bytes)"
 
 echo ""
 echo "==> Step B: GitHub secrets (for auto-deploy on push to main)"
-echo "    https://github.com/Playbot1972/National-Bourre-League/settings/secrets/actions"
-echo ""
-echo "    Required secrets:"
-echo "      FIREBASE_API_KEY          (from Firebase web app — Step 3)"
-echo "      FIREBASE_AUTH_DOMAIN      = ${AUTH_DOMAIN}"
-echo "      FIREBASE_PROJECT_ID       = ${PROJECT_ID}"
-echo "      FIREBASE_APP_ID           (from Firebase web app — Step 3)"
-echo "      FIREBASE_SERVICE_ACCOUNT  = paste entire ${KEY_FILE} contents"
-echo ""
-
-if [[ -f docs/firebase-config.js ]] && ! grep -q 'REPLACE_WITH' docs/firebase-config.js; then
-  echo "    apiKey/appId from docs/firebase-config.js:"
-  grep -E 'apiKey:|appId:' docs/firebase-config.js | sed 's/^/      /'
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  "${ROOT}/scripts/setup-github-secrets.sh" "${PROJECT_ID}" "${AUTH_DOMAIN}" || true
+else
+  echo "    Automated: install gh → https://cli.github.com"
+  echo "      gh auth login"
+  echo "      npm run setup:github-secrets -- ${PROJECT_ID} ${AUTH_DOMAIN}"
+  echo ""
+  echo "    Manual: https://github.com/Playbot1972/National-Bourre-League/settings/secrets/actions"
+  echo ""
+  echo "    Required secrets:"
+  echo "      FIREBASE_API_KEY          (from Firebase web app — Step 3)"
+  echo "      FIREBASE_AUTH_DOMAIN      = ${AUTH_DOMAIN}"
+  echo "      FIREBASE_PROJECT_ID       = ${PROJECT_ID}"
+  echo "      FIREBASE_APP_ID           (from Firebase web app — Step 3)"
+  echo "      FIREBASE_SERVICE_ACCOUNT  = paste entire ${KEY_FILE} contents"
+  echo ""
+  if [[ -f docs/firebase-config.js ]] && ! grep -q 'REPLACE_WITH' docs/firebase-config.js; then
+    echo "    apiKey/appId from docs/firebase-config.js:"
+    grep -E 'apiKey:|appId:' docs/firebase-config.js | sed 's/^/      /'
+  fi
+  read -r -p "Press Enter after adding GitHub secrets (or skip if doing deploy only)…"
 fi
-
-read -r -p "Press Enter after adding GitHub secrets (or skip if doing deploy only)…"
 
 echo ""
 echo "==> Step C: Deploy to Firebase Hosting"
