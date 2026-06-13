@@ -375,6 +375,10 @@ function stopRoomsSubscription() {
   openSessionId = null;
 }
 
+function isRoomOwner(room, uid) {
+  return room.role === "owner" && room.ownerId === uid;
+}
+
 function renderRoomsList() {
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
@@ -385,7 +389,7 @@ function renderRoomsList() {
   }
   list.innerHTML = myRooms
     .map((room) => {
-      const isOwner = room.role === "owner";
+      const isOwner = session && isRoomOwner(room, session.uid);
       const actionLabel = isOwner ? "Delete" : "Leave";
       const actionAttr = isOwner ? "data-delete-room" : "data-leave-room";
       return `
@@ -429,7 +433,14 @@ async function onDeleteRoom(roomId) {
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
     console.error(err);
-    showRoomsError("Could not delete the room. Please try again.");
+    const msg = err?.message || "";
+    if (/only the room owner/i.test(msg)) {
+      showRoomsError("You can’t delete this room — use Leave instead.");
+    } else if (err?.code === "permission-denied") {
+      showRoomsError("You can’t delete this room — use Leave instead.");
+    } else {
+      showRoomsError(msg.slice(0, 120) || "Could not delete the room. Please try again.");
+    }
   }
 }
 

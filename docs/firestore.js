@@ -228,23 +228,39 @@ export async function leaveRoom(roomId, user) {
   await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
 }
 
-/** Delete a room entirely (owner only). */
+/** Delete a room entirely (owner only). Cleans up orphan membership if room is already gone. */
 export async function deleteRoom(roomId, user) {
   if (!user?.uid) throw new Error("Not signed in");
-  const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  if (!roomSnap.exists()) return;
+  let roomSnap;
+  try {
+    roomSnap = await getDoc(doc(db, "rooms", roomId));
+  } catch (err) {
+    if (err?.code === "permission-denied") {
+      throw new Error("Only the room owner can delete this room. Try Leave instead.");
+    }
+    throw err;
+  }
+  if (!roomSnap.exists()) {
+    await leaveRoom(roomId, user);
+    return;
+  }
   const data = roomSnap.data();
   if (data.ownerId !== user.uid) {
-    throw new Error("Only the room owner can delete this room");
+    throw new Error("Only the room owner can delete this room. Use Leave to remove it from your list.");
   }
   const inviteCode = normalizeInviteCode(data.inviteCode || "");
-  const batch = writeBatch(db);
-  batch.delete(doc(db, "roomMembers", memberId(roomId, user.uid)));
-  batch.delete(doc(db, "rooms", roomId));
+  await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
+  await deleteDoc(doc(db, "rooms", roomId));
   if (inviteCode) {
-    batch.delete(doc(db, "inviteLookups", inviteCode));
+    try {
+      await deleteDoc(doc(db, "inviteLookups", inviteCode));
+    } catch (err) {
+      // Lookup may be missing or owned by stale data — room is already deleted.
+      if (err?.code !== "permission-denied" && err?.code !== "not-found") {
+        console.warn("inviteLookup delete skipped:", err);
+      }
+    }
   }
-  await batch.commit();
 }
 
 export async function updateRoomStatus(roomId, status) {
