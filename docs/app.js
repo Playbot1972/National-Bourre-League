@@ -419,7 +419,14 @@ $("#join-form").addEventListener("submit", async (e) => {
     openRoom(roomId);
   } catch (err) {
     console.error(err);
-    showRoomsError("Could not join that room. Please try again.");
+    const code = err && typeof err === "object" ? err.code : "";
+    if (code === "permission-denied") {
+      showRoomsError(
+        "Join blocked — the site needs an update. Host: run npm run deploy on the latest code, create a new room, then share that invite code.",
+      );
+    } else {
+      showRoomsError("Could not join that room. Please try again.");
+    }
   }
 });
 

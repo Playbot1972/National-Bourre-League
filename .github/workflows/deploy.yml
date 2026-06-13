@@ -19,8 +19,7 @@ jobs:
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           if [ -z "$PROJECT_ID" ]; then
-            echo "::warning::Firebase secrets not configured — skipping deploy."
-            echo "Run ./scripts/one-time-setup.sh on your machine to finish setup."
+            echo "::error::Firebase secrets not configured — deploy skipped. Add FIREBASE_PROJECT_ID (and other secrets) at Settings → Secrets → Actions, or run npm run deploy locally."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
