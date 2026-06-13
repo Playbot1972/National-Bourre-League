@@ -36,6 +36,7 @@ import {
   subscribeLeaderboard,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
+import { APP_VERSION } from "./version.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -966,6 +967,9 @@ $("#create-league").addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+const versionEl = $("#app-version");
+if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
+
 renderRoomsList();
 renderLeagues();
 showView();

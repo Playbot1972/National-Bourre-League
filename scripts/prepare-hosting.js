@@ -2,9 +2,12 @@
 // Appends a build id to module URLs so phones pick up new JS after deploy.
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const dist = "dist";
 const socialDest = join(dist, "social");
+
+spawnSync(process.execPath, ["scripts/sync-version.js"], { stdio: "inherit" });
 
 if (!existsSync(dist)) {
   console.error("Run `npm run build` first — dist/ not found.");
