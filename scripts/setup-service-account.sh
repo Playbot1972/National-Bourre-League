@@ -15,12 +15,17 @@
 set -euo pipefail
 
 PROJECT_ID="${1:-national-bourre-league}"
+FORCE="${FORCE_SA_KEY:-}"
 SA_NAME="github-firebase-deploy"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KEY_FILE="${ROOT}/.firebase-sa-key.json"
 
 cd "$ROOT"
+
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/lib/gcloud-path.sh"
+ensure_gcloud >/dev/null 2>&1 || true
 
 if ! command -v gcloud >/dev/null; then
   echo "==> gcloud CLI not found."
@@ -66,12 +71,16 @@ done
 echo "    Firebase Hosting Admin + Firebase Rules Admin"
 
 if [[ -f "${KEY_FILE}" ]]; then
-  read -r -p "${KEY_FILE} exists. Overwrite? (y/N) " ans
-  if [[ "${ans}" != [yY] ]]; then
-    echo "    Keeping existing key: ${KEY_FILE}"
-    exit 0
+  if [[ "${FORCE}" == "1" ]]; then
+    rm -f "${KEY_FILE}"
+  else
+    read -r -p "${KEY_FILE} exists. Overwrite? (y/N) " ans
+    if [[ "${ans}" != [yY] ]]; then
+      echo "    Keeping existing key: ${KEY_FILE}"
+      exit 0
+    fi
+    rm -f "${KEY_FILE}"
   fi
-  rm -f "${KEY_FILE}"
 fi
 
 echo "==> Creating JSON key…"
