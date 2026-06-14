@@ -42,6 +42,7 @@ import {
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
   subscribeHands,
+  subscribePrivateHand,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
@@ -608,6 +609,7 @@ let myRoomsUnsub = null;
 const detailUnsubs = [];
 let scoresUnsub = null;
 let handsUnsub = null;
+let privateHandUnsub = null;
 
 let myRooms = [];
 let currentRoomId = null;
@@ -617,6 +619,7 @@ let currentSessions = [];
 let openSessionId = null;
 let openScores = [];
 let openHands = [];
+let openPrivateHand = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
@@ -826,6 +829,7 @@ function clearDetailSubs() {
     handsUnsub();
     handsUnsub = null;
   }
+  stopPrivateHandSubscription();
 }
 
 function startRoomsSubscription() {
@@ -1352,7 +1356,23 @@ function buildTableLeaderLabel(
   maxTricks,
   handComplete,
   totalTricks,
+  phase,
+  trumpSuit,
 ) {
+  const suitNames = {
+    spades: "Spades",
+    hearts: "Hearts",
+    diamonds: "Diamonds",
+    clubs: "Clubs",
+  };
+  if (phase === "draw") {
+    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
+    return `Cards dealt · trump ${suitLabel} · draw round next`;
+  }
+  if (phase === "play") {
+    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
+    return `Trump ${suitLabel} · trick play`;
+  }
   if (!participantIds.length) return "Tap I'm in when you're ready to play.";
   if (handComplete && handReady && activeWinnerIds.length === 1) {
     const name =
@@ -1387,6 +1407,9 @@ function buildTableSessionProps(s) {
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
   const displayScores = sortScoresForDisplay(mergedScores, playerOrder);
   const handParticipantIds = s.currentHand?.participantIds || [];
+  const handPhase = s.currentHand?.phase ?? null;
+  const trumpSuit = s.currentHand?.trumpSuit ?? null;
+  const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
@@ -1462,7 +1485,13 @@ function buildTableSessionProps(s) {
       tricksByPlayer: tricksThisHand,
       pendingCoWinSettlement: s.pendingCoWinSettlement,
       handEnrollment: enrollmentActive ? enrollment : null,
+      phase: handPhase,
+      trumpSuit,
+      trumpUpcard,
+      turnPlayerId: s.currentHand?.turnPlayerId ?? null,
+      remainingDeckCount: s.currentHand?.remainingDeckCount ?? null,
     },
+    heroCards: openPrivateHand?.cards ?? [],
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
       const onEnrollmentClock =
@@ -1525,6 +1554,8 @@ function buildTableSessionProps(s) {
           maxTricks,
           handComplete,
           totalTricks,
+          handPhase,
+          trumpSuit,
         ),
     enrollmentActive,
     enrollmentSecondsLeft: enrollmentActive
@@ -1609,9 +1640,33 @@ function scheduleTableSessionSync(openSessionObj) {
   });
 }
 
+function stopPrivateHandSubscription() {
+  if (privateHandUnsub) {
+    privateHandUnsub();
+    privateHandUnsub = null;
+  }
+  openPrivateHand = null;
+}
+
+function startPrivateHandSubscription() {
+  stopPrivateHandSubscription();
+  if (!session?.uid || !currentRoomId || !openSessionId) return;
+  privateHandUnsub = subscribePrivateHand(
+    currentRoomId,
+    openSessionId,
+    session.uid,
+    (data) => {
+      openPrivateHand = data;
+      const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+      if (sessionObj) scheduleTableSessionSync(sessionObj);
+    },
+  );
+}
+
 function openSession(sessionId) {
   if (scoresUnsub) scoresUnsub();
   if (handsUnsub) handsUnsub();
+  stopPrivateHandSubscription();
   openSessionId = sessionId;
   openScores = [];
   openHands = [];
@@ -1624,6 +1679,7 @@ function openSession(sessionId) {
     openHands = hands;
     renderRoomDetail();
   });
+  startPrivateHandSubscription();
   renderRoomDetail();
   if (currentMembers.length > 0) {
     syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)

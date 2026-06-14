@@ -35,6 +35,11 @@ export interface PotMetrics {
   overflow: number;
 }
 
+export interface SerializedCard {
+  rank: string;
+  suit: string;
+}
+
 export interface TableSessionData {
   sessionId: string;
   handNumber: number;
@@ -44,6 +49,11 @@ export interface TableSessionData {
   dealerId: string | null;
   participantIds: string[];
   tricksByPlayer: Record<string, number>;
+  phase?: string | null;
+  trumpSuit?: string | null;
+  trumpUpcard?: SerializedCard | null;
+  turnPlayerId?: string | null;
+  remainingDeckCount?: number | null;
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;
@@ -79,5 +89,7 @@ export interface TableSessionViewProps {
   enrollmentActive?: boolean;
   enrollmentSecondsLeft?: number;
   currentUserId: string | null;
+  /** Viewing player's dealt cards (private — never other players' hands). */
+  heroCards?: SerializedCard[];
   actions: TableSessionActions;
 }

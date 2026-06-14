@@ -30,9 +30,14 @@
 //   { sessionId, roomId, playerId, displayName, tricksWon, handsWon, net, total,
 //     updatedAt }
 //
-// rooms/{roomId}/sessions/{sessionId}/hands/{handId}
-//   { handNumber, winnerId, participantIds, stake, pot, deltas: { [playerId]: netDelta },
-//     recordedBy, createdAt }
+//   rooms/{roomId}/sessions/{sessionId}/hands/{handId}
+//     per-hand ledger (informational)
+//
+//   rooms/{roomId}/sessions/{sessionId}/privateHands/{playerId}
+//     { cards: [{ rank, suit }] } — owner-read only (see firestore.rules)
+//
+// Public live hand state: session.currentHand (phase, trump, tricks — no hidden cards).
+// Deal engine: src/game/ → npm run build:game → docs/game-engine.js
 //
 // Sessions + scores are nested UNDER the room so security rules can authorize
 // them by the {roomId} path wildcard. (Top-level collections with a roomId
@@ -74,6 +79,11 @@ import { nextRiskStake } from "./risk-stakes.js";
 import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR } from "./firebase-config.js";
+import {
+  dealInitialHand,
+  playerOrderFromDealer,
+  serializeHandState,
+} from "./game-engine.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -419,6 +429,10 @@ const sessionDoc = (roomId, sessionId) =>
   doc(db, "rooms", roomId, "sessions", sessionId);
 const scoreDoc = (roomId, sessionId, playerId) =>
   doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
+const privateHandsCol = (roomId, sessionId) =>
+  collection(db, "rooms", roomId, "sessions", sessionId, "privateHands");
+const privateHandDoc = (roomId, sessionId, playerId) =>
+  doc(privateHandsCol(roomId, sessionId), playerId);
 
 /** Seconds each player has to tap I'm in, clockwise from first seat after dealer. */
 export const HAND_ENROLLMENT_SECONDS = 12;
@@ -451,10 +465,7 @@ function sortedScorePlayerIds(scoreSnap) {
 
 /** Clockwise order starting with the first seat after the dealer. */
 export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
-  const ids = [...sortedPlayerIds];
-  if (!dealerId || !ids.includes(dealerId)) return ids;
-  const idx = ids.indexOf(dealerId);
-  return [...ids.slice(idx + 1), ...ids.slice(0, idx + 1)];
+  return playerOrderFromDealer(dealerId, sortedPlayerIds);
 }
 
 function buildHandEnrollment(sortedPlayerIds, dealerId) {
@@ -469,7 +480,55 @@ function buildHandEnrollment(sortedPlayerIds, dealerId) {
   };
 }
 
-function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds) {
+function emptyPreDealHand() {
+  return { tricksByPlayer: {}, participantIds: [] };
+}
+
+function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed) {
+  const deal = dealInitialHand({
+    dealerId,
+    participantIds: enrolledIds,
+    sortedPlayerIds,
+    seed: seed ?? Date.now(),
+  });
+  const { publicHand, privateHandsByPlayer } = serializeHandState(deal, dealerId);
+  return {
+    handEnrollment: deleteField(),
+    currentHand: publicHand,
+    privateHandsByPlayer,
+  };
+}
+
+function writePrivateHandsToTransaction(tx, roomId, sessionId, privateHandsByPlayer) {
+  if (!privateHandsByPlayer) return;
+  for (const [playerId, hand] of Object.entries(privateHandsByPlayer)) {
+    tx.set(privateHandDoc(roomId, sessionId, playerId), {
+      cards: hand.cards,
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
+async function deletePrivateHandsForSession(roomId, sessionId, batch) {
+  const snap = await getDocs(privateHandsCol(roomId, sessionId));
+  snap.docs.forEach((d) => batch.delete(d.ref));
+}
+
+/** Live subscription to the signed-in player's private hand for the session. */
+export function subscribePrivateHand(roomId, sessionId, playerId, callback) {
+  if (!roomId || !sessionId || !playerId) return () => {};
+  return onSnapshot(privateHandDoc(roomId, sessionId, playerId), (snap) => {
+    callback(snap.exists() ? snap.data() : null);
+  });
+}
+
+/** One-shot read of a player's private hand (own hand only per security rules). */
+export async function getPrivateHand(roomId, sessionId, playerId) {
+  const snap = await getDoc(privateHandDoc(roomId, sessionId, playerId));
+  return snap.exists() ? snap.data() : null;
+}
+
+function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealContext = null) {
   const nextIndex = enrollment.currentIndex + 1;
   if (nextIndex < enrollment.orderedPlayerIds.length) {
     return {
@@ -480,7 +539,7 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds) {
         currentIndex: nextIndex,
         turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
       },
-      currentHand: { tricksByPlayer: {}, participantIds: [] },
+      currentHand: emptyPreDealHand(),
     };
   }
   if (enrolledIds.length < 2) {
@@ -492,16 +551,18 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds) {
         currentIndex: 0,
         turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
       },
-      currentHand: { tricksByPlayer: {}, participantIds: [] },
+      currentHand: emptyPreDealHand(),
     };
   }
-  return {
-    handEnrollment: deleteField(),
-    currentHand: {
-      tricksByPlayer: {},
-      participantIds: enrolledIds,
-    },
-  };
+  if (!dealContext?.sortedPlayerIds?.length) {
+    throw new Error("Missing deal context for enrollment completion");
+  }
+  return buildDealCompletionPatch(
+    dealContext.dealerId,
+    enrolledIds,
+    dealContext.sortedPlayerIds,
+    dealContext.seed,
+  );
 }
 
 function nextDealerId(scoreSnap, currentDealerId) {
@@ -531,7 +592,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
     carryOverPot: 0,
     dealerId: initialDealer,
     handEnrollment: buildHandEnrollment(sortedIds, initialDealer),
-    currentHand: { tricksByPlayer: {}, participantIds: [] },
+    currentHand: emptyPreDealHand(),
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
     notes: "",
@@ -757,6 +818,7 @@ export async function recordHand(
   }
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId);
+  await deletePrivateHandsForSession(roomId, sessionId, batch);
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
@@ -764,10 +826,7 @@ export async function recordHand(
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
     handEnrollment: buildHandEnrollment(sortedScorePlayerIds(scoreSnap), newDealerId),
-    currentHand: {
-      tricksByPlayer: {},
-      participantIds: [],
-    },
+    currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
 
@@ -882,7 +941,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
 
   if (!handComplete) {
     const patch = {
-      currentHand: { tricksByPlayer, participantIds },
+      currentHand: { ...currentHand, tricksByPlayer, participantIds },
       updatedAt: serverTimestamp(),
     };
     if (sessionData.pendingCoWinSettlement) {
@@ -927,7 +986,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
     : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
 
   await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: { tricksByPlayer, participantIds },
+    currentHand: { ...currentHand, tricksByPlayer, participantIds },
     pendingCoWinSettlement: nextPending,
     updatedAt: serverTimestamp(),
   });
@@ -1179,6 +1238,8 @@ export async function ensureHandEnrollment(roomId, sessionId) {
   if (!sessionSnap.exists()) return;
   const data = sessionSnap.data();
   if (data.status === "final" || data.handEnrollment?.active) return;
+  const phase = data.currentHand?.phase;
+  if (phase === "draw" || phase === "play") return;
   const participantIds = data.currentHand?.participantIds || [];
   const tricks = data.currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) return;
@@ -1189,25 +1250,34 @@ export async function ensureHandEnrollment(roomId, sessionId) {
 
   await updateDoc(sessionDoc(roomId, sessionId), {
     handEnrollment: buildHandEnrollment(sortedIds, data.dealerId),
-    currentHand: { tricksByPlayer: {}, participantIds: [] },
+    currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
 }
 
 /** Auto sit-out when the current player's enrollment window expires. */
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
   const ref = sessionDoc(roomId, sessionId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) return;
-    const enrollment = snap.data().handEnrollment;
+    const sessionData = snap.data();
+    const enrollment = sessionData.handEnrollment;
     if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return;
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
-    const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds);
-    tx.update(ref, { ...patch, updatedAt: serverTimestamp() });
+    const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
+      dealerId: sessionData.dealerId,
+      sortedPlayerIds,
+      seed: Date.now(),
+    });
+    writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
+    const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
+    tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
   });
 }
 
@@ -1219,6 +1289,8 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
   }
 
   const ref = sessionDoc(roomId, sessionId);
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Session not found");
@@ -1232,12 +1304,18 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
       if (playerId !== currentId) throw new Error("Not your turn to join yet");
       const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
       const declinedIds = [...(enrollment.declinedIds || [])];
-      const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds);
-      tx.update(ref, { ...patch, updatedAt: serverTimestamp() });
+      const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
+        dealerId: sessionData.dealerId,
+        sortedPlayerIds,
+        seed: Date.now(),
+      });
+      writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
+      const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
+      tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
       return;
     }
 
-    const currentHand = sessionData.currentHand || { tricksByPlayer: {} };
+    const currentHand = sessionData.currentHand || emptyPreDealHand();
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
 
@@ -1249,7 +1327,7 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
     }
 
     tx.update(ref, {
-      currentHand: { tricksByPlayer, participantIds },
+      currentHand: { ...currentHand, tricksByPlayer, participantIds },
       updatedAt: serverTimestamp(),
     });
   });

@@ -1,3 +1,5 @@
+import { PlayingCard } from "../components/PlayingCard";
+import type { Rank, Suit } from "../types";
 import { CardTable } from "./CardTable";
 import { formatNet, formatRiskStake } from "./logic";
 import type { TableSessionViewProps } from "./types";
@@ -15,6 +17,7 @@ export function TableSessionView({
   enrollmentActive = false,
   enrollmentSecondsLeft = 0,
   currentUserId,
+  heroCards = [],
   actions,
 }: TableSessionViewProps) {
   const participantCount = session.participantIds.length;
@@ -54,6 +57,7 @@ export function TableSessionView({
         players={players}
         potMetrics={potMetrics}
         participantCount={participantCount}
+        trumpUpcard={session.trumpUpcard}
         onToggleInHand={(playerId, inHand) => {
           const p = players.find((x) => x.playerId === playerId);
           if (p?.isSelf) actions.onToggleInHand(inHand);
@@ -63,6 +67,21 @@ export function TableSessionView({
           if (p?.isSelf) actions.onTrickDelta(delta);
         }}
       />
+
+      {heroCards.length > 0 && (
+        <div className="btable-session__hero-hand" aria-label="Your dealt cards">
+          <p className="btable-session__hero-hand-label muted small">Your hand</p>
+          <div className="btable-session__hero-cards">
+            {heroCards.map((c, i) => (
+              <PlayingCard
+                key={`${c.rank}-${c.suit}-${i}`}
+                card={{ rank: c.rank as Rank, suit: c.suit as Suit }}
+                size="sm"
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {showCoWinSettlement && !session.isFinal && (
         <div className="btable-session__settle">

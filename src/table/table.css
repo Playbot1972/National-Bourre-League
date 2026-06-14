@@ -121,6 +121,38 @@
   margin: 0 auto 6px;
 }
 
+.bpot__trump {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.bpot__trump-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.btable-session__hero-hand {
+  text-align: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-chip, rgba(244, 213, 141, 0.08));
+  border: 1px solid var(--border-faint, rgba(244, 213, 141, 0.2));
+}
+
+.btable-session__hero-hand-label {
+  margin: 0 0 8px;
+}
+
+.btable-session__hero-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
 .bpot__card {
   position: absolute;
   left: 50%;

@@ -1,12 +1,13 @@
 import { Seat } from "./Seat";
 import { PotCenter } from "./PotCenter";
 import { seatPosition, tableAspectForPlayers } from "./logic";
-import type { PotMetrics, TablePlayer } from "./types";
+import type { PotMetrics, SerializedCard, TablePlayer } from "./types";
 
 interface CardTableProps {
   players: TablePlayer[];
   potMetrics: PotMetrics;
   participantCount: number;
+  trumpUpcard?: SerializedCard | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
 }
@@ -15,6 +16,7 @@ export function CardTable({
   players,
   potMetrics,
   participantCount,
+  trumpUpcard,
   onToggleInHand,
   onTrickDelta,
 }: CardTableProps) {
@@ -45,7 +47,11 @@ export function CardTable({
       <div className="btable">
         <div className="btable__rail" aria-hidden="true" />
         <div className="btable__felt">
-          <PotCenter potMetrics={potMetrics} participantCount={participantCount} />
+          <PotCenter
+            potMetrics={potMetrics}
+            participantCount={participantCount}
+            trumpUpcard={trumpUpcard}
+          />
         </div>
       </div>
       <div className="btable__seats" aria-label="Players at the table">
