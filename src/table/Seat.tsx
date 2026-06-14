@@ -1,16 +1,17 @@
 import type { CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
-import { formatNet, initials } from "./logic";
+import { formatNet, initials, type SeatRegion } from "./logic";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
   player: TablePlayer;
+  region: SeatRegion;
   style: CSSProperties;
   onToggleInHand: () => void;
   onTrickDelta: (delta: number) => void;
 }
 
-export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps) {
+export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: SeatProps) {
   const trickCount = player.tricksThisHand;
   const stackDepth = Math.min(trickCount, 3);
 
@@ -18,6 +19,7 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
     <div
       className={[
         "bseat",
+        `bseat--${region}`,
         player.inHand ? "bseat--in-hand" : "",
         player.isSelf ? "bseat--self" : "",
         player.isLeading ? "bseat--leading" : "",

@@ -59,24 +59,53 @@ export function initials(name: string) {
     .join("") || "?";
 }
 
-/** Horizontal / vertical radii (% of table) — wider oval for more players. */
+/** Matches `.btable__rail` stadium oval (50% / 50% border-radius). */
+export const TABLE_ELLIPSE = { rx: 48, ry: 40 } as const;
+
+/** Push seat centers outward onto the rail (Texas Hold'em style). */
+export const SEAT_RAIL_OUTSET = 2.5;
+
+/** Horizontal / vertical radii (% of table) — uniform oval, slight inset for tiny tables. */
 export function seatRadii(total: number) {
   const n = Math.max(2, Math.min(8, total || 2));
-  if (n >= 8) return { rx: 47, ry: 22 };
-  if (n >= 7) return { rx: 46, ry: 24 };
-  if (n >= 6) return { rx: 44, ry: 26 };
-  if (n >= 5) return { rx: 42, ry: 28 };
-  if (n >= 4) return { rx: 40, ry: 30 };
-  return { rx: 36, ry: 32 };
+  const inset = n <= 3 ? 0.9 : n <= 4 ? 0.95 : 1;
+  return {
+    rx: TABLE_ELLIPSE.rx * inset,
+    ry: TABLE_ELLIPSE.ry * inset,
+  };
 }
 
-/** Evenly spaced seats around a horizontal oval (0 = bottom / hero seat). */
-export function seatPosition(index: number, total: number) {
-  if (total <= 0) return { x: 50, y: 50 };
+export type SeatRegion = "bottom" | "top" | "left" | "right";
+
+export function seatRegion(theta: number): SeatRegion {
+  const deg = (((theta * 180) / Math.PI) % 360 + 360) % 360;
+  if (deg >= 55 && deg <= 125) return "bottom";
+  if (deg >= 235 && deg <= 305) return "left";
+  if (deg >= 145 && deg <= 215) return "top";
+  return "right";
+}
+
+export interface SeatPlacement {
+  x: number;
+  y: number;
+  region: SeatRegion;
+}
+
+/**
+ * Evenly spaced seats on the rail oval (0 = bottom / hero, clockwise).
+ * Uses cos/sin parametric ellipse so spacing matches the visible table edge.
+ */
+export function seatPosition(index: number, total: number): SeatPlacement {
+  if (total <= 0) return { x: 50, y: 50, region: "bottom" };
   const { rx, ry } = seatRadii(total);
-  const angle = (index / total) * Math.PI * 2 + Math.PI / 2;
+  const theta = (index / total) * Math.PI * 2 + Math.PI / 2;
+  const nx = Math.cos(theta);
+  const ny = Math.sin(theta);
+  const onRailX = 50 + rx * nx;
+  const onRailY = 50 + ry * ny;
   return {
-    x: 50 + Math.sin(angle) * rx,
-    y: 50 + Math.cos(angle) * ry,
+    x: onRailX + nx * SEAT_RAIL_OUTSET,
+    y: onRailY + ny * SEAT_RAIL_OUTSET,
+    region: seatRegion(theta),
   };
 }
