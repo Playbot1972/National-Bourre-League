@@ -221,6 +221,12 @@
   left: 0;
   top: 0;
   transform: translate(-50%, -50%);
+  border-radius: 50%;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(244, 213, 141, 0.25);
 }
 
 .bseat__tricks {
@@ -365,10 +371,10 @@
 @keyframes bseat-enroll-pulse {
   0%,
   100% {
-    transform: scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
   50% {
-    transform: scale(1.04);
+    transform: translate(-50%, -50%) scale(1.04);
   }
 }
 
@@ -445,16 +451,6 @@
 
 .bseat__trick-empty {
   height: 4px;
-}
-
-.bseat__avatar-wrap {
-  position: relative;
-  border-radius: 50%;
-  padding: 2px;
-  background: rgba(0, 0, 0, 0.35);
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.45),
-    0 0 0 2px rgba(244, 213, 141, 0.25);
 }
 
 .bseat__avatar {
