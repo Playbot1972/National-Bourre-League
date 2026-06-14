@@ -82,6 +82,8 @@ counts only (`Seat.tsx`).
 
 See `functions/README.md` and TODO comments in `firestore.rules` / `docs/firestore.js`.
 
+**Local test & debug (open PRs, emulators, checklists):** see [`docs/TESTING.md`](docs/TESTING.md).
+
 
 - Standard scripts live in `package.json`: `npm run dev` (Vite dev server),
   `npm run lint` (ESLint), `npm run build` (`tsc -b && vite build`).
