@@ -136,6 +136,10 @@
   box-shadow: 0 0 0 2px var(--gold-400, #e6b450);
 }
 
+.bseat--leading .bseat__avatar-wrap {
+  box-shadow: 0 0 0 2px rgba(230, 180, 80, 0.85), 0 0 12px rgba(230, 180, 80, 0.35);
+}
+
 .bseat--winner {
   animation: bseat-win 600ms ease;
 }

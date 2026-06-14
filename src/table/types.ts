@@ -9,6 +9,7 @@ export interface TablePlayer {
   tricksThisHand: number;
   isSelf: boolean;
   isDealer: boolean;
+  isLeading?: boolean;
   isWinner: boolean;
   canToggleInHand: boolean;
   canEditTricks: boolean;
