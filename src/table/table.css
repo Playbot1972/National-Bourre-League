@@ -326,6 +326,12 @@
   border: 1px solid rgba(244, 213, 141, 0.2);
 }
 
+.btable-session__split-preview {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--gold, #f4d58d);
+}
+
 .btable-session__settle-btns {
   display: flex;
   gap: 10px;

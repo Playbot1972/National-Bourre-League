@@ -777,6 +777,8 @@ function buildTableSessionProps(s) {
   const showCoWinSettlement =
     (handReady && derivedWinnerIds.length >= 2) ||
     (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2);
+  const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
+  const splitSharePerWinner = coWinnerCount >= 2 ? potAmount / coWinnerCount : 0;
 
   return {
     session: {
@@ -817,7 +819,8 @@ function buildTableSessionProps(s) {
       maxTricks,
     ),
     showCoWinSettlement,
-    voteStatus: renderSettlementVoteStatus(s, displayScores),
+    splitSharePerWinner,
+    voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     actions: {
       onToggleInHand: (inHand) => {
@@ -1146,13 +1149,13 @@ function getCurrentHandState() {
   };
 }
 
-function renderSettlementVoteStatus(s, displayScores) {
+function renderSettlementVoteStatus(s, displayScores, activeWinnerIds) {
+  if (activeWinnerIds.length < 2) return "";
   const pending = s?.pendingCoWinSettlement;
-  if (!pending?.winnerIds?.length) return "";
-  return pending.winnerIds
+  return activeWinnerIds
     .map((wid) => {
       const name = displayScores.find((sc) => sc.playerId === wid)?.displayName || wid;
-      const vote = pending.votes?.[wid];
+      const vote = pending?.votes?.[wid];
       if (vote === "split") return `${name}: Agree ✓`;
       if (vote === "push") return `${name}: Decline ✓`;
       return `${name}: waiting…`;
@@ -1244,9 +1247,9 @@ async function onSettleHand(choice) {
       recordedBy: session.uid,
     });
     if (result.status === "pending") {
-      showRoomsError("");
+      showRoomsError("Vote recorded — waiting for other co-winner(s) to agree.");
     } else if (result.settlement === "split") {
-      showRoomsError("");
+      showRoomsError("Pot split recorded — next hand ready.");
     } else if (result.settlement === "non_winner_ante_up") {
       showRoomsError("No split agreement — pot pushed; non-winners ante increased.");
     }
