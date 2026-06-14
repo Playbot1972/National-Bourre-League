@@ -2,32 +2,22 @@ import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers } from "./logic";
-import type {
-  PotMetrics,
-  SerializedCard,
-  TablePlayer,
-  TableSessionData,
-} from "./types";
+import type { PotMetrics, SerializedCard, TablePlayer, TableSessionData } from "./types";
 
 interface CardTableProps {
-  session: Pick<
-    TableSessionData,
-    | "phase"
-    | "trumpUpcard"
-    | "trumpSuit"
-    | "turnPlayerId"
-    | "remainingDeckCount"
-    | "currentTrick"
-    | "playedCards"
-  >;
+  session: TableSessionData;
   players: TablePlayer[];
   potMetrics: PotMetrics;
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
   currentUserId?: string | null;
+  legalPlayIndices?: number[] | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
+  onSubmitDraw?: (discardIndices: number[]) => void;
+  onPassDraw?: () => void;
+  onPlayCard?: (cardIndex: number) => void;
 }
 
 export function CardTable({
@@ -38,8 +28,12 @@ export function CardTable({
   enrollmentActive = false,
   heroCards = [],
   currentUserId = null,
+  legalPlayIndices,
   onToggleInHand,
   onTrickDelta,
+  onSubmitDraw,
+  onPassDraw,
+  onPlayCard,
 }: CardTableProps) {
   const ordered = [...players].sort((a, b) => {
     if (a.isSelf) return -1;
@@ -58,6 +52,11 @@ export function CardTable({
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const selfPlayer = players.find((p) => p.isSelf);
+  const drawCompleted =
+    Boolean(
+      currentUserId &&
+        session.drawCompletedIds?.includes(currentUserId),
+    );
 
   return (
     <div
@@ -109,6 +108,13 @@ export function CardTable({
         enrollmentActive={enrollmentActive}
         isInHand={Boolean(selfPlayer?.inHand)}
         signedIn={Boolean(currentUserId)}
+        isMyTurn={Boolean(currentUserId && session.turnPlayerId === currentUserId)}
+        drawCompleted={drawCompleted}
+        maxDrawDiscards={session.maxDrawDiscards ?? 4}
+        legalPlayIndices={legalPlayIndices ?? undefined}
+        onSubmitDraw={onSubmitDraw}
+        onPassDraw={onPassDraw}
+        onPlayCard={onPlayCard}
       />
     </div>
   );

@@ -1,0 +1,13 @@
+{
+  "name": "bourre-functions",
+  "private": true,
+  "description": "Cloud Functions scaffolding for server-authoritative Bourré play validation",
+  "main": "index.js",
+  "type": "module",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "lint": "node --check index.js"
+  }
+}

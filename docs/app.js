@@ -33,6 +33,10 @@ import {
   updateSessionNotes,
   updateSessionLimEnabled,
   updateHandTrick,
+  submitHandDraw,
+  playHandCard,
+  robotSubmitDraw,
+  robotPlayCard,
   voteCoWinSettlement,
   addSessionPlayer,
   addSessionRobot,
@@ -66,6 +70,7 @@ import {
   HAND_ENROLLMENT_MS,
   tricksForPlayer,
 } from "./firestore.js";
+import { getLegalPlayIndices, deserializeCards } from "./game-engine.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -624,6 +629,22 @@ let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 const ROBOT_TRICK_INTERVAL_MS = 1500;
+
+function computeLegalPlayIndices(currentHand, heroCards) {
+  if (!currentHand || currentHand.phase !== "play" || !heroCards?.length) return null;
+  const hand = deserializeCards(heroCards);
+  const trick = currentHand.currentTrick;
+  const trickPlays = (trick?.plays || []).map((p) => p.card);
+  const isLeading = trickPlays.length === 0;
+  return getLegalPlayIndices({
+    hand,
+    trumpSuit: currentHand.trumpSuit,
+    leadSuit: isLeading ? null : currentHand.leadSuit || trickPlays[0]?.suit,
+    trickPlays,
+    isLeading,
+    cinchEnabled: currentHand.cinchEnabled === true,
+  });
+}
 
 function sessionHasRobots(scores = openScores) {
   return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
@@ -1236,7 +1257,7 @@ function bindTablePlayControls() {
   });
 }
 
-/** Room members drive robot enrollment, trick play, and co-win votes while viewing. */
+/** Room members drive robot enrollment, draw/play, and co-win votes while viewing. */
 function processRobotActions(s, scores) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
@@ -1291,10 +1312,57 @@ function processRobotActions(s, scores) {
     return;
   }
 
-  const participants = s.currentHand?.participantIds || [];
+  const currentHand = s.currentHand || {};
+  const participants = currentHand.participantIds || [];
   if (!participants.length) return;
 
-  const tricks = s.currentHand?.tricksByPlayer || {};
+  const handPhase = currentHand.phase;
+  const now = Date.now();
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
+
+  if (handPhase === "draw") {
+    const turnId = currentHand.turnPlayerId;
+    const drawDone = currentHand.drawCompletedIds || [];
+    if (
+      turnId &&
+      isRobotPlayerId(turnId) &&
+      participants.includes(turnId) &&
+      !drawDone.includes(turnId)
+    ) {
+      lastRobotTrickAt = now;
+      robotActionInFlight = true;
+      robotSubmitDraw(currentRoomId, openSessionId, {
+        playerId: turnId,
+        actorId,
+        dealingRule: currentRoom?.houseRules?.dealing,
+      })
+        .catch((e) => console.warn("robot draw:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
+    }
+    return;
+  }
+
+  if (handPhase === "play") {
+    const turnId = currentHand.turnPlayerId;
+    const tricks = currentHand.tricksByPlayer || {};
+    const total = totalTricksPlayed(tricks, participants);
+    if (total >= MAX_TRICKS_PER_HAND) return;
+    if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
+      lastRobotTrickAt = now;
+      robotActionInFlight = true;
+      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
+        .catch((e) => console.warn("robot play:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
+    }
+    return;
+  }
+
+  // Legacy manual trick tracking when cards have not been dealt (no draw/play phase).
+  const tricks = currentHand.tricksByPlayer || {};
   const total = totalTricksPlayed(tricks, participants);
   if (total >= MAX_TRICKS_PER_HAND) return;
 
@@ -1302,9 +1370,6 @@ function processRobotActions(s, scores) {
     .map((sc) => sc.playerId)
     .filter((id) => participants.includes(id));
   if (!botsInHand.length) return;
-
-  const now = Date.now();
-  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   const { ready, winnerIds, maxTricks } = deriveWinnersFromTricks(tricks, participants);
   let targetBot = null;
@@ -1367,11 +1432,11 @@ function buildTableLeaderLabel(
   };
   if (phase === "draw") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Cards dealt · trump ${suitLabel} · draw round next`;
+    return `Trump ${suitLabel} · draw round — discard up to the house limit or stand pat`;
   }
   if (phase === "play") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · trick play`;
+    return `Trump ${suitLabel} · tap a legal card to play (${totalTricks}/5 tricks)`;
   }
   if (!participantIds.length) return "Tap I'm in when you're ready to play.";
   if (handComplete && handReady && activeWinnerIds.length === 1) {
@@ -1412,6 +1477,11 @@ function buildTableSessionProps(s) {
   const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
+  const heroCardList = openPrivateHand?.cards ?? [];
+  const legalPlayIndices =
+    cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
+      ? computeLegalPlayIndices(s.currentHand, heroCardList)
+      : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
   const myUid = session?.uid ?? null;
@@ -1494,8 +1564,12 @@ function buildTableSessionProps(s) {
       leadSuit: s.currentHand?.leadSuit ?? null,
       currentTrick: s.currentHand?.currentTrick ?? null,
       playedCards: s.currentHand?.playedCards ?? [],
+      drawCompletedIds: s.currentHand?.drawCompletedIds ?? [],
+      maxDrawDiscards: s.currentHand?.maxDrawDiscards ?? null,
+      cinchEnabled: s.currentHand?.cinchEnabled === true,
     },
-    heroCards: openPrivateHand?.cards ?? [],
+    heroCards: heroCardList,
+    legalPlayIndices,
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
       const onEnrollmentClock =
@@ -1538,6 +1612,7 @@ function buildTableSessionProps(s) {
           !isFinal &&
           sc.playerId === currentEnrollmentPlayerId,
         canEditTricks:
+          !cardsDealt &&
           !isFinal &&
           handParticipantIds.includes(sc.playerId) &&
           isSelf &&
@@ -1587,6 +1662,30 @@ function buildTableSessionProps(s) {
         updateHandTrick(currentRoomId, openSessionId, session.uid, delta, session.uid).catch(
           (e) => showRoomsError(e.message || "Could not update tricks"),
         );
+      },
+      onSubmitDraw: (discardIndices) => {
+        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        submitHandDraw(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          discardIndices,
+          actorId: session.uid,
+        }).catch((e) => showRoomsError(e.message || "Could not submit draw"));
+      },
+      onPassDraw: () => {
+        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        submitHandDraw(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          discardIndices: [],
+          actorId: session.uid,
+        }).catch((e) => showRoomsError(e.message || "Could not stand pat"));
+      },
+      onPlayCard: (cardIndex) => {
+        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        playHandCard(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          cardIndex,
+          actorId: session.uid,
+        }).catch((e) => showRoomsError(e.message || "Could not play card"));
       },
       onSettle: (choice) => onSettleHand(choice),
     },

@@ -286,6 +286,19 @@
   font-size: 11px;
 }
 
+.btable-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btable-hero__actions .muted {
+  flex: 1 1 100%;
+}
+
 .btable-hero .hand--fan .hand__slot:not(:first-child) {
   margin-left: -14px;
 }

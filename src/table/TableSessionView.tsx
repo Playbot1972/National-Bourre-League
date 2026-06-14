@@ -17,6 +17,7 @@ export function TableSessionView({
   enrollmentSecondsLeft = 0,
   currentUserId,
   heroCards = [],
+  legalPlayIndices,
   actions,
 }: TableSessionViewProps) {
   const participantCount = session.participantIds.length;
@@ -27,6 +28,7 @@ export function TableSessionView({
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel = turnIndicatorLabel(session.turnPlayerId, players);
   const cardsDealt = isCardsDealtPhase(session.phase);
+  const isMyTurn = Boolean(currentUserId && session.turnPlayerId === currentUserId);
 
   return (
     <div className="btable-session">
@@ -45,9 +47,14 @@ export function TableSessionView({
             {turnLabel}
           </p>
         )}
-        {session.phase === "draw" && (
+        {session.phase === "draw" && isMyTurn && (
           <p className="btable-session__hint muted small">
-            Discard and draw up to 4 cards — play controls coming next
+            Select cards to discard, then Draw — or Stand pat
+          </p>
+        )}
+        {session.phase === "play" && (
+          <p className="btable-session__hint muted small">
+            Follow suit · trump when void · beat the trick when you can
           </p>
         )}
         {selfEnroll && (
@@ -80,6 +87,7 @@ export function TableSessionView({
         enrollmentActive={enrollmentActive}
         heroCards={heroCards}
         currentUserId={currentUserId}
+        legalPlayIndices={legalPlayIndices}
         onToggleInHand={(playerId, inHand) => {
           const p = players.find((x) => x.playerId === playerId);
           if (p?.isSelf) actions.onToggleInHand(inHand);
@@ -88,6 +96,9 @@ export function TableSessionView({
           const p = players.find((x) => x.playerId === playerId);
           if (p?.isSelf) actions.onTrickDelta(delta);
         }}
+        onSubmitDraw={actions.onSubmitDraw}
+        onPassDraw={actions.onPassDraw}
+        onPlayCard={actions.onPlayCard}
       />
 
       {showCoWinSettlement && !session.isFinal && (

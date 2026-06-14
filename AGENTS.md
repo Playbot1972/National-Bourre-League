@@ -17,9 +17,11 @@ This repo contains two front-ends:
 - `src/data/` — content is data-driven: `rules.ts` (rule text + house-rule
   placeholders) and `tutorial.ts` (the step-by-step hand walkthrough).
 - `src/types.ts` — `Card`/`Suit`/`Rank` model and helpers.
-- `src/game/` — pure Bourré deal engine (deck, shuffle, deal, serialize public vs
-  private hand state). Built to `docs/game-engine.js` via `npm run build:game` for
-  the static social app (`docs/firestore.js` imports it).
+- `src/game/` — pure Bourré engine: deal, draw/discard, legality (`legal.ts`),
+  card play / trick resolution (`play.ts`, `trick.ts`), bot helpers. Built to
+  `docs/game-engine.js` via `npm run build:game` for the static social app
+  (`docs/firestore.js` imports it). Cloud Functions should reuse the same module
+  (see `functions/README.md`).
 - `docs/` — the static social app: `index.html`, `styles.css`, `firebase-config.js`
   (placeholder config), `auth.js` (Firebase Auth wrapper), `firestore.js`
   (Firestore data model + persistence), `ranking.js` (TrueSkill "Ape Score"
@@ -80,15 +82,18 @@ This repo contains two front-ends:
   auth uid or a generated `guest_*` id for table guests), and `sessions` +
   `scores` nested **under each room**
   (  `rooms/{roomId}/sessions/{sessionId}/scores/{playerId}`).
-- **Live hand (deal engine):** when enrollment completes, `docs/firestore.js` calls
+- **Live hand (play engine):** when enrollment completes, `docs/firestore.js` calls
   `dealInitialHand()` from `docs/game-engine.js`, writes public state on
-  `session.currentHand` (`phase`, `trumpSuit`, `trumpUpcard`, `turnPlayerId`, …) and
-  each player's five cards under
-  `sessions/{sessionId}/privateHands/{playerId}` (readable only by that uid per
-  `firestore.rules`). Opponent hole cards are never on the session doc.
-  **TODO(production):** move deal/play validation and private-hand writes to a Cloud
-  Function — sample rules still allow any room member to *write* privateHands
-  (honor-system); reads are owner-only.
+  `session.currentHand` (`phase`, `trumpSuit`, `turnPlayerId`, `currentTrick`,
+  `playedCards`, `deckSeed`, …) and each player's cards under
+  `sessions/{sessionId}/privateHands/{playerId}`. Draw/discard (`submitHandDraw`) and
+  trick play (`playHandCard`) update public + private docs via Firestore transactions;
+  legality uses `getLegalPlayIndices` / `applyPlayCard` from the pure engine.
+  Opponent hole cards are never on the session doc.
+  **TODO(production):** move deal/draw/play validation and private-hand writes to
+  Cloud Functions (`functions/` scaffold) — sample rules still allow any room member
+  to *write* privateHands (honor-system); human reads are owner-only, `bot_*` reads
+  are member-visible for client-driven bots until server-authoritative bot moves exist.
 - Gotcha (important): sessions/scores are subcollections on purpose. A top-level
   collection with a `roomId` field CANNOT be authorized for `list`/query in
   security rules — Firestore evaluates list rules without per-document
