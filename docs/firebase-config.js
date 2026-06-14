@@ -8,12 +8,13 @@
 // the gstatic CDN in auth.js, so no bundler is required.
 
 export const firebaseConfig = {
-  apiKey: "REPLACE_WITH_YOUR_API_KEY",
-  authDomain: "REPLACE_WITH_YOUR_PROJECT.firebaseapp.com",
+  apiKey: "AIzaSyCw7L81ETKGmvHo_GAUf_EuHYpfwTML6-c",
+  authDomain: "national-bourre-league.firebaseapp.com",
+  
   // projectId is kept as a "demo-" project so the local Auth emulator works
   // out of the box. For production, replace it with your real project id.
-  projectId: "demo-national-bourre-league",
-  appId: "REPLACE_WITH_YOUR_APP_ID",
+  projectId: "national-bourre-league",
+  appId: "1:693332013350:web:d76621abb03e309aee91e7",
 };
 
 // Version of the Firebase Web SDK to load from the CDN.
@@ -35,3 +36,11 @@ export const AUTH_EMULATOR_URL = isLocalhost ? "http://127.0.0.1:9099" : null;
 export const FIRESTORE_EMULATOR = isLocalhost
   ? { host: "127.0.0.1", port: 8088 }
   : null;
+grep -E 'apiKey|authDomain|projectId|appId|measurementId' docs/firebase-config.js
+npm install
+git status
+
+npm install
+git status
+curl -s https://booray.win/social/firebase-config.js | grep apiKey
+
