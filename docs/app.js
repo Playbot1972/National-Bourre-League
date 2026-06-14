@@ -11,7 +11,6 @@ import {
   signInWithEmail,
   signInWithGoogle,
   completeGoogleRedirectSignIn,
-  shouldUseGoogleRedirect,
   signOutUser,
   describeAuthError,
   usingEmulator,
@@ -200,11 +199,9 @@ document.addEventListener("keydown", (e) => {
 
 if (usingEmulator) {
   $("#auth-emulator-hint").hidden = false;
-}
-
-const googleRedirectHint = $("#google-redirect-hint");
-if (googleRedirectHint && shouldUseGoogleRedirect()) {
-  googleRedirectHint.hidden = false;
+} else {
+  const googleRedirectHint = $("#google-redirect-hint");
+  if (googleRedirectHint) googleRedirectHint.hidden = false;
 }
 
 // ---------------------------------------------------------------------------

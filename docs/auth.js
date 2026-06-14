@@ -74,30 +74,6 @@ if (usingEmulator) {
 
 const googleProvider = new GoogleAuthProvider();
 
-/** Popups often fail on iOS/Safari and show a blank Google account picker. */
-export function shouldUseGoogleRedirect() {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (isIOS) return true;
-  const isSafari = /Safari\//.test(ua) && !/Chrome\//.test(ua) && !/Chromium\//.test(ua);
-  if (isSafari) return true;
-  if (/Android|webOS|Mobile/i.test(ua)) return true;
-  return false;
-}
-
-function isPopupFallbackError(error) {
-  const code = error && typeof error === "object" ? error.code : "";
-  return (
-    code === "auth/popup-blocked" ||
-    code === "auth/popup-closed-by-user" ||
-    code === "auth/cancelled-popup-request" ||
-    code === "auth/operation-not-supported-in-this-environment"
-  );
-}
-
 /**
  * Subscribe to auth state changes. The callback receives a normalized user
  * object (or null when signed out).
@@ -129,28 +105,15 @@ export async function signInWithEmail({ email, password }) {
   return normalizeUser(cred.user);
 }
 
-/** Sign in with Google via popup or full-page redirect (Safari/mobile). */
+/** Sign in with Google via full-page redirect (reliable on custom domains + Chrome). */
 export async function signInWithGoogle() {
   if (usingEmulator) {
     const cred = await signInWithPopup(auth, googleProvider);
     return normalizeUser(cred.user);
   }
 
-  if (shouldUseGoogleRedirect()) {
-    await signInWithRedirect(auth, googleProvider);
-    return null;
-  }
-
-  try {
-    const cred = await signInWithPopup(auth, googleProvider);
-    return normalizeUser(cred.user);
-  } catch (err) {
-    if (isPopupFallbackError(err)) {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
-    throw err;
-  }
+  await signInWithRedirect(auth, googleProvider);
+  return null;
 }
 
 /** Call on page load to finish a Google redirect sign-in. */
