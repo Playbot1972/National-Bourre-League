@@ -8112,7 +8112,35 @@ function b(e) {
 }
 //#endregion
 //#region src/table/Seat.tsx
-function x({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i }) {
+function x({ fraction: e }) {
+	let t = Math.max(0, Math.min(1, e)), n = 53 / 2, r = 2 * Math.PI * n, i = r * (1 - t);
+	return /* @__PURE__ */ (0, p.jsxs)("svg", {
+		className: `bseat__timer-ring${t <= .25 ? " bseat__timer-ring--urgent" : ""}`,
+		width: 56,
+		height: 56,
+		viewBox: "0 0 56 56",
+		"aria-hidden": "true",
+		children: [/* @__PURE__ */ (0, p.jsx)("circle", {
+			className: "bseat__timer-ring__track",
+			cx: 56 / 2,
+			cy: 56 / 2,
+			r: n,
+			fill: "none",
+			strokeWidth: 3
+		}), /* @__PURE__ */ (0, p.jsx)("circle", {
+			className: "bseat__timer-ring__progress",
+			cx: 56 / 2,
+			cy: 56 / 2,
+			r: n,
+			fill: "none",
+			strokeWidth: 3,
+			strokeDasharray: r,
+			strokeDashoffset: i,
+			transform: `rotate(-90 ${56 / 2} ${56 / 2})`
+		})]
+	});
+}
+function ee({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i }) {
 	let a = e.tricksThisHand, o = Math.min(a, 3);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: [
@@ -8146,6 +8174,7 @@ function x({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i 
 			/* @__PURE__ */ (0, p.jsxs)("div", {
 				className: "bseat__avatar-wrap",
 				children: [
+					e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, p.jsx)(x, { fraction: e.enrollmentTimeLeft }),
 					e.isDealer && /* @__PURE__ */ (0, p.jsx)("span", {
 						className: "bseat__dealer",
 						children: "D"
@@ -8196,7 +8225,7 @@ function x({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i 
 					e.enrollmentOnClock && /* @__PURE__ */ (0, p.jsx)("span", {
 						className: "bseat__enroll-timer",
 						"aria-live": "polite",
-						children: e.isSelf ? "Tap I'm in" : "…"
+						children: e.isSelf ? `Tap I'm in · ${e.enrollmentSecondsOnClock ?? "?"}s` : `${e.enrollmentSecondsOnClock ?? "?"}s`
 					}),
 					e.canToggleInHand && /* @__PURE__ */ (0, p.jsx)("button", {
 						type: "button",
@@ -8222,7 +8251,7 @@ function x({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i 
 }
 //#endregion
 //#region src/table/PotCenter.tsx
-function ee({ potMetrics: e, participantCount: t }) {
+function S({ potMetrics: e, participantCount: t }) {
 	let n = Math.min(5, Math.max(2, t));
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "bpot",
@@ -8279,7 +8308,7 @@ function ee({ potMetrics: e, participantCount: t }) {
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function S({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, onTrickDelta: i }) {
+function C({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, onTrickDelta: i }) {
 	let a = [...e].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), o = a.findIndex((e) => e.isSelf), s = o > 0 ? [...a.slice(o), ...a.slice(0, o)] : a, c = s.length, l = `btable--p${Math.min(8, Math.max(2, c))}`, u = b(c);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: `btable-wrap ${l}`,
@@ -8294,7 +8323,7 @@ function S({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 				"aria-hidden": "true"
 			}), /* @__PURE__ */ (0, p.jsx)("div", {
 				className: "btable__felt",
-				children: /* @__PURE__ */ (0, p.jsx)(ee, {
+				children: /* @__PURE__ */ (0, p.jsx)(S, {
 					potMetrics: t,
 					participantCount: n
 				})
@@ -8304,7 +8333,7 @@ function S({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 			"aria-label": "Players at the table",
 			children: s.map((e, t) => {
 				let n = y(t, s.length);
-				return /* @__PURE__ */ (0, p.jsx)(x, {
+				return /* @__PURE__ */ (0, p.jsx)(ee, {
 					player: e,
 					region: n.region,
 					style: {
@@ -8320,7 +8349,7 @@ function S({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function C({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, actions: f }) {
+function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, actions: f }) {
 	let m = e.participantIds.length, _ = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), v = t.find((e) => e.isSelf && e.canToggleInHand);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
@@ -8368,7 +8397,7 @@ function C({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 					" for the full table (up to 8 players)."
 				]
 			}),
-			/* @__PURE__ */ (0, p.jsx)(S, {
+			/* @__PURE__ */ (0, p.jsx)(C, {
 				players: t,
 				potMetrics: n,
 				participantCount: m,
@@ -8446,12 +8475,12 @@ function C({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 }
 //#endregion
 //#region src/table/mount.tsx
-var te = null, ne = null;
-function re(e, t) {
-	ne !== e && (te?.unmount(), te = (0, c.createRoot)(e), ne = e), te.render(/* @__PURE__ */ (0, p.jsx)(C, { ...t }));
+var ne = null, re = null;
+function w(e, t) {
+	re !== e && (ne?.unmount(), ne = (0, c.createRoot)(e), re = e), ne.render(/* @__PURE__ */ (0, p.jsx)(te, { ...t }));
 }
-function w() {
-	te?.unmount(), te = null, ne = null;
+function ie() {
+	ne?.unmount(), ne = null, re = null;
 }
 //#endregion
-export { re as mountTableSession, w as unmountTableSession };
+export { w as mountTableSession, ie as unmountTableSession };

@@ -62,6 +62,7 @@ import {
   totalTricksPlayed,
   isHandComplete,
   isRobotPlayerId,
+  HAND_ENROLLMENT_MS,
   tricksForPlayer,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
@@ -1464,6 +1465,11 @@ function buildTableSessionProps(s) {
     },
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
+      const onEnrollmentClock =
+        enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
+      const enrollmentMsLeft = onEnrollmentClock
+        ? Math.max(0, enrollment.turnDeadlineMs - Date.now())
+        : 0;
       return {
         playerId: sc.playerId,
         displayName: sc.displayName,
@@ -1479,7 +1485,13 @@ function buildTableSessionProps(s) {
         isDealer: sc.playerId === dealerId,
         isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        enrollmentOnClock: enrollmentActive && sc.playerId === currentEnrollmentPlayerId,
+        enrollmentOnClock: onEnrollmentClock,
+        enrollmentTimeLeft: onEnrollmentClock
+          ? enrollmentMsLeft / HAND_ENROLLMENT_MS
+          : undefined,
+        enrollmentSecondsOnClock: onEnrollmentClock
+          ? Math.max(0, Math.ceil(enrollmentMsLeft / 1000))
+          : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
         isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
