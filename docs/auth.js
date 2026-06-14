@@ -23,6 +23,7 @@ const {
   signInWithRedirect,
   getRedirectResult,
   sendPasswordResetEmail,
+  fetchSignInMethodsForEmail,
   GoogleAuthProvider,
   updateProfile,
   signOut,
@@ -124,17 +125,44 @@ export async function completeGoogleRedirectSignIn() {
   return result?.user ? normalizeUser(result.user) : null;
 }
 
-/** Email a link to set a new password (email/password accounts only). */
+/** Which sign-in providers Firebase has for this email (may be empty if hidden). */
+export async function lookupSignInMethods(email) {
+  try {
+    return await fetchSignInMethodsForEmail(auth, email);
+  } catch {
+    return null;
+  }
+}
+
+function passwordResetContinueUrl() {
+  if (typeof location === "undefined") return undefined;
+  const host = location.hostname.toLowerCase();
+  if (host === "localhost" || host === "127.0.0.1") {
+    return `${location.origin}${location.pathname}`;
+  }
+  if (host === "booray.win" || host === "www.booray.win") {
+    return `https://www.booray.win/social/`;
+  }
+  return `${location.origin}${location.pathname}`;
+}
+
+/**
+ * Email a password reset link. Only works for email/password accounts.
+ * Returns { sent, methods } so the UI can explain Google-only accounts.
+ */
 export async function sendPasswordReset(email) {
-  const continueUrl =
-    typeof location !== "undefined"
-      ? `${location.origin}${location.pathname}`
-      : undefined;
+  const methods = await lookupSignInMethods(email);
+  if (methods?.includes("google.com") && !methods.includes("password")) {
+    return { sent: false, methods, reason: "google-only" };
+  }
+
+  const continueUrl = passwordResetContinueUrl();
   await sendPasswordResetEmail(
     auth,
     email,
     continueUrl ? { url: continueUrl, handleCodeInApp: false } : undefined,
   );
+  return { sent: true, methods: methods ?? [], reason: null };
 }
 
 export function signOutUser() {
@@ -172,6 +200,8 @@ export function describeAuthError(error) {
       return "An account already exists with this email using email/password. Sign in that way instead.";
     case "auth/too-many-requests":
       return "Too many attempts. Wait a few minutes and try again.";
+    case "auth/invalid-continue-uri":
+      return "Could not send reset email (site URL not authorized). Contact the host.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
