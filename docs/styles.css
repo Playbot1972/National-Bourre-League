@@ -494,6 +494,19 @@ button {
   margin: 8px 0 0;
   line-height: 1.45;
 }
+.auth-form__confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.auth-form__confirm input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
 
 .auth-divider {
   display: flex;

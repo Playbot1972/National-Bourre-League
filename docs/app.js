@@ -93,6 +93,8 @@ const tabSignup = $("#tab-signup");
 const forgotPasswordBtn = $("#forgot-password");
 const passwordManagerHint = $("#password-manager-hint");
 const resetGoogleHint = $("#reset-google-hint");
+const resetConfirmField = $('[data-field="reset-confirm"]');
+const resetConfirmPassword = $("#reset-confirm-password");
 const authTabs = $(".modal__tabs", authModal);
 
 let mode = "signin"; // "signin" | "signup" | "reset"
@@ -126,10 +128,10 @@ function setMode(nextMode) {
   forgotPasswordBtn.hidden = signup || reset;
   passwordManagerHint.hidden = signup || reset;
   if (resetGoogleHint) resetGoogleHint.hidden = !reset;
+  if (resetConfirmField) resetConfirmField.hidden = !reset;
+  if (resetConfirmPassword && !reset) resetConfirmPassword.checked = false;
   if (authTabs) authTabs.hidden = reset;
-  $$("[data-auth-panel='oauth']", authModal).forEach((el) => {
-    el.hidden = reset;
-  });
+  // Keep Google sign-in visible on reset — most Gmail users need it instead.
   passwordInput.setAttribute(
     "autocomplete",
     signup ? "new-password" : "current-password",
@@ -181,16 +183,22 @@ authForm.addEventListener("submit", async (event) => {
   if (mode === "reset") {
     setBusy(true);
     try {
-      const result = await sendPasswordReset(email);
+      const result = await sendPasswordReset(email, {
+        confirmedPasswordAccount: resetConfirmPassword?.checked === true,
+      });
       if (result.reason === "google-only") {
         showError(
-          "This email is registered with Google sign-in, not a Bourré password. Use Continue with Google instead — password reset won't send an email.",
+          "This email uses Google sign-in, not a Bourré password. Use Continue with Google below.",
         );
         return;
       }
-      showSuccess(
-        `If ${email} has an email/password account, we sent a reset link. Check inbox and spam. Used Google to sign up? Use Continue with Google instead.`,
-      );
+      if (result.reason === "confirm-needed") {
+        showError(
+          "This may be a Google account. Use Continue with Google below, or check the box if you truly signed up with email & password.",
+        );
+        return;
+      }
+      showSuccess(`Reset link sent to ${email}. Check inbox and spam.`);
     } catch (err) {
       showError(describeAuthError(err));
     } finally {

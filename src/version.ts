@@ -1,2 +1,2 @@
 // Generated from version.json — run: npm run version:sync
-export const APP_VERSION = "1.00.24" as const;
+export const APP_VERSION = "1.00.25" as const;
