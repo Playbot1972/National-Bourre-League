@@ -943,6 +943,19 @@ export async function finalizeSession(roomId, sessionId) {
   });
 }
 
+/** Remove a session and its score/hand subcollections from the room. */
+export async function deleteSession(roomId, sessionId) {
+  const [scoresSnap, handsSnap] = await Promise.all([
+    getDocs(scoresCol(roomId, sessionId)),
+    getDocs(handsCol(roomId, sessionId)),
+  ]);
+  const batch = writeBatch(db);
+  scoresSnap.docs.forEach((d) => batch.delete(d.ref));
+  handsSnap.docs.forEach((d) => batch.delete(d.ref));
+  batch.delete(sessionDoc(roomId, sessionId));
+  await batch.commit();
+}
+
 // ---------------------------------------------------------------------------
 // Players + Ape Score ranking (TrueSkill). See docs/ranking.js for the math.
 // players/{playerId}: { displayName, mu, sigma, matchesPlayed, apeScore,

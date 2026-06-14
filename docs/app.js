@@ -44,6 +44,7 @@ import {
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
+  deleteSession,
   subscribeLeaderboard,
   deriveWinnersFromTricks,
   playerHandStake,
@@ -437,6 +438,10 @@ let openHands = [];
 let enrollmentTimer = null;
 let pendingHandStake = 1;
 let syncMembersPromise = null;
+/** Session ids queued for removal after SESSION_CLEANUP_MS. */
+const pendingSessionCleanup = new Set();
+const sessionCleanupTimers = new Map();
+const SESSION_CLEANUP_MS = 30_000;
 
 function mergeScoresWithMembers(scores, members) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
@@ -469,6 +474,93 @@ function scheduleSyncSessionMembers() {
     .finally(() => {
       syncMembersPromise = null;
     });
+}
+
+function stopSessionCleanupTimers() {
+  for (const timer of sessionCleanupTimers.values()) {
+    clearTimeout(timer);
+  }
+  sessionCleanupTimers.clear();
+}
+
+function cancelSessionCleanup(sessionId) {
+  const timer = sessionCleanupTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    sessionCleanupTimers.delete(sessionId);
+  }
+  pendingSessionCleanup.delete(sessionId);
+}
+
+function scheduleSessionCleanup(sessionId) {
+  if (!currentRoomId || !sessionId) return;
+  cancelSessionCleanup(sessionId);
+  pendingSessionCleanup.add(sessionId);
+  sessionCleanupTimers.set(
+    sessionId,
+    setTimeout(() => {
+      sessionCleanupTimers.delete(sessionId);
+      pendingSessionCleanup.delete(sessionId);
+      deleteSession(currentRoomId, sessionId).catch((e) =>
+        console.error("deleteSession:", e),
+      );
+    }, SESSION_CLEANUP_MS),
+  );
+}
+
+async function clearCompletedSessionsNow() {
+  if (!currentRoomId) return;
+  const ids = new Set(pendingSessionCleanup);
+  for (const s of currentSessions) {
+    if (s.status === "final") ids.add(s.id);
+  }
+  if (openSessionId) {
+    const open = currentSessions.find((s) => s.id === openSessionId);
+    if (open?.status !== "final") ids.delete(openSessionId);
+  }
+  if (ids.size === 0) return;
+  stopSessionCleanupTimers();
+  pendingSessionCleanup.clear();
+  await Promise.all(
+    [...ids].map((sessionId) =>
+      deleteSession(currentRoomId, sessionId).catch((e) => {
+        console.error("deleteSession:", e);
+      }),
+    ),
+  );
+  showRoomsError(`Cleared ${ids.size} session${ids.size === 1 ? "" : "s"}.`);
+}
+
+async function completeSessionWithApeScores(roomId, sessionId, scores) {
+  if (!scores.length) throw new Error("No players in this session");
+  await Promise.all(
+    scores.map((sc) => ensurePlayerDoc(sc.playerId, sc.displayName)),
+  );
+  const ids = scores.map((sc) => sc.playerId);
+  const ratings = await getPlayers(ids);
+  const input = scores.map((sc) => ({
+    id: sc.playerId,
+    displayName: sc.displayName,
+    rating: ratings[sc.playerId]
+      ? {
+          mu: ratings[sc.playerId].mu,
+          sigma: ratings[sc.playerId].sigma,
+          matchesPlayed: ratings[sc.playerId].matchesPlayed || 0,
+        }
+      : newRating(),
+    score: sc.tricksWon || 0,
+  }));
+  const results = rankMatch(input).map((r) => ({
+    ...r,
+    apeClass: apeClass(r.apeScore),
+    apeStatus: apeStatus({
+      mu: r.mu,
+      sigma: r.sigma,
+      matchesPlayed: r.matchesPlayed,
+    }),
+  }));
+  await applyRankingResults(roomId, sessionId, results);
+  return results;
 }
 
 function showRoomsError(msg) {
@@ -693,6 +785,16 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeSessions(roomId, (sessions) => {
       currentSessions = sessions;
+      if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
+        const nextId = sessions[0]?.id ?? null;
+        if (nextId) {
+          openSession(nextId);
+        } else {
+          openSessionId = null;
+          openScores = [];
+          openHands = [];
+        }
+      }
       if (!openSessionId && sessions.length > 0) {
         openSession(sessions[0].id);
       } else {
@@ -709,6 +811,8 @@ function openRoom(roomId) {
 function closeRoom() {
   clearDetailSubs();
   stopEnrollmentTimer();
+  stopSessionCleanupTimers();
+  pendingSessionCleanup.clear();
   unmountTableSessionHost();
   currentRoomId = null;
   openSessionId = null;
@@ -1064,6 +1168,11 @@ function renderRoomDetail() {
               : ""
           }
           <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
+          ${
+            currentSessions.some((s) => s.status === "final") || pendingSessionCleanup.size > 0
+              ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
+              : ""
+          }
         </div>
       </div>
       <div class="session-tabs">
@@ -1090,6 +1199,15 @@ function renderRoomDetail() {
     leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
   }
   $("#new-session").addEventListener("click", onNewSession);
+  const clearSessionsBtn = $("#clear-sessions-now", roomDetailView);
+  if (clearSessionsBtn) {
+    clearSessionsBtn.addEventListener("click", () => {
+      clearCompletedSessionsNow().catch((e) => {
+        console.error("clearCompletedSessionsNow:", e);
+        showRoomsError(e.message || "Could not clear sessions");
+      });
+    });
+  }
   const newSessionStake = $("#new-session-stake", roomDetailView);
   if (newSessionStake) {
     newSessionStake.addEventListener("change", () => {
@@ -1329,6 +1447,32 @@ function wireSessionControls() {
 
 async function onNewSession() {
   if (!currentRoomId) return;
+  const previousSessionId = openSessionId;
+  const previousScores = [...openScores];
+  const previousSession = currentSessions.find((s) => s.id === previousSessionId);
+
+  if (
+    previousSessionId &&
+    previousSession?.status !== "final" &&
+    previousScores.length > 0
+  ) {
+    try {
+      await completeSessionWithApeScores(
+        currentRoomId,
+        previousSessionId,
+        previousScores,
+      );
+      scheduleSessionCleanup(previousSessionId);
+      showRoomsError(
+        "Previous session completed — Ape Scores updated. Clears in 30s (or Clear all now).",
+      );
+    } catch (err) {
+      console.error("autoCompleteSession:", err);
+      showRoomsError(err.message || "Could not complete previous session");
+      return;
+    }
+  }
+
   const players = currentMembers.map((m) => ({
     playerId: m.userId,
     displayName: m.displayName,
@@ -1382,34 +1526,21 @@ async function onCompleteSession() {
   if (openScores.length === 0) return;
 
   try {
-    const ids = openScores.map((sc) => sc.playerId);
-    const ratings = await getPlayers(ids);
-    const input = openScores.map((sc) => ({
-      id: sc.playerId,
-      displayName: sc.displayName,
-      rating: ratings[sc.playerId]
-        ? {
-            mu: ratings[sc.playerId].mu,
-            sigma: ratings[sc.playerId].sigma,
-            matchesPlayed: ratings[sc.playerId].matchesPlayed || 0,
-          }
-        : newRating(),
-      score: sc.tricksWon || 0,
-    }));
-
-    const results = rankMatch(input).map((r) => ({
-      ...r,
-      apeClass: apeClass(r.apeScore),
-      apeStatus: apeStatus({
-        mu: r.mu,
-        sigma: r.sigma,
-        matchesPlayed: r.matchesPlayed,
-      }),
-    }));
-
-    await applyRankingResults(currentRoomId, openSessionId, results);
+    const results = await completeSessionWithApeScores(
+      currentRoomId,
+      openSessionId,
+      openScores,
+    );
+    scheduleSessionCleanup(openSessionId);
+    const top = results.find((r) => r.placement === 1);
+    showRoomsError(
+      top
+        ? `Session complete — ${top.displayName} #1 · Ape Score ${top.apeScore}. Clears in 30s.`
+        : "Session complete — Ape Scores updated. Clears in 30s.",
+    );
   } catch (err) {
     console.error("completeSession:", err);
+    showRoomsError(err.message || "Could not complete session");
   }
 }
 
