@@ -98,9 +98,8 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run check:social` | Syntax-check `docs/*.js` | `main` + feature branches |
 | `npm run test:game` | Card uniqueness + draw flow tests | **v1.00.64 RC+** (not on `main` yet) |
 | `npm run test:feedback` | Haptics fallback + prefs tests | **v1.00.64 RC+** (not on `main` yet) |
-| `npm run icons:generate` | SVG → PNG icon export | **v1.00.64 RC+** (not on `main` yet) |
-
-`main` today (v1.00.60): lint, build, build:game, build:table, check:social, emulators, social — **no** `test:game`, `test:feedback`, or `icons:generate`.
+| `npm run icons:generate` | SVG → PNG icon export | **v1.00.64+** |
+| `npm run verify:prod` | Live https://booray.win — version, Firebase config, /social/ | **after deploy tooling merge** |
 
 ---
 
@@ -156,10 +155,12 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| **Production still shows v1.00.60** | Deploy never ran (missing GitHub secrets or no local deploy) | Set Actions secrets or run `npm run deploy` locally after `npm run setup:webapp`. Confirm: `npm run verify:prod` |
+| **`auth/api-key-not-valid`** on sign-in | Production bundle has placeholder `docs/firebase-config.js` | Copy `.env.firebase.example` → `.env.firebase`, fill Firebase web app values, then `npm run deploy`. Or `npm run setup:webapp -- national-bourre-league booray.win`. Confirm with `npm run verify:prod`. |
 | `Missing script: icons:generate` | On `main` before #70 merge | Checkout `cursor/icons-on-main-8d02` or merge [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) |
 | Table UI blank / “failed to load” | Stale `docs/table-session.js` | `npm run build:table` |
-| Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
-| Emulators not connecting | Emulators not running | Terminal 1: `npm run emulators` |
+| Auth / sign-in issues (local) | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
+| Emulators not connecting | Emulators not running or Java missing | Install Java 21; terminal 1: `npm run emulators` |
 | Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
