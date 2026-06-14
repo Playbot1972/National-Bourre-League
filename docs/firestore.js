@@ -384,7 +384,7 @@ const scoreDoc = (roomId, sessionId, playerId) =>
   doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
 
 /** Seconds each player has to tap I'm in, clockwise from first seat after dealer. */
-export const HAND_ENROLLMENT_SECONDS = 45;
+export const HAND_ENROLLMENT_SECONDS = 7;
 export const HAND_ENROLLMENT_MS = HAND_ENROLLMENT_SECONDS * 1000;
 
 function sortedScorePlayerIds(scoreSnap) {
