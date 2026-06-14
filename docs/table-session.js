@@ -8321,13 +8321,13 @@ function ie(e, t) {
 	};
 	let r = -(e / n * Math.PI * 2) + Math.PI / 2, i = Math.cos(r), a = Math.sin(r);
 	return {
-		x: 50 + 50 * i + i * 2,
-		y: 50 + 50 * a + a * 2,
+		x: 50 + 50 * i + i * 9,
+		y: 50 + 50 * a + a * 9,
 		region: w(r)
 	};
 }
 function ae(e) {
-	return 1.15 + (Math.max(2, Math.min(8, e || 2)) - 2) * .84 / 6;
+	return 1.38 + (Math.max(2, Math.min(8, e || 2)) - 2) * .52 / 6;
 }
 //#endregion
 //#region src/table/TrickRow.tsx
@@ -8359,90 +8359,96 @@ function oe({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
 //#region src/table/PotCenter.tsx
 function se({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, phase: i, enrollmentActive: a = !1, remainingDeckCount: o, currentTrick: s, playedCards: c, playerNames: l = {} }) {
 	let u = b(i, a), d = !!n, f = d ? `${n.rank}-${n.suit}` : "none";
-	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: "bpot",
+	return /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+		className: "deck-stack",
+		"aria-label": "Deck and trump",
+		children: [d ? /* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "deck-stack__trump bpot__trump--deal",
+			children: [/* @__PURE__ */ (0, h.jsx)(g, {
+				card: {
+					rank: n.rank,
+					suit: n.suit
+				},
+				size: "sm",
+				state: "trump"
+			}), /* @__PURE__ */ (0, h.jsx)("span", {
+				className: "deck-stack__label muted small",
+				children: "Trump"
+			})]
+		}, f) : /* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "deck-stack__pile",
+			"aria-hidden": "true",
+			children: [
+				/* @__PURE__ */ (0, h.jsx)("div", { className: "deck-stack__card deck-stack__card--back" }),
+				/* @__PURE__ */ (0, h.jsx)("div", { className: "deck-stack__card deck-stack__card--back deck-stack__card--offset" }),
+				/* @__PURE__ */ (0, h.jsx)("span", {
+					className: "deck-stack__label muted small",
+					children: a ? "Dealing" : "Deck"
+				})
+			]
+		}), o != null && o > 0 && /* @__PURE__ */ (0, h.jsxs)("span", {
+			className: "deck-stack__count muted small",
+			children: [o, " left"]
+		})]
+	}), /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: "center-play",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bpot__phase",
+				className: "center-play__phase",
 				"aria-live": "polite",
 				children: [/* @__PURE__ */ (0, h.jsx)("span", {
 					className: `bpot__phase-tag bpot__phase-tag--${i ?? "waiting"}`,
 					children: u
-				}), d && r && /* @__PURE__ */ (0, h.jsxs)("span", {
-					className: "bpot__phase-trump muted small",
-					children: ["Trump · ", x(r)]
+				}), d && r && /* @__PURE__ */ (0, h.jsx)("span", {
+					className: "center-play__trump-suit muted small",
+					children: x(r)
 				})]
 			}),
-			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bpot__trick-area",
-				children: [d ? /* @__PURE__ */ (0, h.jsxs)("div", {
-					className: "bpot__trump bpot__trump--deal",
-					children: [/* @__PURE__ */ (0, h.jsx)(g, {
-						card: {
-							rank: n.rank,
-							suit: n.suit
-						},
-						size: "sm",
-						state: "trump"
-					}), /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bpot__trump-label muted small",
-						children: "Upcard"
-					})]
-				}, f) : /* @__PURE__ */ (0, h.jsx)("div", {
-					className: "bpot__deck-placeholder muted small",
-					"aria-hidden": "true",
-					children: a ? "Dealing after join" : "Awaiting deal"
-				}), /* @__PURE__ */ (0, h.jsx)(oe, {
+			/* @__PURE__ */ (0, h.jsx)("div", {
+				className: "center-play__trick",
+				children: /* @__PURE__ */ (0, h.jsx)(oe, {
 					currentTrick: s,
 					playedCards: c,
 					playerNames: l
-				})]
+				})
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("dl", {
-				className: "bpot__stats",
+				className: "center-play__stats",
 				children: [
 					/* @__PURE__ */ (0, h.jsxs)("div", {
+						className: "bpot__stat bpot__stat--pot",
+						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Pot" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.currentPot) })]
+					}),
+					/* @__PURE__ */ (0, h.jsxs)("div", {
 						className: "bpot__stat",
-						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Current Pot" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.currentPot) })]
+						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Ante" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.anteAmount) })]
 					}),
 					e.limEnabled && /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [/* @__PURE__ */ (0, h.jsxs)("div", {
 						className: "bpot__stat",
-						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Pot Cap" }), /* @__PURE__ */ (0, h.jsxs)("dd", { children: [te(e.potCap), /* @__PURE__ */ (0, h.jsx)("span", {
+						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Cap" }), /* @__PURE__ */ (0, h.jsxs)("dd", { children: [te(e.potCap), /* @__PURE__ */ (0, h.jsx)("span", {
 							className: "bpot__lim-tag",
 							children: "LmT"
 						})] })]
 					}), /* @__PURE__ */ (0, h.jsxs)("div", {
 						className: "bpot__stat bpot__stat--highlight",
-						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Max Win This Hand" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.maxWinThisHand) })]
-					})] }),
-					/* @__PURE__ */ (0, h.jsxs)("div", {
-						className: "bpot__stat",
-						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Ante" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.anteAmount) })]
-					})
+						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Max win" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: te(e.maxWinThisHand) })]
+					})] })
 				]
 			}),
 			e.limEnabled && e.overflow > 0 && /* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bpot__carry muted small",
+				className: "center-play__carry muted small",
 				children: [
-					"+ ",
+					"+",
 					te(e.overflow),
-					" overflow → next hand"
+					" carry"
 				]
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bpot__meta muted small",
-				children: [
-					t,
-					" in this hand",
-					o != null && o > 0 && /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
-						" · ",
-						o,
-						" left in deck"
-					] })
-				]
+				className: "center-play__meta muted small",
+				children: [t, " in hand"]
 			})
 		]
-	});
+	})] });
 }
 //#endregion
 //#region src/table/Seat.tsx
@@ -8480,6 +8486,7 @@ function le({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 		className: [
 			"bseat",
 			`bseat--${t}`,
+			`player-${t}`,
 			e.inHand ? "bseat--in-hand" : "",
 			e.isSelf ? "bseat--self" : "",
 			e.isLeading ? "bseat--leading" : "",
@@ -8610,63 +8617,61 @@ function ue({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			"--player-count": v,
 			"--table-aspect": b
 		},
-		children: [
-			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "btable",
-				children: [/* @__PURE__ */ (0, h.jsx)("div", {
-					className: "btable__rail",
-					"aria-hidden": "true"
-				}), /* @__PURE__ */ (0, h.jsx)("div", {
-					className: "btable__felt",
-					children: /* @__PURE__ */ (0, h.jsx)(se, {
-						potMetrics: n,
-						participantCount: r,
-						trumpUpcard: e.trumpUpcard,
-						trumpSuit: e.trumpSuit,
-						phase: e.phase,
-						enrollmentActive: i,
-						remainingDeckCount: e.remainingDeckCount,
-						currentTrick: e.currentTrick,
-						playedCards: e.playedCards,
-						playerNames: x
+		children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "table-stage",
+			children: [
+				/* @__PURE__ */ (0, h.jsxs)("div", {
+					className: "table-oval",
+					"aria-hidden": "true",
+					children: [/* @__PURE__ */ (0, h.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, h.jsx)("div", { className: "btable__felt" })]
+				}),
+				/* @__PURE__ */ (0, h.jsx)(se, {
+					potMetrics: n,
+					participantCount: r,
+					trumpUpcard: e.trumpUpcard,
+					trumpSuit: e.trumpSuit,
+					phase: e.phase,
+					enrollmentActive: i,
+					remainingDeckCount: e.remainingDeckCount,
+					currentTrick: e.currentTrick,
+					playedCards: e.playedCards,
+					playerNames: x
+				}),
+				/* @__PURE__ */ (0, h.jsx)("div", {
+					className: "btable__seats",
+					"aria-label": "Players at the table",
+					children: _.map((e, t) => {
+						let n = ie(t, _.length);
+						return /* @__PURE__ */ (0, h.jsx)(le, {
+							player: e,
+							region: n.region,
+							style: {
+								left: `${n.x}%`,
+								top: `${n.y}%`
+							},
+							onToggleInHand: () => l(e.playerId, !e.inHand),
+							onTrickDelta: (t) => u(e.playerId, t)
+						}, e.playerId);
 					})
-				})]
-			}),
-			/* @__PURE__ */ (0, h.jsx)("div", {
-				className: "btable__seats",
-				"aria-label": "Players at the table",
-				children: _.map((e, t) => {
-					let n = ie(t, _.length);
-					return /* @__PURE__ */ (0, h.jsx)(le, {
-						player: e,
-						region: n.region,
-						style: {
-							left: `${n.x}%`,
-							top: `${n.y}%`
-						},
-						onToggleInHand: () => l(e.playerId, !e.inHand),
-						onTrickDelta: (t) => u(e.playerId, t)
-					}, e.playerId);
 				})
-			}),
-			/* @__PURE__ */ (0, h.jsx)(C, {
-				className: "btable-wrap__hero",
-				cards: a,
-				phase: e.phase,
-				enrollmentActive: i,
-				isInHand: !!ee?.inHand,
-				isDealer: !!ee?.isDealer,
-				signedIn: !!o,
-				isMyTurn: !!(o && e.turnPlayerId === o),
-				drawCompleted: S,
-				maxDrawDiscards: e.maxDrawDiscards ?? 4,
-				legalPlayIndices: s ?? void 0,
-				actionFeedback: c,
-				onSubmitDraw: d,
-				onPassDraw: f,
-				onPlayCard: p
-			})
-		]
+			]
+		}), /* @__PURE__ */ (0, h.jsx)(C, {
+			className: "hand-panel",
+			cards: a,
+			phase: e.phase,
+			enrollmentActive: i,
+			isInHand: !!ee?.inHand,
+			isDealer: !!ee?.isDealer,
+			signedIn: !!o,
+			isMyTurn: !!(o && e.turnPlayerId === o),
+			drawCompleted: S,
+			maxDrawDiscards: e.maxDrawDiscards ?? 4,
+			legalPlayIndices: s ?? void 0,
+			actionFeedback: c,
+			onSubmitDraw: d,
+			onPassDraw: f,
+			onPlayCard: p
+		})]
 	});
 }
 //#endregion
