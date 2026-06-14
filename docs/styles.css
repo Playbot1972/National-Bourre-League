@@ -1592,6 +1592,18 @@ body.table-play-active .footer {
   margin: 0;
 }
 
+.session--waiting {
+  grid-template-columns: 1fr;
+}
+
+.session-waiting-players {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+}
+
 .footer {
   padding: 18px;
   text-align: center;

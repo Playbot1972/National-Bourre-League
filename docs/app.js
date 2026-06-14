@@ -631,12 +631,15 @@ function startEnrollmentTimer() {
 let tablePlayOpen = false;
 let pendingHandStake = 1;
 let syncMembersPromise = null;
+/** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
+let tableMountGeneration = 0;
+let tableSyncFrame = 0;
 /** Session ids queued for removal after SESSION_CLEANUP_MS. */
 const pendingSessionCleanup = new Set();
 const sessionCleanupTimers = new Map();
 const SESSION_CLEANUP_MS = 30_000;
 
-function mergeScoresWithMembers(scores, members) {
+function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
   for (const m of members) {
     if (!m.userId || map.has(m.userId)) continue;
@@ -649,7 +652,27 @@ function mergeScoresWithMembers(scores, members) {
       total: 0,
     });
   }
+  for (const p of sessionPlayers) {
+    if (!p?.playerId || map.has(p.playerId)) continue;
+    map.set(p.playerId, {
+      playerId: p.playerId,
+      displayName: p.displayName || "Player",
+      tricksWon: 0,
+      handsWon: 0,
+      net: 0,
+      total: 0,
+    });
+  }
   return [...map.values()];
+}
+
+function tableReadyPlayerCount(sessionObj) {
+  if (!sessionObj) return 0;
+  return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+}
+
+function bumpTableMountGeneration() {
+  tableMountGeneration += 1;
 }
 
 function scheduleSyncSessionMembers() {
@@ -1095,7 +1118,11 @@ function updateTablePlayTitle(openSessionObj) {
 
 async function openTablePlay() {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  if (!openSessionObj || openSessionObj.status === "final" || openScores.length < 2) {
+  if (
+    !openSessionObj ||
+    openSessionObj.status === "final" ||
+    tableReadyPlayerCount(openSessionObj) < 2
+  ) {
     showRoomsError("Need an active session with at least two players.");
     return;
   }
@@ -1322,12 +1349,11 @@ function buildTableLeaderLabel(
 }
 
 function buildTableSessionProps(s) {
-  const mergedScores = mergeScoresWithMembers(openScores, currentMembers);
-  const playerOrder = currentMembers.map((m) => ({ playerId: m.userId }));
-  const displayScores = sortScoresForDisplay(
-    mergedScores,
-    playerOrder.length ? playerOrder : s.players || [],
-  );
+  const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
+  const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
+  const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
+  const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
+  const displayScores = sortScoresForDisplay(mergedScores, playerOrder);
   const handParticipantIds = s.currentHand?.participantIds || [];
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const handStake = s.handStake ?? 1;
@@ -1485,25 +1511,43 @@ function buildTableSessionProps(s) {
   };
 }
 
-async function syncTableSession(openSessionObj) {
+async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
-  const host = tableSessionHost();
+  const mountGen = tableMountGeneration;
 
-  if (!sessionObj || sessionObj.status === "final" || openScores.length < 2) {
+  if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
     unmountTableSessionHost();
-    if (tablePlayOpen && sessionObj && (sessionObj.status === "final" || openScores.length < 2)) {
+    if (
+      tablePlayOpen &&
+      sessionObj &&
+      (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2)
+    ) {
       closeTablePlay();
     }
     return;
   }
 
-  if (!host) return;
+  const host = tableSessionHost();
+  if (!host) {
+    if (attempt < 8) {
+      requestAnimationFrame(() => syncTableSession(openSessionObj, { attempt: attempt + 1 }));
+    }
+    return;
+  }
 
   updateTablePlayTitle(sessionObj);
 
   try {
     const api = await loadTableMount();
-    api.mountTableSession(host, buildTableSessionProps(sessionObj));
+    if (mountGen !== tableMountGeneration) return;
+    const liveHost = tableSessionHost();
+    if (!liveHost) {
+      if (attempt < 8) {
+        requestAnimationFrame(() => syncTableSession(openSessionObj, { attempt: attempt + 1 }));
+      }
+      return;
+    }
+    api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     if (sessionObj.handEnrollment?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
@@ -1513,6 +1557,13 @@ async function syncTableSession(openSessionObj) {
     console.error("table-session mount:", err);
     host.innerHTML = `<p class="muted small">Table UI failed to load. Run <code>npm run build:table</code> and redeploy.</p>`;
   }
+}
+
+function scheduleTableSessionSync(openSessionObj) {
+  cancelAnimationFrame(tableSyncFrame);
+  tableSyncFrame = requestAnimationFrame(() => {
+    syncTableSession(openSessionObj);
+  });
 }
 
 function openSession(sessionId) {
@@ -1530,6 +1581,13 @@ function openSession(sessionId) {
     openHands = hands;
     renderRoomDetail();
   });
+  renderRoomDetail();
+  if (currentMembers.length > 0) {
+    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
+      .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
+      .then(() => ensureHandEnrollment(currentRoomId, sessionId))
+      .catch((e) => console.error("openSession sync:", e));
+  }
 }
 
 function renderRoomDetail() {
@@ -1676,7 +1734,7 @@ function renderRoomDetail() {
           )
           .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
       </div>
-      ${openSessionObj ? renderSessionPanel(openSessionObj) : ""}
+      ${openSessionObj ? '<div id="session-panel-mount"></div>' : ""}
     </section>`;
 
   // Wire detail controls
@@ -1709,7 +1767,10 @@ function renderRoomDetail() {
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
   wireSessionControls();
-  syncTableSession(openSessionObj);
+  if (openSessionObj) {
+    mountSessionPanel(openSessionObj);
+  }
+  scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
     if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
@@ -1742,7 +1803,7 @@ function renderRoomDetail() {
   }
 }
 
-function renderSessionPanel(s) {
+function buildSessionSidebarHtml(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
   const isOwner = session?.uid === currentRoom?.ownerId;
@@ -1794,24 +1855,6 @@ function renderSessionPanel(s) {
 
   const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
-  const resultsBlock =
-    isFinal && Array.isArray(s.results)
-      ? `<div class="session-results">
-           <h5>Ape Score results</h5>
-           <ul>
-             ${[...s.results]
-               .sort((a, b) => a.placement - b.placement)
-               .map(
-                 (r) =>
-                   `<li><span class="place">#${r.placement}</span> ${escapeHtml(r.displayName)}
-                      → Ape Score <strong>${r.apeScore}</strong>
-                      <span class="momentum ${r.momentum >= 0 ? "up" : "down"}">${r.momentum >= 0 ? "▲" : "▼"} ${Math.abs(r.momentum)}</span></li>`,
-               )
-               .join("")}
-           </ul>
-         </div>`
-      : "";
-
   const controls = isFinal
     ? `<span class="badge badge--closed">Session final</span>`
     : `<form class="add-player-form" id="add-player-form">
@@ -1824,9 +1867,106 @@ function renderSessionPanel(s) {
        </form>
        <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
 
+  return `${lmtControl}
+        ${handHistory}
+        <div class="session-controls">${controls}</div>
+        <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
+        <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
+          placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
+        <p class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · informational ledger only</p>`;
+}
+
+function buildSessionResultsHtml(s) {
+  if (!Array.isArray(s.results)) return "";
+  return `<div class="session-results">
+           <h5>Ape Score results</h5>
+           <ul>
+             ${[...s.results]
+               .sort((a, b) => a.placement - b.placement)
+               .map(
+                 (r) =>
+                   `<li><span class="place">#${r.placement}</span> ${escapeHtml(r.displayName)}
+                      → Ape Score <strong>${r.apeScore}</strong>
+                      <span class="momentum ${r.momentum >= 0 ? "up" : "down"}">${r.momentum >= 0 ? "▲" : "▼"} ${Math.abs(r.momentum)}</span></li>`,
+               )
+               .join("")}
+           </ul>
+         </div>`;
+}
+
+/** Stable inline table mount — sidebar re-renders without destroying the React root. */
+function mountSessionPanel(s) {
+  const mount = $("#session-panel-mount", roomDetailView);
+  if (!mount) return;
+
+  const isFinal = s.status === "final";
+  const playerCount = tableReadyPlayerCount(s);
+  const sidebarHtml = buildSessionSidebarHtml(s);
+
+  if (isFinal) {
+    bumpTableMountGeneration();
+    unmountTableSessionHost();
+    mount.innerHTML = `
+      <div class="session session--table">
+        ${buildSessionResultsHtml(s)}
+        <aside class="session-sidebar">${sidebarHtml}</aside>
+      </div>`;
+    return;
+  }
+
+  if (playerCount < 2) {
+    bumpTableMountGeneration();
+    unmountTableSessionHost();
+    mount.innerHTML = `
+      <div class="session session--table session--waiting">
+        <p class="muted small session-waiting-players">
+          Need at least two players for the live table. Add a guest or robot below, or open the room to another member.
+        </p>
+        <aside class="session-sidebar">${sidebarHtml}</aside>
+      </div>`;
+    return;
+  }
+
+  let shell = $("#session-panel-shell", mount);
+  if (!shell) {
+    bumpTableMountGeneration();
+    mount.innerHTML = `
+      <div class="session session--table" id="session-panel-shell">
+        <div class="session-table-wrap" id="session-table-wrap">
+          <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
+          <div class="session-play-cta" id="session-play-cta">
+            <button type="button" class="btn btn--primary btn--block" id="open-table-play">
+              Open table · landscape
+            </button>
+            <p class="muted small session-play-cta__hint">
+              Full-screen landscape view. Hand results and session controls stay in the sidebar.
+            </p>
+          </div>
+        </div>
+        <aside class="session-sidebar" id="session-sidebar-root"></aside>
+      </div>`;
+  }
+
+  const sidebarRoot = $("#session-sidebar-root", mount);
+  if (sidebarRoot) sidebarRoot.innerHTML = sidebarHtml;
+}
+
+function renderSessionPanel(s) {
+  const isFinal = s.status === "final";
+  const playerCount = tableReadyPlayerCount(s);
+  const sidebarHtml = buildSessionSidebarHtml(s);
+
+  if (isFinal) {
+    return `
+    <div class="session session--table">
+      ${buildSessionResultsHtml(s)}
+      <aside class="session-sidebar">${sidebarHtml}</aside>
+    </div>`;
+  }
+
   const tableHost =
-    isFinal || openScores.length < 2
-      ? ""
+    playerCount < 2
+      ? `<p class="muted small session-waiting-players">Need at least two players for the live table.</p>`
       : `<div class="session-table-wrap">
            <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
            <div class="session-play-cta">
@@ -1841,16 +1981,8 @@ function renderSessionPanel(s) {
 
   return `
     <div class="session session--table">
-      ${isFinal ? resultsBlock : tableHost}
-      <aside class="session-sidebar">
-        ${lmtControl}
-        ${handHistory}
-        <div class="session-controls">${controls}</div>
-        <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
-        <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
-          placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
-        <p class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · informational ledger only</p>
-      </aside>
+      ${tableHost}
+      <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
 }
 
