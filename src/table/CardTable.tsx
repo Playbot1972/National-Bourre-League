@@ -30,8 +30,14 @@ export function CardTable({
       ? [...ordered.slice(selfIdx), ...ordered.slice(0, selfIdx)]
       : ordered;
 
+  const playerCount = rotated.length;
+  const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
+
   return (
-    <div className="btable">
+    <div
+      className={`btable ${countClass}`}
+      style={{ ["--player-count" as string]: playerCount }}
+    >
       <div className="btable__rail" />
       <div className="btable__felt">
         <PotCenter potMetrics={potMetrics} participantCount={participantCount} />

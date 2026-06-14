@@ -34,6 +34,10 @@ export function TableSessionView({
         )}
       </header>
 
+      <p className="btable-session__rotate-hint" role="note">
+        Rotate your phone to <strong>landscape</strong> for the full table (up to 8 players).
+      </p>
+
       <CardTable
         players={players}
         potMetrics={potMetrics}

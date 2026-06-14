@@ -59,14 +59,24 @@ export function initials(name: string) {
     .join("") || "?";
 }
 
-/** Evenly spaced seats around an oval (0 = bottom / hero seat). */
+/** Horizontal / vertical radii (% of table) — wider oval for more players. */
+export function seatRadii(total: number) {
+  const n = Math.max(2, Math.min(8, total || 2));
+  if (n >= 8) return { rx: 47, ry: 22 };
+  if (n >= 7) return { rx: 46, ry: 24 };
+  if (n >= 6) return { rx: 44, ry: 26 };
+  if (n >= 5) return { rx: 42, ry: 28 };
+  if (n >= 4) return { rx: 40, ry: 30 };
+  return { rx: 36, ry: 32 };
+}
+
+/** Evenly spaced seats around a horizontal oval (0 = bottom / hero seat). */
 export function seatPosition(index: number, total: number) {
   if (total <= 0) return { x: 50, y: 50 };
+  const { rx, ry } = seatRadii(total);
   const angle = (index / total) * Math.PI * 2 + Math.PI / 2;
-  const rx = 38;
-  const ry = 32;
   return {
     x: 50 + Math.sin(angle) * rx,
-    y: 50 + Math.cos(angle) * ry * 0.92,
+    y: 50 + Math.cos(angle) * ry,
   };
 }
