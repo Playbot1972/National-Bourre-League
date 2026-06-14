@@ -192,9 +192,13 @@
           </label>
 
           <p class="auth-form__hint muted small" id="reset-google-hint" hidden>
-            <strong>Gmail tip:</strong> if you originally used <strong>Continue with Google</strong>,
-            password reset does not apply — use Google sign-in below instead.
+            <strong>Google / Gmail account?</strong> Use <strong>Continue with Google</strong> below —
+            password reset does not apply and no email will be sent.
           </p>
+          <label class="auth-form__confirm" data-field="reset-confirm" hidden>
+            <input type="checkbox" id="reset-confirm-password" />
+            <span>I signed up with email &amp; password (not Google)</span>
+          </label>
 
           <p class="auth-form__success" id="auth-success" role="status" hidden></p>
           <p class="auth-form__error" id="auth-error" role="alert" hidden></p>

@@ -150,12 +150,17 @@ function passwordResetContinueUrl() {
 
 /**
  * Email a password reset link. Only works for email/password accounts.
- * Returns { sent, methods } so the UI can explain Google-only accounts.
+ * Returns { sent, methods, reason } so the UI can explain Google-only accounts.
  */
-export async function sendPasswordReset(email) {
+export async function sendPasswordReset(email, { confirmedPasswordAccount = false } = {}) {
   const methods = await lookupSignInMethods(email);
   if (methods?.includes("google.com") && !methods.includes("password")) {
     return { sent: false, methods, reason: "google-only" };
+  }
+
+  // Firebase may hide providers (enumeration protection) — require explicit opt-in.
+  if (!methods?.includes("password") && !confirmedPasswordAccount) {
+    return { sent: false, methods: methods ?? [], reason: "confirm-needed" };
   }
 
   const continueUrl = passwordResetContinueUrl();
