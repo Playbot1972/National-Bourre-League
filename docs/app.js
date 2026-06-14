@@ -1109,6 +1109,13 @@ function renderRoomDetail() {
       : null;
   const hr = currentRoom.houseRules || {};
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  const isOwner = session?.uid === currentRoom.ownerId;
+  const sessionAnteEditable =
+    isOwner &&
+    openSessionObj &&
+    openSessionObj.status !== "final" &&
+    !openSessionObj.handStakeLocked;
+  const showNewSessionAnte = isOwner && !sessionAnteEditable;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -1157,10 +1164,10 @@ function renderRoomDetail() {
         <h4>Sessions</h4>
         <div class="session-new">
           ${
-            session?.uid === currentRoom.ownerId
+            showNewSessionAnte
               ? `<label class="session-new__stake">
-                   <span class="muted">Hand stake</span>
-                   <select class="num-select" id="new-session-stake" aria-label="Hand stake for new session">
+                   <span class="muted">Ante</span>
+                   <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
                      ${RISK_STAKE_OPTIONS.map(
                        (n) =>
                          `<option value="${n}" ${n === pendingHandStake ? "selected" : ""}>${formatRiskStake(n)}</option>`,
@@ -1246,16 +1253,16 @@ function renderSessionPanel(s) {
 
   const stakeControl = stakeLocked
     ? `<div class="session-stake">
-         <span class="session-stake__label">Hand stake</span>
+         <span class="session-stake__label">Ante</span>
          <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
          <span class="badge badge--closed">Locked</span>
          ${carryOverPot > 0 ? `<span class="badge">Carry-over ${escapeHtml(formatRiskStake(carryOverPot))}</span>` : ""}
-         <p class="muted small">Set by host · applies to every hand this session.</p>
+         <p class="muted small">Locked after the first hand this session.</p>
        </div>`
     : isOwner
       ? `<div class="session-stake">
-           <label class="session-stake__label" for="session-hand-stake">Hand stake (per hand)</label>
-           <select class="num-select" id="session-hand-stake" aria-label="Hand stake for this session">
+           <label class="session-stake__label" for="session-hand-stake">Ante</label>
+           <select class="num-select" id="session-hand-stake" aria-label="Ante for this session">
              ${riskStakeOptionsFor(handStake)
                .map(
                  (n) =>
@@ -1263,10 +1270,10 @@ function renderSessionPanel(s) {
                )
                .join("")}
            </select>
-           <p class="muted small">Host sets the stake for this session. Locks after the first hand.</p>
+           <p class="muted small">Each player antes this amount every hand. Locks after the first hand.</p>
          </div>`
       : `<div class="session-stake">
-           <span class="session-stake__label">Hand stake</span>
+           <span class="session-stake__label">Ante</span>
            <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
            <p class="muted small">Host set · locks after the first hand.</p>
          </div>`;
@@ -1442,10 +1449,11 @@ function wireSessionControls() {
   const handStakeSelect = $("#session-hand-stake", roomDetailView);
   if (handStakeSelect) {
     handStakeSelect.addEventListener("change", () => {
+      pendingHandStake = parseInt(handStakeSelect.value, 10) || 1;
       updateSessionHandStake(
         currentRoomId,
         openSessionId,
-        parseInt(handStakeSelect.value, 10),
+        pendingHandStake,
       ).catch((e) => console.error("updateSessionHandStake:", e));
     });
   }
