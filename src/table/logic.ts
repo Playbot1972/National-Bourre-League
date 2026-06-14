@@ -1,6 +1,20 @@
 export const BOURRE_TRICKS_TO_WIN = 3;
 export const MAX_TRICKS_PER_HAND = 5;
 
+export function totalTricksPlayed(
+  tricksByPlayer: Record<string, number>,
+  participantIds: string[],
+) {
+  return participantIds.reduce((sum, pid) => sum + (tricksByPlayer[pid] || 0), 0);
+}
+
+export function isHandComplete(
+  tricksByPlayer: Record<string, number>,
+  participantIds: string[],
+) {
+  return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
+
 export function deriveWinnersFromTricks(
   tricksByPlayer: Record<string, number>,
   participantIds: string[],

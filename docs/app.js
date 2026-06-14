@@ -45,6 +45,9 @@ import {
   subscribeLeaderboard,
   deriveWinnersFromTricks,
   BOURRE_TRICKS_TO_WIN,
+  MAX_TRICKS_PER_HAND,
+  totalTricksPlayed,
+  isHandComplete,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
@@ -719,27 +722,47 @@ function unmountTableSessionHost() {
   }
 }
 
-function buildTableLeaderLabel(displayScores, participantIds, tricksThisHand, activeWinnerIds, handReady, maxTricks) {
+function buildTableLeaderLabel(
+  displayScores,
+  participantIds,
+  tricksThisHand,
+  activeWinnerIds,
+  handReady,
+  maxTricks,
+  handComplete,
+  totalTricks,
+) {
   if (!participantIds.length) return "Tap I'm in when you're ready to play.";
-  if (handReady && activeWinnerIds.length === 1) {
+  if (handComplete && handReady && activeWinnerIds.length === 1) {
     const name =
       displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
     return `${name} wins (${maxTricks} tricks)`;
+  }
+  if (handComplete && handReady && activeWinnerIds.length >= 2) {
+    const names = activeWinnerIds
+      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
+      .join(" & ");
+    return `Tie — ${names} (${maxTricks} tricks each)`;
+  }
+  if (handReady && activeWinnerIds.length === 1) {
+    const name =
+      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Leader";
+    return `${name} leads (${maxTricks} tricks) — play out to 5 (${totalTricks}/5 played)`;
   }
   if (handReady && activeWinnerIds.length >= 2) {
     const names = activeWinnerIds
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each)`;
+    return `Tie at ${maxTricks} — finish all 5 tricks (${totalTricks}/5 played)`;
   }
   if (maxTricks > 0) {
     const leaders = participantIds.filter((id) => (tricksThisHand[id] || 0) === maxTricks);
     const names = leaders
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Leader: ${names} (${maxTricks} — need ${BOURRE_TRICKS_TO_WIN} to win)`;
+    return `Leader: ${names} (${maxTricks} — need ${BOURRE_TRICKS_TO_WIN} to lead) · ${totalTricks}/5 played`;
   }
-  return `Tap + when you take a trick (first to ${BOURRE_TRICKS_TO_WIN} wins).`;
+  return `Tap + when you take a trick (${totalTricks}/5 played · ${BOURRE_TRICKS_TO_WIN} leads the pot).`;
 }
 
 function buildTableSessionProps(s) {
@@ -760,6 +783,8 @@ function buildTableSessionProps(s) {
     tricksThisHand,
     handParticipantIds,
   );
+  const totalTricks = totalTricksPlayed(tricksThisHand, handParticipantIds);
+  const handComplete = isHandComplete(tricksThisHand, handParticipantIds);
   const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
   const activeWinnerIds =
     handReady && derivedWinnerIds.length > 0
@@ -775,8 +800,9 @@ function buildTableSessionProps(s) {
   const potAmount = antePot + (s.carryOverPot ?? 0);
 
   const showCoWinSettlement =
-    (handReady && derivedWinnerIds.length >= 2) ||
-    (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2);
+    handComplete &&
+    ((handReady && derivedWinnerIds.length >= 2) ||
+      (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2));
   const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
   const splitSharePerWinner = coWinnerCount >= 2 ? potAmount / coWinnerCount : 0;
 
@@ -803,10 +829,15 @@ function buildTableSessionProps(s) {
       tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
       isSelf: sc.playerId === myUid,
       isDealer: sc.playerId === dealerId,
-      isWinner: handReady && activeWinnerIds.includes(sc.playerId),
+      isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
+      isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
       canToggleInHand: sc.playerId === myUid && !isFinal,
       canEditTricks:
-        !isFinal && handParticipantIds.includes(sc.playerId) && sc.playerId === myUid,
+        !isFinal &&
+        handParticipantIds.includes(sc.playerId) &&
+        sc.playerId === myUid &&
+        !handComplete &&
+        totalTricks < MAX_TRICKS_PER_HAND,
     })),
     potAmount,
     netTotal: displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0),
@@ -817,6 +848,8 @@ function buildTableSessionProps(s) {
       activeWinnerIds,
       handReady,
       maxTricks,
+      handComplete,
+      totalTricks,
     ),
     showCoWinSettlement,
     splitSharePerWinner,
@@ -1125,6 +1158,19 @@ function formatHandHistoryLine(h, scores) {
   }
   if (h.settlement === "split") {
     return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
+  }
+  const bourreIds = h.bourreIds?.length
+    ? h.bourreIds
+    : h.tricksByPlayer
+      ? Object.entries(h.tricksByPlayer)
+          .filter(([, t]) => t === 0)
+          .map(([id]) => id)
+      : [];
+  if (bourreIds.length && h.settlement === "win") {
+    const bourreNames = bourreIds.map(
+      (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
+    );
+    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
   }
   return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
 }

@@ -20,6 +20,7 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
         "bseat",
         player.inHand ? "bseat--in-hand" : "",
         player.isSelf ? "bseat--self" : "",
+        player.isLeading ? "bseat--leading" : "",
         player.isWinner ? "bseat--winner" : "",
         player.isDealer ? "bseat--dealer" : "",
       ]

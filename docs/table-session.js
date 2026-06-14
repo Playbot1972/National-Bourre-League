@@ -8109,6 +8109,7 @@ function y({ player: e, style: t, onToggleInHand: n, onTrickDelta: r }) {
 			"bseat",
 			e.inHand ? "bseat--in-hand" : "",
 			e.isSelf ? "bseat--self" : "",
+			e.isLeading ? "bseat--leading" : "",
 			e.isWinner ? "bseat--winner" : "",
 			e.isDealer ? "bseat--dealer" : ""
 		].filter(Boolean).join(" "),

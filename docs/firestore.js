@@ -105,6 +105,17 @@ const db = getFirestore(app);
 export const BOURRE_TRICKS_TO_WIN = 3;
 export const MAX_TRICKS_PER_HAND = 5;
 
+export function totalTricksPlayed(tricksByPlayer, participantIds) {
+  return (participantIds || []).reduce(
+    (sum, pid) => sum + (tricksByPlayer?.[pid] || 0),
+    0,
+  );
+}
+
+export function isHandComplete(tricksByPlayer, participantIds) {
+  return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
+
 /** Who leads this hand from trick counts (ties at 3+ are co-winners). */
 export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   const participants = [...new Set((participantIds || []).filter(Boolean))];
@@ -485,7 +496,7 @@ export async function updateSessionHandStake(roomId, sessionId, handStake) {
 export async function recordHand(
   roomId,
   sessionId,
-  { winnerId, winnerIds, participantIds, settlement, recordedBy },
+  { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) throw new Error("Session not found");
@@ -545,9 +556,19 @@ export async function recordHand(
     carryOverPot = 0;
   } else {
     const winner = winners[0];
+    const bourreIds = participants.filter(
+      (pid) => (tricksByPlayer?.[pid] ?? -1) === 0,
+    );
+    const bourreMatch = bourreIds.length * grossPot;
     participants.forEach((pid) => {
       const playerStake = stakeForPlayer(scoreById, pid, stake);
-      deltas[pid] = pid === winner ? grossPot - playerStake : -playerStake;
+      if (pid === winner) {
+        deltas[pid] = grossPot - playerStake + bourreMatch;
+      } else if (bourreIds.includes(pid)) {
+        deltas[pid] = -playerStake - grossPot;
+      } else {
+        deltas[pid] = -playerStake;
+      }
     });
     carryOverPot = 0;
   }
@@ -559,6 +580,11 @@ export async function recordHand(
     winnerIds: winners,
     settlement: mode,
     participantIds: participants,
+    tricksByPlayer: tricksByPlayer || null,
+    bourreIds:
+      mode === "win" && tricksByPlayer
+        ? participants.filter((pid) => (tricksByPlayer[pid] ?? -1) === 0)
+        : [],
     stake,
     pot: grossPot,
     carryIn,
@@ -631,10 +657,12 @@ export async function voteCoWinSettlement(
   if (winners.length < 2) throw new Error("Co-winners only");
   if (!winners.includes(voterId)) throw new Error("Only co-winners can vote");
 
+  const tricksByPlayer = sessionData.currentHand?.tricksByPlayer || {};
   const recordArgs = {
     winnerIds: winners,
     participantIds: participants,
     recordedBy,
+    tricksByPlayer,
   };
 
   if (choice === "push") {
@@ -677,8 +705,8 @@ export async function voteCoWinSettlement(
 }
 
 /**
- * Track tricks within the current hand (0–5). At 3 tricks (Bourré majority),
- * the hand is won and recorded automatically.
+ * Track tricks within the current hand (0–5 per player, 5 total). Pot leader
+ * is clear at 3 tricks but the hand plays out so bourré (0 tricks) can settle.
  */
 export async function updateHandTrick(roomId, sessionId, playerId, delta, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
@@ -698,14 +726,20 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
 
   const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
   const current = tricksByPlayer[playerId] || 0;
+  const totalBefore = totalTricksPlayed(tricksByPlayer, participantIds);
+
+  if (delta > 0 && totalBefore >= MAX_TRICKS_PER_HAND) {
+    throw new Error("All 5 tricks have been played this hand");
+  }
+
   const next = Math.max(0, Math.min(MAX_TRICKS_PER_HAND, current + delta));
   if (next === current && delta !== 0) return;
 
   tricksByPlayer[playerId] = next;
 
-  const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+  const handComplete = isHandComplete(tricksByPlayer, participantIds);
 
-  if (!ready) {
+  if (!handComplete) {
     const patch = {
       currentHand: { tricksByPlayer, participantIds },
       updatedAt: serverTimestamp(),
@@ -717,8 +751,21 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
     return;
   }
 
+  const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+
   if (participantIds.length < 2) {
     throw new Error("At least two players must be in the hand");
+  }
+
+  if (!ready) {
+    await recordHand(roomId, sessionId, {
+      winnerIds: [],
+      participantIds,
+      settlement: "push",
+      recordedBy,
+      tricksByPlayer,
+    });
+    return;
   }
 
   if (winnerIds.length === 1) {
@@ -727,6 +774,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
       participantIds,
       settlement: "win",
       recordedBy,
+      tricksByPlayer,
     });
     return;
   }
