@@ -1,23 +1,25 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hand } from "../components/Hand";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
-import type { SerializedCard } from "./types";
+import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
   cards: SerializedCard[];
   phase?: string | null;
   enrollmentActive?: boolean;
   isInHand?: boolean;
+  isDealer?: boolean;
   signedIn?: boolean;
   isMyTurn?: boolean;
   drawCompleted?: boolean;
   maxDrawDiscards?: number;
   legalPlayIndices?: number[];
-  onSubmitDraw?: (discardIndices: number[]) => void;
-  onPassDraw?: () => void;
-  onPlayCard?: (cardIndex: number) => void;
+  actionFeedback?: TableActionFeedback | null;
+  onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
+  onPassDraw?: () => void | Promise<void>;
+  onPlayCard?: (cardIndex: number) => void | Promise<void>;
   className?: string;
 }
 
@@ -26,11 +28,13 @@ export function HeroHand({
   phase,
   enrollmentActive = false,
   isInHand = false,
+  isDealer = false,
   signedIn = false,
   isMyTurn = false,
   drawCompleted = false,
   maxDrawDiscards = 4,
   legalPlayIndices,
+  actionFeedback,
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
@@ -38,19 +42,74 @@ export function HeroHand({
 }: HeroHandProps) {
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
   const [selectedPlay, setSelectedPlay] = useState<number | null>(null);
+  const [localBusy, setLocalBusy] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [dealing, setDealing] = useState(false);
+  const prevCardKeyRef = useRef("");
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
+  const cardKey = cards.map((c) => `${c.rank}-${c.suit}`).join(",");
+
+  useEffect(() => {
+    if (!dealtPhase || cardKey.length === 0 || cardKey === prevCardKeyRef.current) return;
+    prevCardKeyRef.current = cardKey;
+    setDealing(true);
+    const timer = window.setTimeout(() => setDealing(false), 520);
+    return () => window.clearTimeout(timer);
+  }, [cardKey, dealtPhase]);
+
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const busy = localBusy || actionFeedback?.status === "loading";
+  const feedbackError =
+    actionFeedback?.status === "error" ? actionFeedback.message : localError;
 
   const toggleDrawIndex = (index: number) => {
+    if (busy) return;
+    setLocalError(null);
     setSelectedDraw((prev) => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else if (next.size < maxDrawDiscards) next.add(index);
+      else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
       return next;
     });
   };
+
+  const runDrawAction = useCallback(
+    async (indices: number[]) => {
+      if (!onSubmitDraw || busy) return;
+      if (indices.length > maxDrawDiscards) {
+        setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
+        return;
+      }
+      setLocalBusy(true);
+      setLocalError(null);
+      try {
+        await onSubmitDraw(indices);
+        setSelectedDraw(new Set());
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : "Draw failed");
+      } finally {
+        setLocalBusy(false);
+      }
+    },
+    [onSubmitDraw, busy, maxDrawDiscards],
+  );
+
+  const runPassDraw = useCallback(async () => {
+    if (!onPassDraw || busy) return;
+    setLocalBusy(true);
+    setLocalError(null);
+    try {
+      await onPassDraw();
+      setSelectedDraw(new Set());
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Could not stand pat");
+    } finally {
+      setLocalBusy(false);
+    }
+  }, [onPassDraw, busy]);
 
   if (!signedIn) {
     return (
@@ -82,7 +141,7 @@ export function HeroHand({
     );
   }
 
-  if (cards.length === 0) {
+  if (cards.length === 0 && !isDealer) {
     return null;
   }
 
@@ -94,6 +153,7 @@ export function HeroHand({
   };
 
   const handleCardClick = (_: Card, i: number) => {
+    if (busy) return;
     if (inDrawPhase && isMyTurn && !drawCompleted) {
       toggleDrawIndex(i);
       return;
@@ -101,41 +161,77 @@ export function HeroHand({
     if (inPlayPhase && isMyTurn && onPlayCard) {
       if (legalPlayIndices && !legalPlayIndices.includes(i)) return;
       setSelectedPlay(i);
-      onPlayCard(i);
+      void Promise.resolve(onPlayCard(i)).catch((err) => {
+        setLocalError(err instanceof Error ? err.message : "Could not play card");
+      });
     }
   };
 
+  const selectedCount = selectedDraw.size;
+
   return (
-    <div className={`btable-hero ${className}`.trim()} aria-label="Your dealt cards">
+    <div
+      className={`btable-hero${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      aria-label="Your dealt cards"
+    >
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
-        {inDrawPhase && !drawCompleted && isMyTurn && " · select cards to discard"}
+        {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
         {inPlayPhase && isMyTurn && " · tap a legal card to play"}
       </p>
-      <Hand
-        cards={typedCards}
-        size="sm"
-        fan
-        stateFor={stateFor}
-        onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
-      />
+      {isDealer && inDrawPhase && (
+        <p className="btable-hero__trump-note muted small">
+          Your trump upcard is on the table — not duplicated here
+        </p>
+      )}
+      {typedCards.length > 0 && (
+        <Hand
+          cards={typedCards}
+          size="sm"
+          fan
+          stateFor={stateFor}
+          onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
+        />
+      )}
+      {feedbackError && (
+        <p className="btable-hero__error" role="alert">
+          {feedbackError}
+        </p>
+      )}
+      {actionFeedback?.status === "success" && actionFeedback.message && (
+        <p className="btable-hero__success muted small" role="status">
+          {actionFeedback.message}
+        </p>
+      )}
       {inDrawPhase && !drawCompleted && isMyTurn && (
         <div className="btable-hero__actions">
           <button
             type="button"
             className="btn btn--sm btn--primary"
-            onClick={() => onSubmitDraw?.([...selectedDraw].sort((a, b) => a - b))}
+            disabled={busy}
+            aria-busy={busy}
+            onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}
           >
-            Draw {selectedDraw.size > 0 ? `(${selectedDraw.size})` : ""}
+            {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
           </button>
-          <button type="button" className="btn btn--sm" onClick={() => onPassDraw?.()}>
+          <button
+            type="button"
+            className="btn btn--sm"
+            disabled={busy}
+            onClick={() => runPassDraw()}
+          >
             Stand pat
           </button>
-          <span className="muted small">Up to {maxDrawDiscards} discards</span>
+          <span className="muted small">
+            {selectedCount}/{maxDrawDiscards} selected
+          </span>
         </div>
       )}
       {inDrawPhase && drawCompleted && (
         <p className="btable-hero__hint muted small">Draw complete — waiting for others</p>
+      )}
+      {inDrawPhase && !drawCompleted && !isMyTurn && (
+        <p className="btable-hero__hint muted small">Waiting for your turn to draw</p>
       )}
       {inPlayPhase && !isMyTurn && (
         <p className="btable-hero__hint muted small">Waiting for your turn to play</p>

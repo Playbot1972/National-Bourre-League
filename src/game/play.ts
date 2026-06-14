@@ -1,4 +1,9 @@
 import { isTrump, rankValue, removeCardAt } from "./cardUtils";
+import {
+  effectivePlayerHand,
+  playedTrumpUpcard,
+  privateHandFromEffective,
+} from "./invariants";
 import { getLegalPlayIndices, validatePlayIndex, type PlayContext } from "./legal";
 import { resolveTrickWinner } from "./trick";
 import { HAND_PHASE } from "./types";
@@ -27,6 +32,47 @@ const TRICKS_PER_HAND = 5;
 function nextInOrder(order: string[], playerId: string): string {
   const idx = order.indexOf(playerId);
   return order[(idx + 1) % order.length];
+}
+
+export interface ApplyPlayerPlayInput {
+  publicHand: PublicHandState;
+  privateHand: Card[];
+  playerId: string;
+  cardIndex: number;
+  actionOrder: string[];
+  cinchEnabled?: boolean;
+}
+
+export interface ApplyPlayerPlayResult extends ApplyPlayResult {
+  privateHand: Card[];
+}
+
+/** Play a card from the effective hand; clears trump upcard when dealer plays it. */
+export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPlayResult {
+  const effective = effectivePlayerHand(input.playerId, input.privateHand, input.publicHand);
+  const result = applyPlayCard({
+    publicHand: input.publicHand,
+    playerHand: effective,
+    playerId: input.playerId,
+    cardIndex: input.cardIndex,
+    actionOrder: input.actionOrder,
+    cinchEnabled: input.cinchEnabled,
+  });
+
+  const playedCard = effective[input.cardIndex];
+  let nextPublic = result.publicHand;
+  if (playedCard && playedTrumpUpcard(playedCard, input.publicHand)) {
+    nextPublic = { ...nextPublic, trumpUpcard: null };
+  }
+
+  const privateHand = privateHandFromEffective(input.playerId, result.playerHand, nextPublic);
+
+  return {
+    ...result,
+    publicHand: nextPublic,
+    privateHand,
+    playerHand: privateHand,
+  };
 }
 
 export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {

@@ -1,4 +1,5 @@
 import type { Card } from "../types";
+import { indexOfCard } from "./cardUtils";
 import { createDeck, shuffleDeck } from "./deck";
 import { activePlayerOrder, CARDS_PER_PLAYER } from "./playerOrder";
 import type { DealResult } from "./types";
@@ -44,6 +45,16 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
   }
 
   const trumpUpcard = assignTrumpUpcard(input.dealerId, dealOrder, privateHands);
+  const trumpHolderId =
+    input.dealerId && dealOrder.includes(input.dealerId)
+      ? input.dealerId
+      : dealOrder[dealOrder.length - 1];
+  const trumpHolderHand = privateHands[trumpHolderId];
+  const trumpIdx = indexOfCard(trumpHolderHand, trumpUpcard);
+  if (trumpIdx >= 0) {
+    trumpHolderHand.splice(trumpIdx, 1);
+  }
+
   const tricksByPlayer = Object.fromEntries(participantIds.map((id) => [id, 0]));
 
   return {
@@ -60,7 +71,7 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
   };
 }
 
-/** Dealer's fifth card is the trump upcard (still part of the dealer's hand). */
+/** Dealer's fifth card becomes the trump upcard (removed from private hand storage). */
 export function assignTrumpUpcard(
   dealerId: string | null | undefined,
   dealOrder: string[],
