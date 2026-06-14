@@ -31,9 +31,11 @@
     "setup:google-oauth": "./scripts/setup-google-oauth.sh",
     "backfill:invites": "./scripts/backfill-invite-lookups.sh",
     "version:sync": "node scripts/sync-version.js",
+    "version:bump": "node scripts/bump-version.js",
     "test:game": "tsx --test src/game/handState.test.ts",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
-    "test": "npm run test:game && npm run test:feedback",
+    "test:version": "node --test scripts/bump-version.test.mjs",
+    "test": "npm run test:game && npm run test:feedback && npm run test:version",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league",
     "verify:prod": "node scripts/verify-production.mjs"
   },
