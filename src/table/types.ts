@@ -11,6 +11,9 @@ export interface TablePlayer {
   isDealer: boolean;
   isLeading?: boolean;
   isWinner: boolean;
+  enrollmentOnClock?: boolean;
+  enrollmentSatOut?: boolean;
+  enrollmentJoined?: boolean;
   canToggleInHand: boolean;
   canEditTricks: boolean;
 }
@@ -27,6 +30,14 @@ export interface TableSessionData {
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;
+  } | null;
+  handEnrollment?: {
+    active?: boolean;
+    orderedPlayerIds?: string[];
+    currentIndex?: number;
+    turnDeadlineMs?: number;
+    enrolledIds?: string[];
+    declinedIds?: string[];
   } | null;
 }
 
@@ -45,6 +56,8 @@ export interface TableSessionViewProps {
   showCoWinSettlement: boolean;
   splitSharePerWinner?: number;
   voteStatus: string;
+  enrollmentActive?: boolean;
+  enrollmentSecondsLeft?: number;
   currentUserId: string | null;
   actions: TableSessionActions;
 }

@@ -22,6 +22,8 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
         player.isSelf ? "bseat--self" : "",
         player.isLeading ? "bseat--leading" : "",
         player.isWinner ? "bseat--winner" : "",
+        player.enrollmentOnClock ? "bseat--enroll-clock" : "",
+        player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isDealer ? "bseat--dealer" : "",
       ]
         .filter(Boolean)
@@ -61,12 +63,24 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
 
       <div className="bseat__info">
         <span className="bseat__name">{player.displayName}</span>
+        {player.enrollmentSatOut && (
+          <span className="bseat__enroll-tag muted small">Sat out</span>
+        )}
+        {player.enrollmentJoined && !player.inHand && (
+          <span className="bseat__enroll-tag muted small">Joined</span>
+        )}
         <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
           {formatNet(player.net)}
         </span>
       </div>
 
-      {player.canToggleInHand && !player.inHand && (
+      {player.enrollmentOnClock && (
+        <span className="bseat__enroll-timer" aria-live="polite">
+          {player.isSelf ? "Tap I'm in" : "…"}
+        </span>
+      )}
+
+      {player.canToggleInHand && (
         <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
           I&apos;m in
         </button>

@@ -8111,6 +8111,8 @@ function y({ player: e, style: t, onToggleInHand: n, onTrickDelta: r }) {
 			e.isSelf ? "bseat--self" : "",
 			e.isLeading ? "bseat--leading" : "",
 			e.isWinner ? "bseat--winner" : "",
+			e.enrollmentOnClock ? "bseat--enroll-clock" : "",
+			e.enrollmentSatOut ? "bseat--sat-out" : "",
 			e.isDealer ? "bseat--dealer" : ""
 		].filter(Boolean).join(" "),
 		style: t,
@@ -8154,15 +8156,31 @@ function y({ player: e, style: t, onToggleInHand: n, onTrickDelta: r }) {
 			}),
 			/* @__PURE__ */ (0, p.jsxs)("div", {
 				className: "bseat__info",
-				children: [/* @__PURE__ */ (0, p.jsx)("span", {
-					className: "bseat__name",
-					children: e.displayName
-				}), /* @__PURE__ */ (0, p.jsx)("span", {
-					className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
-					children: g(e.net)
-				})]
+				children: [
+					/* @__PURE__ */ (0, p.jsx)("span", {
+						className: "bseat__name",
+						children: e.displayName
+					}),
+					e.enrollmentSatOut && /* @__PURE__ */ (0, p.jsx)("span", {
+						className: "bseat__enroll-tag muted small",
+						children: "Sat out"
+					}),
+					e.enrollmentJoined && !e.inHand && /* @__PURE__ */ (0, p.jsx)("span", {
+						className: "bseat__enroll-tag muted small",
+						children: "Joined"
+					}),
+					/* @__PURE__ */ (0, p.jsx)("span", {
+						className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
+						children: g(e.net)
+					})
+				]
 			}),
-			e.canToggleInHand && !e.inHand && /* @__PURE__ */ (0, p.jsx)("button", {
+			e.enrollmentOnClock && /* @__PURE__ */ (0, p.jsx)("span", {
+				className: "bseat__enroll-timer",
+				"aria-live": "polite",
+				children: e.isSelf ? "Tap I'm in" : "…"
+			}),
+			e.canToggleInHand && /* @__PURE__ */ (0, p.jsx)("button", {
 				type: "button",
 				className: "bseat__opt-in btn btn--sm",
 				onClick: n,
@@ -8255,32 +8273,43 @@ function x({ players: e, potAmount: t, carryOverPot: n, handStake: r, participan
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i, showCoWinSettlement: a, splitSharePerWinner: o = 0, voteStatus: s, currentUserId: c, actions: l }) {
-	let u = e.participantIds.length, d = c != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(c);
+function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i, showCoWinSettlement: a, splitSharePerWinner: o = 0, voteStatus: s, enrollmentActive: c = !1, enrollmentSecondsLeft: l = 0, currentUserId: u, actions: d }) {
+	let f = e.participantIds.length, m = u != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(u);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
 		children: [
 			/* @__PURE__ */ (0, p.jsxs)("header", {
 				className: "btable-session__head",
-				children: [/* @__PURE__ */ (0, p.jsxs)("h5", {
-					className: "btable-session__title",
-					children: ["Hand #", e.handNumber]
-				}), /* @__PURE__ */ (0, p.jsx)("p", {
-					className: "btable-session__status",
-					children: i
-				})]
+				children: [
+					/* @__PURE__ */ (0, p.jsxs)("h5", {
+						className: "btable-session__title",
+						children: ["Hand #", e.handNumber]
+					}),
+					/* @__PURE__ */ (0, p.jsx)("p", {
+						className: "btable-session__status",
+						children: i
+					}),
+					c && /* @__PURE__ */ (0, p.jsxs)("p", {
+						className: "btable-session__enroll muted small",
+						children: [
+							"Join window: ",
+							l,
+							"s each · clockwise from dealer"
+						]
+					})
+				]
 			}),
 			/* @__PURE__ */ (0, p.jsx)(x, {
 				players: t,
 				potAmount: n,
 				carryOverPot: e.carryOverPot,
 				handStake: e.handStake,
-				participantCount: u,
+				participantCount: f,
 				onToggleInHand: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && l.onToggleInHand(n);
+					t.find((t) => t.playerId === e)?.isSelf && d.onToggleInHand(n);
 				},
 				onTrickDelta: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && l.onTrickDelta(n);
+					t.find((t) => t.playerId === e)?.isSelf && d.onTrickDelta(n);
 				}
 			}),
 			a && !e.isFinal && /* @__PURE__ */ (0, p.jsxs)("div", {
@@ -8313,14 +8342,14 @@ function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i,
 						children: [/* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm",
-							disabled: !d,
-							onClick: () => l.onSettle("push"),
+							disabled: !m,
+							onClick: () => d.onSettle("push"),
 							children: "Decline split"
 						}), /* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm btn--primary",
-							disabled: !d,
-							onClick: () => l.onSettle("split"),
+							disabled: !m,
+							onClick: () => d.onSettle("split"),
 							children: "Agree to split"
 						})]
 					}),
@@ -8328,7 +8357,7 @@ function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i,
 						className: "muted small",
 						children: s
 					}),
-					!d && c && /* @__PURE__ */ (0, p.jsx)("p", {
+					!m && u && /* @__PURE__ */ (0, p.jsx)("p", {
 						className: "muted small",
 						children: "Waiting for co-winners to vote."
 					})
