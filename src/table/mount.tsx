@@ -3,6 +3,7 @@ import { TableSessionView } from "./TableSessionView";
 import type { TableSessionViewProps } from "./types";
 import "./table.css";
 import "../components/PlayingCard.css";
+import "../components/Hand.css";
 
 let root: Root | null = null;
 let rootEl: HTMLElement | null = null;

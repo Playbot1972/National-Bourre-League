@@ -67,6 +67,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
         player.enrollmentOnClock ? "bseat--enroll-clock" : "",
         player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isDealer ? "bseat--dealer" : "",
+        player.isOnTurn ? "bseat--on-turn" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -106,6 +107,19 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
         {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
       </div>
 
+      {player.showHoleCards && !player.isSelf && (
+        <div
+          className="bseat__hole-cards"
+          aria-label={`${player.holeCardCount ?? 5} cards held`}
+        >
+          {Array.from({ length: player.holeCardCount ?? 5 }, (_, i) => (
+            <div key={i} className="bseat__hole-card" style={{ ["--hole-i" as string]: i }}>
+              <PlayingCard faceDown size="sm" />
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="bseat__aux">
         <div className="bseat__info">
           <span className="bseat__name">{player.displayName}</span>
@@ -115,6 +129,9 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
           )}
           {player.enrollmentJoined && !player.inHand && (
             <span className="bseat__enroll-tag muted small">Joined</span>
+          )}
+          {player.isOnTurn && (
+            <span className="bseat__turn-tag muted small">Turn</span>
           )}
           {player.isSelf && player.net != null && (
             <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>

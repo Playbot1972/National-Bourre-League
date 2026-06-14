@@ -1,22 +1,43 @@
-import { Seat } from "./Seat";
+import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
+import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers } from "./logic";
-import type { PotMetrics, SerializedCard, TablePlayer } from "./types";
+import type {
+  PotMetrics,
+  SerializedCard,
+  TablePlayer,
+  TableSessionData,
+} from "./types";
 
 interface CardTableProps {
+  session: Pick<
+    TableSessionData,
+    | "phase"
+    | "trumpUpcard"
+    | "trumpSuit"
+    | "turnPlayerId"
+    | "remainingDeckCount"
+    | "currentTrick"
+    | "playedCards"
+  >;
   players: TablePlayer[];
   potMetrics: PotMetrics;
   participantCount: number;
-  trumpUpcard?: SerializedCard | null;
+  enrollmentActive?: boolean;
+  heroCards?: SerializedCard[];
+  currentUserId?: string | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
 }
 
 export function CardTable({
+  session,
   players,
   potMetrics,
   participantCount,
-  trumpUpcard,
+  enrollmentActive = false,
+  heroCards = [],
+  currentUserId = null,
   onToggleInHand,
   onTrickDelta,
 }: CardTableProps) {
@@ -35,6 +56,8 @@ export function CardTable({
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = tableAspectForPlayers(playerCount);
+  const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
+  const selfPlayer = players.find((p) => p.isSelf);
 
   return (
     <div
@@ -50,7 +73,14 @@ export function CardTable({
           <PotCenter
             potMetrics={potMetrics}
             participantCount={participantCount}
-            trumpUpcard={trumpUpcard}
+            trumpUpcard={session.trumpUpcard}
+            trumpSuit={session.trumpSuit}
+            phase={session.phase}
+            enrollmentActive={enrollmentActive}
+            remainingDeckCount={session.remainingDeckCount}
+            currentTrick={session.currentTrick}
+            playedCards={session.playedCards}
+            playerNames={playerNames}
           />
         </div>
       </div>
@@ -72,6 +102,14 @@ export function CardTable({
           );
         })}
       </div>
+      <HeroHand
+        className="btable-wrap__hero"
+        cards={heroCards}
+        phase={session.phase}
+        enrollmentActive={enrollmentActive}
+        isInHand={Boolean(selfPlayer?.inHand)}
+        signedIn={Boolean(currentUserId)}
+      />
     </div>
   );
 }

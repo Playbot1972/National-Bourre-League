@@ -1,3 +1,21 @@
+export interface SerializedCard {
+  rank: string;
+  suit: string;
+}
+
+export interface PlayedCardEntry {
+  playerId: string;
+  card: SerializedCard;
+  trickNumber: number;
+}
+
+export interface CurrentTrickState {
+  trickNumber: number;
+  leadPlayerId: string;
+  leadSuit: string | null;
+  plays: Array<{ playerId: string; card: SerializedCard }>;
+}
+
 export interface TablePlayer {
   playerId: string;
   displayName: string;
@@ -22,6 +40,11 @@ export interface TablePlayer {
   isRobot?: boolean;
   canToggleInHand: boolean;
   canEditTricks: boolean;
+  /** Opponent hole cards — face-down count only, never actual cards. */
+  showHoleCards?: boolean;
+  holeCardCount?: number;
+  /** True when this player holds the turn (public state). */
+  isOnTurn?: boolean;
   /** This hand's ante — only for the viewing player. */
   myHandContribution?: number;
 }
@@ -33,11 +56,6 @@ export interface PotMetrics {
   maxWinThisHand: number;
   limEnabled: boolean;
   overflow: number;
-}
-
-export interface SerializedCard {
-  rank: string;
-  suit: string;
 }
 
 export interface TableSessionData {
@@ -54,6 +72,9 @@ export interface TableSessionData {
   trumpUpcard?: SerializedCard | null;
   turnPlayerId?: string | null;
   remainingDeckCount?: number | null;
+  leadSuit?: string | null;
+  currentTrick?: CurrentTrickState | null;
+  playedCards?: PlayedCardEntry[];
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;
