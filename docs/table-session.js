@@ -279,7 +279,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}
 		throw e;
 	}
-	function T(e, r, i, a, o) {
+	function ce(e, r, i, a, o) {
 		var s = typeof e;
 		(s === "undefined" || s === "boolean") && (e = null);
 		var c = !1;
@@ -295,30 +295,30 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				case n:
 					c = !0;
 					break;
-				case d: return c = e._init, T(c(e._payload), r, i, a, o);
+				case d: return c = e._init, ce(c(e._payload), r, i, a, o);
 			}
 		}
-		if (c) return o = o(e), c = a === "" ? "." + oe(e, 0) : a, ee(o) ? (i = "", c != null && (i = c.replace(ae, "$&/") + "/"), T(o, r, i, "", function(e) {
+		if (c) return o = o(e), c = a === "" ? "." + oe(e, 0) : a, ee(o) ? (i = "", c != null && (i = c.replace(ae, "$&/") + "/"), ce(o, r, i, "", function(e) {
 			return e;
 		})) : o != null && (w(o) && (o = re(o, i + (o.key == null || e && e.key === o.key ? "" : ("" + o.key).replace(ae, "$&/") + "/") + c)), r.push(o)), 1;
 		c = 0;
 		var l = a === "" ? "." : a + ":";
-		if (ee(e)) for (var u = 0; u < e.length; u++) a = e[u], s = l + oe(a, u), c += T(a, r, i, s, o);
-		else if (u = m(e), typeof u == "function") for (e = u.call(e), u = 0; !(a = e.next()).done;) a = a.value, s = l + oe(a, u++), c += T(a, r, i, s, o);
+		if (ee(e)) for (var u = 0; u < e.length; u++) a = e[u], s = l + oe(a, u), c += ce(a, r, i, s, o);
+		else if (u = m(e), typeof u == "function") for (e = u.call(e), u = 0; !(a = e.next()).done;) a = a.value, s = l + oe(a, u++), c += ce(a, r, i, s, o);
 		else if (s === "object") {
-			if (typeof e.then == "function") return T(se(e), r, i, a, o);
+			if (typeof e.then == "function") return ce(se(e), r, i, a, o);
 			throw r = String(e), Error("Objects are not valid as a React child (found: " + (r === "[object Object]" ? "object with keys {" + Object.keys(e).join(", ") + "}" : r) + "). If you meant to render a collection of children, use an array instead.");
 		}
 		return c;
 	}
-	function ce(e, t, n) {
+	function le(e, t, n) {
 		if (e == null) return e;
 		var r = [], i = 0;
-		return T(e, r, "", "", function(e) {
+		return ce(e, r, "", "", function(e) {
 			return t.call(n, e, i++);
 		}), r;
 	}
-	function le(e) {
+	function ue(e) {
 		if (e._status === -1) {
 			var t = e._result;
 			t = t(), t.then(function(t) {
@@ -330,7 +330,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		if (e._status === 1) return e._result.default;
 		throw e._result;
 	}
-	var E = typeof reportError == "function" ? reportError : function(e) {
+	var T = typeof reportError == "function" ? reportError : function(e) {
 		if (typeof window == "object" && typeof window.ErrorEvent == "function") {
 			var t = new window.ErrorEvent("error", {
 				bubbles: !0,
@@ -344,21 +344,21 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			return;
 		}
 		console.error(e);
-	}, D = {
-		map: ce,
+	}, E = {
+		map: le,
 		forEach: function(e, t, n) {
-			ce(e, function() {
+			le(e, function() {
 				t.apply(this, arguments);
 			}, n);
 		},
 		count: function(e) {
 			var t = 0;
-			return ce(e, function() {
+			return le(e, function() {
 				t++;
 			}), t;
 		},
 		toArray: function(e) {
-			return ce(e, function(e) {
+			return le(e, function(e) {
 				return e;
 			}) || [];
 		},
@@ -367,7 +367,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			return e;
 		}
 	};
-	e.Activity = f, e.Children = D, e.Component = v, e.Fragment = r, e.Profiler = a, e.PureComponent = b, e.StrictMode = i, e.Suspense = l, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = C, e.__COMPILER_RUNTIME = {
+	e.Activity = f, e.Children = E, e.Component = v, e.Fragment = r, e.Profiler = a, e.PureComponent = b, e.StrictMode = i, e.Suspense = l, e.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = C, e.__COMPILER_RUNTIME = {
 		__proto__: null,
 		c: function(e) {
 			return C.H.useMemoCache(e);
@@ -426,7 +426,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				_status: -1,
 				_result: e
 			},
-			_init: le
+			_init: ue
 		};
 	}, e.memo = function(e, t) {
 		return {
@@ -439,9 +439,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		C.T = n;
 		try {
 			var r = e(), i = C.S;
-			i !== null && i(n, r), typeof r == "object" && r && typeof r.then == "function" && r.then(S, E);
+			i !== null && i(n, r), typeof r == "object" && r && typeof r.then == "function" && r.then(S, T);
 		} catch (e) {
-			E(e);
+			T(e);
 		} finally {
 			t !== null && n.types !== null && (t.types = n.types), C.T = t;
 		}
@@ -723,10 +723,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	function se(e) {
 		return typeof e != "object" || !e ? null : (e = oe && e[oe] || e["@@iterator"], typeof e == "function" ? e : null);
 	}
-	var T = Symbol.for("react.client.reference");
-	function ce(e) {
+	var ce = Symbol.for("react.client.reference");
+	function le(e) {
 		if (e == null) return null;
-		if (typeof e == "function") return e.$$typeof === T ? null : e.displayName || e.name || null;
+		if (typeof e == "function") return e.$$typeof === ce ? null : e.displayName || e.name || null;
 		if (typeof e == "string") return e;
 		switch (e) {
 			case y: return "Fragment";
@@ -743,31 +743,31 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			case C:
 				var t = e.render;
 				return e = e.displayName, e ||= (e = t.displayName || t.name || "", e === "" ? "ForwardRef" : "ForwardRef(" + e + ")"), e;
-			case re: return t = e.displayName || null, t === null ? ce(e.type) || "Memo" : t;
+			case re: return t = e.displayName || null, t === null ? le(e.type) || "Memo" : t;
 			case w:
 				t = e._payload, e = e._init;
 				try {
-					return ce(e(t));
+					return le(e(t));
 				} catch {}
 		}
 		return null;
 	}
-	var le = Array.isArray, E = r.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, D = a.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ue = {
+	var ue = Array.isArray, T = r.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, E = a.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, de = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, de = [], fe = -1;
-	function pe(e) {
+	}, fe = [], pe = -1;
+	function me(e) {
 		return { current: e };
 	}
-	function me(e) {
-		0 > fe || (e.current = de[fe], de[fe] = null, fe--);
+	function D(e) {
+		0 > pe || (e.current = fe[pe], fe[pe] = null, pe--);
 	}
 	function O(e, t) {
-		fe++, de[fe] = e.current, e.current = t;
+		pe++, fe[pe] = e.current, e.current = t;
 	}
-	var he = pe(null), ge = pe(null), _e = pe(null), ve = pe(null);
+	var he = me(null), ge = me(null), _e = me(null), ve = me(null);
 	function ye(e, t) {
 		switch (O(_e, t), O(ge, e), O(he, null), t.nodeType) {
 			case 9:
@@ -785,10 +785,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				default: e = 0;
 			}
 		}
-		me(he), O(he, e);
+		D(he), O(he, e);
 	}
 	function be() {
-		me(he), me(ge), me(_e);
+		D(he), D(ge), D(_e);
 	}
 	function xe(e) {
 		e.memoizedState !== null && O(ve, e);
@@ -796,7 +796,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		t !== n && (O(ge, e), O(he, n));
 	}
 	function Se(e) {
-		ge.current === e && (me(he), me(ge)), ve.current === e && (me(ve), Qf._currentValue = ue);
+		ge.current === e && (D(he), D(ge)), ve.current === e && (D(ve), Qf._currentValue = de);
 	}
 	var Ce, we;
 	function Te(e) {
@@ -1083,15 +1083,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		return e &= -e, 2 < e ? 8 < e ? e & 134217727 ? 32 : 268435456 : 8 : 2;
 	}
 	function pt() {
-		var e = D.p;
+		var e = E.p;
 		return e === 0 ? (e = window.event, e === void 0 ? 32 : mp(e.type)) : e;
 	}
 	function mt(e, t) {
-		var n = D.p;
+		var n = E.p;
 		try {
-			return D.p = e, t();
+			return E.p = e, t();
 		} finally {
-			D.p = n;
+			E.p = n;
 		}
 	}
 	var ht = Math.random().toString(36).slice(2), gt = "__reactFiber$" + ht, _t = "__reactProps$" + ht, vt = "__reactContainer$" + ht, yt = "__reactEvents$" + ht, bt = "__reactListeners$" + ht, xt = "__reactHandles$" + ht, St = "__reactResources$" + ht, Ct = "__reactMarker$" + ht;
@@ -1303,7 +1303,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		if (t == null) {
 			if (r != null) {
 				if (n != null) throw Error(s(92));
-				if (le(r)) {
+				if (ue(r)) {
 					if (1 < r.length) throw Error(s(93));
 					r = r[0];
 				}
@@ -2182,12 +2182,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	function Qi(e) {
 		Ui === null ? Ui = [e] : Ui.push(e);
 	}
-	var $i = pe(null), ea = null, ta = null;
+	var $i = me(null), ea = null, ta = null;
 	function na(e, t, n) {
 		O($i, t._currentValue), t._currentValue = n;
 	}
 	function ra(e) {
-		e._currentValue = $i.current, me($i);
+		e._currentValue = $i.current, D($i);
 	}
 	function ia(e, t, n) {
 		for (; e !== null;) {
@@ -2354,11 +2354,11 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			for (r.status = "rejected", r.reason = e, e = 0; e < n.length; e++) (0, n[e])(void 0);
 		}), r;
 	}
-	var wa = E.S;
-	E.S = function(e, t) {
+	var wa = T.S;
+	T.S = function(e, t) {
 		tu = Fe(), typeof t == "object" && t && typeof t.then == "function" && xa(e, t), wa !== null && wa(e, t);
 	};
-	var Ta = pe(null);
+	var Ta = me(null);
 	function Ea() {
 		var e = Ta.current;
 		return e === null ? G.pooledCache : e;
@@ -2478,7 +2478,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					case v: return t = Ti(t, e.mode, n), t.return = e, t;
 					case w: return t = Fa(t), f(e, t, n);
 				}
-				if (le(t) || se(t)) return t = Si(t, e.mode, n, null), t.return = e, t;
+				if (ue(t) || se(t)) return t = Si(t, e.mode, n, null), t.return = e, t;
 				if (typeof t.then == "function") return f(e, Va(t), n);
 				if (t.$$typeof === S) return f(e, ua(e, t), n);
 				Ua(e, t);
@@ -2494,7 +2494,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					case v: return n.key === i ? u(e, t, n, r) : null;
 					case w: return n = Fa(n), p(e, t, n, r);
 				}
-				if (le(n) || se(n)) return i === null ? d(e, t, n, r, null) : null;
+				if (ue(n) || se(n)) return i === null ? d(e, t, n, r, null) : null;
 				if (typeof n.then == "function") return p(e, t, Va(n), r);
 				if (n.$$typeof === S) return p(e, t, ua(e, n), r);
 				Ua(e, n);
@@ -2509,7 +2509,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					case v: return e = e.get(r.key === null ? n : r.key) || null, u(t, e, r, i);
 					case w: return r = Fa(r), m(e, t, n, r, i);
 				}
-				if (le(r) || se(r)) return e = e.get(n) || null, d(t, e, r, i, null);
+				if (ue(r) || se(r)) return e = e.get(n) || null, d(t, e, r, i, null);
 				if (typeof r.then == "function") return m(e, t, n, Va(r), i);
 				if (r.$$typeof === S) return m(e, t, n, ua(t, r), i);
 				Ua(t, r);
@@ -2599,7 +2599,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 						return o(e);
 					case w: return a = Fa(a), b(e, r, a, c);
 				}
-				if (le(a)) return h(e, r, a, c);
+				if (ue(a)) return h(e, r, a, c);
 				if (se(a)) {
 					if (l = se(a), typeof l != "function") throw Error(s(150));
 					return a = l.call(a), g(e, r, a, c);
@@ -2773,7 +2773,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		var n = e.callbacks;
 		if (n !== null) for (e.callbacks = null, e = 0; e < n.length; e++) ro(n[e], t);
 	}
-	var ao = pe(null), oo = pe(0);
+	var ao = me(null), oo = me(0);
 	function so(e, t) {
 		e = Gl, O(oo, e), O(ao, t), Gl = e | t.baseLanes;
 	}
@@ -2781,9 +2781,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		O(oo, Gl), O(ao, ao.current);
 	}
 	function lo() {
-		Gl = oo.current, me(ao), me(oo);
+		Gl = oo.current, D(ao), D(oo);
 	}
-	var uo = pe(null), fo = null;
+	var uo = me(null), fo = null;
 	function po(e) {
 		var t = e.alternate;
 		O(N, N.current & 1), O(uo, e), fo === null && (t === null || ao.current !== null || t.memoizedState !== null) && (fo = e);
@@ -2798,9 +2798,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		O(N, N.current), O(uo, uo.current);
 	}
 	function _o(e) {
-		me(uo), fo === e && (fo = null), me(N);
+		D(uo), fo === e && (fo = null), D(N);
 	}
-	var N = pe(0);
+	var N = me(0);
 	function vo(e) {
 		for (var t = e; t !== null;) {
 			if (t.tag === 13) {
@@ -2831,10 +2831,10 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		return !0;
 	}
 	function Oo(e, t, n, r, i, a) {
-		return yo = a, P = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, E.H = e === null || e.memoizedState === null ? Ws : Gs, So = !1, a = n(r, i), So = !1, xo && (a = Ao(t, n, r, i)), ko(e), a;
+		return yo = a, P = t, t.memoizedState = null, t.updateQueue = null, t.lanes = 0, T.H = e === null || e.memoizedState === null ? Ws : Gs, So = !1, a = n(r, i), So = !1, xo && (a = Ao(t, n, r, i)), ko(e), a;
 	}
 	function ko(e) {
-		E.H = Us;
+		T.H = Us;
 		var t = F !== null && F.next !== null;
 		if (yo = 0, I = F = P = null, bo = !1, wo = 0, To = null, t) throw Error(s(300));
 		e === null || z || (e = e.dependencies, e !== null && sa(e) && (z = !0));
@@ -2848,12 +2848,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				var a = e.updateQueue;
 				a.lastEffect = null, a.events = null, a.stores = null, a.memoCache != null && (a.memoCache.index = 0);
 			}
-			E.H = Ks, a = t(n, r);
+			T.H = Ks, a = t(n, r);
 		} while (xo);
 		return a;
 	}
 	function jo() {
-		var e = E.H, t = e.useState()[0];
+		var e = T.H, t = e.useState()[0];
 		return t = typeof t.then == "function" ? Lo(t) : t, e = e.useState()[0], (F === null ? null : F.memoizedState) !== e && (P.flags |= 1024), t;
 	}
 	function Mo() {
@@ -2912,7 +2912,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	}
 	function Lo(e) {
 		var t = wo;
-		return wo += 1, To === null && (To = []), e = Pa(To, e, t), t = P, (I === null ? t.memoizedState : I.next) === null && (t = t.alternate, E.H = t === null || t.memoizedState === null ? Ws : Gs), e;
+		return wo += 1, To === null && (To = []), e = Pa(To, e, t), t = P, (I === null ? t.memoizedState : I.next) === null && (t = t.alternate, T.H = t === null || t.memoizedState === null ? Ws : Gs), e;
 	}
 	function Ro(e) {
 		if (typeof e == "object" && e) {
@@ -3098,21 +3098,21 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					a.listeners.push(e);
 				}
 			};
-			E.T === null ? a.isTransition = !1 : n(!0), r(a), n = t.pending, n === null ? (a.next = t.pending = a, $o(t, a)) : (a.next = n.next, t.pending = n.next = a);
+			T.T === null ? a.isTransition = !1 : n(!0), r(a), n = t.pending, n === null ? (a.next = t.pending = a, $o(t, a)) : (a.next = n.next, t.pending = n.next = a);
 		}
 	}
 	function $o(e, t) {
 		var n = t.action, r = t.payload, i = e.state;
 		if (t.isTransition) {
-			var a = E.T, o = {};
-			E.T = o;
+			var a = T.T, o = {};
+			T.T = o;
 			try {
-				var s = n(i, r), c = E.S;
+				var s = n(i, r), c = T.S;
 				c !== null && c(o, s), es(e, t, s);
 			} catch (n) {
 				ns(e, t, n);
 			} finally {
-				a !== null && o.types !== null && (a.types = o.types), E.T = a;
+				a !== null && o.types !== null && (a.types = o.types), T.T = a;
 			}
 		} else try {
 			a = n(i, r), es(e, t, a);
@@ -3326,12 +3326,12 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		return jr(n, t) ? n : ao.current === null ? !(yo & 42) || yo & 1073741824 && !(q & 261930) ? (z = !0, e.memoizedState = n) : (e = mu(), P.lanes |= e, Kl |= e, t) : (e = Ts(e, n, r), jr(e, t) || (z = !0), e);
 	}
 	function Ds(e, t, n, r, i) {
-		var a = D.p;
-		D.p = a !== 0 && 8 > a ? a : 8;
-		var o = E.T, s = {};
-		E.T = s, zs(e, !1, t, n);
+		var a = E.p;
+		E.p = a !== 0 && 8 > a ? a : 8;
+		var o = T.T, s = {};
+		T.T = s, zs(e, !1, t, n);
 		try {
-			var c = i(), l = E.S;
+			var c = i(), l = T.S;
 			l !== null && l(s, c), typeof c == "object" && c && typeof c.then == "function" ? Rs(e, t, Ca(c, r), pu(e)) : Rs(e, t, r, pu(e));
 		} catch (n) {
 			Rs(e, t, {
@@ -3340,14 +3340,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				reason: n
 			}, pu());
 		} finally {
-			D.p = a, o !== null && s.types !== null && (o.types = s.types), E.T = o;
+			E.p = a, o !== null && s.types !== null && (o.types = s.types), T.T = o;
 		}
 	}
 	function Os() {}
 	function ks(e, t, n, r) {
 		if (e.tag !== 5) throw Error(s(476));
 		var i = As(e).queue;
-		Ds(e, i, t, ue, n === null ? Os : function() {
+		Ds(e, i, t, de, n === null ? Os : function() {
 			return js(e), n(r);
 		});
 	}
@@ -3355,15 +3355,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		var t = e.memoizedState;
 		if (t !== null) return t;
 		t = {
-			memoizedState: ue,
-			baseState: ue,
+			memoizedState: de,
+			baseState: de,
 			baseQueue: null,
 			queue: {
 				pending: null,
 				lanes: 0,
 				dispatch: null,
 				lastRenderedReducer: Bo,
-				lastRenderedState: ue
+				lastRenderedState: de
 			},
 			next: null
 		};
@@ -4175,7 +4175,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 								break a;
 							}
 						}
-						throw t = ce(e) || e, Error(s(306, t, ""));
+						throw t = le(e) || e, Error(s(306, t, ""));
 					}
 				}
 				return t;
@@ -4416,7 +4416,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			case 4: return be(), e === null && Sd(t.stateNode.containerInfo), B(t), null;
 			case 10: return ra(t.type), B(t), null;
 			case 19:
-				if (me(N), r = t.memoizedState, r === null) return B(t), null;
+				if (D(N), r = t.memoizedState, r === null) return B(t), null;
 				if (i = (t.flags & 128) != 0, a = r.rendering, a === null) if (i) Vc(r, !1);
 				else {
 					if (Y !== 0 || e !== null && e.flags & 128) for (e = t.child; e !== null;) {
@@ -4436,7 +4436,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				}
 				return r.tail === null ? (B(t), null) : (e = r.tail, r.rendering = e, r.tail = e.sibling, r.renderingStartTime = Fe(), e.sibling = null, n = N.current, O(N, i ? n & 1 | 2 : n & 1), j && Li(t, r.treeForkCount), e);
 			case 22:
-			case 23: return _o(t), lo(), r = t.memoizedState !== null, e === null ? r && (t.flags |= 8192) : e.memoizedState !== null !== r && (t.flags |= 8192), r ? n & 536870912 && !(t.flags & 128) && (B(t), t.subtreeFlags & 6 && (t.flags |= 8192)) : B(t), n = t.updateQueue, n !== null && Bc(t, n.retryQueue), n = null, e !== null && e.memoizedState !== null && e.memoizedState.cachePool !== null && (n = e.memoizedState.cachePool.pool), r = null, t.memoizedState !== null && t.memoizedState.cachePool !== null && (r = t.memoizedState.cachePool.pool), r !== n && (t.flags |= 2048), e !== null && me(Ta), null;
+			case 23: return _o(t), lo(), r = t.memoizedState !== null, e === null ? r && (t.flags |= 8192) : e.memoizedState !== null !== r && (t.flags |= 8192), r ? n & 536870912 && !(t.flags & 128) && (B(t), t.subtreeFlags & 6 && (t.flags |= 8192)) : B(t), n = t.updateQueue, n !== null && Bc(t, n.retryQueue), n = null, e !== null && e.memoizedState !== null && e.memoizedState.cachePool !== null && (n = e.memoizedState.cachePool.pool), r = null, t.memoizedState !== null && t.memoizedState.cachePool !== null && (r = t.memoizedState.cachePool.pool), r !== n && (t.flags |= 2048), e !== null && D(Ta), null;
 			case 24: return n = null, e !== null && (n = e.memoizedState.cache), t.memoizedState.cache !== n && (t.flags |= 2048), ra(M), B(t), null;
 			case 25: return null;
 			case 30: return null;
@@ -4462,11 +4462,11 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					Xi();
 				}
 				return e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
-			case 19: return me(N), null;
+			case 19: return D(N), null;
 			case 4: return be(), null;
 			case 10: return ra(t.type), null;
 			case 22:
-			case 23: return _o(t), lo(), e !== null && me(Ta), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
+			case 23: return _o(t), lo(), e !== null && D(Ta), e = t.flags, e & 65536 ? (t.flags = e & -65537 | 128, t) : null;
 			case 24: return ra(M), null;
 			case 25: return null;
 			default: return null;
@@ -4492,14 +4492,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				_o(t);
 				break;
 			case 19:
-				me(N);
+				D(N);
 				break;
 			case 10:
 				ra(t.type);
 				break;
 			case 22:
 			case 23:
-				_o(t), lo(), e !== null && me(Ta);
+				_o(t), lo(), e !== null && D(Ta);
 				break;
 			case 24: ra(M);
 		}
@@ -5443,7 +5443,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}
 	}, Bl = typeof WeakMap == "function" ? WeakMap : Map, W = 0, G = null, K = null, q = 0, J = 0, Vl = null, Hl = !1, Ul = !1, Wl = !1, Gl = 0, Y = 0, Kl = 0, ql = 0, Jl = 0, Yl = 0, Xl = 0, Zl = null, Ql = null, $l = !1, eu = 0, tu = 0, nu = Infinity, ru = null, iu = null, X = 0, au = null, ou = null, su = 0, cu = 0, lu = null, uu = null, du = 0, fu = null;
 	function pu() {
-		return W & 2 && q !== 0 ? q & -q : E.T === null ? pt() : dd();
+		return W & 2 && q !== 0 ? q & -q : T.T === null ? pt() : dd();
 	}
 	function mu() {
 		if (Yl === 0) if (!(q & 536870912) || j) {
@@ -5593,19 +5593,19 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		return Gl = t, li(), n;
 	}
 	function Cu(e, t) {
-		P = null, E.H = Us, t === ka || t === ja ? (t = La(), J = 3) : t === Aa ? (t = La(), J = 4) : J = t === sc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, Vl = t, K === null && (Y = 1, tc(e, Di(t, e.current)));
+		P = null, T.H = Us, t === ka || t === ja ? (t = La(), J = 3) : t === Aa ? (t = La(), J = 4) : J = t === sc ? 8 : typeof t == "object" && t && typeof t.then == "function" ? 6 : 1, Vl = t, K === null && (Y = 1, tc(e, Di(t, e.current)));
 	}
 	function wu() {
 		var e = uo.current;
 		return e === null ? !0 : (q & 4194048) === q ? fo === null : (q & 62914560) === q || q & 536870912 ? e === fo : !1;
 	}
 	function Tu() {
-		var e = E.H;
-		return E.H = Us, e === null ? Us : e;
+		var e = T.H;
+		return T.H = Us, e === null ? Us : e;
 	}
 	function Eu() {
-		var e = E.A;
-		return E.A = zl, e;
+		var e = T.A;
+		return T.A = zl, e;
 	}
 	function Du() {
 		Y = 4, Hl || (q & 4194048) !== q && uo.current !== null || (Ul = !0), !(Kl & 134217727) && !(ql & 134217727) || G === null || yu(G, q, Yl, !1);
@@ -5644,7 +5644,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				Cu(e, t);
 			}
 		while (1);
-		return t && e.shellSuspendCounter++, ta = ea = null, W = r, E.H = i, E.A = a, K === null && (G = null, q = 0, li()), o;
+		return t && e.shellSuspendCounter++, ta = ea = null, W = r, T.H = i, T.A = a, K === null && (G = null, q = 0, li()), o;
 	}
 	function ku() {
 		for (; K !== null;) Mu(K);
@@ -5717,7 +5717,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				Cu(e, t);
 			}
 		while (1);
-		return ta = ea = null, E.H = r, E.A = i, W = n, K === null ? (G = null, q = 0, li(), Y) : 0;
+		return ta = ea = null, T.H = r, T.A = i, W = n, K === null ? (G = null, q = 0, li(), Y) : 0;
 	}
 	function ju() {
 		for (; K !== null && !Ne();) Mu(K);
@@ -5803,11 +5803,11 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			if (a = t.lanes | t.childLanes, a |= ci, st(e, n, a, o, c, l), e === G && (K = G = null, q = 0), ou = t, au = e, su = n, cu = a, lu = i, uu = r, t.subtreeFlags & 10256 || t.flags & 10256 ? (e.callbackNode = null, e.callbackPriority = 0, Xu(ze, function() {
 				return Uu(), null;
 			})) : (e.callbackNode = null, e.callbackPriority = 0), r = (t.flags & 13878) != 0, t.subtreeFlags & 13878 || r) {
-				r = E.T, E.T = null, i = D.p, D.p = 2, o = W, W |= 4;
+				r = T.T, T.T = null, i = E.p, E.p = 2, o = W, W |= 4;
 				try {
 					sl(e, t, n);
 				} finally {
-					W = o, D.p = i, E.T = r;
+					W = o, E.p = i, T.T = r;
 				}
 			}
 			X = 1, Ru(), zu(), Bu();
@@ -5818,9 +5818,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			X = 0;
 			var e = au, t = ou, n = (t.flags & 13878) != 0;
 			if (t.subtreeFlags & 13878 || n) {
-				n = E.T, E.T = null;
-				var r = D.p;
-				D.p = 2;
+				n = T.T, T.T = null;
+				var r = E.p;
+				E.p = 2;
 				var i = W;
 				W |= 4;
 				try {
@@ -5855,7 +5855,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					}
 					sp = !!Rd, zd = Rd = null;
 				} finally {
-					W = i, D.p = r, E.T = n;
+					W = i, E.p = r, T.T = n;
 				}
 			}
 			e.current = t, X = 2;
@@ -5866,15 +5866,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			X = 0;
 			var e = au, t = ou, n = (t.flags & 8772) != 0;
 			if (t.subtreeFlags & 8772 || n) {
-				n = E.T, E.T = null;
-				var r = D.p;
-				D.p = 2;
+				n = T.T, T.T = null;
+				var r = E.p;
+				E.p = 2;
 				var i = W;
 				W |= 4;
 				try {
 					cl(e, t.alternate, t);
 				} finally {
-					W = i, D.p = r, E.T = n;
+					W = i, E.p = r, T.T = n;
 				}
 			}
 			X = 3;
@@ -5890,14 +5890,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				Ge.onCommitFiberRoot(We, t, void 0, (t.current.flags & 128) == 128);
 			} catch {}
 			if (r !== null) {
-				t = E.T, i = D.p, D.p = 2, E.T = null;
+				t = T.T, i = E.p, E.p = 2, T.T = null;
 				try {
 					for (var a = e.onRecoverableError, o = 0; o < r.length; o++) {
 						var s = r[o];
 						a(s.value, { componentStack: s.stack });
 					}
 				} finally {
-					E.T = t, D.p = i;
+					T.T = t, E.p = i;
 				}
 			}
 			su & 3 && Hu(), rd(e), i = e.pendingLanes, n & 261930 && i & 42 ? e === fu ? du++ : (du = 0, fu = e) : du = 0, id(0, !1);
@@ -5913,9 +5913,9 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		if (X !== 5) return !1;
 		var e = au, t = cu;
 		cu = 0;
-		var n = ft(su), r = E.T, i = D.p;
+		var n = ft(su), r = T.T, i = E.p;
 		try {
-			D.p = 32 > n ? 32 : n, E.T = null, n = lu, lu = null;
+			E.p = 32 > n ? 32 : n, T.T = null, n = lu, lu = null;
 			var a = au, o = su;
 			if (X = 0, ou = au = null, su = 0, W & 6) throw Error(s(331));
 			var c = W;
@@ -5924,7 +5924,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			} catch {}
 			return !0;
 		} finally {
-			D.p = i, E.T = r, Vu(e, t);
+			E.p = i, T.T = r, Vu(e, t);
 		}
 	}
 	function Wu(e, t, n) {
@@ -7163,8 +7163,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	function gf(e) {
 		return typeof e.getRootNode == "function" ? e.getRootNode() : e.nodeType === 9 ? e : e.ownerDocument;
 	}
-	var _f = D.d;
-	D.d = {
+	var _f = E.d;
+	E.d = {
 		f: vf,
 		r: yf,
 		D: Sf,
@@ -7556,8 +7556,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		$$typeof: S,
 		Provider: null,
 		Consumer: null,
-		_currentValue: ue,
-		_currentValue2: ue,
+		_currentValue: de,
+		_currentValue2: de,
 		_threadCount: 0
 	};
 	function $f(e, t, n, r, i, a, o, s, c) {
@@ -7601,23 +7601,23 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	}
 	var sp = !0;
 	function cp(e, t, n, r) {
-		var i = E.T;
-		E.T = null;
-		var a = D.p;
+		var i = T.T;
+		T.T = null;
+		var a = E.p;
 		try {
-			D.p = 2, up(e, t, n, r);
+			E.p = 2, up(e, t, n, r);
 		} finally {
-			D.p = a, E.T = i;
+			E.p = a, T.T = i;
 		}
 	}
 	function lp(e, t, n, r) {
-		var i = E.T;
-		E.T = null;
-		var a = D.p;
+		var i = T.T;
+		T.T = null;
+		var a = E.p;
 		try {
-			D.p = 8, up(e, t, n, r);
+			E.p = 8, up(e, t, n, r);
 		} finally {
-			D.p = a, E.T = i;
+			E.p = a, T.T = i;
 		}
 	}
 	function up(e, t, n, r) {
@@ -7961,7 +7961,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	};
 	var Lp = r.version;
 	if (Lp !== "19.2.7") throw Error(s(527, Lp, "19.2.7"));
-	D.findDOMNode = function(e) {
+	E.findDOMNode = function(e) {
 		var t = e._reactInternals;
 		if (t === void 0) throw typeof e.render == "function" ? Error(s(188)) : (e = Object.keys(e).join(","), Error(s(268, e)));
 		return e = p(t), e = e === null ? null : m(e), e = e === null ? null : e.stateNode, e;
@@ -7970,7 +7970,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		bundleType: 0,
 		version: "19.2.7",
 		rendererPackageName: "react-dom",
-		currentDispatcherRef: E,
+		currentDispatcherRef: T,
 		reconcilerVersion: "19.2.7"
 	};
 	if (typeof __REACT_DEVTOOLS_GLOBAL_HOOK__ < "u") {
@@ -8130,13 +8130,20 @@ function S(e, t) {
 //#endregion
 //#region src/table/HeroHand.tsx
 function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, className: g = "" }) {
-	let [_, x] = (0, l.useState)(/* @__PURE__ */ new Set()), [S, C] = (0, l.useState)(null), [te, ne] = (0, l.useState)(!1), [re, w] = (0, l.useState)(null), ie = ee(t), ae = (0, l.useMemo)(() => e.map(y), [e]), oe = t === "draw", se = t === "play", T = te || d?.status === "loading", ce = d?.status === "error" ? d.message : re, le = (e) => {
-		T || (w(null), x((t) => {
+	let [_, x] = (0, l.useState)(/* @__PURE__ */ new Set()), [S, C] = (0, l.useState)(null), [te, ne] = (0, l.useState)(!1), [re, w] = (0, l.useState)(null), [ie, ae] = (0, l.useState)(!1), oe = (0, l.useRef)(""), se = ee(t), ce = (0, l.useMemo)(() => e.map(y), [e]), le = e.map((e) => `${e.rank}-${e.suit}`).join(",");
+	(0, l.useEffect)(() => {
+		if (!se || le.length === 0 || le === oe.current) return;
+		oe.current = le, ae(!0);
+		let e = window.setTimeout(() => ae(!1), 520);
+		return () => window.clearTimeout(e);
+	}, [le, se]);
+	let ue = t === "draw", T = t === "play", E = te || d?.status === "loading", de = d?.status === "error" ? d.message : re, fe = (e) => {
+		E || (w(null), x((t) => {
 			let n = new Set(t);
 			return n.has(e) ? n.delete(e) : n.size < c ? n.add(e) : w(`You may discard at most ${c} cards`), n;
 		}));
-	}, E = (0, l.useCallback)(async (e) => {
-		if (!(!f || T)) {
+	}, pe = (0, l.useCallback)(async (e) => {
+		if (!(!f || E)) {
 			if (e.length > c) {
 				w(`You may discard at most ${c} cards`);
 				return;
@@ -8152,10 +8159,10 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 		}
 	}, [
 		f,
-		T,
+		E,
 		c
-	]), D = (0, l.useCallback)(async () => {
-		if (!(!p || T)) {
+	]), me = (0, l.useCallback)(async () => {
+		if (!(!p || E)) {
 			ne(!0), w(null);
 			try {
 				await p(), x(/* @__PURE__ */ new Set());
@@ -8165,7 +8172,7 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 				ne(!1);
 			}
 		}
-	}, [p, T]);
+	}, [p, E]);
 	if (!a) return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-hero ${g}`.trim(),
 		"aria-live": "polite",
@@ -8177,8 +8184,8 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 			children: "Sign in to see your dealt cards."
 		})]
 	});
-	if (!r && !n && !ie) return null;
-	if (ie && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
+	if (!r && !n && !se) return null;
+	if (se && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-hero ${g}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
@@ -8189,7 +8196,7 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 			children: "Loading your cards…"
 		})]
 	});
-	if (ie && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
+	if (se && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
 		className: `btable-hero ${g}`.trim(),
 		children: /* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__fallback muted small",
@@ -8197,22 +8204,22 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 		})
 	});
 	if (e.length === 0 && !i) return null;
-	let ue = (e, t) => oe && _.has(t) || se && S === t ? "selected" : se && u && !u.includes(t) ? "muted" : "default", de = (e, t) => {
-		if (!T) {
-			if (oe && o && !s) {
-				le(t);
+	let D = (e, t) => ue && _.has(t) || T && S === t ? "selected" : T && u && !u.includes(t) ? "muted" : "default", O = (e, t) => {
+		if (!E) {
+			if (ue && o && !s) {
+				fe(t);
 				return;
 			}
-			if (se && o && m) {
+			if (T && o && m) {
 				if (u && !u.includes(t)) return;
 				C(t), Promise.resolve(m(t)).catch((e) => {
 					w(e instanceof Error ? e.message : "Could not play card");
 				});
 			}
 		}
-	}, fe = _.size;
+	}, he = _.size;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${g}`.trim(),
+		className: `btable-hero${ie ? " btable-hero--dealing" : ""} ${g}`.trim(),
 		"aria-label": "Your dealt cards",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("p", {
@@ -8220,53 +8227,53 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 				children: [
 					"Your hand · ",
 					b(t, n),
-					oe && !s && o && " · tap cards to discard",
-					se && o && " · tap a legal card to play"
+					ue && !s && o && " · tap cards to discard",
+					T && o && " · tap a legal card to play"
 				]
 			}),
-			i && oe && /* @__PURE__ */ (0, h.jsx)("p", {
+			i && ue && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__trump-note muted small",
 				children: "Your trump upcard is on the table — not duplicated here"
 			}),
-			ae.length > 0 && /* @__PURE__ */ (0, h.jsx)(v, {
-				cards: ae,
+			ce.length > 0 && /* @__PURE__ */ (0, h.jsx)(v, {
+				cards: ce,
 				size: "sm",
 				fan: !0,
-				stateFor: ue,
-				onCardClick: oe || se ? de : void 0
+				stateFor: D,
+				onCardClick: ue || T ? O : void 0
 			}),
-			ce && /* @__PURE__ */ (0, h.jsx)("p", {
+			de && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__error",
 				role: "alert",
-				children: ce
+				children: de
 			}),
 			d?.status === "success" && d.message && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__success muted small",
 				role: "status",
 				children: d.message
 			}),
-			oe && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
+			ue && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-hero__actions",
 				children: [
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm btn--primary",
-						disabled: T,
-						"aria-busy": T,
-						onClick: () => E([..._].sort((e, t) => e - t)),
-						children: T ? "Drawing…" : `Draw${fe > 0 ? ` (${fe})` : ""}`
+						disabled: E,
+						"aria-busy": E,
+						onClick: () => pe([..._].sort((e, t) => e - t)),
+						children: E ? "Drawing…" : `Draw${he > 0 ? ` (${he})` : ""}`
 					}),
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm",
-						disabled: T,
-						onClick: () => D(),
+						disabled: E,
+						onClick: () => me(),
 						children: "Stand pat"
 					}),
 					/* @__PURE__ */ (0, h.jsxs)("span", {
 						className: "muted small",
 						children: [
-							fe,
+							he,
 							"/",
 							c,
 							" selected"
@@ -8274,15 +8281,15 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 					})
 				]
 			}),
-			oe && s && /* @__PURE__ */ (0, h.jsx)("p", {
+			ue && s && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Draw complete — waiting for others"
 			}),
-			oe && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			ue && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to draw"
 			}),
-			se && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			T && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to play"
 			})
@@ -8351,7 +8358,7 @@ function oe({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
 //#endregion
 //#region src/table/PotCenter.tsx
 function se({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, phase: i, enrollmentActive: a = !1, remainingDeckCount: o, currentTrick: s, playedCards: c, playerNames: l = {} }) {
-	let u = b(i, a), d = !!n;
+	let u = b(i, a), d = !!n, f = d ? `${n.rank}-${n.suit}` : "none";
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: "bpot",
 		children: [
@@ -8369,7 +8376,7 @@ function se({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 			/* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "bpot__trick-area",
 				children: [d ? /* @__PURE__ */ (0, h.jsxs)("div", {
-					className: "bpot__trump",
+					className: "bpot__trump bpot__trump--deal",
 					children: [/* @__PURE__ */ (0, h.jsx)(g, {
 						card: {
 							rank: n.rank,
@@ -8381,7 +8388,7 @@ function se({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 						className: "bpot__trump-label muted small",
 						children: "Upcard"
 					})]
-				}) : /* @__PURE__ */ (0, h.jsx)("div", {
+				}, f) : /* @__PURE__ */ (0, h.jsx)("div", {
 					className: "bpot__deck-placeholder muted small",
 					"aria-hidden": "true",
 					children: a ? "Dealing after join" : "Awaiting deal"
@@ -8439,7 +8446,7 @@ function se({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 }
 //#endregion
 //#region src/table/Seat.tsx
-function T({ fraction: e }) {
+function ce({ fraction: e }) {
 	let t = Math.max(0, Math.min(1, e)), n = 53 / 2, r = 2 * Math.PI * n, i = r * (1 - t);
 	return /* @__PURE__ */ (0, h.jsxs)("svg", {
 		className: `bseat__timer-ring${t <= .25 ? " bseat__timer-ring--urgent" : ""}`,
@@ -8467,7 +8474,7 @@ function T({ fraction: e }) {
 		})]
 	});
 }
-function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i }) {
+function le({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i }) {
 	let a = e.tricksThisHand, o = Math.min(a, 3);
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: [
@@ -8502,7 +8509,7 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 			/* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "bseat__avatar-wrap",
 				children: [
-					e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(T, { fraction: e.enrollmentTimeLeft }),
+					e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(ce, { fraction: e.enrollmentTimeLeft }),
 					e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
 						className: "bseat__dealer",
 						children: "D"
@@ -8595,7 +8602,7 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function le({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], currentUserId: o = null, legalPlayIndices: s, actionFeedback: c, onToggleInHand: l, onTrickDelta: u, onSubmitDraw: d, onPassDraw: f, onPlayCard: p }) {
+function ue({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], currentUserId: o = null, legalPlayIndices: s, actionFeedback: c, onToggleInHand: l, onTrickDelta: u, onSubmitDraw: d, onPassDraw: f, onPlayCard: p }) {
 	let m = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), g = m.findIndex((e) => e.isSelf), _ = g > 0 ? [...m.slice(g), ...m.slice(0, g)] : m, v = _.length, y = `btable--p${Math.min(8, Math.max(2, v))}`, b = ae(v), x = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), ee = t.find((e) => e.isSelf), S = !!(o && e.drawCompletedIds?.includes(o));
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-wrap ${y}`,
@@ -8630,7 +8637,7 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 				"aria-label": "Players at the table",
 				children: _.map((e, t) => {
 					let n = ie(t, _.length);
-					return /* @__PURE__ */ (0, h.jsx)(ce, {
+					return /* @__PURE__ */ (0, h.jsx)(le, {
 						player: e,
 						region: n.region,
 						style: {
@@ -8663,8 +8670,295 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 	});
 }
 //#endregion
+//#region src/table/feedback/audio.ts
+var T = null, E = null;
+function de() {
+	if (typeof window > "u") return null;
+	try {
+		let e = window.AudioContext ?? window.webkitAudioContext;
+		return e ? (T || (T = new e(), E = T.createGain(), E.gain.value = .55, E.connect(T.destination)), T) : null;
+	} catch {
+		return null;
+	}
+}
+async function fe() {
+	let e = de();
+	if (e && e.state === "suspended") try {
+		await e.resume();
+	} catch {}
+}
+function pe(e, t, n, r, i, a, o = "sine") {
+	let s = e.createOscillator(), c = e.createGain();
+	s.type = o, s.frequency.setValueAtTime(n, r), c.gain.setValueAtTime(1e-4, r), c.gain.exponentialRampToValueAtTime(a, r + .008), c.gain.exponentialRampToValueAtTime(1e-4, r + i), s.connect(c), c.connect(t), s.start(r), s.stop(r + i + .02);
+}
+function me(e, t, n, r, i) {
+	let a = Math.max(256, Math.floor(e.sampleRate * r)), o = e.createBuffer(1, a, e.sampleRate), s = o.getChannelData(0);
+	for (let e = 0; e < a; e += 1) s[e] = (Math.random() * 2 - 1) * (1 - e / a);
+	let c = e.createBufferSource();
+	c.buffer = o;
+	let l = e.createBiquadFilter();
+	l.type = "bandpass", l.frequency.value = 1400, l.Q.value = .6;
+	let u = e.createGain();
+	u.gain.setValueAtTime(i, n), u.gain.exponentialRampToValueAtTime(1e-4, n + r), c.connect(l), l.connect(u), u.connect(t), c.start(n), c.stop(n + r + .01);
+}
+var D = !1;
+function O() {
+	let e = de();
+	if (!e || !E || D) return;
+	D = !0;
+	let t = e.currentTime;
+	for (let n of [
+		0,
+		.06,
+		.12,
+		.2,
+		.28
+	]) me(e, E, t + n, .05, .08 + Math.random() * .04);
+	window.setTimeout(() => {
+		D = !1;
+	}, 360);
+}
+var he = !1;
+function ge() {
+	let e = de();
+	if (!e || !E || he) return;
+	he = !0;
+	let t = e.currentTime;
+	pe(e, E, 880, t, .12, .09, "sine"), pe(e, E, 1174.66, t + .07, .16, .07, "triangle"), pe(e, E, 1760, t + .14, .1, .04, "sine"), window.setTimeout(() => {
+		he = !1;
+	}, 320);
+}
+var _e = !1;
+function ve() {
+	let e = de();
+	if (!e || !E || _e) return;
+	_e = !0;
+	let t = e.currentTime;
+	pe(e, E, 659.25, t, .14, .08, "sine"), pe(e, E, 830.61, t + .1, .18, .09, "triangle"), pe(e, E, 987.77, t + .22, .22, .1, "sine"), pe(e, E, 1318.51, t + .34, .28, .06, "triangle"), window.setTimeout(() => {
+		_e = !1;
+	}, 580);
+}
+function ye() {
+	return typeof window < "u" && !!(window.AudioContext ?? window.webkitAudioContext);
+}
+//#endregion
+//#region src/table/feedback/haptics.ts
+function be() {
+	return typeof navigator < "u" && typeof navigator.vibrate == "function";
+}
+function xe(e) {
+	let t = typeof window < "u" ? window.BourreHaptics : void 0;
+	if (!t) return !1;
+	try {
+		if (t.notification && e === "strong") return t.notification("success"), !0;
+		if (t.impact) {
+			let n = e === "light" ? "light" : e === "medium" ? "medium" : "heavy";
+			return t.impact(n), !0;
+		}
+	} catch {}
+	return !1;
+}
+var Se = {
+	light: 12,
+	medium: [
+		18,
+		40,
+		28
+	],
+	strong: [
+		30,
+		50,
+		40,
+		50,
+		60
+	]
+};
+function Ce(e) {
+	if (xe(e)) return !0;
+	if (!be()) return !1;
+	try {
+		return navigator.vibrate(Se[e]) ?? !1;
+	} catch {
+		return !1;
+	}
+}
+function we() {
+	return be() || !!(typeof window < "u" && window.BourreHaptics);
+}
+//#endregion
+//#region src/table/feedback/prefs.ts
+var Te = "nbl-feedback", Ee = {
+	soundEnabled: !0,
+	hapticsMode: "on"
+};
+function De(e) {
+	if (!e || typeof e != "object") return { ...Ee };
+	let t = e, n = t.hapticsMode, r = n === "off" || n === "minimal" || n === "on" ? n : t.hapticsEnabled === !1 ? "off" : "on";
+	return {
+		soundEnabled: t.soundEnabled !== !1,
+		hapticsMode: r
+	};
+}
+function Oe() {
+	try {
+		let e = localStorage.getItem(Te);
+		return e ? De(JSON.parse(e)) : { ...Ee };
+	} catch {
+		return { ...Ee };
+	}
+}
+function ke(e) {
+	let t = {
+		...Oe(),
+		...e
+	};
+	try {
+		localStorage.setItem(Te, JSON.stringify(t));
+	} catch {}
+	return Me(t), t;
+}
+var Ae = /* @__PURE__ */ new Set();
+function je(e) {
+	return Ae.add(e), () => Ae.delete(e);
+}
+function Me(e) {
+	for (let t of Ae) t(e);
+}
+function Ne() {
+	return typeof window > "u" || !window.matchMedia ? !1 : window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function Pe(e, t) {
+	return !(e === "off" || e === "minimal" && t === "light" || Ne() && t === "light");
+}
+var Fe = 700, Ie = 450, Le = 1200, Re = 0, ze = 0, Be = 0, Ve = null, He = !1;
+function Ue() {
+	return Oe();
+}
+function We(e) {
+	Pe(Ue().hapticsMode, e) && Ce(e);
+}
+function Ge() {
+	if (He || typeof window > "u") return;
+	He = !0;
+	let e = () => {
+		fe();
+	};
+	window.addEventListener("pointerdown", e, {
+		once: !0,
+		passive: !0
+	}), window.addEventListener("keydown", e, { once: !0 });
+}
+function Ke(e = {}) {
+	let t = Ue();
+	if (Date.now() - Re < Fe) return;
+	Ve &&= (clearTimeout(Ve), null);
+	let n = e.delayMs ?? (Ne() ? 0 : 40);
+	Ve = window.setTimeout(() => {
+		Ve = null, Re = Date.now(), t.soundEnabled && O(), We("light");
+	}, n);
+}
+function qe() {
+	let e = Ue(), t = Date.now();
+	t - ze < Ie || (ze = t, e.soundEnabled && ge(), We("medium"));
+}
+function Je() {
+	let e = Ue(), t = Date.now();
+	t - Be < Le || (Be = t, e.soundEnabled && ve(), We("strong"));
+}
+//#endregion
+//#region src/table/FeedbackSettings.tsx
+function Ye({ compact: e = !1 }) {
+	let [t, n] = (0, l.useState)(() => Oe()), [r, i] = (0, l.useState)(!1);
+	(0, l.useEffect)(() => je(n), []);
+	let a = ye(), o = we();
+	function s(e) {
+		ke({ soundEnabled: e });
+	}
+	function c(e) {
+		ke({ hapticsMode: e });
+	}
+	let u = /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `bfeedback-settings${e ? " bfeedback-settings--compact" : ""}`,
+		children: [
+			/* @__PURE__ */ (0, h.jsxs)("label", {
+				className: "bfeedback-settings__row",
+				children: [/* @__PURE__ */ (0, h.jsx)("span", {
+					className: "bfeedback-settings__label",
+					children: "Sound effects"
+				}), /* @__PURE__ */ (0, h.jsx)("input", {
+					type: "checkbox",
+					checked: t.soundEnabled,
+					disabled: !a,
+					onChange: (e) => s(e.target.checked)
+				})]
+			}),
+			!a && /* @__PURE__ */ (0, h.jsx)("p", {
+				className: "bfeedback-settings__note muted small",
+				children: "Audio not supported in this browser."
+			}),
+			/* @__PURE__ */ (0, h.jsxs)("fieldset", {
+				className: "bfeedback-settings__fieldset",
+				children: [
+					/* @__PURE__ */ (0, h.jsx)("legend", {
+						className: "bfeedback-settings__label",
+						children: "Haptics"
+					}),
+					/* @__PURE__ */ (0, h.jsxs)("label", {
+						className: "bfeedback-settings__radio",
+						children: [/* @__PURE__ */ (0, h.jsx)("input", {
+							type: "radio",
+							name: "haptics-mode",
+							checked: t.hapticsMode === "on",
+							disabled: !o,
+							onChange: () => c("on")
+						}), "On"]
+					}),
+					/* @__PURE__ */ (0, h.jsxs)("label", {
+						className: "bfeedback-settings__radio",
+						children: [/* @__PURE__ */ (0, h.jsx)("input", {
+							type: "radio",
+							name: "haptics-mode",
+							checked: t.hapticsMode === "minimal",
+							disabled: !o,
+							onChange: () => c("minimal")
+						}), "Minimal"]
+					}),
+					/* @__PURE__ */ (0, h.jsxs)("label", {
+						className: "bfeedback-settings__radio",
+						children: [/* @__PURE__ */ (0, h.jsx)("input", {
+							type: "radio",
+							name: "haptics-mode",
+							checked: t.hapticsMode === "off",
+							onChange: () => c("off")
+						}), "Off"]
+					})
+				]
+			}),
+			!o && /* @__PURE__ */ (0, h.jsx)("p", {
+				className: "bfeedback-settings__note muted small",
+				children: "Vibration unavailable on this device."
+			})
+		]
+	});
+	return e ? /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: "bfeedback-settings-wrap",
+		children: [/* @__PURE__ */ (0, h.jsx)("button", {
+			type: "button",
+			className: "bfeedback-settings__toggle btn btn--sm",
+			"aria-expanded": r,
+			"aria-controls": "table-feedback-settings",
+			onClick: () => i((e) => !e),
+			children: r ? "Hide feedback" : "Sound & haptics"
+		}), r && /* @__PURE__ */ (0, h.jsx)("div", {
+			id: "table-feedback-settings",
+			className: "bfeedback-settings__popover",
+			children: u
+		})]
+	}) : u;
+}
+//#endregion
 //#region src/table/TableSessionView.tsx
-function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, heroCards: f = [], legalPlayIndices: p, actionFeedback: m, actions: g }) {
+function Xe({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, heroCards: f = [], legalPlayIndices: p, actionFeedback: m, actions: g }) {
 	let _ = e.participantIds.length, v = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), y = t.find((e) => e.isSelf && e.canToggleInHand), x = b(e.phase, l), C = S(e.turnPlayerId, t), re = ee(e.phase), w = !!(d && e.turnPlayerId === d);
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: "btable-session",
@@ -8737,7 +9031,7 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 					" for the full table (up to 8 players)."
 				]
 			}),
-			/* @__PURE__ */ (0, h.jsx)(le, {
+			/* @__PURE__ */ (0, h.jsx)(ue, {
 				session: e,
 				players: t,
 				potMetrics: n,
@@ -8808,28 +9102,28 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, h.jsx)("footer", {
+			/* @__PURE__ */ (0, h.jsxs)("footer", {
 				className: "btable-session__foot muted small",
-				children: r == null ? /* @__PURE__ */ (0, h.jsx)(h.Fragment, { children: "Shared pot and game state only · sign in to track your ledger" }) : /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
+				children: [/* @__PURE__ */ (0, h.jsx)(Ye, { compact: !0 }), r == null ? /* @__PURE__ */ (0, h.jsx)(h.Fragment, { children: "Shared pot and game state only · sign in to track your ledger" }) : /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
 					"Your contribution this hand",
 					" ",
 					ne(i ?? 0),
 					" · ",
 					"Your session net ",
 					ne(r)
-				] })
+				] })]
 			})
 		]
 	});
 }
 //#endregion
 //#region src/table/mount.tsx
-var D = null, ue = null;
-function de(e, t) {
-	ue !== e && (D?.unmount(), D = (0, u.createRoot)(e), ue = e), D.render(/* @__PURE__ */ (0, h.jsx)(E, { ...t }));
+var Ze = null, Qe = null;
+function $e(e, t) {
+	Ge(), Qe !== e && (Ze?.unmount(), Ze = (0, u.createRoot)(e), Qe = e), Ze.render(/* @__PURE__ */ (0, h.jsx)(Xe, { ...t }));
 }
-function fe() {
-	D?.unmount(), D = null, ue = null;
+function et() {
+	Ze?.unmount(), Ze = null, Qe = null;
 }
 //#endregion
-export { de as mountTableSession, fe as unmountTableSession };
+export { Oe as getFeedbackPrefs, Ge as initGameFeedback, $e as mountTableSession, Je as playBigWinFeedback, Ke as playShuffleFeedback, qe as playTrickWinFeedback, ke as saveFeedbackPrefs, je as subscribeFeedbackPrefs, et as unmountTableSession };

@@ -37,6 +37,7 @@ export function PotCenter({
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const hasTrump = Boolean(trumpUpcard);
+  const trumpKey = hasTrump ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (
     <div className="bpot">
@@ -53,7 +54,7 @@ export function PotCenter({
 
       <div className="bpot__trick-area">
         {hasTrump ? (
-          <div className="bpot__trump">
+          <div key={trumpKey} className="bpot__trump bpot__trump--deal">
             <PlayingCard
               card={{
                 rank: trumpUpcard!.rank as Rank,

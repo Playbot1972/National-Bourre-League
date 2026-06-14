@@ -75,6 +75,7 @@ import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
+import { renderFeedbackSettingsHtml, wireFeedbackSettings } from "./feedback-prefs.js";
 import {
   RISK_STAKE_OPTIONS,
   formatRiskStake,
@@ -627,10 +628,90 @@ let openHands = [];
 let openPrivateHand = null;
 let tableActionFeedback = null;
 let tableFeedbackTimer = null;
+let tableFeedbackSnapshot = null;
+let pendingDrawShuffle = false;
+let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 const ROBOT_TRICK_INTERVAL_MS = 1500;
+
+function cardKeyFromSerialized(card) {
+  if (!card?.rank || !card?.suit) return null;
+  return `${card.rank}-${card.suit}`;
+}
+
+function buildTableFeedbackSnapshot(sessionObj) {
+  const ch = sessionObj?.currentHand;
+  const myUid = session?.uid ?? null;
+  const participantIds = ch?.participantIds ?? [];
+  const tricks = ch?.tricksByPlayer ?? {};
+  const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
+  const handComplete = isHandComplete(tricks, participantIds);
+  return {
+    sessionId: sessionObj?.id ?? null,
+    phase: ch?.phase ?? null,
+    trumpKey: cardKeyFromSerialized(ch?.trumpUpcard),
+    drawCompletedIds: [...(ch?.drawCompletedIds ?? [])],
+    myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
+    handComplete,
+    myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
+    heroCardKeys: (openPrivateHand?.cards ?? [])
+      .map(cardKeyFromSerialized)
+      .filter(Boolean)
+      .sort()
+      .join(","),
+  };
+}
+
+async function ensureTableFeedbackApi() {
+  if (tableFeedbackApi) return tableFeedbackApi;
+  try {
+    tableFeedbackApi = await loadTableMount();
+    tableFeedbackApi.initGameFeedback?.();
+  } catch {
+    tableFeedbackApi = null;
+  }
+  return tableFeedbackApi;
+}
+
+async function processTableFeedbackEvents(sessionObj) {
+  const api = await ensureTableFeedbackApi();
+  if (!api || !sessionObj) return;
+
+  const next = buildTableFeedbackSnapshot(sessionObj);
+  const prev = tableFeedbackSnapshot;
+  const myUid = session?.uid ?? null;
+
+  if (!prev || prev.sessionId !== next.sessionId) {
+    tableFeedbackSnapshot = next;
+    if (next.trumpKey && next.phase === "draw") {
+      api.playShuffleFeedback?.({ delayMs: 80 });
+    }
+    return;
+  }
+
+  if (!prev.trumpKey && next.trumpKey) {
+    api.playShuffleFeedback?.({ delayMs: 80 });
+  }
+
+  if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
+    if (next.heroCardKeys !== prev.heroCardKeys) {
+      pendingDrawShuffle = false;
+      api.playShuffleFeedback?.({ delayMs: 120 });
+    }
+  }
+
+  if (myUid && next.myTricks > prev.myTricks) {
+    api.playTrickWinFeedback?.();
+  }
+
+  if (next.handComplete && !prev.handComplete && next.myIsWinner) {
+    api.playBigWinFeedback?.();
+  }
+
+  tableFeedbackSnapshot = next;
+}
 
 function computeLegalPlayIndices(currentHand, heroCards, playerId) {
   if (!currentHand || currentHand.phase !== "play" || !heroCards?.length || !playerId) {
@@ -1707,6 +1788,9 @@ function buildTableSessionProps(s) {
           actorId: session.uid,
         })
           .then(() => {
+            if (discardIndices.length > 0) {
+              pendingDrawShuffle = true;
+            }
             setTableActionFeedback({
               status: "success",
               message: discardIndices.length
@@ -1808,6 +1892,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
       return;
     }
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
+    void processTableFeedbackEvents(sessionObj);
     if (sessionObj.handEnrollment?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
@@ -1856,6 +1941,8 @@ function openSession(sessionId) {
   openSessionId = sessionId;
   openScores = [];
   openHands = [];
+  tableFeedbackSnapshot = null;
+  pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
     scheduleSyncSessionMembers();
@@ -2054,6 +2141,7 @@ function renderRoomDetail() {
   if (openSessionObj) {
     mountSessionPanel(openSessionObj);
   }
+  wireFeedbackSettings(roomDetailView);
   wireSessionControls();
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
@@ -2158,7 +2246,8 @@ function buildSessionSidebarHtml(s) {
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
         <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
           placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
-        <p class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · informational ledger only</p>`;
+        <p class="muted small">${handCount} hand${handCount === 1 ? "" : "s"} played · informational ledger only</p>
+        ${renderFeedbackSettingsHtml()}`;
 }
 
 function buildSessionResultsHtml(s) {

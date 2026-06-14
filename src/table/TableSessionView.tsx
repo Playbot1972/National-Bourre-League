@@ -1,4 +1,5 @@
 import { CardTable } from "./CardTable";
+import { FeedbackSettings } from "./FeedbackSettings";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { formatNet, formatRiskStake } from "./logic";
 import type { TableSessionViewProps } from "./types";
@@ -150,6 +151,7 @@ export function TableSessionView({
       )}
 
       <footer className="btable-session__foot muted small">
+        <FeedbackSettings compact />
         {mySessionNet != null ? (
           <>
             Your contribution this hand{" "}
