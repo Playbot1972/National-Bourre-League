@@ -72,6 +72,7 @@
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
+import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR } from "./firebase-config.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -209,13 +210,7 @@ export function playerHandStake(scoreById, playerId, sessionStake) {
 }
 
 export { DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings, computeHandPotState } from "./bourre-rules.js";
-
-export const DEFAULT_HOUSE_RULES = {
-  ante: "Equal ante each hand (set in room Bourré settings)",
-  forcedPlay: "Dealer must play when turned trump is an ace",
-  ties: "Tie for most tricks — pot carries; no split",
-  dealing: "5 cards each; dealer's last card face up is trump · draw up to 4",
-};
+export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
 // ---------------------------------------------------------------------------
 // Users
@@ -245,7 +240,7 @@ export async function createRoom({ owner, name, houseRules }) {
     inviteCode,
     ownerId: owner.uid,
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
-    houseRules: houseRules || DEFAULT_HOUSE_RULES,
+    houseRules: normalizeHouseRules(houseRules),
     bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
     status: "open",
     createdAt: serverTimestamp(),
@@ -352,7 +347,12 @@ export async function updateRoomStatus(roomId, status) {
 }
 
 export async function updateRoomHouseRules(roomId, houseRules) {
-  await updateDoc(doc(db, "rooms", roomId), { houseRules });
+  const normalized = normalizeHouseRules(houseRules);
+  await updateDoc(doc(db, "rooms", roomId), {
+    houseRules: normalized,
+    updatedAt: serverTimestamp(),
+  });
+  return normalized;
 }
 
 export async function updateRoomBourreSettings(roomId, bourreSettings) {

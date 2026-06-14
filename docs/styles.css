@@ -987,6 +987,74 @@ button {
   margin: 0;
 }
 
+.house-rules-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.house-rules-form--create {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.house-rules-form__legend {
+  font-family: "Georgia", serif;
+  font-size: 15px;
+  color: var(--gold-300);
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.house-rules__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.house-rules__label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.house-rules__input {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.house-rules__hint {
+  line-height: 1.4;
+}
+
+.modal__dialog--wide {
+  max-width: 520px;
+}
+
+.create-room-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.create-room-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.create-room-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 .session-lmt {
   display: inline-flex;
   align-items: center;

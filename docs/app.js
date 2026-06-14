@@ -48,7 +48,12 @@ import {
   computeHandPotState,
   normalizeBourreSettings,
   updateRoomBourreSettings,
+  updateRoomHouseRules,
   DEFAULT_BOURRE_SETTINGS,
+  DEFAULT_HOUSE_RULES,
+  HOUSE_RULE_FIELDS,
+  normalizeHouseRules,
+  readHouseRulesFromForm,
   deriveWinnersFromTricks,
   tricksToWinHint,
   playerHandStake,
@@ -421,6 +426,52 @@ function normalizeInviteCodeDisplay(code) {
   return c;
 }
 
+function renderHouseRulesEditor(houseRules) {
+  const hr = normalizeHouseRules(houseRules);
+  return `
+    <form class="house-rules-form" id="house-rules-form">
+      <p class="muted small"><a href="#rules">Full rules reference</a> · saved automatically.</p>
+      ${HOUSE_RULE_FIELDS.map(
+        (field) => `
+          <label class="house-rules__field">
+            <span class="house-rules__label">${escapeHtml(field.label)}</span>
+            <textarea
+              class="text-input house-rules__input"
+              id="house-rule-${field.id}"
+              data-house-rule="${field.id}"
+              rows="2"
+              maxlength="400"
+              aria-label="${escapeHtml(field.label)}"
+            >${escapeHtml(hr[field.id])}</textarea>
+            <span class="muted small house-rules__hint">${escapeHtml(field.hint)}</span>
+          </label>`,
+      ).join("")}
+      <button type="button" class="btn btn--sm" id="house-rules-reset">Reset to app defaults</button>
+    </form>`;
+}
+
+function renderHouseRulesReadOnly(houseRules) {
+  const hr = normalizeHouseRules(houseRules);
+  return `
+    <p class="muted small"><a href="#rules">Full rules reference</a></p>
+    <ul class="kv">
+      ${HOUSE_RULE_FIELDS.map(
+        (field) =>
+          `<li><span>${escapeHtml(field.label)}</span><span>${escapeHtml(hr[field.id])}</span></li>`,
+      ).join("")}
+    </ul>`;
+}
+
+function saveHouseRulesFromDetailForm() {
+  if (!currentRoomId || session?.uid !== currentRoom?.ownerId) return Promise.resolve();
+  const form = $("#house-rules-form", roomDetailView);
+  if (!form) return Promise.resolve();
+  return updateRoomHouseRules(currentRoomId, readHouseRulesFromForm(form)).catch((err) => {
+    console.error("updateRoomHouseRules:", err);
+    showRoomsError(err.message || "Could not save house rules");
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Private Rooms — persisted in Firestore
 // ---------------------------------------------------------------------------
@@ -446,6 +497,30 @@ function syncOpenSessionLimEnabled(limEnabled) {
 function bindRoomDetailDelegatedControls() {
   if (roomDetailView.dataset.controlsBound) return;
   roomDetailView.dataset.controlsBound = "1";
+
+  let houseRulesSaveTimer = null;
+
+  roomDetailView.addEventListener("input", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLTextAreaElement) || !el.dataset.houseRule) return;
+    if (session?.uid !== currentRoom?.ownerId) return;
+    clearTimeout(houseRulesSaveTimer);
+    houseRulesSaveTimer = setTimeout(() => {
+      saveHouseRulesFromDetailForm();
+    }, 600);
+  });
+
+  roomDetailView.addEventListener("click", (e) => {
+    if (e.target.id !== "house-rules-reset") return;
+    e.preventDefault();
+    const form = $("#house-rules-form", roomDetailView);
+    if (!form || session?.uid !== currentRoom?.ownerId) return;
+    for (const { id } of HOUSE_RULE_FIELDS) {
+      const field = form.querySelector(`#house-rule-${id}`);
+      if (field) field.value = DEFAULT_HOUSE_RULES[id];
+    }
+    saveHouseRulesFromDetailForm();
+  });
 
   roomDetailView.addEventListener("change", (e) => {
     const el = e.target;
@@ -752,17 +827,55 @@ async function onDeleteRoom(roomId) {
   }
 }
 
-$("#create-room").addEventListener("click", async () => {
-  if (!session) return;
+const createRoomModal = $("#create-room-modal");
+const createRoomForm = $("#create-room-form");
+
+function openCreateRoomModal() {
+  if (!createRoomModal || !createRoomForm) return;
   showRoomsError("");
-  try {
-    const roomId = await createRoom({ owner: session, name: "" });
-    await ensureInviteLookupForRoom(roomId);
-    openRoom(roomId);
-  } catch (err) {
-    console.error(err);
-    showRoomsError("Could not create the room. Please try again.");
+  const nameEl = $("#create-room-name");
+  if (nameEl) nameEl.value = "";
+  for (const { id } of HOUSE_RULE_FIELDS) {
+    const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
+    if (field) field.value = DEFAULT_HOUSE_RULES[id];
   }
+  createRoomModal.hidden = false;
+  document.body.classList.add("modal-open");
+  if (nameEl) nameEl.focus();
+}
+
+function closeCreateRoomModal() {
+  if (!createRoomModal) return;
+  createRoomModal.hidden = true;
+  document.body.classList.remove("modal-open");
+}
+
+$("#create-room").addEventListener("click", () => {
+  if (!session) return;
+  openCreateRoomModal();
+});
+
+if (createRoomForm) {
+  createRoomForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!session) return;
+    showRoomsError("");
+    const name = $("#create-room-name")?.value.trim() || "";
+    const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");
+    try {
+      const roomId = await createRoom({ owner: session, name, houseRules });
+      await ensureInviteLookupForRoom(roomId);
+      closeCreateRoomModal();
+      openRoom(roomId);
+    } catch (err) {
+      console.error(err);
+      showRoomsError("Could not create the room. Please try again.");
+    }
+  });
+}
+
+$$("[data-close-create-room]").forEach((el) => {
+  el.addEventListener("click", closeCreateRoomModal);
 });
 
 $("#join-form").addEventListener("submit", async (e) => {
@@ -1194,13 +1307,22 @@ function renderRoomDetail() {
   }
 
   // Preserve in-progress form state across snapshot re-renders.
-  const activeNotes = document.activeElement;
+  const activeEl = document.activeElement;
   const editingNotes =
-    activeNotes && activeNotes.id === "session-notes"
+    activeEl && activeEl.id === "session-notes"
       ? {
-          value: activeNotes.value,
-          start: activeNotes.selectionStart,
-          end: activeNotes.selectionEnd,
+          value: activeEl.value,
+          start: activeEl.selectionStart,
+          end: activeEl.selectionEnd,
+        }
+      : null;
+  const editingHouseRule =
+    activeEl && activeEl.dataset?.houseRule
+      ? {
+          id: activeEl.id,
+          value: activeEl.value,
+          start: activeEl.selectionStart,
+          end: activeEl.selectionEnd,
         }
       : null;
   const hr = currentRoom.houseRules || {};
@@ -1270,13 +1392,7 @@ function renderRoomDetail() {
 
       <section class="subpanel">
         <h4>House rules</h4>
-        <p class="muted small"><a href="#rules">Full rules reference</a> · defaults below; customize per room when creating.</p>
-        <ul class="kv">
-          <li><span>Ante</span><span>${escapeHtml(hr.ante || "—")}</span></li>
-          <li><span>Forced play</span><span>${escapeHtml(hr.forcedPlay || "—")}</span></li>
-          <li><span>Ties</span><span>${escapeHtml(hr.ties || "—")}</span></li>
-          <li><span>Dealing</span><span>${escapeHtml(hr.dealing || "—")}</span></li>
-        </ul>
+        ${isOwner ? renderHouseRulesEditor(hr) : renderHouseRulesReadOnly(hr)}
       </section>
 
       <section class="subpanel">
@@ -1368,6 +1484,18 @@ function renderRoomDetail() {
       notesEl.focus();
       try {
         notesEl.setSelectionRange(editingNotes.start, editingNotes.end);
+      } catch {
+        /* ignore caret restore errors */
+      }
+    }
+  }
+  if (editingHouseRule) {
+    const ruleEl = document.getElementById(editingHouseRule.id);
+    if (ruleEl) {
+      ruleEl.value = editingHouseRule.value;
+      ruleEl.focus();
+      try {
+        ruleEl.setSelectionRange(editingHouseRule.start, editingHouseRule.end);
       } catch {
         /* ignore caret restore errors */
       }

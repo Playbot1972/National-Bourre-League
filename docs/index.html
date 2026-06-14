@@ -227,6 +227,45 @@
       </div>
     </div>
 
+    <!-- Create room modal -->
+    <div class="modal" id="create-room-modal" hidden>
+      <div class="modal__backdrop" data-close-create-room></div>
+      <div class="modal__dialog modal__dialog--wide" role="dialog" aria-modal="true" aria-labelledby="create-room-title">
+        <button class="modal__close" type="button" data-close-create-room aria-label="Close">&times;</button>
+        <h2 class="modal__title" id="create-room-title">Create a room</h2>
+        <p class="muted small">Set house rules for your table. You can edit these anytime in the room.</p>
+        <form class="create-room-form" id="create-room-form">
+          <label class="create-room-form__field">
+            <span>Room name <span class="muted">(optional)</span></span>
+            <input class="text-input" type="text" id="create-room-name" placeholder="Friday night Bourré" autocomplete="off" />
+          </label>
+          <fieldset class="house-rules-form house-rules-form--create">
+            <legend class="house-rules-form__legend">House rules</legend>
+            <label class="house-rules__field">
+              <span class="house-rules__label">Ante</span>
+              <textarea class="text-input house-rules__input" id="create-house-rule-ante" rows="2" maxlength="400" aria-label="Ante house rule"></textarea>
+            </label>
+            <label class="house-rules__field">
+              <span class="house-rules__label">Forced play</span>
+              <textarea class="text-input house-rules__input" id="create-house-rule-forcedPlay" rows="2" maxlength="400" aria-label="Forced play house rule"></textarea>
+            </label>
+            <label class="house-rules__field">
+              <span class="house-rules__label">Ties</span>
+              <textarea class="text-input house-rules__input" id="create-house-rule-ties" rows="2" maxlength="400" aria-label="Ties house rule"></textarea>
+            </label>
+            <label class="house-rules__field">
+              <span class="house-rules__label">Dealing &amp; draw</span>
+              <textarea class="text-input house-rules__input" id="create-house-rule-dealing" rows="2" maxlength="400" aria-label="Dealing house rule"></textarea>
+            </label>
+          </fieldset>
+          <div class="create-room-form__actions">
+            <button type="button" class="btn" data-close-create-room>Cancel</button>
+            <button type="submit" class="btn btn--primary">Create room</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <footer class="footer">
       <span>National Bourré League · social features · scores &amp; bragging rights only</span>
     </footer>
