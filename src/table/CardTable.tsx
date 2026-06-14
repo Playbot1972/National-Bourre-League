@@ -11,6 +11,7 @@ interface CardTableProps {
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
+  privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
   actionFeedback?: TableActionFeedback | null;
@@ -28,6 +29,7 @@ export function CardTable({
   participantCount,
   enrollmentActive = false,
   heroCards = [],
+  privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
   actionFeedback,
@@ -106,6 +108,7 @@ export function CardTable({
       <HeroHand
         className="btable-wrap__hero"
         cards={heroCards}
+        privateHandReady={privateHandReady}
         phase={session.phase}
         enrollmentActive={enrollmentActive}
         isInHand={Boolean(selfPlayer?.inHand)}

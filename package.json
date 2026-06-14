@@ -30,9 +30,13 @@
     "setup:google-oauth": "./scripts/setup-google-oauth.sh",
     "backfill:invites": "./scripts/backfill-invite-lookups.sh",
     "version:sync": "node scripts/sync-version.js",
-    "test:game": "tsx --test src/game/handState.test.ts",
+    "test:game": "tsx --test src/game/handState.test.ts src/game/deal.test.ts src/game/draw.test.ts src/game/legal.test.ts src/game/trick.test.ts src/game/play.test.ts src/game/bots.test.ts src/game/fullHand.test.ts",
+    "test:table": "tsx --test src/table/logic.test.ts src/table/handUi.test.ts src/table/feedback/feedback.test.ts",
+    "test:rules": "node --test scripts/bourre-rules.test.mjs",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
-    "test": "npm run test:game && npm run test:feedback",
+    "test": "npm run test:game && npm run test:table && npm run test:rules",
+    "test:e2e": "playwright test",
+    "test:qa": "npm run test && npm run check:social && npm run build:game && npm run build:table",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league",
     "verify:prod": "node scripts/verify-production.mjs"
   },
@@ -42,6 +46,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.52.0",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -51,10 +56,10 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "firebase-tools": "^15.20.0",
     "globals": "^17.6.0",
+    "sharp": "^0.34.5",
+    "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "tsx": "^4.21.0",
-    "sharp": "^0.34.5",
     "vite": "^8.0.12"
   }
 }

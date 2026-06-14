@@ -125,6 +125,8 @@ export interface TableSessionViewProps {
   legalPlayIndices?: number[] | null;
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
+  /** True after first privateHand snapshot for this session. */
+  privateHandReady?: boolean;
   actionFeedback?: TableActionFeedback | null;
   actions: TableSessionActions;
 }
