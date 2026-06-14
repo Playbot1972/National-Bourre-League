@@ -289,7 +289,7 @@
 
 .bseat__controls {
   display: flex;
-  gap: 6px;
+  justify-content: center;
 }
 
 .bseat__trick-btn {

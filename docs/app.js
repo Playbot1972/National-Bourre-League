@@ -831,7 +831,8 @@ function buildTableSessionProps(s) {
       isDealer: sc.playerId === dealerId,
       isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
       isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-      canToggleInHand: sc.playerId === myUid && !isFinal,
+      canToggleInHand:
+        sc.playerId === myUid && !isFinal && !handParticipantIds.includes(sc.playerId),
       canEditTricks:
         !isFinal &&
         handParticipantIds.includes(sc.playerId) &&
