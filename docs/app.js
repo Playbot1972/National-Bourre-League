@@ -10,6 +10,7 @@ import {
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
+  sendPasswordReset,
   completeGoogleRedirectSignIn,
   signOutUser,
   describeAuthError,
@@ -80,15 +81,20 @@ function setSession(user) {
 const authModal = $("#auth-modal");
 const authForm = $("#auth-form");
 const nameField = $('[data-field="name"]');
+const passwordField = $('[data-field="password"]');
 const emailInput = $("#auth-email");
 const passwordInput = $("#auth-password");
 const errorEl = $("#auth-error");
+const successEl = $("#auth-success");
 const submitBtn = $("#auth-submit");
 const authTitle = $("#auth-title");
 const tabSignin = $("#tab-signin");
 const tabSignup = $("#tab-signup");
+const forgotPasswordBtn = $("#forgot-password");
+const passwordManagerHint = $("#password-manager-hint");
+const authTabs = $(".modal__tabs", authModal);
 
-let mode = "signin"; // "signin" | "signup"
+let mode = "signin"; // "signin" | "signup" | "reset"
 
 function openAuth(nextMode = "signin") {
   setMode(nextMode);
@@ -103,21 +109,33 @@ function closeAuth() {
   document.body.classList.remove("modal-open");
   authForm.reset();
   clearError();
+  clearSuccess();
+  setMode("signin");
 }
 
 function setMode(nextMode) {
   mode = nextMode;
   const signup = mode === "signup";
-  authTitle.textContent = signup ? "Create account" : "Sign in";
-  submitBtn.textContent = signup ? "Create account" : "Sign in";
+  const reset = mode === "reset";
+  authTitle.textContent = reset ? "Reset password" : signup ? "Create account" : "Sign in";
+  submitBtn.textContent = reset ? "Send reset email" : signup ? "Create account" : "Sign in";
   nameField.hidden = !signup;
+  passwordField.hidden = reset;
+  passwordInput.required = !reset;
+  forgotPasswordBtn.hidden = signup || reset;
+  passwordManagerHint.hidden = signup || reset;
+  if (authTabs) authTabs.hidden = reset;
+  $$("[data-auth-panel='oauth']", authModal).forEach((el) => {
+    el.hidden = reset;
+  });
   passwordInput.setAttribute(
     "autocomplete",
     signup ? "new-password" : "current-password",
   );
-  tabSignin.classList.toggle("is-active", !signup);
+  tabSignin.classList.toggle("is-active", mode === "signin");
   tabSignup.classList.toggle("is-active", signup);
   clearError();
+  clearSuccess();
 }
 
 function showError(message) {
@@ -130,6 +148,16 @@ function clearError() {
   errorEl.hidden = true;
 }
 
+function showSuccess(message) {
+  successEl.textContent = message;
+  successEl.hidden = false;
+}
+
+function clearSuccess() {
+  successEl.textContent = "";
+  successEl.hidden = true;
+}
+
 function setBusy(busy) {
   submitBtn.disabled = busy;
   submitBtn.dataset.busy = busy ? "true" : "false";
@@ -138,12 +166,33 @@ function setBusy(busy) {
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearError();
+  clearSuccess();
   const email = emailInput.value.trim();
   const password = passwordInput.value;
   const name = $("#auth-name").value.trim();
 
-  if (!email || !password) {
-    showError("Please enter your email and password.");
+  if (!email) {
+    showError("Please enter your email.");
+    return;
+  }
+
+  if (mode === "reset") {
+    setBusy(true);
+    try {
+      await sendPasswordReset(email);
+      showSuccess(
+        `If an account exists for ${email}, we sent a reset link. Check your inbox (and spam).`,
+      );
+    } catch (err) {
+      showError(describeAuthError(err));
+    } finally {
+      setBusy(false);
+    }
+    return;
+  }
+
+  if (!password) {
+    showError("Please enter your password.");
     return;
   }
 
@@ -189,6 +238,7 @@ $("#hero-signup").addEventListener("click", () => openAuth("signup"));
 $("#close-auth").addEventListener("click", closeAuth);
 tabSignin.addEventListener("click", () => setMode("signin"));
 tabSignup.addEventListener("click", () => setMode("signup"));
+forgotPasswordBtn.addEventListener("click", () => setMode("reset"));
 $$("[data-close-auth]").forEach((el) => el.addEventListener("click", closeAuth));
 $$("[data-open-auth]").forEach((el) =>
   el.addEventListener("click", () => openAuth(el.dataset.openAuth || "signin")),

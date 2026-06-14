@@ -470,6 +470,30 @@ button {
   padding: 10px 12px;
   font-size: 14px;
 }
+.auth-form__success {
+  margin: 0;
+  background: rgba(45, 106, 79, 0.2);
+  border: 1px solid rgba(82, 183, 136, 0.45);
+  color: #b7e4c7;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.auth-form__link {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gold);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.auth-form__hint {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
 
 .auth-divider {
   display: flex;
