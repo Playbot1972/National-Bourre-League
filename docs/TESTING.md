@@ -157,6 +157,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | **Production still shows old version (e.g. v1.00.60)** | GitHub deploy skipped (missing Actions secrets) or no deploy since merge | Check Actions → **Deploy to Firebase** — if it finishes in ~10s with skipped steps, add Firebase secrets (see `AGENTS.md`) and **Re-run workflow**, or run `npm run deploy` locally after `firebase login`. Confirm: `curl -s https://booray.win/social/version.js` should show `1.00.64`. |
+| **`auth/api-key-not-valid`** on sign-in | Production bundle has placeholder `docs/firebase-config.js` (`REPLACE_WITH_YOUR_API_KEY`) | Run `npm run setup:webapp -- national-bourre-league booray.win`, then `npm run deploy`. Set GitHub Actions secrets (`FIREBASE_API_KEY`, etc.) for CI. Confirm: `curl -s https://booray.win/social/firebase-config.js` must **not** contain `REPLACE_WITH`. |
 | `Missing script: icons:generate` | On `main` before #70 merge | Checkout `cursor/icons-on-main-8d02` or merge [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) |
 | Table UI blank / “failed to load” | Stale `docs/table-session.js` | `npm run build:table` |
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
