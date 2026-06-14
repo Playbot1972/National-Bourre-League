@@ -29,6 +29,7 @@ const {
   signOut,
   indexedDBLocalPersistence,
   browserLocalPersistence,
+  browserPopupRedirectResolver,
 } = await import(`${CDN}/firebase-auth.js`);
 
 /** Match authDomain to the page host on custom domains (fixes iOS Safari sign-out on refresh). */
@@ -55,6 +56,7 @@ let auth;
 try {
   auth = initializeAuth(app, {
     persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    popupRedirectResolver: browserPopupRedirectResolver,
   });
 } catch (err) {
   if (err?.code === "auth/already-initialized") {
@@ -202,6 +204,8 @@ export function describeAuthError(error) {
       return "Too many attempts. Wait a few minutes and try again.";
     case "auth/invalid-continue-uri":
       return "Could not send reset email (site URL not authorized). Contact the host.";
+    case "auth/argument-error":
+      return "Google sign-in could not start. Hard refresh and try again.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
