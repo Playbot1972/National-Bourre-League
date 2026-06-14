@@ -93,7 +93,8 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   const n = Math.max(2, Math.min(8, total || 2));
   if (n <= 0) return { x: 50, y: 50, region: "bottom" };
 
-  const theta = (index / n) * Math.PI * 2 + Math.PI / 2;
+  // Negative angle step: bottom → right → top → left (clockwise on screen).
+  const theta = -((index / n) * Math.PI * 2) + Math.PI / 2;
   const nx = Math.cos(theta);
   const ny = Math.sin(theta);
 

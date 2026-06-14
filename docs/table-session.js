@@ -8100,7 +8100,7 @@ function y(e, t) {
 		y: 50,
 		region: "bottom"
 	};
-	let r = e / n * Math.PI * 2 + Math.PI / 2, i = Math.cos(r), a = Math.sin(r);
+	let r = -(e / n * Math.PI * 2) + Math.PI / 2, i = Math.cos(r), a = Math.sin(r);
 	return {
 		x: 50 + 50 * i + i * 2,
 		y: 50 + 50 * a + a * 2,
