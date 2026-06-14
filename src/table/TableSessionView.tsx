@@ -18,6 +18,7 @@ export function TableSessionView({
   enrollmentSecondsLeft = 0,
   currentUserId,
   heroCards = [],
+  privateHandReady = false,
   legalPlayIndices,
   actionFeedback,
   actions,
@@ -97,6 +98,7 @@ export function TableSessionView({
         participantCount={participantCount}
         enrollmentActive={enrollmentActive}
         heroCards={heroCards}
+        privateHandReady={privateHandReady}
         currentUserId={currentUserId}
         legalPlayIndices={legalPlayIndices}
         actionFeedback={actionFeedback}

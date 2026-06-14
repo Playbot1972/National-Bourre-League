@@ -626,6 +626,7 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
+let privateHandSnapSeen = false;
 let tableActionFeedback = null;
 let tableFeedbackTimer = null;
 let tableFeedbackSnapshot = null;
@@ -1582,13 +1583,13 @@ function buildTableSessionProps(s) {
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
   const heroCardList = openPrivateHand?.cards ?? [];
+  const myUid = session?.uid ?? null;
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
       ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
-  const myUid = session?.uid ?? null;
   const dealerId = s.dealerId ?? null;
   const enrollment = s.handEnrollment;
   const enrollmentActive = enrollment?.active === true;
@@ -1673,6 +1674,7 @@ function buildTableSessionProps(s) {
       cinchEnabled: s.currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
+    privateHandReady: privateHandSnapSeen,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
@@ -1917,6 +1919,7 @@ function stopPrivateHandSubscription() {
     privateHandUnsub = null;
   }
   openPrivateHand = null;
+  privateHandSnapSeen = false;
 }
 
 function startPrivateHandSubscription() {
@@ -1927,7 +1930,18 @@ function startPrivateHandSubscription() {
     openSessionId,
     session.uid,
     (data) => {
+      privateHandSnapSeen = true;
       openPrivateHand = data;
+      const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+      if (sessionObj) scheduleTableSessionSync(sessionObj);
+    },
+    (err) => {
+      privateHandSnapSeen = true;
+      console.error("privateHand subscription:", err);
+      setTableActionFeedback({
+        status: "error",
+        message: err?.message || "Could not load your private hand",
+      });
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
     },
