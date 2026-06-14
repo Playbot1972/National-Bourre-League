@@ -58,6 +58,7 @@ import {
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
+import { renderRulesView } from "./rules-view.js";
 import {
   RISK_STAKE_OPTIONS,
   formatRiskStake,
@@ -390,6 +391,9 @@ function showView() {
   $$(".nav__link").forEach((link) => {
     link.classList.toggle("is-active", link.getAttribute("href") === `#${view}`);
   });
+  if (view === "rules") {
+    renderRulesView($("#rules-root"));
+  }
 }
 
 window.addEventListener("hashchange", showView);
@@ -1266,6 +1270,7 @@ function renderRoomDetail() {
 
       <section class="subpanel">
         <h4>House rules</h4>
+        <p class="muted small"><a href="#rules">Full rules reference</a> · defaults below; customize per room when creating.</p>
         <ul class="kv">
           <li><span>Ante</span><span>${escapeHtml(hr.ante || "—")}</span></li>
           <li><span>Forced play</span><span>${escapeHtml(hr.forcedPlay || "—")}</span></li>

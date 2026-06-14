@@ -61,12 +61,17 @@ export function RulesScreen() {
       {tab === "house" && (
         <div className="rules__house">
           <p className="rules__house-note">
-            These are placeholders — wire them up to your league settings later.
-            Each table can override the standard rules below.
+            App defaults for new rooms. Room owners can override ante and LmT in Bourré settings.
           </p>
           <div className="rules__grid">
             {HOUSE_RULE_PLACEHOLDERS.map((ph) => (
-              <HouseRuleCard key={ph.id} title={ph.title} prompt={ph.prompt} examples={ph.examples} />
+              <HouseRuleCard
+                key={ph.id}
+                title={ph.title}
+                prompt={ph.prompt}
+                defaultText={ph.defaultText}
+                examples={ph.examples}
+              />
             ))}
           </div>
         </div>
@@ -78,10 +83,11 @@ export function RulesScreen() {
 interface HouseRuleCardProps {
   title: string;
   prompt: string;
+  defaultText: string;
   examples: string[];
 }
 
-function HouseRuleCard({ title, prompt, examples }: HouseRuleCardProps) {
+function HouseRuleCard({ title, prompt, defaultText, examples }: HouseRuleCardProps) {
   return (
     <section className="panel rules__card rules__card--house">
       <div className="rules__card-head">
@@ -89,9 +95,9 @@ function HouseRuleCard({ title, prompt, examples }: HouseRuleCardProps) {
         <h2>{title}</h2>
       </div>
       <p className="rules__summary">{prompt}</p>
-      <div className="rules__placeholder" aria-label={`${title} placeholder`}>
-        <span className="rules__placeholder-label">Not set yet</span>
-        <span className="rules__placeholder-hint">Add your table's rule here</span>
+      <div className="rules__placeholder" aria-label={`${title} default`}>
+        <span className="rules__placeholder-label">App default</span>
+        <span className="rules__placeholder-hint">{defaultText}</span>
       </div>
       <ul className="rules__examples">
         {examples.map((ex) => (
