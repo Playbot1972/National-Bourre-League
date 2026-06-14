@@ -22,6 +22,7 @@ const {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
   updateProfile,
   signOut,
@@ -123,6 +124,19 @@ export async function completeGoogleRedirectSignIn() {
   return result?.user ? normalizeUser(result.user) : null;
 }
 
+/** Email a link to set a new password (email/password accounts only). */
+export async function sendPasswordReset(email) {
+  const continueUrl =
+    typeof location !== "undefined"
+      ? `${location.origin}${location.pathname}`
+      : undefined;
+  await sendPasswordResetEmail(
+    auth,
+    email,
+    continueUrl ? { url: continueUrl, handleCodeInApp: false } : undefined,
+  );
+}
+
 export function signOutUser() {
   return signOut(auth);
 }
@@ -156,6 +170,8 @@ export function describeAuthError(error) {
       return "Google sign-in isn't enabled for this app.";
     case "auth/account-exists-with-different-credential":
       return "An account already exists with this email using email/password. Sign in that way instead.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Wait a few minutes and try again.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }

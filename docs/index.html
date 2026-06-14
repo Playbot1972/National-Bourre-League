@@ -181,22 +181,28 @@
             <span>Email</span>
             <input type="email" id="auth-email" autocomplete="email" required placeholder="you@example.com" />
           </label>
-          <label class="auth-form__field">
+          <label class="auth-form__field" data-field="password">
             <span>Password</span>
             <input type="password" id="auth-password" autocomplete="current-password" required placeholder="••••••••" />
+            <button type="button" class="auth-form__link" id="forgot-password" hidden>Forgot password?</button>
+            <p class="auth-form__hint muted small" id="password-manager-hint" hidden>
+              Chrome may have saved an auto-generated password for this site.
+              Open <strong>Passwords</strong> in Chrome settings and search for <strong>booray.win</strong>.
+            </p>
           </label>
 
+          <p class="auth-form__success" id="auth-success" role="status" hidden></p>
           <p class="auth-form__error" id="auth-error" role="alert" hidden></p>
 
           <button type="submit" class="btn btn--primary btn--block" id="auth-submit">Sign in</button>
         </form>
 
-        <div class="auth-divider"><span>or</span></div>
+        <div class="auth-divider" data-auth-panel="oauth"><span>or</span></div>
 
-        <button class="btn btn--google btn--block" id="google-signin">
+        <button class="btn btn--google btn--block" id="google-signin" data-auth-panel="oauth">
           <span class="g-mark">G</span> Continue with Google
         </button>
-        <p class="auth-hint muted small" id="google-redirect-hint" hidden>
+        <p class="auth-hint muted small" id="google-redirect-hint" data-auth-panel="oauth" hidden>
           You'll go to Google to pick your account, then return here signed in.
         </p>
 
