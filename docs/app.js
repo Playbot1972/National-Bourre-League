@@ -625,6 +625,7 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
+let openPlayerRatings = {};
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
@@ -648,6 +649,21 @@ function computeLegalPlayIndices(currentHand, heroCards) {
 
 function sessionHasRobots(scores = openScores) {
   return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
+}
+
+async function refreshTablePlayerRatings(scores = openScores) {
+  const ids = [...new Set(scores.map((s) => s.playerId).filter(Boolean))];
+  if (!ids.length) {
+    openPlayerRatings = {};
+    return;
+  }
+  try {
+    openPlayerRatings = await getPlayers(ids);
+    const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+    if (sessionObj) scheduleTableSessionSync(sessionObj);
+  } catch (e) {
+    console.warn("refreshTablePlayerRatings:", e);
+  }
 }
 
 function stopEnrollmentTimer() {
@@ -1189,6 +1205,7 @@ async function openTablePlay() {
   overlay.hidden = false;
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
+  await refreshTablePlayerRatings(openScores);
   await syncTableSession(openSessionObj);
   try {
     await overlay.requestFullscreen?.();
@@ -1577,11 +1594,21 @@ function buildTableSessionProps(s) {
       const enrollmentMsLeft = onEnrollmentClock
         ? Math.max(0, enrollment.turnDeadlineMs - Date.now())
         : 0;
+      const rating = openPlayerRatings[sc.playerId];
+      const apeScoreVal = rating?.apeScore;
       return {
         playerId: sc.playerId,
         displayName: sc.displayName,
         photoURL: isSelf ? session?.photoURL : null,
         handsWon: sc.handsWon ?? 0,
+        sessionStreak: sc.handsWon ?? 0,
+        ...(rating && !isRobotPlayerId(sc.playerId)
+          ? {
+              apeScore: apeScoreVal ?? 0,
+              apeClass: rating.apeClass ?? apeClass(apeScoreVal ?? 0),
+              apeStatus: rating.apeStatus ?? apeStatus(rating),
+            }
+          : {}),
         ...(isSelf ? { net: sc.net ?? 0 } : {}),
         ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
         inHand:
@@ -1779,6 +1806,7 @@ function openSession(sessionId) {
   openHands = [];
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
     renderRoomDetail();
   });

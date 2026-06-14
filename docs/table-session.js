@@ -57,14 +57,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			t !== null && ae(x, t.startTime - e);
 		}
 	}
-	var ee = !1, S = -1, C = 5, w = -1;
-	function te() {
-		return g ? !0 : !(e.unstable_now() - w < C);
-	}
+	var ee = !1, S = -1, C = 5, te = -1;
 	function ne() {
+		return g ? !0 : !(e.unstable_now() - te < C);
+	}
+	function w() {
 		if (g = !1, ee) {
 			var t = e.unstable_now();
-			w = t;
+			te = t;
 			var i = !0;
 			try {
 				a: {
@@ -72,7 +72,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					var a = f;
 					try {
 						b: {
-							for (b(t), d = n(c); d !== null && !(d.expirationTime > t && te());) {
+							for (b(t), d = n(c); d !== null && !(d.expirationTime > t && ne());) {
 								var o = d.callback;
 								if (typeof o == "function") {
 									d.callback = null, f = d.priorityLevel;
@@ -104,15 +104,15 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	}
 	var T;
 	if (typeof y == "function") T = function() {
-		y(ne);
+		y(w);
 	};
 	else if (typeof MessageChannel < "u") {
 		var re = new MessageChannel(), ie = re.port2;
-		re.port1.onmessage = ne, T = function() {
+		re.port1.onmessage = w, T = function() {
 			ie.postMessage(null);
 		};
 	} else T = function() {
-		_(ne, 0);
+		_(w, 0);
 	};
 	function ae(t, n) {
 		S = _(function() {
@@ -184,7 +184,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			expirationTime: s,
 			sortIndex: -1
 		}, a > o ? (r.sortIndex = a, t(l, r), n(c) === null && r === n(l) && (h ? (v(S), S = -1) : h = !0, ae(x, a - o))) : (r.sortIndex = s, t(c, r), m || p || (m = !0, ee || (ee = !0, T()))), r;
-	}, e.unstable_shouldYield = te, e.unstable_wrapCallback = function(e) {
+	}, e.unstable_shouldYield = ne, e.unstable_wrapCallback = function(e) {
 		var t = f;
 		return function() {
 			var n = f;
@@ -234,8 +234,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		A: null,
 		T: null,
 		S: null
-	}, w = Object.prototype.hasOwnProperty;
-	function te(e, n, r) {
+	}, te = Object.prototype.hasOwnProperty;
+	function ne(e, n, r) {
 		var i = r.ref;
 		return {
 			$$typeof: t,
@@ -245,8 +245,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			props: r
 		};
 	}
-	function ne(e, t) {
-		return te(e.type, t, e.props);
+	function w(e, t) {
+		return ne(e.type, t, e.props);
 	}
 	function T(e) {
 		return typeof e == "object" && !!e && e.$$typeof === t;
@@ -300,7 +300,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}
 		if (c) return o = o(e), c = a === "" ? "." + ae(e, 0) : a, ee(o) ? (i = "", c != null && (i = c.replace(ie, "$&/") + "/"), se(o, r, i, "", function(e) {
 			return e;
-		})) : o != null && (T(o) && (o = ne(o, i + (o.key == null || e && e.key === o.key ? "" : ("" + o.key).replace(ie, "$&/") + "/") + c)), r.push(o)), 1;
+		})) : o != null && (T(o) && (o = w(o, i + (o.key == null || e && e.key === o.key ? "" : ("" + o.key).replace(ie, "$&/") + "/") + c)), r.push(o)), 1;
 		c = 0;
 		var l = a === "" ? "." : a + ":";
 		if (ee(e)) for (var u = 0; u < e.length; u++) a = e[u], s = l + ae(a, u), c += se(a, r, i, s, o);
@@ -381,14 +381,14 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 	}, e.cloneElement = function(e, t, n) {
 		if (e == null) throw Error("The argument must be a React element, but you passed " + e + ".");
 		var r = g({}, e.props), i = e.key;
-		if (t != null) for (a in t.key !== void 0 && (i = "" + t.key), t) !w.call(t, a) || a === "key" || a === "__self" || a === "__source" || a === "ref" && t.ref === void 0 || (r[a] = t[a]);
+		if (t != null) for (a in t.key !== void 0 && (i = "" + t.key), t) !te.call(t, a) || a === "key" || a === "__self" || a === "__source" || a === "ref" && t.ref === void 0 || (r[a] = t[a]);
 		var a = arguments.length - 2;
 		if (a === 1) r.children = n;
 		else if (1 < a) {
 			for (var o = Array(a), s = 0; s < a; s++) o[s] = arguments[s + 2];
 			r.children = o;
 		}
-		return te(e.type, i, r);
+		return ne(e.type, i, r);
 	}, e.createContext = function(e) {
 		return e = {
 			$$typeof: s,
@@ -403,7 +403,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}, e;
 	}, e.createElement = function(e, t, n) {
 		var r, i = {}, a = null;
-		if (t != null) for (r in t.key !== void 0 && (a = "" + t.key), t) w.call(t, r) && r !== "key" && r !== "__self" && r !== "__source" && (i[r] = t[r]);
+		if (t != null) for (r in t.key !== void 0 && (a = "" + t.key), t) te.call(t, r) && r !== "key" && r !== "__self" && r !== "__source" && (i[r] = t[r]);
 		var o = arguments.length - 2;
 		if (o === 1) i.children = n;
 		else if (1 < o) {
@@ -411,7 +411,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			i.children = s;
 		}
 		if (e && e.defaultProps) for (r in o = e.defaultProps, o) i[r] === void 0 && (i[r] = o[r]);
-		return te(e, a, i);
+		return ne(e, a, i);
 	}, e.createRef = function() {
 		return { current: null };
 	}, e.forwardRef = function(e) {
@@ -719,7 +719,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 		}
 		return null;
 	}
-	var h = Object.assign, g = Symbol.for("react.element"), _ = Symbol.for("react.transitional.element"), v = Symbol.for("react.portal"), y = Symbol.for("react.fragment"), b = Symbol.for("react.strict_mode"), x = Symbol.for("react.profiler"), ee = Symbol.for("react.consumer"), S = Symbol.for("react.context"), C = Symbol.for("react.forward_ref"), w = Symbol.for("react.suspense"), te = Symbol.for("react.suspense_list"), ne = Symbol.for("react.memo"), T = Symbol.for("react.lazy"), re = Symbol.for("react.activity"), ie = Symbol.for("react.memo_cache_sentinel"), ae = Symbol.iterator;
+	var h = Object.assign, g = Symbol.for("react.element"), _ = Symbol.for("react.transitional.element"), v = Symbol.for("react.portal"), y = Symbol.for("react.fragment"), b = Symbol.for("react.strict_mode"), x = Symbol.for("react.profiler"), ee = Symbol.for("react.consumer"), S = Symbol.for("react.context"), C = Symbol.for("react.forward_ref"), te = Symbol.for("react.suspense"), ne = Symbol.for("react.suspense_list"), w = Symbol.for("react.memo"), T = Symbol.for("react.lazy"), re = Symbol.for("react.activity"), ie = Symbol.for("react.memo_cache_sentinel"), ae = Symbol.iterator;
 	function oe(e) {
 		return typeof e != "object" || !e ? null : (e = ae && e[ae] || e["@@iterator"], typeof e == "function" ? e : null);
 	}
@@ -732,8 +732,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			case y: return "Fragment";
 			case x: return "Profiler";
 			case b: return "StrictMode";
-			case w: return "Suspense";
-			case te: return "SuspenseList";
+			case te: return "Suspense";
+			case ne: return "SuspenseList";
 			case re: return "Activity";
 		}
 		if (typeof e == "object") switch (e.$$typeof) {
@@ -743,7 +743,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 			case C:
 				var t = e.render;
 				return e = e.displayName, e ||= (e = t.displayName || t.name || "", e === "" ? "ForwardRef" : "ForwardRef(" + e + ")"), e;
-			case ne: return t = e.displayName || null, t === null ? ce(e.type) || "Memo" : t;
+			case w: return t = e.displayName || null, t === null ? ce(e.type) || "Memo" : t;
 			case T:
 				t = e._payload, e = e._init;
 				try {
@@ -2022,8 +2022,8 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 				o = 8, i |= 24;
 				break;
 			case x: return e = _i(12, n, t, i | 2), e.elementType = x, e.lanes = a, e;
-			case w: return e = _i(13, n, t, i), e.elementType = w, e.lanes = a, e;
-			case te: return e = _i(19, n, t, i), e.elementType = te, e.lanes = a, e;
+			case te: return e = _i(13, n, t, i), e.elementType = te, e.lanes = a, e;
+			case ne: return e = _i(19, n, t, i), e.elementType = ne, e.lanes = a, e;
 			default:
 				if (typeof e == "object" && e) switch (e.$$typeof) {
 					case S:
@@ -2035,7 +2035,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 					case C:
 						o = 11;
 						break a;
-					case ne:
+					case w:
 						o = 14;
 						break a;
 					case T:
@@ -4170,7 +4170,7 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 							if (i === C) {
 								t.tag = 11, t = lc(null, t, e, r, n);
 								break a;
-							} else if (i === ne) {
+							} else if (i === w) {
 								t.tag = 14, t = uc(null, t, e, r, n);
 								break a;
 							}
@@ -8034,7 +8034,7 @@ function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 		role: "img",
 		children: /* @__PURE__ */ (0, h.jsx)("div", { className: "pcard__back-pattern" })
 	});
-	let l = p(e.suit), u = d[e.suit], m = o ?? `${e.rank} of ${f[e.suit]}`, g = /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
+	let l = p(e.suit), u = d[e.suit], m = o ?? `${e.rank} of ${f[e.suit]}`, g = `pcard--suit-${e.suit}`, _ = /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
 		i && /* @__PURE__ */ (0, h.jsx)("span", {
 			className: "pcard__badge",
 			children: i
@@ -8066,33 +8066,36 @@ function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 	] });
 	return s ? /* @__PURE__ */ (0, h.jsx)("button", {
 		type: "button",
-		className: `${c} ${l ? "pcard--red" : "pcard--black"}`,
+		className: `${c} ${l ? "pcard--red" : "pcard--black"} ${g}`,
 		onClick: a,
 		"aria-label": m,
-		children: g
+		children: _
 	}) : /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `${c} ${l ? "pcard--red" : "pcard--black"}`,
+		className: `${c} ${l ? "pcard--red" : "pcard--black"} ${g}`,
 		role: "img",
 		"aria-label": m,
-		children: g
+		children: _
 	});
 }
 //#endregion
 //#region src/components/Hand.tsx
 var _ = (e, t) => `${e.rank}-${e.suit}-${t}`;
-function v({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i, fan: a = !1 }) {
+function v({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i, onCardPeek: a, peekIndex: o = null, fan: s = !1 }) {
 	return /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `hand ${a ? "hand--fan" : ""}`,
-		children: e.map((e, a) => /* @__PURE__ */ (0, h.jsx)("div", {
-			className: "hand__slot",
+		className: `hand ${s ? "hand--fan" : ""}`,
+		children: e.map((e, s) => /* @__PURE__ */ (0, h.jsx)("div", {
+			className: ["hand__slot", o === s ? "hand__slot--peek" : ""].filter(Boolean).join(" "),
+			onPointerDown: a ? () => a(s) : void 0,
+			onPointerUp: a ? () => a(null) : void 0,
+			onPointerLeave: a ? () => a(null) : void 0,
 			children: /* @__PURE__ */ (0, h.jsx)(g, {
 				card: e,
 				size: t,
-				state: n?.(e, a) ?? "default",
-				badge: r?.(e, a),
-				onClick: i ? () => i(e, a) : void 0
+				state: n?.(e, s) ?? "default",
+				badge: r?.(e, s),
+				onClick: i ? () => i(e, s) : void 0
 			})
-		}, _(e, a)))
+		}, _(e, s)))
 	});
 }
 //#endregion
@@ -8128,15 +8131,37 @@ function S(e, t) {
 	return n ? n.isSelf ? "Your turn" : `${n.displayName}'s turn` : null;
 }
 //#endregion
+//#region src/table/theme/tableThemeContext.ts
+var C = (0, l.createContext)(null);
+//#endregion
+//#region src/table/theme/useTableTheme.ts
+function te() {
+	let e = (0, l.useContext)(C);
+	if (!e) throw Error("useTableTheme must be used within TableThemeProvider");
+	return e;
+}
+//#endregion
 //#region src/table/HeroHand.tsx
-function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, signedIn: i = !1, isMyTurn: a = !1, drawCompleted: o = !1, maxDrawDiscards: s = 4, legalPlayIndices: c, onSubmitDraw: u, onPassDraw: d, onPlayCard: f, className: p = "" }) {
-	let [m, g] = (0, l.useState)(/* @__PURE__ */ new Set()), [_, x] = (0, l.useState)(null), S = ee(t), C = (0, l.useMemo)(() => e.map(y), [e]), w = t === "draw", te = t === "play", ne = (e) => {
-		g((t) => {
+function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, signedIn: i = !1, isMyTurn: a = !1, drawCompleted: o = !1, maxDrawDiscards: s = 4, legalPlayIndices: c, onSubmitDraw: u, onPassDraw: d, onPlayCard: f, className: p = "" }) {
+	let { settings: m } = te(), [g, _] = (0, l.useState)(/* @__PURE__ */ new Set()), [x, S] = (0, l.useState)(null), [C, ne] = (0, l.useState)(null), w = ee(t), T = (0, l.useMemo)(() => e.map(y), [e]), re = t === "draw", ie = t === "play", ae = m.cardScale === "lg" ? "md" : (m.cardScale, "sm"), oe = (e) => {
+		_((t) => {
 			let n = new Set(t);
 			return n.has(e) ? n.delete(e) : n.size < s && n.add(e), n;
 		});
 	};
-	return i ? !r && !n && !S ? null : S && r && e.length === 0 ? /* @__PURE__ */ (0, h.jsxs)("div", {
+	if (!i) return /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-hero ${p}`.trim(),
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, h.jsx)("p", {
+			className: "btable-hero__label muted small",
+			children: "Your hand"
+		}), /* @__PURE__ */ (0, h.jsx)("p", {
+			className: "btable-hero__fallback muted small",
+			children: "Sign in to see your dealt cards."
+		})]
+	});
+	if (!r && !n && !w) return null;
+	if (w && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-hero ${p}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
@@ -8146,14 +8171,27 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, sig
 			className: "btable-hero__fallback muted small",
 			children: "Loading your cards…"
 		})]
-	}) : S && !r ? /* @__PURE__ */ (0, h.jsx)("div", {
+	});
+	if (w && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
 		className: `btable-hero ${p}`.trim(),
 		children: /* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__fallback muted small",
 			children: "You sat out this hand."
 		})
-	}) : e.length === 0 ? null : /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${p}`.trim(),
+	});
+	if (e.length === 0) return null;
+	let se = (e, t) => re && g.has(t) || ie && x === t ? "selected" : ie && c && !c.includes(t) ? "muted" : "default", ce = (e, t) => {
+		if (re && a && !o) {
+			oe(t);
+			return;
+		}
+		if (ie && a && f) {
+			if (c && !c.includes(t)) return;
+			S(t), f(t);
+		}
+	}, le = w && r;
+	return /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-hero btable-hero--scale-${m.cardScale} ${p}`.trim(),
 		"aria-label": "Your dealt cards",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("p", {
@@ -8161,34 +8199,31 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, sig
 				children: [
 					"Your hand · ",
 					b(t, n),
-					w && !o && a && " · select cards to discard",
-					te && a && " · tap a legal card to play"
+					re && !o && a && " · select cards to discard",
+					ie && a && " · tap a legal card to play",
+					le && " · press and hold to peek"
 				]
 			}),
-			/* @__PURE__ */ (0, h.jsx)(v, {
-				cards: C,
-				size: "sm",
-				fan: !0,
-				stateFor: (e, t) => w && m.has(t) || te && _ === t ? "selected" : te && c && !c.includes(t) ? "muted" : "default",
-				onCardClick: w || te ? (e, t) => {
-					if (w && a && !o) {
-						ne(t);
-						return;
-					}
-					if (te && a && f) {
-						if (c && !c.includes(t)) return;
-						x(t), f(t);
-					}
-				} : void 0
+			/* @__PURE__ */ (0, h.jsx)("div", {
+				className: "btable-hero__hand-3d",
+				children: /* @__PURE__ */ (0, h.jsx)(v, {
+					cards: T,
+					size: ae,
+					fan: !0,
+					stateFor: se,
+					peekIndex: C,
+					onCardPeek: le ? ne : void 0,
+					onCardClick: re || ie ? ce : void 0
+				})
 			}),
-			w && !o && a && /* @__PURE__ */ (0, h.jsxs)("div", {
+			re && !o && a && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-hero__actions",
 				children: [
 					/* @__PURE__ */ (0, h.jsxs)("button", {
 						type: "button",
 						className: "btn btn--sm btn--primary",
-						onClick: () => u?.([...m].sort((e, t) => e - t)),
-						children: ["Draw ", m.size > 0 ? `(${m.size})` : ""]
+						onClick: () => u?.([...g].sort((e, t) => e - t)),
+						children: ["Draw ", g.size > 0 ? `(${g.size})` : ""]
 					}),
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
@@ -8206,25 +8241,15 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, sig
 					})
 				]
 			}),
-			w && o && /* @__PURE__ */ (0, h.jsx)("p", {
+			re && o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Draw complete — waiting for others"
 			}),
-			te && !a && /* @__PURE__ */ (0, h.jsx)("p", {
+			ie && !a && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to play"
 			})
 		]
-	}) : /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${p}`.trim(),
-		"aria-live": "polite",
-		children: [/* @__PURE__ */ (0, h.jsx)("p", {
-			className: "btable-hero__label muted small",
-			children: "Your hand"
-		}), /* @__PURE__ */ (0, h.jsx)("p", {
-			className: "btable-hero__fallback muted small",
-			children: "Sign in to see your dealt cards."
-		})]
 	});
 }
 //#endregion
@@ -8232,18 +8257,18 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, sig
 function w(e) {
 	return `$${e.toLocaleString("en-US")}`;
 }
-function te(e) {
+function T(e) {
 	let t = Number(e) || 0;
 	return t > 0 ? `+${w(t)}` : t < 0 ? `−${w(Math.abs(t))}` : w(0);
 }
-function ne(e) {
+function re(e) {
 	return (e || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((e) => e[0]?.toUpperCase() || "").join("") || "?";
 }
-function T(e) {
+function ie(e) {
 	let t = (e * 180 / Math.PI % 360 + 360) % 360;
 	return t >= 55 && t <= 125 ? "bottom" : t >= 235 && t <= 305 ? "left" : t >= 145 && t <= 215 ? "top" : "right";
 }
-function re(e, t) {
+function ae(e, t) {
 	let n = Math.max(2, Math.min(8, t || 2));
 	if (n <= 0) return {
 		x: 50,
@@ -8254,15 +8279,15 @@ function re(e, t) {
 	return {
 		x: 50 + 50 * i + i * 2,
 		y: 50 + 50 * a + a * 2,
-		region: T(r)
+		region: ie(r)
 	};
 }
-function ie(e) {
+function oe(e) {
 	return 1.15 + (Math.max(2, Math.min(8, e || 2)) - 2) * .84 / 6;
 }
 //#endregion
 //#region src/table/TrickRow.tsx
-function ae({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
+function se({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
 	let r = e?.plays?.length ? e.plays : t.length ? t.filter((t) => t.trickNumber === (e?.trickNumber ?? 1)).map((e) => ({
 		playerId: e.playerId,
 		card: e.card
@@ -8288,7 +8313,7 @@ function ae({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
 }
 //#endregion
 //#region src/table/PotCenter.tsx
-function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, phase: i, enrollmentActive: a = !1, remainingDeckCount: o, currentTrick: s, playedCards: c, playerNames: l = {} }) {
+function ce({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, phase: i, enrollmentActive: a = !1, remainingDeckCount: o, currentTrick: s, playedCards: c, playerNames: l = {} }) {
 	let u = b(i, a), d = !!n;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: "bpot",
@@ -8323,7 +8348,7 @@ function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 					className: "bpot__deck-placeholder muted small",
 					"aria-hidden": "true",
 					children: a ? "Dealing after join" : "Awaiting deal"
-				}), /* @__PURE__ */ (0, h.jsx)(ae, {
+				}), /* @__PURE__ */ (0, h.jsx)(se, {
 					currentTrick: s,
 					playedCards: c,
 					playerNames: l
@@ -8376,8 +8401,65 @@ function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 	});
 }
 //#endregion
+//#region src/table/SmartHud.tsx
+function le({ label: e, value: t, accent: n, title: r }) {
+	return /* @__PURE__ */ (0, h.jsxs)("span", {
+		className: `bhud__pill${n ? " bhud__pill--accent" : ""}`,
+		title: r ?? `${e}: ${t}`,
+		children: [/* @__PURE__ */ (0, h.jsx)("span", {
+			className: "bhud__pill-label",
+			children: e
+		}), /* @__PURE__ */ (0, h.jsx)("span", {
+			className: "bhud__pill-value",
+			children: t
+		})]
+	});
+}
+function E({ player: e, compact: t = !1 }) {
+	let n = e.apeScore != null && !e.isRobot, r = e.isDealer ? "Dealer" : e.isOnTurn ? "Turn" : e.inHand ? "In" : null;
+	return /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `bhud${t ? " bhud--compact" : ""}`,
+		"aria-label": `${e.displayName} stats`,
+		children: [
+			n && /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
+				/* @__PURE__ */ (0, h.jsx)(le, {
+					label: "Ape",
+					value: e.apeScore ?? 0,
+					accent: !0,
+					title: "Ape Score"
+				}),
+				e.apeClass && !t && /* @__PURE__ */ (0, h.jsx)(le, {
+					label: "Class",
+					value: e.apeClass,
+					title: "Ape Class"
+				}),
+				e.apeStatus && !t && /* @__PURE__ */ (0, h.jsx)(le, {
+					label: "Status",
+					value: e.apeStatus,
+					title: "Ape Status"
+				})
+			] }),
+			e.sessionStreak != null && e.sessionStreak > 0 && /* @__PURE__ */ (0, h.jsx)(le, {
+				label: "Streak",
+				value: e.sessionStreak,
+				title: "Hands won this session"
+			}),
+			e.inHand && /* @__PURE__ */ (0, h.jsx)(le, {
+				label: "Tricks",
+				value: e.tricksThisHand,
+				accent: e.isLeading
+			}),
+			r && /* @__PURE__ */ (0, h.jsx)(le, {
+				label: "Seat",
+				value: r,
+				accent: e.isOnTurn
+			})
+		]
+	});
+}
+//#endregion
 //#region src/table/Seat.tsx
-function se({ fraction: e }) {
+function D({ fraction: e }) {
 	let t = Math.max(0, Math.min(1, e)), n = 53 / 2, r = 2 * Math.PI * n, i = r * (1 - t);
 	return /* @__PURE__ */ (0, h.jsxs)("svg", {
 		className: `bseat__timer-ring${t <= .25 ? " bseat__timer-ring--urgent" : ""}`,
@@ -8405,8 +8487,8 @@ function se({ fraction: e }) {
 		})]
 	});
 }
-function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i }) {
-	let a = e.tricksThisHand, o = Math.min(a, 3);
+function ue({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i, onReaction: a }) {
+	let o = e.tricksThisHand, s = Math.min(o, 3);
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: [
 			"bseat",
@@ -8424,41 +8506,57 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 		children: [
 			/* @__PURE__ */ (0, h.jsx)("div", {
 				className: "bseat__tricks",
-				"aria-label": `${a} tricks this hand`,
-				children: e.inHand && a > 0 ? /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [Array.from({ length: o }, (e, t) => /* @__PURE__ */ (0, h.jsx)("div", {
+				"aria-label": `${o} tricks this hand`,
+				children: e.inHand && o > 0 ? /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [Array.from({ length: s }, (e, t) => /* @__PURE__ */ (0, h.jsx)("div", {
 					className: "bseat__trick-card",
 					style: { "--stack-i": t },
 					children: /* @__PURE__ */ (0, h.jsx)(g, {
 						faceDown: !0,
 						size: "sm"
 					})
-				}, t)), a > 0 && /* @__PURE__ */ (0, h.jsx)("span", {
+				}, t)), o > 0 && /* @__PURE__ */ (0, h.jsx)("span", {
 					className: "bseat__trick-count",
-					children: a
+					children: o
 				})] }) : /* @__PURE__ */ (0, h.jsx)("div", { className: "bseat__trick-empty" })
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bseat__avatar-wrap",
-				children: [
-					e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(se, { fraction: e.enrollmentTimeLeft }),
-					e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bseat__dealer",
-						children: "D"
-					}),
-					e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
-						className: "bseat__avatar",
-						src: e.photoURL,
-						alt: ""
-					}) : /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bseat__avatar bseat__avatar--initials",
-						"aria-hidden": "true",
-						children: ne(e.displayName)
-					}),
-					e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bseat__in-badge",
-						title: "In this hand"
-					})
-				]
+				className: "bseat__avatar-stage",
+				children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+					className: "bseat__avatar-wrap",
+					children: [
+						e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(D, { fraction: e.enrollmentTimeLeft }),
+						e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__dealer",
+							children: "D"
+						}),
+						e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
+							className: "bseat__avatar",
+							src: e.photoURL,
+							alt: ""
+						}) : /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__avatar bseat__avatar--initials",
+							"aria-hidden": "true",
+							children: re(e.displayName)
+						}),
+						e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__in-badge",
+							title: "In this hand"
+						})
+					]
+				}), e.isSelf && a && /* @__PURE__ */ (0, h.jsx)("div", {
+					className: "bseat__react-bar",
+					children: [
+						"👏",
+						"😮",
+						"🔥"
+					].map((e) => /* @__PURE__ */ (0, h.jsx)("button", {
+						type: "button",
+						className: "bseat__react-btn",
+						"aria-label": `React ${e}`,
+						onClick: () => a(e),
+						children: e
+					}, e))
+				})]
 			}),
 			e.showHoleCards && !e.isSelf && /* @__PURE__ */ (0, h.jsx)("div", {
 				className: "bseat__hole-cards",
@@ -8494,15 +8592,15 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 								className: "bseat__enroll-tag muted small",
 								children: "Joined"
 							}),
-							e.isOnTurn && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__turn-tag muted small",
-								children: "Turn"
-							}),
 							e.isSelf && e.net != null && /* @__PURE__ */ (0, h.jsx)("span", {
 								className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
-								children: te(e.net)
+								children: T(e.net)
 							})
 						]
+					}),
+					/* @__PURE__ */ (0, h.jsx)(E, {
+						player: e,
+						compact: t === "left" || t === "right"
 					}),
 					e.enrollmentOnClock && /* @__PURE__ */ (0, h.jsx)("span", {
 						className: "bseat__enroll-timer",
@@ -8521,7 +8619,7 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 							type: "button",
 							className: "bseat__trick-btn bseat__trick-btn--plus",
 							"aria-label": "Won a trick",
-							disabled: a >= 5,
+							disabled: o >= 5,
 							onClick: () => i(1),
 							children: "+"
 						})
@@ -8533,13 +8631,13 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function le({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], currentUserId: o = null, legalPlayIndices: s, onToggleInHand: c, onTrickDelta: l, onSubmitDraw: u, onPassDraw: d, onPlayCard: f }) {
-	let p = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), m = p.findIndex((e) => e.isSelf), g = m > 0 ? [...p.slice(m), ...p.slice(0, m)] : p, _ = g.length, v = `btable--p${Math.min(8, Math.max(2, _))}`, y = ie(_), b = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), x = t.find((e) => e.isSelf), ee = !!(o && e.drawCompletedIds?.includes(o));
+function de({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], currentUserId: o = null, legalPlayIndices: s, onToggleInHand: c, onTrickDelta: l, onSubmitDraw: u, onPassDraw: d, onPlayCard: f, onReaction: p }) {
+	let m = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), g = m.findIndex((e) => e.isSelf), _ = g > 0 ? [...m.slice(g), ...m.slice(0, g)] : m, v = _.length, y = `btable--p${Math.min(8, Math.max(2, v))}`, b = oe(v), x = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), ee = t.find((e) => e.isSelf), S = !!(o && e.drawCompletedIds?.includes(o));
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-wrap ${v}`,
+		className: `btable-wrap ${y}`,
 		style: {
-			"--player-count": _,
-			"--table-aspect": y
+			"--player-count": v,
+			"--table-aspect": b
 		},
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("div", {
@@ -8549,7 +8647,7 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 					"aria-hidden": "true"
 				}), /* @__PURE__ */ (0, h.jsx)("div", {
 					className: "btable__felt",
-					children: /* @__PURE__ */ (0, h.jsx)(oe, {
+					children: /* @__PURE__ */ (0, h.jsx)(ce, {
 						potMetrics: n,
 						participantCount: r,
 						trumpUpcard: e.trumpUpcard,
@@ -8559,16 +8657,16 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						remainingDeckCount: e.remainingDeckCount,
 						currentTrick: e.currentTrick,
 						playedCards: e.playedCards,
-						playerNames: b
+						playerNames: x
 					})
 				})]
 			}),
 			/* @__PURE__ */ (0, h.jsx)("div", {
 				className: "btable__seats",
 				"aria-label": "Players at the table",
-				children: g.map((e, t) => {
-					let n = re(t, g.length);
-					return /* @__PURE__ */ (0, h.jsx)(ce, {
+				children: _.map((e, t) => {
+					let n = ae(t, _.length);
+					return /* @__PURE__ */ (0, h.jsx)(ue, {
 						player: e,
 						region: n.region,
 						style: {
@@ -8576,19 +8674,20 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 							top: `${n.y}%`
 						},
 						onToggleInHand: () => c(e.playerId, !e.inHand),
-						onTrickDelta: (t) => l(e.playerId, t)
+						onTrickDelta: (t) => l(e.playerId, t),
+						onReaction: e.isSelf ? p : void 0
 					}, e.playerId);
 				})
 			}),
-			/* @__PURE__ */ (0, h.jsx)(C, {
+			/* @__PURE__ */ (0, h.jsx)(ne, {
 				className: "btable-wrap__hero",
 				cards: a,
 				phase: e.phase,
 				enrollmentActive: i,
-				isInHand: !!x?.inHand,
+				isInHand: !!ee?.inHand,
 				signedIn: !!o,
 				isMyTurn: !!(o && e.turnPlayerId === o),
-				drawCompleted: ee,
+				drawCompleted: S,
 				maxDrawDiscards: e.maxDrawDiscards ?? 4,
 				legalPlayIndices: s ?? void 0,
 				onSubmitDraw: u,
@@ -8599,35 +8698,438 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 	});
 }
 //#endregion
+//#region src/table/CinematicSplash.tsx
+var fe = new Set([
+	"big-pot",
+	"pot-cap",
+	"bourre",
+	"hand-win"
+]);
+function pe({ events: e, onDismiss: t }) {
+	let n = [...e].reverse().find((e) => fe.has(e.kind));
+	return (0, l.useEffect)(() => {
+		if (!n) return;
+		let e = window.setTimeout(() => t(n.id), n.durationMs ?? 2200);
+		return () => window.clearTimeout(e);
+	}, [n, t]), n ? /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `bsplash bsplash--${n.kind}`,
+		role: "status",
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, h.jsx)("div", {
+			className: "bsplash__glow",
+			"aria-hidden": "true"
+		}), /* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "bsplash__content",
+			children: [
+				n.emoji && /* @__PURE__ */ (0, h.jsx)("span", {
+					className: "bsplash__emoji",
+					children: n.emoji
+				}),
+				/* @__PURE__ */ (0, h.jsx)("p", {
+					className: "bsplash__title",
+					children: n.title
+				}),
+				n.subtitle && /* @__PURE__ */ (0, h.jsx)("p", {
+					className: "bsplash__subtitle",
+					children: n.subtitle
+				})
+			]
+		})]
+	}) : null;
+}
+//#endregion
+//#region src/table/DesktopLayoutShell.tsx
+function O({ children: e }) {
+	let { settings: t } = te(), n = t.layoutMode === "tiled";
+	return /* @__PURE__ */ (0, h.jsx)("div", {
+		className: ["btable-desktop", n ? "btable-desktop--tiled" : "btable-desktop--single"].join(" "),
+		children: /* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "btable-desktop__viewport",
+			children: [/* @__PURE__ */ (0, h.jsx)("div", {
+				className: "btable-desktop__scale",
+				children: e
+			}), n && /* @__PURE__ */ (0, h.jsxs)("div", {
+				className: "btable-desktop__tile-placeholder muted small",
+				"aria-hidden": "true",
+				children: [/* @__PURE__ */ (0, h.jsx)("span", { children: "Multi-room tile slot" }), /* @__PURE__ */ (0, h.jsx)("span", { children: "Monitor additional tables here in a future release" })]
+			})]
+		})
+	});
+}
+//#endregion
+//#region src/table/EventReactions.tsx
+function k({ events: e, players: t, onDismiss: n }) {
+	let r = e.filter((e) => e.emoji && (e.kind === "reaction" || e.kind === "trick-win"));
+	return (0, l.useEffect)(() => {
+		let e = r.map((e) => window.setTimeout(() => n(e.id), e.durationMs ?? 1600));
+		return () => e.forEach((e) => window.clearTimeout(e));
+	}, [r, n]), r.length ? /* @__PURE__ */ (0, h.jsx)("div", {
+		className: "breactions",
+		"aria-hidden": "true",
+		children: r.map((e, n) => {
+			let r = t.find((t) => t.playerId === e.playerId)?.displayName;
+			return /* @__PURE__ */ (0, h.jsxs)("div", {
+				className: "breactions__burst",
+				style: { "--burst-i": n },
+				children: [/* @__PURE__ */ (0, h.jsx)("span", {
+					className: "breactions__emoji",
+					children: e.emoji
+				}), r && e.kind === "trick-win" && /* @__PURE__ */ (0, h.jsx)("span", {
+					className: "breactions__name",
+					children: r.split(" ")[0]
+				})]
+			}, e.id);
+		})
+	}) : null;
+}
+//#endregion
+//#region src/table/theme/settings.ts
+var me = "nbl-table-settings", he = {
+	focusTable: "F",
+	toggleSettings: ",",
+	standPat: "P",
+	nextTable: "Tab"
+}, ge = {
+	themeId: "night-felt",
+	deckMode: "classic",
+	cardScale: "md",
+	highContrast: !1,
+	tableScale: 1,
+	layoutMode: "single",
+	hotkeys: { ...he }
+}, _e = {
+	carbon: "Carbon",
+	simple: "Simple",
+	"night-felt": "Night Felt",
+	arena: "Arena"
+};
+function ve(e) {
+	return Math.max(.85, Math.min(1.35, e));
+}
+function ye() {
+	try {
+		let e = localStorage.getItem(me);
+		if (!e) return {
+			...ge,
+			hotkeys: { ...he }
+		};
+		let t = JSON.parse(e);
+		return {
+			...ge,
+			...t,
+			tableScale: ve(t.tableScale ?? ge.tableScale),
+			hotkeys: {
+				...he,
+				...t.hotkeys
+			}
+		};
+	} catch {
+		return {
+			...ge,
+			hotkeys: { ...he }
+		};
+	}
+}
+function be(e) {
+	try {
+		localStorage.setItem(me, JSON.stringify(e));
+	} catch {}
+}
+function xe(e, t) {
+	e.dataset.tableTheme = t.themeId, e.dataset.deckMode = t.deckMode, e.dataset.cardScale = t.cardScale, e.dataset.highContrast = t.highContrast ? "true" : "false", e.dataset.layoutMode = t.layoutMode, e.style.setProperty("--table-scale", String(t.tableScale));
+}
+//#endregion
+//#region src/table/TableSettingsPanel.tsx
+function Se({ open: e, onClose: t }) {
+	let { settings: n, updateSettings: r, resetSettings: i } = te();
+	return e ? /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: "bsettings",
+		role: "dialog",
+		"aria-label": "Table appearance",
+		children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "bsettings__panel",
+			children: [
+				/* @__PURE__ */ (0, h.jsxs)("header", {
+					className: "bsettings__head",
+					children: [/* @__PURE__ */ (0, h.jsx)("h6", {
+						className: "bsettings__title",
+						children: "Table room"
+					}), /* @__PURE__ */ (0, h.jsx)("button", {
+						type: "button",
+						className: "bsettings__close",
+						onClick: t,
+						"aria-label": "Close",
+						children: "×"
+					})]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("label", {
+					className: "bsettings__field",
+					children: [/* @__PURE__ */ (0, h.jsx)("span", { children: "Theme" }), /* @__PURE__ */ (0, h.jsx)("select", {
+						value: n.themeId,
+						onChange: (e) => r({ themeId: e.target.value }),
+						children: Object.keys(_e).map((e) => /* @__PURE__ */ (0, h.jsx)("option", {
+							value: e,
+							children: _e[e]
+						}, e))
+					})]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("label", {
+					className: "bsettings__field",
+					children: [/* @__PURE__ */ (0, h.jsx)("span", { children: "Deck" }), /* @__PURE__ */ (0, h.jsxs)("select", {
+						value: n.deckMode,
+						onChange: (e) => r({ deckMode: e.target.value }),
+						children: [/* @__PURE__ */ (0, h.jsx)("option", {
+							value: "classic",
+							children: "Classic two-color"
+						}), /* @__PURE__ */ (0, h.jsx)("option", {
+							value: "four-color",
+							children: "Four-color contrast"
+						})]
+					})]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("label", {
+					className: "bsettings__field",
+					children: [/* @__PURE__ */ (0, h.jsx)("span", { children: "Card size" }), /* @__PURE__ */ (0, h.jsxs)("select", {
+						value: n.cardScale,
+						onChange: (e) => r({ cardScale: e.target.value }),
+						children: [
+							/* @__PURE__ */ (0, h.jsx)("option", {
+								value: "sm",
+								children: "Compact"
+							}),
+							/* @__PURE__ */ (0, h.jsx)("option", {
+								value: "md",
+								children: "Standard"
+							}),
+							/* @__PURE__ */ (0, h.jsx)("option", {
+								value: "lg",
+								children: "Large"
+							})
+						]
+					})]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("label", {
+					className: "bsettings__field bsettings__field--row",
+					children: [
+						/* @__PURE__ */ (0, h.jsx)("span", { children: "Table scale" }),
+						/* @__PURE__ */ (0, h.jsx)("input", {
+							type: "range",
+							min: .85,
+							max: 1.35,
+							step: .05,
+							value: n.tableScale,
+							onChange: (e) => r({ tableScale: Number(e.target.value) })
+						}),
+						/* @__PURE__ */ (0, h.jsxs)("span", {
+							className: "bsettings__range-val",
+							children: [Math.round(n.tableScale * 100), "%"]
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("label", {
+					className: "bsettings__check",
+					children: [/* @__PURE__ */ (0, h.jsx)("input", {
+						type: "checkbox",
+						checked: n.highContrast,
+						onChange: (e) => r({ highContrast: e.target.checked })
+					}), "High contrast"]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("fieldset", {
+					className: "bsettings__fieldset",
+					children: [
+						/* @__PURE__ */ (0, h.jsx)("legend", { children: "Layout (scaffold)" }),
+						/* @__PURE__ */ (0, h.jsxs)("label", {
+							className: "bsettings__check",
+							children: [/* @__PURE__ */ (0, h.jsx)("input", {
+								type: "radio",
+								name: "layout",
+								checked: n.layoutMode === "single",
+								onChange: () => r({ layoutMode: "single" })
+							}), "Single table"]
+						}),
+						/* @__PURE__ */ (0, h.jsxs)("label", {
+							className: "bsettings__check bsettings__check--muted",
+							children: [/* @__PURE__ */ (0, h.jsx)("input", {
+								type: "radio",
+								name: "layout",
+								checked: n.layoutMode === "tiled",
+								onChange: () => r({ layoutMode: "tiled" })
+							}), "Tiled multi-room (preview)"]
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("details", {
+					className: "bsettings__hotkeys",
+					children: [/* @__PURE__ */ (0, h.jsx)("summary", { children: "Hotkeys (scaffold)" }), /* @__PURE__ */ (0, h.jsxs)("ul", {
+						className: "bsettings__hotkey-list muted small",
+						children: [
+							/* @__PURE__ */ (0, h.jsxs)("li", { children: [/* @__PURE__ */ (0, h.jsx)("kbd", { children: n.hotkeys.focusTable }), " Focus table"] }),
+							/* @__PURE__ */ (0, h.jsxs)("li", { children: [/* @__PURE__ */ (0, h.jsx)("kbd", { children: n.hotkeys.toggleSettings }), " Settings"] }),
+							/* @__PURE__ */ (0, h.jsxs)("li", { children: [/* @__PURE__ */ (0, h.jsx)("kbd", { children: n.hotkeys.standPat }), " Stand pat (reserved)"] }),
+							/* @__PURE__ */ (0, h.jsxs)("li", { children: [/* @__PURE__ */ (0, h.jsx)("kbd", { children: n.hotkeys.nextTable }), " Next table (reserved)"] })
+						]
+					})]
+				}),
+				/* @__PURE__ */ (0, h.jsx)("footer", {
+					className: "bsettings__foot",
+					children: /* @__PURE__ */ (0, h.jsx)("button", {
+						type: "button",
+						className: "btn btn--sm",
+						onClick: i,
+						children: "Reset defaults"
+					})
+				})
+			]
+		}), /* @__PURE__ */ (0, h.jsx)("button", {
+			type: "button",
+			className: "bsettings__backdrop",
+			onClick: t,
+			"aria-label": "Close"
+		})]
+	}) : null;
+}
+//#endregion
+//#region src/table/hooks/useTableEvents.ts
+var Ce = 0;
+function we() {
+	return Ce += 1, `evt-${Ce}-${Date.now()}`;
+}
+function Te(e, t, n, r) {
+	let i = t.tricksByPlayer ?? {}, a = t.currentTrick?.plays?.length ?? 0, o = t.phase, s = n.currentPot, c = [];
+	for (let t of r) {
+		let n = e.tricks[t] ?? 0;
+		(i[t] ?? 0) > n && c.push({
+			id: we(),
+			kind: "trick-win",
+			title: "Trick captured",
+			emoji: "🃏",
+			playerId: t,
+			durationMs: 1800
+		});
+	}
+	return s >= n.potCap && n.limEnabled && s > e.pot ? c.push({
+		id: we(),
+		kind: "pot-cap",
+		title: "Pot cap reached",
+		subtitle: "LmT engaged",
+		emoji: "🔒",
+		durationMs: 2200
+	}) : s >= n.anteAmount * Math.max(r.length, 2) * 2 && s > e.pot && c.push({
+		id: we(),
+		kind: "big-pot",
+		title: "Big pot brewing",
+		emoji: "💰",
+		durationMs: 2e3
+	}), o === "play" && e.phase === "play" && Object.values(i).reduce((e, t) => e + (t || 0), 0) >= 4 && a === 0 && e.trickPlays > 0 && r.filter((e) => (i[e] ?? 0) === 0).length && c.push({
+		id: we(),
+		kind: "bourre",
+		title: "Bourré pressure",
+		subtitle: "Zero tricks on the line",
+		emoji: "😬",
+		durationMs: 2400
+	}), c;
+}
+function Ee({ session: e, potMetrics: t, participantIds: n }) {
+	let [r, i] = (0, l.useState)([]), a = (0, l.useRef)(null);
+	return (0, l.useEffect)(() => {
+		let r = e.tricksByPlayer ?? {}, o = e.currentTrick?.plays?.length ?? 0, s = e.phase, c = t.currentPot, l = a.current;
+		if (a.current = {
+			tricks: { ...r },
+			pot: c,
+			trickPlays: o,
+			phase: s
+		}, !l) return;
+		let u = Te(l, e, t, n);
+		if (!u.length) return;
+		let d = requestAnimationFrame(() => {
+			i((e) => [...e, ...u]);
+		});
+		return () => cancelAnimationFrame(d);
+	}, [
+		JSON.stringify({
+			tricks: e.tricksByPlayer,
+			pot: t.currentPot,
+			trickPlays: e.currentTrick?.plays?.length ?? 0,
+			phase: e.phase,
+			cap: t.potCap,
+			lim: t.limEnabled,
+			participants: n
+		}),
+		e,
+		t,
+		n
+	]), {
+		events: r,
+		dismissEvent: (e) => {
+			i((t) => t.filter((t) => t.id !== e));
+		},
+		pushReaction: (e, t) => {
+			i((n) => [...n, {
+				id: we(),
+				kind: "reaction",
+				title: "",
+				emoji: e,
+				playerId: t,
+				durationMs: 1400
+			}]);
+		}
+	};
+}
+//#endregion
 //#region src/table/TableSessionView.tsx
-function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, heroCards: f = [], legalPlayIndices: p, actions: m }) {
-	let g = e.participantIds.length, _ = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), v = t.find((e) => e.isSelf && e.canToggleInHand), y = b(e.phase, l), x = S(e.turnPlayerId, t), C = ee(e.phase), ne = !!(d && e.turnPlayerId === d);
-	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: "btable-session",
+function De({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: u = !1, enrollmentSecondsLeft: d = 0, currentUserId: f, heroCards: p = [], legalPlayIndices: m, actions: g }) {
+	let { settings: _ } = te(), [v, y] = (0, l.useState)(!1), x = e.participantIds.length, { events: C, dismissEvent: ne, pushReaction: re } = Ee({
+		session: e,
+		potMetrics: n,
+		participantIds: e.participantIds
+	}), ie = f != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(f), ae = t.find((e) => e.isSelf && e.canToggleInHand), oe = b(e.phase, u), se = S(e.turnPlayerId, t), ce = ee(e.phase), le = !!(f && e.turnPlayerId === f), E = (0, l.useCallback)((e) => {
+		re(e, f ?? void 0);
+	}, [re, f]);
+	return (0, l.useEffect)(() => {
+		let e = (e) => {
+			(e.key === _.hotkeys.toggleSettings || e.key === "," && e.metaKey) && y((e) => !e), e.key === _.hotkeys.focusTable && document.querySelector(".btable-wrap")?.scrollIntoView({
+				block: "center",
+				behavior: "smooth"
+			});
+		};
+		return window.addEventListener("keydown", e), () => window.removeEventListener("keydown", e);
+	}, [_.hotkeys]), /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-session${v ? " btable-session--settings-open" : ""}`,
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("header", {
 				className: "btable-session__head",
 				children: [
 					/* @__PURE__ */ (0, h.jsxs)("div", {
 						className: "btable-session__head-row",
-						children: [/* @__PURE__ */ (0, h.jsxs)("h5", {
-							className: "btable-session__title",
-							children: ["Hand #", e.handNumber]
-						}), /* @__PURE__ */ (0, h.jsx)("span", {
-							className: `btable-session__phase-tag btable-session__phase-tag--${e.phase ?? "waiting"}`,
-							children: y
-						})]
+						children: [
+							/* @__PURE__ */ (0, h.jsxs)("h5", {
+								className: "btable-session__title",
+								children: ["Hand #", e.handNumber]
+							}),
+							/* @__PURE__ */ (0, h.jsx)("span", {
+								className: `btable-session__phase-tag btable-session__phase-tag--${e.phase ?? "waiting"}`,
+								children: oe
+							}),
+							/* @__PURE__ */ (0, h.jsx)("button", {
+								type: "button",
+								className: "btable-session__gear btn btn--sm",
+								onClick: () => y(!0),
+								"aria-label": "Table appearance settings",
+								title: `Settings (${_.hotkeys.toggleSettings})`,
+								children: "⚙"
+							})
+						]
 					}),
 					/* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__status",
 						children: a
 					}),
-					x && C && /* @__PURE__ */ (0, h.jsx)("p", {
+					se && ce && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__turn muted small",
 						"aria-live": "polite",
-						children: x
+						children: se
 					}),
-					e.phase === "draw" && ne && /* @__PURE__ */ (0, h.jsx)("p", {
+					e.phase === "draw" && le && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__hint muted small",
 						children: "Select cards to discard, then Draw — or Stand pat"
 					}),
@@ -8635,24 +9137,24 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						className: "btable-session__hint muted small",
 						children: "Follow suit · trump when void · beat the trick when you can"
 					}),
-					v && /* @__PURE__ */ (0, h.jsx)("div", {
+					ae && /* @__PURE__ */ (0, h.jsx)("div", {
 						className: "btable-session__enroll-cta",
 						children: /* @__PURE__ */ (0, h.jsxs)("button", {
 							type: "button",
 							className: "btn btn--primary btn--sm btable-session__enroll-btn",
-							onClick: () => m.onToggleInHand(!0),
+							onClick: () => g.onToggleInHand(!0),
 							children: [
 								"I'm in · ",
-								u,
+								d,
 								"s"
 							]
 						})
 					}),
-					l && !v && /* @__PURE__ */ (0, h.jsxs)("p", {
+					u && !ae && /* @__PURE__ */ (0, h.jsxs)("p", {
 						className: "btable-session__enroll muted small",
 						children: [
 							"Join window: ",
-							u,
+							d,
 							"s each · clockwise from dealer"
 						]
 					})
@@ -8667,24 +9169,43 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 					" for the full table (up to 8 players)."
 				]
 			}),
-			/* @__PURE__ */ (0, h.jsx)(le, {
-				session: e,
-				players: t,
-				potMetrics: n,
-				participantCount: g,
-				enrollmentActive: l,
-				heroCards: f,
-				currentUserId: d,
-				legalPlayIndices: p,
-				onToggleInHand: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && m.onToggleInHand(n);
-				},
-				onTrickDelta: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && m.onTrickDelta(n);
-				},
-				onSubmitDraw: m.onSubmitDraw,
-				onPassDraw: m.onPassDraw,
-				onPlayCard: m.onPlayCard
+			/* @__PURE__ */ (0, h.jsx)(O, { children: /* @__PURE__ */ (0, h.jsxs)("div", {
+				className: "btable-stage",
+				children: [
+					/* @__PURE__ */ (0, h.jsx)(k, {
+						events: C,
+						players: t,
+						onDismiss: ne
+					}),
+					/* @__PURE__ */ (0, h.jsx)(pe, {
+						events: C,
+						onDismiss: ne
+					}),
+					/* @__PURE__ */ (0, h.jsx)(de, {
+						session: e,
+						players: t,
+						potMetrics: n,
+						participantCount: x,
+						enrollmentActive: u,
+						heroCards: p,
+						currentUserId: f,
+						legalPlayIndices: m,
+						onToggleInHand: (e, n) => {
+							t.find((t) => t.playerId === e)?.isSelf && g.onToggleInHand(n);
+						},
+						onTrickDelta: (e, n) => {
+							t.find((t) => t.playerId === e)?.isSelf && g.onTrickDelta(n);
+						},
+						onSubmitDraw: g.onSubmitDraw,
+						onPassDraw: g.onPassDraw,
+						onPlayCard: g.onPlayCard,
+						onReaction: E
+					})
+				]
+			}) }),
+			/* @__PURE__ */ (0, h.jsx)(Se, {
+				open: v,
+				onClose: () => y(!1)
 			}),
 			o && !e.isFinal && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-session__settle",
@@ -8716,14 +9237,14 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						children: [/* @__PURE__ */ (0, h.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm",
-							disabled: !_,
-							onClick: () => m.onSettle("push"),
+							disabled: !ie,
+							onClick: () => g.onSettle("push"),
 							children: "Decline split"
 						}), /* @__PURE__ */ (0, h.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm btn--primary",
-							disabled: !_,
-							onClick: () => m.onSettle("split"),
+							disabled: !ie,
+							onClick: () => g.onSettle("split"),
 							children: "Agree to split"
 						})]
 					}),
@@ -8731,7 +9252,7 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						className: "muted small",
 						children: c
 					}),
-					!_ && d && /* @__PURE__ */ (0, h.jsx)("p", {
+					!ie && f && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "muted small",
 						children: "Waiting for co-winners to vote."
 					})
@@ -8742,23 +9263,71 @@ function E({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 				children: r == null ? /* @__PURE__ */ (0, h.jsx)(h.Fragment, { children: "Shared pot and game state only · sign in to track your ledger" }) : /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
 					"Your contribution this hand",
 					" ",
-					te(i ?? 0),
+					T(i ?? 0),
 					" · ",
 					"Your session net ",
-					te(r)
+					T(r)
 				] })
 			})
 		]
 	});
 }
 //#endregion
-//#region src/table/mount.tsx
-var D = null, ue = null;
-function de(e, t) {
-	ue !== e && (D?.unmount(), D = (0, u.createRoot)(e), ue = e), D.render(/* @__PURE__ */ (0, h.jsx)(E, { ...t }));
+//#region src/table/theme/TableThemeContext.tsx
+function Oe({ settings: e, children: t }) {
+	let n = (0, l.useRef)(null);
+	return (0, l.useEffect)(() => {
+		n.current && xe(n.current, e);
+	}, [e]), /* @__PURE__ */ (0, h.jsx)("div", {
+		ref: n,
+		className: "btable-room",
+		children: t
+	});
 }
-function fe() {
-	D?.unmount(), D = null, ue = null;
+function ke({ children: e }) {
+	let [t, n] = (0, l.useState)(() => ye()), r = (0, l.useCallback)((e) => {
+		n((t) => {
+			let n = {
+				...t,
+				...e,
+				hotkeys: {
+					...t.hotkeys,
+					...e.hotkeys
+				}
+			};
+			return be(n), n;
+		});
+	}, []), i = (0, l.useCallback)(() => {
+		let e = {
+			...ge,
+			hotkeys: { ...ge.hotkeys }
+		};
+		be(e), n(e);
+	}, []), a = (0, l.useMemo)(() => ({
+		settings: t,
+		updateSettings: r,
+		resetSettings: i
+	}), [
+		t,
+		r,
+		i
+	]);
+	return /* @__PURE__ */ (0, h.jsx)(C.Provider, {
+		value: a,
+		children: /* @__PURE__ */ (0, h.jsx)(Oe, {
+			settings: t,
+			children: e
+		})
+	});
 }
 //#endregion
-export { de as mountTableSession, fe as unmountTableSession };
+//#region src/table/mount.tsx
+var Ae = null, je = null;
+function Me(e, t) {
+	je !== e && (Ae?.unmount(), Ae = (0, u.createRoot)(e), je = e), Ae.render(/* @__PURE__ */ (0, h.jsx)(ke, { children: /* @__PURE__ */ (0, h.jsx)(De, { ...t }) }));
+}
+function Ne() {
+	Ae?.unmount(), Ae = null, je = null;
+}
+//#endregion
+export { Me as mountTableSession, Ne as unmountTableSession };

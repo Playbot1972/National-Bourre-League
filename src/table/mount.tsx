@@ -1,7 +1,9 @@
 import { createRoot, type Root } from "react-dom/client";
 import { TableSessionView } from "./TableSessionView";
+import { TableThemeProvider } from "./theme/TableThemeContext";
 import type { TableSessionViewProps } from "./types";
 import "./table.css";
+import "./theme/table-themes.css";
 import "../components/PlayingCard.css";
 import "../components/Hand.css";
 
@@ -14,7 +16,11 @@ export function mountTableSession(el: HTMLElement, props: TableSessionViewProps)
     root = createRoot(el);
     rootEl = el;
   }
-  root!.render(<TableSessionView {...props} />);
+  root!.render(
+    <TableThemeProvider>
+      <TableSessionView {...props} />
+    </TableThemeProvider>,
+  );
 }
 
 export function unmountTableSession() {

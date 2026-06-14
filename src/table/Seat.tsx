@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
+import { SmartHud } from "./SmartHud";
 import { formatNet, initials, type SeatRegion } from "./logic";
 import type { TablePlayer } from "./types";
 
@@ -9,6 +10,7 @@ interface SeatProps {
   style: CSSProperties;
   onToggleInHand: () => void;
   onTrickDelta: (delta: number) => void;
+  onReaction?: (emoji: string) => void;
 }
 
 function EnrollmentTimerRing({ fraction }: { fraction: number }) {
@@ -51,7 +53,7 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
   );
 }
 
-export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: SeatProps) {
+export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
   const trickCount = player.tricksThisHand;
   const stackDepth = Math.min(trickCount, 3);
 
@@ -92,19 +94,36 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
         )}
       </div>
 
-      <div className="bseat__avatar-wrap">
-        {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
-          <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+      <div className="bseat__avatar-stage">
+        <div className="bseat__avatar-wrap">
+          {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
+            <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+          )}
+          {player.isDealer && <span className="bseat__dealer">D</span>}
+          {player.photoURL ? (
+            <img className="bseat__avatar" src={player.photoURL} alt="" />
+          ) : (
+            <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+              {initials(player.displayName)}
+            </span>
+          )}
+          {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+        </div>
+        {player.isSelf && onReaction && (
+          <div className="bseat__react-bar">
+            {["👏", "😮", "🔥"].map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className="bseat__react-btn"
+                aria-label={`React ${emoji}`}
+                onClick={() => onReaction(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         )}
-        {player.isDealer && <span className="bseat__dealer">D</span>}
-        {player.photoURL ? (
-          <img className="bseat__avatar" src={player.photoURL} alt="" />
-        ) : (
-          <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-            {initials(player.displayName)}
-          </span>
-        )}
-        {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
       </div>
 
       {player.showHoleCards && !player.isSelf && (
@@ -130,15 +149,14 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
           {player.enrollmentJoined && !player.inHand && (
             <span className="bseat__enroll-tag muted small">Joined</span>
           )}
-          {player.isOnTurn && (
-            <span className="bseat__turn-tag muted small">Turn</span>
-          )}
           {player.isSelf && player.net != null && (
             <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
               {formatNet(player.net)}
             </span>
           )}
         </div>
+
+        <SmartHud player={player} compact={region === "left" || region === "right"} />
 
         {player.enrollmentOnClock && (
           <span className="bseat__enroll-timer" aria-live="polite">

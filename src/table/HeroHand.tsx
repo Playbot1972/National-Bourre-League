@@ -3,6 +3,7 @@ import { Hand } from "../components/Hand";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
+import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard } from "./types";
 
 interface HeroHandProps {
@@ -36,12 +37,15 @@ export function HeroHand({
   onPlayCard,
   className = "",
 }: HeroHandProps) {
+  const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
   const [selectedPlay, setSelectedPlay] = useState<number | null>(null);
+  const [peekIndex, setPeekIndex] = useState<number | null>(null);
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const cardSize = settings.cardScale === "lg" ? "md" : settings.cardScale === "sm" ? "sm" : "sm";
 
   const toggleDrawIndex = (index: number) => {
     setSelectedDraw((prev) => {
@@ -105,20 +109,30 @@ export function HeroHand({
     }
   };
 
+  const enablePeek = dealtPhase && isInHand;
+
   return (
-    <div className={`btable-hero ${className}`.trim()} aria-label="Your dealt cards">
+    <div
+      className={`btable-hero btable-hero--scale-${settings.cardScale} ${className}`.trim()}
+      aria-label="Your dealt cards"
+    >
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
         {inDrawPhase && !drawCompleted && isMyTurn && " · select cards to discard"}
         {inPlayPhase && isMyTurn && " · tap a legal card to play"}
+        {enablePeek && " · press and hold to peek"}
       </p>
-      <Hand
-        cards={typedCards}
-        size="sm"
-        fan
-        stateFor={stateFor}
-        onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
-      />
+      <div className="btable-hero__hand-3d">
+        <Hand
+          cards={typedCards}
+          size={cardSize}
+          fan
+          stateFor={stateFor}
+          peekIndex={peekIndex}
+          onCardPeek={enablePeek ? setPeekIndex : undefined}
+          onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
+        />
+      </div>
       {inDrawPhase && !drawCompleted && isMyTurn && (
         <div className="btable-hero__actions">
           <button

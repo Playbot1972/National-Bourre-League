@@ -18,6 +18,7 @@ interface CardTableProps {
   onSubmitDraw?: (discardIndices: number[]) => void;
   onPassDraw?: () => void;
   onPlayCard?: (cardIndex: number) => void;
+  onReaction?: (emoji: string) => void;
 }
 
 export function CardTable({
@@ -34,6 +35,7 @@ export function CardTable({
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
+  onReaction,
 }: CardTableProps) {
   const ordered = [...players].sort((a, b) => {
     if (a.isSelf) return -1;
@@ -97,6 +99,7 @@ export function CardTable({
               }}
               onToggleInHand={() => onToggleInHand(player.playerId, !player.inHand)}
               onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
+              onReaction={player.isSelf ? onReaction : undefined}
             />
           );
         })}

@@ -22,3 +22,24 @@
 .hand--fan .hand__slot:hover {
   z-index: 2;
 }
+
+/* Hero squeeze / peek — press and hold */
+.hand__slot--peek {
+  z-index: 4;
+  transform: translateY(-14px) rotateY(-18deg) scale(1.08);
+  transform-origin: center bottom;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btable-hero__hand-3d {
+  perspective: 900px;
+  transform-style: preserve-3d;
+}
+
+.btable-hero--scale-lg .hand--fan .hand__slot {
+  transform: scale(var(--hero-card-scale, 1.12));
+}
+.btable-hero--scale-sm .hand--fan .hand__slot {
+  transform: scale(var(--hero-card-scale, 0.92));
+}
+
