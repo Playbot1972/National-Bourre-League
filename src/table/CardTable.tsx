@@ -17,7 +17,7 @@ interface CardTableProps {
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
-  onPassDraw?: (discardIndices: number[]) => void | Promise<void>;
+  onPassDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
 }
 
