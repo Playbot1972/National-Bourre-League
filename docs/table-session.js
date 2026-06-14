@@ -8110,10 +8110,10 @@ function ee(e, t) {
 		y: 50,
 		region: "bottom"
 	};
-	let { rx: n, ry: r } = b(t), i = e / t * Math.PI * 2 + Math.PI / 2, a = Math.cos(i), o = Math.sin(i), s = 50 + n * a, c = 50 + r * o;
-	return {
-		x: s + a * y,
-		y: c + o * y,
+	let { rx: n, ry: r } = b(t), i = e / t * Math.PI * 2 + Math.PI / 2, a = Math.cos(i), o = Math.sin(i), s = 50 + n * a, c = 50 + r * o, l = s + a * y, u = c + o * y;
+	return o > .15 && (u -= o * (t <= 3 ? 6 : t <= 4 ? 4 : t <= 6 ? 2 : 1)), {
+		x: l,
+		y: u,
 		region: x(i)
 	};
 }
@@ -8320,7 +8320,7 @@ function te({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r,
 //#endregion
 //#region src/table/TableSessionView.tsx
 function ne({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, actions: f }) {
-	let m = e.participantIds.length, _ = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d);
+	let m = e.participantIds.length, _ = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), v = t.find((e) => e.isSelf && e.canToggleInHand);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
 		children: [
@@ -8335,7 +8335,20 @@ function ne({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 						className: "btable-session__status",
 						children: a
 					}),
-					l && /* @__PURE__ */ (0, p.jsxs)("p", {
+					v && /* @__PURE__ */ (0, p.jsx)("div", {
+						className: "btable-session__enroll-cta",
+						children: /* @__PURE__ */ (0, p.jsxs)("button", {
+							type: "button",
+							className: "btn btn--primary btn--sm btable-session__enroll-btn",
+							onClick: () => f.onToggleInHand(!0),
+							children: [
+								"I'm in · ",
+								u,
+								"s"
+							]
+						})
+					}),
+					l && !v && /* @__PURE__ */ (0, p.jsxs)("p", {
 						className: "btable-session__enroll muted small",
 						children: [
 							"Join window: ",

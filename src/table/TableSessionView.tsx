@@ -21,13 +21,25 @@ export function TableSessionView({
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
+  const selfEnroll = players.find((p) => p.isSelf && p.canToggleInHand);
 
   return (
     <div className="btable-session">
       <header className="btable-session__head">
         <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
         <p className="btable-session__status">{leaderLabel}</p>
-        {enrollmentActive && (
+        {selfEnroll && (
+          <div className="btable-session__enroll-cta">
+            <button
+              type="button"
+              className="btn btn--primary btn--sm btable-session__enroll-btn"
+              onClick={() => actions.onToggleInHand(true)}
+            >
+              I&apos;m in · {enrollmentSecondsLeft}s
+            </button>
+          </div>
+        )}
+        {enrollmentActive && !selfEnroll && (
           <p className="btable-session__enroll muted small">
             Join window: {enrollmentSecondsLeft}s each · clockwise from dealer
           </p>

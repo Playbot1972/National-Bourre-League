@@ -103,9 +103,16 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   const ny = Math.sin(theta);
   const onRailX = 50 + rx * nx;
   const onRailY = 50 + ry * ny;
+  let x = onRailX + nx * SEAT_RAIL_OUTSET;
+  let y = onRailY + ny * SEAT_RAIL_OUTSET;
+  // Bottom-arc seats: pull toward center so hero controls stay on screen (esp. 2–3 players).
+  if (ny > 0.15) {
+    const pull = total <= 3 ? 6 : total <= 4 ? 4 : total <= 6 ? 2 : 1;
+    y -= ny * pull;
+  }
   return {
-    x: onRailX + nx * SEAT_RAIL_OUTSET,
-    y: onRailY + ny * SEAT_RAIL_OUTSET,
+    x,
+    y,
     region: seatRegion(theta),
   };
 }

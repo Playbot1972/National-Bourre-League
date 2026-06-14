@@ -269,7 +269,9 @@
 /* Seats — on rail ring (Texas Hold'em style) */
 .bseat {
   position: absolute;
-  transform: translate(-50%, -50%);
+  --seat-anchor-x: -50%;
+  --seat-anchor-y: -50%;
+  transform: translate(var(--seat-anchor-x), var(--seat-anchor-y));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -278,6 +280,15 @@
   z-index: 3;
   transition: filter 200ms ease;
   overflow: visible;
+}
+
+.bseat--bottom {
+  --seat-anchor-y: calc(-100% - 8px);
+}
+
+.bseat--top {
+  flex-direction: column-reverse;
+  --seat-anchor-y: 8px;
 }
 
 /* Side seats: trick stack toward table center for cleaner rail silhouette */
@@ -291,16 +302,13 @@
   order: 2;
 }
 
-.bseat--top {
-  flex-direction: column-reverse;
-}
-
 .bseat--top .bseat__tricks {
   order: -1;
 }
 
 .bseat--bottom.bseat--self {
   width: 92px;
+  z-index: 6;
 }
 
 .bseat--self {
@@ -324,6 +332,21 @@
 .bseat--enroll-clock .bseat__avatar-wrap {
   box-shadow: 0 0 0 3px rgba(230, 180, 80, 0.9), 0 0 16px rgba(230, 180, 80, 0.45);
   animation: bseat-enroll-pulse 1s ease-in-out infinite;
+}
+
+.btable-session__enroll-cta {
+  flex: 1 1 100%;
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 2px;
+}
+
+.btable-session__enroll-btn {
+  min-height: 44px;
+  min-width: 140px;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 10px 20px;
 }
 
 .bseat--sat-out {
@@ -369,13 +392,13 @@
 
 @keyframes bseat-win {
   0% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1);
   }
   40% {
-    transform: translate(-50%, -50%) scale(1.08);
+    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1.08);
   }
   100% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1);
   }
 }
 
@@ -511,6 +534,8 @@
 .bseat__opt-in {
   font-size: 11px;
   padding: 4px 10px;
+  min-height: 36px;
+  min-width: 72px;
 }
 
 .bseat__controls {
@@ -629,7 +654,22 @@
 @media (max-width: 900px) and (orientation: landscape) {
   .btable-wrap {
     --seat-gutter-x: clamp(52px, 13vw, 84px);
-    --seat-gutter-y: clamp(24px, 5vh, 40px);
+    --seat-gutter-y: clamp(28px, 6vh, 44px);
+  }
+
+  .btable-wrap.btable--p2,
+  .btable-wrap.btable--p3 {
+    --seat-gutter-y: clamp(36px, 8vh, 52px);
+    padding-bottom: calc(var(--seat-gutter-y) + 8px);
+  }
+
+  .bseat--bottom {
+    --seat-anchor-y: calc(-100% - 12px);
+  }
+
+  .bseat--bottom.bseat--self .bseat__opt-in {
+    min-height: 40px;
+    font-size: 12px;
   }
 
   .btable-session {
