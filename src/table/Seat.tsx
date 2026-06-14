@@ -66,23 +66,14 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
         </span>
       </div>
 
-      {player.canToggleInHand && (
+      {player.canToggleInHand && !player.inHand && (
         <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
-          {player.inHand ? "Sit out" : "I'm in"}
+          I&apos;m in
         </button>
       )}
 
       {player.canEditTricks && (
         <div className="bseat__controls">
-          <button
-            type="button"
-            className="bseat__trick-btn"
-            aria-label="Remove trick"
-            disabled={trickCount <= 0}
-            onClick={() => onTrickDelta(-1)}
-          >
-            −
-          </button>
           <button
             type="button"
             className="bseat__trick-btn bseat__trick-btn--plus"

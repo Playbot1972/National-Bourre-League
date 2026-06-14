@@ -8162,29 +8162,22 @@ function y({ player: e, style: t, onToggleInHand: n, onTrickDelta: r }) {
 					children: g(e.net)
 				})]
 			}),
-			e.canToggleInHand && /* @__PURE__ */ (0, p.jsx)("button", {
+			e.canToggleInHand && !e.inHand && /* @__PURE__ */ (0, p.jsx)("button", {
 				type: "button",
 				className: "bseat__opt-in btn btn--sm",
 				onClick: n,
-				children: e.inHand ? "Sit out" : "I'm in"
+				children: "I'm in"
 			}),
-			e.canEditTricks && /* @__PURE__ */ (0, p.jsxs)("div", {
+			e.canEditTricks && /* @__PURE__ */ (0, p.jsx)("div", {
 				className: "bseat__controls",
-				children: [/* @__PURE__ */ (0, p.jsx)("button", {
-					type: "button",
-					className: "bseat__trick-btn",
-					"aria-label": "Remove trick",
-					disabled: i <= 0,
-					onClick: () => r(-1),
-					children: "−"
-				}), /* @__PURE__ */ (0, p.jsx)("button", {
+				children: /* @__PURE__ */ (0, p.jsx)("button", {
 					type: "button",
 					className: "bseat__trick-btn bseat__trick-btn--plus",
 					"aria-label": "Won a trick",
 					disabled: i >= 5,
 					onClick: () => r(1),
 					children: "+"
-				})]
+				})
 			})
 		]
 	});
