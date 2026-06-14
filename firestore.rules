@@ -70,11 +70,15 @@ service cloud.firestore {
           allow read, write: if isMember(roomId);
         }
 
-        // Private hole cards — readable only by the owning player.
-        // TODO(production): deal/play writes should run server-side; clients should
-        // not push arbitrary card payloads to privateHands.
+        // Private hole cards — readable by the owning player; bot hands readable by
+        // room members so a viewing member can drive client-side bot actions.
+        // TODO(production): deal/play writes should run server-side; bot moves should
+        // become server-authoritative Cloud Functions.
         match /privateHands/{playerId} {
-          allow read: if isMember(roomId) && request.auth.uid == playerId;
+          allow read: if isMember(roomId) && (
+            request.auth.uid == playerId ||
+            playerId.matches('bot_.*')
+          );
           allow write: if isMember(roomId);
         }
       }

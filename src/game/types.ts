@@ -41,6 +41,12 @@ export interface PublicHandState {
   playedCards: PlayedCardEntry[];
   turnPlayerId: string | null;
   tricksByPlayer: Record<string, number>;
+  deckSeed?: number;
+  deckNextIndex?: number;
+  actionOrder?: string[];
+  drawCompletedIds?: string[];
+  maxDrawDiscards?: number;
+  cinchEnabled?: boolean;
 }
 
 export interface PrivateHandState {
@@ -56,6 +62,8 @@ export interface DealResult {
   remainingDeck: Card[];
   turnPlayerId: string;
   tricksByPlayer: Record<string, number>;
+  deckSeed: number;
+  deckNextIndex: number;
 }
 
 export interface SerializedHandBundle {

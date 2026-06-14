@@ -1,4 +1,5 @@
 export { createDeck, shuffleDeck } from "./deck";
+export { shuffledDeckFromSeed, drawCardsFromDeck, remainingDeckCount } from "./deckState";
 export { dealInitialHand, assignTrumpUpcard } from "./deal";
 export type { DealInitialHandInput } from "./deal";
 export {
@@ -6,7 +7,25 @@ export {
   activePlayerOrder,
   CARDS_PER_PLAYER,
 } from "./playerOrder";
-export { serializeCard, serializeCards, serializeHandState } from "./serialize";
+export {
+  serializeCard,
+  serializeCards,
+  serializeHandState,
+  deserializeCards,
+} from "./serialize";
+export type { SerializeHandOptions } from "./serialize";
+export { maxDrawDiscards } from "./drawLimit";
+export { applyDraw, advanceAfterDraw, allDrawsComplete, nextPlayerInOrder } from "./draw";
+export type { ApplyDrawInput, ApplyDrawResult } from "./draw";
+export {
+  getLegalPlayIndices,
+  validatePlayIndex,
+} from "./legal";
+export type { PlayContext, LegalityResult, LegalityCode } from "./legal";
+export { resolveTrickWinner } from "./trick";
+export { applyPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
+export type { ApplyPlayInput, ApplyPlayResult } from "./play";
+export { cardKey, cardsEqual, rankValue, isTrump } from "./cardUtils";
 export {
   HAND_PHASE,
   type Card,

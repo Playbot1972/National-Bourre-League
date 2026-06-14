@@ -29,7 +29,8 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
     throw new Error("Need at least two seated participants in deal order");
   }
 
-  const deck = shuffleDeck(createDeck(), input.seed);
+  const seed = input.seed ?? Date.now();
+  const deck = shuffleDeck(createDeck(), seed);
   const privateHands: Record<string, Card[]> = Object.fromEntries(
     dealOrder.map((id) => [id, [] as Card[]]),
   );
@@ -54,6 +55,8 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
     remainingDeck: deck.slice(deckIndex),
     turnPlayerId: dealOrder[0],
     tricksByPlayer,
+    deckSeed: seed,
+    deckNextIndex: deckIndex,
   };
 }
 

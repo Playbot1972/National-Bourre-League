@@ -75,6 +75,9 @@ export interface TableSessionData {
   leadSuit?: string | null;
   currentTrick?: CurrentTrickState | null;
   playedCards?: PlayedCardEntry[];
+  drawCompletedIds?: string[];
+  maxDrawDiscards?: number | null;
+  cinchEnabled?: boolean;
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;
@@ -93,6 +96,9 @@ export interface TableSessionActions {
   onToggleInHand: (inHand: boolean) => void;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
+  onSubmitDraw?: (discardIndices: number[]) => void;
+  onPassDraw?: () => void;
+  onPlayCard?: (cardIndex: number) => void;
 }
 
 export interface TableSessionViewProps {
@@ -110,6 +116,8 @@ export interface TableSessionViewProps {
   enrollmentActive?: boolean;
   enrollmentSecondsLeft?: number;
   currentUserId: string | null;
+  /** Indices of legal plays for the viewing player (computed from private hand). */
+  legalPlayIndices?: number[] | null;
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
   actions: TableSessionActions;

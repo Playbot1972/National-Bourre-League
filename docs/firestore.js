@@ -37,6 +37,7 @@
 //     { cards: [{ rank, suit }] } — owner-read only (see firestore.rules)
 //
 // Public live hand state: session.currentHand (phase, trump, tricks — no hidden cards).
+// Play mutations: submitHandDraw, playHandCard (honor-system client transactions).
 // Deal engine: src/game/ → npm run build:game → docs/game-engine.js
 //
 // Sessions + scores are nested UNDER the room so security rules can authorize
@@ -83,6 +84,18 @@ import {
   dealInitialHand,
   playerOrderFromDealer,
   serializeHandState,
+  deserializeCards,
+  serializeCards,
+  shuffledDeckFromSeed,
+  remainingDeckCount,
+  applyDraw,
+  advanceAfterDraw,
+  applyPlayCard,
+  maxDrawDiscards,
+  botDrawDiscardIndices,
+  botPlayCardIndex,
+  getLegalPlayIndices,
+  HAND_PHASE,
 } from "./game-engine.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -484,19 +497,213 @@ function emptyPreDealHand() {
   return { tricksByPlayer: {}, participantIds: [] };
 }
 
-function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed) {
+function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, dealingRule) {
   const deal = dealInitialHand({
     dealerId,
     participantIds: enrolledIds,
     sortedPlayerIds,
     seed: seed ?? Date.now(),
   });
-  const { publicHand, privateHandsByPlayer } = serializeHandState(deal, dealerId);
+  const { publicHand, privateHandsByPlayer } = serializeHandState(deal, {
+    dealerId,
+    actionOrder: deal.dealOrder,
+    maxDrawDiscards: maxDrawDiscards(enrolledIds.length, dealingRule),
+  });
   return {
     handEnrollment: deleteField(),
     currentHand: publicHand,
     privateHandsByPlayer,
   };
+}
+
+function canActForPlayer(playerId, actorId) {
+  if (!playerId || !actorId) return false;
+  if (playerId === actorId) return true;
+  return isRobotPlayerId(playerId);
+}
+
+function actionOrderFromHand(currentHand) {
+  if (currentHand?.actionOrder?.length) return currentHand.actionOrder;
+  return currentHand?.participantIds || [];
+}
+
+async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return;
+  const sessionData = sessionSnap.data();
+  const currentHand = sessionData.currentHand || {};
+  const participantIds = currentHand.participantIds || [];
+  const tricksByPlayer = currentHand.tricksByPlayer || {};
+  const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+
+  if (!ready) {
+    await recordHand(roomId, sessionId, {
+      winnerIds: [],
+      participantIds,
+      settlement: "push",
+      recordedBy,
+      tricksByPlayer,
+    });
+    return;
+  }
+
+  if (winnerIds.length === 1) {
+    await recordHand(roomId, sessionId, {
+      winnerIds,
+      participantIds,
+      settlement: "win",
+      recordedBy,
+      tricksByPlayer,
+    });
+    return;
+  }
+
+  const pending = sessionData.pendingCoWinSettlement;
+  const proposal = { participantIds, winnerIds };
+  const nextPending = sameCoWinProposal(pending, proposal)
+    ? pending
+    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    pendingCoWinSettlement: nextPending,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Draw/discard during the draw phase — updates private hand + public turn state. */
+export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
+  if (!canActForPlayer(playerId, actorId)) {
+    throw new Error("You can only draw for yourself (or drive a robot)");
+  }
+
+  const ref = sessionDoc(roomId, sessionId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const sessionData = snap.data();
+    if (sessionData.status === "final") throw new Error("Session is final");
+
+    const currentHand = sessionData.currentHand || {};
+    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
+    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
+    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
+      throw new Error("Draw already completed");
+    }
+
+    const privateRef = privateHandDoc(roomId, sessionId, playerId);
+    const privateSnap = await tx.get(privateRef);
+    if (!privateSnap.exists()) throw new Error("Private hand not found");
+
+    const hand = deserializeCards(privateSnap.data().cards || []);
+    const deckSeed = currentHand.deckSeed;
+    if (deckSeed == null) throw new Error("Missing deck seed on session");
+
+    const deck = shuffledDeckFromSeed(deckSeed);
+    const deckNextIndex = currentHand.deckNextIndex ?? 0;
+    const maxDraw =
+      currentHand.maxDrawDiscards ?? maxDrawDiscards(currentHand.participantIds?.length ?? 2);
+
+    const drawResult = applyDraw({
+      hand,
+      discardIndices: discardIndices || [],
+      deck,
+      deckNextIndex,
+      maxDiscards: maxDraw,
+    });
+
+    let nextPublic = {
+      ...currentHand,
+      deckNextIndex: drawResult.deckNextIndex,
+      remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
+    };
+    nextPublic = advanceAfterDraw(nextPublic, actionOrderFromHand(currentHand), playerId);
+
+    tx.set(privateRef, {
+      cards: serializeCards(drawResult.hand),
+      updatedAt: serverTimestamp(),
+    });
+    tx.update(ref, { currentHand: nextPublic, updatedAt: serverTimestamp() });
+  });
+}
+
+/** Play one card during trick play — validates legality client-side (honor-system). */
+export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
+  if (!canActForPlayer(playerId, actorId)) {
+    throw new Error("You can only play for yourself (or drive a robot)");
+  }
+
+  const ref = sessionDoc(roomId, sessionId);
+  let handComplete = false;
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const sessionData = snap.data();
+    if (sessionData.status === "final") throw new Error("Session is final");
+
+    const currentHand = sessionData.currentHand || {};
+    if (currentHand.phase !== HAND_PHASE.PLAY) throw new Error("Not in trick-play phase");
+
+    const privateRef = privateHandDoc(roomId, sessionId, playerId);
+    const privateSnap = await tx.get(privateRef);
+    if (!privateSnap.exists()) throw new Error("Private hand not found");
+
+    const hand = deserializeCards(privateSnap.data().cards || []);
+    const result = applyPlayCard({
+      publicHand: currentHand,
+      playerHand: hand,
+      playerId,
+      cardIndex,
+      actionOrder: actionOrderFromHand(currentHand),
+      cinchEnabled: currentHand.cinchEnabled === true,
+    });
+
+    handComplete = result.handComplete;
+
+    tx.set(privateRef, {
+      cards: serializeCards(result.playerHand),
+      updatedAt: serverTimestamp(),
+    });
+    tx.update(ref, { currentHand: result.publicHand, updatedAt: serverTimestamp() });
+  });
+
+  if (handComplete) {
+    await finalizeHandFromCardPlay(roomId, sessionId, actorId);
+  }
+}
+
+/** Robot draw/play helpers — room member drives bot using bot private hand doc. */
+export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, dealingRule }) {
+  const handData = await getPrivateHand(roomId, sessionId, playerId);
+  if (!handData?.cards?.length) return;
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  const ch = sessionSnap.data()?.currentHand || {};
+  const trumpSuit = ch.trumpSuit;
+  const maxDraw = ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
+  const hand = deserializeCards(handData.cards);
+  const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw);
+  await submitHandDraw(roomId, sessionId, { playerId, discardIndices: indices, actorId });
+}
+
+export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
+  const handData = await getPrivateHand(roomId, sessionId, playerId);
+  if (!handData?.cards?.length) return;
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  const ch = sessionSnap.data()?.currentHand || {};
+  const hand = deserializeCards(handData.cards);
+  const trick = ch.currentTrick;
+  const trickPlays = (trick?.plays || []).map((p) => p.card);
+  const isLeading = trickPlays.length === 0;
+  const ctx = {
+    hand,
+    trumpSuit: ch.trumpSuit,
+    leadSuit: isLeading ? null : ch.leadSuit || trickPlays[0]?.suit,
+    trickPlays,
+    isLeading,
+    cinchEnabled: ch.cinchEnabled === true,
+  };
+  const idx = botPlayCardIndex(hand, ctx);
+  await playHandCard(roomId, sessionId, { playerId, cardIndex: idx, actorId });
 }
 
 function writePrivateHandsToTransaction(tx, roomId, sessionId, privateHandsByPlayer) {
@@ -562,6 +769,7 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
     enrolledIds,
     dealContext.sortedPlayerIds,
     dealContext.seed,
+    dealContext.dealingRule,
   );
 }
 
@@ -919,6 +1127,9 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   }
 
   const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
+  if (currentHand.phase === HAND_PHASE.DRAW || currentHand.phase === HAND_PHASE.PLAY) {
+    throw new Error("Tricks are tracked automatically during card play");
+  }
   const participantIds = [...(currentHand.participantIds || [])];
   if (!participantIds.includes(playerId)) {
     throw new Error("You must be in this hand to record tricks");
@@ -1259,6 +1470,8 @@ export async function ensureHandEnrollment(roomId, sessionId) {
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const ref = sessionDoc(roomId, sessionId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -1274,6 +1487,7 @@ export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
       dealerId: sessionData.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
+      dealingRule,
     });
     writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
     const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
@@ -1291,6 +1505,8 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
   const ref = sessionDoc(roomId, sessionId);
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Session not found");
@@ -1308,6 +1524,7 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
         dealerId: sessionData.dealerId,
         sortedPlayerIds,
         seed: Date.now(),
+        dealingRule,
       });
       writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
       const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
