@@ -211,10 +211,10 @@ export function playerHandStake(scoreById, playerId, sessionStake) {
 export { DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings, computeHandPotState } from "./bourre-rules.js";
 
 export const DEFAULT_HOUSE_RULES = {
-  ante: "1 chip (bragging rights only)",
-  forcedPlay: "Dealer must play",
-  ties: "Tied pots carry over",
-  dealing: "5 cards, trump from dealer's last card",
+  ante: "Equal ante each hand (set in room Bourré settings)",
+  forcedPlay: "Dealer must play when turned trump is an ace",
+  ties: "Tie for most tricks — pot carries; no split",
+  dealing: "5 cards each; dealer's last card face up is trump · draw up to 4",
 };
 
 // ---------------------------------------------------------------------------
