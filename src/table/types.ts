@@ -17,6 +17,17 @@ export interface TablePlayer {
   enrollmentJoined?: boolean;
   canToggleInHand: boolean;
   canEditTricks: boolean;
+  /** This hand's ante — only for the viewing player. */
+  myHandContribution?: number;
+}
+
+export interface PotMetrics {
+  anteAmount: number;
+  potCap: number;
+  currentPot: number;
+  maxWinThisHand: number;
+  limEnabled: boolean;
+  overflow: number;
 }
 
 export interface TableSessionData {
@@ -51,9 +62,11 @@ export interface TableSessionActions {
 export interface TableSessionViewProps {
   session: TableSessionData;
   players: TablePlayer[];
-  potAmount: number;
+  potMetrics: PotMetrics;
   /** Viewing player's session net only (never an aggregate of all players). */
   mySessionNet: number | null;
+  /** Viewing player's ante this hand (private). */
+  myHandContribution: number | null;
   leaderLabel: string;
   showCoWinSettlement: boolean;
   splitSharePerWinner?: number;

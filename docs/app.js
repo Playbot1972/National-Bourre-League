@@ -45,7 +45,10 @@ import {
   getPlayers,
   applyRankingResults,
   deleteSession,
-  subscribeLeaderboard,
+  computeHandPotState,
+  normalizeBourreSettings,
+  updateRoomBourreSettings,
+  DEFAULT_BOURRE_SETTINGS,
   deriveWinnersFromTricks,
   tricksToWinHint,
   playerHandStake,
@@ -768,6 +771,9 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
       currentRoom = room;
+      if (room?.bourreSettings) {
+        pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
+      }
       if (room && session?.uid === room.ownerId) {
         ensureInviteLookupForRoom(roomId).catch((e) =>
           console.error("ensureInviteLookupForRoom:", e),
@@ -947,14 +953,36 @@ function buildTableSessionProps(s) {
     (sum, pid) => sum + playerHandStake(scoreById, pid, handStake),
     0,
   );
-  const potAmount = antePot + (s.carryOverPot ?? 0);
+  const limEnabled = s.limEnabled !== false;
+  const potState = computeHandPotState({
+    anteAmount: handStake,
+    limEnabled,
+    carryIn: s.carryOverPot ?? 0,
+    antePot,
+  });
+  const potMetrics = {
+    anteAmount: potState.anteAmount,
+    potCap: potState.potCap,
+    currentPot: potState.currentPot,
+    maxWinThisHand: potState.maxWinThisHand,
+    limEnabled: potState.limEnabled,
+    overflow: potState.overflow,
+  };
 
   const showCoWinSettlement =
     handComplete &&
     ((handReady && derivedWinnerIds.length >= 2) ||
       (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2));
   const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
-  const splitSharePerWinner = coWinnerCount >= 2 ? potAmount / coWinnerCount : 0;
+  const splitSharePerWinner =
+    coWinnerCount >= 2 ? potMetrics.maxWinThisHand / coWinnerCount : 0;
+
+  const myHandContribution =
+    myUid != null && handParticipantIds.includes(myUid)
+      ? playerHandStake(scoreById, myUid, handStake)
+      : myUid != null
+        ? 0
+        : null;
 
   return {
     session: {
@@ -1002,11 +1030,12 @@ function buildTableSessionProps(s) {
           totalTricks < MAX_TRICKS_PER_HAND,
       };
     }),
-    potAmount,
+    potMetrics,
     mySessionNet:
       myUid != null
         ? Number(displayScores.find((sc) => sc.playerId === myUid)?.net) || 0
         : null,
+    myHandContribution,
     leaderLabel: enrollmentActive
       ? buildEnrollmentLeaderLabel(displayScores, enrollment, myUid)
       : buildTableLeaderLabel(
@@ -1108,6 +1137,9 @@ function renderRoomDetail() {
         }
       : null;
   const hr = currentRoom.houseRules || {};
+  const bourreSettings = normalizeBourreSettings(
+    currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
+  );
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const isOwner = session?.uid === currentRoom.ownerId;
   const sessionAnteEditable =
@@ -1136,6 +1168,35 @@ function renderRoomDetail() {
     </div>
 
     <div class="room-detail__grid">
+      <section class="subpanel subpanel--bourre-settings">
+        <h4>Bourré settings</h4>
+        ${
+          isOwner
+            ? `<div class="bourre-settings-form">
+                 <label class="bourre-settings__row">
+                   <span class="bourre-settings__label">Ante</span>
+                   <select class="num-select" id="room-ante-amount" aria-label="Room ante amount">
+                     ${RISK_STAKE_OPTIONS.map(
+                       (n) =>
+                         `<option value="${n}" ${n === bourreSettings.anteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                     ).join("")}
+                   </select>
+                 </label>
+                 <label class="bourre-settings__row bourre-settings__lim">
+                   <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
+                   <span>Lim</span>
+                   <span class="muted small">Pot cap ${formatRiskStake(bourreSettings.potCap)} (20× ante) · overflow → next hand</span>
+                 </label>
+                 <p class="muted small">Applies to new sessions. Each hand: winner take &amp; bourré penalty = min(pot, cap).</p>
+               </div>`
+            : `<ul class="kv">
+                 <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
+                 <li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>
+                 <li><span>Lim</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
+               </ul>`
+        }
+      </section>
+
       <section class="subpanel">
         <h4>House rules</h4>
         <ul class="kv">
@@ -1223,6 +1284,21 @@ function renderRoomDetail() {
       pendingHandStake = parseInt(newSessionStake.value, 10) || 1;
     });
   }
+  const roomAnteSelect = $("#room-ante-amount", roomDetailView);
+  const roomLimCheckbox = $("#room-lim-enabled", roomDetailView);
+  if (roomAnteSelect && roomLimCheckbox) {
+    const saveRoomBourreSettings = () => {
+      updateRoomBourreSettings(currentRoomId, {
+        anteAmount: parseInt(roomAnteSelect.value, 10) || 1,
+        limEnabled: roomLimCheckbox.checked,
+      }).catch((e) => {
+        console.error("updateRoomBourreSettings:", e);
+        showRoomsError(e.message || "Could not save Bourré settings");
+      });
+    };
+    roomAnteSelect.addEventListener("change", saveRoomBourreSettings);
+    roomLimCheckbox.addEventListener("change", saveRoomBourreSettings);
+  }
   $$("[data-open-session]", roomDetailView).forEach((btn) =>
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
@@ -1248,6 +1324,8 @@ function renderSessionPanel(s) {
   const isOwner = session?.uid === currentRoom?.ownerId;
   const handStake = s.handStake ?? 1;
   const stakeLocked = Boolean(s.handStakeLocked);
+  const limEnabled = s.limEnabled !== false;
+  const sessionPotCap = handStake * 20;
   const handCount = s.handCount ?? 0;
   const carryOverPot = s.carryOverPot ?? 0;
 
@@ -1256,7 +1334,8 @@ function renderSessionPanel(s) {
          <span class="session-stake__label">Ante</span>
          <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
          <span class="badge badge--closed">Locked</span>
-         ${carryOverPot > 0 ? `<span class="badge">Carry-over ${escapeHtml(formatRiskStake(carryOverPot))}</span>` : ""}
+         ${limEnabled ? `<span class="badge">Lim · cap ${escapeHtml(formatRiskStake(sessionPotCap))}</span>` : ""}
+         ${carryOverPot > 0 ? `<span class="badge">Carry ${escapeHtml(formatRiskStake(carryOverPot))}</span>` : ""}
          <p class="muted small">Locked after the first hand this session.</p>
        </div>`
     : isOwner
@@ -1270,11 +1349,12 @@ function renderSessionPanel(s) {
                )
                .join("")}
            </select>
-           <p class="muted small">Each player antes this amount every hand. Locks after the first hand.</p>
+           <p class="muted small">Each hand: ante ${escapeHtml(formatRiskStake(handStake))}, cap ${escapeHtml(formatRiskStake(sessionPotCap))}${limEnabled ? " (Lim on)" : ""}. Locks after first hand.</p>
          </div>`
       : `<div class="session-stake">
            <span class="session-stake__label">Ante</span>
            <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
+           ${limEnabled ? `<span class="badge">Lim · cap ${escapeHtml(formatRiskStake(sessionPotCap))}</span>` : ""}
            <p class="muted small">Host set · locks after the first hand.</p>
          </div>`;
 
@@ -1371,16 +1451,17 @@ function formatPublicHandHistoryLine(h, scores) {
   const names = winnerIds.map(
     (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
   );
-  const pot = formatRiskStake(h.pot ?? 0);
+  const pot = formatRiskStake(h.cappedPot ?? h.pot ?? 0);
+  const maxLabel = h.cappedPot != null && h.pot != null && h.cappedPot < h.pot ? " (max)" : "";
   const n = h.participantIds?.length ?? 0;
   if (h.settlement === "push") {
-    return `#${h.handNumber} Push — ${pot} carries over (${n} players)`;
+    return `#${h.handNumber} Push — pot ${pot}${maxLabel} carries (${n} players)`;
   }
   if (h.settlement === "non_winner_ante_up" || h.settlement === "ante_up") {
-    return `#${h.handNumber} No split agreement — ${pot} pushed (${n} players)`;
+    return `#${h.handNumber} No split agreement — pot ${pot}${maxLabel} pushed (${n} players)`;
   }
   if (h.settlement === "split") {
-    return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
+    return `#${h.handNumber} ${names.join(" & ")} split ${pot}${maxLabel} (${n} players)`;
   }
   const bourreIds = h.bourreIds?.length
     ? h.bourreIds
@@ -1389,9 +1470,9 @@ function formatPublicHandHistoryLine(h, scores) {
     const bourreNames = bourreIds.map(
       (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
     );
-    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
+    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
   }
-  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
+  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} (${n} players)`;
 }
 
 function formatPrivateHandHistoryLine(h, myUid) {
@@ -1529,8 +1610,13 @@ async function onNewSession() {
   }
   const stakeEl = $("#new-session-stake", roomDetailView);
   const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+  const roomBs = normalizeBourreSettings(
+    currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: true },
+  );
   try {
-    const sid = await createSession(currentRoomId, players, handStake);
+    const sid = await createSession(currentRoomId, players, handStake, {
+      limEnabled: roomBs.limEnabled,
+    });
     openSession(sid);
   } catch (err) {
     console.error("createSession:", err);

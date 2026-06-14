@@ -105,6 +105,56 @@
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+.bpot__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  margin: 0 auto 4px;
+  text-align: left;
+  max-width: 220px;
+}
+
+.bpot__stat {
+  margin: 0;
+}
+
+.bpot__stat dt {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(244, 213, 141, 0.75);
+  margin: 0;
+}
+
+.bpot__stat dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold-300, #f4d58d);
+}
+
+.bpot__stat--highlight dd {
+  font-size: 15px;
+  color: #fff;
+}
+
+.bpot__lim-tag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: rgba(200, 146, 47, 0.35);
+  color: var(--gold-300, #f4d58d);
+  vertical-align: middle;
+}
+
+.bpot__meta {
+  font-size: 11px;
+  margin-top: 2px;
+}
+
 .bpot__carry {
   font-size: 12px;
   color: var(--gold-400, #e6b450);

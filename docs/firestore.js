@@ -71,6 +71,7 @@
 
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
+import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR } from "./firebase-config.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -207,6 +208,8 @@ export function playerHandStake(scoreById, playerId, sessionStake) {
   return stakeForPlayer(scoreById, playerId, sessionStake);
 }
 
+export { DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings, computeHandPotState } from "./bourre-rules.js";
+
 export const DEFAULT_HOUSE_RULES = {
   ante: "1 chip (bragging rights only)",
   forcedPlay: "Dealer must play",
@@ -243,6 +246,7 @@ export async function createRoom({ owner, name, houseRules }) {
     ownerId: owner.uid,
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: houseRules || DEFAULT_HOUSE_RULES,
+    bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
     status: "open",
     createdAt: serverTimestamp(),
   });
@@ -349,6 +353,17 @@ export async function updateRoomStatus(roomId, status) {
 
 export async function updateRoomHouseRules(roomId, houseRules) {
   await updateDoc(doc(db, "rooms", roomId), { houseRules });
+}
+
+export async function updateRoomBourreSettings(roomId, bourreSettings) {
+  const normalized = normalizeBourreSettings(bourreSettings);
+  await updateDoc(doc(db, "rooms", roomId), {
+    bourreSettings: {
+      anteAmount: normalized.anteAmount,
+      limEnabled: normalized.limEnabled,
+    },
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**
@@ -479,8 +494,9 @@ function nextDealerId(scoreSnap, currentDealerId) {
   return ids[(base + 1) % ids.length];
 }
 
-export async function createSession(roomId, players, handStake = 1) {
+export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
   const stake = Math.max(1, Number(handStake) || 1);
+  const limEnabled = bourreOpts.limEnabled !== false;
   const sessionRef = doc(sessionsCol(roomId));
   const sortedIds = [...players]
     .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))
@@ -493,6 +509,7 @@ export async function createSession(roomId, players, handStake = 1) {
     handCount: 0,
     handStake: stake,
     handStakeLocked: false,
+    limEnabled,
     carryOverPot: 0,
     dealerId: initialDealer,
     handEnrollment: buildHandEnrollment(sortedIds, initialDealer),
@@ -612,6 +629,7 @@ export async function recordHand(
   }
 
   const stake = sessionData.handStake ?? 1;
+  const limEnabled = sessionData.limEnabled !== false;
   const carryIn = sessionData.carryOverPot || 0;
   const handNumber = (sessionData.handCount || 0) + 1;
 
@@ -621,51 +639,27 @@ export async function recordHand(
     if (!scoreById[pid]) throw new Error("Unknown player in hand");
   }
 
-  const antePot = participants.reduce(
-    (sum, pid) => sum + playerHandStake(scoreById, pid, stake),
-    0,
-  );
-  const grossPot = antePot + carryIn;
+  const handSettlement = settleHandDeltas({
+    mode,
+    winners,
+    participants,
+    tricksByPlayer,
+    anteAmount: stake,
+    limEnabled,
+    carryIn,
+    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+  });
 
-  const deltas = {};
-  let carryOverPot = 0;
-  const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
-  const bourreMatch = bourreIds.length * grossPot;
-
-  if (mode === "push" || mode === "non_winner_ante_up") {
-    carryOverPot = grossPot;
-    participants.forEach((pid) => {
-      const playerStake = playerHandStake(scoreById, pid, stake);
-      deltas[pid] = -playerStake;
-    });
-  } else if (mode === "split") {
-    const share = grossPot / winners.length;
-    participants.forEach((pid) => {
-      const playerStake = playerHandStake(scoreById, pid, stake);
-      deltas[pid] = winners.includes(pid) ? share - playerStake : -playerStake;
-    });
-    carryOverPot = 0;
-  } else {
-    const winner = winners[0];
-    participants.forEach((pid) => {
-      const playerStake = playerHandStake(scoreById, pid, stake);
-      if (pid === winner) {
-        deltas[pid] = grossPot - playerStake;
-      } else if (bourreIds.includes(pid)) {
-        deltas[pid] = -playerStake - grossPot;
-      } else {
-        deltas[pid] = -playerStake;
-      }
-    });
-    carryOverPot = bourreMatch;
-  }
-
-  if (bourreMatch > 0 && mode !== "win") {
-    for (const pid of bourreIds) {
-      deltas[pid] -= grossPot;
-    }
-    carryOverPot += bourreMatch;
-  }
+  const {
+    deltas,
+    carryOverPot,
+    bourreIds,
+    bourreMatch,
+    potState,
+    pot: grossPot,
+    cappedPot,
+    overflow,
+  } = handSettlement;
 
   const batch = writeBatch(db);
   batch.set(doc(handsCol(roomId, sessionId)), {
@@ -679,6 +673,9 @@ export async function recordHand(
     bourreCarryOver: bourreMatch,
     stake,
     pot: grossPot,
+    cappedPot,
+    potCap: potState.potCap,
+    overflow,
     carryIn,
     deltas,
     recordedBy: recordedBy || null,

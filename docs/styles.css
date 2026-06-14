@@ -959,6 +959,34 @@ button {
   margin: 0 0 8px;
   font-size: 14px;
 }
+
+.bourre-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bourre-settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.bourre-settings__label {
+  min-width: 48px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.bourre-settings__lim {
+  cursor: pointer;
+}
+
+.bourre-settings__lim input {
+  margin: 0;
+}
+
 .hand-history__num {
   color: var(--gold-300);
   font-weight: 600;

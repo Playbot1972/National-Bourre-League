@@ -5,8 +5,9 @@ import type { TableSessionViewProps } from "./types";
 export function TableSessionView({
   session,
   players,
-  potAmount,
+  potMetrics,
   mySessionNet,
+  myHandContribution,
   leaderLabel,
   showCoWinSettlement,
   splitSharePerWinner = 0,
@@ -35,9 +36,7 @@ export function TableSessionView({
 
       <CardTable
         players={players}
-        potAmount={potAmount}
-        carryOverPot={session.carryOverPot}
-        handStake={session.handStake}
+        potMetrics={potMetrics}
         participantCount={participantCount}
         onToggleInHand={(playerId, inHand) => {
           const p = players.find((x) => x.playerId === playerId);
@@ -57,7 +56,7 @@ export function TableSessionView({
           </p>
           {splitSharePerWinner > 0 && (
             <p className="btable-session__split-preview">
-              Split {formatRiskStake(potAmount)} →{" "}
+              Split max win {formatRiskStake(potMetrics.maxWinThisHand)} →{" "}
               <strong>{formatRiskStake(splitSharePerWinner)}</strong> each
             </p>
           )}
@@ -88,9 +87,14 @@ export function TableSessionView({
 
       <footer className="btable-session__foot muted small">
         {mySessionNet != null ? (
-          <>Your session net {formatNet(mySessionNet)}</>
+          <>
+            Your contribution this hand{" "}
+            {myHandContribution != null ? formatNet(myHandContribution) : formatNet(0)}
+            {" · "}
+            Your session net {formatNet(mySessionNet)}
+          </>
         ) : (
-          <>Pot and round state are shared · your ledger is private</>
+          <>Shared pot and game state only · sign in to track your ledger</>
         )}
       </footer>
     </div>

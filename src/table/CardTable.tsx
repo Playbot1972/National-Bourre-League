@@ -1,13 +1,11 @@
 import { Seat } from "./Seat";
 import { PotCenter } from "./PotCenter";
 import { seatPosition } from "./logic";
-import type { TablePlayer } from "./types";
+import type { PotMetrics, TablePlayer } from "./types";
 
 interface CardTableProps {
   players: TablePlayer[];
-  potAmount: number;
-  carryOverPot: number;
-  handStake: number;
+  potMetrics: PotMetrics;
   participantCount: number;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -15,9 +13,7 @@ interface CardTableProps {
 
 export function CardTable({
   players,
-  potAmount,
-  carryOverPot,
-  handStake,
+  potMetrics,
   participantCount,
   onToggleInHand,
   onTrickDelta,
@@ -28,7 +24,6 @@ export function CardTable({
     return a.displayName.localeCompare(b.displayName);
   });
 
-  // Hero (self) anchored at bottom; rotate others around the table.
   const selfIdx = ordered.findIndex((p) => p.isSelf);
   const rotated =
     selfIdx > 0
@@ -39,12 +34,7 @@ export function CardTable({
     <div className="btable">
       <div className="btable__rail" />
       <div className="btable__felt">
-        <PotCenter
-          potAmount={potAmount}
-          carryOverPot={carryOverPot}
-          handStake={handStake}
-          participantCount={participantCount}
-        />
+        <PotCenter potMetrics={potMetrics} participantCount={participantCount} />
         {rotated.map((player, i) => {
           const pos = seatPosition(i, rotated.length);
           return (
