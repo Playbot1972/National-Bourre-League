@@ -1508,7 +1508,10 @@ body.table-play-active .footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-play-overlay .table-session-root {
@@ -1534,17 +1537,58 @@ body.table-play-active .footer {
 }
 
 @media (orientation: landscape) {
+  .table-play-overlay__bar {
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+  }
+
+  .table-play-overlay__main {
+    align-items: flex-start;
+    padding-block: 2px 10px;
+  }
+
+  .table-play-overlay .btable-session {
+    gap: 0;
+    width: 100%;
+    align-items: center;
+  }
+
+  .table-play-overlay .btable-session__head,
+  .table-play-overlay .btable-session__foot,
+  .table-play-overlay .btable-session__settle {
+    display: none !important;
+  }
+
   .table-play-overlay .btable-wrap {
     --seat-gutter-x: clamp(56px, 14vw, 92px);
+    --overlay-chrome: 48px;
+    --hero-outset: clamp(56px, 14vh, 84px);
+    --avail-h: calc(
+      100dvh - var(--overlay-chrome) - env(safe-area-inset-top, 0px) -
+        env(safe-area-inset-bottom, 0px) - 12px
+    );
+    --table-max-h: max(
+      140px,
+      calc(var(--avail-h) - 2 * var(--seat-gutter-y) - var(--hero-outset))
+    );
+    max-width: min(
+      calc(98vw),
+      calc(var(--table-max-h) * var(--table-aspect) + 2 * var(--seat-gutter-x))
+    );
+    padding-bottom: calc(var(--seat-gutter-y) + var(--hero-outset));
+    margin-inline: auto;
   }
 
   .table-play-overlay .btable-wrap.btable--p2,
   .table-play-overlay .btable-wrap.btable--p3 {
-    --seat-gutter-y: clamp(32px, 8vh, 52px);
+    --seat-gutter-y: clamp(28px, 7vh, 44px);
   }
 
-  .table-play-overlay .btable-session__foot {
-    display: none;
+  .table-play-overlay .btable-wrap .btable {
+    width: min(100%, calc(var(--table-max-h) * var(--table-aspect)));
+    max-height: var(--table-max-h);
+    height: auto;
+    aspect-ratio: var(--table-aspect) / 1;
   }
 
   .table-play-overlay__rotate {

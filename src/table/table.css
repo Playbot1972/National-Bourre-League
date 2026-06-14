@@ -639,7 +639,14 @@
   .btable-wrap {
     --seat-gutter-x: clamp(52px, 13vw, 88px);
     --seat-gutter-y: clamp(32px, 8vh, 52px);
+    --hero-outset: clamp(48px, 12vh, 72px);
     max-width: min(calc(96vw + 2 * var(--seat-gutter-x)), 980px);
+    padding-bottom: calc(var(--seat-gutter-y) + var(--hero-outset));
+  }
+
+  .btable-wrap.btable--p2,
+  .btable-wrap.btable--p3 {
+    --hero-outset: clamp(56px, 14vh, 84px);
   }
 
   .btable-session {
