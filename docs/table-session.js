@@ -8230,7 +8230,7 @@ function b({ potMetrics: e, participantCount: t }) {
 						className: "bpot__stat",
 						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Pot Cap" }), /* @__PURE__ */ (0, p.jsxs)("dd", { children: [h(e.potCap), e.limEnabled && /* @__PURE__ */ (0, p.jsx)("span", {
 							className: "bpot__lim-tag",
-							children: "Lim"
+							children: "LmT"
 						})] })]
 					}),
 					/* @__PURE__ */ (0, p.jsxs)("div", {

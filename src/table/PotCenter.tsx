@@ -28,7 +28,7 @@ export function PotCenter({ potMetrics, participantCount }: PotCenterProps) {
           <dt>Pot Cap</dt>
           <dd>
             {formatRiskStake(potMetrics.potCap)}
-            {potMetrics.limEnabled && <span className="bpot__lim-tag">Lim</span>}
+            {potMetrics.limEnabled && <span className="bpot__lim-tag">LmT</span>}
           </dd>
         </div>
         <div className="bpot__stat bpot__stat--highlight">

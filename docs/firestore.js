@@ -594,6 +594,19 @@ export async function updateSessionHandStake(roomId, sessionId, handStake) {
   });
 }
 
+/** Toggle LmT (20× pot cap + overflow carry) until the first hand is recorded. */
+export async function updateSessionLimEnabled(roomId, sessionId, limEnabled) {
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!snap.exists()) throw new Error("Session not found");
+  const data = snap.data();
+  if (data.status === "final") throw new Error("Session is final");
+  if (data.handStakeLocked) throw new Error("LmT is locked after the first hand");
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    limEnabled: limEnabled === true,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 /**
  * Record one hand. Single winner takes the pot. Co-winners must pass settlement
  * 'push' (pot carries) or 'split' (divide among winners).

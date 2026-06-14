@@ -31,7 +31,7 @@ import {
   subscribeScores,
   createSession,
   updateSessionNotes,
-  updateSessionHandStake,
+  updateSessionLimEnabled,
   updateHandTrick,
   voteCoWinSettlement,
   addSessionPlayer,
@@ -60,7 +60,6 @@ import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import {
   RISK_STAKE_OPTIONS,
-  riskStakeOptionsFor,
   formatRiskStake,
   formatNet,
 } from "./risk-stakes.js";
@@ -1184,15 +1183,15 @@ function renderRoomDetail() {
                  </label>
                  <label class="bourre-settings__row bourre-settings__lim">
                    <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
-                   <span>Lim</span>
-                   <span class="muted small">Pot cap ${formatRiskStake(bourreSettings.potCap)} (20× ante) · overflow → next hand</span>
+                   <span>LmT</span>
+                   <span class="muted small">Pot cap 20× ante · overflow → next hand</span>
                  </label>
                  <p class="muted small">Applies to new sessions. Each hand: winner take &amp; bourré penalty = min(pot, cap).</p>
                </div>`
             : `<ul class="kv">
                  <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
                  <li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>
-                 <li><span>Lim</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
+                 <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
                </ul>`
         }
       </section>
@@ -1322,41 +1321,15 @@ function renderSessionPanel(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
   const isOwner = session?.uid === currentRoom?.ownerId;
-  const handStake = s.handStake ?? 1;
   const stakeLocked = Boolean(s.handStakeLocked);
   const limEnabled = s.limEnabled !== false;
-  const sessionPotCap = handStake * 20;
   const handCount = s.handCount ?? 0;
-  const carryOverPot = s.carryOverPot ?? 0;
+  const lmtDisabled = isFinal || stakeLocked || !isOwner;
 
-  const stakeControl = stakeLocked
-    ? `<div class="session-stake">
-         <span class="session-stake__label">Ante</span>
-         <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
-         <span class="badge badge--closed">Locked</span>
-         ${limEnabled ? `<span class="badge">Lim · cap ${escapeHtml(formatRiskStake(sessionPotCap))}</span>` : ""}
-         ${carryOverPot > 0 ? `<span class="badge">Carry ${escapeHtml(formatRiskStake(carryOverPot))}</span>` : ""}
-         <p class="muted small">Locked after the first hand this session.</p>
-       </div>`
-    : isOwner
-      ? `<div class="session-stake">
-           <label class="session-stake__label" for="session-hand-stake">Ante</label>
-           <select class="num-select" id="session-hand-stake" aria-label="Ante for this session">
-             ${riskStakeOptionsFor(handStake)
-               .map(
-                 (n) =>
-                   `<option value="${n}" ${n === handStake ? "selected" : ""}>${formatRiskStake(n)}</option>`,
-               )
-               .join("")}
-           </select>
-           <p class="muted small">Each hand: ante ${escapeHtml(formatRiskStake(handStake))}, cap ${escapeHtml(formatRiskStake(sessionPotCap))}${limEnabled ? " (Lim on)" : ""}. Locks after first hand.</p>
-         </div>`
-      : `<div class="session-stake">
-           <span class="session-stake__label">Ante</span>
-           <strong>${escapeHtml(formatRiskStake(handStake))}</strong>
-           ${limEnabled ? `<span class="badge">Lim · cap ${escapeHtml(formatRiskStake(sessionPotCap))}</span>` : ""}
-           <p class="muted small">Host set · locks after the first hand.</p>
-         </div>`;
+  const lmtControl = `<label class="session-lmt ${lmtDisabled ? "session-lmt--disabled" : ""}">
+      <input type="checkbox" id="session-lmt-enabled" ${limEnabled ? "checked" : ""} ${lmtDisabled ? "disabled" : ""} />
+      <span>LmT</span>
+    </label>`;
 
   const myUid = session?.uid ?? null;
   const myScore = myUid ? openScores.find((sc) => sc.playerId === myUid) : null;
@@ -1431,7 +1404,7 @@ function renderSessionPanel(s) {
     <div class="session session--table">
       ${isFinal ? resultsBlock : tableHost}
       <aside class="session-sidebar">
-        ${stakeControl}
+        ${lmtControl}
         ${handHistory}
         <div class="session-controls">${controls}</div>
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
@@ -1527,15 +1500,16 @@ function renderSettlementVoteStatus(s, displayScores, activeWinnerIds) {
 function wireSessionControls() {
   if (!openSessionId) return;
 
-  const handStakeSelect = $("#session-hand-stake", roomDetailView);
-  if (handStakeSelect) {
-    handStakeSelect.addEventListener("change", () => {
-      pendingHandStake = parseInt(handStakeSelect.value, 10) || 1;
-      updateSessionHandStake(
-        currentRoomId,
-        openSessionId,
-        pendingHandStake,
-      ).catch((e) => console.error("updateSessionHandStake:", e));
+  const sessionLmt = $("#session-lmt-enabled", roomDetailView);
+  if (sessionLmt && !sessionLmt.disabled) {
+    sessionLmt.addEventListener("change", () => {
+      updateSessionLimEnabled(currentRoomId, openSessionId, sessionLmt.checked).catch(
+        (e) => {
+          console.error("updateSessionLimEnabled:", e);
+          showRoomsError(e.message || "Could not update LmT");
+          sessionLmt.checked = !sessionLmt.checked;
+        },
+      );
     });
   }
 
