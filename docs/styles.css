@@ -1525,7 +1525,7 @@ body.table-play-active .footer {
 
 .table-play-overlay .btable-wrap {
   --seat-gutter-x: clamp(52px, 13vw, 88px);
-  --seat-gutter-y: clamp(28px, 6vh, 44px);
+  --seat-gutter-y: clamp(32px, 8vh, 52px);
   max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1000px);
 }
 
@@ -1540,7 +1540,7 @@ body.table-play-active .footer {
 
   .table-play-overlay .btable-wrap.btable--p2,
   .table-play-overlay .btable-wrap.btable--p3 {
-    --seat-gutter-y: clamp(40px, 9vh, 56px);
+    --seat-gutter-y: clamp(32px, 8vh, 52px);
   }
 
   .table-play-overlay .btable-session__foot {

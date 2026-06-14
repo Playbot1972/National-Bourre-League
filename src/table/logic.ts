@@ -59,21 +59,15 @@ export function initials(name: string) {
     .join("") || "?";
 }
 
-/** Matches `.btable__rail` stadium oval (50% / 50% border-radius). */
-export const TABLE_ELLIPSE = { rx: 48, ry: 40 } as const;
+/**
+ * Outer rail ellipse — matches `.btable__rail` with border-radius 50% / 50%
+ * (semi-axes are half the seat-layer width and height).
+ */
+export const RAIL_RX = 50;
+export const RAIL_RY = 50;
 
-/** Push seat centers outward onto the rail (Texas Hold'em style). */
-export const SEAT_RAIL_OUTSET = 1.5;
-
-/** Horizontal / vertical radii (% of table) — uniform oval, slight inset for tiny tables. */
-export function seatRadii(total: number) {
-  const n = Math.max(2, Math.min(8, total || 2));
-  const inset = n <= 3 ? 0.9 : n <= 4 ? 0.95 : 1;
-  return {
-    rx: TABLE_ELLIPSE.rx * inset,
-    ry: TABLE_ELLIPSE.ry * inset,
-  };
-}
+/** Push avatar centers slightly past the rail lip onto the outer edge. */
+export const SEAT_RAIL_OUTSET = 2;
 
 export type SeatRegion = "bottom" | "top" | "left" | "right";
 
@@ -92,27 +86,26 @@ export interface SeatPlacement {
 }
 
 /**
- * Evenly spaced seats on the rail oval (0 = bottom / hero, clockwise).
- * Uses cos/sin parametric ellipse so spacing matches the visible table edge.
+ * Evenly spaced seats on the outer rail oval (index 0 = bottom / hero, clockwise).
+ * Equal angle steps; ellipse matches the visible table edge in all orientations.
  */
 export function seatPosition(index: number, total: number): SeatPlacement {
-  if (total <= 0) return { x: 50, y: 50, region: "bottom" };
-  const { rx, ry } = seatRadii(total);
-  const theta = (index / total) * Math.PI * 2 + Math.PI / 2;
+  const n = Math.max(2, Math.min(8, total || 2));
+  if (n <= 0) return { x: 50, y: 50, region: "bottom" };
+
+  const theta = (index / n) * Math.PI * 2 + Math.PI / 2;
   const nx = Math.cos(theta);
   const ny = Math.sin(theta);
-  const onRailX = 50 + rx * nx;
-  const onRailY = 50 + ry * ny;
-  let x = onRailX + nx * SEAT_RAIL_OUTSET;
-  let y = onRailY + ny * SEAT_RAIL_OUTSET;
-  // Bottom-arc seats: pull toward center so hero controls stay on screen (esp. 2–3 players).
-  if (ny > 0.15) {
-    const pull = total <= 3 ? 6 : total <= 4 ? 4 : total <= 6 ? 2 : 1;
-    y -= ny * pull;
-  }
+
   return {
-    x,
-    y,
+    x: 50 + RAIL_RX * nx + nx * SEAT_RAIL_OUTSET,
+    y: 50 + RAIL_RY * ny + ny * SEAT_RAIL_OUTSET,
     region: seatRegion(theta),
   };
+}
+
+/** Table width:height ratio — widens smoothly from 2 → 8 players (same in portrait & landscape). */
+export function tableAspectForPlayers(total: number): number {
+  const n = Math.max(2, Math.min(8, total || 2));
+  return 1.15 + ((n - 2) * 0.84) / 6;
 }

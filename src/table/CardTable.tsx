@@ -1,6 +1,6 @@
 import { Seat } from "./Seat";
 import { PotCenter } from "./PotCenter";
-import { seatPosition } from "./logic";
+import { seatPosition, tableAspectForPlayers } from "./logic";
 import type { PotMetrics, TablePlayer } from "./types";
 
 interface CardTableProps {
@@ -32,11 +32,15 @@ export function CardTable({
 
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
+  const tableAspect = tableAspectForPlayers(playerCount);
 
   return (
     <div
       className={`btable-wrap ${countClass}`}
-      style={{ ["--player-count" as string]: playerCount }}
+      style={{
+        ["--player-count" as string]: playerCount,
+        ["--table-aspect" as string]: tableAspect,
+      }}
     >
       <div className="btable">
         <div className="btable__rail" aria-hidden="true" />

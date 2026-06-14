@@ -63,49 +63,49 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
         {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
       </div>
 
-      <div className="bseat__info">
-        <span className="bseat__name">{player.displayName}</span>
-        {player.isRobot && (
-          <span className="bseat__robot-tag muted small">Bot</span>
-        )}
-        {player.enrollmentSatOut && (
-          <span className="bseat__enroll-tag muted small">Sat out</span>
-        )}
-        {player.enrollmentJoined && !player.inHand && (
-          <span className="bseat__enroll-tag muted small">Joined</span>
-        )}
-        {player.isSelf && player.net != null && (
-          <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
-            {formatNet(player.net)}
+      <div className="bseat__aux">
+        <div className="bseat__info">
+          <span className="bseat__name">{player.displayName}</span>
+          {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
+          {player.enrollmentSatOut && (
+            <span className="bseat__enroll-tag muted small">Sat out</span>
+          )}
+          {player.enrollmentJoined && !player.inHand && (
+            <span className="bseat__enroll-tag muted small">Joined</span>
+          )}
+          {player.isSelf && player.net != null && (
+            <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
+              {formatNet(player.net)}
+            </span>
+          )}
+        </div>
+
+        {player.enrollmentOnClock && (
+          <span className="bseat__enroll-timer" aria-live="polite">
+            {player.isSelf ? "Tap I'm in" : "…"}
           </span>
         )}
-      </div>
 
-      {player.enrollmentOnClock && (
-        <span className="bseat__enroll-timer" aria-live="polite">
-          {player.isSelf ? "Tap I'm in" : "…"}
-        </span>
-      )}
-
-      {player.canToggleInHand && (
-        <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
-          I&apos;m in
-        </button>
-      )}
-
-      {player.canEditTricks && (
-        <div className="bseat__controls">
-          <button
-            type="button"
-            className="bseat__trick-btn bseat__trick-btn--plus"
-            aria-label="Won a trick"
-            disabled={trickCount >= 5}
-            onClick={() => onTrickDelta(1)}
-          >
-            +
+        {player.canToggleInHand && (
+          <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
+            I&apos;m in
           </button>
-        </div>
-      )}
+        )}
+
+        {player.canEditTricks && (
+          <div className="bseat__controls">
+            <button
+              type="button"
+              className="bseat__trick-btn bseat__trick-btn--plus"
+              aria-label="Won a trick"
+              disabled={trickCount >= 5}
+              onClick={() => onTrickDelta(1)}
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

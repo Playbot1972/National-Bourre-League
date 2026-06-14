@@ -27,11 +27,12 @@
 .btable-wrap {
   position: relative;
   width: 100%;
-  max-width: 780px;
+  max-width: min(100%, calc(300px + var(--player-count, 4) * 72px));
   margin: 0 auto;
   overflow: visible;
-  --seat-gutter-x: clamp(44px, 11%, 68px);
-  --seat-gutter-y: clamp(32px, 8%, 48px);
+  --seat-gutter-x: clamp(48px, 12%, 72px);
+  --seat-gutter-y: clamp(36px, 9%, 56px);
+  --table-aspect: 1.45;
   padding: var(--seat-gutter-y) var(--seat-gutter-x);
   box-sizing: border-box;
 }
@@ -39,76 +40,15 @@
 .btable-wrap .btable {
   max-width: none;
   margin: 0;
-}
-
-.btable-wrap.btable--p2,
-.btable-wrap.btable--p3 {
-  max-width: 520px;
-}
-
-.btable-wrap.btable--p2 .btable,
-.btable-wrap.btable--p3 .btable {
-  aspect-ratio: 1.15 / 1;
-}
-
-.btable-wrap.btable--p4 {
-  max-width: 620px;
-}
-
-.btable-wrap.btable--p4 .btable {
-  aspect-ratio: 1.45 / 1;
-}
-
-.btable-wrap.btable--p5,
-.btable-wrap.btable--p6 {
-  max-width: 700px;
-}
-
-.btable-wrap.btable--p5 .btable,
-.btable-wrap.btable--p6 .btable {
-  aspect-ratio: 1.75 / 1;
-}
-
-.btable-wrap.btable--p7,
-.btable-wrap.btable--p8 {
-  max-width: 820px;
-}
-
-.btable-wrap.btable--p7 .btable,
-.btable-wrap.btable--p8 .btable {
-  aspect-ratio: 2.15 / 1;
+  width: 100%;
+  aspect-ratio: var(--table-aspect) / 1;
 }
 
 .btable {
   position: relative;
   width: 100%;
-  max-width: 780px;
   margin: 0 auto;
-  aspect-ratio: 2 / 1;
   overflow: visible;
-}
-
-.btable--p2,
-.btable--p3 {
-  max-width: 520px;
-  aspect-ratio: 1.15 / 1;
-}
-
-.btable--p4 {
-  max-width: 620px;
-  aspect-ratio: 1.45 / 1;
-}
-
-.btable--p5,
-.btable--p6 {
-  max-width: 700px;
-  aspect-ratio: 1.75 / 1;
-}
-
-.btable--p7,
-.btable--p8 {
-  max-width: 820px;
-  aspect-ratio: 2.15 / 1;
 }
 
 .btable__rail {
@@ -266,53 +206,103 @@
   margin-top: 2px;
 }
 
-/* Seats — on rail ring (Texas Hold'em style) */
+/* Seats — rail anchor at avatar center; equal spacing from seatPosition() */
 .bseat {
   position: absolute;
-  --seat-anchor-x: -50%;
-  --seat-anchor-y: -50%;
-  transform: translate(var(--seat-anchor-x), var(--seat-anchor-y));
+  width: 0;
+  height: 0;
+  z-index: 3;
+  overflow: visible;
+  transition: filter 200ms ease;
+}
+
+.bseat__avatar-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, -50%);
+}
+
+.bseat__tricks {
+  position: absolute;
+  height: 32px;
+  width: 56px;
+  pointer-events: none;
+}
+
+.bseat__aux {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  width: 84px;
-  z-index: 3;
-  transition: filter 200ms ease;
-  overflow: visible;
+  pointer-events: auto;
 }
 
-.bseat--bottom {
-  --seat-anchor-y: calc(-100% - 8px);
+/* Bottom / hero: tricks toward felt, labels & controls outward */
+.bseat--bottom .bseat__tricks {
+  left: 0;
+  bottom: 100%;
+  transform: translate(-50%, -4px);
 }
 
-.bseat--top {
-  flex-direction: column-reverse;
-  --seat-anchor-y: 8px;
-}
-
-/* Side seats: trick stack toward table center for cleaner rail silhouette */
-.bseat--left,
-.bseat--right {
-  width: 76px;
-}
-
-.bseat--left .bseat__tricks,
-.bseat--right .bseat__tricks {
-  order: 2;
+.bseat--bottom .bseat__aux {
+  left: 0;
+  top: 100%;
+  transform: translate(-50%, 4px);
+  min-width: 84px;
 }
 
 .bseat--top .bseat__tricks {
-  order: -1;
+  left: 0;
+  top: 100%;
+  transform: translate(-50%, 4px);
 }
 
-.bseat--bottom.bseat--self {
-  width: 92px;
-  z-index: 6;
+.bseat--top .bseat__aux {
+  left: 0;
+  bottom: 100%;
+  transform: translate(-50%, -4px);
+  min-width: 84px;
+}
+
+.bseat--left .bseat__tricks {
+  left: 100%;
+  top: 0;
+  transform: translate(4px, -50%);
+}
+
+.bseat--left .bseat__aux {
+  right: 100%;
+  top: 0;
+  transform: translate(-4px, -50%);
+  min-width: 72px;
+}
+
+.bseat--right .bseat__tricks {
+  right: 100%;
+  top: 0;
+  left: auto;
+  transform: translate(-4px, -50%);
+}
+
+.bseat--right .bseat__aux {
+  left: 100%;
+  top: 0;
+  transform: translate(4px, -50%);
+  min-width: 72px;
+}
+
+.bseat--bottom.bseat--self .bseat__aux {
+  min-width: 92px;
 }
 
 .bseat--self {
-  z-index: 4;
+  z-index: 6;
+}
+
+.bseat--self .bseat__avatar-wrap {
+  z-index: 2;
 }
 
 .bseat--in-hand .bseat__avatar-wrap {
@@ -386,19 +376,19 @@
   box-shadow: 0 0 0 2px rgba(230, 180, 80, 0.85), 0 0 12px rgba(230, 180, 80, 0.35);
 }
 
-.bseat--winner {
+.bseat--winner .bseat__avatar-wrap {
   animation: bseat-win 600ms ease;
 }
 
 @keyframes bseat-win {
   0% {
-    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
   40% {
-    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1.08);
+    transform: translate(-50%, -50%) scale(1.08);
   }
   100% {
-    transform: translate(var(--seat-anchor-x), var(--seat-anchor-y)) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
@@ -418,13 +408,6 @@
   justify-content: center;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
   z-index: 5;
-}
-
-.bseat__tricks {
-  position: relative;
-  height: 32px;
-  width: 56px;
-  margin-bottom: 2px;
 }
 
 .bseat__trick-card {
@@ -638,38 +621,13 @@
   .btable-session__rotate-hint {
     display: block;
   }
-
-  .btable--p7,
-  .btable--p8 {
-    max-width: 100%;
-    aspect-ratio: 1.85 / 1;
-  }
-
-  .btable--p5,
-  .btable--p6 {
-    aspect-ratio: 1.55 / 1;
-  }
 }
 
 @media (max-width: 900px) and (orientation: landscape) {
   .btable-wrap {
-    --seat-gutter-x: clamp(52px, 13vw, 84px);
-    --seat-gutter-y: clamp(28px, 6vh, 44px);
-  }
-
-  .btable-wrap.btable--p2,
-  .btable-wrap.btable--p3 {
-    --seat-gutter-y: clamp(36px, 8vh, 52px);
-    padding-bottom: calc(var(--seat-gutter-y) + 8px);
-  }
-
-  .bseat--bottom {
-    --seat-anchor-y: calc(-100% - 12px);
-  }
-
-  .bseat--bottom.bseat--self .bseat__opt-in {
-    min-height: 40px;
-    font-size: 12px;
+    --seat-gutter-x: clamp(52px, 13vw, 88px);
+    --seat-gutter-y: clamp(32px, 8vh, 52px);
+    max-width: min(calc(96vw + 2 * var(--seat-gutter-x)), 980px);
   }
 
   .btable-session {
@@ -694,37 +652,9 @@
     flex: 1 1 100%;
   }
 
-  .btable-wrap {
-    max-width: min(calc(96vw + 2 * var(--seat-gutter-x)), 980px);
-  }
-
-  .btable-wrap .btable,
-  .btable {
-    max-width: min(96vw, 920px);
-  }
-
-  .btable-wrap.btable--p7 .btable,
-  .btable-wrap.btable--p8 .btable,
-  .btable--p7,
-  .btable--p8 {
-    aspect-ratio: 2.35 / 1;
-  }
-
-  .btable-wrap.btable--p5 .btable,
-  .btable-wrap.btable--p6 .btable,
-  .btable--p5,
-  .btable--p6 {
-    aspect-ratio: 2.1 / 1;
-  }
-
-  .btable-wrap.btable--p4 .btable,
-  .btable--p4 {
-    aspect-ratio: 1.85 / 1;
-  }
-
-  .bseat {
-    width: 72px;
-    gap: 2px;
+  .bseat--bottom.bseat--self .bseat__opt-in {
+    min-height: 40px;
+    font-size: 12px;
   }
 
   .bseat__avatar {
@@ -780,10 +710,6 @@
 }
 
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 420px) {
-  .btable--p8 .bseat {
-    width: 64px;
-  }
-
   .btable--p8 .bseat__avatar {
     width: 34px;
     height: 34px;
