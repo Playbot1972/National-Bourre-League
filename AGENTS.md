@@ -146,7 +146,9 @@ not vibration. See `src/table/feedback/haptics.ts` for bridge contract.
   (`AUTH_EMULATOR_URL`), so local dev needs no real Firebase project.
 - To exercise auth + data locally, start the emulators with `npm run emulators`
   (Auth on `127.0.0.1:9099`, Firestore on `127.0.0.1:8088`, emulator UI on `:4000`;
-  requires Java, already present). Then open the app via `localhost:8080`. Clear
+  requires **Java 21**). Then open the app via `localhost:8080`. Validate setup with
+  `npm run verify:local:prereq` (before starting servers) and `npm run verify:local`
+  (after emulators + social are up) — see [`docs/TESTING.md`](docs/TESTING.md). Clear
   test data with:
   `curl -X DELETE "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts"`
   and

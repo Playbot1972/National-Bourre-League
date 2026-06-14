@@ -14,24 +14,19 @@ npm install
 
 ## Branch map
 
-| Branch | PR | What it adds | Depends on |
-|--------|-----|--------------|------------|
-| `main` | #65 (merged) | Play engine, draw/play phases, table bundle | — |
-| `cursor/release-bugfix-landscape-draw-8d02` | [#67](https://github.com/Playbot1972/National-Bourre-League/pull/67) | Gameplay bugfix: duplicate cards, draw UX, landscape table | `main` |
-| `cursor/icons-on-main-8d02` | [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) | Icons, PWA manifest, favicon, `icons:generate` | `main` |
-| `cursor/premium-sound-haptics-8d02` | [#68](https://github.com/Playbot1972/National-Bourre-League/pull/68) | Sound + haptics feedback service | **#67** |
+| Branch | PR | What it adds | Status |
+|--------|-----|--------------|--------|
+| `main` | [#71](https://github.com/Playbot1972/National-Bourre-League/pull/71) (merged) | v1.00.64: gameplay bugfix (#67), sound/haptics (#68), icons (#70), `docs/TESTING.md` | **Current release base** |
+| `cursor/testing-java-gotchas-8d02` | [#72](https://github.com/Playbot1972/National-Bourre-League/pull/72) | Java gotchas, `verify:local` / `verify:local:prereq` | Open — merge after local verify passes |
 | `cursor/premium-table-ux-8d02` | [#66](https://github.com/Playbot1972/National-Bourre-League/pull/66) | Premium table UX (themes, Smart HUD, reactions) | Optional, separate stack |
 
-### Known branch stacking
-
-- **Testing #68:** merge or rebase **#67** first, **or** checkout `cursor/premium-sound-haptics-8d02` directly (it already includes #67).
-- **Testing #70:** checkout `cursor/icons-on-main-8d02` until [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) is merged into `main`.
-- **Testing #66:** independent of #67–#70; optional polish, not required for release bugfix validation.
+PRs [#67](https://github.com/Playbot1972/National-Bourre-League/pull/67), [#68](https://github.com/Playbot1972/National-Bourre-League/pull/68), and [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) were consolidated into **#71** on `main`. Use `main` for release validation; checkout **#72** only for the local-dev verify scripts until that PR merges.
 
 ```bash
 git fetch origin
-git checkout cursor/release-bugfix-landscape-draw-8d02   # example
+git checkout main && git pull origin main
 npm install
+npm run verify:local:prereq   # on #72 branch until merged
 ```
 
 ---
@@ -108,10 +103,10 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run test:game` | Card uniqueness + draw flow tests | **main** (v1.00.64+) |
 | `npm run test:feedback` | Haptics fallback + prefs tests | **main** (v1.00.64+) |
 | `npm run icons:generate` | SVG → PNG icon export | **main** (v1.00.64+) |
-| `npm run verify:local:prereq` | Java 21 + port 8080 free | **main** (v1.00.64+) |
-| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **main** (v1.00.64+) |
+| `npm run verify:local:prereq` | Java 21 + port 8080 free | **#72 branch** (merges to `main`) |
+| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **#72 branch** (merges to `main`) |
 
-All scripts above are on **`main`** as of v1.00.64.
+All scripts except `verify:local*` are on **`main`** as of v1.00.64.
 
 ---
 
@@ -133,7 +128,7 @@ Prereq: emulators + http://localhost:8080, signed in, room with 2+ players.
 
 ### #70 — Icons / PWA / favicon
 
-Prereq: branch `cursor/icons-on-main-8d02`, `npm install`, `npm run icons:generate`.
+Prereq: `main` (v1.00.64+), `npm install`, `npm run icons:generate`.
 
 - [ ] Browser tab favicon updated (`favicon.ico`, `favicon.svg`, 16/32 PNG)
 - [ ] `docs/manifest.webmanifest` + `public/manifest.webmanifest` present
@@ -146,7 +141,7 @@ Prereq: branch `cursor/icons-on-main-8d02`, `npm install`, `npm run icons:genera
 
 ### #68 — Sound + haptics
 
-Prereq: **#67** merged or use `cursor/premium-sound-haptics-8d02` directly.
+Prereq: `main` (v1.00.64+), emulators + http://localhost:8080.
 
 - [ ] First tap on table unlocks audio (required on iOS Safari)
 - [ ] Deal / draw replacement → shuffle feedback (sound + light haptic on Android)
@@ -167,11 +162,11 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `Missing script: icons:generate` | On `main` before #70 merge | Checkout `cursor/icons-on-main-8d02` or merge [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) |
+| `Missing script: icons:generate` | Stale `main` before #71 | `git pull origin main` (v1.00.64+) |
 | Table UI blank / “failed to load” | Stale `docs/table-session.js` | `npm run build:table` |
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running or Java missing | Install Java 21; terminal 1: `npm run emulators` (see **Java & Firebase emulators** above) |
-| Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
+| Draw appears to do nothing | Stale `main` or stale table bundle | `git pull origin main`; `npm run build:table`; check table overlay banner + console |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
 
@@ -179,10 +174,13 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 ## Recommended test order
 
-1. **[#67](https://github.com/Playbot1972/National-Bourre-League/pull/67)** — gameplay bugfix / landscape / draw (highest priority)
-2. **[#70](https://github.com/Playbot1972/National-Bourre-League/pull/70)** — icons / PWA / favicon
-3. **[#68](https://github.com/Playbot1972/National-Bourre-League/pull/68)** — sound + haptics, rebased on updated `main` after #67 lands
-4. **[#66](https://github.com/Playbot1972/National-Bourre-League/pull/66)** — premium table UX (optional)
+On **`main` (v1.00.64)** — all of #67–#70 landed via [#71](https://github.com/Playbot1972/National-Bourre-League/pull/71):
+
+1. Local dev verify — `npm run verify:local:prereq` then `npm run verify:local` ([#72](https://github.com/Playbot1972/National-Bourre-League/pull/72))
+2. Gameplay bugfix checklist (#67 section above)
+3. Icons / PWA (#70 section)
+4. Sound + haptics (#68 section)
+5. **[#66](https://github.com/Playbot1972/National-Bourre-League/pull/66)** — premium table UX (optional, separate branch)
 
 ---
 
