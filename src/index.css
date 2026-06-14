@@ -1,24 +1,8 @@
-:root {
-  --felt-900: #0a2a1f;
-  --felt-800: #0d3a29;
-  --felt-700: #115138;
-  --felt-glow: #1c6e4d;
-  --gold-300: #f4d58d;
-  --gold-400: #e6b450;
-  --gold-500: #c8922f;
-  --ink-900: #14110f;
-  --ink-600: #3a3530;
-  --paper: #fbf7ef;
-  --paper-shadow: rgba(7, 25, 18, 0.55);
-  --red-suit: #c0322b;
-  --black-suit: #1a1a1a;
-  --text-light: #f3efe6;
-  --text-dim: #b9c9bf;
-  --radius-card: 12px;
+@import "./themes.css";
 
+:root {
   font-family: "Segoe UI", "Helvetica Neue", system-ui, -apple-system, sans-serif;
   color: var(--text-light);
-  color-scheme: dark;
 }
 
 * {
@@ -33,10 +17,7 @@ body,
 }
 
 body {
-  background:
-    radial-gradient(circle at 50% -10%, var(--felt-glow) 0%, transparent 55%),
-    radial-gradient(circle at 50% 120%, var(--felt-700) 0%, transparent 60%),
-    linear-gradient(160deg, var(--felt-900), var(--felt-800));
+  background: var(--body-bg-gradient);
   background-attachment: fixed;
   min-height: 100vh;
 }

@@ -1,0 +1,222 @@
+/* National Bourré League — dark (default) + US currency light themes */
+
+:root,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Felt table / page base (dark casino) */
+  --felt-900: #0a2a1f;
+  --felt-800: #0d3a29;
+  --felt-700: #115138;
+  --felt-glow: #1c6e4d;
+
+  /* Gold accents */
+  --gold-300: #f4d58d;
+  --gold-400: #e6b450;
+  --gold-500: #c8922f;
+  --gold: var(--gold-300);
+
+  --ink-900: #14110f;
+  --ink-600: #3a3530;
+  --paper: #fbf7ef;
+  --paper-shadow: rgba(7, 25, 18, 0.55);
+  --red-suit: #c0322b;
+  --black-suit: #1a1a1a;
+  --text-light: #f3efe6;
+  --text-dim: #b9c9bf;
+  --text-faint: rgba(185, 201, 191, 0.6);
+  --red: #c0322b;
+  --radius-card: 12px;
+
+  /* Surfaces & borders */
+  --surface-topbar: rgba(8, 32, 23, 0.85);
+  --surface-topbar-border: rgba(244, 213, 141, 0.22);
+  --surface-panel: rgba(7, 28, 20, 0.5);
+  --surface-panel-strong: rgba(7, 28, 20, 0.7);
+  --surface-panel-muted: rgba(7, 28, 20, 0.6);
+  --surface-modal-backdrop: rgba(3, 14, 9, 0.7);
+  --surface-modal: rgba(7, 28, 20, 0.55);
+  --surface-input: rgba(7, 28, 20, 0.7);
+  --surface-chip: rgba(244, 213, 141, 0.12);
+  --surface-profile: rgba(244, 213, 141, 0.08);
+  --surface-highlight: rgba(244, 213, 141, 0.06);
+  --surface-danger: rgba(180, 60, 60, 0.2);
+  --surface-danger-hover: rgba(180, 60, 60, 0.35);
+  --surface-success: rgba(45, 106, 79, 0.2);
+  --surface-error: rgba(192, 50, 43, 0.16);
+
+  --border-default: rgba(244, 213, 141, 0.45);
+  --border-strong: rgba(244, 213, 141, 0.5);
+  --border-mid: rgba(244, 213, 141, 0.3);
+  --border-soft: rgba(244, 213, 141, 0.25);
+  --border-faint: rgba(244, 213, 141, 0.18);
+  --border-subtle: rgba(244, 213, 141, 0.16);
+  --border-dashed: rgba(244, 213, 141, 0.45);
+  --border-profile: rgba(244, 213, 141, 0.3);
+  --border-badge-closed: rgba(185, 201, 191, 0.4);
+  --border-success: rgba(82, 183, 136, 0.45);
+  --border-error: rgba(192, 50, 43, 0.5);
+  --border-danger: rgba(220, 100, 100, 0.45);
+  --border-danger-hover: rgba(255, 140, 140, 0.6);
+
+  --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.5);
+  --shadow-dialog: 0 18px 40px rgba(3, 18, 12, 0.6);
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  --body-bg-gradient:
+    radial-gradient(circle at 50% -10%, var(--felt-glow) 0%, transparent 55%),
+    linear-gradient(160deg, var(--felt-900), var(--felt-800));
+
+  /* Card table (dark wood + green felt) */
+  --table-rail-start: #3d2817;
+  --table-rail-end: #1a0f08;
+  --table-rail-highlight: rgba(255, 220, 160, 0.12);
+  --table-felt-highlight: rgba(40, 120, 80, 0.35);
+  --table-felt-mid: #0f5038;
+  --table-felt-deep: #0a3224;
+  --table-felt-edge: #061f16;
+  --table-felt-border: rgba(244, 213, 141, 0.15);
+  --table-felt-inset: rgba(0, 0, 0, 0.45);
+  --table-shadow: rgba(0, 0, 0, 0.55);
+
+  --theme-toggle-icon: "☀";
+}
+
+/* US Federal Reserve note palette — cotton paper, intaglio green & black, treasury copper-gold */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Bill green + paper cream */
+  --felt-900: #ede6c8;
+  --felt-800: #e4dcc0;
+  --felt-700: #006b3f;
+  --felt-glow: #008556;
+
+  /* Treasury seal / copper-gold (not casino gold) */
+  --gold-300: #006b3f;
+  --gold-400: #005a35;
+  --gold-500: #004528;
+  --gold: #8b7342;
+
+  --ink-900: #1c140f;
+  --ink-600: #3d3428;
+  --paper: #faf6ea;
+  --paper-shadow: rgba(28, 20, 15, 0.18);
+  --red-suit: #9b2743;
+  --black-suit: #1c140f;
+  --text-light: #1c140f;
+  --text-dim: #4a5c52;
+  --text-faint: rgba(74, 92, 82, 0.72);
+  --red: #9b2743;
+  --radius-card: 12px;
+
+  --surface-topbar: rgba(237, 230, 200, 0.94);
+  --surface-topbar-border: rgba(0, 107, 63, 0.28);
+  --surface-panel: rgba(255, 250, 238, 0.92);
+  --surface-panel-strong: rgba(250, 246, 234, 0.98);
+  --surface-panel-muted: rgba(244, 239, 220, 0.88);
+  --surface-modal-backdrop: rgba(28, 20, 15, 0.42);
+  --surface-modal: rgba(255, 252, 245, 0.98);
+  --surface-input: rgba(255, 255, 252, 0.95);
+  --surface-chip: rgba(0, 107, 63, 0.08);
+  --surface-profile: rgba(0, 107, 63, 0.06);
+  --surface-highlight: rgba(139, 115, 66, 0.1);
+  --surface-danger: rgba(155, 39, 67, 0.1);
+  --surface-danger-hover: rgba(155, 39, 67, 0.18);
+  --surface-success: rgba(0, 107, 63, 0.1);
+  --surface-error: rgba(155, 39, 67, 0.1);
+
+  --border-default: rgba(0, 107, 63, 0.42);
+  --border-strong: rgba(0, 107, 63, 0.55);
+  --border-mid: rgba(0, 107, 63, 0.32);
+  --border-soft: rgba(0, 107, 63, 0.26);
+  --border-faint: rgba(0, 107, 63, 0.2);
+  --border-subtle: rgba(139, 115, 66, 0.22);
+  --border-dashed: rgba(0, 107, 63, 0.38);
+  --border-profile: rgba(0, 107, 63, 0.28);
+  --border-badge-closed: rgba(74, 92, 82, 0.35);
+  --border-success: rgba(0, 107, 63, 0.45);
+  --border-error: rgba(155, 39, 67, 0.45);
+  --border-danger: rgba(155, 39, 67, 0.4);
+  --border-danger-hover: rgba(155, 39, 67, 0.55);
+
+  --shadow-modal: 0 24px 60px rgba(28, 20, 15, 0.18);
+  --shadow-dialog: 0 18px 40px rgba(28, 20, 15, 0.14);
+  --shadow-card: 0 8px 24px rgba(28, 20, 15, 0.1);
+
+  --body-bg-gradient:
+    radial-gradient(circle at 12% 0%, rgba(0, 107, 63, 0.14) 0%, transparent 42%),
+    radial-gradient(circle at 88% 100%, rgba(139, 115, 66, 0.12) 0%, transparent 38%),
+    linear-gradient(165deg, #f7f2e4 0%, var(--felt-900) 45%, #e0d8bc 100%);
+
+  /* Table: bill-green felt on bronze rail */
+  --table-rail-start: #8b6914;
+  --table-rail-end: #5c4510;
+  --table-rail-highlight: rgba(255, 248, 230, 0.18);
+  --table-felt-highlight: rgba(255, 255, 240, 0.2);
+  --table-felt-mid: #007a4a;
+  --table-felt-deep: #006b3f;
+  --table-felt-edge: #004d2e;
+  --table-felt-border: rgba(139, 115, 66, 0.45);
+  --table-felt-inset: rgba(0, 0, 0, 0.22);
+  --table-shadow: rgba(28, 20, 15, 0.22);
+
+  --theme-toggle-icon: "☾";
+}
+
+[data-theme="light"] .btn--primary,
+[data-theme="light"] .nav__link.is-active,
+[data-theme="light"] .brand__mark {
+  background: linear-gradient(160deg, #a68952, #8b7342);
+  color: #faf6ea;
+}
+
+[data-theme="light"] .brand__text em,
+[data-theme="light"] a {
+  color: var(--gold-400);
+}
+
+[data-theme="light"] .btn--primary {
+  border-color: transparent;
+}
+
+[data-theme="light"] .rules-tab.is-active,
+[data-theme="light"] .modal__tab.is-active {
+  background: linear-gradient(160deg, #a68952, #8b7342);
+  color: #faf6ea;
+}
+
+[data-theme="light"] .rules-card__num,
+[data-theme="light"] .rules-card__chip {
+  border-color: rgba(139, 115, 66, 0.45);
+}
+
+[data-theme="light"] .badge {
+  border-color: rgba(139, 115, 66, 0.5);
+  color: #6b5328;
+}
+
+[data-theme="light"] .badge--active {
+  border-color: #006b3f;
+  color: #006b3f;
+}
+
+[data-theme="light"] .bpot__lim-tag {
+  background: rgba(139, 115, 66, 0.2);
+  color: #5c4510;
+}
+
+[data-theme="light"] .subpanel h4,
+[data-theme="light"] .rules-card__head h3 {
+  color: #006b3f;
+}
+
+[data-theme="light"] .rules-card--highlight {
+  border-color: rgba(0, 107, 63, 0.28);
+  background: rgba(0, 107, 63, 0.06);
+}
+
+[data-theme="light"] .modal__dialog,
+[data-theme="light"] .subpanel {
+  box-shadow: var(--shadow-card);
+}

@@ -1,15 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import { APP_VERSION } from "./version";
+import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
+  const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+
+  useEffect(() => {
+    initTheme();
+    setTheme(getStoredTheme());
+  }, []);
+
+  const toggleTheme = () => {
+    const next: ThemeMode = theme === "dark" ? "light" : "dark";
+    saveTheme(next);
+    setTheme(next);
+  };
 
   return (
     <div className="app">
@@ -24,29 +37,47 @@ export default function App() {
             National <em>Bourré</em> League
           </span>
         </button>
-        <nav className="app__nav" aria-label="Primary">
+        <div className="app__header-actions">
+          <nav className="app__nav" aria-label="Primary">
+            <button
+              className={`app__nav-link ${screen === "rules" ? "is-active" : ""}`}
+              onClick={() => setScreen("rules")}
+            >
+              Rules
+            </button>
+            <button
+              className={`app__nav-link ${screen === "tutorial" ? "is-active" : ""}`}
+              onClick={() => setScreen("tutorial")}
+            >
+              Tutorial
+            </button>
+            <button
+              className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
+              onClick={() => setScreen("room")}
+            >
+              Private Room
+            </button>
+            <a className="app__nav-link app__nav-link--external" href="/social/">
+              Social
+            </a>
+          </nav>
           <button
-            className={`app__nav-link ${screen === "rules" ? "is-active" : ""}`}
-            onClick={() => setScreen("rules")}
+            type="button"
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-pressed={theme === "light"}
+            aria-label={
+              theme === "light"
+                ? "Switch to dark mode"
+                : "Switch to light mode (US currency)"
+            }
+            title={theme === "light" ? "Dark mode" : "Light mode · US currency"}
           >
-            Rules
+            <span className="theme-toggle__icon" aria-hidden="true">
+              {theme === "light" ? "☾" : "☀"}
+            </span>
           </button>
-          <button
-            className={`app__nav-link ${screen === "tutorial" ? "is-active" : ""}`}
-            onClick={() => setScreen("tutorial")}
-          >
-            Tutorial
-          </button>
-          <button
-            className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
-            onClick={() => setScreen("room")}
-          >
-            Private Room
-          </button>
-          <a className="app__nav-link app__nav-link--external" href="/social/">
-            Social
-          </a>
-        </nav>
+        </div>
       </header>
 
       <main className="app__main">

@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      (function(){try{var t=localStorage.getItem("nbl-theme");if(t==="light")document.documentElement.setAttribute("data-theme","light");}catch(e){}})();
+    </script>
     <title>National Bourré League · Social</title>
+    <link rel="stylesheet" href="./themes.css" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./table-session.css" />
   </head>
@@ -22,6 +27,10 @@
         <a class="nav__link" href="#leaderboard" data-requires-auth>Leaderboard</a>
         <a class="nav__link" href="#leagues" data-requires-auth>Leagues</a>
       </nav>
+
+      <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Switch to light mode (US currency)" title="Light mode · US currency">
+        <span class="theme-toggle__icon" aria-hidden="true">☀</span>
+      </button>
 
       <!-- Auth controls: swapped by app.js depending on session -->
       <div class="auth-controls">

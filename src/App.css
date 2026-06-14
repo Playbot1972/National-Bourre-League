@@ -13,9 +13,9 @@
   justify-content: space-between;
   gap: 16px;
   padding: 14px clamp(16px, 4vw, 48px);
-  background: rgba(8, 32, 23, 0.82);
+  background: var(--surface-topbar);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(244, 213, 141, 0.22);
+  border-bottom: 1px solid var(--surface-topbar-border);
 }
 
 .app__brand {
@@ -63,13 +63,48 @@
 }
 .app__nav-link:hover {
   color: var(--text-light);
-  border-color: rgba(244, 213, 141, 0.35);
+  border-color: var(--border-mid);
 }
 .app__nav-link.is-active {
   color: var(--ink-900);
   background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
   border-color: transparent;
   font-weight: 600;
+}
+
+[data-theme="light"] .app__nav-link.is-active,
+[data-theme="light"] .app__brand-mark {
+  background: linear-gradient(160deg, #a68952, #8b7342);
+  color: #faf6ea;
+}
+
+[data-theme="light"] .app__brand-text em {
+  color: var(--gold-400);
+}
+
+.app__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border-mid);
+  background: var(--surface-chip);
+  color: var(--gold-300);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.theme-toggle[aria-pressed="true"] {
+  background: var(--surface-highlight);
+  border-color: var(--border-strong);
 }
 
 .app__main {
@@ -85,7 +120,7 @@
   text-align: center;
   color: var(--text-dim);
   font-size: 13px;
-  border-top: 1px solid rgba(244, 213, 141, 0.16);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .app-version {

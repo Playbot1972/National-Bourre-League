@@ -64,6 +64,7 @@ import {
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
+import { initTheme, wireThemeToggle } from "./theme.js";
 import {
   RISK_STAKE_OPTIONS,
   formatRiskStake,
@@ -1930,6 +1931,8 @@ if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 renderRoomsList();
 renderLeagues();
 bindRoomDetailDelegatedControls();
+initTheme();
+wireThemeToggle($("#theme-toggle"));
 showView();
 
 completeGoogleRedirectSignIn().catch((err) => {
