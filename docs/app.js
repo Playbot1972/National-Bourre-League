@@ -37,6 +37,8 @@ import {
   addSessionPlayer,
   syncSessionWithRoomMembers,
   setHandParticipation,
+  ensureHandEnrollment,
+  timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
   subscribeHands,
   sortScoresForDisplay,
@@ -431,6 +433,7 @@ let currentSessions = [];
 let openSessionId = null;
 let openScores = [];
 let openHands = [];
+let enrollmentTimer = null;
 let pendingHandStake = 1;
 let syncMembersPromise = null;
 
@@ -693,6 +696,10 @@ function openRoom(roomId) {
         openSession(sessions[0].id);
       } else {
         renderRoomDetail();
+        const open = sessions.find((x) => x.id === openSessionId);
+        if (open?.status !== "final" && openSessionId) {
+          ensureHandEnrollment(roomId, openSessionId).catch(() => {});
+        }
       }
     }),
   );
@@ -700,6 +707,7 @@ function openRoom(roomId) {
 
 function closeRoom() {
   clearDetailSubs();
+  stopEnrollmentTimer();
   unmountTableSessionHost();
   currentRoomId = null;
   openSessionId = null;
@@ -720,6 +728,40 @@ function unmountTableSessionHost() {
   if (tableMountApi) {
     tableMountApi.unmountTableSession();
   }
+}
+
+function stopEnrollmentTimer() {
+  if (enrollmentTimer) {
+    clearInterval(enrollmentTimer);
+    enrollmentTimer = null;
+  }
+}
+
+function startEnrollmentTimer() {
+  stopEnrollmentTimer();
+  enrollmentTimer = setInterval(() => {
+    const s = currentSessions.find((x) => x.id === openSessionId);
+    if (!s?.handEnrollment?.active) {
+      stopEnrollmentTimer();
+      return;
+    }
+    if (Date.now() >= s.handEnrollment.turnDeadlineMs) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
+        console.warn("enrollment timeout:", e),
+      );
+    }
+    syncTableSession(s);
+  }, 1000);
+}
+
+function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid) {
+  const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+  const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
+  const sec = Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000));
+  if (currentId === myUid) {
+    return `Your turn — tap I'm in (${sec}s)`;
+  }
+  return `Waiting for ${name} (${sec}s) — clockwise from dealer`;
 }
 
 function buildTableLeaderLabel(
@@ -778,6 +820,13 @@ function buildTableSessionProps(s) {
   const isFinal = s.status === "final";
   const myUid = session?.uid ?? null;
   const dealerId = s.dealerId ?? null;
+  const enrollment = s.handEnrollment;
+  const enrollmentActive = enrollment?.active === true;
+  const enrolledDuringSignup = enrollment?.enrolledIds || [];
+  const declinedEnrollmentIds = enrollment?.declinedIds || [];
+  const currentEnrollmentPlayerId = enrollmentActive
+    ? enrollment.orderedPlayerIds?.[enrollment.currentIndex]
+    : null;
 
   const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
     tricksThisHand,
@@ -817,6 +866,7 @@ function buildTableSessionProps(s) {
       participantIds: handParticipantIds,
       tricksByPlayer: tricksThisHand,
       pendingCoWinSettlement: s.pendingCoWinSettlement,
+      handEnrollment: enrollmentActive ? enrollment : null,
     },
     players: displayScores.map((sc) => ({
       playerId: sc.playerId,
@@ -825,14 +875,21 @@ function buildTableSessionProps(s) {
       handsWon: sc.handsWon ?? 0,
       net: sc.net ?? 0,
       perHandStake: sc.perHandStake,
-      inHand: handParticipantIds.includes(sc.playerId),
+      inHand:
+        handParticipantIds.includes(sc.playerId) || enrolledDuringSignup.includes(sc.playerId),
       tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
       isSelf: sc.playerId === myUid,
       isDealer: sc.playerId === dealerId,
       isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
       isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
+      enrollmentOnClock: enrollmentActive && sc.playerId === currentEnrollmentPlayerId,
+      enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
+      enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
       canToggleInHand:
-        sc.playerId === myUid && !isFinal && !handParticipantIds.includes(sc.playerId),
+        enrollmentActive &&
+        sc.playerId === myUid &&
+        !isFinal &&
+        sc.playerId === currentEnrollmentPlayerId,
       canEditTricks:
         !isFinal &&
         handParticipantIds.includes(sc.playerId) &&
@@ -842,16 +899,22 @@ function buildTableSessionProps(s) {
     })),
     potAmount,
     netTotal: displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0),
-    leaderLabel: buildTableLeaderLabel(
-      displayScores,
-      handParticipantIds,
-      tricksThisHand,
-      activeWinnerIds,
-      handReady,
-      maxTricks,
-      handComplete,
-      totalTricks,
-    ),
+    leaderLabel: enrollmentActive
+      ? buildEnrollmentLeaderLabel(displayScores, enrollment, myUid)
+      : buildTableLeaderLabel(
+          displayScores,
+          handParticipantIds,
+          tricksThisHand,
+          activeWinnerIds,
+          handReady,
+          maxTricks,
+          handComplete,
+          totalTricks,
+        ),
+    enrollmentActive,
+    enrollmentSecondsLeft: enrollmentActive
+      ? Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000))
+      : 0,
     showCoWinSettlement,
     splitSharePerWinner,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
@@ -891,6 +954,11 @@ async function syncTableSession(openSessionObj) {
   try {
     const api = await loadTableMount();
     api.mountTableSession(host, buildTableSessionProps(openSessionObj));
+    if (openSessionObj.handEnrollment?.active) {
+      startEnrollmentTimer();
+    } else {
+      stopEnrollmentTimer();
+    }
   } catch (err) {
     console.error("table-session mount:", err);
     host.innerHTML = `<p class="muted small">Table UI failed to load. Run <code>npm run build:table</code> and redeploy.</p>`;

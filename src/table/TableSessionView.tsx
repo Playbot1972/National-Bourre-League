@@ -11,6 +11,8 @@ export function TableSessionView({
   showCoWinSettlement,
   splitSharePerWinner = 0,
   voteStatus,
+  enrollmentActive = false,
+  enrollmentSecondsLeft = 0,
   currentUserId,
   actions,
 }: TableSessionViewProps) {
@@ -24,6 +26,11 @@ export function TableSessionView({
       <header className="btable-session__head">
         <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
         <p className="btable-session__status">{leaderLabel}</p>
+        {enrollmentActive && (
+          <p className="btable-session__enroll muted small">
+            Join window: {enrollmentSecondsLeft}s each · clockwise from dealer
+          </p>
+        )}
       </header>
 
       <CardTable

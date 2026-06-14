@@ -92,6 +92,7 @@ const {
   writeBatch,
   arrayUnion,
   deleteField,
+  runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
 
 // Initial TrueSkill rating for a brand-new player (kept in sync with
@@ -382,14 +383,74 @@ const sessionDoc = (roomId, sessionId) =>
 const scoreDoc = (roomId, sessionId, playerId) =>
   doc(db, "rooms", roomId, "sessions", sessionId, "scores", playerId);
 
+/** Seconds each player has to tap I'm in, clockwise from first seat after dealer. */
+export const HAND_ENROLLMENT_SECONDS = 45;
+export const HAND_ENROLLMENT_MS = HAND_ENROLLMENT_SECONDS * 1000;
+
+function sortedScorePlayerIds(scoreSnap) {
+  return scoreSnap.docs
+    .map((d) => ({ id: d.id, displayName: d.data()?.displayName || "" }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .map((r) => r.id);
+}
+
+/** Clockwise order starting with the first seat after the dealer. */
+export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
+  const ids = [...sortedPlayerIds];
+  if (!dealerId || !ids.includes(dealerId)) return ids;
+  const idx = ids.indexOf(dealerId);
+  return [...ids.slice(idx + 1), ...ids.slice(0, idx + 1)];
+}
+
+function buildHandEnrollment(sortedPlayerIds, dealerId) {
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+  return {
+    active: true,
+    orderedPlayerIds,
+    currentIndex: 0,
+    turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+    enrolledIds: [],
+    declinedIds: [],
+  };
+}
+
+function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds) {
+  const nextIndex = enrollment.currentIndex + 1;
+  if (nextIndex < enrollment.orderedPlayerIds.length) {
+    return {
+      handEnrollment: {
+        ...enrollment,
+        enrolledIds,
+        declinedIds,
+        currentIndex: nextIndex,
+        turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+  }
+  if (enrolledIds.length < 2) {
+    return {
+      handEnrollment: {
+        ...enrollment,
+        enrolledIds: [],
+        declinedIds: [],
+        currentIndex: 0,
+        turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+  }
+  return {
+    handEnrollment: deleteField(),
+    currentHand: {
+      tricksByPlayer: {},
+      participantIds: enrolledIds,
+    },
+  };
+}
+
 function nextDealerId(scoreSnap, currentDealerId) {
-  const ids = scoreSnap.docs
-    .map((d) => d.id)
-    .sort((a, b) => {
-      const na = scoreSnap.docs.find((d) => d.id === a)?.data()?.displayName || "";
-      const nb = scoreSnap.docs.find((d) => d.id === b)?.data()?.displayName || "";
-      return na.localeCompare(nb);
-    });
+  const ids = sortedScorePlayerIds(scoreSnap);
   if (ids.length === 0) return null;
   const idx = ids.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
@@ -399,6 +460,10 @@ function nextDealerId(scoreSnap, currentDealerId) {
 export async function createSession(roomId, players, handStake = 1) {
   const stake = Math.max(1, Number(handStake) || 1);
   const sessionRef = doc(sessionsCol(roomId));
+  const sortedIds = [...players]
+    .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))
+    .map((p) => p.playerId);
+  const initialDealer = sortedIds[0] ?? null;
   const batch = writeBatch(db);
   batch.set(sessionRef, {
     roomId,
@@ -407,7 +472,8 @@ export async function createSession(roomId, players, handStake = 1) {
     handStake: stake,
     handStakeLocked: false,
     carryOverPot: 0,
-    dealerId: players[0]?.playerId ?? null,
+    dealerId: initialDealer,
+    handEnrollment: buildHandEnrollment(sortedIds, initialDealer),
     currentHand: { tricksByPlayer: {}, participantIds: [] },
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
@@ -617,12 +683,14 @@ export async function recordHand(
     batch.update(scoreDoc(roomId, sessionId, pid), patch);
   });
 
+  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId);
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
-    dealerId: nextDealerId(scoreSnap, sessionData.dealerId),
+    dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
+    handEnrollment: buildHandEnrollment(sortedScorePlayerIds(scoreSnap), newDealerId),
     currentHand: {
       tricksByPlayer: {},
       participantIds: [],
@@ -987,32 +1055,83 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
   });
 }
 
+/** Start enrollment when a session has an empty hand but no active enrollment. */
+export async function ensureHandEnrollment(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return;
+  const data = sessionSnap.data();
+  if (data.status === "final" || data.handEnrollment?.active) return;
+  const participantIds = data.currentHand?.participantIds || [];
+  const tricks = data.currentHand?.tricksByPlayer || {};
+  if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) return;
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedIds = sortedScorePlayerIds(scoreSnap);
+  if (sortedIds.length < 2) return;
+
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    handEnrollment: buildHandEnrollment(sortedIds, data.dealerId),
+    currentHand: { tricksByPlayer: {}, participantIds: [] },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Auto sit-out when the current player's enrollment window expires. */
+export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
+  const ref = sessionDoc(roomId, sessionId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) return;
+    const enrollment = snap.data().handEnrollment;
+    if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return;
+
+    const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
+    const enrolledIds = [...(enrollment.enrolledIds || [])];
+    const declinedIds = [...(enrollment.declinedIds || []), currentId];
+    const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds);
+    tx.update(ref, { ...patch, updatedAt: serverTimestamp() });
+  });
+}
+
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
   if (!playerId || !actorId) throw new Error("Missing player");
   if (playerId !== actorId) throw new Error("You can only change your own hand participation");
 
-  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  if (!sessionSnap.exists()) throw new Error("Session not found");
-  if (sessionSnap.data().status === "final") throw new Error("Session is final");
+  const ref = sessionDoc(roomId, sessionId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const sessionData = snap.data();
+    if (sessionData.status === "final") throw new Error("Session is final");
 
-  const currentHand = sessionSnap.data().currentHand || { tricksByPlayer: {} };
-  const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
-  let participantIds = [...(currentHand.participantIds || [])];
+    const enrollment = sessionData.handEnrollment;
+    if (enrollment?.active) {
+      if (!inHand) throw new Error("Wait for your turn or let the timer run out");
+      const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
+      if (playerId !== currentId) throw new Error("Not your turn to join yet");
+      const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
+      const declinedIds = [...(enrollment.declinedIds || [])];
+      const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds);
+      tx.update(ref, { ...patch, updatedAt: serverTimestamp() });
+      return;
+    }
 
-  if (inHand) {
-    if (!participantIds.includes(playerId)) participantIds.push(playerId);
-  } else {
-    participantIds = participantIds.filter((id) => id !== playerId);
-    delete tricksByPlayer[playerId];
-  }
+    const currentHand = sessionData.currentHand || { tricksByPlayer: {} };
+    const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
+    let participantIds = [...(currentHand.participantIds || [])];
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: {
-      tricksByPlayer,
-      participantIds,
-    },
-    updatedAt: serverTimestamp(),
+    if (inHand) {
+      if (!participantIds.includes(playerId)) participantIds.push(playerId);
+    } else {
+      participantIds = participantIds.filter((id) => id !== playerId);
+      delete tricksByPlayer[playerId];
+    }
+
+    tx.update(ref, {
+      currentHand: { tricksByPlayer, participantIds },
+      updatedAt: serverTimestamp(),
+    });
   });
 }
 
