@@ -82,6 +82,8 @@ counts only (`Seat.tsx`).
 
 See `functions/README.md` and TODO comments in `firestore.rules` / `docs/firestore.js`.
 
+**Local test & debug (open PRs, emulators, checklists):** see [`docs/TESTING.md`](docs/TESTING.md).
+
 ### Table feedback (sound + haptics)
 
 Central service: `src/table/feedback/` (built into `docs/table-session.js`, exported
