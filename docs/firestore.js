@@ -117,6 +117,16 @@ export function isHandComplete(tricksByPlayer, participantIds) {
   return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
 }
 
+/** Tricks taken this hand; missing entries count as 0 (never tapped +). */
+export function tricksForPlayer(tricksByPlayer, playerId) {
+  return tricksByPlayer?.[playerId] ?? 0;
+}
+
+function bourrePlayerIds(tricksByPlayer, participants) {
+  if (!tricksByPlayer) return [];
+  return participants.filter((pid) => tricksForPlayer(tricksByPlayer, pid) === 0);
+}
+
 /** Who leads this hand from trick counts (ties at 3+ are co-winners). */
 export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   const participants = [...new Set((participantIds || []).filter(Boolean))];
@@ -581,10 +591,6 @@ export async function recordHand(
   ];
   const participants = [...new Set(participantIds.filter(Boolean))];
   if (participants.length < 2) throw new Error("At least two players must be in the hand");
-  if (winners.length === 0) throw new Error("Select at least one winner");
-  for (const wid of winners) {
-    if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
-  }
 
   let mode = settlement || (winners.length === 1 ? "win" : null);
   if (winners.length >= 2 && !mode) {
@@ -593,6 +599,11 @@ export async function recordHand(
   if (winners.length === 1 && mode !== "win") mode = "win";
   if (winners.length >= 2 && mode === "win") {
     throw new Error("Use push or split when there are co-winners");
+  }
+  const potCarryMode = mode === "push" || mode === "non_winner_ante_up";
+  if (!potCarryMode && winners.length === 0) throw new Error("Select at least one winner");
+  for (const wid of winners) {
+    if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
   }
 
   const stake = sessionData.handStake ?? 1;
@@ -613,8 +624,8 @@ export async function recordHand(
 
   const deltas = {};
   let carryOverPot = 0;
-  let bourreIds = [];
-  let bourreMatch = 0;
+  const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
+  const bourreMatch = bourreIds.length * grossPot;
 
   if (mode === "push" || mode === "non_winner_ante_up") {
     carryOverPot = grossPot;
@@ -631,9 +642,6 @@ export async function recordHand(
     carryOverPot = 0;
   } else {
     const winner = winners[0];
-    bourreIds = participants.filter((pid) => (tricksByPlayer?.[pid] ?? -1) === 0);
-    bourreMatch = bourreIds.length * grossPot;
-    carryOverPot = bourreMatch;
     participants.forEach((pid) => {
       const playerStake = playerHandStake(scoreById, pid, stake);
       if (pid === winner) {
@@ -644,6 +652,14 @@ export async function recordHand(
         deltas[pid] = -playerStake;
       }
     });
+    carryOverPot = bourreMatch;
+  }
+
+  if (bourreMatch > 0 && mode !== "win") {
+    for (const pid of bourreIds) {
+      deltas[pid] -= grossPot;
+    }
+    carryOverPot += bourreMatch;
   }
 
   const batch = writeBatch(db);
@@ -654,8 +670,8 @@ export async function recordHand(
     settlement: mode,
     participantIds: participants,
     tricksByPlayer: tricksByPlayer || null,
-    bourreIds: mode === "win" && tricksByPlayer ? bourreIds : [],
-    bourreCarryOver: mode === "win" ? bourreMatch : 0,
+    bourreIds: tricksByPlayer ? bourreIds : [],
+    bourreCarryOver: bourreMatch,
     stake,
     pot: grossPot,
     carryIn,
@@ -676,8 +692,8 @@ export async function recordHand(
     if (current.skipNextAnte) {
       patch.skipNextAnte = deleteField();
     }
-    if (mode === "win" && bourreIds.length > 0 && tricksByPlayer) {
-      const tricks = tricksByPlayer[pid] ?? -1;
+    if (bourreIds.length > 0 && tricksByPlayer) {
+      const tricks = tricksForPlayer(tricksByPlayer, pid);
       if (tricks >= 1 || bourreIds.includes(pid)) {
         patch.skipNextAnte = true;
       }

@@ -1232,12 +1232,8 @@ function formatHandHistoryLine(h, scores) {
   }
   const bourreIds = h.bourreIds?.length
     ? h.bourreIds
-    : h.tricksByPlayer
-      ? Object.entries(h.tricksByPlayer)
-          .filter(([, t]) => t === 0)
-          .map(([id]) => id)
-      : [];
-  if (bourreIds.length && h.settlement === "win") {
+    : (h.participantIds || []).filter((id) => (h.tricksByPlayer?.[id] ?? 0) === 0);
+  if (bourreIds.length && (h.settlement === "win" || h.bourreCarryOver > 0)) {
     const bourreNames = bourreIds.map(
       (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
     );
