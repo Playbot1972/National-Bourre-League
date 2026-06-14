@@ -8251,15 +8251,28 @@ function ee({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 }
 //#endregion
 //#region src/table/PotCenter.tsx
-function S({ potMetrics: e, participantCount: t }) {
-	let n = Math.min(5, Math.max(2, t));
+function S({ potMetrics: e, participantCount: t, trumpUpcard: n }) {
+	let r = Math.min(5, Math.max(2, t));
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "bpot",
 		children: [
 			/* @__PURE__ */ (0, p.jsx)("div", {
 				className: "bpot__cards",
-				"aria-hidden": "true",
-				children: Array.from({ length: n }, (e, t) => /* @__PURE__ */ (0, p.jsx)("div", {
+				"aria-hidden": n ? void 0 : !0,
+				children: n ? /* @__PURE__ */ (0, p.jsxs)("div", {
+					className: "bpot__trump",
+					children: [/* @__PURE__ */ (0, p.jsx)(m, {
+						card: {
+							rank: n.rank,
+							suit: n.suit
+						},
+						size: "sm",
+						state: "trump"
+					}), /* @__PURE__ */ (0, p.jsx)("span", {
+						className: "bpot__trump-label muted small",
+						children: "Trump"
+					})]
+				}) : Array.from({ length: r }, (e, t) => /* @__PURE__ */ (0, p.jsx)("div", {
 					className: "bpot__card",
 					style: { "--pot-i": t },
 					children: /* @__PURE__ */ (0, p.jsx)(m, {
@@ -8308,13 +8321,13 @@ function S({ potMetrics: e, participantCount: t }) {
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function C({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, onTrickDelta: i }) {
-	let a = [...e].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), o = a.findIndex((e) => e.isSelf), s = o > 0 ? [...a.slice(o), ...a.slice(0, o)] : a, c = s.length, l = `btable--p${Math.min(8, Math.max(2, c))}`, u = b(c);
+function C({ players: e, potMetrics: t, participantCount: n, trumpUpcard: r, onToggleInHand: i, onTrickDelta: a }) {
+	let o = [...e].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), s = o.findIndex((e) => e.isSelf), c = s > 0 ? [...o.slice(s), ...o.slice(0, s)] : o, l = c.length, u = `btable--p${Math.min(8, Math.max(2, l))}`, d = b(l);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
-		className: `btable-wrap ${l}`,
+		className: `btable-wrap ${u}`,
 		style: {
-			"--player-count": c,
-			"--table-aspect": u
+			"--player-count": l,
+			"--table-aspect": d
 		},
 		children: [/* @__PURE__ */ (0, p.jsxs)("div", {
 			className: "btable",
@@ -8325,14 +8338,15 @@ function C({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 				className: "btable__felt",
 				children: /* @__PURE__ */ (0, p.jsx)(S, {
 					potMetrics: t,
-					participantCount: n
+					participantCount: n,
+					trumpUpcard: r
 				})
 			})]
 		}), /* @__PURE__ */ (0, p.jsx)("div", {
 			className: "btable__seats",
 			"aria-label": "Players at the table",
-			children: s.map((e, t) => {
-				let n = y(t, s.length);
+			children: c.map((e, t) => {
+				let n = y(t, c.length);
 				return /* @__PURE__ */ (0, p.jsx)(ee, {
 					player: e,
 					region: n.region,
@@ -8340,8 +8354,8 @@ function C({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 						left: `${n.x}%`,
 						top: `${n.y}%`
 					},
-					onToggleInHand: () => r(e.playerId, !e.inHand),
-					onTrickDelta: (t) => i(e.playerId, t)
+					onToggleInHand: () => i(e.playerId, !e.inHand),
+					onTrickDelta: (t) => a(e.playerId, t)
 				}, e.playerId);
 			})
 		})]
@@ -8349,8 +8363,8 @@ function C({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, 
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, actions: f }) {
-	let m = e.participantIds.length, _ = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), v = t.find((e) => e.isSelf && e.canToggleInHand);
+function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: l = !1, enrollmentSecondsLeft: u = 0, currentUserId: d, heroCards: f = [], actions: _ }) {
+	let v = e.participantIds.length, y = d != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(d), b = t.find((e) => e.isSelf && e.canToggleInHand);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
 		children: [
@@ -8365,12 +8379,12 @@ function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 						className: "btable-session__status",
 						children: a
 					}),
-					v && /* @__PURE__ */ (0, p.jsx)("div", {
+					b && /* @__PURE__ */ (0, p.jsx)("div", {
 						className: "btable-session__enroll-cta",
 						children: /* @__PURE__ */ (0, p.jsxs)("button", {
 							type: "button",
 							className: "btn btn--primary btn--sm btable-session__enroll-btn",
-							onClick: () => f.onToggleInHand(!0),
+							onClick: () => _.onToggleInHand(!0),
 							children: [
 								"I'm in · ",
 								u,
@@ -8378,7 +8392,7 @@ function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 							]
 						})
 					}),
-					l && !v && /* @__PURE__ */ (0, p.jsxs)("p", {
+					l && !b && /* @__PURE__ */ (0, p.jsxs)("p", {
 						className: "btable-session__enroll muted small",
 						children: [
 							"Join window: ",
@@ -8400,13 +8414,31 @@ function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			/* @__PURE__ */ (0, p.jsx)(C, {
 				players: t,
 				potMetrics: n,
-				participantCount: m,
+				participantCount: v,
+				trumpUpcard: e.trumpUpcard,
 				onToggleInHand: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && f.onToggleInHand(n);
+					t.find((t) => t.playerId === e)?.isSelf && _.onToggleInHand(n);
 				},
 				onTrickDelta: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && f.onTrickDelta(n);
+					t.find((t) => t.playerId === e)?.isSelf && _.onTrickDelta(n);
 				}
+			}),
+			f.length > 0 && /* @__PURE__ */ (0, p.jsxs)("div", {
+				className: "btable-session__hero-hand",
+				"aria-label": "Your dealt cards",
+				children: [/* @__PURE__ */ (0, p.jsx)("p", {
+					className: "btable-session__hero-hand-label muted small",
+					children: "Your hand"
+				}), /* @__PURE__ */ (0, p.jsx)("div", {
+					className: "btable-session__hero-cards",
+					children: f.map((e, t) => /* @__PURE__ */ (0, p.jsx)(m, {
+						card: {
+							rank: e.rank,
+							suit: e.suit
+						},
+						size: "sm"
+					}, `${e.rank}-${e.suit}-${t}`))
+				})]
 			}),
 			o && !e.isFinal && /* @__PURE__ */ (0, p.jsxs)("div", {
 				className: "btable-session__settle",
@@ -8438,14 +8470,14 @@ function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 						children: [/* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm",
-							disabled: !_,
-							onClick: () => f.onSettle("push"),
+							disabled: !y,
+							onClick: () => _.onSettle("push"),
 							children: "Decline split"
 						}), /* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm btn--primary",
-							disabled: !_,
-							onClick: () => f.onSettle("split"),
+							disabled: !y,
+							onClick: () => _.onSettle("split"),
 							children: "Agree to split"
 						})]
 					}),
@@ -8453,7 +8485,7 @@ function te({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 						className: "muted small",
 						children: c
 					}),
-					!_ && d && /* @__PURE__ */ (0, p.jsx)("p", {
+					!y && d && /* @__PURE__ */ (0, p.jsx)("p", {
 						className: "muted small",
 						children: "Waiting for co-winners to vote."
 					})

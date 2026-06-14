@@ -69,6 +69,14 @@ service cloud.firestore {
         match /hands/{handId} {
           allow read, write: if isMember(roomId);
         }
+
+        // Private hole cards — readable only by the owning player.
+        // TODO(production): deal/play writes should run server-side; clients should
+        // not push arbitrary card payloads to privateHands.
+        match /privateHands/{playerId} {
+          allow read: if isMember(roomId) && request.auth.uid == playerId;
+          allow write: if isMember(roomId);
+        }
       }
     }
 
