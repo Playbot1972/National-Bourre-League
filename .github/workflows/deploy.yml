@@ -17,13 +17,25 @@ jobs:
         id: cfg
         env:
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          if [ -z "$PROJECT_ID" ]; then
-            echo "::error::Firebase secrets not configured — deploy skipped. Add FIREBASE_PROJECT_ID (and other secrets) at Settings → Secrets → Actions, or run npm run deploy locally."
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+          missing=""
+          for name in PROJECT_ID API_KEY AUTH_DOMAIN APP_ID SERVICE_ACCOUNT; do
+            eval "val=\$$name"
+            if [ -z "$val" ]; then
+              missing="$missing FIREBASE_${name}"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Firebase deploy blocked — missing GitHub Actions secrets:$missing"
+            echo "Add them at Settings → Secrets and variables → Actions, then re-run this workflow."
+            echo "Or deploy from your machine: npm run deploy (after firebase login)."
+            exit 1
           fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         if: steps.cfg.outputs.ready == 'true'
