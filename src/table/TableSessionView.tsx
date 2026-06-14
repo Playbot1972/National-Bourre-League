@@ -1,6 +1,5 @@
-import { PlayingCard } from "../components/PlayingCard";
-import type { Rank, Suit } from "../types";
 import { CardTable } from "./CardTable";
+import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { formatNet, formatRiskStake } from "./logic";
 import type { TableSessionViewProps } from "./types";
 
@@ -25,12 +24,32 @@ export function TableSessionView({
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
   const selfEnroll = players.find((p) => p.isSelf && p.canToggleInHand);
+  const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
+  const turnLabel = turnIndicatorLabel(session.turnPlayerId, players);
+  const cardsDealt = isCardsDealtPhase(session.phase);
 
   return (
     <div className="btable-session">
       <header className="btable-session__head">
-        <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
+        <div className="btable-session__head-row">
+          <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
+          <span
+            className={`btable-session__phase-tag btable-session__phase-tag--${session.phase ?? "waiting"}`}
+          >
+            {phaseLabel}
+          </span>
+        </div>
         <p className="btable-session__status">{leaderLabel}</p>
+        {turnLabel && cardsDealt && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            {turnLabel}
+          </p>
+        )}
+        {session.phase === "draw" && (
+          <p className="btable-session__hint muted small">
+            Discard and draw up to 4 cards — play controls coming next
+          </p>
+        )}
         {selfEnroll && (
           <div className="btable-session__enroll-cta">
             <button
@@ -54,10 +73,13 @@ export function TableSessionView({
       </p>
 
       <CardTable
+        session={session}
         players={players}
         potMetrics={potMetrics}
         participantCount={participantCount}
-        trumpUpcard={session.trumpUpcard}
+        enrollmentActive={enrollmentActive}
+        heroCards={heroCards}
+        currentUserId={currentUserId}
         onToggleInHand={(playerId, inHand) => {
           const p = players.find((x) => x.playerId === playerId);
           if (p?.isSelf) actions.onToggleInHand(inHand);
@@ -67,21 +89,6 @@ export function TableSessionView({
           if (p?.isSelf) actions.onTrickDelta(delta);
         }}
       />
-
-      {heroCards.length > 0 && (
-        <div className="btable-session__hero-hand" aria-label="Your dealt cards">
-          <p className="btable-session__hero-hand-label muted small">Your hand</p>
-          <div className="btable-session__hero-cards">
-            {heroCards.map((c, i) => (
-              <PlayingCard
-                key={`${c.rank}-${c.suit}-${i}`}
-                card={{ rank: c.rank as Rank, suit: c.suit as Suit }}
-                size="sm"
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
       {showCoWinSettlement && !session.isFinal && (
         <div className="btable-session__settle">

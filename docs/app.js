@@ -1411,6 +1411,7 @@ function buildTableSessionProps(s) {
   const trumpSuit = s.currentHand?.trumpSuit ?? null;
   const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
+  const cardsDealt = handPhase === "draw" || handPhase === "play";
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
   const myUid = session?.uid ?? null;
@@ -1490,6 +1491,9 @@ function buildTableSessionProps(s) {
       trumpUpcard,
       turnPlayerId: s.currentHand?.turnPlayerId ?? null,
       remainingDeckCount: s.currentHand?.remainingDeckCount ?? null,
+      leadSuit: s.currentHand?.leadSuit ?? null,
+      currentTrick: s.currentHand?.currentTrick ?? null,
+      playedCards: s.currentHand?.playedCards ?? [],
     },
     heroCards: openPrivateHand?.cards ?? [],
     players: displayScores.map((sc) => {
@@ -1524,6 +1528,10 @@ function buildTableSessionProps(s) {
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
         isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
+        showHoleCards:
+          cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
+        holeCardCount: 5,
+        isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&
           isSelf &&

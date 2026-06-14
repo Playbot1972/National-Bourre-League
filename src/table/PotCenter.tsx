@@ -1,40 +1,82 @@
 import { PlayingCard } from "../components/PlayingCard";
 import type { Rank, Suit } from "../types";
+import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatRiskStake } from "./logic";
-import type { PotMetrics, SerializedCard } from "./types";
+import { TrickRow } from "./TrickRow";
+import type {
+  CurrentTrickState,
+  PlayedCardEntry,
+  PotMetrics,
+  SerializedCard,
+} from "./types";
 
 interface PotCenterProps {
   potMetrics: PotMetrics;
   participantCount: number;
   trumpUpcard?: SerializedCard | null;
+  trumpSuit?: string | null;
+  phase?: string | null;
+  enrollmentActive?: boolean;
+  remainingDeckCount?: number | null;
+  currentTrick?: CurrentTrickState | null;
+  playedCards?: PlayedCardEntry[];
+  playerNames?: Record<string, string>;
 }
 
-export function PotCenter({ potMetrics, participantCount, trumpUpcard }: PotCenterProps) {
-  const cardCount = Math.min(5, Math.max(2, participantCount));
+export function PotCenter({
+  potMetrics,
+  participantCount,
+  trumpUpcard,
+  trumpSuit,
+  phase,
+  enrollmentActive = false,
+  remainingDeckCount,
+  currentTrick,
+  playedCards,
+  playerNames = {},
+}: PotCenterProps) {
+  const phaseLabel = formatHandPhase(phase, enrollmentActive);
+  const hasTrump = Boolean(trumpUpcard);
 
   return (
     <div className="bpot">
-      <div className="bpot__cards" aria-hidden={trumpUpcard ? undefined : true}>
-        {trumpUpcard ? (
+      <div className="bpot__phase" aria-live="polite">
+        <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
+          {phaseLabel}
+        </span>
+        {hasTrump && trumpSuit && (
+          <span className="bpot__phase-trump muted small">
+            Trump · {formatTrumpSuit(trumpSuit)}
+          </span>
+        )}
+      </div>
+
+      <div className="bpot__trick-area">
+        {hasTrump ? (
           <div className="bpot__trump">
             <PlayingCard
               card={{
-                rank: trumpUpcard.rank as Rank,
-                suit: trumpUpcard.suit as Suit,
+                rank: trumpUpcard!.rank as Rank,
+                suit: trumpUpcard!.suit as Suit,
               }}
               size="sm"
               state="trump"
             />
-            <span className="bpot__trump-label muted small">Trump</span>
+            <span className="bpot__trump-label muted small">Upcard</span>
           </div>
         ) : (
-          Array.from({ length: cardCount }, (_, i) => (
-            <div key={i} className="bpot__card" style={{ ["--pot-i" as string]: i }}>
-              <PlayingCard faceDown size="sm" />
-            </div>
-          ))
+          <div className="bpot__deck-placeholder muted small" aria-hidden="true">
+            {enrollmentActive ? "Dealing after join" : "Awaiting deal"}
+          </div>
         )}
+
+        <TrickRow
+          currentTrick={currentTrick}
+          playedCards={playedCards}
+          playerNames={playerNames}
+        />
       </div>
+
       <dl className="bpot__stats">
         <div className="bpot__stat">
           <dt>Current Pot</dt>
@@ -65,7 +107,12 @@ export function PotCenter({ potMetrics, participantCount, trumpUpcard }: PotCent
           + {formatRiskStake(potMetrics.overflow)} overflow → next hand
         </div>
       )}
-      <div className="bpot__meta muted small">{participantCount} in this hand</div>
+      <div className="bpot__meta muted small">
+        {participantCount} in this hand
+        {remainingDeckCount != null && remainingDeckCount > 0 && (
+          <> · {remainingDeckCount} left in deck</>
+        )}
+      </div>
     </div>
   );
 }
