@@ -1582,13 +1582,13 @@ function buildTableSessionProps(s) {
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
   const heroCardList = openPrivateHand?.cards ?? [];
+  const myUid = session?.uid ?? null;
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
       ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
-  const myUid = session?.uid ?? null;
   const dealerId = s.dealerId ?? null;
   const enrollment = s.handEnrollment;
   const enrollmentActive = enrollment?.active === true;
@@ -1900,7 +1900,8 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     }
   } catch (err) {
     console.error("table-session mount:", err);
-    host.innerHTML = `<p class="muted small">Table UI failed to load. Run <code>npm run build:table</code> and redeploy.</p>`;
+    const detail = err instanceof Error ? err.message : String(err);
+    host.innerHTML = `<p class="muted small">Table UI failed to load (${escapeHtml(detail)}). Run <code>npm run build:table</code>, refresh, and redeploy if this persists.</p>`;
   }
 }
 
