@@ -5,7 +5,7 @@ export const POT_CAP_MULTIPLIER = 20;
 
 export const DEFAULT_BOURRE_SETTINGS = {
   anteAmount: 1,
-  limEnabled: true,
+  limEnabled: false,
 };
 
 /** Normalize room/session Bourré settings. */
@@ -14,7 +14,7 @@ export function normalizeBourreSettings(raw = {}) {
   return {
     anteAmount,
     potCap: anteAmount * POT_CAP_MULTIPLIER,
-    limEnabled: raw.limEnabled !== false,
+    limEnabled: raw.limEnabled === true,
   };
 }
 
@@ -22,18 +22,19 @@ export function normalizeBourreSettings(raw = {}) {
  * Live hand pot state (public — safe to show all players).
  * @param {{ anteAmount: number, limEnabled?: boolean, carryIn?: number, antePot: number }} input
  */
-export function computeHandPotState({ anteAmount, limEnabled = true, carryIn = 0, antePot }) {
-  const settings = normalizeBourreSettings({ anteAmount, limEnabled });
+export function computeHandPotState({ anteAmount, limEnabled = false, carryIn = 0, antePot }) {
+  const limOn = limEnabled === true;
+  const settings = normalizeBourreSettings({ anteAmount, limEnabled: limOn });
   const currentPot = Math.max(0, Number(antePot) || 0) + Math.max(0, Number(carryIn) || 0);
   const potCap = settings.potCap;
-  const maxWinThisHand = limEnabled ? Math.min(currentPot, potCap) : currentPot;
-  const overflow = limEnabled ? Math.max(0, currentPot - potCap) : 0;
+  const maxWinThisHand = limOn ? Math.min(currentPot, potCap) : currentPot;
+  const overflow = limOn ? Math.max(0, currentPot - potCap) : 0;
   const winnerTake = maxWinThisHand;
   const bourrePenalty = maxWinThisHand;
 
   return {
     anteAmount: settings.anteAmount,
-    limEnabled: settings.limEnabled,
+    limEnabled: limOn,
     potCap,
     currentPot,
     maxWinThisHand,
@@ -59,13 +60,14 @@ export function settleHandDeltas({
   participants,
   tricksByPlayer,
   anteAmount,
-  limEnabled = true,
+  limEnabled = false,
   carryIn = 0,
   stakeForPlayer,
 }) {
+  const limOn = limEnabled === true;
   const potState = computeHandPotState({
     anteAmount,
-    limEnabled,
+    limEnabled: limOn,
     carryIn,
     antePot: participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0),
   });
@@ -87,7 +89,7 @@ export function settleHandDeltas({
       const playerStake = stakeForPlayer(pid);
       deltas[pid] = winners.includes(pid) ? share - playerStake : -playerStake;
     });
-    carryOverPot = limEnabled ? overflow : 0;
+    carryOverPot = limOn ? overflow : 0;
   } else {
     const winner = winners[0];
     participants.forEach((pid) => {
@@ -100,7 +102,7 @@ export function settleHandDeltas({
         deltas[pid] = -playerStake;
       }
     });
-    carryOverPot = bourreMatch + (limEnabled ? overflow : 0);
+    carryOverPot = bourreMatch + (limOn ? overflow : 0);
   }
 
   if (bourreMatch > 0 && mode !== "win") {
@@ -108,7 +110,7 @@ export function settleHandDeltas({
       deltas[pid] -= bourrePenalty;
     }
     carryOverPot += bourreMatch;
-    if (limEnabled && mode !== "split") {
+    if (limOn && mode !== "split") {
       carryOverPot += overflow;
     }
   }

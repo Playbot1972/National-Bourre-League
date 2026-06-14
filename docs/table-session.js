@@ -8226,24 +8226,23 @@ function b({ potMetrics: e, participantCount: t }) {
 						className: "bpot__stat",
 						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Current Pot" }), /* @__PURE__ */ (0, p.jsx)("dd", { children: h(e.currentPot) })]
 					}),
-					/* @__PURE__ */ (0, p.jsxs)("div", {
+					e.limEnabled && /* @__PURE__ */ (0, p.jsxs)(p.Fragment, { children: [/* @__PURE__ */ (0, p.jsxs)("div", {
 						className: "bpot__stat",
-						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Pot Cap" }), /* @__PURE__ */ (0, p.jsxs)("dd", { children: [h(e.potCap), e.limEnabled && /* @__PURE__ */ (0, p.jsx)("span", {
+						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Pot Cap" }), /* @__PURE__ */ (0, p.jsxs)("dd", { children: [h(e.potCap), /* @__PURE__ */ (0, p.jsx)("span", {
 							className: "bpot__lim-tag",
 							children: "LmT"
 						})] })]
-					}),
-					/* @__PURE__ */ (0, p.jsxs)("div", {
+					}), /* @__PURE__ */ (0, p.jsxs)("div", {
 						className: "bpot__stat bpot__stat--highlight",
 						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Max Win This Hand" }), /* @__PURE__ */ (0, p.jsx)("dd", { children: h(e.maxWinThisHand) })]
-					}),
+					})] }),
 					/* @__PURE__ */ (0, p.jsxs)("div", {
 						className: "bpot__stat",
 						children: [/* @__PURE__ */ (0, p.jsx)("dt", { children: "Ante" }), /* @__PURE__ */ (0, p.jsx)("dd", { children: h(e.anteAmount) })]
 					})
 				]
 			}),
-			e.overflow > 0 && /* @__PURE__ */ (0, p.jsxs)("div", {
+			e.limEnabled && e.overflow > 0 && /* @__PURE__ */ (0, p.jsxs)("div", {
 				className: "bpot__carry muted small",
 				children: [
 					"+ ",

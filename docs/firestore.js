@@ -496,7 +496,7 @@ function nextDealerId(scoreSnap, currentDealerId) {
 
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
   const stake = Math.max(1, Number(handStake) || 1);
-  const limEnabled = bourreOpts.limEnabled !== false;
+  const limEnabled = bourreOpts.limEnabled === true;
   const sessionRef = doc(sessionsCol(roomId));
   const sortedIds = [...players]
     .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))
@@ -642,7 +642,7 @@ export async function recordHand(
   }
 
   const stake = sessionData.handStake ?? 1;
-  const limEnabled = sessionData.limEnabled !== false;
+  const limEnabled = sessionData.limEnabled === true;
   const carryIn = sessionData.carryOverPot || 0;
   const handNumber = (sessionData.handCount || 0) + 1;
 

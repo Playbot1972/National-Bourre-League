@@ -424,6 +424,70 @@ const roomsListView = $("#rooms-list-view");
 const roomDetailView = $("#room-detail-view");
 const roomsError = $("#rooms-error");
 
+function syncOpenSessionLimEnabled(limEnabled) {
+  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  if (
+    !currentRoomId ||
+    !openSessionId ||
+    !openSessionObj ||
+    openSessionObj.status === "final" ||
+    openSessionObj.handStakeLocked ||
+    session?.uid !== currentRoom?.ownerId
+  ) {
+    return Promise.resolve();
+  }
+  return updateSessionLimEnabled(currentRoomId, openSessionId, limEnabled);
+}
+
+function bindRoomDetailDelegatedControls() {
+  if (roomDetailView.dataset.controlsBound) return;
+  roomDetailView.dataset.controlsBound = "1";
+
+  roomDetailView.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
+
+    if (el.id === "session-lmt-enabled" && !el.disabled) {
+      const checked = el.checked;
+      updateSessionLimEnabled(currentRoomId, openSessionId, checked)
+        .then(() => {
+          const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+          if (openSessionObj) {
+            syncTableSession({ ...openSessionObj, limEnabled: checked });
+          }
+        })
+        .catch((err) => {
+          console.error("updateSessionLimEnabled:", err);
+          showRoomsError(err.message || "Could not update LmT");
+          el.checked = !checked;
+        });
+      return;
+    }
+
+    if (el.id === "room-ante-amount" || el.id === "room-lim-enabled") {
+      const anteEl = $("#room-ante-amount", roomDetailView);
+      const limEl = $("#room-lim-enabled", roomDetailView);
+      if (!anteEl || !limEl || !currentRoomId) return;
+      const limEnabled = limEl.checked;
+      updateRoomBourreSettings(currentRoomId, {
+        anteAmount: parseInt(anteEl.value, 10) || 1,
+        limEnabled,
+      })
+        .then(() => syncOpenSessionLimEnabled(limEnabled))
+        .then(() => {
+          const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+          if (openSessionObj) {
+            syncTableSession({ ...openSessionObj, limEnabled });
+          }
+        })
+        .catch((err) => {
+          console.error("updateRoomBourreSettings:", err);
+          showRoomsError(err.message || "Could not save Bourré settings");
+        });
+    }
+  });
+}
+
 // Subscriptions we must tear down on auth/room changes.
 let myRoomsUnsub = null;
 const detailUnsubs = [];
@@ -952,7 +1016,7 @@ function buildTableSessionProps(s) {
     (sum, pid) => sum + playerHandStake(scoreById, pid, handStake),
     0,
   );
-  const limEnabled = s.limEnabled !== false;
+  const limEnabled = s.limEnabled === true;
   const potState = computeHandPotState({
     anteAmount: handStake,
     limEnabled,
@@ -1190,7 +1254,11 @@ function renderRoomDetail() {
                </div>`
             : `<ul class="kv">
                  <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
-                 <li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>
+                 ${
+                   bourreSettings.limEnabled
+                     ? `<li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>`
+                     : ""
+                 }
                  <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
                </ul>`
         }
@@ -1283,21 +1351,6 @@ function renderRoomDetail() {
       pendingHandStake = parseInt(newSessionStake.value, 10) || 1;
     });
   }
-  const roomAnteSelect = $("#room-ante-amount", roomDetailView);
-  const roomLimCheckbox = $("#room-lim-enabled", roomDetailView);
-  if (roomAnteSelect && roomLimCheckbox) {
-    const saveRoomBourreSettings = () => {
-      updateRoomBourreSettings(currentRoomId, {
-        anteAmount: parseInt(roomAnteSelect.value, 10) || 1,
-        limEnabled: roomLimCheckbox.checked,
-      }).catch((e) => {
-        console.error("updateRoomBourreSettings:", e);
-        showRoomsError(e.message || "Could not save Bourré settings");
-      });
-    };
-    roomAnteSelect.addEventListener("change", saveRoomBourreSettings);
-    roomLimCheckbox.addEventListener("change", saveRoomBourreSettings);
-  }
   $$("[data-open-session]", roomDetailView).forEach((btn) =>
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
@@ -1322,7 +1375,7 @@ function renderSessionPanel(s) {
   const disabled = isFinal ? "disabled" : "";
   const isOwner = session?.uid === currentRoom?.ownerId;
   const stakeLocked = Boolean(s.handStakeLocked);
-  const limEnabled = s.limEnabled !== false;
+  const limEnabled = s.limEnabled === true;
   const handCount = s.handCount ?? 0;
   const lmtDisabled = isFinal || stakeLocked || !isOwner;
 
@@ -1500,19 +1553,6 @@ function renderSettlementVoteStatus(s, displayScores, activeWinnerIds) {
 function wireSessionControls() {
   if (!openSessionId) return;
 
-  const sessionLmt = $("#session-lmt-enabled", roomDetailView);
-  if (sessionLmt && !sessionLmt.disabled) {
-    sessionLmt.addEventListener("change", () => {
-      updateSessionLimEnabled(currentRoomId, openSessionId, sessionLmt.checked).catch(
-        (e) => {
-          console.error("updateSessionLimEnabled:", e);
-          showRoomsError(e.message || "Could not update LmT");
-          sessionLmt.checked = !sessionLmt.checked;
-        },
-      );
-    });
-  }
-
   const notes = $("#session-notes", roomDetailView);
   if (notes) {
     let t = null;
@@ -1585,7 +1625,7 @@ async function onNewSession() {
   const stakeEl = $("#new-session-stake", roomDetailView);
   const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
   const roomBs = normalizeBourreSettings(
-    currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: true },
+    currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
   );
   try {
     const sid = await createSession(currentRoomId, players, handStake, {
@@ -1756,6 +1796,7 @@ if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 
 renderRoomsList();
 renderLeagues();
+bindRoomDetailDelegatedControls();
 showView();
 
 completeGoogleRedirectSignIn().catch((err) => {

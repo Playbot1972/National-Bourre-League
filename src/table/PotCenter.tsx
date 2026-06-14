@@ -24,23 +24,27 @@ export function PotCenter({ potMetrics, participantCount }: PotCenterProps) {
           <dt>Current Pot</dt>
           <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
         </div>
-        <div className="bpot__stat">
-          <dt>Pot Cap</dt>
-          <dd>
-            {formatRiskStake(potMetrics.potCap)}
-            {potMetrics.limEnabled && <span className="bpot__lim-tag">LmT</span>}
-          </dd>
-        </div>
-        <div className="bpot__stat bpot__stat--highlight">
-          <dt>Max Win This Hand</dt>
-          <dd>{formatRiskStake(potMetrics.maxWinThisHand)}</dd>
-        </div>
+        {potMetrics.limEnabled && (
+          <>
+            <div className="bpot__stat">
+              <dt>Pot Cap</dt>
+              <dd>
+                {formatRiskStake(potMetrics.potCap)}
+                <span className="bpot__lim-tag">LmT</span>
+              </dd>
+            </div>
+            <div className="bpot__stat bpot__stat--highlight">
+              <dt>Max Win This Hand</dt>
+              <dd>{formatRiskStake(potMetrics.maxWinThisHand)}</dd>
+            </div>
+          </>
+        )}
         <div className="bpot__stat">
           <dt>Ante</dt>
           <dd>{formatRiskStake(potMetrics.anteAmount)}</dd>
         </div>
       </dl>
-      {potMetrics.overflow > 0 && (
+      {potMetrics.limEnabled && potMetrics.overflow > 0 && (
         <div className="bpot__carry muted small">
           + {formatRiskStake(potMetrics.overflow)} overflow → next hand
         </div>
