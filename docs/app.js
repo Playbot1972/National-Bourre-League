@@ -583,6 +583,7 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let enrollmentTimer = null;
+let tablePlayOpen = false;
 let pendingHandStake = 1;
 let syncMembersPromise = null;
 /** Session ids queued for removal after SESSION_CLEANUP_MS. */
@@ -1001,6 +1002,7 @@ function closeRoom() {
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
   pendingSessionCleanup.clear();
+  closeTablePlay();
   unmountTableSessionHost();
   currentRoomId = null;
   openSessionId = null;
@@ -1021,6 +1023,96 @@ function unmountTableSessionHost() {
   if (tableMountApi) {
     tableMountApi.unmountTableSession();
   }
+}
+
+function tableSessionHost() {
+  return $("#table-session-root");
+}
+
+function updateTablePlayTitle(openSessionObj) {
+  const titleEl = $("#table-play-overlay-title");
+  if (!titleEl) return;
+  if (!openSessionObj || openSessionObj.status === "final") {
+    titleEl.textContent = "Live table";
+    return;
+  }
+  titleEl.textContent = `Hand #${(openSessionObj.handCount ?? 0) + 1} · live table`;
+}
+
+async function openTablePlay() {
+  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  if (!openSessionObj || openSessionObj.status === "final" || openScores.length < 2) {
+    showRoomsError("Need an active session with at least two players.");
+    return;
+  }
+  const overlay = $("#table-play-overlay");
+  if (!overlay) return;
+  tablePlayOpen = true;
+  overlay.hidden = false;
+  document.body.classList.add("table-play-active");
+  updateTablePlayTitle(openSessionObj);
+  await syncTableSession(openSessionObj);
+  try {
+    await overlay.requestFullscreen?.();
+  } catch {
+    /* fullscreen optional */
+  }
+  try {
+    await screen.orientation?.lock?.("landscape");
+  } catch {
+    /* orientation lock optional */
+  }
+}
+
+function closeTablePlay() {
+  tablePlayOpen = false;
+  const overlay = $("#table-play-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("table-play-active");
+  try {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+  } catch {
+    /* ignore */
+  }
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    /* ignore */
+  }
+}
+
+function bindTablePlayControls() {
+  const overlay = $("#table-play-overlay");
+  if (!overlay || overlay.dataset.bound) return;
+  overlay.dataset.bound = "1";
+
+  $("#close-table-play")?.addEventListener("click", () => {
+    closeTablePlay();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && tablePlayOpen) closeTablePlay();
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+      try {
+        screen.orientation?.unlock?.();
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+
+  roomDetailView.addEventListener("click", (e) => {
+    if (e.target.closest("#open-table-play")) {
+      e.preventDefault();
+      openTablePlay().catch((err) => {
+        console.error("openTablePlay:", err);
+        showRoomsError(err.message || "Could not open table");
+      });
+    }
+  });
 }
 
 function stopEnrollmentTimer() {
@@ -1258,14 +1350,19 @@ function buildTableSessionProps(s) {
 }
 
 async function syncTableSession(openSessionObj) {
-  const host = $("#table-session-root", roomDetailView);
+  const host = tableSessionHost();
   if (!host) return;
 
   if (!openSessionObj || openSessionObj.status === "final" || openScores.length < 2) {
     unmountTableSessionHost();
-    if (host && openSessionObj?.status !== "final" && openScores.length < 2) {
-      host.innerHTML = `<p class="muted small">Need at least two players for the table.</p>`;
-    }
+    if (tablePlayOpen) closeTablePlay();
+    return;
+  }
+
+  updateTablePlayTitle(openSessionObj);
+
+  if (!tablePlayOpen) {
+    unmountTableSessionHost();
     return;
   }
 
@@ -1585,10 +1682,17 @@ function renderSessionPanel(s) {
   const tableHost =
     isFinal || openScores.length < 2
       ? ""
-      : `<div id="table-session-root" class="table-session-root" aria-label="Live card table"></div>`;
+      : `<div class="session-play-cta">
+           <button type="button" class="btn btn--primary btn--block" id="open-table-play">
+             Open table · landscape
+           </button>
+           <p class="muted small session-play-cta__hint">
+             Full-screen table for live play. Hand results, ledger, and session controls stay on this page.
+           </p>
+         </div>`;
 
   return `
-    <div class="session session--table">
+    <div class="session session--ledger">
       ${isFinal ? resultsBlock : tableHost}
       <aside class="session-sidebar">
         ${lmtControl}
@@ -1931,6 +2035,7 @@ if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 renderRoomsList();
 renderLeagues();
 bindRoomDetailDelegatedControls();
+bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
 showView();

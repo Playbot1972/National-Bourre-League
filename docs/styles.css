@@ -1429,6 +1429,116 @@ button {
   font-size: 13px;
 }
 
+/* Live table — full-screen landscape play overlay */
+.table-play-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  display: flex;
+  flex-direction: column;
+  background: var(--body-bg-gradient);
+  background-attachment: fixed;
+  padding:
+    max(8px, env(safe-area-inset-top, 0px))
+    max(10px, env(safe-area-inset-right, 0px))
+    max(8px, env(safe-area-inset-bottom, 0px))
+    max(10px, env(safe-area-inset-left, 0px));
+}
+
+.table-play-overlay[hidden] {
+  display: none !important;
+}
+
+body.table-play-active {
+  overflow: hidden;
+}
+
+body.table-play-active .app-version,
+body.table-play-active .footer {
+  display: none;
+}
+
+.table-play-overlay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-faint);
+  margin-bottom: 6px;
+}
+
+.table-play-overlay__title {
+  font-family: Georgia, serif;
+  color: var(--gold-300);
+  font-size: 15px;
+}
+
+.table-play-overlay__rotate {
+  display: none;
+  text-align: center;
+  margin: 0 0 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  background: var(--surface-chip);
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .table-play-overlay__rotate {
+    display: block;
+  }
+}
+
+.table-play-overlay__main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.table-play-overlay .table-session-root {
+  width: 100%;
+  max-width: min(96vw, 920px);
+  min-height: 0;
+}
+
+.table-play-overlay .btable-session__rotate-hint {
+  display: none !important;
+}
+
+@media (orientation: landscape) {
+  .table-play-overlay .table-session-root {
+    max-width: min(98vw, 960px);
+  }
+
+  .table-play-overlay__rotate {
+    display: none !important;
+  }
+}
+
+.session-play-cta {
+  margin-bottom: 4px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-faint);
+}
+
+.session-play-cta__hint {
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+
+.session--ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .footer {
   padding: 18px;
   text-align: center;
