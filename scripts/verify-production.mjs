@@ -42,6 +42,9 @@ async function checkFirebaseConfig() {
   if (body.includes("demo-national-bourre-league")) {
     return { ok: false, detail: "projectId is still demo-national-bourre-league" };
   }
+  if (/grep -E|npm install|git status/.test(body)) {
+    return { ok: false, detail: "firebase-config.js is corrupted (shell text in file)" };
+  }
   const apiKey = body.match(/apiKey:\s*"([^"]+)"/)?.[1];
   const projectId = body.match(/projectId:\s*"([^"]+)"/)?.[1];
   if (!apiKey?.startsWith("AIza")) {
@@ -53,7 +56,16 @@ async function checkFirebaseConfig() {
 /** @returns {Promise<CheckResult>} */
 async function checkSocialApp() {
   const { ok, status } = await fetchPath("/social/");
+  if (status === 404) {
+    return {
+      ok: false,
+      detail: "HTTP 404 — social app not deployed (run npm run deploy / full build:hosting)",
+    };
+  }
   if (!ok && status >= 500) {
+    return { ok: false, detail: `HTTP ${status} from /social/` };
+  }
+  if (status < 200 || status >= 400) {
     return { ok: false, detail: `HTTP ${status} from /social/` };
   }
   return { ok: true, detail: `HTTP ${status} from /social/` };
