@@ -20,6 +20,8 @@ interface HeroHandProps {
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
+  /** Trump upcard still on the table (for styling when shown in hero during play). */
+  tableTrumpUpcard?: SerializedCard | null;
   className?: string;
 }
 
@@ -38,6 +40,7 @@ export function HeroHand({
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
+  tableTrumpUpcard = null,
   className = "",
 }: HeroHandProps) {
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -145,9 +148,17 @@ export function HeroHand({
     return null;
   }
 
-  const stateFor = (_: Card, i: number): CardState => {
+  const stateFor = (card: Card, i: number): CardState => {
     if (inDrawPhase && selectedDraw.has(i)) return "selected";
     if (inPlayPhase && selectedPlay === i) return "selected";
+    if (
+      tableTrumpUpcard &&
+      card.rank === tableTrumpUpcard.rank &&
+      card.suit === tableTrumpUpcard.suit
+    ) {
+      if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
+      return "trump";
+    }
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
   };
@@ -179,9 +190,16 @@ export function HeroHand({
         {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
         {inPlayPhase && isMyTurn && " · tap a legal card to play"}
       </p>
-      {isDealer && inDrawPhase && (
+      {isDealer && inDrawPhase && tableTrumpUpcard && (
         <p className="btable-hero__trump-note muted small">
-          Your trump upcard is on the table — not duplicated here
+          Flipped trump is in your hand (highlighted) — it is not led automatically
+        </p>
+      )}
+      {isDealer && inPlayPhase && tableTrumpUpcard && typedCards.some(
+        (c) => c.rank === tableTrumpUpcard.rank && c.suit === tableTrumpUpcard.suit,
+      ) && (
+        <p className="btable-hero__trump-note muted small">
+          Play the highlighted trump from your hand when it is your turn
         </p>
       )}
       {typedCards.length > 0 && (

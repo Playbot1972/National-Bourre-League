@@ -17,8 +17,8 @@ export const STANDARD_RULE_SECTIONS = [
     summary: "Five cards each; the dealer's upcard sets trump for the hand.",
     points: [
       "Dealer gives each player 5 cards, one at a time.",
-      "The dealer's fifth card is turned face up — its suit is trump for the hand.",
-      "In the common version, that upcard counts as part of the dealer's hand.",
+      "The dealer's fifth card is turned face up to set trump — it is not led to the first trick.",
+      "That flipped card stays in the dealer's hand and is played on the dealer's normal turn.",
       "The deal passes to the left after each hand.",
     ],
   },

@@ -44,6 +44,7 @@ export function serializeHandState(
     phase: HAND_PHASE.DRAW,
     participantIds: [...deal.participantIds],
     dealerId,
+    trumpHolderId: deal.trumpHolderId,
     trumpSuit: deal.trumpSuit,
     trumpUpcard: serializeCard(deal.trumpUpcard),
     remainingDeckCount: deal.remainingDeck.length,

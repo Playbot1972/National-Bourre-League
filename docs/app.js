@@ -70,7 +70,13 @@ import {
   HAND_ENROLLMENT_MS,
   tricksForPlayer,
 } from "./firestore.js";
-import { getLegalPlayIndices, deserializeCards, effectivePlayerHand } from "./game-engine.js";
+import {
+  getLegalPlayIndices,
+  deserializeCards,
+  effectivePlayerHand,
+  serializeCards,
+  cardsRemainingInHand,
+} from "./game-engine.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -711,6 +717,19 @@ async function processTableFeedbackEvents(sessionObj) {
   }
 
   tableFeedbackSnapshot = next;
+}
+
+function buildHeroCardsForTable(currentHand, privateCardList, playerId, handPhase) {
+  const privateCards = privateCardList ?? [];
+  if ((handPhase !== "draw" && handPhase !== "play") || !currentHand || !playerId) {
+    return privateCards;
+  }
+  const effective = effectivePlayerHand(
+    playerId,
+    deserializeCards(privateCards),
+    currentHand,
+  );
+  return serializeCards(effective);
 }
 
 function computeLegalPlayIndices(currentHand, heroCards, playerId) {
@@ -1581,14 +1600,18 @@ function buildTableSessionProps(s) {
   const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
-  const heroCardList = openPrivateHand?.cards ?? [];
+  const myUid = session?.uid ?? null;
+  const privateHeroCards = openPrivateHand?.cards ?? [];
+  const heroCardList =
+    myUid && cardsDealt
+      ? buildHeroCardsForTable(s.currentHand, privateHeroCards, myUid, handPhase)
+      : privateHeroCards;
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
-      ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
+      ? computeLegalPlayIndices(s.currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
-  const myUid = session?.uid ?? null;
   const dealerId = s.dealerId ?? null;
   const enrollment = s.handEnrollment;
   const enrollmentActive = enrollment?.active === true;
@@ -1709,7 +1732,9 @@ function buildTableSessionProps(s) {
         isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
-        holeCardCount: 5,
+        holeCardCount: cardsDealt
+          ? cardsRemainingInHand(s.currentHand || {}, sc.playerId)
+          : 5,
         isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&

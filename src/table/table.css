@@ -1106,6 +1106,10 @@
   margin: 4px 0 0;
 }
 
+.bpot__trump--reveal {
+  margin-top: 6px;
+}
+
 .bpot__trump--deal {
   animation: bdeal-in 500ms ease backwards;
 }

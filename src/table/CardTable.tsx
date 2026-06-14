@@ -59,6 +59,15 @@ export function CardTable({
       currentUserId &&
         session.drawCompletedIds?.includes(currentUserId),
     );
+  const selfIsTrumpHolder = Boolean(
+    session.trumpUpcard &&
+      heroCards.some(
+        (c) => c.rank === session.trumpUpcard!.rank && c.suit === session.trumpUpcard!.suit,
+      ),
+  );
+  const cardsDealt = session.phase === "draw" || session.phase === "play";
+  const showTrumpReveal =
+    cardsDealt && Boolean(session.trumpUpcard) && !selfIsTrumpHolder;
 
   return (
     <div
@@ -75,6 +84,7 @@ export function CardTable({
             potMetrics={potMetrics}
             participantCount={participantCount}
             trumpUpcard={session.trumpUpcard}
+            showTrumpReveal={showTrumpReveal}
             trumpSuit={session.trumpSuit}
             phase={session.phase}
             enrollmentActive={enrollmentActive}
@@ -119,6 +129,7 @@ export function CardTable({
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}
         onPlayCard={onPlayCard}
+        tableTrumpUpcard={session.trumpUpcard}
       />
     </div>
   );

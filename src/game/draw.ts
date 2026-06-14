@@ -151,6 +151,7 @@ export function advanceAfterDraw(
     ...publicHand,
     phase: HAND_PHASE.PLAY,
     drawCompletedIds,
+    // First active seat left of dealer leads trick 1; trump flip is not auto-led.
     turnPlayerId: leadPlayerId,
     currentTrick: {
       trickNumber: 1,
