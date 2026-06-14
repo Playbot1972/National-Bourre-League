@@ -1,14 +1,12 @@
 # National Bourré League — local test & debug guide
 
-Repo-specific steps for validating releases before merge.
+Repo-specific steps for local development and release validation.
 
-**Current release candidate:** `cursor/release-rc-8d02` → **v1.00.64** (combines #67 bugfix + #68 sound + #70 icons + `docs/TESTING.md`).
-
-**`main` is still v1.00.60** until the RC PR merges. Use the RC branch locally to test everything at once:
+**`main` is v1.00.64** (PR #71 merged). Pull `main`, then `npm install`.
 
 ```bash
-git fetch origin
-git checkout cursor/release-rc-8d02
+git checkout main
+git pull origin main
 npm install
 ```
 
@@ -59,6 +57,33 @@ npm run build:table
 npm run build:hosting
 npm run preview:hosting
 ```
+
+---
+
+## Java & Firebase emulators (macOS)
+
+Firestore emulator requires Java. Install **OpenJDK 21** (`brew install openjdk@21`), add it to `PATH`, then verify below.
+
+### Small gotchas
+
+- After editing `~/.zshrc` or `~/.zprofile`, run `source ~/.zshrc` (or `source ~/.zprofile` if that is where Homebrew/PATH was added), or quit and reopen Terminal before testing `java`. PATH changes only apply to new or reloaded shells.
+- On a brand-new Apple Silicon Homebrew install, make sure Homebrew itself is on PATH first. If the installer printed shellenv commands for `/opt/homebrew/bin`, run them before `brew install openjdk@21`.
+- If `/usr/libexec/java_home -v 21` fails, Java may still be installed correctly. Check with:
+  - Apple Silicon: `/opt/homebrew/opt/openjdk@21/bin/java -version`
+  - Intel: `/usr/local/opt/openjdk@21/bin/java -version`
+- For this repo, `npm run social` needs to serve on **http://localhost:8080**. If port 8080 is busy and `serve` picks another port, free 8080 and retry.
+- Don’t paste lines starting with `#` directly into zsh.
+- `javac -version` is a nice extra check, but Firebase emulators only require `java`, not the compiler.
+
+### Minimal pass/fail order
+
+1. `java -version` → should show Java 21.x
+2. `cd ~/National-Bourre-League && npm run emulators` → should start emulator UI on http://localhost:4000
+3. `cd ~/National-Bourre-League && npm run social` → should serve on http://localhost:8080
+
+If those three work, local dev for this project is set.
+
+Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — PATH init can be more reliable there than in ad hoc shell files.
 
 ---
 
