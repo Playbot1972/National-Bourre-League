@@ -69,9 +69,11 @@ export function Seat({ player, style, onToggleInHand, onTrickDelta }: SeatProps)
         {player.enrollmentJoined && !player.inHand && (
           <span className="bseat__enroll-tag muted small">Joined</span>
         )}
-        <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
-          {formatNet(player.net)}
-        </span>
+        {player.isSelf && player.net != null && (
+          <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
+            {formatNet(player.net)}
+          </span>
+        )}
       </div>
 
       {player.enrollmentOnClock && (

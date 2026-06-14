@@ -1,12 +1,12 @@
 import { CardTable } from "./CardTable";
-import { formatRiskStake } from "./logic";
+import { formatNet, formatRiskStake } from "./logic";
 import type { TableSessionViewProps } from "./types";
 
 export function TableSessionView({
   session,
   players,
   potAmount,
-  netTotal,
+  mySessionNet,
   leaderLabel,
   showCoWinSettlement,
   splitSharePerWinner = 0,
@@ -87,7 +87,11 @@ export function TableSessionView({
       )}
 
       <footer className="btable-session__foot muted small">
-        Session total {formatRiskStake(netTotal)} · should balance to {formatRiskStake(0)}
+        {mySessionNet != null ? (
+          <>Your session net {formatNet(mySessionNet)}</>
+        ) : (
+          <>Pot and round state are shared · your ledger is private</>
+        )}
       </footer>
     </div>
   );

@@ -3,7 +3,8 @@ export interface TablePlayer {
   displayName: string;
   photoURL?: string | null;
   handsWon: number;
-  net: number;
+  /** Session net — only populated for the viewing player. */
+  net?: number;
   perHandStake?: number;
   inHand: boolean;
   tricksThisHand: number;
@@ -51,7 +52,8 @@ export interface TableSessionViewProps {
   session: TableSessionData;
   players: TablePlayer[];
   potAmount: number;
-  netTotal: number;
+  /** Viewing player's session net only (never an aggregate of all players). */
+  mySessionNet: number | null;
   leaderLabel: string;
   showCoWinSettlement: boolean;
   splitSharePerWinner?: number;

@@ -947,6 +947,18 @@ button {
   font-size: 13px;
   color: var(--text-dim);
 }
+.hand-history--private {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(244, 213, 141, 0.2);
+}
+.hand-history--private h5 {
+  color: var(--gold-400);
+}
+.session-ledger-net {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
 .hand-history__num {
   color: var(--gold-300);
   font-weight: 600;

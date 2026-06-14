@@ -8169,7 +8169,7 @@ function y({ player: e, style: t, onToggleInHand: n, onTrickDelta: r }) {
 						className: "bseat__enroll-tag muted small",
 						children: "Joined"
 					}),
-					/* @__PURE__ */ (0, p.jsx)("span", {
+					e.isSelf && e.net != null && /* @__PURE__ */ (0, p.jsx)("span", {
 						className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
 						children: g(e.net)
 					})
@@ -8273,7 +8273,7 @@ function x({ players: e, potAmount: t, carryOverPot: n, handStake: r, participan
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i, showCoWinSettlement: a, splitSharePerWinner: o = 0, voteStatus: s, enrollmentActive: c = !1, enrollmentSecondsLeft: l = 0, currentUserId: u, actions: d }) {
+function ee({ session: e, players: t, potAmount: n, mySessionNet: r, leaderLabel: i, showCoWinSettlement: a, splitSharePerWinner: o = 0, voteStatus: s, enrollmentActive: c = !1, enrollmentSecondsLeft: l = 0, currentUserId: u, actions: d }) {
 	let f = e.participantIds.length, m = u != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(u);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
@@ -8363,14 +8363,9 @@ function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i,
 					})
 				]
 			}),
-			/* @__PURE__ */ (0, p.jsxs)("footer", {
+			/* @__PURE__ */ (0, p.jsx)("footer", {
 				className: "btable-session__foot muted small",
-				children: [
-					"Session total ",
-					h(r),
-					" · should balance to ",
-					h(0)
-				]
+				children: r == null ? /* @__PURE__ */ (0, p.jsx)(p.Fragment, { children: "Pot and round state are shared · your ledger is private" }) : /* @__PURE__ */ (0, p.jsxs)(p.Fragment, { children: ["Your session net ", g(r)] })
 			})
 		]
 	});

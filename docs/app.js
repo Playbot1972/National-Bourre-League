@@ -59,6 +59,7 @@ import {
   RISK_STAKE_OPTIONS,
   riskStakeOptionsFor,
   formatRiskStake,
+  formatNet,
 } from "./risk-stakes.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -974,37 +975,44 @@ function buildTableSessionProps(s) {
       pendingCoWinSettlement: s.pendingCoWinSettlement,
       handEnrollment: enrollmentActive ? enrollment : null,
     },
-    players: displayScores.map((sc) => ({
-      playerId: sc.playerId,
-      displayName: sc.displayName,
-      photoURL: sc.playerId === myUid ? session?.photoURL : null,
-      handsWon: sc.handsWon ?? 0,
-      net: sc.net ?? 0,
-      perHandStake: sc.perHandStake,
-      inHand:
-        handParticipantIds.includes(sc.playerId) || enrolledDuringSignup.includes(sc.playerId),
-      tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
-      isSelf: sc.playerId === myUid,
-      isDealer: sc.playerId === dealerId,
-      isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-      isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-      enrollmentOnClock: enrollmentActive && sc.playerId === currentEnrollmentPlayerId,
-      enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
-      enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
-      canToggleInHand:
-        enrollmentActive &&
-        sc.playerId === myUid &&
-        !isFinal &&
-        sc.playerId === currentEnrollmentPlayerId,
-      canEditTricks:
-        !isFinal &&
-        handParticipantIds.includes(sc.playerId) &&
-        sc.playerId === myUid &&
-        !handComplete &&
-        totalTricks < MAX_TRICKS_PER_HAND,
-    })),
+    players: displayScores.map((sc) => {
+      const isSelf = sc.playerId === myUid;
+      return {
+        playerId: sc.playerId,
+        displayName: sc.displayName,
+        photoURL: isSelf ? session?.photoURL : null,
+        handsWon: sc.handsWon ?? 0,
+        ...(isSelf ? { net: sc.net ?? 0 } : {}),
+        ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
+        inHand:
+          handParticipantIds.includes(sc.playerId) ||
+          enrolledDuringSignup.includes(sc.playerId),
+        tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
+        isSelf,
+        isDealer: sc.playerId === dealerId,
+        isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
+        isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
+        enrollmentOnClock: enrollmentActive && sc.playerId === currentEnrollmentPlayerId,
+        enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
+        enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
+        canToggleInHand:
+          enrollmentActive &&
+          isSelf &&
+          !isFinal &&
+          sc.playerId === currentEnrollmentPlayerId,
+        canEditTricks:
+          !isFinal &&
+          handParticipantIds.includes(sc.playerId) &&
+          isSelf &&
+          !handComplete &&
+          totalTricks < MAX_TRICKS_PER_HAND,
+      };
+    }),
     potAmount,
-    netTotal: displayScores.reduce((sum, sc) => sum + (Number(sc.net) || 0), 0),
+    mySessionNet:
+      myUid != null
+        ? Number(displayScores.find((sc) => sc.playerId === myUid)?.net) || 0
+        : null,
     leaderLabel: enrollmentActive
       ? buildEnrollmentLeaderLabel(displayScores, enrollment, myUid)
       : buildTableLeaderLabel(
@@ -1269,18 +1277,43 @@ function renderSessionPanel(s) {
            <p class="muted small">Host set · locks after the first hand.</p>
          </div>`;
 
-  const handHistory =
+  const myUid = session?.uid ?? null;
+  const myScore = myUid ? openScores.find((sc) => sc.playerId === myUid) : null;
+
+  const handHistoryPublic =
     openHands.length === 0
       ? ""
-      : `<div class="hand-history">
-           <h5>Hand history</h5>
+      : `<div class="hand-history hand-history--public">
+           <h5>Hand results</h5>
+           <p class="muted small">Winners and pot — visible to everyone in the room.</p>
            <ul>
              ${openHands
                .slice(0, 12)
-               .map((h) => `<li>${escapeHtml(formatHandHistoryLine(h, openScores))}</li>`)
+               .map((h) => `<li>${escapeHtml(formatPublicHandHistoryLine(h, openScores))}</li>`)
                .join("")}
            </ul>
          </div>`;
+
+  const privateHandLines = myUid
+    ? openHands
+        .slice(0, 12)
+        .map((h) => formatPrivateHandHistoryLine(h, myUid))
+        .filter(Boolean)
+    : [];
+  const handHistoryPrivate =
+    myScore && (privateHandLines.length > 0 || myScore.net != null)
+      ? `<div class="hand-history hand-history--private">
+           <h5>Your ledger</h5>
+           <p class="session-ledger-net">Session net: <strong>${escapeHtml(formatNet(myScore.net ?? 0))}</strong></p>
+           ${
+             privateHandLines.length
+               ? `<ul>${privateHandLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+               : `<p class="muted small">Your per-hand results appear here after each hand.</p>`
+           }
+         </div>`
+      : "";
+
+  const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
   const resultsBlock =
     isFinal && Array.isArray(s.results)
@@ -1328,7 +1361,7 @@ function renderSessionPanel(s) {
     </div>`;
 }
 
-function formatHandHistoryLine(h, scores) {
+function formatPublicHandHistoryLine(h, scores) {
   const winnerIds = h.winnerIds?.length
     ? h.winnerIds
     : h.winnerId
@@ -1343,7 +1376,7 @@ function formatHandHistoryLine(h, scores) {
     return `#${h.handNumber} Push — ${pot} carries over (${n} players)`;
   }
   if (h.settlement === "non_winner_ante_up" || h.settlement === "ante_up") {
-    return `#${h.handNumber} No split agreement — ${pot} pushed, non-winners ante up (${n} players)`;
+    return `#${h.handNumber} No split agreement — ${pot} pushed (${n} players)`;
   }
   if (h.settlement === "split") {
     return `#${h.handNumber} ${names.join(" & ")} split ${pot} (${n} players)`;
@@ -1355,12 +1388,24 @@ function formatHandHistoryLine(h, scores) {
     const bourreNames = bourreIds.map(
       (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
     );
-    const carry = h.bourreCarryOver ?? bourreIds.length * (h.pot ?? 0);
-    const carryNote =
-      carry > 0 ? ` · ${formatRiskStake(carry)} bourré fund → next hand` : "";
-    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)${carryNote}`;
+    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
   }
   return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
+}
+
+function formatPrivateHandHistoryLine(h, myUid) {
+  if (!myUid || !h.participantIds?.includes(myUid)) return null;
+  const delta = h.deltas?.[myUid];
+  if (delta == null) return null;
+  const parts = [`Hand #${h.handNumber}: ${formatNet(delta)}`];
+  if (h.settlement === "push") parts.push("push");
+  else if (h.settlement === "split") parts.push("split");
+  else if (h.settlement === "win") parts.push("win");
+  return parts.join(" · ");
+}
+
+function formatHandHistoryLine(h, scores) {
+  return formatPublicHandHistoryLine(h, scores);
 }
 
 function getCurrentHandState() {
