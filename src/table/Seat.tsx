@@ -65,6 +65,9 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
 
       <div className="bseat__info">
         <span className="bseat__name">{player.displayName}</span>
+        {player.isRobot && (
+          <span className="bseat__robot-tag muted small">Bot</span>
+        )}
         {player.enrollmentSatOut && (
           <span className="bseat__enroll-tag muted small">Sat out</span>
         )}

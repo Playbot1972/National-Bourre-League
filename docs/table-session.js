@@ -8179,6 +8179,10 @@ function S({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i 
 						className: "bseat__name",
 						children: e.displayName
 					}),
+					e.isRobot && /* @__PURE__ */ (0, p.jsx)("span", {
+						className: "bseat__robot-tag muted small",
+						children: "Bot"
+					}),
 					e.enrollmentSatOut && /* @__PURE__ */ (0, p.jsx)("span", {
 						className: "bseat__enroll-tag muted small",
 						children: "Sat out"

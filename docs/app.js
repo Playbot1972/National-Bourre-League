@@ -35,6 +35,7 @@ import {
   updateHandTrick,
   voteCoWinSettlement,
   addSessionPlayer,
+  addSessionRobot,
   syncSessionWithRoomMembers,
   setHandParticipation,
   ensureHandEnrollment,
@@ -60,6 +61,8 @@ import {
   MAX_TRICKS_PER_HAND,
   totalTricksPlayed,
   isHandComplete,
+  isRobotPlayerId,
+  tricksForPlayer,
 } from "./firestore.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
@@ -583,6 +586,48 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let enrollmentTimer = null;
+let robotActionInFlight = false;
+let lastRobotTrickAt = 0;
+const ROBOT_TRICK_INTERVAL_MS = 1500;
+
+function sessionHasRobots(scores = openScores) {
+  return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
+}
+
+function stopEnrollmentTimer() {
+  if (enrollmentTimer) {
+    clearInterval(enrollmentTimer);
+    enrollmentTimer = null;
+  }
+}
+
+function startEnrollmentTimer() {
+  stopEnrollmentTimer();
+  const s = currentSessions.find((x) => x.id === openSessionId);
+  const needsDriver =
+    s?.handEnrollment?.active || (s && s.status !== "final" && sessionHasRobots());
+  if (!needsDriver) return;
+
+  enrollmentTimer = setInterval(() => {
+    const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+    if (!sessionObj || sessionObj.status === "final") {
+      stopEnrollmentTimer();
+      return;
+    }
+    if (
+      sessionObj.handEnrollment?.active &&
+      Date.now() >= sessionObj.handEnrollment.turnDeadlineMs
+    ) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
+        console.warn("enrollment timeout:", e),
+      );
+    }
+    processRobotActions(sessionObj, openScores);
+    if (sessionObj.handEnrollment?.active) {
+      syncTableSession(sessionObj);
+    }
+  }, 1000);
+}
 let tablePlayOpen = false;
 let pendingHandStake = 1;
 let syncMembersPromise = null;
@@ -1115,28 +1160,105 @@ function bindTablePlayControls() {
   });
 }
 
-function stopEnrollmentTimer() {
-  if (enrollmentTimer) {
-    clearInterval(enrollmentTimer);
-    enrollmentTimer = null;
-  }
-}
+/** Room members drive robot enrollment, trick play, and co-win votes while viewing. */
+function processRobotActions(s, scores) {
+  if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
+  const actorId = session?.uid;
+  if (!actorId || robotActionInFlight) return;
 
-function startEnrollmentTimer() {
-  stopEnrollmentTimer();
-  enrollmentTimer = setInterval(() => {
-    const s = currentSessions.find((x) => x.id === openSessionId);
-    if (!s?.handEnrollment?.active) {
-      stopEnrollmentTimer();
-      return;
+  const robotScores = scores.filter(
+    (sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId),
+  );
+  if (!robotScores.length) return;
+
+  const enrollment = s.handEnrollment;
+  if (enrollment?.active) {
+    const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+    if (
+      currentId &&
+      isRobotPlayerId(currentId) &&
+      !(enrollment.enrolledIds || []).includes(currentId)
+    ) {
+      robotActionInFlight = true;
+      setHandParticipation(currentRoomId, openSessionId, {
+        playerId: currentId,
+        inHand: true,
+        actorId,
+      })
+        .catch((e) => console.warn("robot enroll:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
     }
-    if (Date.now() >= s.handEnrollment.turnDeadlineMs) {
-      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
-        console.warn("enrollment timeout:", e),
+    return;
+  }
+
+  const pending = s.pendingCoWinSettlement;
+  if (pending?.winnerIds?.length >= 2) {
+    const winners = pending.winnerIds;
+    const votes = pending.votes || {};
+    const botWinner = winners.find((id) => isRobotPlayerId(id) && votes[id] !== "split");
+    if (botWinner) {
+      robotActionInFlight = true;
+      voteCoWinSettlement(currentRoomId, openSessionId, {
+        participantIds: pending.participantIds || s.currentHand?.participantIds || [],
+        winnerIds: winners,
+        voterId: botWinner,
+        choice: "split",
+        recordedBy: actorId,
+      })
+        .catch((e) => console.warn("robot co-win vote:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
+    }
+    return;
+  }
+
+  const participants = s.currentHand?.participantIds || [];
+  if (!participants.length) return;
+
+  const tricks = s.currentHand?.tricksByPlayer || {};
+  const total = totalTricksPlayed(tricks, participants);
+  if (total >= MAX_TRICKS_PER_HAND) return;
+
+  const botsInHand = robotScores
+    .map((sc) => sc.playerId)
+    .filter((id) => participants.includes(id));
+  if (!botsInHand.length) return;
+
+  const now = Date.now();
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
+
+  const { ready, winnerIds, maxTricks } = deriveWinnersFromTricks(tricks, participants);
+  let targetBot = null;
+
+  if (!ready || maxTricks === 0) {
+    targetBot = botsInHand[0];
+  } else {
+    const botsNotLeading = botsInHand.filter((id) => !winnerIds.includes(id));
+    if (botsNotLeading.length) {
+      targetBot = botsNotLeading.reduce(
+        (min, id) => (tricksForPlayer(tricks, id) < tricksForPlayer(tricks, min) ? id : min),
+        botsNotLeading[0],
+      );
+    } else {
+      targetBot = botsInHand.reduce(
+        (min, id) => (tricksForPlayer(tricks, id) < tricksForPlayer(tricks, min) ? id : min),
+        botsInHand[0],
       );
     }
-    syncTableSession(s);
-  }, 1000);
+  }
+
+  if (!targetBot || tricksForPlayer(tricks, targetBot) >= MAX_TRICKS_PER_HAND) return;
+
+  lastRobotTrickAt = now;
+  robotActionInFlight = true;
+  updateHandTrick(currentRoomId, openSessionId, targetBot, 1, actorId)
+    .catch((e) => console.warn("robot trick:", e))
+    .finally(() => {
+      robotActionInFlight = false;
+    });
 }
 
 function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid) {
@@ -1290,6 +1412,7 @@ function buildTableSessionProps(s) {
         enrollmentOnClock: enrollmentActive && sc.playerId === currentEnrollmentPlayerId,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
+        isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
         canToggleInHand:
           enrollmentActive &&
           isSelf &&
@@ -1369,7 +1492,7 @@ async function syncTableSession(openSessionObj) {
   try {
     const api = await loadTableMount();
     api.mountTableSession(host, buildTableSessionProps(openSessionObj));
-    if (openSessionObj.handEnrollment?.active) {
+    if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
@@ -1575,6 +1698,12 @@ function renderRoomDetail() {
   );
   wireSessionControls();
   syncTableSession(openSessionObj);
+  if (openSessionObj && openSessionObj.status !== "final") {
+    processRobotActions(openSessionObj, openScores);
+    if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
+      startEnrollmentTimer();
+    }
+  }
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
@@ -1675,6 +1804,10 @@ function renderSessionPanel(s) {
     ? `<span class="badge badge--closed">Session final</span>`
     : `<form class="add-player-form" id="add-player-form">
          <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" />
+         <label class="add-player-robot">
+           <input type="checkbox" id="add-player-robot" />
+           Robot — auto I&apos;m in &amp; play to win
+         </label>
          <button class="btn btn--sm" type="submit">Add player</button>
        </form>
        <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
@@ -1811,11 +1944,19 @@ function wireSessionControls() {
       const input = $("#add-player-name", roomDetailView);
       const name = input.value.trim();
       if (!name) return;
-      const guestId = `guest_${Math.random().toString(36).slice(2, 10)}`;
-      addSessionPlayer(currentRoomId, openSessionId, guestId, name).catch((err) =>
-        console.error("addSessionPlayer:", err),
-      );
+      const isRobot = $("#add-player-robot", roomDetailView)?.checked === true;
+      const addPromise = isRobot
+        ? addSessionRobot(currentRoomId, openSessionId, name)
+        : addSessionPlayer(
+            currentRoomId,
+            openSessionId,
+            `guest_${Math.random().toString(36).slice(2, 10)}`,
+            name,
+          );
+      addPromise.catch((err) => console.error(isRobot ? "addSessionRobot:" : "addSessionPlayer:", err));
       input.value = "";
+      const robotCheckbox = $("#add-player-robot", roomDetailView);
+      if (robotCheckbox) robotCheckbox.checked = false;
     });
   }
 

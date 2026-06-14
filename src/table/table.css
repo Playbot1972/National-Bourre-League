@@ -335,6 +335,14 @@
   font-size: 10px;
 }
 
+.bseat__robot-tag {
+  display: block;
+  font-size: 10px;
+  color: var(--gold-300, #f4d58d);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .bseat__enroll-timer {
   font-size: 11px;
   color: var(--gold-300, #f4d58d);

@@ -1132,7 +1132,18 @@ button {
 }
 .add-player-form {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+}
+.add-player-robot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted, #9aa3b2);
+  cursor: pointer;
+  user-select: none;
 }
 .session-results {
   background: rgba(54, 185, 124, 0.1);

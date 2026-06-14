@@ -424,6 +424,24 @@ const scoreDoc = (roomId, sessionId, playerId) =>
 export const HAND_ENROLLMENT_SECONDS = 7;
 export const HAND_ENROLLMENT_MS = HAND_ENROLLMENT_SECONDS * 1000;
 
+export function isRobotPlayerId(playerId) {
+  return typeof playerId === "string" && playerId.startsWith("bot_");
+}
+
+export function createRobotPlayerId() {
+  return `bot_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/** Keep enrollment rotation when a new seat joins mid-signup. */
+function mergePlayerIntoEnrollment(enrollment, dealerId, sortedPlayerIds) {
+  if (!enrollment?.active) return enrollment;
+  const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+  let currentIndex = currentId != null ? orderedPlayerIds.indexOf(currentId) : 0;
+  if (currentIndex < 0) currentIndex = 0;
+  return { ...enrollment, orderedPlayerIds, currentIndex };
+}
+
 function sortedScorePlayerIds(scoreSnap) {
   return scoreSnap.docs
     .map((d) => ({ id: d.id, displayName: d.data()?.displayName || "" }))
@@ -837,7 +855,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") throw new Error("Session is final");
 
-  if (recordedBy && recordedBy !== playerId) {
+  if (recordedBy && recordedBy !== playerId && !isRobotPlayerId(playerId)) {
     throw new Error("You can only update your own tricks");
   }
 
@@ -1032,13 +1050,23 @@ export async function addSessionPlayer(roomId, sessionId, playerId, displayName)
   await ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
 }
 
+/** Add a robot seat — joins via enrollment and auto-plays tricks when the hand is live. */
+export async function addSessionRobot(roomId, sessionId, displayName) {
+  const playerId = createRobotPlayerId();
+  await ensureSessionPlayer(roomId, sessionId, playerId, displayName, {
+    joinCurrentHand: false,
+    isRobot: true,
+  });
+  return playerId;
+}
+
 /** Add player to session only if they are not already on the score sheet. */
 export async function ensureSessionPlayer(
   roomId,
   sessionId,
   playerId,
   displayName,
-  { joinCurrentHand = false } = {},
+  { joinCurrentHand = false, isRobot = false } = {},
 ) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return false;
@@ -1060,16 +1088,38 @@ export async function ensureSessionPlayer(
     ? [...new Set([...(currentHand.participantIds || []), playerId])]
     : currentHand.participantIds || [];
 
-  await ensurePlayerDoc(playerId, displayName);
-  const batch = writeBatch(db);
-  batch.update(sessionDoc(roomId, sessionId), {
+  const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedIds = [
+    ...allScoresSnap.docs.map((d) => ({
+      id: d.id,
+      displayName: d.data()?.displayName || "",
+    })),
+    { id: playerId, displayName: displayName || "" },
+  ]
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .map((r) => r.id);
+
+  const sessionPatch = {
     players: arrayUnion({ playerId, displayName }),
     currentHand: {
       tricksByPlayer: currentHand.tricksByPlayer || {},
       participantIds,
     },
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (sessionData.handEnrollment?.active && !joinCurrentHand) {
+    sessionPatch.handEnrollment = mergePlayerIntoEnrollment(
+      sessionData.handEnrollment,
+      sessionData.dealerId,
+      sortedIds,
+    );
+  }
+
+  if (!isRobot) {
+    await ensurePlayerDoc(playerId, displayName);
+  }
+  const batch = writeBatch(db);
+  batch.update(sessionDoc(roomId, sessionId), sessionPatch);
   batch.set(scoreRef, {
     sessionId,
     roomId,
@@ -1080,6 +1130,7 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
+    ...(isRobot ? { isRobot: true } : {}),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
@@ -1164,7 +1215,9 @@ export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
   if (!playerId || !actorId) throw new Error("Missing player");
-  if (playerId !== actorId) throw new Error("You can only change your own hand participation");
+  if (playerId !== actorId && !isRobotPlayerId(playerId)) {
+    throw new Error("You can only change your own hand participation");
+  }
 
   const ref = sessionDoc(roomId, sessionId);
   await runTransaction(db, async (tx) => {

@@ -15,6 +15,7 @@ export interface TablePlayer {
   enrollmentOnClock?: boolean;
   enrollmentSatOut?: boolean;
   enrollmentJoined?: boolean;
+  isRobot?: boolean;
   canToggleInHand: boolean;
   canEditTricks: boolean;
   /** This hand's ante — only for the viewing player. */
