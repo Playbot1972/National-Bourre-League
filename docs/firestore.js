@@ -1047,17 +1047,16 @@ export function subscribeLeaderboard(callback) {
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
-  await ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
+  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
 }
 
 /** Add a robot seat — joins via enrollment and auto-plays tricks when the hand is live. */
 export async function addSessionRobot(roomId, sessionId, displayName) {
   const playerId = createRobotPlayerId();
-  await ensureSessionPlayer(roomId, sessionId, playerId, displayName, {
+  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, {
     joinCurrentHand: false,
     isRobot: true,
   });
-  return playerId;
 }
 
 /** Add player to session only if they are not already on the score sheet. */

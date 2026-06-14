@@ -526,6 +526,37 @@ function bindRoomDetailDelegatedControls() {
     saveHouseRulesFromDetailForm();
   });
 
+  roomDetailView.addEventListener("submit", (e) => {
+    if (!e.target.closest("#add-player-form")) return;
+    e.preventDefault();
+    if (!currentRoomId || !openSessionId) return;
+    const input = $("#add-player-name", roomDetailView);
+    const name = input?.value.trim();
+    if (!name) return;
+    const isRobot = $("#add-player-robot", roomDetailView)?.checked === true;
+    const addPromise = isRobot
+      ? addSessionRobot(currentRoomId, openSessionId, name)
+      : addSessionPlayer(
+          currentRoomId,
+          openSessionId,
+          `guest_${Math.random().toString(36).slice(2, 10)}`,
+          name,
+        );
+    addPromise
+      .catch((err) => {
+        console.error(isRobot ? "addSessionRobot:" : "addSessionPlayer:", err);
+        showRoomsError(err.message || `Could not add ${isRobot ? "robot" : "player"}`);
+      })
+      .then((added) => {
+        if (added === false) {
+          showRoomsError("That name is already on the score sheet.");
+        }
+      });
+    if (input) input.value = "";
+    const robotCheckbox = $("#add-player-robot", roomDetailView);
+    if (robotCheckbox) robotCheckbox.checked = false;
+  });
+
   roomDetailView.addEventListener("change", (e) => {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
@@ -1766,10 +1797,10 @@ function renderRoomDetail() {
   $$("[data-open-session]", roomDetailView).forEach((btn) =>
     btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
   );
-  wireSessionControls();
   if (openSessionObj) {
     mountSessionPanel(openSessionObj);
   }
+  wireSessionControls();
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
@@ -2081,29 +2112,6 @@ function wireSessionControls() {
           console.error("updateSessionNotes:", e),
         );
       }, 500);
-    });
-  }
-
-  const addPlayerForm = $("#add-player-form", roomDetailView);
-  if (addPlayerForm) {
-    addPlayerForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const input = $("#add-player-name", roomDetailView);
-      const name = input.value.trim();
-      if (!name) return;
-      const isRobot = $("#add-player-robot", roomDetailView)?.checked === true;
-      const addPromise = isRobot
-        ? addSessionRobot(currentRoomId, openSessionId, name)
-        : addSessionPlayer(
-            currentRoomId,
-            openSessionId,
-            `guest_${Math.random().toString(36).slice(2, 10)}`,
-            name,
-          );
-      addPromise.catch((err) => console.error(isRobot ? "addSessionRobot:" : "addSessionPlayer:", err));
-      input.value = "";
-      const robotCheckbox = $("#add-player-robot", roomDetailView);
-      if (robotCheckbox) robotCheckbox.checked = false;
     });
   }
 
