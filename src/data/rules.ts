@@ -89,6 +89,7 @@ export const STANDARD_RULES: RuleSection[] = [
     points: [
       "Most tricks wins the whole pot (3+ of 5 guarantees it).",
       "A player who plays but wins no trick is bourréed and matches the current pot.",
+      "The bourré match funds the next hand; anyone who took at least one trick skips ante on that deal.",
       "Ties for most tricks usually split the pot or carry it to the next deal (table choice).",
     ],
   },

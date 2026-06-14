@@ -207,7 +207,8 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     narration: [
       "You won three of the five tricks — a majority — so you scoop the entire pot.",
       "Any player who stayed in but won zero tricks is \"bourréed\" and must match the pot.",
-      "That penalty is what makes the \"play to win\" rule so important. You're ready to play!",
+      "That match funds the next hand — players who took at least one trick skip ante on the next deal.",
+      "That pressure is what makes the \"play to win\" rule so important. You're ready to play!",
     ],
     visual: { kind: "summary" },
   },

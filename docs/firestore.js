@@ -185,6 +185,13 @@ function stakeForPlayer(scoreById, playerId, sessionStake) {
   return Math.max(1, Number(n) || sessionStake);
 }
 
+/** Ante for the current hand (0 when bourré carry-over waived the next ante). */
+export function playerHandStake(scoreById, playerId, sessionStake) {
+  const row = scoreById[playerId];
+  if (row?.skipNextAnte) return 0;
+  return stakeForPlayer(scoreById, playerId, sessionStake);
+}
+
 export const DEFAULT_HOUSE_RULES = {
   ante: "1 chip (bragging rights only)",
   forcedPlay: "Dealer must play",
@@ -599,44 +606,44 @@ export async function recordHand(
   }
 
   const antePot = participants.reduce(
-    (sum, pid) => sum + stakeForPlayer(scoreById, pid, stake),
+    (sum, pid) => sum + playerHandStake(scoreById, pid, stake),
     0,
   );
   const grossPot = antePot + carryIn;
 
   const deltas = {};
   let carryOverPot = 0;
+  let bourreIds = [];
+  let bourreMatch = 0;
 
   if (mode === "push" || mode === "non_winner_ante_up") {
     carryOverPot = grossPot;
     participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      const playerStake = playerHandStake(scoreById, pid, stake);
       deltas[pid] = -playerStake;
     });
   } else if (mode === "split") {
     const share = grossPot / winners.length;
     participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      const playerStake = playerHandStake(scoreById, pid, stake);
       deltas[pid] = winners.includes(pid) ? share - playerStake : -playerStake;
     });
     carryOverPot = 0;
   } else {
     const winner = winners[0];
-    const bourreIds = participants.filter(
-      (pid) => (tricksByPlayer?.[pid] ?? -1) === 0,
-    );
-    const bourreMatch = bourreIds.length * grossPot;
+    bourreIds = participants.filter((pid) => (tricksByPlayer?.[pid] ?? -1) === 0);
+    bourreMatch = bourreIds.length * grossPot;
+    carryOverPot = bourreMatch;
     participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(scoreById, pid, stake);
+      const playerStake = playerHandStake(scoreById, pid, stake);
       if (pid === winner) {
-        deltas[pid] = grossPot - playerStake + bourreMatch;
+        deltas[pid] = grossPot - playerStake;
       } else if (bourreIds.includes(pid)) {
         deltas[pid] = -playerStake - grossPot;
       } else {
         deltas[pid] = -playerStake;
       }
     });
-    carryOverPot = 0;
   }
 
   const batch = writeBatch(db);
@@ -647,10 +654,8 @@ export async function recordHand(
     settlement: mode,
     participantIds: participants,
     tricksByPlayer: tricksByPlayer || null,
-    bourreIds:
-      mode === "win" && tricksByPlayer
-        ? participants.filter((pid) => (tricksByPlayer[pid] ?? -1) === 0)
-        : [],
+    bourreIds: mode === "win" && tricksByPlayer ? bourreIds : [],
+    bourreCarryOver: mode === "win" ? bourreMatch : 0,
     stake,
     pot: grossPot,
     carryIn,
@@ -668,6 +673,15 @@ export async function recordHand(
       net: (current.net || 0) + deltas[pid],
       updatedAt: serverTimestamp(),
     };
+    if (current.skipNextAnte) {
+      patch.skipNextAnte = deleteField();
+    }
+    if (mode === "win" && bourreIds.length > 0 && tricksByPlayer) {
+      const tricks = tricksByPlayer[pid] ?? -1;
+      if (tricks >= 1 || bourreIds.includes(pid)) {
+        patch.skipNextAnte = true;
+      }
+    }
     if (isWinner && (mode === "split" || mode === "win")) {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
@@ -682,6 +696,16 @@ export async function recordHand(
     }
     batch.update(scoreDoc(roomId, sessionId, pid), patch);
   });
+
+  for (const scoreDocSnap of scoreSnap.docs) {
+    const pid = scoreDocSnap.id;
+    if (scoreDocSnap.data().skipNextAnte && !participants.includes(pid)) {
+      batch.update(scoreDoc(roomId, sessionId, pid), {
+        skipNextAnte: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId);
   batch.update(sessionDoc(roomId, sessionId), {

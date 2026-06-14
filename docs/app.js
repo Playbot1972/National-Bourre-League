@@ -46,6 +46,7 @@ import {
   applyRankingResults,
   subscribeLeaderboard,
   deriveWinnersFromTricks,
+  playerHandStake,
   BOURRE_TRICKS_TO_WIN,
   MAX_TRICKS_PER_HAND,
   totalTricksPlayed,
@@ -842,10 +843,11 @@ function buildTableSessionProps(s) {
         ? pendingWinners
         : [];
 
-  const antePot = handParticipantIds.reduce((sum, pid) => {
-    const sc = displayScores.find((x) => x.playerId === pid);
-    return sum + (sc?.perHandStake ?? handStake);
-  }, 0);
+  const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
+  const antePot = handParticipantIds.reduce(
+    (sum, pid) => sum + playerHandStake(scoreById, pid, handStake),
+    0,
+  );
   const potAmount = antePot + (s.carryOverPot ?? 0);
 
   const showCoWinSettlement =
@@ -1239,7 +1241,10 @@ function formatHandHistoryLine(h, scores) {
     const bourreNames = bourreIds.map(
       (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
     );
-    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
+    const carry = h.bourreCarryOver ?? bourreIds.length * (h.pot ?? 0);
+    const carryNote =
+      carry > 0 ? ` · ${formatRiskStake(carry)} bourré fund → next hand` : "";
+    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} · ${bourreNames.join(" & ")} bourréed (${n} players)${carryNote}`;
   }
   return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
 }
