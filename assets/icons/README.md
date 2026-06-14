@@ -11,7 +11,7 @@ Production-ready app icons for App Store, Play Store, PWA, and Add to Home Scree
 | `booray-brand-full.svg` | Marketing / splash — fuller mark with subtle card hints + BOORAY wordmark |
 | `booray-spade-mark.svg` | Shared spade silhouette reference |
 
-Replace or refine these SVGs when final brand artwork is available. The current set follows the app palette (dark felt `#0a2218`, gold `#f4d58d`).
+Replace or refine these SVGs against the official Booray brand artwork (navy `#0a0e18`, cream ace card, ornate spade, blue `#5eb3ff` / red `#e84855` accents, two-tone BOORAY wordmark on the full mark).
 
 ## Generate PNG exports
 
