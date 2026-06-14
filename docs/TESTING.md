@@ -77,11 +77,20 @@ Firestore emulator requires Java. Install **OpenJDK 21** (`brew install openjdk@
 
 ### Minimal pass/fail order
 
-1. `java -version` → should show Java 21.x
-2. `cd ~/National-Bourre-League && npm run emulators` → should start emulator UI on http://localhost:4000
-3. `cd ~/National-Bourre-League && npm run social` → should serve on http://localhost:8080
+Run these from the repo root (`cd ~/National-Bourre-League` on your Mac):
 
-If those three work, local dev for this project is set.
+1. `java -version` → should show Java 21.x
+2. `npm run emulators` → should start emulator UI on http://localhost:4000
+3. `npm run social` → should serve on http://localhost:8080
+
+**Automated check** (same three steps; steps 2–3 require those servers to already be running):
+
+```bash
+npm run verify:local:prereq   # step 1 + port 8080 free (before starting servers)
+npm run verify:local          # all three (after emulators + social are up)
+```
+
+If those three work (or `verify:local` passes), local dev for this project is set.
 
 Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — PATH init can be more reliable there than in ad hoc shell files.
 
@@ -99,6 +108,8 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run test:game` | Card uniqueness + draw flow tests | **main** (v1.00.64+) |
 | `npm run test:feedback` | Haptics fallback + prefs tests | **main** (v1.00.64+) |
 | `npm run icons:generate` | SVG → PNG icon export | **main** (v1.00.64+) |
+| `npm run verify:local:prereq` | Java 21 + port 8080 free | **main** (v1.00.64+) |
+| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **main** (v1.00.64+) |
 
 All scripts above are on **`main`** as of v1.00.64.
 

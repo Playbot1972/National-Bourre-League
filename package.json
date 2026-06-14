@@ -33,7 +33,9 @@
     "test:game": "tsx --test src/game/handState.test.ts",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
     "test": "npm run test:game && npm run test:feedback",
-    "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
+    "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league",
+    "verify:local": "node scripts/verify-local-dev.mjs",
+    "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq"
   },
   "dependencies": {
     "react": "^19.2.6",
