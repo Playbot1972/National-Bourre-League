@@ -1071,7 +1071,16 @@ function unmountTableSessionHost() {
 }
 
 function tableSessionHost() {
-  return $("#table-session-root");
+  if (tablePlayOpen) {
+    return $("#table-session-root");
+  }
+  return $("#table-session-inline-root", roomDetailView);
+}
+
+function resolveOpenSessionObj(openSessionObj) {
+  if (openSessionObj) return openSessionObj;
+  if (!openSessionId) return null;
+  return currentSessions.find((s) => s.id === openSessionId) ?? null;
 }
 
 function updateTablePlayTitle(openSessionObj) {
@@ -1123,6 +1132,10 @@ function closeTablePlay() {
     screen.orientation?.unlock?.();
   } catch {
     /* ignore */
+  }
+  const openSessionObj = resolveOpenSessionObj();
+  if (openSessionObj) {
+    syncTableSession(openSessionObj);
   }
 }
 
@@ -1473,26 +1486,25 @@ function buildTableSessionProps(s) {
 }
 
 async function syncTableSession(openSessionObj) {
+  const sessionObj = resolveOpenSessionObj(openSessionObj);
   const host = tableSessionHost();
+
+  if (!sessionObj || sessionObj.status === "final" || openScores.length < 2) {
+    unmountTableSessionHost();
+    if (tablePlayOpen && sessionObj && (sessionObj.status === "final" || openScores.length < 2)) {
+      closeTablePlay();
+    }
+    return;
+  }
+
   if (!host) return;
 
-  if (!openSessionObj || openSessionObj.status === "final" || openScores.length < 2) {
-    unmountTableSessionHost();
-    if (tablePlayOpen) closeTablePlay();
-    return;
-  }
-
-  updateTablePlayTitle(openSessionObj);
-
-  if (!tablePlayOpen) {
-    unmountTableSessionHost();
-    return;
-  }
+  updateTablePlayTitle(sessionObj);
 
   try {
     const api = await loadTableMount();
-    api.mountTableSession(host, buildTableSessionProps(openSessionObj));
-    if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
+    api.mountTableSession(host, buildTableSessionProps(sessionObj));
+    if (sessionObj.handEnrollment?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
@@ -1815,17 +1827,20 @@ function renderSessionPanel(s) {
   const tableHost =
     isFinal || openScores.length < 2
       ? ""
-      : `<div class="session-play-cta">
-           <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-             Open table · landscape
-           </button>
-           <p class="muted small session-play-cta__hint">
-             Full-screen table for live play. Hand results, ledger, and session controls stay on this page.
-           </p>
+      : `<div class="session-table-wrap">
+           <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
+           <div class="session-play-cta">
+             <button type="button" class="btn btn--primary btn--block" id="open-table-play">
+               Open table · landscape
+             </button>
+             <p class="muted small session-play-cta__hint">
+               Full-screen landscape view. Hand results and session controls stay in the sidebar.
+             </p>
+           </div>
          </div>`;
 
   return `
-    <div class="session session--ledger">
+    <div class="session session--table">
       ${isFinal ? resultsBlock : tableHost}
       <aside class="session-sidebar">
         ${lmtControl}

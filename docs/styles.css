@@ -1556,10 +1556,40 @@ body.table-play-active .footer {
   line-height: 1.45;
 }
 
-.session--ledger {
+.session--ledger,
+.session--table {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.session--table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .session--table {
+    grid-template-columns: 1fr;
+  }
+}
+
+.session-table-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.session--table .table-session-root {
+  min-height: 280px;
+  width: 100%;
+}
+
+.session--table .session-play-cta {
+  margin: 0;
 }
 
 .footer {
