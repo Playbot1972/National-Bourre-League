@@ -9,6 +9,7 @@ export function TableSessionView({
   netTotal,
   leaderLabel,
   showCoWinSettlement,
+  splitSharePerWinner = 0,
   voteStatus,
   currentUserId,
   actions,
@@ -47,6 +48,12 @@ export function TableSessionView({
             Co-winners vote — one <strong>Decline</strong> pushes the pot; all must{" "}
             <strong>Agree</strong> to split.
           </p>
+          {splitSharePerWinner > 0 && (
+            <p className="btable-session__split-preview">
+              Split {formatRiskStake(potAmount)} →{" "}
+              <strong>{formatRiskStake(splitSharePerWinner)}</strong> each
+            </p>
+          )}
           <div className="btable-session__settle-btns">
             <button
               type="button"

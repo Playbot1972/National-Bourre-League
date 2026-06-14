@@ -8261,8 +8261,8 @@ function x({ players: e, potAmount: t, carryOverPot: n, handStake: r, participan
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i, showCoWinSettlement: a, voteStatus: o, currentUserId: s, actions: c }) {
-	let l = e.participantIds.length, u = s != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(s);
+function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i, showCoWinSettlement: a, splitSharePerWinner: o = 0, voteStatus: s, currentUserId: c, actions: l }) {
+	let u = e.participantIds.length, d = c != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(c);
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
 		className: "btable-session",
 		children: [
@@ -8281,12 +8281,12 @@ function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i,
 				potAmount: n,
 				carryOverPot: e.carryOverPot,
 				handStake: e.handStake,
-				participantCount: l,
+				participantCount: u,
 				onToggleInHand: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && c.onToggleInHand(n);
+					t.find((t) => t.playerId === e)?.isSelf && l.onToggleInHand(n);
 				},
 				onTrickDelta: (e, n) => {
-					t.find((t) => t.playerId === e)?.isSelf && c.onTrickDelta(n);
+					t.find((t) => t.playerId === e)?.isSelf && l.onTrickDelta(n);
 				}
 			}),
 			a && !e.isFinal && /* @__PURE__ */ (0, p.jsxs)("div", {
@@ -8303,27 +8303,38 @@ function ee({ session: e, players: t, potAmount: n, netTotal: r, leaderLabel: i,
 							" to split."
 						]
 					}),
+					o > 0 && /* @__PURE__ */ (0, p.jsxs)("p", {
+						className: "btable-session__split-preview",
+						children: [
+							"Split ",
+							h(n),
+							" →",
+							" ",
+							/* @__PURE__ */ (0, p.jsx)("strong", { children: h(o) }),
+							" each"
+						]
+					}),
 					/* @__PURE__ */ (0, p.jsxs)("div", {
 						className: "btable-session__settle-btns",
 						children: [/* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm",
-							disabled: !u,
-							onClick: () => c.onSettle("push"),
+							disabled: !d,
+							onClick: () => l.onSettle("push"),
 							children: "Decline split"
 						}), /* @__PURE__ */ (0, p.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm btn--primary",
-							disabled: !u,
-							onClick: () => c.onSettle("split"),
+							disabled: !d,
+							onClick: () => l.onSettle("split"),
 							children: "Agree to split"
 						})]
 					}),
-					o && /* @__PURE__ */ (0, p.jsx)("p", {
+					s && /* @__PURE__ */ (0, p.jsx)("p", {
 						className: "muted small",
-						children: o
+						children: s
 					}),
-					!u && s && /* @__PURE__ */ (0, p.jsx)("p", {
+					!d && c && /* @__PURE__ */ (0, p.jsx)("p", {
 						className: "muted small",
 						children: "Waiting for co-winners to vote."
 					})

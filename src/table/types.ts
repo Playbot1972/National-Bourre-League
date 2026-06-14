@@ -42,6 +42,7 @@ export interface TableSessionViewProps {
   netTotal: number;
   leaderLabel: string;
   showCoWinSettlement: boolean;
+  splitSharePerWinner?: number;
   voteStatus: string;
   currentUserId: string | null;
   actions: TableSessionActions;
