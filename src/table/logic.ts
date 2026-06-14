@@ -1,5 +1,9 @@
-export const BOURRE_TRICKS_TO_WIN = 3;
 export const MAX_TRICKS_PER_HAND = 5;
+
+export function tricksToWinHint(playerCount: number, totalTricks = MAX_TRICKS_PER_HAND) {
+  const n = Math.max(2, playerCount || 2);
+  return Math.ceil(totalTricks / n);
+}
 
 export function totalTricksPlayed(
   tricksByPlayer: Record<string, number>,
@@ -15,6 +19,7 @@ export function isHandComplete(
   return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
 }
 
+/** Most tricks wins; ties at the top share winner status. */
 export function deriveWinnersFromTricks(
   tricksByPlayer: Record<string, number>,
   participantIds: string[],
@@ -27,7 +32,7 @@ export function deriveWinnersFromTricks(
   for (const pid of participants) {
     maxTricks = Math.max(maxTricks, tricksByPlayer[pid] || 0);
   }
-  if (maxTricks < BOURRE_TRICKS_TO_WIN) {
+  if (maxTricks === 0) {
     return { ready: false, winnerIds: [] as string[], maxTricks };
   }
   const winnerIds = participants.filter((pid) => (tricksByPlayer[pid] || 0) === maxTricks);

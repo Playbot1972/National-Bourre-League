@@ -102,9 +102,14 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 
 const db = getFirestore(app);
 
-/** Bourré: first player to 3 of 5 tricks wins the hand (majority). */
-export const BOURRE_TRICKS_TO_WIN = 3;
+/** Five tricks per hand; winner is whoever takes the most (plurality). */
 export const MAX_TRICKS_PER_HAND = 5;
+
+/** Smallest count that can still win with n players in a full hand (plurality hint). */
+export function tricksToWinHint(playerCount, totalTricks = MAX_TRICKS_PER_HAND) {
+  const n = Math.max(2, playerCount || 2);
+  return Math.ceil(totalTricks / n);
+}
 
 export function totalTricksPlayed(tricksByPlayer, participantIds) {
   return (participantIds || []).reduce(
@@ -127,7 +132,7 @@ function bourrePlayerIds(tricksByPlayer, participants) {
   return participants.filter((pid) => tricksForPlayer(tricksByPlayer, pid) === 0);
 }
 
-/** Who leads this hand from trick counts (ties at 3+ are co-winners). */
+/** Who leads or wins from trick counts — most tricks wins (ties share top). */
 export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   const participants = [...new Set((participantIds || []).filter(Boolean))];
   if (participants.length < 2) {
@@ -137,7 +142,7 @@ export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   for (const pid of participants) {
     maxTricks = Math.max(maxTricks, tricksByPlayer?.[pid] || 0);
   }
-  if (maxTricks < BOURRE_TRICKS_TO_WIN) {
+  if (maxTricks === 0) {
     return { ready: false, winnerIds: [], maxTricks };
   }
   const winnerIds = participants.filter((pid) => (tricksByPlayer?.[pid] || 0) === maxTricks);
@@ -813,8 +818,8 @@ export async function voteCoWinSettlement(
 }
 
 /**
- * Track tricks within the current hand (0–5 per player, 5 total). Pot leader
- * is clear at 3 tricks but the hand plays out so bourré (0 tricks) can settle.
+ * Track tricks within the current hand (0–5 per player, 5 total). Leader is
+ * whoever has the most tricks; hand plays out to 5 so bourré (0 tricks) can settle.
  */
 export async function updateHandTrick(roomId, sessionId, playerId, delta, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));

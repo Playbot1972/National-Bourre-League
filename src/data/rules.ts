@@ -87,7 +87,7 @@ export const STANDARD_RULES: RuleSection[] = [
     summary:
       "The player taking the most tricks wins the pot; staying in without a trick is costly.",
     points: [
-      "Most tricks wins the whole pot (3+ of 5 guarantees it).",
+      "Most tricks wins the whole pot (e.g. 2 tricks can win with four players in the hand).",
       "A player who plays but wins no trick is bourréed and matches the current pot.",
       "The bourré match funds the next hand; anyone who took at least one trick skips ante on that deal.",
       "Ties for most tricks usually split the pot or carry it to the next deal (table choice).",

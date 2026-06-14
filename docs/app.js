@@ -47,8 +47,8 @@ import {
   deleteSession,
   subscribeLeaderboard,
   deriveWinnersFromTricks,
+  tricksToWinHint,
   playerHandStake,
-  BOURRE_TRICKS_TO_WIN,
   MAX_TRICKS_PER_HAND,
   totalTricksPlayed,
   isHandComplete,
@@ -903,14 +903,8 @@ function buildTableLeaderLabel(
       .join(" & ");
     return `Tie at ${maxTricks} — finish all 5 tricks (${totalTricks}/5 played)`;
   }
-  if (maxTricks > 0) {
-    const leaders = participantIds.filter((id) => (tricksThisHand[id] || 0) === maxTricks);
-    const names = leaders
-      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-      .join(" & ");
-    return `Leader: ${names} (${maxTricks} — need ${BOURRE_TRICKS_TO_WIN} to lead) · ${totalTricks}/5 played`;
-  }
-  return `Tap + when you take a trick (${totalTricks}/5 played · ${BOURRE_TRICKS_TO_WIN} leads the pot).`;
+  const winHint = tricksToWinHint(participantIds.length);
+  return `Tap + when you take a trick (${totalTricks}/5 played · most tricks wins, can be ${winHint} with ${participantIds.length} in)`;
 }
 
 function buildTableSessionProps(s) {
