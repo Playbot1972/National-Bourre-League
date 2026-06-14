@@ -34,7 +34,7 @@ export interface PublicHandState {
   participantIds: string[];
   dealerId: string | null;
   trumpSuit: Suit;
-  trumpUpcard: SerializedCard;
+  trumpUpcard: SerializedCard | null;
   remainingDeckCount: number;
   currentTrick: CurrentTrickState | null;
   leadSuit: Suit | null;

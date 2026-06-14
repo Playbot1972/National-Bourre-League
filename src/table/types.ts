@@ -96,10 +96,15 @@ export interface TableSessionActions {
   onToggleInHand: (inHand: boolean) => void;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
-  onSubmitDraw?: (discardIndices: number[]) => void;
-  onPassDraw?: () => void;
-  onPlayCard?: (cardIndex: number) => void;
+  onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
+  onPassDraw?: () => void | Promise<void>;
+  onPlayCard?: (cardIndex: number) => void | Promise<void>;
 }
+
+export type TableActionFeedback = {
+  status: "idle" | "loading" | "success" | "error";
+  message?: string;
+};
 
 export interface TableSessionViewProps {
   session: TableSessionData;
@@ -120,5 +125,6 @@ export interface TableSessionViewProps {
   legalPlayIndices?: number[] | null;
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
+  actionFeedback?: TableActionFeedback | null;
   actions: TableSessionActions;
 }

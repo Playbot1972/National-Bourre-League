@@ -18,6 +18,7 @@ export function TableSessionView({
   currentUserId,
   heroCards = [],
   legalPlayIndices,
+  actionFeedback,
   actions,
 }: TableSessionViewProps) {
   const participantCount = session.participantIds.length;
@@ -32,6 +33,15 @@ export function TableSessionView({
 
   return (
     <div className="btable-session">
+      {actionFeedback && actionFeedback.status !== "idle" && (
+        <div
+          className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
+          role={actionFeedback.status === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {actionFeedback.message}
+        </div>
+      )}
       <header className="btable-session__head">
         <div className="btable-session__head-row">
           <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
@@ -88,6 +98,7 @@ export function TableSessionView({
         heroCards={heroCards}
         currentUserId={currentUserId}
         legalPlayIndices={legalPlayIndices}
+        actionFeedback={actionFeedback}
         onToggleInHand={(playerId, inHand) => {
           const p = players.find((x) => x.playerId === playerId);
           if (p?.isSelf) actions.onToggleInHand(inHand);

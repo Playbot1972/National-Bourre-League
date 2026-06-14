@@ -70,7 +70,7 @@ import {
   HAND_ENROLLMENT_MS,
   tricksForPlayer,
 } from "./firestore.js";
-import { getLegalPlayIndices, deserializeCards } from "./game-engine.js";
+import { getLegalPlayIndices, deserializeCards, effectivePlayerHand } from "./game-engine.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -625,14 +625,19 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
+let tableActionFeedback = null;
+let tableFeedbackTimer = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 const ROBOT_TRICK_INTERVAL_MS = 1500;
 
-function computeLegalPlayIndices(currentHand, heroCards) {
-  if (!currentHand || currentHand.phase !== "play" || !heroCards?.length) return null;
-  const hand = deserializeCards(heroCards);
+function computeLegalPlayIndices(currentHand, heroCards, playerId) {
+  if (!currentHand || currentHand.phase !== "play" || !heroCards?.length || !playerId) {
+    return null;
+  }
+  const privateHand = deserializeCards(heroCards);
+  const hand = effectivePlayerHand(playerId, privateHand, currentHand);
   const trick = currentHand.currentTrick;
   const trickPlays = (trick?.plays || []).map((p) => p.card);
   const isLeading = trickPlays.length === 0;
@@ -644,6 +649,24 @@ function computeLegalPlayIndices(currentHand, heroCards) {
     isLeading,
     cinchEnabled: currentHand.cinchEnabled === true,
   });
+}
+
+function setTableActionFeedback(feedback) {
+  tableActionFeedback = feedback;
+  if (tableFeedbackTimer) {
+    clearTimeout(tableFeedbackTimer);
+    tableFeedbackTimer = null;
+  }
+  if (feedback?.status === "success") {
+    tableFeedbackTimer = setTimeout(() => {
+      tableActionFeedback = null;
+      tableFeedbackTimer = null;
+      const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+      if (sessionObj) scheduleTableSessionSync(sessionObj);
+    }, 2200);
+  }
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (sessionObj) scheduleTableSessionSync(sessionObj);
 }
 
 function sessionHasRobots(scores = openScores) {
@@ -1480,7 +1503,7 @@ function buildTableSessionProps(s) {
   const heroCardList = openPrivateHand?.cards ?? [];
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
-      ? computeLegalPlayIndices(s.currentHand, heroCardList)
+      ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
@@ -1570,6 +1593,7 @@ function buildTableSessionProps(s) {
     },
     heroCards: heroCardList,
     legalPlayIndices,
+    actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
       const onEnrollmentClock =
@@ -1664,28 +1688,83 @@ function buildTableSessionProps(s) {
         );
       },
       onSubmitDraw: (discardIndices) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
-        submitHandDraw(currentRoomId, openSessionId, {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          return Promise.reject(new Error("Sign in to draw"));
+        }
+        const maxDraw = s.currentHand?.maxDrawDiscards ?? 4;
+        if (discardIndices.length > maxDraw) {
+          const err = new Error(`You may discard at most ${maxDraw} cards`);
+          setTableActionFeedback({ status: "error", message: err.message });
+          return Promise.reject(err);
+        }
+        setTableActionFeedback({
+          status: "loading",
+          message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
+        });
+        return submitHandDraw(currentRoomId, openSessionId, {
           playerId: session.uid,
           discardIndices,
           actorId: session.uid,
-        }).catch((e) => showRoomsError(e.message || "Could not submit draw"));
+        })
+          .then(() => {
+            setTableActionFeedback({
+              status: "success",
+              message: discardIndices.length
+                ? `Drew ${discardIndices.length} replacement card(s)`
+                : "Standing pat",
+            });
+          })
+          .catch((e) => {
+            setTableActionFeedback({
+              status: "error",
+              message: e.message || "Could not submit draw",
+            });
+            throw e;
+          });
       },
       onPassDraw: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
-        submitHandDraw(currentRoomId, openSessionId, {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          return Promise.reject(new Error("Sign in to draw"));
+        }
+        setTableActionFeedback({ status: "loading", message: "Standing pat…" });
+        return submitHandDraw(currentRoomId, openSessionId, {
           playerId: session.uid,
           discardIndices: [],
           actorId: session.uid,
-        }).catch((e) => showRoomsError(e.message || "Could not stand pat"));
+        })
+          .then(() => {
+            setTableActionFeedback({ status: "success", message: "Standing pat" });
+          })
+          .catch((e) => {
+            setTableActionFeedback({
+              status: "error",
+              message: e.message || "Could not stand pat",
+            });
+            throw e;
+          });
       },
       onPlayCard: (cardIndex) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
-        playHandCard(currentRoomId, openSessionId, {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          return Promise.reject(new Error("Sign in to play"));
+        }
+        setTableActionFeedback({ status: "loading", message: "Playing card…" });
+        return playHandCard(currentRoomId, openSessionId, {
           playerId: session.uid,
           cardIndex,
           actorId: session.uid,
-        }).catch((e) => showRoomsError(e.message || "Could not play card"));
+        })
+          .then(() => {
+            tableActionFeedback = null;
+            const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+            if (sessionObj) scheduleTableSessionSync(sessionObj);
+          })
+          .catch((e) => {
+            setTableActionFeedback({
+              status: "error",
+              message: e.message || "Could not play card",
+            });
+            throw e;
+          });
       },
       onSettle: (choice) => onSettleHand(choice),
     },
