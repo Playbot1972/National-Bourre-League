@@ -27,8 +27,61 @@ This repo contains two front-ends:
   (Firestore data model + persistence), `ranking.js` (TrueSkill "Ape Score"
   engine, pure/no-deps), `app.js` (session + protected views + leaderboard).
   `firestore.rules` holds sample security rules. No payment/wallet/money features.
+- `functions/` — Cloud Functions **scaffolding** for server-authoritative deal/draw/play
+  validation (not wired to deploy yet; see `functions/README.md`).
 
-## Cursor Cloud specific instructions
+### Play engine — layout, state boundaries, and production hardening
+
+Pure logic lives in `src/game/` and is bundled to `docs/game-engine.js` for the
+static social app. Firestore wiring is in `docs/firestore.js`; table UI in
+`src/table/` (built to `docs/table-session.js`).
+
+**Module layout (`src/game/`):**
+
+| Module | Role |
+| --- | --- |
+| `deck.ts`, `deckState.ts` | Standard deck, seeded shuffle, draw from remainder |
+| `deal.ts`, `playerOrder.ts` | Initial deal, dealer/action order |
+| `drawLimit.ts`, `draw.ts` | House-rule draw caps, discard + replacement, phase advance |
+| `legal.ts` | Follow suit, must trump, overtrump, optional cinch — structured errors |
+| `trick.ts`, `play.ts` | Trick winner, `applyPlayCard`, simple bot draw/play helpers |
+| `serialize.ts`, `types.ts` | Public vs private split, card (de)serialization |
+
+**Public vs private hand state:**
+
+| Location | Contents | Who can read |
+| --- | --- | --- |
+| `session.currentHand` | `phase`, `trumpSuit`, `turnPlayerId`, `currentTrick`, `playedCards`, `tricksByPlayer`, `deckSeed`, `deckNextIndex`, … | All room members |
+| `sessions/…/privateHands/{playerId}` | `{ cards: [{ rank, suit }] }` | Owner uid only (humans); `bot_*` also readable by members for client-driven bots |
+
+Opponent hole cards are **never** on the session doc — the table shows face-down
+counts only (`Seat.tsx`).
+
+**Client move flow (dev/testing — honor system):**
+
+1. Enrollment completes → `dealInitialHand` → public `currentHand` + per-player `privateHands`.
+2. Draw phase → `submitHandDraw` (transaction: private hand + public turn/draw state).
+3. Play phase → `playHandCard` (transaction: legality via `applyPlayCard`, trick resolution).
+4. Five tricks → `finalizeHandFromCardPlay` → existing hand settlement / co-win flow.
+5. Manual trick `+` (`updateHandTrick`) is **blocked** when `phase` is `draw` or `play`.
+
+**Current honor-system limitations (not production hardened):**
+
+- Deal, draw, and play validation run in **client Firestore transactions** — a
+  malicious member could write invalid moves or arbitrary cards to `privateHands`.
+- Firestore rules allow any room member to **write** any `privateHands` doc.
+- Bot draw/play is driven by a viewing member reading `bot_*` private hands.
+- `deckSeed` + `deckNextIndex` on the public doc allow deterministic deck reconstruction.
+
+**Production hardening (required before competitive or real-money use):**
+
+- Wire `functions/` callable handlers (`validateDeal`, `validateDraw`, `validatePlayCard`)
+  and restrict `privateHands` writes to Cloud Functions only.
+- Move rating writes (`players` collection) server-side.
+- Replace client-driven bot loop with server-authoritative bot runner (optional).
+
+See `functions/README.md` and TODO comments in `firestore.rules` / `docs/firestore.js`.
+
 
 - Standard scripts live in `package.json`: `npm run dev` (Vite dev server),
   `npm run lint` (ESLint), `npm run build` (`tsc -b && vite build`).
@@ -82,18 +135,11 @@ This repo contains two front-ends:
   auth uid or a generated `guest_*` id for table guests), and `sessions` +
   `scores` nested **under each room**
   (  `rooms/{roomId}/sessions/{sessionId}/scores/{playerId}`).
-- **Live hand (play engine):** when enrollment completes, `docs/firestore.js` calls
-  `dealInitialHand()` from `docs/game-engine.js`, writes public state on
-  `session.currentHand` (`phase`, `trumpSuit`, `turnPlayerId`, `currentTrick`,
-  `playedCards`, `deckSeed`, …) and each player's cards under
-  `sessions/{sessionId}/privateHands/{playerId}`. Draw/discard (`submitHandDraw`) and
-  trick play (`playHandCard`) update public + private docs via Firestore transactions;
-  legality uses `getLegalPlayIndices` / `applyPlayCard` from the pure engine.
-  Opponent hole cards are never on the session doc.
-  **TODO(production):** move deal/draw/play validation and private-hand writes to
-  Cloud Functions (`functions/` scaffold) — sample rules still allow any room member
-  to *write* privateHands (honor-system); human reads are owner-only, `bot_*` reads
-  are member-visible for client-driven bots until server-authoritative bot moves exist.
+- **Live hand (play engine):** see **Play engine — layout, state boundaries, and
+  production hardening** above for the full module map, public/private split, and
+  honor-system vs production notes. Summary: enrollment → deal on `currentHand` +
+  `privateHands`; draw/play via `submitHandDraw` / `playHandCard`; legality in
+  `src/game/legal.ts`; manual trick `+` disabled during live play.
 - Gotcha (important): sessions/scores are subcollections on purpose. A top-level
   collection with a `roomId` field CANNOT be authorized for `list`/query in
   security rules — Firestore evaluates list rules without per-document

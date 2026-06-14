@@ -15,7 +15,6 @@ export default function App() {
 
   useEffect(() => {
     initTheme();
-    setTheme(getStoredTheme());
   }, []);
 
   const toggleTheme = () => {

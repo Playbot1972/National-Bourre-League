@@ -37,6 +37,7 @@
 //     { cards: [{ rank, suit }] } — owner-read only (see firestore.rules)
 //
 // Public live hand state: session.currentHand (phase, trump, tricks — no hidden cards).
+// Play mutations: submitHandDraw, playHandCard (honor-system client transactions).
 // Deal engine: src/game/ → npm run build:game → docs/game-engine.js
 //
 // Sessions + scores are nested UNDER the room so security rules can authorize
