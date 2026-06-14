@@ -63,7 +63,7 @@ export function initials(name: string) {
 export const TABLE_ELLIPSE = { rx: 48, ry: 40 } as const;
 
 /** Push seat centers outward onto the rail (Texas Hold'em style). */
-export const SEAT_RAIL_OUTSET = 2.5;
+export const SEAT_RAIL_OUTSET = 1.5;
 
 /** Horizontal / vertical radii (% of table) — uniform oval, slight inset for tiny tables. */
 export function seatRadii(total: number) {

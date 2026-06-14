@@ -35,14 +35,16 @@ export function CardTable({
 
   return (
     <div
-      className={`btable ${countClass}`}
+      className={`btable-wrap ${countClass}`}
       style={{ ["--player-count" as string]: playerCount }}
     >
-      <div className="btable__rail" aria-hidden="true" />
-      <div className="btable__felt">
-        <PotCenter potMetrics={potMetrics} participantCount={participantCount} />
+      <div className="btable">
+        <div className="btable__rail" aria-hidden="true" />
+        <div className="btable__felt">
+          <PotCenter potMetrics={potMetrics} participantCount={participantCount} />
+        </div>
       </div>
-      <div className="btable__seats">
+      <div className="btable__seats" aria-label="Players at the table">
         {rotated.map((player, i) => {
           const pos = seatPosition(i, rotated.length);
           return (

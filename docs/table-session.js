@@ -8092,7 +8092,7 @@ function _(e) {
 var v = {
 	rx: 48,
 	ry: 40
-}, y = 2.5;
+}, y = 1.5;
 function b(e) {
 	let t = Math.max(2, Math.min(8, e || 2)), n = t <= 3 ? .9 : t <= 4 ? .95 : 1;
 	return {
@@ -8280,37 +8280,37 @@ function C({ potMetrics: e, participantCount: t }) {
 function te({ players: e, potMetrics: t, participantCount: n, onToggleInHand: r, onTrickDelta: i }) {
 	let a = [...e].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), o = a.findIndex((e) => e.isSelf), s = o > 0 ? [...a.slice(o), ...a.slice(0, o)] : a, c = s.length;
 	return /* @__PURE__ */ (0, p.jsxs)("div", {
-		className: `btable ${`btable--p${Math.min(8, Math.max(2, c))}`}`,
+		className: `btable-wrap ${`btable--p${Math.min(8, Math.max(2, c))}`}`,
 		style: { "--player-count": c },
-		children: [
-			/* @__PURE__ */ (0, p.jsx)("div", {
+		children: [/* @__PURE__ */ (0, p.jsxs)("div", {
+			className: "btable",
+			children: [/* @__PURE__ */ (0, p.jsx)("div", {
 				className: "btable__rail",
 				"aria-hidden": "true"
-			}),
-			/* @__PURE__ */ (0, p.jsx)("div", {
+			}), /* @__PURE__ */ (0, p.jsx)("div", {
 				className: "btable__felt",
 				children: /* @__PURE__ */ (0, p.jsx)(C, {
 					potMetrics: t,
 					participantCount: n
 				})
-			}),
-			/* @__PURE__ */ (0, p.jsx)("div", {
-				className: "btable__seats",
-				children: s.map((e, t) => {
-					let n = ee(t, s.length);
-					return /* @__PURE__ */ (0, p.jsx)(S, {
-						player: e,
-						region: n.region,
-						style: {
-							left: `${n.x}%`,
-							top: `${n.y}%`
-						},
-						onToggleInHand: () => r(e.playerId, !e.inHand),
-						onTrickDelta: (t) => i(e.playerId, t)
-					}, e.playerId);
-				})
+			})]
+		}), /* @__PURE__ */ (0, p.jsx)("div", {
+			className: "btable__seats",
+			"aria-label": "Players at the table",
+			children: s.map((e, t) => {
+				let n = ee(t, s.length);
+				return /* @__PURE__ */ (0, p.jsx)(S, {
+					player: e,
+					region: n.region,
+					style: {
+						left: `${n.x}%`,
+						top: `${n.y}%`
+					},
+					onToggleInHand: () => r(e.playerId, !e.inHand),
+					onTrickDelta: (t) => i(e.playerId, t)
+				}, e.playerId);
 			})
-		]
+		})]
 	});
 }
 //#endregion

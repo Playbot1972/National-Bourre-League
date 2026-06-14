@@ -1497,13 +1497,25 @@ body.table-play-active .footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: auto;
+  overflow: visible;
 }
 
 .table-play-overlay .table-session-root {
   width: 100%;
-  max-width: min(96vw, 920px);
+  max-width: none;
   min-height: 0;
+  overflow: visible;
+}
+
+.table-play-overlay .btable-session {
+  overflow: visible;
+  width: 100%;
+}
+
+.table-play-overlay .btable-wrap {
+  --seat-gutter-x: clamp(52px, 13vw, 88px);
+  --seat-gutter-y: clamp(28px, 6vh, 44px);
+  max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1000px);
 }
 
 .table-play-overlay .btable-session__rotate-hint {
@@ -1511,8 +1523,8 @@ body.table-play-active .footer {
 }
 
 @media (orientation: landscape) {
-  .table-play-overlay .table-session-root {
-    max-width: min(98vw, 960px);
+  .table-play-overlay .btable-wrap {
+    --seat-gutter-x: clamp(56px, 14vw, 92px);
   }
 
   .table-play-overlay__rotate {

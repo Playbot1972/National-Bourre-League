@@ -4,6 +4,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: visible;
 }
 
 .btable-session__head {
@@ -23,12 +24,68 @@
   color: var(--text-dim, #b9c9bf);
 }
 
+.btable-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 780px;
+  margin: 0 auto;
+  overflow: visible;
+  --seat-gutter-x: clamp(44px, 11%, 68px);
+  --seat-gutter-y: clamp(32px, 8%, 48px);
+  padding: var(--seat-gutter-y) var(--seat-gutter-x);
+  box-sizing: border-box;
+}
+
+.btable-wrap .btable {
+  max-width: none;
+  margin: 0;
+}
+
+.btable-wrap.btable--p2,
+.btable-wrap.btable--p3 {
+  max-width: 520px;
+}
+
+.btable-wrap.btable--p2 .btable,
+.btable-wrap.btable--p3 .btable {
+  aspect-ratio: 1.15 / 1;
+}
+
+.btable-wrap.btable--p4 {
+  max-width: 620px;
+}
+
+.btable-wrap.btable--p4 .btable {
+  aspect-ratio: 1.45 / 1;
+}
+
+.btable-wrap.btable--p5,
+.btable-wrap.btable--p6 {
+  max-width: 700px;
+}
+
+.btable-wrap.btable--p5 .btable,
+.btable-wrap.btable--p6 .btable {
+  aspect-ratio: 1.75 / 1;
+}
+
+.btable-wrap.btable--p7,
+.btable-wrap.btable--p8 {
+  max-width: 820px;
+}
+
+.btable-wrap.btable--p7 .btable,
+.btable-wrap.btable--p8 .btable {
+  aspect-ratio: 2.15 / 1;
+}
+
 .btable {
   position: relative;
   width: 100%;
   max-width: 780px;
   margin: 0 auto;
   aspect-ratio: 2 / 1;
+  overflow: visible;
 }
 
 .btable--p2,
@@ -83,9 +140,13 @@
 
 .btable__seats {
   position: absolute;
-  inset: 0;
+  top: var(--seat-gutter-y);
+  right: var(--seat-gutter-x);
+  bottom: var(--seat-gutter-y);
+  left: var(--seat-gutter-x);
   z-index: 5;
   pointer-events: none;
+  overflow: visible;
 }
 
 .btable__seats .bseat {
@@ -216,6 +277,7 @@
   width: 84px;
   z-index: 3;
   transition: filter 200ms ease;
+  overflow: visible;
 }
 
 /* Side seats: trick stack toward table center for cleaner rail silhouette */
@@ -536,8 +598,7 @@
 
 .table-session-root {
   min-height: 280px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
 @media (max-width: 900px) and (orientation: portrait) {
@@ -558,6 +619,11 @@
 }
 
 @media (max-width: 900px) and (orientation: landscape) {
+  .btable-wrap {
+    --seat-gutter-x: clamp(52px, 13vw, 84px);
+    --seat-gutter-y: clamp(24px, 5vh, 40px);
+  }
+
   .btable-session {
     gap: 8px;
   }
@@ -580,20 +646,30 @@
     flex: 1 1 100%;
   }
 
+  .btable-wrap {
+    max-width: min(calc(96vw + 2 * var(--seat-gutter-x)), 980px);
+  }
+
+  .btable-wrap .btable,
   .btable {
     max-width: min(96vw, 920px);
   }
 
+  .btable-wrap.btable--p7 .btable,
+  .btable-wrap.btable--p8 .btable,
   .btable--p7,
   .btable--p8 {
     aspect-ratio: 2.35 / 1;
   }
 
+  .btable-wrap.btable--p5 .btable,
+  .btable-wrap.btable--p6 .btable,
   .btable--p5,
   .btable--p6 {
     aspect-ratio: 2.1 / 1;
   }
 
+  .btable-wrap.btable--p4 .btable,
   .btable--p4 {
     aspect-ratio: 1.85 / 1;
   }
