@@ -32,7 +32,7 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
           tick: phase === "enrollment" ? "1" : "0",
         });
         await page.goto(`/e2e-fixtures/table-session?${qs}`);
-        await expect(page.locator("[data-testid=table-session-fixture]")).toBeVisible({
+        await expect(page.getByTestId("table-root")).toBeVisible({
           timeout: 15_000,
         });
 

@@ -11,6 +11,7 @@ interface PlayingCardProps {
   badge?: string;
   onClick?: () => void;
   ariaLabel?: string;
+  "data-testid"?: string;
 }
 
 export function PlayingCard({
@@ -21,6 +22,7 @@ export function PlayingCard({
   badge,
   onClick,
   ariaLabel,
+  "data-testid": dataTestId,
 }: PlayingCardProps) {
   const interactive = typeof onClick === "function";
   const classes = [
@@ -67,6 +69,7 @@ export function PlayingCard({
         className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
         onClick={onClick}
         aria-label={label}
+        data-testid={dataTestId}
       >
         {content}
       </button>

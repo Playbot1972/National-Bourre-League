@@ -67,6 +67,7 @@ export function CardTable({
   return (
     <div
       className={`btable-wrap ${countClass}`}
+      data-testid="table-root"
       style={{
         ["--player-count" as string]: playerCount,
         ["--table-aspect" as string]: tableAspect,
@@ -75,7 +76,7 @@ export function CardTable({
       <div className="table-stage">
         <div className="table-oval" aria-hidden="true">
           <div className="btable__rail" />
-          <div className="btable__felt" />
+          <div className="btable__felt" data-testid="table-felt" />
         </div>
 
         <PotCenter

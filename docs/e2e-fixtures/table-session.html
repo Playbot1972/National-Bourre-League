@@ -36,6 +36,8 @@
       const phase = params.get("phase") || "enrollment";
       const tick = params.get("tick") !== "0";
 
+      let actionFeedback = null;
+
       const HAND_ENROLLMENT_MS = 12_000;
       const deadlineStart = Date.now() + HAND_ENROLLMENT_MS;
 
@@ -160,10 +162,26 @@
           heroCards,
           privateHandReady: phase === "draw" || phase === "play",
           legalPlayIndices: phase === "play" ? [0, 1, 2] : null,
+          actionFeedback,
           actions: {
-            onToggleInHand: () => {},
+            onToggleInHand: () => {
+              actionFeedback = { status: "success", message: "Joined fixture hand" };
+              render();
+            },
             onTrickDelta: () => {},
             onSettle: () => {},
+            onSubmitDraw: async () => {
+              actionFeedback = { status: "success", message: "Drew 0 replacement card(s)" };
+              render();
+            },
+            onPassDraw: async () => {
+              actionFeedback = { status: "success", message: "Standing pat" };
+              render();
+            },
+            onPlayCard: async () => {
+              actionFeedback = { status: "success", message: "Card played" };
+              render();
+            },
           },
         };
       }
