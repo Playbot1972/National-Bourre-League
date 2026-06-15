@@ -771,11 +771,22 @@ button {
   gap: 8px;
   font-size: 14px;
 }
-.members em {
+.members__row {
+  flex-wrap: wrap;
+}
+.members__name {
+  flex: 1;
+  min-width: 0;
+}
+.members em,
+.members__role {
   color: var(--text-dim);
   font-style: normal;
   font-size: 12px;
+}
+.members__kick {
   margin-left: auto;
+  flex-shrink: 0;
 }
 .dot {
   width: 8px;

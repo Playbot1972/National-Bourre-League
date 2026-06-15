@@ -117,7 +117,14 @@ service cloud.firestore {
     match /roomMembers/{memberId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isRoomOwner(resource.data.roomId)
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isRoomOwner(resource.data.roomId)
+      );
     }
 
     match /players/{playerId} {
