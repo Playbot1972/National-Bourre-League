@@ -316,6 +316,10 @@ npm run preview:hosting # terminal 2 → http://localhost:5000
    the exact JavaScript origins + redirect URIs for your OAuth Web client.
 
 **GitHub Actions auto-deploy:** pushes to `main` run `.github/workflows/deploy.yml`.
+If secrets are missing, the workflow **fails** (it does not silently skip). A green
+deploy that completes in ~10 seconds with skipped build steps means production was
+**not** updated — see **Common failures** in [`docs/TESTING.md`](docs/TESTING.md).
+
 Add these repository secrets (Settings → Secrets and variables → Actions):
 
 | Secret | Value |

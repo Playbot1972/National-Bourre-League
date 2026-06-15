@@ -20,6 +20,7 @@ if (
     "docs/firebase-config.js still has placeholder values — auth will fail in production.",
   );
   console.error("Run: node scripts/ensure-firebase-config.js (or npm run deploy, which runs it first).");
+  console.error("Or: npm run setup:webapp -- national-bourre-league booray.win");
   process.exit(1);
 }
 
