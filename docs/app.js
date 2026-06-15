@@ -593,23 +593,6 @@ function bindRoomDetailDelegatedControls() {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
 
-    if (el.id === "session-lmt-enabled" && !el.disabled) {
-      const checked = el.checked;
-      updateSessionLimEnabled(currentRoomId, openSessionId, checked)
-        .then(() => {
-          const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-          if (openSessionObj) {
-            syncTableSession({ ...openSessionObj, limEnabled: checked });
-          }
-        })
-        .catch((err) => {
-          console.error("updateSessionLimEnabled:", err);
-          showRoomsError(err.message || "Could not update LmT");
-          el.checked = !checked;
-        });
-      return;
-    }
-
     if (el.id === "room-ante-amount" || el.id === "room-lim-enabled") {
       const anteEl = $("#room-ante-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
@@ -2613,16 +2596,6 @@ function buildSessionToolbarHtml(s) {
 function buildSessionSidebarHtml(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
-  const isOwner = session?.uid === currentRoom?.ownerId;
-  const stakeLocked = Boolean(s.handStakeLocked);
-  const limEnabled = s.limEnabled === true;
-  const handCount = s.handCount ?? 0;
-  const lmtDisabled = isFinal || stakeLocked || !isOwner;
-
-  const lmtControl = `<label class="session-lmt ${lmtDisabled ? "session-lmt--disabled" : ""}">
-      <input type="checkbox" id="session-lmt-enabled" ${limEnabled ? "checked" : ""} ${lmtDisabled ? "disabled" : ""} />
-      <span>LmT</span>
-    </label>`;
 
   const myUid = session?.uid ?? null;
   const myScore = myUid ? openScores.find((sc) => sc.playerId === myUid) : null;
@@ -2662,10 +2635,10 @@ function buildSessionSidebarHtml(s) {
 
   const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
+  const handCount = s.handCount ?? 0;
   const controls = isFinal ? `<div class="session-controls"><span class="badge badge--closed">Session final</span></div>` : "";
 
-  return `${lmtControl}
-        ${handHistory}
+  return `${handHistory}
         ${controls}
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
         <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
