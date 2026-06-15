@@ -14,24 +14,19 @@ npm install
 
 ## Branch map
 
-| Branch | PR | What it adds | Depends on |
-|--------|-----|--------------|------------|
-| `main` | #65 (merged) | Play engine, draw/play phases, table bundle | — |
-| `cursor/release-bugfix-landscape-draw-8d02` | [#67](https://github.com/Playbot1972/National-Bourre-League/pull/67) | Gameplay bugfix: duplicate cards, draw UX, landscape table | `main` |
-| `cursor/icons-on-main-8d02` | [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) | Icons, PWA manifest, favicon, `icons:generate` | `main` |
-| `cursor/premium-sound-haptics-8d02` | [#68](https://github.com/Playbot1972/National-Bourre-League/pull/68) | Sound + haptics feedback service | **#67** |
+| Branch | PR | What it adds | Status |
+|--------|-----|--------------|--------|
+| `main` | [#71](https://github.com/Playbot1972/National-Bourre-League/pull/71) (merged) | v1.00.64: gameplay bugfix (#67), sound/haptics (#68), icons (#70), `docs/TESTING.md` | **Current release base** |
+| `cursor/testing-java-gotchas-8d02` | [#72](https://github.com/Playbot1972/National-Bourre-League/pull/72) | Java gotchas, `verify:local` / `verify:local:prereq` | Open — merge after local verify passes |
 | `cursor/premium-table-ux-8d02` | [#66](https://github.com/Playbot1972/National-Bourre-League/pull/66) | Premium table UX (themes, Smart HUD, reactions) | Optional, separate stack |
 
-### Known branch stacking
-
-- **Testing #68:** merge or rebase **#67** first, **or** checkout `cursor/premium-sound-haptics-8d02` directly (it already includes #67).
-- **Testing #70:** checkout `cursor/icons-on-main-8d02` until [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) is merged into `main`.
-- **Testing #66:** independent of #67–#70; optional polish, not required for release bugfix validation.
+PRs [#67](https://github.com/Playbot1972/National-Bourre-League/pull/67), [#68](https://github.com/Playbot1972/National-Bourre-League/pull/68), and [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) were consolidated into **#71** on `main`. Use `main` for release validation; checkout **#72** only for the local-dev verify scripts until that PR merges.
 
 ```bash
 git fetch origin
-git checkout cursor/release-bugfix-landscape-draw-8d02   # example
+git checkout main && git pull origin main
 npm install
+npm run verify:local:prereq   # on #72 branch until merged
 ```
 
 ---
@@ -77,11 +72,20 @@ Firestore emulator requires Java. Install **OpenJDK 21** (`brew install openjdk@
 
 ### Minimal pass/fail order
 
-1. `java -version` → should show Java 21.x
-2. `cd ~/National-Bourre-League && npm run emulators` → should start emulator UI on http://localhost:4000
-3. `cd ~/National-Bourre-League && npm run social` → should serve on http://localhost:8080
+Run these from the repo root (`cd ~/National-Bourre-League` on your Mac):
 
-If those three work, local dev for this project is set.
+1. `java -version` → should show Java 21.x
+2. `npm run emulators` → should start emulator UI on http://localhost:4000
+3. `npm run social` → should serve on http://localhost:8080
+
+**Automated check** (same three steps; steps 2–3 require those servers to already be running):
+
+```bash
+npm run verify:local:prereq   # step 1 + port 8080 free (before starting servers)
+npm run verify:local          # all three (after emulators + social are up)
+```
+
+If those three work (or `verify:local` passes), local dev for this project is set.
 
 Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — PATH init can be more reliable there than in ad hoc shell files.
 
@@ -96,11 +100,13 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run build:game` | `src/game/` → `docs/game-engine.js` | `main` + feature branches |
 | `npm run build:table` | `src/table/` → `docs/table-session.js` | `main` + feature branches |
 | `npm run check:social` | Syntax-check `docs/*.js` | `main` + feature branches |
-| `npm run test:game` | Card uniqueness + draw flow tests | **v1.00.64 RC+** (not on `main` yet) |
-| `npm run test:feedback` | Haptics fallback + prefs tests | **v1.00.64 RC+** (not on `main` yet) |
-| `npm run icons:generate` | SVG → PNG icon export | **v1.00.64 RC+** (not on `main` yet) |
+| `npm run test:game` | Card uniqueness + draw flow tests | **main** (v1.00.64+) |
+| `npm run test:feedback` | Haptics fallback + prefs tests | **main** (v1.00.64+) |
+| `npm run icons:generate` | SVG → PNG icon export | **main** (v1.00.64+) |
+| `npm run verify:local:prereq` | Java 21 + port 8080 free | **#72 branch** (merges to `main`) |
+| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **#72 branch** (merges to `main`) |
 
-`main` today (v1.00.60): lint, build, build:game, build:table, check:social, emulators, social — **no** `test:game`, `test:feedback`, or `icons:generate`.
+All scripts except `verify:local*` are on **`main`** as of v1.00.64.
 
 ---
 
@@ -122,7 +128,7 @@ Prereq: emulators + http://localhost:8080, signed in, room with 2+ players.
 
 ### #70 — Icons / PWA / favicon
 
-Prereq: branch `cursor/icons-on-main-8d02`, `npm install`, `npm run icons:generate`.
+Prereq: `main` (v1.00.64+), `npm install`, `npm run icons:generate`.
 
 - [ ] Browser tab favicon updated (`favicon.ico`, `favicon.svg`, 16/32 PNG)
 - [ ] `docs/manifest.webmanifest` + `public/manifest.webmanifest` present
@@ -135,7 +141,7 @@ Prereq: branch `cursor/icons-on-main-8d02`, `npm install`, `npm run icons:genera
 
 ### #68 — Sound + haptics
 
-Prereq: **#67** merged or use `cursor/premium-sound-haptics-8d02` directly.
+Prereq: `main` (v1.00.64+), emulators + http://localhost:8080.
 
 - [ ] First tap on table unlocks audio (required on iOS Safari)
 - [ ] Deal / draw replacement → shuffle feedback (sound + light haptic on Android)
@@ -156,11 +162,11 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `Missing script: icons:generate` | On `main` before #70 merge | Checkout `cursor/icons-on-main-8d02` or merge [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) |
+| `Missing script: icons:generate` | Stale `main` | `git pull origin main` |
 | Table UI blank / “failed to load” | Stale `docs/table-session.js` **or** `buildTableSessionProps` crash (check browser console) | `npm run build:table`; if console shows `Cannot access 'myUid' before initialization`, pull latest `main` and redeploy |
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
-| Emulators not connecting | Emulators not running | Terminal 1: `npm run emulators` |
-| Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
+| Emulators not connecting | Emulators not running or Java missing | Install Java 21; terminal 1: `npm run emulators` (see **Java & Firebase emulators** above) |
+| Draw appears to do nothing | Stale `main` or stale table bundle | `git pull origin main`; `npm run build:table`; check table overlay banner + console |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
 
@@ -168,10 +174,13 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 ## Recommended test order
 
-1. **[#67](https://github.com/Playbot1972/National-Bourre-League/pull/67)** — gameplay bugfix / landscape / draw (highest priority)
-2. **[#70](https://github.com/Playbot1972/National-Bourre-League/pull/70)** — icons / PWA / favicon
-3. **[#68](https://github.com/Playbot1972/National-Bourre-League/pull/68)** — sound + haptics, rebased on updated `main` after #67 lands
-4. **[#66](https://github.com/Playbot1972/National-Bourre-League/pull/66)** — premium table UX (optional)
+On current **`main`**:
+
+1. Local dev verify — `npm run verify:local:prereq` then `npm run verify:local`
+2. Gameplay bugfix checklist (#67 section above)
+3. Icons / PWA
+4. Premium table UX (#66 — merged)
+5. Sound + haptics (#68 — optional stacked branch)
 
 ---
 

@@ -37,6 +37,8 @@
     "test:version": "node --test scripts/bump-version.test.mjs",
     "test": "npm run test:game && npm run test:feedback && npm run test:version",
     "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league",
+    "verify:local": "node scripts/verify-local-dev.mjs",
+    "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
     "verify:prod": "node scripts/verify-production.mjs"
   },
   "dependencies": {
