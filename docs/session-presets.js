@@ -72,3 +72,15 @@ export function canCreateAnotherSession(sessionCount, pool, claimedNames = []) {
   if (sessionCount >= MAX_ROOM_SESSIONS) return false;
   return countAvailableSessionSlots(pool, claimedNames) > 0;
 }
+
+/** Only sessions that exist — sorted by room pool order when known. */
+export function createdSessionsForTabs(pool, sessions = []) {
+  const created = sessions.filter((s) => s.sessionName);
+  if (!isValidSessionNamePool(pool)) {
+    return [...created].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  }
+  const order = new Map(pool.map((name, index) => [name, index]));
+  return [...created].sort(
+    (a, b) => (order.get(a.sessionName) ?? 99) - (order.get(b.sessionName) ?? 99),
+  );
+}
