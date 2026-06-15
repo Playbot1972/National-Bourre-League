@@ -879,10 +879,62 @@
 
 .btable-session__settle {
   text-align: center;
-  padding: 12px;
+  padding: 14px 16px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(244, 213, 141, 0.2);
+  margin-top: 12px;
+}
+
+.btable-session__settle-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gold, #f4d58d);
+}
+
+.btable-session__settle-sub {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.btable-session__settle-list,
+.btable-session__settle-votes {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.btable-session__settle-list li,
+.btable-session__settle-votes li {
+  margin: 4px 0;
+}
+
+.btable-session__settle-bourre {
+  margin: 8px 0;
+  font-size: 14px;
+  color: #e8a87c;
+}
+
+.btable-session__settle-pot {
+  margin: 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btable-session__settle-carry {
+  margin: 6px 0;
+  line-height: 1.4;
+}
+
+.btable-session__settle-rules {
+  margin: 8px 0;
+}
+
+.btable-session__settle-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
 }
 
 .btable-session__split-preview {

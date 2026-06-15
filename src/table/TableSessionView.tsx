@@ -1,7 +1,8 @@
 import { CardTable } from "./CardTable";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
-import { formatNet, formatRiskStake } from "./logic";
+import { formatNet } from "./logic";
+import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import type { TableSessionViewProps } from "./types";
 
 export function TableSessionView({
@@ -13,7 +14,6 @@ export function TableSessionView({
   leaderLabel,
   showCoWinSettlement,
   splitSharePerWinner = 0,
-  voteStatus,
   enrollmentActive = false,
   enrollmentSecondsLeft = 0,
   currentUserId,
@@ -116,40 +116,15 @@ export function TableSessionView({
       />
 
       {showCoWinSettlement && !session.isFinal && (
-        <div className="btable-session__settle">
-          <p className="muted small">
-            Co-winners vote — one <strong>Decline</strong> pushes the pot; all must{" "}
-            <strong>Agree</strong> to split.
-          </p>
-          {splitSharePerWinner > 0 && (
-            <p className="btable-session__split-preview">
-              Split max win {formatRiskStake(potMetrics.maxWinThisHand)} →{" "}
-              <strong>{formatRiskStake(splitSharePerWinner)}</strong> each
-            </p>
-          )}
-          <div className="btable-session__settle-btns">
-            <button
-              type="button"
-              className="btn btn--sm"
-              disabled={!isCoWinner}
-              onClick={() => actions.onSettle("push")}
-            >
-              Decline split
-            </button>
-            <button
-              type="button"
-              className="btn btn--sm btn--primary"
-              disabled={!isCoWinner}
-              onClick={() => actions.onSettle("split")}
-            >
-              Agree to split
-            </button>
-          </div>
-          {voteStatus && <p className="muted small">{voteStatus}</p>}
-          {!isCoWinner && currentUserId && (
-            <p className="muted small">Waiting for co-winners to vote.</p>
-          )}
-        </div>
+        <SettlementCoWinPanel
+          session={session}
+          players={players}
+          potMetrics={potMetrics}
+          splitSharePerWinner={splitSharePerWinner}
+          currentUserId={currentUserId}
+          isCoWinner={isCoWinner}
+          onSettle={actions.onSettle}
+        />
       )}
 
       <footer className="btable-session__foot muted small">

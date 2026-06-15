@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Settlement co-win fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="settlement-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const role = params.get("role") || "cowinner";
+
+      const baseSession = {
+        sessionId: "fixture-session",
+        handNumber: 3,
+        handStake: 2,
+        carryOverPot: 4,
+        isFinal: false,
+        dealerId: "p3",
+        participantIds: ["p1", "p2", "p3"],
+        tricksByPlayer: { p1: 3, p2: 3, p3: 0 },
+        phase: null,
+        pendingCoWinSettlement: {
+          winnerIds: ["p1", "p2"],
+          votes: role === "partial" ? { p1: "split" } : {},
+        },
+      };
+
+      const players = [
+        {
+          playerId: "p1",
+          displayName: "Alice",
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 3,
+          isSelf: role === "cowinner",
+          isDealer: false,
+          isWinner: true,
+          canToggleInHand: false,
+          canEditTricks: false,
+        },
+        {
+          playerId: "p2",
+          displayName: "Bob",
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 3,
+          isSelf: false,
+          isDealer: false,
+          isWinner: true,
+          canToggleInHand: false,
+          canEditTricks: false,
+        },
+        {
+          playerId: "p3",
+          displayName: "Carol",
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 0,
+          isSelf: role === "observer",
+          isDealer: true,
+          isWinner: false,
+          canToggleInHand: false,
+          canEditTricks: false,
+        },
+      ];
+
+      const potMetrics = {
+        anteAmount: 2,
+        potCap: 20,
+        currentPot: 10,
+        maxWinThisHand: 8,
+        limEnabled: false,
+        overflow: 0,
+      };
+
+      mountTableSession(document.getElementById("table-root"), {
+        session: baseSession,
+        players,
+        potMetrics,
+        mySessionNet: role === "cowinner" ? -2 : role === "observer" ? -2 : null,
+        myHandContribution: 2,
+        leaderLabel: "Tie — Alice & Bob (3 tricks each) · vote to split or push pot",
+        showCoWinSettlement: true,
+        splitSharePerWinner: 4,
+        voteStatus: "",
+        currentUserId: role === "observer" ? "p3" : "p1",
+        heroCards: [],
+        privateHandReady: true,
+        actions: {
+          onToggleInHand: () => {},
+          onTrickDelta: () => {},
+          onSettle: () => {},
+        },
+      });
+    </script>
+  </body>
+</html>

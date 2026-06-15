@@ -71,4 +71,21 @@ describe("E — pot and bourré settlement", () => {
     assert.equal(result.deltas.p2, -3);
     assert.deepEqual(result.bourreIds.sort(), ["p1", "p2"]);
   });
+
+  it("non_winner_ante_up carries pot when co-winners disagree", () => {
+    const participants = ["p1", "p2", "p3"];
+    const result = settleHandDeltas({
+      mode: "non_winner_ante_up",
+      winners: ["p1", "p2"],
+      participants,
+      tricksByPlayer: { p1: 2, p2: 2, p3: 1 },
+      anteAmount: 1,
+      limEnabled: false,
+      carryIn: 0,
+      stakeForPlayer: stake(1),
+    });
+    assert.ok(result.carryOverPot > 0);
+    assert.ok(result.deltas.p3 < 0);
+    assert.deepEqual(result.bourreIds, []);
+  });
 });

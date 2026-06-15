@@ -77,6 +77,11 @@ import {
   serializeCards,
   cardsRemainingInHand,
 } from "./game-engine.js";
+import {
+  bourrePlayerIds,
+  formatHandHistoryPublicLine,
+  formatVoteRecordedMessage,
+} from "./settlement-copy.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -1566,13 +1571,20 @@ function buildTableLeaderLabel(
   if (handComplete && handReady && activeWinnerIds.length === 1) {
     const name =
       displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
+    const bourreIds = bourrePlayerIds(tricksThisHand, participantIds);
+    if (bourreIds.length) {
+      const bourreNames = bourreIds
+        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
+        .join(" & ");
+      return `${name} wins (${maxTricks} tricks) · Bourré: ${bourreNames}`;
+    }
     return `${name} wins (${maxTricks} tricks)`;
   }
   if (handComplete && handReady && activeWinnerIds.length >= 2) {
     const names = activeWinnerIds
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each)`;
+    return `Tie — ${names} (${maxTricks} tricks each) · vote to split or push pot`;
   }
   if (handReady && activeWinnerIds.length === 1) {
     const name =
@@ -2400,36 +2412,36 @@ function renderSessionPanel(s) {
 }
 
 function formatPublicHandHistoryLine(h, scores) {
+  const players = (h.participantIds || []).map((id) => ({
+    playerId: id,
+    displayName: scores.find((sc) => sc.playerId === id)?.displayName || id,
+  }));
   const winnerIds = h.winnerIds?.length
     ? h.winnerIds
     : h.winnerId
       ? [h.winnerId]
       : [];
+  const settlement = h.settlement === "ante_up" ? "non_winner_ante_up" : h.settlement;
+  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up") {
+    return formatHandHistoryPublicLine({
+      handNumber: h.handNumber,
+      settlement,
+      winnerIds,
+      participantIds: h.participantIds || [],
+      tricksByPlayer: h.tricksByPlayer || {},
+      players,
+      potMaxWin: h.pot ?? 0,
+      cappedPot: h.cappedPot,
+      grossPot: h.pot,
+      bourreIds: h.bourreIds,
+    });
+  }
   const names = winnerIds.map(
     (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
   );
   const pot = formatRiskStake(h.cappedPot ?? h.pot ?? 0);
-  const maxLabel = h.cappedPot != null && h.pot != null && h.cappedPot < h.pot ? " (max)" : "";
   const n = h.participantIds?.length ?? 0;
-  if (h.settlement === "push") {
-    return `#${h.handNumber} Push — pot ${pot}${maxLabel} carries (${n} players)`;
-  }
-  if (h.settlement === "non_winner_ante_up" || h.settlement === "ante_up") {
-    return `#${h.handNumber} No split agreement — pot ${pot}${maxLabel} pushed (${n} players)`;
-  }
-  if (h.settlement === "split") {
-    return `#${h.handNumber} ${names.join(" & ")} split ${pot}${maxLabel} (${n} players)`;
-  }
-  const bourreIds = h.bourreIds?.length
-    ? h.bourreIds
-    : (h.participantIds || []).filter((id) => (h.tricksByPlayer?.[id] ?? 0) === 0);
-  if (bourreIds.length && (h.settlement === "win" || h.bourreCarryOver > 0)) {
-    const bourreNames = bourreIds.map(
-      (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
-    );
-    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
-  }
-  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} (${n} players)`;
+  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
 }
 
 function formatPrivateHandHistoryLine(h, myUid) {
@@ -2570,11 +2582,11 @@ async function onSettleHand(choice) {
       recordedBy: session.uid,
     });
     if (result.status === "pending") {
-      showRoomsError("Vote recorded — waiting for other co-winner(s) to agree.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     } else if (result.settlement === "split") {
-      showRoomsError("Pot split recorded — next hand ready.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     } else if (result.settlement === "non_winner_ante_up") {
-      showRoomsError("No split agreement — pot pushed; non-winners ante increased.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     }
   } catch (err) {
     console.error("voteCoWinSettlement:", err);
