@@ -6,7 +6,7 @@ export type CardState = "default" | "trump" | "winner" | "muted" | "selected";
 interface PlayingCardProps {
   card?: Card;
   faceDown?: boolean;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
   state?: CardState;
   badge?: string;
   onClick?: () => void;

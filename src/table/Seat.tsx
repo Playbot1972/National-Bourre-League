@@ -55,7 +55,9 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
 
 export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
   const trickCount = player.tricksThisHand;
-  const stackDepth = Math.min(trickCount, 3);
+  const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
+  const showTrickBadge = player.inHand;
+  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
 
   return (
     <div
@@ -76,69 +78,59 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         .join(" ")}
       style={style}
     >
-      <div className="bseat__tricks" aria-label={`${trickCount} tricks this hand`}>
-        {player.inHand && trickCount > 0 ? (
-          <>
-            {Array.from({ length: stackDepth }, (_, i) => (
-              <div
-                key={i}
-                className="bseat__trick-card"
-                style={{ ["--stack-i" as string]: i }}
-              >
-                <PlayingCard faceDown size="sm" />
-              </div>
-            ))}
-            {trickCount > 0 && <span className="bseat__trick-count">{trickCount}</span>}
-          </>
-        ) : (
-          <div className="bseat__trick-empty" />
+      <div className="bseat__core">
+        {showTrickBadge && (
+          <div
+            className={`bseat__trick-badge${trickCount === 0 ? " bseat__trick-badge--zero" : ""}`}
+            aria-label={`${trickCount} trick${trickCount === 1 ? "" : "s"} won`}
+            title={`${trickCount} trick${trickCount === 1 ? "" : "s"}`}
+          >
+            {trickCount}
+          </div>
         )}
-      </div>
 
-      <div className="bseat__avatar-stage">
-        <div className="bseat__avatar-wrap">
-          {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
-            <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
-          )}
-          {player.isDealer && <span className="bseat__dealer">D</span>}
-          {player.photoURL ? (
-            <img className="bseat__avatar" src={player.photoURL} alt="" />
-          ) : (
-            <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-              {initials(player.displayName)}
-            </span>
-          )}
-          {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
-        </div>
-        {player.isSelf && onReaction && (
-          <div className="bseat__react-bar">
-            {["👏", "😮", "🔥"].map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                className="bseat__react-btn"
-                aria-label={`React ${emoji}`}
-                onClick={() => onReaction(emoji)}
-              >
-                {emoji}
-              </button>
+        {showHoleCards && (
+          <div className="bseat__hole-cards" aria-label={`${cardsHeld} cards in hand`}>
+            {Array.from({ length: cardsHeld }, (_, i) => (
+              <div key={i} className="bseat__hole-card" style={{ ["--hole-i" as string]: i }}>
+                <PlayingCard faceDown size="xs" />
+              </div>
             ))}
           </div>
         )}
-      </div>
 
-      {player.showHoleCards && !player.isSelf && (
-        <div
-          className="bseat__hole-cards"
-          aria-label={`${player.holeCardCount ?? 5} cards held`}
-        >
-          {Array.from({ length: player.holeCardCount ?? 5 }, (_, i) => (
-            <div key={i} className="bseat__hole-card" style={{ ["--hole-i" as string]: i }}>
-              <PlayingCard faceDown size="sm" />
+        <div className="bseat__avatar-stage">
+          <div className="bseat__avatar-wrap">
+            {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
+              <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+            )}
+            {player.isDealer && <span className="bseat__dealer">D</span>}
+            {player.photoURL ? (
+              <img className="bseat__avatar" src={player.photoURL} alt="" />
+            ) : (
+              <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+                {initials(player.displayName)}
+              </span>
+            )}
+            {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+          </div>
+          {player.isSelf && onReaction && (
+            <div className="bseat__react-bar">
+              {["👏", "😮", "🔥"].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="bseat__react-btn"
+                  aria-label={`React ${emoji}`}
+                  onClick={() => onReaction(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
+      </div>
 
       <div className="bseat__aux">
         <div className="bseat__info">

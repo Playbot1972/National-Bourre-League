@@ -8576,7 +8576,7 @@ function de({ fraction: e }) {
 	});
 }
 function fe({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i, onReaction: a }) {
-	let o = e.tricksThisHand, s = Math.min(o, 3);
+	let o = e.tricksThisHand, s = Math.max(0, e.holeCardCount ?? 0), c = e.inHand, l = !!(e.showHoleCards && !e.isSelf && e.inHand && s > 0);
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: [
 			"bseat",
@@ -8592,130 +8592,123 @@ function fe({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 			e.isOnTurn ? "bseat--on-turn" : ""
 		].filter(Boolean).join(" "),
 		style: n,
-		children: [
-			/* @__PURE__ */ (0, h.jsx)("div", {
-				className: "bseat__tricks",
-				"aria-label": `${o} tricks this hand`,
-				children: e.inHand && o > 0 ? /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [Array.from({ length: s }, (e, t) => /* @__PURE__ */ (0, h.jsx)("div", {
-					className: "bseat__trick-card",
-					style: { "--stack-i": t },
-					children: /* @__PURE__ */ (0, h.jsx)(g, {
-						faceDown: !0,
-						size: "sm"
-					})
-				}, t)), o > 0 && /* @__PURE__ */ (0, h.jsx)("span", {
-					className: "bseat__trick-count",
+		children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "bseat__core",
+			children: [
+				c && /* @__PURE__ */ (0, h.jsx)("div", {
+					className: `bseat__trick-badge${o === 0 ? " bseat__trick-badge--zero" : ""}`,
+					"aria-label": `${o} trick${o === 1 ? "" : "s"} won`,
+					title: `${o} trick${o === 1 ? "" : "s"}`,
 					children: o
-				})] }) : /* @__PURE__ */ (0, h.jsx)("div", { className: "bseat__trick-empty" })
-			}),
-			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bseat__avatar-stage",
-				children: [/* @__PURE__ */ (0, h.jsxs)("div", {
-					className: "bseat__avatar-wrap",
-					children: [
-						e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(de, { fraction: e.enrollmentTimeLeft }),
-						e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
-							className: "bseat__dealer",
-							children: "D"
-						}),
-						e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
-							className: "bseat__avatar",
-							src: e.photoURL,
-							alt: ""
-						}) : /* @__PURE__ */ (0, h.jsx)("span", {
-							className: "bseat__avatar bseat__avatar--initials",
-							"aria-hidden": "true",
-							children: ae(e.displayName)
-						}),
-						e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
-							className: "bseat__in-badge",
-							title: "In this hand"
+				}),
+				l && /* @__PURE__ */ (0, h.jsx)("div", {
+					className: "bseat__hole-cards",
+					"aria-label": `${s} cards in hand`,
+					children: Array.from({ length: s }, (e, t) => /* @__PURE__ */ (0, h.jsx)("div", {
+						className: "bseat__hole-card",
+						style: { "--hole-i": t },
+						children: /* @__PURE__ */ (0, h.jsx)(g, {
+							faceDown: !0,
+							size: "xs"
 						})
-					]
-				}), e.isSelf && a && /* @__PURE__ */ (0, h.jsx)("div", {
-					className: "bseat__react-bar",
-					children: [
-						"👏",
-						"😮",
-						"🔥"
-					].map((e) => /* @__PURE__ */ (0, h.jsx)("button", {
-						type: "button",
-						className: "bseat__react-btn",
-						"aria-label": `React ${e}`,
-						onClick: () => a(e),
-						children: e
-					}, e))
-				})]
-			}),
-			e.showHoleCards && !e.isSelf && /* @__PURE__ */ (0, h.jsx)("div", {
-				className: "bseat__hole-cards",
-				"aria-label": `${e.holeCardCount ?? 5} cards held`,
-				children: Array.from({ length: e.holeCardCount ?? 5 }, (e, t) => /* @__PURE__ */ (0, h.jsx)("div", {
-					className: "bseat__hole-card",
-					style: { "--hole-i": t },
-					children: /* @__PURE__ */ (0, h.jsx)(g, {
-						faceDown: !0,
-						size: "sm"
-					})
-				}, t))
-			}),
-			/* @__PURE__ */ (0, h.jsxs)("div", {
-				className: "bseat__aux",
-				children: [
-					/* @__PURE__ */ (0, h.jsxs)("div", {
-						className: "bseat__info",
+					}, t))
+				}),
+				/* @__PURE__ */ (0, h.jsxs)("div", {
+					className: "bseat__avatar-stage",
+					children: [/* @__PURE__ */ (0, h.jsxs)("div", {
+						className: "bseat__avatar-wrap",
 						children: [
-							/* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__name",
-								children: e.displayName
+							e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(de, { fraction: e.enrollmentTimeLeft }),
+							e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
+								className: "bseat__dealer",
+								children: "D"
 							}),
-							e.isRobot && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__robot-tag muted small",
-								children: "Bot"
+							e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
+								className: "bseat__avatar",
+								src: e.photoURL,
+								alt: ""
+							}) : /* @__PURE__ */ (0, h.jsx)("span", {
+								className: "bseat__avatar bseat__avatar--initials",
+								"aria-hidden": "true",
+								children: ae(e.displayName)
 							}),
-							e.enrollmentSatOut && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__enroll-tag muted small",
-								children: "Sat out"
-							}),
-							e.enrollmentJoined && !e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__enroll-tag muted small",
-								children: "Joined"
-							}),
-							e.isSelf && e.net != null && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
-								children: ie(e.net)
+							e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
+								className: "bseat__in-badge",
+								title: "In this hand"
 							})
 						]
-					}),
-					/* @__PURE__ */ (0, h.jsx)(E, {
-						player: e,
-						compact: t === "left" || t === "right"
-					}),
-					e.enrollmentOnClock && /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bseat__enroll-timer",
-						"aria-live": "polite",
-						children: e.isSelf ? `Tap I'm in · ${e.enrollmentSecondsOnClock ?? "?"}s` : `${e.enrollmentSecondsOnClock ?? "?"}s`
-					}),
-					e.canToggleInHand && /* @__PURE__ */ (0, h.jsx)("button", {
-						type: "button",
-						className: "bseat__opt-in btn btn--sm",
-						onClick: r,
-						children: "I'm in"
-					}),
-					e.canEditTricks && /* @__PURE__ */ (0, h.jsx)("div", {
-						className: "bseat__controls",
-						children: /* @__PURE__ */ (0, h.jsx)("button", {
+					}), e.isSelf && a && /* @__PURE__ */ (0, h.jsx)("div", {
+						className: "bseat__react-bar",
+						children: [
+							"👏",
+							"😮",
+							"🔥"
+						].map((e) => /* @__PURE__ */ (0, h.jsx)("button", {
 							type: "button",
-							className: "bseat__trick-btn bseat__trick-btn--plus",
-							"aria-label": "Won a trick",
-							disabled: o >= 5,
-							onClick: () => i(1),
-							children: "+"
+							className: "bseat__react-btn",
+							"aria-label": `React ${e}`,
+							onClick: () => a(e),
+							children: e
+						}, e))
+					})]
+				})
+			]
+		}), /* @__PURE__ */ (0, h.jsxs)("div", {
+			className: "bseat__aux",
+			children: [
+				/* @__PURE__ */ (0, h.jsxs)("div", {
+					className: "bseat__info",
+					children: [
+						/* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__name",
+							children: e.displayName
+						}),
+						e.isRobot && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__robot-tag muted small",
+							children: "Bot"
+						}),
+						e.enrollmentSatOut && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__enroll-tag muted small",
+							children: "Sat out"
+						}),
+						e.enrollmentJoined && !e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bseat__enroll-tag muted small",
+							children: "Joined"
+						}),
+						e.isSelf && e.net != null && /* @__PURE__ */ (0, h.jsx)("span", {
+							className: `bseat__net ${e.net > 0 ? "up" : e.net < 0 ? "down" : ""}`,
+							children: ie(e.net)
 						})
+					]
+				}),
+				/* @__PURE__ */ (0, h.jsx)(E, {
+					player: e,
+					compact: t === "left" || t === "right"
+				}),
+				e.enrollmentOnClock && /* @__PURE__ */ (0, h.jsx)("span", {
+					className: "bseat__enroll-timer",
+					"aria-live": "polite",
+					children: e.isSelf ? `Tap I'm in · ${e.enrollmentSecondsOnClock ?? "?"}s` : `${e.enrollmentSecondsOnClock ?? "?"}s`
+				}),
+				e.canToggleInHand && /* @__PURE__ */ (0, h.jsx)("button", {
+					type: "button",
+					className: "bseat__opt-in btn btn--sm",
+					onClick: r,
+					children: "I'm in"
+				}),
+				e.canEditTricks && /* @__PURE__ */ (0, h.jsx)("div", {
+					className: "bseat__controls",
+					children: /* @__PURE__ */ (0, h.jsx)("button", {
+						type: "button",
+						className: "bseat__trick-btn bseat__trick-btn--plus",
+						"aria-label": "Won a trick",
+						disabled: o >= 5,
+						onClick: () => i(1),
+						children: "+"
 					})
-				]
-			})
-		]
+				})
+			]
+		})]
 	});
 }
 //#endregion

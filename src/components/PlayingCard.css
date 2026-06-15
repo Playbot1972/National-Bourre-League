@@ -16,6 +16,15 @@
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
 
+.pcard--xs {
+  width: 24px;
+  height: 34px;
+  padding: 2px;
+  border-radius: 4px;
+}
+.pcard--xs .pcard__back-pattern {
+  border-radius: 3px;
+}
 .pcard--sm {
   width: 52px;
   height: 74px;
