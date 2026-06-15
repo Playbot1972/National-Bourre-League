@@ -1175,6 +1175,64 @@ button {
   align-items: center;
   margin-bottom: 14px;
 }
+.session-add-players {
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.session-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 12px 0;
+  padding: 12px 0 8px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-faint);
+}
+.session-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.session-live-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+}
+.session-live-card__status {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.session-live-card__hint {
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+.session--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.session-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.session-add-players__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.session-add-players__hint {
+  margin: 0 0 10px;
+}
 .add-player-form {
   display: flex;
   flex-wrap: wrap;

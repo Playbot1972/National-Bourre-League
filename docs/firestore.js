@@ -382,6 +382,19 @@ export async function joinRoomByCode(code, user) {
   const lookupSnap = await getDoc(doc(db, "inviteLookups", inviteCode));
   if (!lookupSnap.exists()) return null;
   const roomId = lookupSnap.data().roomId;
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) {
+    try {
+      await deleteDoc(doc(db, "inviteLookups", inviteCode));
+    } catch (err) {
+      if (err?.code !== "permission-denied" && err?.code !== "not-found") {
+        console.warn("stale inviteLookup delete skipped:", err);
+      }
+    }
+    throw new Error(
+      "That invite code is no longer valid — the room was deleted. Ask the host for a new code.",
+    );
+  }
   await setDoc(
     doc(db, "roomMembers", memberId(roomId, user.uid)),
     {

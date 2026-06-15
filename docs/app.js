@@ -505,6 +505,7 @@ function saveHouseRulesFromDetailForm() {
 // ---------------------------------------------------------------------------
 const roomsListView = $("#rooms-list-view");
 const roomDetailView = $("#room-detail-view");
+const roomsIntro = $("#rooms-intro");
 const roomsError = $("#rooms-error");
 
 function syncOpenSessionLimEnabled(limEnabled) {
@@ -639,6 +640,7 @@ let currentRoom = null;
 let currentMembers = [];
 let currentSessions = [];
 let openSessionId = null;
+let roomGoneHandled = false;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
@@ -1153,6 +1155,7 @@ function isRoomOwner(room, uid) {
 function renderRoomsList() {
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
+  if (roomsIntro) roomsIntro.hidden = false;
   const list = $("#rooms-list");
   if (myRooms.length === 0) {
     list.innerHTML = `<p class="muted">No rooms yet. Create one to get an invite code.</p>`;
@@ -1286,7 +1289,9 @@ $("#join-form").addEventListener("submit", async (e) => {
     console.error("joinRoomByCode:", err);
     const fbCode = err && typeof err === "object" ? err.code : "";
     const msg = err && typeof err === "object" ? err.message : String(err);
-    if (fbCode === "permission-denied") {
+    if (/no longer valid|was deleted/i.test(msg)) {
+      showRoomsError(msg);
+    } else if (fbCode === "permission-denied") {
       showRoomsError(
         "Join blocked by Firestore rules. Deploy firestore:rules, then create a new room.",
       );
@@ -1325,6 +1330,7 @@ $("#rooms-list").addEventListener("keydown", (e) => {
 
 function openRoom(roomId) {
   clearDetailSubs();
+  roomGoneHandled = false;
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -1333,11 +1339,16 @@ function openRoom(roomId) {
   openScores = [];
 
   roomsListView.hidden = true;
+  if (roomsIntro) roomsIntro.hidden = true;
   roomDetailView.hidden = false;
   roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
+      if (!room) {
+        handleRoomUnavailable(roomId);
+        return;
+      }
       currentRoom = room;
       if (room?.bourreSettings) {
         pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
@@ -1384,6 +1395,22 @@ function openRoom(roomId) {
   );
 }
 
+async function handleRoomUnavailable(roomId) {
+  if (roomGoneHandled || currentRoomId !== roomId) return;
+  roomGoneHandled = true;
+  showRoomsError(
+    "This room no longer exists. Use the invite code field above to join a new room, or ask the host for a fresh code.",
+  );
+  if (session?.uid) {
+    try {
+      await leaveRoom(roomId, session);
+    } catch (err) {
+      console.warn("leaveRoom after deleted room:", err);
+    }
+  }
+  closeRoom();
+}
+
 function closeRoom() {
   clearDetailSubs();
   stopEnrollmentTimer();
@@ -1412,10 +1439,8 @@ function unmountTableSessionHost() {
 }
 
 function tableSessionHost() {
-  if (tablePlayOpen) {
-    return $("#table-session-root");
-  }
-  return $("#table-session-inline-root", roomDetailView);
+  if (!tablePlayOpen) return null;
+  return $("#table-session-root");
 }
 
 function resolveOpenSessionObj(openSessionObj) {
@@ -2082,6 +2107,11 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     return;
   }
 
+  if (!tablePlayOpen) {
+    unmountTableSessionHost();
+    return;
+  }
+
   const host = tableSessionHost();
   if (!host) {
     if (attempt < 8) {
@@ -2213,6 +2243,13 @@ function renderRoomDetail() {
           end: activeEl.selectionEnd,
         }
       : null;
+  const editingAddPlayer =
+    activeEl && activeEl.id === "add-player-name"
+      ? {
+          value: activeEl.value,
+          robotChecked: $("#add-player-robot", roomDetailView)?.checked === true,
+        }
+      : null;
   const hr = currentRoom.houseRules || {};
   const bourreSettings = normalizeBourreSettings(
     currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
@@ -2335,7 +2372,12 @@ function renderRoomDetail() {
           )
           .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
       </div>
-      ${openSessionObj ? '<div id="session-panel-mount"></div>' : ""}
+      ${
+        openSessionObj
+          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj)}</div>
+             <div id="session-panel-mount"></div>`
+          : ""
+      }
     </section>`;
 
   // Wire detail controls
@@ -2406,6 +2448,67 @@ function renderRoomDetail() {
       }
     }
   }
+  if (editingAddPlayer) {
+    const addPlayerEl = $("#add-player-name", roomDetailView);
+    const robotEl = $("#add-player-robot", roomDetailView);
+    if (addPlayerEl) {
+      addPlayerEl.value = editingAddPlayer.value;
+      addPlayerEl.focus();
+    }
+    if (robotEl) robotEl.checked = editingAddPlayer.robotChecked;
+  }
+}
+
+function buildAddPlayerFormHtml() {
+  return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
+         <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" data-testid="add-player-name" />
+         <label class="add-player-robot">
+           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" />
+           Robot — auto I&apos;m in &amp; play to win
+         </label>
+         <button class="btn btn--sm" type="submit" data-testid="add-player-submit">Add player</button>
+       </form>`;
+}
+
+function buildSessionPlayerBarHtml(s) {
+  if (!s || s.status === "final") return "";
+  return `<div class="session-add-players" data-testid="session-add-players">
+      <h5 class="session-add-players__title">Add guest or robot</h5>
+      <p class="muted small session-add-players__hint">Need at least two players on the score sheet before the live table opens.</p>
+      ${buildAddPlayerFormHtml()}
+    </div>`;
+}
+
+function buildSessionLiveStatusHtml(s) {
+  if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
+  const enrollment = getSessionEnrollment(s);
+  const handNum = (s.handCount ?? 0) + 1;
+  let status = `Hand #${handNum}`;
+  if (enrollment?.active) {
+    status += " · enrollment open — open the table to tap I'm in";
+  } else {
+    const phase = getSessionCurrentHand(s)?.phase;
+    if (phase === "draw") status += " · draw phase";
+    else if (phase === "play") status += " · live play";
+    else status += " · ready";
+  }
+  return `<div class="session-live-card">
+      <p class="session-live-card__status">${escapeHtml(status)}</p>
+      <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
+        Open table · landscape
+      </button>
+      <p class="muted small session-live-card__hint">
+        Cards and enrollment live in the landscape table. Add players and session controls stay here.
+      </p>
+    </div>`;
+}
+
+function buildSessionToolbarHtml(s) {
+  if (!s || s.status === "final") return "";
+  return `${buildSessionPlayerBarHtml(s)}
+    <div class="session-toolbar__actions">
+      <button class="btn btn--primary btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
+    </div>`;
 }
 
 function buildSessionSidebarHtml(s) {
@@ -2460,21 +2563,11 @@ function buildSessionSidebarHtml(s) {
 
   const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
-  const controls = isFinal
-    ? `<span class="badge badge--closed">Session final</span>`
-    : `<form class="add-player-form" id="add-player-form">
-         <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" />
-         <label class="add-player-robot">
-           <input type="checkbox" id="add-player-robot" />
-           Robot — auto I&apos;m in &amp; play to win
-         </label>
-         <button class="btn btn--sm" type="submit">Add player</button>
-       </form>
-       <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
+  const controls = isFinal ? `<div class="session-controls"><span class="badge badge--closed">Session final</span></div>` : "";
 
   return `${lmtControl}
         ${handHistory}
-        <div class="session-controls">${controls}</div>
+        ${controls}
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
         <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
           placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
@@ -2500,7 +2593,7 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Stable inline table mount — sidebar re-renders without destroying the React root. */
+/** Session ledger panel — controls live in #session-toolbar-root; table opens in overlay only. */
 function mountSessionPanel(s) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
@@ -2508,12 +2601,13 @@ function mountSessionPanel(s) {
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
   const sidebarHtml = buildSessionSidebarHtml(s);
+  const liveCardHtml = buildSessionLiveStatusHtml(s);
 
   if (isFinal) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table">
+      <div class="session session--stack">
         ${buildSessionResultsHtml(s)}
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2524,37 +2618,22 @@ function mountSessionPanel(s) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table session--waiting">
+      <div class="session session--stack session--waiting">
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot below, or open the room to another member.
+          Need at least two players for the live table. Add a guest or robot above, or open the room to another member.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
     return;
   }
 
-  let shell = $("#session-panel-shell", mount);
-  if (!shell) {
-    bumpTableMountGeneration();
-    mount.innerHTML = `
-      <div class="session session--table" id="session-panel-shell">
-        <div class="session-table-wrap" id="session-table-wrap">
-          <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
-          <div class="session-play-cta" id="session-play-cta">
-            <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-              Open table · landscape
-            </button>
-            <p class="muted small session-play-cta__hint">
-              Full-screen landscape view. Hand results and session controls stay in the sidebar.
-            </p>
-          </div>
-        </div>
-        <aside class="session-sidebar" id="session-sidebar-root"></aside>
-      </div>`;
-  }
-
-  const sidebarRoot = $("#session-sidebar-root", mount);
-  if (sidebarRoot) sidebarRoot.innerHTML = sidebarHtml;
+  bumpTableMountGeneration();
+  unmountTableSessionHost();
+  mount.innerHTML = `
+    <div class="session session--stack">
+      ${liveCardHtml}
+      <aside class="session-sidebar">${sidebarHtml}</aside>
+    </div>`;
 }
 
 function renderSessionPanel(s) {
