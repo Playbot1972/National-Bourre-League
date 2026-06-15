@@ -11,6 +11,7 @@ import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
 import type { TableSessionViewProps } from "./types";
+import type { PotSnapshot } from "./settlementCopy";
 
 export function TableSessionView({
   session,
@@ -47,6 +48,14 @@ export function TableSessionView({
   const turnLabel = turnIndicatorLabel(session.turnPlayerId, players);
   const cardsDealt = isCardsDealtPhase(session.phase);
   const isMyTurn = Boolean(currentUserId && session.turnPlayerId === currentUserId);
+
+  const settlementPotMetrics: PotSnapshot = {
+    currentPot: potMetrics.currentPot,
+    maxWinThisHand: potMetrics.maxWinThisHand,
+    limEnabled: potMetrics.limEnabled,
+    overflow: potMetrics.overflow,
+    carryIn: session.carryOverPot ?? 0,
+  };
 
   const handleReaction = useCallback(
     (emoji: string) => {
@@ -172,7 +181,7 @@ export function TableSessionView({
         <SettlementCoWinPanel
           session={session}
           players={players}
-          potMetrics={potMetrics}
+          potMetrics={settlementPotMetrics}
           splitSharePerWinner={splitSharePerWinner}
           currentUserId={currentUserId}
           isCoWinner={isCoWinner}
