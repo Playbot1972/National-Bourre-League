@@ -42,7 +42,7 @@
     "test:rules": "node --test scripts/bourre-rules.test.mjs",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
     "test:version": "node --test scripts/bump-version.test.mjs",
-    "test:functions": "npm run build:game && node scripts/sync-functions-engine.mjs && npm test --prefix functions",
+    "test:functions": "npm run build:game && node scripts/sync-functions-engine.mjs && npm ci --prefix functions --omit=dev && npm test --prefix functions",
     "test": "npm run test:game && npm run test:table && npm run test:session && npm run test:rules && npm run test:version && npm run test:functions",
     "test:e2e": "playwright test",
     "test:release": "npm run test:qa && npm run build:functions && npm run test:e2e",
