@@ -728,11 +728,18 @@ async function deletePrivateHandsForSession(roomId, sessionId, batch) {
 }
 
 /** Live subscription to the signed-in player's private hand for the session. */
-export function subscribePrivateHand(roomId, sessionId, playerId, callback) {
+export function subscribePrivateHand(roomId, sessionId, playerId, callback, onError) {
   if (!roomId || !sessionId || !playerId) return () => {};
-  return onSnapshot(privateHandDoc(roomId, sessionId, playerId), (snap) => {
-    callback(snap.exists() ? snap.data() : null);
-  });
+  return onSnapshot(
+    privateHandDoc(roomId, sessionId, playerId),
+    (snap) => {
+      callback(snap.exists() ? snap.data() : null);
+    },
+    (err) => {
+      if (onError) onError(err);
+      else console.error("subscribePrivateHand:", err);
+    },
+  );
 }
 
 /** One-shot read of a player's private hand (own hand only per security rules). */

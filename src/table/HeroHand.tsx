@@ -3,6 +3,7 @@ import { Hand } from "../components/Hand";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
+import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
@@ -20,6 +21,7 @@ interface HeroHandProps {
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
+  privateHandReady?: boolean;
   className?: string;
 }
 
@@ -38,10 +40,13 @@ export function HeroHand({
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
+  privateHandReady = false,
   className = "",
 }: HeroHandProps) {
+  const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
   const [selectedPlay, setSelectedPlay] = useState<number | null>(null);
+  const [peekIndex, setPeekIndex] = useState<number | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
@@ -60,6 +65,7 @@ export function HeroHand({
 
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const cardSize = settings.cardScale === "lg" ? "md" : "sm";
   const busy = localBusy || actionFeedback?.status === "loading";
   const feedbackError =
     actionFeedback?.status === "error" ? actionFeedback.message : localError;
@@ -128,7 +134,11 @@ export function HeroHand({
     return (
       <div className={`btable-hero ${className}`.trim()} aria-live="polite">
         <p className="btable-hero__label muted small">Your hand</p>
-        <p className="btable-hero__fallback muted small">Loading your cards…</p>
+        <p className="btable-hero__fallback muted small">
+          {privateHandReady
+            ? "Cards not available — leave and re-open the session, or refresh the page."
+            : "Loading your cards…"}
+        </p>
       </div>
     );
   }
@@ -167,32 +177,36 @@ export function HeroHand({
     }
   };
 
+  const enablePeek = dealtPhase && isInHand;
   const selectedCount = selectedDraw.size;
 
   return (
     <div
-      className={`btable-hero${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      className={`btable-hero btable-hero--scale-${settings.cardScale}${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
       aria-label="Your dealt cards"
     >
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
         {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
         {inPlayPhase && isMyTurn && " · tap a legal card to play"}
+        {enablePeek && " · press and hold to peek"}
       </p>
       {isDealer && inDrawPhase && (
         <p className="btable-hero__trump-note muted small">
           Your trump upcard is on the table — not duplicated here
         </p>
       )}
-      {typedCards.length > 0 && (
+      <div className="btable-hero__hand-3d">
         <Hand
           cards={typedCards}
-          size="sm"
+          size={cardSize}
           fan
           stateFor={stateFor}
+          peekIndex={peekIndex}
+          onCardPeek={enablePeek ? setPeekIndex : undefined}
           onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
         />
-      )}
+      </div>
       {feedbackError && (
         <p className="btable-hero__error" role="alert">
           {feedbackError}

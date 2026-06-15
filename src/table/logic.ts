@@ -66,8 +66,8 @@ export function initials(name: string) {
 export const RAIL_RX = 50;
 export const RAIL_RY = 50;
 
-/** Push avatar centers slightly past the rail lip onto the outer edge. */
-export const SEAT_RAIL_OUTSET = 2;
+/** Push avatar centers onto the outer rail lip (outside the felt). */
+export const SEAT_RAIL_OUTSET = 9;
 
 export type SeatRegion = "bottom" | "top" | "left" | "right";
 
@@ -105,8 +105,8 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   };
 }
 
-/** Table width:height ratio — widens smoothly from 2 → 8 players (same in portrait & landscape). */
+/** Table width:height — wider oval reads better on mobile. */
 export function tableAspectForPlayers(total: number): number {
   const n = Math.max(2, Math.min(8, total || 2));
-  return 1.15 + ((n - 2) * 0.84) / 6;
+  return 1.38 + ((n - 2) * 0.52) / 6;
 }

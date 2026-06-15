@@ -43,6 +43,7 @@ export function PlayingCard({
   const red = isRedSuit(card.suit);
   const symbol = SUIT_SYMBOL[card.suit];
   const label = ariaLabel ?? `${card.rank} of ${SUIT_LABEL[card.suit]}`;
+  const suitClass = `pcard--suit-${card.suit}`;
 
   const content = (
     <>
@@ -63,7 +64,7 @@ export function PlayingCard({
     return (
       <button
         type="button"
-        className={`${classes} ${red ? "pcard--red" : "pcard--black"}`}
+        className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
         onClick={onClick}
         aria-label={label}
       >
@@ -74,7 +75,7 @@ export function PlayingCard({
 
   return (
     <div
-      className={`${classes} ${red ? "pcard--red" : "pcard--black"}`}
+      className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
       role="img"
       aria-label={label}
     >
