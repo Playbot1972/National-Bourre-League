@@ -259,9 +259,12 @@ npm run build:hosting   # vite build + copy docs/ → dist/social/
 firebase deploy --only hosting,firestore:rules
 ```
 
-**App version:** bump `version.json` (e.g. `1.00.01`) before each release; `npm run version:sync`
-updates `package.json`, `src/version.ts`, and `docs/version.js`. Displayed bottom-right as
-`v1.00.00` on `/` and `/social/`.
+**App version:** Production deploys to `main` auto-bump `version.json` (patch segment) in GitHub
+Actions before each Firebase deploy; the workflow commits `chore: release v… [skip ci]` back to
+`main` so every production push gets a unique version for tracking and rollback. Local deploys
+(`npm run deploy`) do not auto-bump — run `npm run version:bump` first if you need a new label.
+`npm run version:sync` propagates `version.json` → `package.json`, `src/version.ts`, and
+`docs/version.js`. Displayed bottom-right as `v1.00.00` on `/` and `/social/`.
 
 **Preview the combined site locally** (React at `/`, social at `/social/`, emulators
 still auto-connect on localhost):
