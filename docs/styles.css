@@ -1131,27 +1131,6 @@ button {
   margin-top: 4px;
 }
 
-.session-lmt {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.session-lmt input {
-  margin: 0;
-  width: 14px;
-  height: 14px;
-}
-
-.session-lmt--disabled {
-  opacity: 0.65;
-  cursor: default;
-}
-
 .hand-history__num {
   color: var(--gold-300);
   font-weight: 600;
