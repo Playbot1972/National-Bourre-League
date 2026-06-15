@@ -1020,6 +1020,10 @@ function scheduleSessionCleanup(sessionId) {
 
 async function clearCompletedSessionsNow() {
   if (!currentRoomId) return;
+  if (session?.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can clear sessions.");
+    return;
+  }
   const ids = new Set(pendingSessionCleanup);
   for (const s of currentSessions) {
     if (s.status === "final") ids.add(s.id);
@@ -1055,7 +1059,7 @@ async function clearCompletedSessionsNow() {
   } else {
     showRoomsError(
       failures[0] ||
-        "Could not clear sessions — completed sessions need updated Firestore rules (npm run deploy:rules).",
+        "Could not clear sessions — only the room owner can delete completed sessions.",
     );
   }
 }
@@ -2297,8 +2301,10 @@ function renderRoomDetail() {
         <h4>Sessions</h4>
         <div class="session-new">
           ${
-            showNewSessionAnte
-              ? `<label class="session-new__stake">
+            isOwner
+              ? `${
+                  showNewSessionAnte
+                    ? `<label class="session-new__stake">
                    <span class="muted">Ante</span>
                    <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
                      ${RISK_STAKE_OPTIONS.map(
@@ -2307,13 +2313,15 @@ function renderRoomDetail() {
                      ).join("")}
                    </select>
                  </label>`
-              : ""
-          }
+                    : ""
+                }
           <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
           ${
             currentSessions.some((s) => s.status === "final") || pendingSessionCleanup.size > 0
               ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
               : ""
+          }`
+              : `<p class="muted small">Only the room owner can start or clear sessions.</p>`
           }
         </div>
       </div>
@@ -2340,7 +2348,10 @@ function renderRoomDetail() {
   if (leaveRoomBtn) {
     leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
   }
-  $("#new-session").addEventListener("click", onNewSession);
+  const newSessionBtn = $("#new-session", roomDetailView);
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener("click", onNewSession);
+  }
   const clearSessionsBtn = $("#clear-sessions-now", roomDetailView);
   if (clearSessionsBtn) {
     clearSessionsBtn.addEventListener("click", () => {
@@ -2688,6 +2699,10 @@ function wireSessionControls() {
 
 async function onNewSession() {
   if (!currentRoomId) return;
+  if (session?.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can start a new session.");
+    return;
+  }
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);

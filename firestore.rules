@@ -56,11 +56,6 @@ service cloud.firestore {
         .data.status == 'final';
     }
 
-    // Any member may remove completed sessions (Clear all / 30s auto-cleanup).
-    function memberMayDeleteCompletedSession(roomId) {
-      return isMember(roomId) && resource.data.status == 'final';
-    }
-
     function scoreLedgerFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'net',
@@ -87,20 +82,19 @@ service cloud.firestore {
         allow create: if isMember(roomId);
         allow update: if isMember(roomId)
           && (!sessionGameFieldsChanged() || memberEnrollmentSessionUpdate());
-        allow delete: if isRoomOwner(roomId) || memberMayDeleteCompletedSession(roomId);
+        allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
           allow read: if isMember(roomId);
           allow create: if isMember(roomId);
           allow update: if isMember(roomId) && !scoreLedgerFieldsChanged();
-          allow delete: if isRoomOwner(roomId)
-            || (isMember(roomId) && sessionFinal(roomId, sessionId));
+          allow delete: if isRoomOwner(roomId);
         }
 
         match /hands/{handId} {
           allow read: if isMember(roomId);
           allow create, update: if false;
-          allow delete: if isMember(roomId) && sessionFinal(roomId, sessionId);
+          allow delete: if isRoomOwner(roomId) && sessionFinal(roomId, sessionId);
         }
 
         match /privateHands/{playerId} {
@@ -109,7 +103,7 @@ service cloud.firestore {
             playerId.matches('bot_.*')
           );
           allow write: if isMember(roomId) && enrollmentActiveForSession(roomId, sessionId);
-          allow delete: if isMember(roomId) && sessionFinal(roomId, sessionId);
+          allow delete: if isRoomOwner(roomId) && sessionFinal(roomId, sessionId);
         }
       }
     }
