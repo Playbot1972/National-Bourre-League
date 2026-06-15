@@ -2,7 +2,7 @@ import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers } from "./logic";
-import type { PotMetrics, SerializedCard, TablePlayer, TableSessionData } from "./types";
+import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface CardTableProps {
   session: TableSessionData;
@@ -13,11 +13,12 @@ interface CardTableProps {
   heroCards?: SerializedCard[];
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
+  actionFeedback?: TableActionFeedback | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
-  onSubmitDraw?: (discardIndices: number[]) => void;
-  onPassDraw?: () => void;
-  onPlayCard?: (cardIndex: number) => void;
+  onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
+  onPassDraw?: () => void | Promise<void>;
+  onPlayCard?: (cardIndex: number) => void | Promise<void>;
   onReaction?: (emoji: string) => void;
 }
 
@@ -30,6 +31,7 @@ export function CardTable({
   heroCards = [],
   currentUserId = null,
   legalPlayIndices,
+  actionFeedback,
   onToggleInHand,
   onTrickDelta,
   onSubmitDraw,
@@ -110,11 +112,13 @@ export function CardTable({
         phase={session.phase}
         enrollmentActive={enrollmentActive}
         isInHand={Boolean(selfPlayer?.inHand)}
+        isDealer={Boolean(selfPlayer?.isDealer)}
         signedIn={Boolean(currentUserId)}
         isMyTurn={Boolean(currentUserId && session.turnPlayerId === currentUserId)}
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
+        actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}
         onPlayCard={onPlayCard}

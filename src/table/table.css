@@ -286,6 +286,65 @@
   font-size: 11px;
 }
 
+.btable-hero__error {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(180, 60, 60, 0.25);
+  border: 1px solid rgba(220, 100, 100, 0.45);
+  color: #ffd4d4;
+  font-size: 12px;
+  text-align: center;
+}
+
+.btable-hero__success {
+  margin: 6px 0 0;
+  text-align: center;
+  color: #9fd4b0;
+  font-size: 11px;
+}
+
+.btable-hero__trump-note {
+  margin: 0 0 4px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.btable-session__feedback {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.btable-session__feedback--loading {
+  background: rgba(244, 213, 141, 0.15);
+  border: 1px solid rgba(244, 213, 141, 0.35);
+  color: var(--gold-300, #f4d58d);
+}
+
+.btable-session__feedback--error {
+  background: rgba(180, 60, 60, 0.28);
+  border: 1px solid rgba(220, 100, 100, 0.5);
+  color: #ffd4d4;
+}
+
+.btable-session__feedback--success {
+  background: rgba(45, 106, 79, 0.28);
+  border: 1px solid rgba(82, 183, 136, 0.45);
+  color: #b8f0d0;
+}
+
+.btable-hero__actions .btn {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 .btable-hero__actions {
   display: flex;
   flex-wrap: wrap;
@@ -1409,3 +1468,66 @@
   }
 }
 
+/* Game feedback settings (table overlay) */
+.bfeedback-settings-wrap {
+  margin-bottom: 6px;
+}
+
+.bfeedback-settings__toggle {
+  font-size: 11px;
+}
+
+.bfeedback-settings__popover {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(244, 213, 141, 0.15);
+}
+
+.bfeedback-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.bfeedback-settings__fieldset {
+  border: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.bfeedback-settings__fieldset legend {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.bfeedback-settings__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 10px;
+  font-size: 11px;
+}
+
+.bfeedback-settings__note {
+  margin: 4px 0 0;
+}
+
+.bpot__trump--deal {
+  animation: bdeal-in 500ms ease backwards;
+}
+
+.btable-hero--dealing .hand {
+  animation: bdeal-in 500ms ease backwards;
+}
+
+.btable-session__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}

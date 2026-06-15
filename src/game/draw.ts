@@ -1,5 +1,10 @@
 import { removeCardsAtIndices } from "./cardUtils";
 import { drawCardsFromDeck } from "./deckState";
+import {
+  effectiveIndexDiscardsTrump,
+  effectivePlayerHand,
+  privateHandFromEffective,
+} from "./invariants";
 import { HAND_PHASE } from "./types";
 import type { Card } from "../types";
 import type { PublicHandState } from "./types";
@@ -67,6 +72,61 @@ export function allDrawsComplete(
 ): boolean {
   const done = new Set(drawCompletedIds);
   return participantIds.every((id) => done.has(id));
+}
+
+export interface ApplyPlayerDrawInput {
+  playerId: string;
+  privateHand: Card[];
+  publicHand: PublicHandState;
+  discardIndices: number[];
+  deck: Card[];
+  deckNextIndex: number;
+  maxDiscards: number;
+}
+
+export interface ApplyPlayerDrawResult {
+  privateHand: Card[];
+  publicHand: PublicHandState;
+  deckNextIndex: number;
+  discarded: number;
+}
+
+/** Draw/discard using effective hand (includes dealer trump upcard when on table). */
+export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawResult {
+  const effective = effectivePlayerHand(input.playerId, input.privateHand, input.publicHand);
+  const drawResult = applyDraw({
+    hand: effective,
+    discardIndices: input.discardIndices,
+    deck: input.deck,
+    deckNextIndex: input.deckNextIndex,
+    maxDiscards: input.maxDiscards,
+  });
+
+  const trumpDiscarded = effectiveIndexDiscardsTrump(
+    input.playerId,
+    input.discardIndices,
+    effective,
+    input.publicHand,
+  );
+
+  let nextPublic: PublicHandState = {
+    ...input.publicHand,
+    deckNextIndex: drawResult.deckNextIndex,
+    remainingDeckCount: Math.max(0, input.deck.length - drawResult.deckNextIndex),
+  };
+
+  if (trumpDiscarded) {
+    nextPublic = { ...nextPublic, trumpUpcard: null };
+  }
+
+  const privateHand = privateHandFromEffective(input.playerId, drawResult.hand, nextPublic);
+
+  return {
+    privateHand,
+    publicHand: nextPublic,
+    deckNextIndex: drawResult.deckNextIndex,
+    discarded: drawResult.discarded,
+  };
 }
 
 export function advanceAfterDraw(

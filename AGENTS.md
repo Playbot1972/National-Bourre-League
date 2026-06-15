@@ -95,6 +95,47 @@ Desktop-first live table polish (built to `docs/table-session.js`):
 - **Desktop layout** — `DesktopLayoutShell.tsx` for large-monitor scaling; tiled multi-room
   mode scaffolded (placeholder tile, settings model, hotkey hooks).
 
+**Local test & debug (open PRs, emulators, checklists):** see [`docs/TESTING.md`](docs/TESTING.md).
+
+### Table feedback (sound + haptics)
+
+Central service: `src/table/feedback/` (built into `docs/table-session.js`, exported
+from `mount.tsx` for `docs/app.js` snapshot diffing).
+
+| API | Event |
+| --- | --- |
+| `playShuffleFeedback()` | Hand deal, draw replacement |
+| `playTrickWinFeedback()` | Local player wins a trick |
+| `playBigWinFeedback()` | Local player wins hand / pot |
+
+**Sound assets:** Drop MP3s in `docs/sounds/` (`shuffle.mp3`, `trick-win.mp3`,
+`big-win.mp3`). Runtime loader tries assets first; procedural Web Audio is the
+fallback until files are checked in (see `docs/sounds/README.md`).
+
+**User prefs:** `localStorage` key `nbl-feedback` — sound on/off, haptics
+on/minimal/off. Settings in table footer + session sidebar.
+
+**Platform support (graceful fallback — never blocks gameplay):**
+
+| Environment | Sound | Haptics |
+| --- | --- | --- |
+| Android Chrome | ✅ after first user gesture | ✅ `navigator.vibrate` |
+| iOS Safari | ✅ after first user gesture | ❌ no web vibration API |
+| Desktop browsers | ✅ | Usually unavailable (no-op) |
+| Native wrapper | ✅ | ✅ via `window.BourreHaptics` bridge |
+
+**Native haptics bridge (Capacitor / React Native WebView):** inject before table load:
+
+```js
+window.BourreHaptics = {
+  impact(style) { /* Haptics.impact / RN haptic feedback */ },
+  notification(type) { /* success pulse for pot/hand win */ },
+};
+```
+
+iOS haptics **require** a native wrapper — web-only iPhone/iPad builds get sound but
+not vibration. See `src/table/feedback/haptics.ts` for bridge contract.
+
 ## Cursor Cloud specific instructions
 
 - Standard scripts live in `package.json`: `npm run dev` (Vite dev server),

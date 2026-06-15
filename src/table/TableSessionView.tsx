@@ -3,6 +3,7 @@ import { CardTable } from "./CardTable";
 import { CinematicSplash } from "./CinematicSplash";
 import { DesktopLayoutShell } from "./DesktopLayoutShell";
 import { EventReactions } from "./EventReactions";
+import { FeedbackSettings } from "./FeedbackSettings";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
@@ -25,6 +26,7 @@ export function TableSessionView({
   currentUserId,
   heroCards = [],
   legalPlayIndices,
+  actionFeedback,
   actions,
 }: TableSessionViewProps) {
   const { settings } = useTableTheme();
@@ -67,6 +69,15 @@ export function TableSessionView({
 
   return (
     <div className={`btable-session${settingsOpen ? " btable-session--settings-open" : ""}`}>
+      {actionFeedback && actionFeedback.status !== "idle" && (
+        <div
+          className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
+          role={actionFeedback.status === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {actionFeedback.message}
+        </div>
+      )}
       <header className="btable-session__head">
         <div className="btable-session__head-row">
           <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
@@ -136,6 +147,7 @@ export function TableSessionView({
             heroCards={heroCards}
             currentUserId={currentUserId}
             legalPlayIndices={legalPlayIndices}
+            actionFeedback={actionFeedback}
             onToggleInHand={(playerId, inHand) => {
               const p = players.find((x) => x.playerId === playerId);
               if (p?.isSelf) actions.onToggleInHand(inHand);
@@ -192,6 +204,7 @@ export function TableSessionView({
       )}
 
       <footer className="btable-session__foot muted small">
+        <FeedbackSettings compact />
         {mySessionNet != null ? (
           <>
             Your contribution this hand{" "}

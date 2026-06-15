@@ -1548,6 +1548,55 @@ body.table-play-active .footer {
 }
 
 @media (orientation: landscape) {
+  .table-play-overlay .btable-session__feedback {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 520px);
+    margin: 0;
+    z-index: 200;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .table-play-overlay .btable-wrap {
+    --seat-gutter-x: clamp(48px, 10vw, 80px);
+    --seat-gutter-y: clamp(28px, 7vh, 48px);
+    --hero-outset: clamp(52px, 12vh, 76px);
+  }
+
+  .table-play-overlay .btable-hero__actions {
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .table-play-overlay .bseat__opt-in,
+  .table-play-overlay .bseat__trick-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .table-play-overlay .btable-wrap {
+    --hero-outset: clamp(44px, 10vh, 64px);
+    --seat-gutter-y: clamp(22px, 5vh, 36px);
+  }
+
+  .table-play-overlay .bpot__stats {
+    gap: 2px 6px;
+  }
+}
+
+@media (orientation: landscape) and (min-width: 768px) {
+  .table-play-overlay .btable-wrap {
+    max-width: min(calc(96vw), 1100px);
+    --seat-gutter-x: clamp(56px, 8vw, 96px);
+  }
+}
+
+@media (orientation: landscape) {
   .table-play-overlay__bar {
     padding-bottom: 4px;
     margin-bottom: 4px;
@@ -1687,4 +1736,49 @@ body.table-play-active .footer {
   opacity: 0.65;
   pointer-events: none;
   user-select: none;
+}
+
+.feedback-settings {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-faint);
+}
+
+.feedback-settings__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.feedback-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.feedback-settings__fieldset {
+  border: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.feedback-settings__fieldset legend {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+}
+
+.feedback-settings__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 12px;
+  font-size: 12px;
+}
+
+.feedback-settings__hint {
+  margin: 4px 0 0;
 }

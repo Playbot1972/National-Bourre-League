@@ -15,16 +15,24 @@ export {
 } from "./serialize";
 export type { SerializeHandOptions } from "./serialize";
 export { maxDrawDiscards } from "./drawLimit";
-export { applyDraw, advanceAfterDraw, allDrawsComplete, nextPlayerInOrder } from "./draw";
-export type { ApplyDrawInput, ApplyDrawResult } from "./draw";
+export { applyDraw, advanceAfterDraw, allDrawsComplete, nextPlayerInOrder, applyPlayerDraw } from "./draw";
+export type { ApplyDrawInput, ApplyDrawResult, ApplyPlayerDrawInput, ApplyPlayerDrawResult } from "./draw";
 export {
   getLegalPlayIndices,
   validatePlayIndex,
 } from "./legal";
 export type { PlayContext, LegalityResult, LegalityCode } from "./legal";
 export { resolveTrickWinner } from "./trick";
-export { applyPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
-export type { ApplyPlayInput, ApplyPlayResult } from "./play";
+export { applyPlayCard, applyPlayerPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
+export type { ApplyPlayInput, ApplyPlayResult, ApplyPlayerPlayInput, ApplyPlayerPlayResult } from "./play";
+export {
+  assertCardUniqueness,
+  effectivePlayerHand,
+  privateHandFromEffective,
+  effectiveIndexDiscardsTrump,
+  playedTrumpUpcard,
+  CardUniquenessError,
+} from "./invariants";
 export { cardKey, cardsEqual, rankValue, isTrump } from "./cardUtils";
 export {
   HAND_PHASE,

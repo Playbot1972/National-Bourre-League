@@ -88,13 +88,14 @@ import {
   serializeCards,
   shuffledDeckFromSeed,
   remainingDeckCount,
-  applyDraw,
+  applyPlayerDraw,
   advanceAfterDraw,
-  applyPlayCard,
+  applyPlayerPlayCard,
   maxDrawDiscards,
   botDrawDiscardIndices,
   botPlayCardIndex,
   getLegalPlayIndices,
+  effectivePlayerHand,
   HAND_PHASE,
 } from "./game-engine.js";
 
@@ -603,23 +604,24 @@ export async function submitHandDraw(roomId, sessionId, { playerId, discardIndic
     const maxDraw =
       currentHand.maxDrawDiscards ?? maxDrawDiscards(currentHand.participantIds?.length ?? 2);
 
-    const drawResult = applyDraw({
-      hand,
+    const drawResult = applyPlayerDraw({
+      playerId,
+      privateHand: hand,
+      publicHand: currentHand,
       discardIndices: discardIndices || [],
       deck,
       deckNextIndex,
       maxDiscards: maxDraw,
     });
 
-    let nextPublic = {
-      ...currentHand,
-      deckNextIndex: drawResult.deckNextIndex,
+    let nextPublic = advanceAfterDraw(drawResult.publicHand, actionOrderFromHand(currentHand), playerId);
+    nextPublic = {
+      ...nextPublic,
       remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
     };
-    nextPublic = advanceAfterDraw(nextPublic, actionOrderFromHand(currentHand), playerId);
 
     tx.set(privateRef, {
-      cards: serializeCards(drawResult.hand),
+      cards: serializeCards(drawResult.privateHand),
       updatedAt: serverTimestamp(),
     });
     tx.update(ref, { currentHand: nextPublic, updatedAt: serverTimestamp() });
@@ -649,9 +651,9 @@ export async function playHandCard(roomId, sessionId, { playerId, cardIndex, act
     if (!privateSnap.exists()) throw new Error("Private hand not found");
 
     const hand = deserializeCards(privateSnap.data().cards || []);
-    const result = applyPlayCard({
+    const result = applyPlayerPlayCard({
       publicHand: currentHand,
-      playerHand: hand,
+      privateHand: hand,
       playerId,
       cardIndex,
       actionOrder: actionOrderFromHand(currentHand),
@@ -661,7 +663,7 @@ export async function playHandCard(roomId, sessionId, { playerId, cardIndex, act
     handComplete = result.handComplete;
 
     tx.set(privateRef, {
-      cards: serializeCards(result.playerHand),
+      cards: serializeCards(result.privateHand),
       updatedAt: serverTimestamp(),
     });
     tx.update(ref, { currentHand: result.publicHand, updatedAt: serverTimestamp() });
@@ -675,22 +677,26 @@ export async function playHandCard(roomId, sessionId, { playerId, cardIndex, act
 /** Robot draw/play helpers — room member drives bot using bot private hand doc. */
 export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, dealingRule }) {
   const handData = await getPrivateHand(roomId, sessionId, playerId);
-  if (!handData?.cards?.length) return;
+  if (!handData) return;
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const ch = sessionSnap.data()?.currentHand || {};
   const trumpSuit = ch.trumpSuit;
   const maxDraw = ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
-  const hand = deserializeCards(handData.cards);
+  const privateHand = deserializeCards(handData.cards || []);
+  const hand = effectivePlayerHand(playerId, privateHand, ch);
+  if (!hand.length) return;
   const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw);
   await submitHandDraw(roomId, sessionId, { playerId, discardIndices: indices, actorId });
 }
 
 export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
   const handData = await getPrivateHand(roomId, sessionId, playerId);
-  if (!handData?.cards?.length) return;
+  if (!handData) return;
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const ch = sessionSnap.data()?.currentHand || {};
-  const hand = deserializeCards(handData.cards);
+  const privateHand = deserializeCards(handData?.cards || []);
+  const hand = effectivePlayerHand(playerId, privateHand, ch);
+  if (!hand.length) return;
   const trick = ch.currentTrick;
   const trickPlays = (trick?.plays || []).map((p) => p.card);
   const isLeading = trickPlays.length === 0;

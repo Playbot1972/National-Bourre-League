@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Ornate spade mark extracted from Booray brand artwork -->
+  <g id="booray-ornate-spade">
+    <path
+      fill="#10131c"
+      d="M50 8c-18 0-32 14-24 32-14 5-22 18-17 32 4 11 14 18 26 19 2 0 4 0 6-.5L50 92l9-11.5c2 .5 4 .5 6 .5 12-1 22-8 26-19 5-14-3-27-17-32 8-18-6-32-24-32z"
+    />
+    <path
+      fill="none"
+      stroke="#f3ece0"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      d="M50 22c-12 0-21 9-16 22M50 22c12 0 21 9 16 22M50 38v28M34 58q16 12 32 0"
+    />
+    <path
+      fill="#f3ece0"
+      d="M50 30c-5 0-9 4-9 9s4 9 9 9 9-4 9-9-4-9-9-9z"
+    />
+    <path fill="#f3ece0" d="M47 78h6v8h-6z" />
+  </g>
+</svg>
