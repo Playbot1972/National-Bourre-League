@@ -33,7 +33,10 @@ export interface PublicHandState {
   phase: HandPhase;
   participantIds: string[];
   dealerId: string | null;
+  /** Player who holds the flipped trump card (dealer when enrolled, else last dealt seat). */
+  trumpHolderId?: string | null;
   trumpSuit: Suit;
+  /** Face-up reveal for trump suit only — same card as one in trumpHolder's private hand. */
   trumpUpcard: SerializedCard | null;
   remainingDeckCount: number;
   currentTrick: CurrentTrickState | null;
@@ -57,6 +60,7 @@ export interface DealResult {
   dealOrder: string[];
   participantIds: string[];
   privateHands: Record<string, Card[]>;
+  trumpHolderId: string;
   trumpUpcard: Card;
   trumpSuit: Suit;
   remainingDeck: Card[];

@@ -17,8 +17,8 @@ export const STANDARD_RULE_SECTIONS = [
     summary: "Five cards each; the dealer's upcard sets trump for the hand.",
     points: [
       "Dealer gives each player 5 cards, one at a time.",
-      "The dealer's fifth card is turned face up — its suit is trump for the hand.",
-      "In the common version, that upcard counts as part of the dealer's hand.",
+      "The dealer's fifth card is turned face up to set trump — it is not led to the first trick.",
+      "That flipped card stays in the dealer's hand and is played on the dealer's normal turn.",
       "The deal passes to the left after each hand.",
     ],
   },
@@ -134,7 +134,7 @@ export const DISCARD_RULES = {
   houseRuleNote:
     "Hosts can optionally cap discards by player count for simpler live play. This is a convenience, not the published Pagat default.",
   optionalCaps: [
-    { players: "5", maxDiscards: "5" },
+    { players: "2–5", maxDiscards: "5 (standard)" },
     { players: "6", maxDiscards: "4" },
     { players: "7", maxDiscards: "3" },
     { players: "8", maxDiscards: "2–3 (or enable reshuffle mode)" },
@@ -171,7 +171,7 @@ export const HOUSE_RULE_CATEGORIES = [
   {
     id: "dealing",
     title: "Deal & Draw",
-    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 4 (house simplifier).",
+    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 5 (2–5 players).",
     examples: [
       "Standard: up to 5 discards; reshuffle discards if deck runs out.",
       "Optional caps by player count (see Draw section).",

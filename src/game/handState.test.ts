@@ -2,8 +2,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dealInitialHand } from "./deal";
 import { applyDraw } from "./draw";
-import { applyPlayCard } from "./play";
-import { assertCardUniqueness, effectivePlayerHand, privateHandFromEffective } from "./invariants";
+import { applyPlayCard, applyPlayerPlayCard } from "./play";
+import {
+  assertCardUniqueness,
+  effectivePlayerHand,
+  privateHandFromEffective,
+  cardsRemainingInHand,
+} from "./invariants";
+import { activePlayerOrder } from "./playerOrder";
 import { shuffledDeckFromSeed } from "./deckState";
 import { HAND_PHASE } from "./types";
 import type { PublicHandState } from "./types";
@@ -25,6 +31,7 @@ function publicFromDeal(d: ReturnType<typeof deal>): PublicHandState {
     phase: HAND_PHASE.DRAW,
     participantIds: d.participantIds,
     dealerId: "p1",
+    trumpHolderId: d.trumpHolderId,
     trumpSuit: d.trumpSuit,
     trumpUpcard: d.trumpUpcard,
     remainingDeckCount: d.remainingDeck.length,
@@ -37,31 +44,51 @@ function publicFromDeal(d: ReturnType<typeof deal>): PublicHandState {
     deckNextIndex: d.deckNextIndex,
     actionOrder: d.dealOrder,
     drawCompletedIds: [],
-    maxDrawDiscards: 4,
+    maxDrawDiscards: 5,
   };
 }
 
-describe("card uniqueness", () => {
-  it("initial deal has no duplicate across deck, trump, and hands", () => {
+describe("deal and trump reveal", () => {
+  it("dealer keeps five cards including the flipped trump", () => {
+    const d = deal();
+    const pub = publicFromDeal(d);
+    const dealerPrivate = d.privateHands.p1;
+    assert.equal(dealerPrivate.length, 5);
+    assert.equal(d.trumpHolderId, "p1");
+    assert.ok(
+      dealerPrivate.some(
+        (c) => c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit,
+      ),
+    );
+    assert.equal(effectivePlayerHand("p1", dealerPrivate, pub).length, 5);
+  });
+
+  it("does not auto-lead the flipped trump — first trick starts empty", () => {
+    const pub = publicFromDeal(deal());
+    assert.equal(pub.currentTrick, null);
+    assert.equal(pub.playedCards.length, 0);
+  });
+
+  it("first draw turn and first trick lead go to the seat left of dealer", () => {
+    const d = deal();
+    const leftOfDealer = activePlayerOrder("p1", PLAYERS, SORTED)[0];
+    assert.equal(d.turnPlayerId, leftOfDealer);
+    assert.equal(d.dealOrder[0], leftOfDealer);
+  });
+
+  it("initial deal has no duplicate across deck, trump reveal, and hands", () => {
     const d = deal();
     assertCardUniqueness({
       deck: shuffledDeckFromSeed(d.deckSeed),
       deckNextIndex: d.deckNextIndex,
       trumpUpcard: d.trumpUpcard,
+      trumpHolderId: d.trumpHolderId,
       privateHands: d.privateHands,
     });
-    assert.equal(d.privateHands.p1.length, 4);
-    assert.equal(effectivePlayerHand("p1", d.privateHands.p1, publicFromDeal(d)).length, 5);
   });
+});
 
-  it("trump upcard is not stored in dealer private hand", () => {
-    const d = deal();
-    const pub = publicFromDeal(d);
-    const dealerPrivate = d.privateHands.p1;
-    assert.ok(!dealerPrivate.some((c) => c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit));
-    assert.ok(effectivePlayerHand("p1", dealerPrivate, pub).some((c) => c.rank === d.trumpUpcard.rank));
-  });
-
+describe("card uniqueness", () => {
   it("post-draw state stays unique", () => {
     const d = deal();
     const pub = publicFromDeal(d);
@@ -79,18 +106,23 @@ describe("card uniqueness", () => {
       deck,
       deckNextIndex: drawResult.deckNextIndex,
       trumpUpcard: d.trumpUpcard,
+      trumpHolderId: d.trumpHolderId,
       privateHands: { ...d.privateHands, p2: nextPrivate },
     });
   });
 
   it("post-play state stays unique", () => {
     const d = deal();
-    let pub = { ...publicFromDeal(d), phase: HAND_PHASE.PLAY, currentTrick: {
-      trickNumber: 1,
-      leadPlayerId: d.dealOrder[0],
-      leadSuit: null,
-      plays: [],
-    } };
+    let pub = {
+      ...publicFromDeal(d),
+      phase: HAND_PHASE.PLAY,
+      currentTrick: {
+        trickNumber: 1,
+        leadPlayerId: d.dealOrder[0],
+        leadSuit: null,
+        plays: [],
+      },
+    };
     const leadId = d.dealOrder[0];
     const effective = effectivePlayerHand(leadId, d.privateHands[leadId], pub);
     const result = applyPlayCard({
@@ -106,6 +138,7 @@ describe("card uniqueness", () => {
       deck: shuffledDeckFromSeed(d.deckSeed),
       deckNextIndex: pub.deckNextIndex ?? d.deckNextIndex,
       trumpUpcard: (pub.trumpUpcard as typeof d.trumpUpcard) ?? null,
+      trumpHolderId: d.trumpHolderId,
       privateHands: { ...d.privateHands, [leadId]: stored },
       currentTrick: pub.currentTrick,
       playedCards: pub.playedCards,
@@ -148,5 +181,66 @@ describe("draw flow", () => {
         }),
       /at most 4/,
     );
+  });
+});
+
+describe("dealer trump upcard during play", () => {
+  it("dealer plays the flipped trump later in turn order from their hand", () => {
+    const d = deal();
+    const dealerId = "p1";
+    const dealerPrivate = d.privateHands.p1.filter(
+      (c) => !(c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit),
+    );
+    assert.equal(dealerPrivate.length, 4);
+
+    const pub: PublicHandState = {
+      ...publicFromDeal(d),
+      phase: HAND_PHASE.PLAY,
+      turnPlayerId: dealerId,
+      currentTrick: {
+        trickNumber: 5,
+        leadPlayerId: dealerId,
+        leadSuit: null,
+        plays: [],
+      },
+      tricksByPlayer: { p1: 0, p2: 0, p3: 0, p4: 0 },
+    };
+
+    const effective = effectivePlayerHand(dealerId, dealerPrivate, pub);
+    assert.equal(effective.length, 5);
+    const trumpIndex = effective.findIndex(
+      (c) => c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit,
+    );
+    assert.ok(trumpIndex >= 0);
+
+    const playResult = applyPlayerPlayCard({
+      publicHand: pub,
+      privateHand: dealerPrivate,
+      playerId: dealerId,
+      cardIndex: trumpIndex,
+      actionOrder: d.dealOrder,
+    });
+    assert.equal(playResult.publicHand.trumpUpcard, null);
+    assert.equal(playResult.privateHand.length, 4);
+    assert.equal(playResult.publicHand.currentTrick?.plays.length, 1);
+    assert.equal(
+      playResult.publicHand.currentTrick?.plays[0]?.card.rank,
+      d.trumpUpcard.rank,
+    );
+  });
+
+  it("counts remaining cards from trick history", () => {
+    const d = deal();
+    const pub: PublicHandState = {
+      ...publicFromDeal(d),
+      phase: HAND_PHASE.PLAY,
+      playedCards: Array.from({ length: 4 }, (_, i) => ({
+        playerId: "p2",
+        card: { rank: "2", suit: "clubs" },
+        trickNumber: i + 1,
+      })),
+      currentTrick: null,
+    };
+    assert.equal(cardsRemainingInHand(pub, "p2"), 1);
   });
 });

@@ -171,7 +171,7 @@ export const HOUSE_RULE_PLACEHOLDERS: HouseRulePlaceholder[] = [
     id: "deal-variations",
     title: "Deal & Draw",
     prompt: "Capture local twists on dealing, trump selection, and the draw.",
-    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 4 (house simplifier).",
+    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 5 (2–5 players).",
     examples: [
       "Standard: up to 5 discards; reshuffle discards if deck runs out.",
       "No draw round — play the hand as dealt.",

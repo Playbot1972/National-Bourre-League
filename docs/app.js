@@ -38,6 +38,7 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
+  advanceSessionBots,
   addSessionPlayer,
   addSessionRobot,
   syncSessionWithRoomMembers,
@@ -70,7 +71,19 @@ import {
   HAND_ENROLLMENT_MS,
   tricksForPlayer,
 } from "./firestore.js";
-import { getLegalPlayIndices, deserializeCards, effectivePlayerHand } from "./game-engine.js";
+import {
+  getLegalPlayIndices,
+  deserializeCards,
+  effectivePlayerHand,
+  serializeCards,
+  cardsRemainingInHand,
+} from "./game-engine.js";
+import {
+  bourrePlayerIds,
+  formatHandHistoryPublicLine,
+  formatVoteRecordedMessage,
+} from "./settlement-copy.js";
+import { isServerHandAuthorityEnabled } from "./game-functions.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -715,6 +728,19 @@ async function processTableFeedbackEvents(sessionObj) {
   tableFeedbackSnapshot = next;
 }
 
+function buildHeroCardsForTable(currentHand, privateCardList, playerId, handPhase) {
+  const privateCards = privateCardList ?? [];
+  if ((handPhase !== "draw" && handPhase !== "play") || !currentHand || !playerId) {
+    return privateCards;
+  }
+  const effective = effectivePlayerHand(
+    playerId,
+    deserializeCards(privateCards),
+    currentHand,
+  );
+  return serializeCards(effective);
+}
+
 function computeLegalPlayIndices(currentHand, heroCards, playerId) {
   if (!currentHand || currentHand.phase !== "play" || !heroCards?.length || !playerId) {
     return null;
@@ -756,6 +782,21 @@ function sessionHasRobots(scores = openScores) {
   return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
 }
 
+/** True when robots may need a human room member (or server nudge) to keep the hand moving. */
+function sessionNeedsBotDriver(sessionObj, scores = openScores) {
+  if (!sessionObj || sessionObj.status === "final") return false;
+  if (sessionObj.handEnrollment?.active) return sessionHasRobots(scores);
+  if (sessionObj.pendingCoWinSettlement?.winnerIds?.some((id) => isRobotPlayerId(id))) {
+    return true;
+  }
+  const ch = sessionObj.currentHand;
+  if (ch?.phase === "draw" || ch?.phase === "play") {
+    const turnId = ch.turnPlayerId;
+    return Boolean(turnId && isRobotPlayerId(turnId));
+  }
+  return sessionHasRobots(scores);
+}
+
 async function refreshTablePlayerRatings(scores = openScores) {
   const ids = [...new Set(scores.map((s) => s.playerId).filter(Boolean))];
   if (!ids.length) {
@@ -781,8 +822,7 @@ function stopEnrollmentTimer() {
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
   const s = currentSessions.find((x) => x.id === openSessionId);
-  const needsDriver =
-    s?.handEnrollment?.active || (s && s.status !== "final" && sessionHasRobots());
+  const needsDriver = sessionNeedsBotDriver(s, openScores);
   if (!needsDriver) return;
 
   enrollmentTimer = setInterval(() => {
@@ -1390,6 +1430,21 @@ function processRobotActions(s, scores) {
   );
   if (!robotScores.length) return;
 
+  const now = Date.now();
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
+
+  // Server-authoritative path: one callable chains all robot turns.
+  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores)) {
+    lastRobotTrickAt = now;
+    robotActionInFlight = true;
+    advanceSessionBots(currentRoomId, openSessionId)
+      .catch((e) => console.warn("advanceSessionBots:", e))
+      .finally(() => {
+        robotActionInFlight = false;
+      });
+    return;
+  }
+
   const enrollment = s.handEnrollment;
   if (enrollment?.active) {
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
@@ -1439,7 +1494,6 @@ function processRobotActions(s, scores) {
   if (!participants.length) return;
 
   const handPhase = currentHand.phase;
-  const now = Date.now();
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
@@ -1554,7 +1608,7 @@ function buildTableLeaderLabel(
   };
   if (phase === "draw") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · draw round — discard up to the house limit or stand pat`;
+    return `Trump ${suitLabel} · draw round — discard up to 5 cards or stand pat`;
   }
   if (phase === "play") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
@@ -1564,13 +1618,20 @@ function buildTableLeaderLabel(
   if (handComplete && handReady && activeWinnerIds.length === 1) {
     const name =
       displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
+    const bourreIds = bourrePlayerIds(tricksThisHand, participantIds);
+    if (bourreIds.length) {
+      const bourreNames = bourreIds
+        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
+        .join(" & ");
+      return `${name} wins (${maxTricks} tricks) · Bourré: ${bourreNames}`;
+    }
     return `${name} wins (${maxTricks} tricks)`;
   }
   if (handComplete && handReady && activeWinnerIds.length >= 2) {
     const names = activeWinnerIds
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each)`;
+    return `Tie — ${names} (${maxTricks} tricks each) · vote to split or push pot`;
   }
   if (handReady && activeWinnerIds.length === 1) {
     const name =
@@ -1599,11 +1660,15 @@ function buildTableSessionProps(s) {
   const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
-  const heroCardList = openPrivateHand?.cards ?? [];
   const myUid = session?.uid ?? null;
+  const privateHeroCards = openPrivateHand?.cards ?? [];
+  const heroCardList =
+    myUid && cardsDealt
+      ? buildHeroCardsForTable(s.currentHand, privateHeroCards, myUid, handPhase)
+      : privateHeroCards;
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
-      ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
+      ? computeLegalPlayIndices(s.currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
@@ -1738,7 +1803,9 @@ function buildTableSessionProps(s) {
         isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
-        holeCardCount: 5,
+        holeCardCount: cardsDealt
+          ? cardsRemainingInHand(s.currentHand || {}, sc.playerId)
+          : 5,
         isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&
@@ -1801,7 +1868,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to draw"));
         }
-        const maxDraw = s.currentHand?.maxDrawDiscards ?? 4;
+        const maxDraw = s.currentHand?.maxDrawDiscards ?? 5;
         if (discardIndices.length > maxDraw) {
           const err = new Error(`You may discard at most ${maxDraw} cards`);
           setTableActionFeedback({ status: "error", message: err.message });
@@ -2404,36 +2471,36 @@ function renderSessionPanel(s) {
 }
 
 function formatPublicHandHistoryLine(h, scores) {
+  const players = (h.participantIds || []).map((id) => ({
+    playerId: id,
+    displayName: scores.find((sc) => sc.playerId === id)?.displayName || id,
+  }));
   const winnerIds = h.winnerIds?.length
     ? h.winnerIds
     : h.winnerId
       ? [h.winnerId]
       : [];
+  const settlement = h.settlement === "ante_up" ? "non_winner_ante_up" : h.settlement;
+  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up") {
+    return formatHandHistoryPublicLine({
+      handNumber: h.handNumber,
+      settlement,
+      winnerIds,
+      participantIds: h.participantIds || [],
+      tricksByPlayer: h.tricksByPlayer || {},
+      players,
+      potMaxWin: h.pot ?? 0,
+      cappedPot: h.cappedPot,
+      grossPot: h.pot,
+      bourreIds: h.bourreIds,
+    });
+  }
   const names = winnerIds.map(
     (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
   );
   const pot = formatRiskStake(h.cappedPot ?? h.pot ?? 0);
-  const maxLabel = h.cappedPot != null && h.pot != null && h.cappedPot < h.pot ? " (max)" : "";
   const n = h.participantIds?.length ?? 0;
-  if (h.settlement === "push") {
-    return `#${h.handNumber} Push — pot ${pot}${maxLabel} carries (${n} players)`;
-  }
-  if (h.settlement === "non_winner_ante_up" || h.settlement === "ante_up") {
-    return `#${h.handNumber} No split agreement — pot ${pot}${maxLabel} pushed (${n} players)`;
-  }
-  if (h.settlement === "split") {
-    return `#${h.handNumber} ${names.join(" & ")} split ${pot}${maxLabel} (${n} players)`;
-  }
-  const bourreIds = h.bourreIds?.length
-    ? h.bourreIds
-    : (h.participantIds || []).filter((id) => (h.tricksByPlayer?.[id] ?? 0) === 0);
-  if (bourreIds.length && (h.settlement === "win" || h.bourreCarryOver > 0)) {
-    const bourreNames = bourreIds.map(
-      (id) => scores.find((sc) => sc.playerId === id)?.displayName || id,
-    );
-    return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} · ${bourreNames.join(" & ")} bourréed (${n} players)`;
-  }
-  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot}${maxLabel} (${n} players)`;
+  return `#${h.handNumber} ${names[0] || "Unknown"} won ${pot} (${n} players)`;
 }
 
 function formatPrivateHandHistoryLine(h, myUid) {
@@ -2574,11 +2641,11 @@ async function onSettleHand(choice) {
       recordedBy: session.uid,
     });
     if (result.status === "pending") {
-      showRoomsError("Vote recorded — waiting for other co-winner(s) to agree.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     } else if (result.settlement === "split") {
-      showRoomsError("Pot split recorded — next hand ready.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     } else if (result.settlement === "non_winner_ante_up") {
-      showRoomsError("No split agreement — pot pushed; non-winners ante increased.");
+      showRoomsError(formatVoteRecordedMessage(choice, result));
     }
   } catch (err) {
     console.error("voteCoWinSettlement:", err);

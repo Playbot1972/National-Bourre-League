@@ -74,6 +74,8 @@ export interface TableSessionData {
   participantIds: string[];
   tricksByPlayer: Record<string, number>;
   phase?: string | null;
+  /** Player who holds the flipped trump card (usually the dealer). */
+  trumpHolderId?: string | null;
   trumpSuit?: string | null;
   trumpUpcard?: SerializedCard | null;
   turnPlayerId?: string | null;

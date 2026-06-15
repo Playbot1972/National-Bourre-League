@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Table landscape fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div class="btable-session" data-testid="table-fixture">
+        <div class="btable-wrap btable--p3" style="--player-count: 3">
+          <div class="btable">
+            <div class="btable__rail"></div>
+            <div class="btable__felt"></div>
+            <div class="bseat" style="left: 50%; top: 0%; transform: translate(-50%, -50%)">
+              <div class="bseat__name">North</div>
+            </div>
+            <div class="bseat" style="left: 100%; top: 50%; transform: translate(-50%, -50%)">
+              <div class="bseat__name">East</div>
+            </div>
+            <div class="bseat" style="left: 0%; top: 50%; transform: translate(-50%, -50%)">
+              <div class="bseat__name">West</div>
+            </div>
+            <div class="bpot">
+              <div class="bpot__amount">$12</div>
+            </div>
+          </div>
+        </div>
+        <div class="btable-hero">
+          <p class="btable-hero__label muted small">Your hand · Play</p>
+          <div class="btable-hero__actions">
+            <button type="button" class="btn btn--sm btn--primary">Play</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

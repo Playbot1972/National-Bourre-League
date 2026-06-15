@@ -27,6 +27,7 @@ export function assertCardUniqueness(input: {
   deck: Card[];
   deckNextIndex: number;
   trumpUpcard: Card | null;
+  trumpHolderId?: string | null;
   privateHands: Record<string, Card[]>;
   currentTrick?: CurrentTrickState | null;
   playedCards?: PlayedCardEntry[];
@@ -38,13 +39,20 @@ export function assertCardUniqueness(input: {
     dupes.push(...addKeys(seen, input.deck[i], `deck[${i}]`));
   }
 
-  if (input.trumpUpcard) {
-    dupes.push(...addKeys(seen, input.trumpUpcard, "trumpUpcard"));
-  }
-
   for (const [playerId, hand] of Object.entries(input.privateHands)) {
     for (let i = 0; i < hand.length; i += 1) {
       dupes.push(...addKeys(seen, hand[i], `hand:${playerId}[${i}]`));
+    }
+  }
+
+  if (input.trumpUpcard) {
+    const trumpKey = cardKey(input.trumpUpcard);
+    const holderHand = input.trumpHolderId
+      ? input.privateHands[input.trumpHolderId]
+      : undefined;
+    const mirroredInHolderHand = holderHand?.some((c) => cardKey(c) === trumpKey) ?? false;
+    if (!mirroredInHolderHand) {
+      dupes.push(...addKeys(seen, input.trumpUpcard, "trumpUpcard"));
     }
   }
 
@@ -63,19 +71,24 @@ export function assertCardUniqueness(input: {
   }
 }
 
-export function trumpOwnerId(publicHand: Pick<PublicHandState, "dealerId">): string | null {
-  return publicHand.dealerId ?? null;
+export function trumpOwnerId(
+  publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId">,
+): string | null {
+  return publicHand.trumpHolderId ?? publicHand.dealerId ?? null;
 }
 
 export function trumpOnTable(publicHand: Pick<PublicHandState, "trumpUpcard">): boolean {
   return Boolean(publicHand.trumpUpcard);
 }
 
-/** Private storage + table trump for draw/play (dealer only while upcard is showing). */
+/**
+ * Playable hand for draw/play. The flipped trump stays in the holder's private
+ * cards; legacy sessions may still merge a public-only trump reveal.
+ */
 export function effectivePlayerHand(
   playerId: string,
   privateHand: Card[],
-  publicHand: Pick<PublicHandState, "dealerId" | "trumpUpcard">,
+  publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
 ): Card[] {
   const hand = [...privateHand];
   const owner = trumpOwnerId(publicHand);
@@ -90,24 +103,20 @@ export function effectivePlayerHand(
   return hand;
 }
 
-/** Persist dealer private cards; trump stays on public doc until discarded or played. */
+/** Persist the holder's full private hand after draw or play. */
 export function privateHandFromEffective(
   playerId: string,
   effectiveHand: Card[],
-  publicHand: Pick<PublicHandState, "dealerId" | "trumpUpcard">,
+  _publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
 ): Card[] {
-  const owner = trumpOwnerId(publicHand);
-  if (!owner || playerId !== owner || !publicHand.trumpUpcard) {
-    return [...effectiveHand];
-  }
-  return effectiveHand.filter((c) => !cardsEqual(c, publicHand.trumpUpcard as Card));
+  return [...effectiveHand];
 }
 
 export function effectiveIndexDiscardsTrump(
   playerId: string,
   discardIndices: number[],
   effectiveHand: Card[],
-  publicHand: Pick<PublicHandState, "dealerId" | "trumpUpcard">,
+  publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
 ): boolean {
   const owner = trumpOwnerId(publicHand);
   if (!owner || playerId !== owner || !publicHand.trumpUpcard) return false;
@@ -122,4 +131,27 @@ export function playedTrumpUpcard(
   publicHand: Pick<PublicHandState, "trumpUpcard">,
 ): boolean {
   return Boolean(publicHand.trumpUpcard && cardsEqual(card, publicHand.trumpUpcard as Card));
+}
+
+const CARDS_PER_HAND = 5;
+
+/** Cards still held from trick play history. */
+export function cardsRemainingInHand(
+  publicHand: Pick<PublicHandState, "playedCards" | "currentTrick">,
+  playerId: string,
+): number {
+  const played = (publicHand.playedCards ?? []).filter((p) => p.playerId === playerId).length;
+  const inTrick = (publicHand.currentTrick?.plays ?? []).filter((p) => p.playerId === playerId)
+    .length;
+  return Math.max(0, CARDS_PER_HAND - played - inTrick);
+}
+
+export function trumpRevealMirroredInHolderHand(
+  publicHand: Pick<PublicHandState, "trumpHolderId" | "trumpUpcard">,
+  privateHands: Record<string, Card[]>,
+): boolean {
+  if (!publicHand.trumpUpcard || !publicHand.trumpHolderId) return false;
+  const holderHand = privateHands[publicHand.trumpHolderId];
+  if (!holderHand?.length) return false;
+  return holderHand.some((c) => cardsEqual(c, publicHand.trumpUpcard as Card));
 }
