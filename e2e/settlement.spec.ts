@@ -5,7 +5,7 @@ test.describe("F — co-winner settlement clarity", () => {
     page,
   }) => {
     await page.goto("/e2e-fixtures/settlement-cowin?role=cowinner");
-    const panel = page.locator("[data-testid=settlement-cowin-panel]");
+    const panel = page.getByTestId("settlement-panel");
     await expect(panel).toBeVisible();
 
     await expect(page.locator("[data-testid=settlement-headline]")).toHaveText(
@@ -39,7 +39,7 @@ test.describe("F — co-winner settlement clarity", () => {
 
   test("observer sees disabled buttons and waiting hint", async ({ page }) => {
     await page.goto("/e2e-fixtures/settlement-cowin?role=observer");
-    await expect(page.locator("[data-testid=settlement-cowin-panel]")).toBeVisible();
+    await expect(page.getByTestId("settlement-panel")).toBeVisible();
     await expect(page.locator("[data-testid=settlement-observer-hint]")).toContainText(
       "not a co-winner",
     );

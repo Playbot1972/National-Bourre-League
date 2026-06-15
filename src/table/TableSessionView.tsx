@@ -82,6 +82,7 @@ export function TableSessionView({
       {actionFeedback && actionFeedback.status !== "idle" && (
         <div
           className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
+          data-testid="feedback-banner"
           role={actionFeedback.status === "error" ? "alert" : "status"}
           aria-live="polite"
         >
@@ -99,6 +100,7 @@ export function TableSessionView({
           <button
             type="button"
             className="btable-session__gear btn btn--sm"
+            data-testid="settings-button"
             onClick={() => setSettingsOpen(true)}
             aria-label="Table appearance settings"
             title={`Settings (${settings.hotkeys.toggleSettings})`}
@@ -127,6 +129,7 @@ export function TableSessionView({
             <button
               type="button"
               className="btn btn--primary btn--sm btable-session__enroll-btn"
+              data-testid="join-button"
               onClick={() => actions.onToggleInHand(true)}
             >
               I&apos;m in · {enrollmentSecondsLeft}s

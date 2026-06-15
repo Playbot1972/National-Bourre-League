@@ -8021,20 +8021,20 @@ var e = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t
 })), h = (/* @__PURE__ */ e(((e, t) => {
 	t.exports = m();
 })))();
-function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", badge: i, onClick: a, ariaLabel: o }) {
-	let s = typeof a == "function", c = [
+function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", badge: i, onClick: a, ariaLabel: o, "data-testid": s }) {
+	let c = typeof a == "function", l = [
 		"pcard",
 		`pcard--${n}`,
 		`pcard--${r}`,
-		s ? "pcard--interactive" : ""
+		c ? "pcard--interactive" : ""
 	].filter(Boolean).join(" ");
 	if (t || !e) return /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `${c} pcard--back`,
+		className: `${l} pcard--back`,
 		"aria-label": "Face-down card",
 		role: "img",
 		children: /* @__PURE__ */ (0, h.jsx)("div", { className: "pcard__back-pattern" })
 	});
-	let l = p(e.suit), u = d[e.suit], m = o ?? `${e.rank} of ${f[e.suit]}`, g = `pcard--suit-${e.suit}`, _ = /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
+	let u = p(e.suit), m = d[e.suit], g = o ?? `${e.rank} of ${f[e.suit]}`, _ = `pcard--suit-${e.suit}`, v = /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
 		i && /* @__PURE__ */ (0, h.jsx)("span", {
 			className: "pcard__badge",
 			children: i
@@ -8046,12 +8046,12 @@ function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 				children: e.rank
 			}), /* @__PURE__ */ (0, h.jsx)("span", {
 				className: "pcard__suit",
-				children: u
+				children: m
 			})]
 		}),
 		/* @__PURE__ */ (0, h.jsx)("span", {
 			className: "pcard__center",
-			children: u
+			children: m
 		}),
 		/* @__PURE__ */ (0, h.jsxs)("span", {
 			className: "pcard__corner pcard__corner--br",
@@ -8060,27 +8060,28 @@ function g({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 				children: e.rank
 			}), /* @__PURE__ */ (0, h.jsx)("span", {
 				className: "pcard__suit",
-				children: u
+				children: m
 			})]
 		})
 	] });
-	return s ? /* @__PURE__ */ (0, h.jsx)("button", {
+	return c ? /* @__PURE__ */ (0, h.jsx)("button", {
 		type: "button",
-		className: `${c} ${l ? "pcard--red" : "pcard--black"} ${g}`,
+		className: `${l} ${u ? "pcard--red" : "pcard--black"} ${_}`,
 		onClick: a,
-		"aria-label": m,
-		children: _
+		"aria-label": g,
+		"data-testid": s,
+		children: v
 	}) : /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `${c} ${l ? "pcard--red" : "pcard--black"} ${g}`,
+		className: `${l} ${u ? "pcard--red" : "pcard--black"} ${_}`,
 		role: "img",
-		"aria-label": m,
-		children: _
+		"aria-label": g,
+		children: v
 	});
 }
 //#endregion
 //#region src/components/Hand.tsx
 var _ = (e, t) => `${e.rank}-${e.suit}-${t}`;
-function v({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i, onCardPeek: a, peekIndex: o = null, fan: s = !1 }) {
+function v({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i, onCardPeek: a, peekIndex: o = null, fan: s = !1, cardTestId: c }) {
 	return /* @__PURE__ */ (0, h.jsx)("div", {
 		className: `hand ${s ? "hand--fan" : ""}`,
 		children: e.map((e, s) => /* @__PURE__ */ (0, h.jsx)("div", {
@@ -8093,7 +8094,8 @@ function v({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i,
 				size: t,
 				state: n?.(e, s) ?? "default",
 				badge: r?.(e, s),
-				onClick: i ? () => i(e, s) : void 0
+				onClick: i ? () => i(e, s) : void 0,
+				"data-testid": c
 			})
 		}, _(e, s)))
 	});
@@ -8335,6 +8337,7 @@ function T({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 	}, be = E && r, xe = S.size;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-hero btable-hero--scale-${x.cardScale}${ce ? " btable-hero--dealing" : ""} ${_}`.trim(),
+		"data-testid": "hero-hand",
 		"aria-label": "Your dealt cards",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("p", {
@@ -8360,7 +8363,8 @@ function T({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 					stateFor: ve,
 					peekIndex: re,
 					onCardPeek: be ? w : void 0,
-					onCardClick: fe || pe ? ye : void 0
+					onCardClick: fe || pe ? ye : void 0,
+					cardTestId: pe && o ? "play-button" : void 0
 				})
 			}),
 			me && /* @__PURE__ */ (0, h.jsx)("p", {
@@ -8379,6 +8383,7 @@ function T({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm btn--primary",
+						"data-testid": "draw-button",
 						disabled: k,
 						"aria-busy": k,
 						onClick: () => ge([...S].sort((e, t) => e - t)),
@@ -8504,6 +8509,7 @@ function he({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 		"aria-label": "Deck and trump",
 		children: [d ? /* @__PURE__ */ (0, h.jsxs)("div", {
 			className: "deck-stack__trump bpot__trump--deal",
+			"data-testid": "trump-button",
 			children: [/* @__PURE__ */ (0, h.jsx)(g, {
 				card: {
 					rank: n.rank,
@@ -8517,6 +8523,7 @@ function he({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 			})]
 		}, f) : /* @__PURE__ */ (0, h.jsxs)("div", {
 			className: "deck-stack__pile",
+			"data-testid": "deal-button",
 			"aria-hidden": "true",
 			children: [
 				/* @__PURE__ */ (0, h.jsx)("div", { className: "deck-stack__card deck-stack__card--back" }),
@@ -8557,6 +8564,7 @@ function he({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 				children: [
 					/* @__PURE__ */ (0, h.jsxs)("div", {
 						className: "bpot__stat bpot__stat--pot",
+						"data-testid": "pot-display",
 						children: [/* @__PURE__ */ (0, h.jsx)("dt", { children: "Pot" }), /* @__PURE__ */ (0, h.jsx)("dd", { children: D(e.currentPot) })]
 					}),
 					/* @__PURE__ */ (0, h.jsxs)("div", {
@@ -8680,6 +8688,7 @@ function ve({ fraction: e }) {
 function ye({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i, onReaction: a }) {
 	let o = e.tricksThisHand, s = Math.max(0, e.holeCardCount ?? 0), c = e.inHand, l = !!(e.showHoleCards && !e.isSelf && e.inHand && s > 0);
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
+		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
 		className: [
 			"bseat",
 			`bseat--${t}`,
@@ -8821,6 +8830,7 @@ function be({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 	let _ = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), v = _.findIndex((e) => e.isSelf), y = v > 0 ? [..._.slice(v), ..._.slice(0, v)] : _, b = y.length, x = `btable--p${Math.min(8, Math.max(2, b))}`, ee = k(b), S = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), C = t.find((e) => e.isSelf), te = !!(s && e.drawCompletedIds?.includes(s));
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-wrap ${x}`,
+		"data-testid": "table-root",
 		style: {
 			"--player-count": b,
 			"--table-aspect": ee
@@ -8831,7 +8841,10 @@ function be({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 				/* @__PURE__ */ (0, h.jsxs)("div", {
 					className: "table-oval",
 					"aria-hidden": "true",
-					children: [/* @__PURE__ */ (0, h.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, h.jsx)("div", { className: "btable__felt" })]
+					children: [/* @__PURE__ */ (0, h.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, h.jsx)("div", {
+						className: "btable__felt",
+						"data-testid": "table-felt"
+					})]
 				}),
 				/* @__PURE__ */ (0, h.jsx)(he, {
 					potMetrics: n,
@@ -9317,6 +9330,7 @@ function Tt({ open: e, onClose: t }) {
 		className: "bsettings",
 		role: "dialog",
 		"aria-label": "Table appearance",
+		"data-testid": "settings-panel",
 		children: [/* @__PURE__ */ (0, h.jsxs)("div", {
 			className: "bsettings__panel",
 			children: [
@@ -9606,7 +9620,7 @@ function Nt({ session: e, players: t, potMetrics: n, splitSharePerWinner: r, cur
 	});
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: "btable-session__settle",
-		"data-testid": "settlement-cowin-panel",
+		"data-testid": "settlement-panel",
 		role: "region",
 		"aria-label": "Co-winner settlement vote",
 		children: [
@@ -9724,6 +9738,7 @@ function Pt({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		children: [
 			g && g.status !== "idle" && /* @__PURE__ */ (0, h.jsx)("div", {
 				className: `btable-session__feedback btable-session__feedback--${g.status}`,
+				"data-testid": "feedback-banner",
 				role: g.status === "error" ? "alert" : "status",
 				"aria-live": "polite",
 				children: g.message
@@ -9745,6 +9760,7 @@ function Pt({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 							/* @__PURE__ */ (0, h.jsx)("button", {
 								type: "button",
 								className: "btable-session__gear btn btn--sm",
+								"data-testid": "settings-button",
 								onClick: () => x(!0),
 								"aria-label": "Table appearance settings",
 								title: `Settings (${v.hotkeys.toggleSettings})`,
@@ -9774,6 +9790,7 @@ function Pt({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 						children: /* @__PURE__ */ (0, h.jsxs)("button", {
 							type: "button",
 							className: "btn btn--primary btn--sm btable-session__enroll-btn",
+							"data-testid": "join-button",
 							onClick: () => _.onToggleInHand(!0),
 							children: [
 								"I'm in · ",

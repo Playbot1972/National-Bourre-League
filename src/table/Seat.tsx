@@ -59,8 +59,19 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
   const showTrickBadge = player.inHand;
   const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
 
+  const seatTestId = player.isSelf
+    ? "seat-bottom-self"
+    : region === "top"
+      ? "seat-top"
+      : region === "left"
+        ? "seat-left"
+        : region === "right"
+          ? "seat-right"
+          : "seat-bottom";
+
   return (
     <div
+      data-testid={seatTestId}
       className={[
         "bseat",
         `bseat--${region}`,

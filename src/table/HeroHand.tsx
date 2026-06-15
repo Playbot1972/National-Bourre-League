@@ -183,6 +183,7 @@ export function HeroHand({
   return (
     <div
       className={`btable-hero btable-hero--scale-${settings.cardScale}${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      data-testid="hero-hand"
       aria-label="Your dealt cards"
     >
       <p className="btable-hero__label muted small">
@@ -205,6 +206,7 @@ export function HeroHand({
           peekIndex={peekIndex}
           onCardPeek={enablePeek ? setPeekIndex : undefined}
           onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
+          cardTestId={inPlayPhase && isMyTurn ? "play-button" : undefined}
         />
       </div>
       {feedbackError && (
@@ -222,6 +224,7 @@ export function HeroHand({
           <button
             type="button"
             className="btn btn--sm btn--primary"
+            data-testid="draw-button"
             disabled={busy}
             aria-busy={busy}
             onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}

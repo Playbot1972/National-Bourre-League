@@ -11,6 +11,8 @@ interface HandProps {
   onCardPeek?: (index: number | null) => void;
   peekIndex?: number | null;
   fan?: boolean;
+  /** Applied to each card button when set (e.g. play phase smoke tests). */
+  cardTestId?: string;
 }
 
 const keyFor = (c: Card, i: number) => `${c.rank}-${c.suit}-${i}`;
@@ -24,6 +26,7 @@ export function Hand({
   onCardPeek,
   peekIndex = null,
   fan = false,
+  cardTestId,
 }: HandProps) {
   return (
     <div className={`hand ${fan ? "hand--fan" : ""}`}>
@@ -46,6 +49,7 @@ export function Hand({
             state={stateFor?.(c, i) ?? "default"}
             badge={badgeFor?.(c, i)}
             onClick={onCardClick ? () => onCardClick(c, i) : undefined}
+            data-testid={cardTestId}
           />
         </div>
       ))}

@@ -43,7 +43,11 @@ export function PotCenter({
     <>
       <div className="deck-stack" aria-label="Deck and trump">
         {hasTrump ? (
-          <div key={trumpKey} className="deck-stack__trump bpot__trump--deal">
+          <div
+            key={trumpKey}
+            className="deck-stack__trump bpot__trump--deal"
+            data-testid="trump-button"
+          >
             <PlayingCard
               card={{
                 rank: trumpUpcard!.rank as Rank,
@@ -55,7 +59,7 @@ export function PotCenter({
             <span className="deck-stack__label muted small">Trump</span>
           </div>
         ) : (
-          <div className="deck-stack__pile" aria-hidden="true">
+          <div className="deck-stack__pile" data-testid="deal-button" aria-hidden="true">
             <div className="deck-stack__card deck-stack__card--back" />
             <div className="deck-stack__card deck-stack__card--back deck-stack__card--offset" />
             <span className="deck-stack__label muted small">
@@ -89,7 +93,7 @@ export function PotCenter({
         </div>
 
         <dl className="center-play__stats">
-          <div className="bpot__stat bpot__stat--pot">
+          <div className="bpot__stat bpot__stat--pot" data-testid="pot-display">
             <dt>Pot</dt>
             <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
           </div>
