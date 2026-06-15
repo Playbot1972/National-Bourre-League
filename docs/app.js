@@ -969,6 +969,32 @@ function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   return [...map.values()];
 }
 
+/** Room members plus guests/robots on the open session score sheet (for Members panel). */
+function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
+  const memberIds = new Set(visibleMembers.map((m) => m.userId).filter(Boolean));
+  const entries = visibleMembers.map((m) => ({
+    playerId: m.userId,
+    displayName: m.displayName,
+    role: m.role || "player",
+    kind: "member",
+  }));
+
+  if (!sessionObj || sessionObj.status === "final") return entries;
+
+  for (const sc of scores) {
+    const playerId = sc.playerId;
+    if (!playerId || memberIds.has(playerId)) continue;
+    const robot = sc.isRobot === true || isRobotPlayerId(playerId);
+    entries.push({
+      playerId,
+      displayName: sc.displayName || (robot ? "Robot" : "Guest"),
+      role: robot ? "robot" : "guest",
+      kind: robot ? "robot" : "guest",
+    });
+  }
+  return entries;
+}
+
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
   return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
@@ -2324,6 +2350,7 @@ function renderRoomDetail() {
   const isOwner = session?.uid === currentRoom.ownerId;
   const bannedIds = new Set(currentRoom.bannedUserIds || []);
   const visibleMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
+  const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
   const sessionAnteEditable =
     isOwner &&
     openSessionObj &&
@@ -2389,20 +2416,33 @@ function renderRoomDetail() {
       </section>
 
       <section class="subpanel">
-        <h4>Members (${visibleMembers.length})</h4>
+        <h4>Members &amp; players (${rosterEntries.length})</h4>
+        <p class="muted small members__hint">Signed-in room members plus guests and robots on the open session.</p>
         <ul class="members">
-          ${visibleMembers
-            .map((m) => {
-              const uid = m.userId || "";
+          ${rosterEntries
+            .map((entry) => {
+              const uid = entry.playerId || "";
               const canKick =
-                isOwner && uid && uid !== currentRoom.ownerId && uid !== session?.uid;
-              return `<li class="members__row">
-                <span class="dot"></span>
-                <span class="members__name">${escapeHtml(m.displayName)}</span>
-                <em class="members__role">${escapeHtml(m.role)}</em>
+                entry.kind === "member" &&
+                isOwner &&
+                uid &&
+                uid !== currentRoom.ownerId &&
+                uid !== session?.uid;
+              const roleLabel =
+                entry.role === "owner"
+                  ? "owner"
+                  : entry.role === "robot"
+                    ? "robot"
+                    : entry.role === "guest"
+                      ? "guest"
+                      : "player";
+              return `<li class="members__row" data-testid="roster-entry-${escapeHtml(entry.kind)}">
+                <span class="dot${entry.kind === "robot" ? " dot--robot" : entry.kind === "guest" ? " dot--guest" : ""}"></span>
+                <span class="members__name">${escapeHtml(entry.displayName)}</span>
+                <em class="members__role">${escapeHtml(roleLabel)}</em>
                 ${
                   canKick
-                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(m.displayName)}" aria-label="Remove ${escapeHtml(m.displayName)} from room">Remove</button>`
+                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from room">Remove</button>`
                     : ""
                 }
               </li>`;
