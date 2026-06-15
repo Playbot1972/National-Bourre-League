@@ -970,7 +970,7 @@ function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
 }
 
 /** Room members plus guests/robots on the open session score sheet (for Members panel). */
-function buildRoomRosterEntries(visibleMembers, scores, sessionObj, bannedIds = new Set()) {
+function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
   const memberIds = new Set(visibleMembers.map((m) => m.userId).filter(Boolean));
   const entries = visibleMembers.map((m) => ({
     playerId: m.userId,
@@ -983,7 +983,7 @@ function buildRoomRosterEntries(visibleMembers, scores, sessionObj, bannedIds = 
 
   for (const sc of scores) {
     const playerId = sc.playerId;
-    if (!playerId || memberIds.has(playerId) || bannedIds.has(playerId)) continue;
+    if (!playerId || memberIds.has(playerId)) continue;
     const robot = sc.isRobot === true || isRobotPlayerId(playerId);
     entries.push({
       playerId,
@@ -1009,12 +1009,10 @@ function scheduleSyncSessionMembers() {
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
   if (syncMembersPromise) return;
-  const bannedIds = new Set(currentRoom?.bannedUserIds || []);
-  const activeMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
   syncMembersPromise = syncSessionWithRoomMembers(
     currentRoomId,
     openSessionId,
-    activeMembers,
+    currentMembers,
   )
     .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
     .catch((e) => console.error("syncSessionWithRoomMembers:", e))
@@ -1234,21 +1232,21 @@ async function onKickMember(targetUserId, displayName) {
     return;
   }
   const label = displayName?.trim() || "this player";
-  if (!window.confirm(`Remove ${label} from this room? They will lose access immediately.`)) {
+  if (!window.confirm(`Remove ${label} from this room? They can rejoin with the invite code.`)) {
     return;
   }
   showRoomsError("");
   try {
     await kickRoomMember(currentRoomId, targetUserId, session);
     showRoomsError(
-      `${label} was removed from the room. Their tricks and session score for this hand are kept.`,
+      `${label} was removed from the room. They can rejoin with the invite code. Session score for this hand is kept.`,
     );
   } catch (err) {
     console.error("kickRoomMember:", err);
     const msg = err?.message || "";
     if (err?.code === "permission-denied") {
       showRoomsError(
-        "Could not remove member. Confirm you are the room owner and try again.",
+        "Could not remove member — run npm run deploy:rules so owners can remove memberships.",
       );
     } else {
       showRoomsError(msg.slice(0, 120) || "Could not remove member.");
@@ -1355,8 +1353,6 @@ $("#join-form").addEventListener("submit", async (e) => {
     const msg = err && typeof err === "object" ? err.message : String(err);
     if (/no longer valid|was deleted/i.test(msg)) {
       showRoomsError(msg);
-    } else if (/not allowed to join/i.test(msg)) {
-      showRoomsError(msg);
     } else if (fbCode === "permission-denied") {
       showRoomsError(
         "Could not join this room — check that you are signed in and the invite code is correct. If it keeps failing, ask the host to re-open the room so the lookup syncs.",
@@ -1415,10 +1411,6 @@ function openRoom(roomId) {
         handleRoomUnavailable(roomId);
         return;
       }
-      if (session?.uid && Array.isArray(room.bannedUserIds) && room.bannedUserIds.includes(session.uid)) {
-        handleRemovedFromRoom(roomId, "You were removed from this room.");
-        return;
-      }
       currentRoom = room;
       if (room?.bourreSettings) {
         pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
@@ -1439,7 +1431,8 @@ function openRoom(roomId) {
         !roomDetailView.hidden &&
         !members.some((m) => m.userId === session.uid)
       ) {
-        showRoomsError("You were removed from this room.");
+        showRoomsError("You were removed from this room. You can rejoin with the invite code.");
+        closeTablePlay();
         closeRoom();
         return;
       }
@@ -1473,21 +1466,6 @@ function openRoom(roomId) {
       }
     }),
   );
-}
-
-async function handleRemovedFromRoom(roomId, message) {
-  if (roomGoneHandled || currentRoomId !== roomId) return;
-  roomGoneHandled = true;
-  showRoomsError(message);
-  closeTablePlay();
-  if (session?.uid) {
-    try {
-      await leaveRoom(roomId, session);
-    } catch (err) {
-      console.warn("leaveRoom after removal:", err);
-    }
-  }
-  closeRoom();
 }
 
 async function handleRoomUnavailable(roomId) {
@@ -2190,16 +2168,6 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
-  if (
-    session?.uid &&
-    currentRoomId &&
-    Array.isArray(currentRoom?.bannedUserIds) &&
-    currentRoom.bannedUserIds.includes(session.uid)
-  ) {
-    handleRemovedFromRoom(currentRoomId, "You were removed from this room.");
-    return;
-  }
-
   if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
     unmountTableSessionHost();
     if (
@@ -2361,14 +2329,8 @@ function renderRoomDetail() {
   );
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const isOwner = session?.uid === currentRoom.ownerId;
-  const bannedIds = new Set(currentRoom.bannedUserIds || []);
-  const visibleMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
-  const rosterEntries = buildRoomRosterEntries(
-    visibleMembers,
-    openScores,
-    openSessionObj,
-    bannedIds,
-  );
+  const visibleMembers = currentMembers;
+  const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
   const sessionAnteEditable =
     isOwner &&
     openSessionObj &&
