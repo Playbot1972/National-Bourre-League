@@ -26,7 +26,7 @@ export const HOUSE_RULE_FIELDS = [
 export const DEFAULT_HOUSE_RULES = {
   ante: "Equal ante each hand (set in room Bourré settings)",
   forcedPlay: "Dealer must play when turned trump is an ace",
-  ties: "Tie for most tricks — pot carries; no split",
+  ties: "Tie for most tricks — pot carries to next deal; tied leaders skip that ante; no split",
   dealing: "5 cards each; dealer's last card face up is trump · draw up to 5 (2–5 players)",
 };
 

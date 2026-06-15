@@ -1424,7 +1424,7 @@ async function recordHandClient(
     if (
       winners.includes(pid) &&
       winners.length >= 2 &&
-      (mode === "co_win_carry" || mode === "non_winner_ante_up")
+      (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split")
     ) {
       patch.skipNextAnte = true;
     }
@@ -1799,7 +1799,7 @@ export function subscribeLeaderboard(callback) {
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
-  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
+  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: false });
 }
 
 /** Add a robot seat — joins via enrollment and auto-plays tricks when the hand is live. */
@@ -1894,9 +1894,6 @@ export async function ensureSessionPlayer(
   const handCount = sessionData.handCount || 0;
   const currentHand = getSessionCurrentHand(sessionData);
   const activeEnrollment = getSessionEnrollment(sessionData);
-  const participantIds = joinCurrentHand
-    ? [...new Set([...(currentHand.participantIds || []), playerId])]
-    : currentHand.participantIds || [];
 
   const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedIds = [
@@ -1913,13 +1910,14 @@ export async function ensureSessionPlayer(
     players: arrayUnion({ playerId, displayName }),
     updatedAt: serverTimestamp(),
   };
-  if (activeEnrollment?.active && !joinCurrentHand) {
+  if (activeEnrollment?.active) {
     sessionPatch[LIVE_ENROLLMENT_FIELD] = mergePlayerIntoEnrollment(
       activeEnrollment,
       sessionData.dealerId,
       sortedIds,
     );
-  } else {
+  } else if (joinCurrentHand) {
+    const participantIds = [...new Set([...(currentHand.participantIds || []), playerId])];
     sessionPatch.currentHand = {
       tricksByPlayer: currentHand.tricksByPlayer || {},
       participantIds,

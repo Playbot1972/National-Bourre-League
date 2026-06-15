@@ -87,10 +87,10 @@ function o(e) {
 	};
 	if (a === "co_win_carry") {
 		let e = r(o, l);
-		return g.push(`Tie for most tricks — ${e} (${o.length} co-winners).`), g.push(`No outright winner; full pot ${m} carries to the next hand.`), g.push("Co-winners skip the next ante; other players ante as usual."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+		return g.push(`Tie for most tricks — ${e} (${o.length} co-winners).`), g.push(`No outright winner; full pot ${m} carries to the next deal.`), g.push("Hand ends; enrollment opens for the next deal. Seats may change between deals."), g.push("Tied leaders skip the ante for that deal; other seated players ante as usual."), g.push("New players seated in time for enrollment may join that deal."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
 			headline: "Tie — pot carries",
 			detailLines: g,
-			carryoverLine: `Next hand starts with ${h} in the pot.`
+			carryoverLine: `Next deal starts with ${h} in the pot.`
 		};
 	}
 	return {

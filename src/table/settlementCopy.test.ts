@@ -139,8 +139,10 @@ describe("settlement copy — hand outcomes", () => {
     });
 
     assert.match(view.headline, /Tie — pot carries/);
-    assert.match(view.detailLines[1], /carries to the next hand/);
-    assert.match(view.detailLines[2], /skip the next ante/);
+    assert.match(view.detailLines[1], /carries to the next deal/);
+    assert.match(view.detailLines[2], /enrollment opens/i);
+    assert.match(view.detailLines[3], /skip the ante/i);
+    assert.match(view.detailLines[4], /New players seated/i);
   });
 
   it("buildHandOutcomeView for push with carryover", () => {
