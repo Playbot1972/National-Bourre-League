@@ -20,6 +20,7 @@ interface CardTableProps {
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
+  onReaction?: (emoji: string) => void;
 }
 
 export function CardTable({
@@ -38,6 +39,7 @@ export function CardTable({
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
+  onReaction,
 }: CardTableProps) {
   const ordered = [...players].sort((a, b) => {
     if (a.isSelf) return -1;
@@ -70,43 +72,47 @@ export function CardTable({
         ["--table-aspect" as string]: tableAspect,
       }}
     >
-      <div className="btable">
-        <div className="btable__rail" aria-hidden="true" />
-        <div className="btable__felt">
-          <PotCenter
-            potMetrics={potMetrics}
-            participantCount={participantCount}
-            trumpUpcard={session.trumpUpcard}
-            trumpSuit={session.trumpSuit}
-            phase={session.phase}
-            enrollmentActive={enrollmentActive}
-            remainingDeckCount={session.remainingDeckCount}
-            currentTrick={session.currentTrick}
-            playedCards={session.playedCards}
-            playerNames={playerNames}
-          />
+      <div className="table-stage">
+        <div className="table-oval" aria-hidden="true">
+          <div className="btable__rail" />
+          <div className="btable__felt" />
+        </div>
+
+        <PotCenter
+          potMetrics={potMetrics}
+          participantCount={participantCount}
+          trumpUpcard={session.trumpUpcard}
+          trumpSuit={session.trumpSuit}
+          phase={session.phase}
+          enrollmentActive={enrollmentActive}
+          remainingDeckCount={session.remainingDeckCount}
+          currentTrick={session.currentTrick}
+          playedCards={session.playedCards}
+          playerNames={playerNames}
+        />
+
+        <div className="btable__seats" aria-label="Players at the table">
+          {rotated.map((player, i) => {
+            const pos = seatPosition(i, rotated.length);
+            return (
+              <Seat
+                key={player.playerId}
+                player={player}
+                region={pos.region}
+                style={{
+                  left: `${pos.x}%`,
+                  top: `${pos.y}%`,
+                }}
+                onToggleInHand={() => onToggleInHand(player.playerId, !player.inHand)}
+                onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
+                onReaction={player.isSelf ? onReaction : undefined}
+              />
+            );
+          })}
         </div>
       </div>
-      <div className="btable__seats" aria-label="Players at the table">
-        {rotated.map((player, i) => {
-          const pos = seatPosition(i, rotated.length);
-          return (
-            <Seat
-              key={player.playerId}
-              player={player}
-              region={pos.region}
-              style={{
-                left: `${pos.x}%`,
-                top: `${pos.y}%`,
-              }}
-              onToggleInHand={() => onToggleInHand(player.playerId, !player.inHand)}
-              onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
-            />
-          );
-        })}
-      </div>
       <HeroHand
-        className="btable-wrap__hero"
+        className="hand-panel"
         cards={heroCards}
         privateHandReady={privateHandReady}
         phase={session.phase}

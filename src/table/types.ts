@@ -45,6 +45,12 @@ export interface TablePlayer {
   holeCardCount?: number;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
+  /** Ape Score ranking — public leaderboard data, not private hand info. */
+  apeScore?: number | null;
+  apeClass?: string | null;
+  apeStatus?: string | null;
+  /** Session hands won streak proxy. */
+  sessionStreak?: number;
   /** This hand's ante — only for the viewing player. */
   myHandContribution?: number;
 }
