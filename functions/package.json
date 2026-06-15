@@ -9,6 +9,7 @@
   },
   "scripts": {
     "lint": "node --check index.js && node --check gameHandlers.js",
+    "test": "node --test gameHandlers.test.mjs",
     "sync-engine": "node ../scripts/sync-functions-engine.mjs"
   },
   "dependencies": {

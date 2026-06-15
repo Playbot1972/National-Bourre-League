@@ -100,19 +100,21 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         )}
 
         <div className="bseat__avatar-stage">
-          <div className="bseat__avatar-wrap">
+          <div className="bseat__avatar-stack">
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}
-            {player.isDealer && <span className="bseat__dealer">D</span>}
-            {player.photoURL ? (
-              <img className="bseat__avatar" src={player.photoURL} alt="" />
-            ) : (
-              <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-                {initials(player.displayName)}
-              </span>
-            )}
-            {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+            <div className="bseat__avatar-wrap">
+              {player.isDealer && <span className="bseat__dealer">D</span>}
+              {player.photoURL ? (
+                <img className="bseat__avatar" src={player.photoURL} alt="" />
+              ) : (
+                <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+                  {initials(player.displayName)}
+                </span>
+              )}
+              {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+            </div>
           </div>
           {player.isSelf && onReaction && (
             <div className="bseat__react-bar">

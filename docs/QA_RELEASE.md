@@ -3,8 +3,9 @@
 Run automated checks before every release:
 
 ```bash
-npm run test:qa          # unit + integration + builds + social check (~75 tests)
-npm run test:e2e         # Playwright smoke + layout (8 tests, 2 viewports)
+npm run test:qa          # unit + integration + builds + social check
+npm run test:release     # test:qa + build:functions + test:e2e (82 browser tests)
+npm run test:e2e         # Playwright smoke + 2–8 player matrix (2 viewports)
 ```
 
 See also `docs/TESTING.md` for emulator setup and manual checklists.
@@ -19,7 +20,8 @@ See also `docs/TESTING.md` for emulator setup and manual checklists.
 | **D. Trick play** | `src/game/legal.test.ts`, `trick.test.ts`, `play.test.ts` | `npm run test:game` |
 | **E. Pot / bourré** | `scripts/bourre-rules.test.mjs`, settlement in `fullHand.test.ts` | `npm run test:rules` + `test:game` |
 | **F. Bots** | `src/game/bots.test.ts`, `fullHand.test.ts` | `npm run test:game` |
-| **G. Layout / UI** | `e2e/table-layout.spec.ts`, `e2e/social-smoke.spec.ts` | `npm run test:e2e` |
+| **G. Layout / UI** | `e2e/table-layout.spec.ts`, `e2e/table-players.spec.ts`, `e2e/social-smoke.spec.ts` | `npm run test:e2e` |
+| **I. Player matrix** | `src/game/playerMatrix.test.ts` (2–8 seats, enrollment + full hand) | `npm run test:game` |
 | **H. Regression / integrity** | `assertNoDuplicateCards`, multi-hand in `fullHand.test.ts` | `npm run test:game` |
 
 ### Card uniqueness invariant

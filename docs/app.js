@@ -822,8 +822,10 @@ function stopEnrollmentTimer() {
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
   const s = currentSessions.find((x) => x.id === openSessionId);
+  if (!s || s.status === "final") return;
+  const enrollmentActive = s.handEnrollment?.active === true;
   const needsDriver = sessionNeedsBotDriver(s, openScores);
-  if (!needsDriver) return;
+  if (!enrollmentActive && !needsDriver) return;
 
   enrollmentTimer = setInterval(() => {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);

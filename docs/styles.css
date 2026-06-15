@@ -136,6 +136,51 @@ button {
   gap: 8px;
 }
 
+/* Phone landscape: topbar nav + auth must not widen the page */
+@media (orientation: landscape) and (max-height: 500px) {
+  .topbar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 8px 12px;
+  }
+
+  .brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .nav {
+    order: 5;
+    flex: 1 1 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .nav__link {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .theme-toggle {
+    width: 34px;
+    height: 34px;
+    margin-left: auto;
+  }
+
+  .auth-controls {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .auth-controls .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
