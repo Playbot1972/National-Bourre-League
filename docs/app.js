@@ -53,6 +53,9 @@ import {
   getPlayers,
   applyRankingResults,
   deleteSession,
+  finalizeSession,
+  getSession,
+  getSessionScores,
   computeHandPotState,
   normalizeBourreSettings,
   updateRoomBourreSettings,
@@ -903,9 +906,59 @@ function dequeueSessionCleanupPersisted(roomId, sessionId) {
 }
 
 async function runSessionCleanup(roomId, sessionId) {
+  if (!roomId || !sessionId) return;
   cancelSessionCleanup(sessionId);
   dequeueSessionCleanupPersisted(roomId, sessionId);
-  await deleteSession(roomId, sessionId);
+  try {
+    await prepareSessionForRemoval(roomId, sessionId);
+    await deleteSession(roomId, sessionId);
+  } catch (e) {
+    console.error("runSessionCleanup:", e);
+    throw e;
+  }
+}
+
+/** Keep the newest in-progress session, otherwise the newest session tab. */
+function resolveKeeperSessionId(sessions) {
+  if (!sessions.length) return null;
+  const active = sessions.find((s) => s.status !== "final");
+  if (active) return active.id;
+  return sessions[0].id;
+}
+
+function removableSessionIds(sessions, keeperId) {
+  const ids = new Set();
+  for (const s of sessions) {
+    if (s.id !== keeperId) ids.add(s.id);
+  }
+  for (const sessionId of pendingSessionCleanup) {
+    if (sessionId !== keeperId) ids.add(sessionId);
+  }
+  return [...ids];
+}
+
+/** Finalize with Ape Scores when needed so completed sessions can be deleted. */
+async function prepareSessionForRemoval(roomId, sessionId) {
+  const local = currentSessions.find((s) => s.id === sessionId);
+  let status = local?.status;
+  if (!status) {
+    const remote = await getSession(roomId, sessionId);
+    if (!remote) return;
+    status = remote.status;
+  }
+  if (status === "final") return;
+
+  let scores =
+    sessionId === openSessionId && openScores.length
+      ? openScores
+      : await getSessionScores(roomId, sessionId);
+
+  if (scores.length > 0) {
+    await completeSessionWithApeScores(roomId, sessionId, scores);
+    return;
+  }
+
+  await finalizeSession(roomId, sessionId);
 }
 
 function restoreSessionCleanupTimers(roomId) {
@@ -1030,14 +1083,15 @@ function cancelSessionCleanup(sessionId) {
 
 function scheduleSessionCleanup(sessionId) {
   if (!currentRoomId || !sessionId) return;
+  const roomId = currentRoomId;
   cancelSessionCleanup(sessionId);
   pendingSessionCleanup.add(sessionId);
   const deleteAtMs = Date.now() + SESSION_CLEANUP_MS;
-  queueSessionCleanupPersisted(currentRoomId, sessionId, deleteAtMs);
+  queueSessionCleanupPersisted(roomId, sessionId, deleteAtMs);
   sessionCleanupTimers.set(
     sessionId,
     setTimeout(() => {
-      runSessionCleanup(currentRoomId, sessionId).catch((e) =>
+      runSessionCleanup(roomId, sessionId).catch((e) =>
         console.error("deleteSession:", e),
       );
     }, SESSION_CLEANUP_MS),
@@ -1050,34 +1104,52 @@ async function clearCompletedSessionsNow() {
     showRoomsError("Only the room owner can clear sessions.");
     return;
   }
-  const ids = new Set(pendingSessionCleanup);
-  for (const s of currentSessions) {
-    if (s.status === "final") ids.add(s.id);
-  }
-  if (openSessionId) {
-    const open = currentSessions.find((s) => s.id === openSessionId);
-    if (open?.status !== "final") ids.delete(openSessionId);
-  }
-  if (ids.size === 0) {
-    showRoomsError("No completed sessions to clear.");
+  const roomId = currentRoomId;
+  const keeperId = resolveKeeperSessionId(currentSessions);
+  if (!keeperId) {
+    showRoomsError("No sessions to keep.");
     return;
   }
+  const ids = removableSessionIds(currentSessions, keeperId);
+  if (ids.length === 0) {
+    showRoomsError("Only one session remains — nothing to clear.");
+    return;
+  }
+
   stopSessionCleanupTimers();
   pendingSessionCleanup.clear();
+
   let cleared = 0;
+  let apeUpdated = 0;
   const failures = [];
   for (const sessionId of ids) {
     try {
-      await deleteSession(currentRoomId, sessionId);
-      dequeueSessionCleanupPersisted(currentRoomId, sessionId);
+      const before = await getSession(roomId, sessionId);
+      await prepareSessionForRemoval(roomId, sessionId);
+      if (before?.status !== "final") apeUpdated += 1;
+      await deleteSession(roomId, sessionId);
+      dequeueSessionCleanupPersisted(roomId, sessionId);
       cleared += 1;
     } catch (e) {
       console.error("deleteSession:", e);
       failures.push(e?.message || String(e));
     }
   }
+
+  if (openSessionId && ids.includes(openSessionId)) {
+    openSession(keeperId);
+  } else {
+    renderRoomDetail();
+  }
+
   if (cleared > 0 && failures.length === 0) {
-    showRoomsError(`Cleared ${cleared} session${cleared === 1 ? "" : "s"}.`);
+    const apeNote =
+      apeUpdated > 0
+        ? ` Ape Scores updated for ${apeUpdated} session${apeUpdated === 1 ? "" : "s"}.`
+        : "";
+    showRoomsError(
+      `Cleared ${cleared} older session${cleared === 1 ? "" : "s"} — kept the current session.${apeNote}`,
+    );
   } else if (cleared > 0) {
     showRoomsError(
       `Cleared ${cleared} session${cleared === 1 ? "" : "s"}. ${failures.length} failed — deploy Firestore rules if you see permission errors.`,
@@ -1455,7 +1527,7 @@ function openRoom(roomId) {
       currentSessions = sessions;
       restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
-        const nextId = sessions[0]?.id ?? null;
+        const nextId = resolveKeeperSessionId(sessions) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
         } else {
@@ -2337,6 +2409,10 @@ function renderRoomDetail() {
     openSessionObj.status !== "final" &&
     !openSessionObj.handStakeLocked;
   const showNewSessionAnte = isOwner && !sessionAnteEditable;
+  const keeperSessionId = resolveKeeperSessionId(currentSessions);
+  const removableCount = keeperSessionId
+    ? removableSessionIds(currentSessions, keeperSessionId).length
+    : 0;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -2461,7 +2537,7 @@ function renderRoomDetail() {
                 }
           <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
           ${
-            currentSessions.some((s) => s.status === "final") || pendingSessionCleanup.size > 0
+            removableCount > 0
               ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
               : ""
           }`

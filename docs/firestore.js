@@ -1741,6 +1741,21 @@ export async function finalizeSession(roomId, sessionId) {
   });
 }
 
+/** Fetch score rows for a session (one-shot, for cleanup / completion). */
+export async function getSessionScores(roomId, sessionId) {
+  const snap = await getDocs(scoresCol(roomId, sessionId));
+  return snap.docs
+    .map(withId)
+    .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+}
+
+/** Fetch a session doc, or null if missing. */
+export async function getSession(roomId, sessionId) {
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
+}
+
 /** Remove a completed session and its subcollections from the room. */
 export async function deleteSession(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
