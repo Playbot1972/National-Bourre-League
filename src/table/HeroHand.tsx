@@ -134,6 +134,9 @@ export function HeroHand({
 
   if (dealtPhase && isInHand && cards.length === 0) {
     if (handComplete) {
+      if (enrollmentActive) {
+        return null;
+      }
       return (
         <div className={`btable-hero ${className}`.trim()} aria-live="polite">
           <p className="btable-hero__label muted small">Your hand</p>

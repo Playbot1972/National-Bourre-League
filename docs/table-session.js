@@ -8302,7 +8302,7 @@ function T({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 		})]
 	});
 	if (!r && !n && !D) return null;
-	if (D && r && e.length === 0) return d ? /* @__PURE__ */ (0, h.jsxs)("div", {
+	if (D && r && e.length === 0) return d ? n ? null : /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-hero ${x}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {

@@ -878,6 +878,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
+    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
@@ -889,6 +890,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
+    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
@@ -915,6 +917,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     recordedBy,
     tricksByPlayer,
   });
+  await ensureHandEnrollment(roomId, sessionId);
 }
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
@@ -1122,6 +1125,33 @@ async function purgePrivateHandsForSession(roomId, sessionId) {
       }
     }
   }
+}
+
+/** Clear hole cards after settlement — enrollment must already be active on the session. */
+async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
+  const snap = await getDocs(privateHandsCol(roomId, sessionId));
+  if (snap.empty) return;
+  try {
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) =>
+      batch.update(d.ref, { cards: [], updatedAt: serverTimestamp() }),
+    );
+    await batch.commit();
+  }
+}
+
+function settlementError(err) {
+  if (isPermissionDenied(err)) {
+    return new Error(
+      "Hand settlement was blocked (missing or insufficient permissions). Sign in again, confirm you are still in this room, and ask the host to deploy updated Firestore rules if it persists.",
+    );
+  }
+  return err instanceof Error ? err : new Error(String(err));
 }
 
 /** Live subscription to the signed-in player's private hand for the session. */
@@ -1497,7 +1527,6 @@ async function recordHandClient(
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap);
-  await deletePrivateHandsForSession(roomId, sessionId, batch);
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
@@ -1509,7 +1538,17 @@ async function recordHandClient(
     updatedAt: serverTimestamp(),
   });
 
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (err) {
+    throw settlementError(err);
+  }
+
+  try {
+    await clearPrivateHandsAfterSettlement(roomId, sessionId);
+  } catch (err) {
+    console.warn("recordHand: privateHands cleanup deferred", err);
+  }
 
   try {
     const handBatch = writeBatch(db);
