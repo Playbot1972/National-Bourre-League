@@ -140,6 +140,11 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 const db = getFirestore(app);
 
 /** Cloud Functions may be unavailable in production — fall back to client transactions. */
+function isPermissionDenied(err) {
+  const code = err?.code ?? "";
+  return code === "permission-denied" || code === "PERMISSION_DENIED";
+}
+
 function isCloudFunctionUnavailable(err) {
   const code = err?.code ?? "";
   if (
@@ -647,7 +652,24 @@ function publicHandSessionUpdate(sessionData, nextPublicHand) {
   return { currentHand: nextPublicHand, updatedAt: serverTimestamp() };
 }
 
-function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch) {
+function applyEnrollmentStepLegacy(tx, ref, patch) {
+  if (patch.privateHandsByPlayer) {
+    throw Object.assign(new Error("Deal requires updated Firestore rules"), {
+      code: "permission-denied",
+    });
+  }
+  tx.update(ref, {
+    handEnrollment: patch.handEnrollment,
+    ...(patch.currentHand ? { currentHand: patch.currentHand } : {}),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode = "live") {
+  if (mode === "legacy") {
+    applyEnrollmentStepLegacy(tx, ref, patch);
+    return;
+  }
   if (patch.privateHandsByPlayer) {
     // Legacy rules block currentHand / handEnrollment deletes; liveEnrollment + privateHands
     // (while handEnrollment.active remains) are writable from the client.
@@ -668,6 +690,28 @@ function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch) {
     [LIVE_ENROLLMENT_FIELD]: patch.handEnrollment,
     updatedAt: serverTimestamp(),
   });
+}
+
+async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch) {
+  const ref = sessionDoc(roomId, sessionId);
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error("Session not found");
+      const patch = buildPatch(snap.data());
+      if (!patch) return;
+      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "live");
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error("Session not found");
+      const patch = buildPatch(snap.data());
+      if (!patch) return;
+      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "legacy");
+    });
+  }
 }
 
 function buildHandEnrollment(sortedPlayerIds, dealerId) {
@@ -1645,7 +1689,8 @@ export async function ensureSessionPlayer(
   }
 
   const handCount = sessionData.handCount || 0;
-  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
+  const currentHand = getSessionCurrentHand(sessionData);
+  const activeEnrollment = getSessionEnrollment(sessionData);
   const participantIds = joinCurrentHand
     ? [...new Set([...(currentHand.participantIds || []), playerId])]
     : currentHand.participantIds || [];
@@ -1663,19 +1708,19 @@ export async function ensureSessionPlayer(
 
   const sessionPatch = {
     players: arrayUnion({ playerId, displayName }),
-    currentHand: {
-      tricksByPlayer: currentHand.tricksByPlayer || {},
-      participantIds,
-    },
     updatedAt: serverTimestamp(),
   };
-  const activeEnrollment = getSessionEnrollment(sessionData);
   if (activeEnrollment?.active && !joinCurrentHand) {
     sessionPatch[LIVE_ENROLLMENT_FIELD] = mergePlayerIntoEnrollment(
       activeEnrollment,
       sessionData.dealerId,
       sortedIds,
     );
+  } else {
+    sessionPatch.currentHand = {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds,
+    };
   }
 
   if (!isRobot) {
@@ -1761,10 +1806,20 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sortedIds = sortedScorePlayerIds(scoreSnap);
   if (sortedIds.length < 2) return;
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    [LIVE_ENROLLMENT_FIELD]: buildHandEnrollment(sortedIds, data.dealerId),
-    updatedAt: serverTimestamp(),
-  });
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      [LIVE_ENROLLMENT_FIELD]: enrollment,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      handEnrollment: enrollment,
+      currentHand: emptyPreDealHand(),
+      updatedAt: serverTimestamp(),
+    });
+  }
 }
 
 /** Auto sit-out when the current player's enrollment window expires. */
@@ -1780,26 +1835,21 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
   const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
-  const ref = sessionDoc(roomId, sessionId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) return;
-    const sessionData = snap.data();
+
+  await runEnrollmentStepTransaction(roomId, sessionId, (sessionData) => {
     const enrollment = getSessionEnrollment(sessionData);
-    if (!enrollment?.active) return;
-    const deadline = enrollmentDeadlineMs(enrollment);
-    if (Date.now() < deadline) return;
+    if (!enrollment?.active) return null;
+    if (Date.now() < enrollmentDeadlineMs(enrollment)) return null;
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
-    const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
+    return enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
       dealerId: sessionData.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
     });
-    applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch);
   });
 }
 
@@ -1817,35 +1867,45 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     throw new Error("You can only change your own hand participation");
   }
 
-  const ref = sessionDoc(roomId, sessionId);
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Session not found");
-    const sessionData = snap.data();
-    if (sessionData.status === "final") throw new Error("Session is final");
 
-    const enrollment = getSessionEnrollment(sessionData);
-    if (enrollment?.active) {
-      if (!inHand) throw new Error("Wait for your turn or let the timer run out");
-      const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
-      if (playerId !== currentId) throw new Error("Not your turn to join yet");
-      const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
-      const declinedIds = [...(enrollment.declinedIds || [])];
-      const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
-        dealerId: sessionData.dealerId,
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const enrollment = getSessionEnrollment(sessionData);
+  if (enrollment?.active) {
+    if (!inHand) throw new Error("Wait for your turn or let the timer run out");
+    const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
+    if (playerId !== currentId) throw new Error("Not your turn to join yet");
+
+    await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
+      const activeEnrollment = getSessionEnrollment(data);
+      if (!activeEnrollment?.active) return null;
+      const enrolledIds = [...(activeEnrollment.enrolledIds || []), playerId];
+      const declinedIds = [...(activeEnrollment.declinedIds || [])];
+      return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
+        dealerId: data.dealerId,
         sortedPlayerIds,
         seed: Date.now(),
         dealingRule,
       });
-      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch);
-      return;
-    }
+    });
+    return;
+  }
 
-    const currentHand = sessionData.currentHand || emptyPreDealHand();
+  const ref = sessionDoc(roomId, sessionId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const data = snap.data();
+    if (data.status === "final") throw new Error("Session is final");
+
+    const currentHand = data.currentHand || emptyPreDealHand();
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
 

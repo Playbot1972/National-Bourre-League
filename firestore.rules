@@ -39,16 +39,22 @@ service cloud.firestore {
       ]);
     }
 
+    function sessionEnrollmentActive(data) {
+      return data.get('handEnrollment', {}).get('active', false) == true
+        || data.get('liveEnrollment', {}).get('active', false) == true;
+    }
+
     // Room members may drive I'm-in / timeout while enrollment is active.
     function memberEnrollmentSessionUpdate() {
-      return resource.data.handEnrollment.active == true
+      return sessionEnrollmentActive(resource.data)
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['handEnrollment', 'currentHand', 'updatedAt']);
+          .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
 
     function enrollmentActiveForSession(roomId, sessionId) {
-      return get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId))
-        .data.handEnrollment.active == true;
+      return sessionEnrollmentActive(
+        get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId)).data
+      );
     }
 
     function sessionFinal(roomId, sessionId) {
