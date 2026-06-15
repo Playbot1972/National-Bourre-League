@@ -1,7 +1,8 @@
+import type { PointerEventHandler } from "react";
 import { SUIT_SYMBOL, SUIT_LABEL, isRedSuit, type Card } from "../types";
 import "./PlayingCard.css";
 
-export type CardState = "default" | "trump" | "winner" | "muted" | "selected";
+export type CardState = "default" | "trump" | "winner" | "muted" | "selected" | "disabled";
 
 interface PlayingCardProps {
   card?: Card;
@@ -9,9 +10,23 @@ interface PlayingCardProps {
   size?: "xs" | "sm" | "md" | "lg";
   state?: CardState;
   badge?: string;
+  /** @deprecated Use pointerHandlers — kept for non-table tutorial cards. */
   onClick?: () => void;
+  pointerHandlers?: {
+    onPointerDown?: PointerEventHandler<HTMLElement>;
+    onPointerMove?: PointerEventHandler<HTMLElement>;
+    onPointerUp?: PointerEventHandler<HTMLElement>;
+    onPointerCancel?: PointerEventHandler<HTMLElement>;
+    onPointerLeave?: PointerEventHandler<HTMLElement>;
+  };
+  pressed?: boolean;
+  playing?: boolean;
+  playable?: boolean;
+  disabled?: boolean;
   ariaLabel?: string;
   "data-testid"?: string;
+  "data-card-index"?: number;
+  "data-playable"?: "true" | "false";
 }
 
 export function PlayingCard({
@@ -21,15 +36,28 @@ export function PlayingCard({
   state = "default",
   badge,
   onClick,
+  pointerHandlers,
+  pressed = false,
+  playing = false,
+  playable = false,
+  disabled = false,
   ariaLabel,
   "data-testid": dataTestId,
+  "data-card-index": dataCardIndex,
+  "data-playable": dataPlayable,
 }: PlayingCardProps) {
-  const interactive = typeof onClick === "function";
+  const pointerInteractive = Boolean(pointerHandlers);
+  const clickInteractive = typeof onClick === "function";
+  const interactive = (pointerInteractive || clickInteractive) && !disabled;
   const classes = [
     "pcard",
     `pcard--${size}`,
     `pcard--${state}`,
     interactive ? "pcard--interactive" : "",
+    playable ? "pcard--playable" : "",
+    pressed ? "pcard--pressed" : "",
+    playing ? "pcard--playing" : "",
+    disabled ? "pcard--disabled" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -67,9 +95,15 @@ export function PlayingCard({
       <button
         type="button"
         className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
-        onClick={onClick}
+        onClick={pointerInteractive ? undefined : onClick}
+        disabled={disabled}
+        aria-disabled={disabled || undefined}
+        aria-busy={playing || undefined}
         aria-label={label}
         data-testid={dataTestId}
+        data-card-index={dataCardIndex}
+        data-playable={dataPlayable}
+        {...pointerHandlers}
       >
         {content}
       </button>
@@ -81,6 +115,10 @@ export function PlayingCard({
       className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
       role="img"
       aria-label={label}
+      aria-disabled={disabled || undefined}
+      data-testid={dataTestId}
+      data-card-index={dataCardIndex}
+      data-playable={dataPlayable}
     >
       {content}
     </div>
