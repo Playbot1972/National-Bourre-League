@@ -602,6 +602,26 @@ export function createRobotPlayerId() {
   return `bot_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Remove a player from enrollment rotation when they leave mid-signup. */
+function removePlayerFromEnrollment(enrollment, removedId, dealerId, sortedPlayerIds) {
+  if (!enrollment?.active) return enrollment;
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+  const enrolledIds = (enrollment.enrolledIds || []).filter((id) => id !== removedId);
+  const declinedIds = (enrollment.declinedIds || []).filter((id) => id !== removedId);
+  const previousId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+  let currentIndex =
+    previousId === removedId ? 0 : orderedPlayerIds.indexOf(previousId ?? "");
+  if (currentIndex < 0) currentIndex = 0;
+  if (currentIndex >= orderedPlayerIds.length) currentIndex = 0;
+  return {
+    ...enrollment,
+    orderedPlayerIds,
+    currentIndex,
+    enrolledIds,
+    declinedIds,
+  };
+}
+
 /** Keep enrollment rotation when a new seat joins mid-signup. */
 function mergePlayerIntoEnrollment(enrollment, dealerId, sortedPlayerIds) {
   if (!enrollment?.active) return enrollment;
@@ -652,11 +672,51 @@ function publicHandSessionUpdate(sessionData, nextPublicHand) {
   return { currentHand: nextPublicHand, updatedAt: serverTimestamp() };
 }
 
+function embeddedPrivateHandData(sessionData, playerId) {
+  const hand = sessionData?.liveEnrollment?.deal?.privateHandsByPlayer?.[playerId];
+  if (!hand?.cards) return null;
+  return { cards: hand.cards };
+}
+
+async function readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId) {
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  if (embedded) return embedded;
+  const privateSnap = await tx.get(privateHandDoc(roomId, sessionId, playerId));
+  return privateSnap.exists() ? privateSnap.data() : null;
+}
+
+function writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, serializedCards) {
+  if (sessionData?.liveEnrollment?.deal?.privateHandsByPlayer) {
+    tx.update(ref, {
+      [`liveEnrollment.deal.privateHandsByPlayer.${playerId}.cards`]: serializedCards,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+  tx.set(privateHandDoc(roomId, sessionId, playerId), {
+    cards: serializedCards,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function applyEnrollmentDealInTransaction(tx, ref, patch) {
+  tx.update(ref, {
+    [LIVE_ENROLLMENT_FIELD]: {
+      active: false,
+      deal: {
+        publicHand: patch.currentHand,
+        sortedPlayerIds: patch.sortedPlayerIds,
+        privateHandsByPlayer: patch.privateHandsByPlayer,
+      },
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
 function applyEnrollmentStepLegacy(tx, ref, patch) {
   if (patch.privateHandsByPlayer) {
-    throw Object.assign(new Error("Deal requires updated Firestore rules"), {
-      code: "permission-denied",
-    });
+    applyEnrollmentDealInTransaction(tx, ref, patch);
+    return;
   }
   tx.update(ref, {
     handEnrollment: patch.handEnrollment,
@@ -671,19 +731,9 @@ function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mod
     return;
   }
   if (patch.privateHandsByPlayer) {
-    // Legacy rules block currentHand / handEnrollment deletes; liveEnrollment + privateHands
-    // (while handEnrollment.active remains) are writable from the client.
-    writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
-    tx.update(ref, {
-      [LIVE_ENROLLMENT_FIELD]: {
-        active: false,
-        deal: {
-          publicHand: patch.currentHand,
-          sortedPlayerIds: patch.sortedPlayerIds,
-        },
-      },
-      updatedAt: serverTimestamp(),
-    });
+    // Embed private hands on the session (liveEnrollment is client-writable on prod rules).
+    // Subcollection privateHands requires a rules deploy; sync best-effort after commit.
+    applyEnrollmentDealInTransaction(tx, ref, patch);
     return;
   }
   tx.update(ref, {
@@ -694,24 +744,45 @@ function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mod
 
 async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch) {
   const ref = sessionDoc(roomId, sessionId);
+  let dealPrivateHands = null;
   try {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error("Session not found");
       const patch = buildPatch(snap.data());
       if (!patch) return;
+      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
       applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "live");
     });
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
+    dealPrivateHands = null;
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error("Session not found");
       const patch = buildPatch(snap.data());
       if (!patch) return;
+      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
       applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "legacy");
     });
   }
+  if (dealPrivateHands) {
+    writePrivateHandsBestEffort(roomId, sessionId, dealPrivateHands);
+  }
+}
+
+function writePrivateHandsBestEffort(roomId, sessionId, privateHandsByPlayer) {
+  if (!privateHandsByPlayer) return;
+  const batch = writeBatch(db);
+  for (const [playerId, hand] of Object.entries(privateHandsByPlayer)) {
+    batch.set(privateHandDoc(roomId, sessionId, playerId), {
+      cards: hand.cards,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  batch.commit().catch((err) => {
+    if (err?.code !== "permission-denied") console.warn("privateHands sync:", err);
+  });
 }
 
 function buildHandEnrollment(sortedPlayerIds, dealerId) {
@@ -839,11 +910,10 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       throw new Error("Draw already completed");
     }
 
-    const privateRef = privateHandDoc(roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists()) throw new Error("Private hand not found");
+    const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
+    if (!handData) throw new Error("Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const deckSeed = currentHand.deckSeed;
     if (deckSeed == null) throw new Error("Missing deck seed on session");
 
@@ -868,10 +938,15 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
     };
 
-    tx.set(privateRef, {
-      cards: serializeCards(drawResult.privateHand),
-      updatedAt: serverTimestamp(),
-    });
+    writePrivateHandInTransaction(
+      tx,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(drawResult.privateHand),
+    );
     tx.update(ref, publicHandSessionUpdate(sessionData, nextPublic));
   });
 }
@@ -901,11 +976,10 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
     const currentHand = getSessionCurrentHand(sessionData);
     if (currentHand.phase !== HAND_PHASE.PLAY) throw new Error("Not in trick-play phase");
 
-    const privateRef = privateHandDoc(roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists()) throw new Error("Private hand not found");
+    const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
+    if (!handData) throw new Error("Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const result = applyPlayerPlayCard({
       publicHand: currentHand,
       privateHand: hand,
@@ -917,10 +991,15 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
 
     handComplete = result.handComplete;
 
-    tx.set(privateRef, {
-      cards: serializeCards(result.privateHand),
-      updatedAt: serverTimestamp(),
-    });
+    writePrivateHandInTransaction(
+      tx,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(result.privateHand),
+    );
     tx.update(ref, publicHandSessionUpdate(sessionData, result.publicHand));
   });
 
@@ -990,20 +1069,50 @@ async function deletePrivateHandsForSession(roomId, sessionId, batch) {
 /** Live subscription to the signed-in player's private hand for the session. */
 export function subscribePrivateHand(roomId, sessionId, playerId, callback, onError) {
   if (!roomId || !sessionId || !playerId) return () => {};
-  return onSnapshot(
-    privateHandDoc(roomId, sessionId, playerId),
+
+  const sessionRef = sessionDoc(roomId, sessionId);
+  let privateSub = null;
+
+  const unsubSession = onSnapshot(
+    sessionRef,
     (snap) => {
-      callback(snap.exists() ? snap.data() : null);
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+      const embedded = embeddedPrivateHandData(snap.data(), playerId);
+      if (embedded) {
+        if (privateSub) {
+          privateSub();
+          privateSub = null;
+        }
+        callback(embedded);
+        return;
+      }
+      if (!privateSub) {
+        privateSub = onSnapshot(
+          privateHandDoc(roomId, sessionId, playerId),
+          (privSnap) => callback(privSnap.exists() ? privSnap.data() : null),
+          onError,
+        );
+      }
     },
-    (err) => {
-      if (onError) onError(err);
-      else console.error("subscribePrivateHand:", err);
-    },
+    onError,
   );
+
+  return () => {
+    unsubSession();
+    privateSub?.();
+  };
 }
 
 /** One-shot read of a player's private hand (own hand only per security rules). */
 export async function getPrivateHand(roomId, sessionId, playerId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (sessionSnap.exists()) {
+    const embedded = embeddedPrivateHandData(sessionSnap.data(), playerId);
+    if (embedded) return embedded;
+  }
   const snap = await getDoc(privateHandDoc(roomId, sessionId, playerId));
   return snap.exists() ? snap.data() : null;
 }
@@ -1666,7 +1775,65 @@ export async function addSessionRobot(roomId, sessionId, displayName) {
   });
 }
 
-/** Add player to session only if they are not already on the score sheet. */
+/** Room owner removes a guest or robot from the open session score sheet. */
+export async function removeSessionPlayer(roomId, sessionId, playerId, actor) {
+  if (!actor?.uid) throw new Error("Not signed in");
+  if (!playerId) throw new Error("Missing player");
+
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) throw new Error("Room not found");
+  if (roomSnap.data().ownerId !== actor.uid) {
+    throw new Error("Only the room owner can remove a guest or robot.");
+  }
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const currentHand = getSessionCurrentHand(sessionData);
+  const phase = currentHand?.phase;
+  if (phase === "draw" || phase === "play") {
+    throw new Error("Cannot remove a player during draw or play — finish the hand first.");
+  }
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  if (!scoreSnap.docs.some((d) => d.id === playerId)) {
+    throw new Error("Player is not on this session.");
+  }
+  if (scoreSnap.size <= 2) {
+    throw new Error("Need at least two players on the session.");
+  }
+
+  const remainingSorted = scoreSnap.docs
+    .filter((d) => d.id !== playerId)
+    .map((d) => ({ id: d.id, displayName: d.data()?.displayName || "" }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .map((r) => r.id);
+
+  const sessionPatch = {
+    players: (sessionData.players || []).filter((p) => p?.playerId !== playerId),
+    updatedAt: serverTimestamp(),
+  };
+
+  const activeEnrollment = getSessionEnrollment(sessionData);
+  if (activeEnrollment?.active) {
+    sessionPatch[LIVE_ENROLLMENT_FIELD] = removePlayerFromEnrollment(
+      activeEnrollment,
+      playerId,
+      sessionData.dealerId,
+      remainingSorted,
+    );
+  }
+
+  const batch = writeBatch(db);
+  batch.delete(scoreDoc(roomId, sessionId, playerId));
+  batch.update(sessionDoc(roomId, sessionId), sessionPatch);
+  await batch.commit();
+  return true;
+}
+
+/** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function ensureSessionPlayer(
   roomId,
   sessionId,
