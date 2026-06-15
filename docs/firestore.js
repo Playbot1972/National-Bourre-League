@@ -127,6 +127,7 @@ const {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  arrayRemove,
   deleteField,
   runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
@@ -414,13 +415,16 @@ export async function joinRoomByCode(code, user) {
       "That invite code is no longer valid — the room was deleted. Ask the host for a new code.",
     );
   }
+  // Clear legacy ban entries so rejoin after an old kick works.
   if (Array.isArray(roomSnap.data().bannedUserIds) && roomSnap.data().bannedUserIds.includes(user.uid)) {
     try {
-      await deleteDoc(membershipRef);
+      await updateDoc(doc(db, "rooms", roomId), {
+        bannedUserIds: arrayRemove(user.uid),
+        updatedAt: serverTimestamp(),
+      });
     } catch (err) {
-      console.warn("rollback membership for banned user:", err);
+      console.warn("clear legacy ban on join:", err);
     }
-    throw new Error("You are not allowed to join this room. Ask the host for access.");
   }
   return roomId;
 }
@@ -431,8 +435,8 @@ export async function leaveRoom(roomId, user) {
   await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
 }
 
-/** Room owner removes another member (ban + membership delete). Session scores stay
- *  so tricks and winnings for the current hand/session are preserved. */
+/** Room owner removes another member from the room. Session scores stay so tricks
+ *  and winnings for the current hand/session are preserved. They may rejoin with the invite code. */
 export async function kickRoomMember(roomId, targetUserId, actor) {
   if (!actor?.uid) throw new Error("Not signed in");
   if (!targetUserId) throw new Error("Missing member");
@@ -449,20 +453,19 @@ export async function kickRoomMember(roomId, targetUserId, actor) {
     throw new Error("Cannot remove the room owner.");
   }
 
-  await updateDoc(doc(db, "rooms", roomId), {
-    bannedUserIds: arrayUnion(targetUserId),
-    updatedAt: serverTimestamp(),
-  });
+  await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
 
-  let membershipRemoved = false;
-  try {
-    await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
-    membershipRemoved = true;
-  } catch (err) {
-    if (err?.code !== "permission-denied" && err?.code !== "not-found") throw err;
+  // Best-effort: clear legacy ban flag from earlier builds (kick no longer bans).
+  if (Array.isArray(roomSnap.data().bannedUserIds) && roomSnap.data().bannedUserIds.includes(targetUserId)) {
+    try {
+      await updateDoc(doc(db, "rooms", roomId), {
+        bannedUserIds: arrayRemove(targetUserId),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("clear legacy ban on kick:", err);
+    }
   }
-
-  return { membershipRemoved, banned: true };
 }
 
 /** Delete a room entirely (owner only). Cleans up orphan membership if room is already gone. */
@@ -540,15 +543,9 @@ export function subscribeMyRooms(uid, callback) {
         return { ...withId(roomSnap), role: m.role };
       }),
     );
-    const resolved = rooms.filter(Boolean);
-    for (const room of resolved) {
-      if (Array.isArray(room.bannedUserIds) && room.bannedUserIds.includes(uid)) {
-        leaveRoom(room.id, { uid }).catch(() => {});
-      }
-    }
     callback(
-      resolved
-        .filter((room) => !Array.isArray(room.bannedUserIds) || !room.bannedUserIds.includes(uid))
+      rooms
+        .filter(Boolean)
         .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
     );
   });
