@@ -162,8 +162,8 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `Missing script: icons:generate` | Stale `main` before #71 | `git pull origin main` (v1.00.64+) |
-| Table UI blank / “failed to load” | Stale `docs/table-session.js` | `npm run build:table` |
+| `Missing script: icons:generate` | Stale `main` | `git pull origin main` |
+| Table UI blank / “failed to load” | Stale `docs/table-session.js` **or** `buildTableSessionProps` crash (check browser console) | `npm run build:table`; if console shows `Cannot access 'myUid' before initialization`, pull latest `main` and redeploy |
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running or Java missing | Install Java 21; terminal 1: `npm run emulators` (see **Java & Firebase emulators** above) |
 | Draw appears to do nothing | Stale `main` or stale table bundle | `git pull origin main`; `npm run build:table`; check table overlay banner + console |
@@ -174,13 +174,13 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 ## Recommended test order
 
-On **`main` (v1.00.64)** — all of #67–#70 landed via [#71](https://github.com/Playbot1972/National-Bourre-League/pull/71):
+On current **`main`**:
 
-1. Local dev verify — `npm run verify:local:prereq` then `npm run verify:local` ([#72](https://github.com/Playbot1972/National-Bourre-League/pull/72))
+1. Local dev verify — `npm run verify:local:prereq` then `npm run verify:local`
 2. Gameplay bugfix checklist (#67 section above)
-3. Icons / PWA (#70 section)
-4. Sound + haptics (#68 section)
-5. **[#66](https://github.com/Playbot1972/National-Bourre-League/pull/66)** — premium table UX (optional, separate branch)
+3. Icons / PWA
+4. Premium table UX (#66 — merged)
+5. Sound + haptics (#68 — optional stacked branch)
 
 ---
 
