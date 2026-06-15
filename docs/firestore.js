@@ -37,7 +37,7 @@
 //     { cards: [{ rank, suit }] } — owner-read only (see firestore.rules)
 //
 // Public live hand state: session.currentHand (phase, trump, tricks — no hidden cards).
-// Play mutations: submitHandDraw, playHandCard (honor-system client transactions).
+// Play mutations: Cloud Functions (gameSubmitDraw, gamePlayCard, …) — see game-functions.js.
 // Deal engine: src/game/ → npm run build:game → docs/game-engine.js
 //
 // Sessions + scores are nested UNDER the room so security rules can authorize
@@ -79,7 +79,16 @@ import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
-import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR } from "./firebase-config.js";
+import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
+import {
+  gameEnsureHandEnrollment,
+  gamePlayCard,
+  gameRecordHand,
+  gameSetHandParticipation,
+  gameSubmitDraw,
+  gameTimeoutEnrollment,
+  gameVoteCoWinSettlement,
+} from "./game-functions.js";
 import {
   dealInitialHand,
   playerOrderFromDealer,
@@ -571,8 +580,15 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   });
 }
 
-/** Draw/discard during the draw phase — updates private hand + public turn state. */
+/** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
+  if (!SERVER_HAND_AUTHORITY) {
+    return submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId });
+  }
+  return gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId });
+}
+
+async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
   if (!canActForPlayer(playerId, actorId)) {
     throw new Error("You can only draw for yourself (or drive a robot)");
   }
@@ -628,8 +644,15 @@ export async function submitHandDraw(roomId, sessionId, { playerId, discardIndic
   });
 }
 
-/** Play one card during trick play — validates legality client-side (honor-system). */
+/** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
+  if (!SERVER_HAND_AUTHORITY) {
+    return playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId });
+  }
+  return gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId });
+}
+
+async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {
   if (!canActForPlayer(playerId, actorId)) {
     throw new Error("You can only play for yourself (or drive a robot)");
   }
@@ -909,6 +932,31 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
+  if (SERVER_HAND_AUTHORITY) {
+    return gameRecordHand(roomId, sessionId, {
+      winnerId,
+      winnerIds,
+      participantIds,
+      settlement,
+      recordedBy,
+      tricksByPlayer,
+    });
+  }
+  return recordHandClient(roomId, sessionId, {
+    winnerId,
+    winnerIds,
+    participantIds,
+    settlement,
+    recordedBy,
+    tricksByPlayer,
+  });
+}
+
+async function recordHandClient(
+  roomId,
+  sessionId,
+  { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
+) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) throw new Error("Session not found");
   const sessionData = sessionSnap.data();
@@ -1053,6 +1101,29 @@ export async function recordHand(
  * ante up). Split only when every co-winner has agreed to split.
  */
 export async function voteCoWinSettlement(
+  roomId,
+  sessionId,
+  { participantIds, winnerIds, voterId, choice, recordedBy },
+) {
+  if (SERVER_HAND_AUTHORITY) {
+    return gameVoteCoWinSettlement(roomId, sessionId, {
+      participantIds,
+      winnerIds,
+      voterId,
+      choice,
+      recordedBy,
+    });
+  }
+  return voteCoWinSettlementClient(roomId, sessionId, {
+    participantIds,
+    winnerIds,
+    voterId,
+    choice,
+    recordedBy,
+  });
+}
+
+async function voteCoWinSettlementClient(
   roomId,
   sessionId,
   { participantIds, winnerIds, voterId, choice, recordedBy },
@@ -1451,6 +1522,13 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
+  if (SERVER_HAND_AUTHORITY) {
+    return gameEnsureHandEnrollment(roomId, sessionId);
+  }
+  return ensureHandEnrollmentClient(roomId, sessionId);
+}
+
+async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const data = sessionSnap.data();
@@ -1474,6 +1552,13 @@ export async function ensureHandEnrollment(roomId, sessionId) {
 
 /** Auto sit-out when the current player's enrollment window expires. */
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
+  if (SERVER_HAND_AUTHORITY) {
+    return gameTimeoutEnrollment(roomId, sessionId);
+  }
+  return timeoutHandEnrollmentTurnClient(roomId, sessionId);
+}
+
+async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
@@ -1503,6 +1588,13 @@ export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
 
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
+  if (SERVER_HAND_AUTHORITY) {
+    return gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId });
+  }
+  return setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId });
+}
+
+async function setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }) {
   if (!playerId || !actorId) throw new Error("Missing player");
   if (playerId !== actorId && !isRobotPlayerId(playerId)) {
     throw new Error("You can only change your own hand participation");

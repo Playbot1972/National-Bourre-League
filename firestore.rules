@@ -1,26 +1,9 @@
 rules_version = '2';
 
-// Firestore security rules for the National Bourré League social app.
+// Firestore security rules — National Bourré League social app.
 //
-// Data model (see docs/firestore.js for details):
-//   users/{uid}                                    profile
-//   rooms/{roomId}                                 inviteCode, ownerId, houseRules, status, createdAt
-//   roomMembers/{roomId}_{uid}                     roomId, userId, displayName, role, joinedAt
-//   inviteLookups/{inviteCode}                     roomId, ownerId (join-by-code without listing rooms)
-//   rooms/{roomId}/sessions/{sessionId}            players, rounds, notes, totals, ...
-//   rooms/{roomId}/sessions/{sId}/scores/{playerId} per-player tricksWon, handsWon, net, total
-//   rooms/{roomId}/sessions/{sId}/hands/{handId}     per-hand ledger (informational)
-//
-// Sessions/scores are subcollections of the room so rules authorize them by the
-// {roomId} path wildcard. Top-level collections with a roomId field cannot be
-// used here: Firestore evaluates `list`/query rules without per-document
-// `resource.data`, so a `resource.data.roomId` check fails for queries.
-//
-// IMPORTANT: notes / handStake / net / tricksWon / total are informational
-// (scorekeeping + bragging rights). Nothing here represents money, and these
-// rules do not grant any money-movement capability.
-//
-// These rules are a SAMPLE/STARTING POINT. Review before deploying to prod.
+// Game state (currentHand, handEnrollment, privateHands, hand ledger, score nets)
+// is written only by Cloud Functions (Admin SDK). Room members may read live state.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -33,7 +16,6 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // True if the current user has a membership row for the given room.
     function isMember(roomId) {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/roomMembers/$(roomId + '_' + request.auth.uid));
@@ -44,67 +26,80 @@ service cloud.firestore {
         get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerId == request.auth.uid;
     }
 
-    // Users can read any profile but only write their own.
+    // Session fields mutated only by Cloud Functions during deal/draw/play/settlement.
+    function sessionGameFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'currentHand',
+        'handEnrollment',
+        'handCount',
+        'carryOverPot',
+        'dealerId',
+        'pendingCoWinSettlement',
+        'handStakeLocked',
+      ]);
+    }
+
+    function scoreLedgerFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'net',
+        'tricksWon',
+        'handsWon',
+        'total',
+        'skipNextAnte',
+        'perHandStake',
+      ]);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isUser(uid);
     }
 
-    // Rooms: members can read; only the owner (as recorded on create) may
-    // create/update/delete the room document. Sessions and scores live as
-    // subcollections and are authorized by the {roomId} path wildcard.
     match /rooms/{roomId} {
       allow read: if isMember(roomId) || resource.data.ownerId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isRoomOwner(roomId);
 
-      // Any member of the room may read/write its sessions and scores.
       match /sessions/{sessionId} {
-        allow read, write: if isMember(roomId);
+        allow read: if isMember(roomId);
+        allow create: if isMember(roomId);
+        allow update: if isMember(roomId) && !sessionGameFieldsChanged();
+        allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
-          allow read, write: if isMember(roomId);
+          allow read: if isMember(roomId);
+          allow create: if isMember(roomId);
+          allow update: if isMember(roomId) && !scoreLedgerFieldsChanged();
+          allow delete: if isRoomOwner(roomId);
         }
 
         match /hands/{handId} {
-          allow read, write: if isMember(roomId);
+          allow read: if isMember(roomId);
+          allow write: if false;
         }
 
-        // Private hole cards — readable by the owning player; bot hands readable by
-        // room members so a viewing member can drive client-side bot actions.
-        // TODO(production): deal/play writes should run server-side; bot moves should
-        // become server-authoritative Cloud Functions.
         match /privateHands/{playerId} {
           allow read: if isMember(roomId) && (
             request.auth.uid == playerId ||
             playerId.matches('bot_.*')
           );
-          allow write: if isMember(roomId);
+          allow write: if false;
         }
       }
     }
 
-    // Invite code → room id. Readable by any signed-in user so join-by-code works
-    // without opening list access on all rooms/{roomId} documents.
     match /inviteLookups/{code} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    // Membership rows: any signed-in user can read (to look up rooms by invite);
-    // a user may only create / update / delete their OWN membership row.
     match /roomMembers/{memberId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
-    // Player ranking docs ("Ape Score" — TrueSkill). Readable by any signed-in
-    // user (public leaderboard) and writable by signed-in users when a session
-    // is completed. Entertainment/skill only; never money.
-    // NOTE: For production you would likely move rating writes to a trusted
-    // server / Cloud Function so clients cannot tamper with their own ranking.
     match /players/{playerId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();

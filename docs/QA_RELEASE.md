@@ -59,13 +59,14 @@ Pass `skipEnrollment: false` and `enrollmentJoin` to exercise in/out before deal
 | Trump 5-card dealer hand | **Fixed (merged)** | Dealer keeps flipped trump in private hand |
 | iPhone landscape horizontal overflow | **Fixed + E2E** | `max-width: min(100%, 100vw)` + layout spec |
 | Full gameplay E2E with Firebase emulators | **Not automated** | Requires auth + multi-tab; use manual checklist |
-| Backend trust | Documented | Draw/play legality enforced client-side; production needs rules hardening |
+| Backend trust | **Cloud Functions + locked rules** | Manual trick +/- disabled; bot runner still client-driven |
 
 ## Backend trust assumptions
 
-- Room **member** client runs bot timers and may apply bot moves locally.  
-- Draw/play validation runs in the browser (`src/game/` + `docs/app.js`).  
-- Firestore rules should reject illegal writes from non-member clients (verify separately).
+- **Deal / draw / play / settlement** run in Cloud Functions (`functions/`) using `src/game/` as source of truth.
+- Firestore rules block client writes to `privateHands`, hand ledger, and session game fields.
+- Room **member** client still drives bot timers by calling functions on behalf of `bot_*` seats.
+- Leaderboard (`players/{id}`) writes remain client-side — move to a trusted function for competitive use.
 
 ## Test counts (approx.)
 
