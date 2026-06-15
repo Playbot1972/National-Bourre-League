@@ -16,7 +16,7 @@
     "build:game": "vite build --config vite.game.config.ts",
     "build:table": "vite build --config vite.table.config.ts",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
-    "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
+    "deploy": "node scripts/ensure-firebase-config.js && npm run build:hosting && npx firebase deploy --only hosting,firestore:rules --project national-bourre-league",
     "deploy:rules": "npx firebase deploy --only firestore:rules",
     "setup": "./scripts/one-time-setup.sh",
     "setup:firestore": "./scripts/setup-firestore.sh",

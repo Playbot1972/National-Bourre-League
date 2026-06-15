@@ -100,13 +100,12 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run build:game` | `src/game/` → `docs/game-engine.js` | `main` + feature branches |
 | `npm run build:table` | `src/table/` → `docs/table-session.js` | `main` + feature branches |
 | `npm run check:social` | Syntax-check `docs/*.js` | `main` + feature branches |
-| `npm run test:game` | Card uniqueness + draw flow tests | **main** (v1.00.64+) |
-| `npm run test:feedback` | Haptics fallback + prefs tests | **main** (v1.00.64+) |
-| `npm run icons:generate` | SVG → PNG icon export | **main** (v1.00.64+) |
-| `npm run verify:local:prereq` | Java 21 + port 8080 free | **#72 branch** (merges to `main`) |
-| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **#72 branch** (merges to `main`) |
-
-All scripts except `verify:local*` are on **`main`** as of v1.00.64.
+| `npm run test:game` | Card uniqueness + draw flow tests | **main** |
+| `npm run test:feedback` | Haptics fallback + prefs tests | **main** |
+| `npm run icons:generate` | SVG → PNG icon export | **main** |
+| `npm run verify:local:prereq` | Java 21 + port 8080 free | **main** |
+| `npm run verify:local` | Steps 1–3: Java, emulators UI, social on 8080 | **main** |
+| `npm run verify:prod` | Live https://booray.win — version, Firebase config, /social/ | **main** (after deploy) |
 
 ---
 
@@ -162,9 +161,11 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
+| **Production still shows v1.00.60** | Deploy never ran (missing GitHub secrets or no local deploy) | Set Actions secrets or run `npm run deploy` locally after `npm run setup:webapp`. Confirm: `npm run verify:prod` |
+| **`auth/api-key-not-valid`** on sign-in | Production bundle has placeholder `docs/firebase-config.js` | Copy `.env.firebase.example` → `.env.firebase`, fill Firebase web app values, then `npm run deploy`. Or `npm run setup:webapp -- national-bourre-league booray.win`. Confirm with `npm run verify:prod`. |
 | `Missing script: icons:generate` | Stale `main` | `git pull origin main` |
 | Table UI blank / “failed to load” | Stale `docs/table-session.js` **or** `buildTableSessionProps` crash (check browser console) | `npm run build:table`; if console shows `Cannot access 'myUid' before initialization`, pull latest `main` and redeploy |
-| Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
+| Auth / sign-in issues (local) | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running or Java missing | Install Java 21; terminal 1: `npm run emulators` (see **Java & Firebase emulators** above) |
 | Draw appears to do nothing | Stale `main` or stale table bundle | `git pull origin main`; `npm run build:table`; check table overlay banner + console |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
