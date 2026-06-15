@@ -8142,52 +8142,52 @@ function te() {
 }
 //#endregion
 //#region src/table/HeroHand.tsx
-function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, className: g = "" }) {
-	let { settings: _ } = te(), [x, S] = (0, l.useState)(/* @__PURE__ */ new Set()), [C, ne] = (0, l.useState)(null), [re, w] = (0, l.useState)(null), [ie, ae] = (0, l.useState)(!1), [oe, se] = (0, l.useState)(null), [ce, le] = (0, l.useState)(!1), ue = (0, l.useRef)(""), T = ee(t), E = (0, l.useMemo)(() => e.map(y), [e]), de = e.map((e) => `${e.rank}-${e.suit}`).join(",");
+function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, privateHandReady: g = !1, className: _ = "" }) {
+	let { settings: x } = te(), [S, C] = (0, l.useState)(/* @__PURE__ */ new Set()), [ne, re] = (0, l.useState)(null), [w, ie] = (0, l.useState)(null), [ae, oe] = (0, l.useState)(!1), [se, ce] = (0, l.useState)(null), [le, ue] = (0, l.useState)(!1), T = (0, l.useRef)(""), E = ee(t), de = (0, l.useMemo)(() => e.map(y), [e]), fe = e.map((e) => `${e.rank}-${e.suit}`).join(",");
 	(0, l.useEffect)(() => {
-		if (!T || de.length === 0 || de === ue.current) return;
-		ue.current = de, le(!0);
-		let e = window.setTimeout(() => le(!1), 520);
+		if (!E || fe.length === 0 || fe === T.current) return;
+		T.current = fe, ue(!0);
+		let e = window.setTimeout(() => ue(!1), 520);
 		return () => window.clearTimeout(e);
-	}, [de, T]);
-	let fe = t === "draw", pe = t === "play", me = _.cardScale === "lg" ? "md" : "sm", D = ie || d?.status === "loading", O = d?.status === "error" ? d.message : oe, he = (e) => {
-		D || (se(null), S((t) => {
+	}, [fe, E]);
+	let pe = t === "draw", me = t === "play", D = x.cardScale === "lg" ? "md" : "sm", O = ae || d?.status === "loading", he = d?.status === "error" ? d.message : se, ge = (e) => {
+		O || (ce(null), C((t) => {
 			let n = new Set(t);
-			return n.has(e) ? n.delete(e) : n.size < c ? n.add(e) : se(`You may discard at most ${c} cards`), n;
+			return n.has(e) ? n.delete(e) : n.size < c ? n.add(e) : ce(`You may discard at most ${c} cards`), n;
 		}));
-	}, ge = (0, l.useCallback)(async (e) => {
-		if (!(!f || D)) {
+	}, k = (0, l.useCallback)(async (e) => {
+		if (!(!f || O)) {
 			if (e.length > c) {
-				se(`You may discard at most ${c} cards`);
+				ce(`You may discard at most ${c} cards`);
 				return;
 			}
-			ae(!0), se(null);
+			oe(!0), ce(null);
 			try {
-				await f(e), S(/* @__PURE__ */ new Set());
+				await f(e), C(/* @__PURE__ */ new Set());
 			} catch (e) {
-				se(e instanceof Error ? e.message : "Draw failed");
+				ce(e instanceof Error ? e.message : "Draw failed");
 			} finally {
-				ae(!1);
+				oe(!1);
 			}
 		}
 	}, [
 		f,
-		D,
+		O,
 		c
-	]), k = (0, l.useCallback)(async () => {
-		if (!(!p || D)) {
-			ae(!0), se(null);
+	]), _e = (0, l.useCallback)(async () => {
+		if (!(!p || O)) {
+			oe(!0), ce(null);
 			try {
-				await p(), S(/* @__PURE__ */ new Set());
+				await p(), C(/* @__PURE__ */ new Set());
 			} catch (e) {
-				se(e instanceof Error ? e.message : "Could not stand pat");
+				ce(e instanceof Error ? e.message : "Could not stand pat");
 			} finally {
-				ae(!1);
+				oe(!1);
 			}
 		}
-	}, [p, D]);
+	}, [p, O]);
 	if (!a) return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${g}`.trim(),
+		className: `btable-hero ${_}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__label muted small",
@@ -8197,42 +8197,42 @@ function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 			children: "Sign in to see your dealt cards."
 		})]
 	});
-	if (!r && !n && !T) return null;
-	if (T && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${g}`.trim(),
+	if (!r && !n && !E) return null;
+	if (E && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-hero ${_}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__label muted small",
 			children: "Your hand"
 		}), /* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__fallback muted small",
-			children: "Loading your cards…"
+			children: g ? "Cards not available — leave and re-open the session, or refresh the page." : "Loading your cards…"
 		})]
 	});
-	if (T && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `btable-hero ${g}`.trim(),
+	if (E && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
+		className: `btable-hero ${_}`.trim(),
 		children: /* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__fallback muted small",
 			children: "You sat out this hand."
 		})
 	});
 	if (e.length === 0 && !i) return null;
-	let _e = (e, t) => fe && x.has(t) || pe && C === t ? "selected" : pe && u && !u.includes(t) ? "muted" : "default", ve = (e, t) => {
-		if (!D) {
-			if (fe && o && !s) {
-				he(t);
+	let ve = (e, t) => pe && S.has(t) || me && ne === t ? "selected" : me && u && !u.includes(t) ? "muted" : "default", ye = (e, t) => {
+		if (!O) {
+			if (pe && o && !s) {
+				ge(t);
 				return;
 			}
-			if (pe && o && m) {
+			if (me && o && m) {
 				if (u && !u.includes(t)) return;
-				ne(t), Promise.resolve(m(t)).catch((e) => {
-					se(e instanceof Error ? e.message : "Could not play card");
+				re(t), Promise.resolve(m(t)).catch((e) => {
+					ce(e instanceof Error ? e.message : "Could not play card");
 				});
 			}
 		}
-	}, ye = T && r, be = x.size;
+	}, be = E && r, xe = S.size;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero btable-hero--scale-${_.cardScale}${ce ? " btable-hero--dealing" : ""} ${g}`.trim(),
+		className: `btable-hero btable-hero--scale-${x.cardScale}${le ? " btable-hero--dealing" : ""} ${_}`.trim(),
 		"aria-label": "Your dealt cards",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("p", {
@@ -8240,59 +8240,59 @@ function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 				children: [
 					"Your hand · ",
 					b(t, n),
-					fe && !s && o && " · tap cards to discard",
-					pe && o && " · tap a legal card to play",
-					ye && " · press and hold to peek"
+					pe && !s && o && " · tap cards to discard",
+					me && o && " · tap a legal card to play",
+					be && " · press and hold to peek"
 				]
 			}),
-			i && fe && /* @__PURE__ */ (0, h.jsx)("p", {
+			i && pe && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__trump-note muted small",
 				children: "Your trump upcard is on the table — not duplicated here"
 			}),
 			/* @__PURE__ */ (0, h.jsx)("div", {
 				className: "btable-hero__hand-3d",
 				children: /* @__PURE__ */ (0, h.jsx)(v, {
-					cards: E,
-					size: me,
+					cards: de,
+					size: D,
 					fan: !0,
-					stateFor: _e,
-					peekIndex: re,
-					onCardPeek: ye ? w : void 0,
-					onCardClick: fe || pe ? ve : void 0
+					stateFor: ve,
+					peekIndex: w,
+					onCardPeek: be ? ie : void 0,
+					onCardClick: pe || me ? ye : void 0
 				})
 			}),
-			O && /* @__PURE__ */ (0, h.jsx)("p", {
+			he && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__error",
 				role: "alert",
-				children: O
+				children: he
 			}),
 			d?.status === "success" && d.message && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__success muted small",
 				role: "status",
 				children: d.message
 			}),
-			fe && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
+			pe && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-hero__actions",
 				children: [
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm btn--primary",
-						disabled: D,
-						"aria-busy": D,
-						onClick: () => ge([...x].sort((e, t) => e - t)),
-						children: D ? "Drawing…" : `Draw${be > 0 ? ` (${be})` : ""}`
+						disabled: O,
+						"aria-busy": O,
+						onClick: () => k([...S].sort((e, t) => e - t)),
+						children: O ? "Drawing…" : `Draw${xe > 0 ? ` (${xe})` : ""}`
 					}),
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm",
-						disabled: D,
-						onClick: () => k(),
+						disabled: O,
+						onClick: () => _e(),
 						children: "Stand pat"
 					}),
 					/* @__PURE__ */ (0, h.jsxs)("span", {
 						className: "muted small",
 						children: [
-							be,
+							xe,
 							"/",
 							c,
 							" selected"
@@ -8300,15 +8300,15 @@ function ne({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 					})
 				]
 			}),
-			fe && s && /* @__PURE__ */ (0, h.jsx)("p", {
+			pe && s && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Draw complete — waiting for others"
 			}),
-			fe && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			pe && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to draw"
 			}),
-			pe && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			me && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to play"
 			})
@@ -8701,13 +8701,13 @@ function de({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function fe({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], currentUserId: o = null, legalPlayIndices: s, actionFeedback: c, onToggleInHand: l, onTrickDelta: u, onSubmitDraw: d, onPassDraw: f, onPlayCard: p, onReaction: m }) {
-	let g = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), _ = g.findIndex((e) => e.isSelf), v = _ > 0 ? [...g.slice(_), ...g.slice(0, _)] : g, y = v.length, b = `btable--p${Math.min(8, Math.max(2, y))}`, x = se(y), ee = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), S = t.find((e) => e.isSelf), C = !!(o && e.drawCompletedIds?.includes(o));
+function fe({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], privateHandReady: o = !1, currentUserId: s = null, legalPlayIndices: c, actionFeedback: l, onToggleInHand: u, onTrickDelta: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, onReaction: g }) {
+	let _ = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), v = _.findIndex((e) => e.isSelf), y = v > 0 ? [..._.slice(v), ..._.slice(0, v)] : _, b = y.length, x = `btable--p${Math.min(8, Math.max(2, b))}`, ee = se(b), S = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), C = t.find((e) => e.isSelf), te = !!(s && e.drawCompletedIds?.includes(s));
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-wrap ${b}`,
+		className: `btable-wrap ${x}`,
 		style: {
-			"--player-count": y,
-			"--table-aspect": x
+			"--player-count": b,
+			"--table-aspect": ee
 		},
 		children: [/* @__PURE__ */ (0, h.jsxs)("div", {
 			className: "table-stage",
@@ -8727,13 +8727,13 @@ function fe({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 					remainingDeckCount: e.remainingDeckCount,
 					currentTrick: e.currentTrick,
 					playedCards: e.playedCards,
-					playerNames: ee
+					playerNames: S
 				}),
 				/* @__PURE__ */ (0, h.jsx)("div", {
 					className: "btable__seats",
 					"aria-label": "Players at the table",
-					children: v.map((e, t) => {
-						let n = oe(t, v.length);
+					children: y.map((e, t) => {
+						let n = oe(t, y.length);
 						return /* @__PURE__ */ (0, h.jsx)(de, {
 							player: e,
 							region: n.region,
@@ -8741,9 +8741,9 @@ function fe({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 								left: `${n.x}%`,
 								top: `${n.y}%`
 							},
-							onToggleInHand: () => l(e.playerId, !e.inHand),
-							onTrickDelta: (t) => u(e.playerId, t),
-							onReaction: e.isSelf ? m : void 0
+							onToggleInHand: () => u(e.playerId, !e.inHand),
+							onTrickDelta: (t) => d(e.playerId, t),
+							onReaction: e.isSelf ? g : void 0
 						}, e.playerId);
 					})
 				})
@@ -8751,19 +8751,20 @@ function fe({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 		}), /* @__PURE__ */ (0, h.jsx)(ne, {
 			className: "hand-panel",
 			cards: a,
+			privateHandReady: o,
 			phase: e.phase,
 			enrollmentActive: i,
-			isInHand: !!S?.inHand,
-			isDealer: !!S?.isDealer,
-			signedIn: !!o,
-			isMyTurn: !!(o && e.turnPlayerId === o),
-			drawCompleted: C,
+			isInHand: !!C?.inHand,
+			isDealer: !!C?.isDealer,
+			signedIn: !!s,
+			isMyTurn: !!(s && e.turnPlayerId === s),
+			drawCompleted: te,
 			maxDrawDiscards: e.maxDrawDiscards ?? 4,
-			legalPlayIndices: s ?? void 0,
-			actionFeedback: c,
-			onSubmitDraw: d,
-			onPassDraw: f,
-			onPlayCard: p
+			legalPlayIndices: c ?? void 0,
+			actionFeedback: l,
+			onSubmitDraw: f,
+			onPassDraw: p,
+			onPlayCard: m
 		})]
 	});
 }
@@ -9487,30 +9488,30 @@ function Et({ session: e, potMetrics: t, participantIds: n }) {
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: u = !1, enrollmentSecondsLeft: d = 0, currentUserId: f, heroCards: p = [], legalPlayIndices: m, actionFeedback: g, actions: _ }) {
-	let { settings: v } = te(), [y, x] = (0, l.useState)(!1), C = e.participantIds.length, { events: ne, dismissEvent: ie, pushReaction: ae } = Et({
+function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContribution: i, leaderLabel: a, showCoWinSettlement: o, splitSharePerWinner: s = 0, voteStatus: c, enrollmentActive: u = !1, enrollmentSecondsLeft: d = 0, currentUserId: f, heroCards: p = [], privateHandReady: m = !1, legalPlayIndices: g, actionFeedback: _, actions: v }) {
+	let { settings: y } = te(), [x, C] = (0, l.useState)(!1), ne = e.participantIds.length, { events: ie, dismissEvent: ae, pushReaction: oe } = Et({
 		session: e,
 		potMetrics: n,
 		participantIds: e.participantIds
-	}), oe = f != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(f), se = t.find((e) => e.isSelf && e.canToggleInHand), ce = b(e.phase, u), le = S(e.turnPlayerId, t), ue = ee(e.phase), T = !!(f && e.turnPlayerId === f), E = (0, l.useCallback)((e) => {
-		ae(e, f ?? void 0);
-	}, [ae, f]);
+	}), se = f != null && (e.pendingCoWinSettlement?.winnerIds || []).includes(f), ce = t.find((e) => e.isSelf && e.canToggleInHand), le = b(e.phase, u), ue = S(e.turnPlayerId, t), T = ee(e.phase), E = !!(f && e.turnPlayerId === f), de = (0, l.useCallback)((e) => {
+		oe(e, f ?? void 0);
+	}, [oe, f]);
 	return (0, l.useEffect)(() => {
 		let e = (e) => {
-			(e.key === v.hotkeys.toggleSettings || e.key === "," && e.metaKey) && x((e) => !e), e.key === v.hotkeys.focusTable && document.querySelector(".btable-wrap")?.scrollIntoView({
+			(e.key === y.hotkeys.toggleSettings || e.key === "," && e.metaKey) && C((e) => !e), e.key === y.hotkeys.focusTable && document.querySelector(".btable-wrap")?.scrollIntoView({
 				block: "center",
 				behavior: "smooth"
 			});
 		};
 		return window.addEventListener("keydown", e), () => window.removeEventListener("keydown", e);
-	}, [v.hotkeys]), /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-session${y ? " btable-session--settings-open" : ""}`,
+	}, [y.hotkeys]), /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-session${x ? " btable-session--settings-open" : ""}`,
 		children: [
-			g && g.status !== "idle" && /* @__PURE__ */ (0, h.jsx)("div", {
-				className: `btable-session__feedback btable-session__feedback--${g.status}`,
-				role: g.status === "error" ? "alert" : "status",
+			_ && _.status !== "idle" && /* @__PURE__ */ (0, h.jsx)("div", {
+				className: `btable-session__feedback btable-session__feedback--${_.status}`,
+				role: _.status === "error" ? "alert" : "status",
 				"aria-live": "polite",
-				children: g.message
+				children: _.message
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("header", {
 				className: "btable-session__head",
@@ -9524,14 +9525,14 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 							}),
 							/* @__PURE__ */ (0, h.jsx)("span", {
 								className: `btable-session__phase-tag btable-session__phase-tag--${e.phase ?? "waiting"}`,
-								children: ce
+								children: le
 							}),
 							/* @__PURE__ */ (0, h.jsx)("button", {
 								type: "button",
 								className: "btable-session__gear btn btn--sm",
-								onClick: () => x(!0),
+								onClick: () => C(!0),
 								"aria-label": "Table appearance settings",
-								title: `Settings (${v.hotkeys.toggleSettings})`,
+								title: `Settings (${y.hotkeys.toggleSettings})`,
 								children: "⚙"
 							})
 						]
@@ -9540,12 +9541,12 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						className: "btable-session__status",
 						children: a
 					}),
-					le && ue && /* @__PURE__ */ (0, h.jsx)("p", {
+					ue && T && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__turn muted small",
 						"aria-live": "polite",
-						children: le
+						children: ue
 					}),
-					e.phase === "draw" && T && /* @__PURE__ */ (0, h.jsx)("p", {
+					e.phase === "draw" && E && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__hint muted small",
 						children: "Select cards to discard, then Draw — or Stand pat"
 					}),
@@ -9553,12 +9554,12 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						className: "btable-session__hint muted small",
 						children: "Follow suit · trump when void · beat the trick when you can"
 					}),
-					se && /* @__PURE__ */ (0, h.jsx)("div", {
+					ce && /* @__PURE__ */ (0, h.jsx)("div", {
 						className: "btable-session__enroll-cta",
 						children: /* @__PURE__ */ (0, h.jsxs)("button", {
 							type: "button",
 							className: "btn btn--primary btn--sm btable-session__enroll-btn",
-							onClick: () => _.onToggleInHand(!0),
+							onClick: () => v.onToggleInHand(!0),
 							children: [
 								"I'm in · ",
 								d,
@@ -9566,7 +9567,7 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 							]
 						})
 					}),
-					u && !se && /* @__PURE__ */ (0, h.jsxs)("p", {
+					u && !ce && /* @__PURE__ */ (0, h.jsxs)("p", {
 						className: "btable-session__enroll muted small",
 						children: [
 							"Join window: ",
@@ -9589,40 +9590,41 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 				className: "btable-stage",
 				children: [
 					/* @__PURE__ */ (0, h.jsx)(O, {
-						events: ne,
+						events: ie,
 						players: t,
-						onDismiss: ie
+						onDismiss: ae
 					}),
 					/* @__PURE__ */ (0, h.jsx)(me, {
-						events: ne,
-						onDismiss: ie
+						events: ie,
+						onDismiss: ae
 					}),
 					/* @__PURE__ */ (0, h.jsx)(fe, {
 						session: e,
 						players: t,
 						potMetrics: n,
-						participantCount: C,
+						participantCount: ne,
 						enrollmentActive: u,
 						heroCards: p,
+						privateHandReady: m,
 						currentUserId: f,
-						legalPlayIndices: m,
-						actionFeedback: g,
+						legalPlayIndices: g,
+						actionFeedback: _,
 						onToggleInHand: (e, n) => {
-							t.find((t) => t.playerId === e)?.isSelf && _.onToggleInHand(n);
+							t.find((t) => t.playerId === e)?.isSelf && v.onToggleInHand(n);
 						},
 						onTrickDelta: (e, n) => {
-							t.find((t) => t.playerId === e)?.isSelf && _.onTrickDelta(n);
+							t.find((t) => t.playerId === e)?.isSelf && v.onTrickDelta(n);
 						},
-						onSubmitDraw: _.onSubmitDraw,
-						onPassDraw: _.onPassDraw,
-						onPlayCard: _.onPlayCard,
-						onReaction: E
+						onSubmitDraw: v.onSubmitDraw,
+						onPassDraw: v.onPassDraw,
+						onPlayCard: v.onPlayCard,
+						onReaction: de
 					})
 				]
 			}) }),
 			/* @__PURE__ */ (0, h.jsx)(St, {
-				open: y,
-				onClose: () => x(!1)
+				open: x,
+				onClose: () => C(!1)
 			}),
 			o && !e.isFinal && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-session__settle",
@@ -9654,14 +9656,14 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						children: [/* @__PURE__ */ (0, h.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm",
-							disabled: !oe,
-							onClick: () => _.onSettle("push"),
+							disabled: !se,
+							onClick: () => v.onSettle("push"),
 							children: "Decline split"
 						}), /* @__PURE__ */ (0, h.jsx)("button", {
 							type: "button",
 							className: "btn btn--sm btn--primary",
-							disabled: !oe,
-							onClick: () => _.onSettle("split"),
+							disabled: !se,
+							onClick: () => v.onSettle("split"),
 							children: "Agree to split"
 						})]
 					}),
@@ -9669,7 +9671,7 @@ function j({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandContr
 						className: "muted small",
 						children: c
 					}),
-					!oe && f && /* @__PURE__ */ (0, h.jsx)("p", {
+					!se && f && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "muted small",
 						children: "Waiting for co-winners to vote."
 					})

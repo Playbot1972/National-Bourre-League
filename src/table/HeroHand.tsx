@@ -21,6 +21,7 @@ interface HeroHandProps {
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
+  privateHandReady?: boolean;
   className?: string;
 }
 
@@ -39,6 +40,7 @@ export function HeroHand({
   onSubmitDraw,
   onPassDraw,
   onPlayCard,
+  privateHandReady = false,
   className = "",
 }: HeroHandProps) {
   const { settings } = useTableTheme();
@@ -132,7 +134,11 @@ export function HeroHand({
     return (
       <div className={`btable-hero ${className}`.trim()} aria-live="polite">
         <p className="btable-hero__label muted small">Your hand</p>
-        <p className="btable-hero__fallback muted small">Loading your cards…</p>
+        <p className="btable-hero__fallback muted small">
+          {privateHandReady
+            ? "Cards not available — leave and re-open the session, or refresh the page."
+            : "Loading your cards…"}
+        </p>
       </div>
     );
   }

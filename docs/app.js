@@ -626,6 +626,7 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
+let privateHandSnapSeen = false;
 let openPlayerRatings = {};
 let tableActionFeedback = null;
 let tableFeedbackTimer = null;
@@ -1690,6 +1691,7 @@ function buildTableSessionProps(s) {
       cinchEnabled: s.currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
+    privateHandReady: privateHandSnapSeen,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
@@ -1945,6 +1947,7 @@ function stopPrivateHandSubscription() {
     privateHandUnsub = null;
   }
   openPrivateHand = null;
+  privateHandSnapSeen = false;
 }
 
 function startPrivateHandSubscription() {
@@ -1955,7 +1958,18 @@ function startPrivateHandSubscription() {
     openSessionId,
     session.uid,
     (data) => {
+      privateHandSnapSeen = true;
       openPrivateHand = data;
+      const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+      if (sessionObj) scheduleTableSessionSync(sessionObj);
+    },
+    (err) => {
+      privateHandSnapSeen = true;
+      console.error("privateHand subscription:", err);
+      setTableActionFeedback({
+        status: "error",
+        message: err?.message || "Could not load your private hand",
+      });
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
     },
