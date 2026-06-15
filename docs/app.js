@@ -69,6 +69,7 @@ import {
   isHandComplete,
   isRobotPlayerId,
   getSessionEnrollment,
+  getSessionCurrentHand,
   HAND_ENROLLMENT_MS,
   enrollmentDeadlineMs,
   tricksForPlayer,
@@ -659,7 +660,7 @@ function cardKeyFromSerialized(card) {
 }
 
 function buildTableFeedbackSnapshot(sessionObj) {
-  const ch = sessionObj?.currentHand;
+  const ch = getSessionCurrentHand(sessionObj);
   const myUid = session?.uid ?? null;
   const participantIds = ch?.participantIds ?? [];
   const tricks = ch?.tricksByPlayer ?? {};
@@ -791,7 +792,7 @@ function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   if (sessionObj.pendingCoWinSettlement?.winnerIds?.some((id) => isRobotPlayerId(id))) {
     return true;
   }
-  const ch = sessionObj.currentHand;
+  const ch = getSessionCurrentHand(sessionObj);
   if (ch?.phase === "draw" || ch?.phase === "play") {
     const turnId = ch.turnPlayerId;
     return Boolean(turnId && isRobotPlayerId(turnId));
@@ -1498,7 +1499,7 @@ function processRobotActions(s, scores) {
     if (botWinner) {
       robotActionInFlight = true;
       voteCoWinSettlement(currentRoomId, openSessionId, {
-        participantIds: pending.participantIds || s.currentHand?.participantIds || [],
+        participantIds: pending.participantIds || getSessionCurrentHand(s)?.participantIds || [],
         winnerIds: winners,
         voterId: botWinner,
         choice: "split",
@@ -1512,7 +1513,7 @@ function processRobotActions(s, scores) {
     return;
   }
 
-  const currentHand = s.currentHand || {};
+  const currentHand = getSessionCurrentHand(s);
   const participants = currentHand.participantIds || [];
   if (!participants.length) return;
 
@@ -1677,21 +1678,22 @@ function buildTableSessionProps(s) {
   const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
   const displayScores = sortScoresForDisplay(mergedScores, playerOrder);
-  const handParticipantIds = s.currentHand?.participantIds || [];
-  const handPhase = s.currentHand?.phase ?? null;
-  const trumpSuit = s.currentHand?.trumpSuit ?? null;
-  const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
-  const tricksThisHand = s.currentHand?.tricksByPlayer || {};
+  const currentHand = getSessionCurrentHand(s);
+  const handParticipantIds = currentHand?.participantIds || [];
+  const handPhase = currentHand?.phase ?? null;
+  const trumpSuit = currentHand?.trumpSuit ?? null;
+  const trumpUpcard = currentHand?.trumpUpcard ?? null;
+  const tricksThisHand = currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
   const myUid = session?.uid ?? null;
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
     myUid && cardsDealt
-      ? buildHeroCardsForTable(s.currentHand, privateHeroCards, myUid, handPhase)
+      ? buildHeroCardsForTable(currentHand, privateHeroCards, myUid, handPhase)
       : privateHeroCards;
   const legalPlayIndices =
-    cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
-      ? computeLegalPlayIndices(s.currentHand, privateHeroCards, myUid)
+    cardsDealt && handPhase === "play" && myUid === currentHand?.turnPlayerId
+      ? computeLegalPlayIndices(currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
@@ -1769,14 +1771,14 @@ function buildTableSessionProps(s) {
       phase: handPhase,
       trumpSuit,
       trumpUpcard,
-      turnPlayerId: s.currentHand?.turnPlayerId ?? null,
-      remainingDeckCount: s.currentHand?.remainingDeckCount ?? null,
-      leadSuit: s.currentHand?.leadSuit ?? null,
-      currentTrick: s.currentHand?.currentTrick ?? null,
-      playedCards: s.currentHand?.playedCards ?? [],
-      drawCompletedIds: s.currentHand?.drawCompletedIds ?? [],
-      maxDrawDiscards: s.currentHand?.maxDrawDiscards ?? null,
-      cinchEnabled: s.currentHand?.cinchEnabled === true,
+      turnPlayerId: currentHand?.turnPlayerId ?? null,
+      remainingDeckCount: currentHand?.remainingDeckCount ?? null,
+      leadSuit: currentHand?.leadSuit ?? null,
+      currentTrick: currentHand?.currentTrick ?? null,
+      playedCards: currentHand?.playedCards ?? [],
+      drawCompletedIds: currentHand?.drawCompletedIds ?? [],
+      maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
+      cinchEnabled: currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
     privateHandReady: privateHandSnapSeen,
@@ -1825,9 +1827,9 @@ function buildTableSessionProps(s) {
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
         holeCardCount: cardsDealt
-          ? cardsRemainingInHand(s.currentHand || {}, sc.playerId)
+          ? cardsRemainingInHand(currentHand || {}, sc.playerId)
           : 0,
-        isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
+        isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&
           isSelf &&
@@ -1899,7 +1901,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to draw"));
         }
-        const maxDraw = s.currentHand?.maxDrawDiscards ?? 5;
+        const maxDraw = currentHand?.maxDrawDiscards ?? 5;
         if (discardIndices.length > maxDraw) {
           const err = new Error(`You may discard at most ${maxDraw} cards`);
           setTableActionFeedback({ status: "error", message: err.message });
@@ -2551,8 +2553,9 @@ function formatHandHistoryLine(h, scores) {
 
 function getCurrentHandState() {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  const participantIds = openSessionObj?.currentHand?.participantIds || [];
-  const tricksByPlayer = openSessionObj?.currentHand?.tricksByPlayer || {};
+  const currentHand = getSessionCurrentHand(openSessionObj);
+  const participantIds = currentHand?.participantIds || [];
+  const tricksByPlayer = currentHand?.tricksByPlayer || {};
   const derived = deriveWinnersFromTricks(tricksByPlayer, participantIds);
   const pending = openSessionObj?.pendingCoWinSettlement;
   const winnerIds =
