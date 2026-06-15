@@ -8718,27 +8718,29 @@ function ye({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 				/* @__PURE__ */ (0, h.jsxs)("div", {
 					className: "bseat__avatar-stage",
 					children: [/* @__PURE__ */ (0, h.jsxs)("div", {
-						className: "bseat__avatar-wrap",
-						children: [
-							e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(ve, { fraction: e.enrollmentTimeLeft }),
-							e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__dealer",
-								children: "D"
-							}),
-							e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
-								className: "bseat__avatar",
-								src: e.photoURL,
-								alt: ""
-							}) : /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__avatar bseat__avatar--initials",
-								"aria-hidden": "true",
-								children: fe(e.displayName)
-							}),
-							e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
-								className: "bseat__in-badge",
-								title: "In this hand"
-							})
-						]
+						className: "bseat__avatar-stack",
+						children: [e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, h.jsx)(ve, { fraction: e.enrollmentTimeLeft }), /* @__PURE__ */ (0, h.jsxs)("div", {
+							className: "bseat__avatar-wrap",
+							children: [
+								e.isDealer && /* @__PURE__ */ (0, h.jsx)("span", {
+									className: "bseat__dealer",
+									children: "D"
+								}),
+								e.photoURL ? /* @__PURE__ */ (0, h.jsx)("img", {
+									className: "bseat__avatar",
+									src: e.photoURL,
+									alt: ""
+								}) : /* @__PURE__ */ (0, h.jsx)("span", {
+									className: "bseat__avatar bseat__avatar--initials",
+									"aria-hidden": "true",
+									children: fe(e.displayName)
+								}),
+								e.inHand && /* @__PURE__ */ (0, h.jsx)("span", {
+									className: "bseat__in-badge",
+									title: "In this hand"
+								})
+							]
+						})]
 					}), e.isSelf && a && /* @__PURE__ */ (0, h.jsx)("div", {
 						className: "bseat__react-bar",
 						children: [

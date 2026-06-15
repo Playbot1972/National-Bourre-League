@@ -835,13 +835,19 @@
   box-shadow: 0 0 12px rgba(230, 180, 80, 0.35);
 }
 
+.bseat__avatar-stack {
+  position: relative;
+  width: fit-content;
+  margin: 0 auto;
+}
+
 .bseat__timer-ring {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  z-index: 1;
+  z-index: 3;
 }
 
 .bseat__timer-ring__track {
@@ -1414,6 +1420,10 @@
     transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 280ms ease;
   transform-style: preserve-3d;
+}
+
+.bseat--enroll-clock .bseat__avatar-wrap {
+  transform: none;
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
