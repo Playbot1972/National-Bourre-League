@@ -423,6 +423,36 @@ export async function leaveRoom(roomId, user) {
   await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
 }
 
+/** Room owner removes another member and drops them from open session score sheets. */
+export async function kickRoomMember(roomId, targetUserId, actor) {
+  if (!actor?.uid) throw new Error("Not signed in");
+  if (!targetUserId) throw new Error("Missing member");
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) throw new Error("Room not found");
+  const ownerId = roomSnap.data().ownerId;
+  if (ownerId !== actor.uid) {
+    throw new Error("Only the room owner can remove members.");
+  }
+  if (targetUserId === actor.uid) {
+    throw new Error("Use Leave room to remove yourself.");
+  }
+  if (targetUserId === ownerId) {
+    throw new Error("Cannot remove the room owner.");
+  }
+
+  await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
+
+  const sessionsSnap = await getDocs(sessionsCol(roomId));
+  const batch = writeBatch(db);
+  let scoreDeletes = 0;
+  for (const sDoc of sessionsSnap.docs) {
+    if (sDoc.data().status === "final") continue;
+    batch.delete(scoreDoc(roomId, sDoc.id, targetUserId));
+    scoreDeletes += 1;
+  }
+  if (scoreDeletes > 0) await batch.commit();
+}
+
 /** Delete a room entirely (owner only). Cleans up orphan membership if room is already gone. */
 export async function deleteRoom(roomId, user) {
   if (!user?.uid) throw new Error("Not signed in");

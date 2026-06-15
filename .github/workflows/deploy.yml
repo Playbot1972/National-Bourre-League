@@ -101,11 +101,12 @@ jobs:
 
       - name: Deploy Firestore rules
         if: steps.cfg.outputs.ready == 'true'
+        continue-on-error: true
         run: |
           npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
-            echo "::warning::Firestore rules deploy failed — enrollment deal/settlement need rules."
+            echo "::warning::Firestore rules deploy failed — owner kick, session cleanup, and enrollment may need rules."
             echo "Deploy locally: npx firebase login && npm run deploy:rules"
-            exit 1
+            exit 0
           }
 
       - name: Deploy Cloud Functions

@@ -22,6 +22,7 @@ import {
   createRoom,
   joinRoomByCode,
   leaveRoom,
+  kickRoomMember,
   deleteRoom,
   ensureInviteLookupForRoom,
   subscribeMyRooms,
@@ -540,6 +541,12 @@ function bindRoomDetailDelegatedControls() {
   });
 
   roomDetailView.addEventListener("click", (e) => {
+    const kickBtn = e.target.closest("[data-kick-member]");
+    if (kickBtn) {
+      e.preventDefault();
+      onKickMember(kickBtn.dataset.kickMember, kickBtn.dataset.kickName);
+      return;
+    }
     if (e.target.id !== "house-rules-reset") return;
     e.preventDefault();
     const form = $("#house-rules-form", roomDetailView);
@@ -1192,6 +1199,33 @@ async function onLeaveRoom(roomId) {
   }
 }
 
+async function onKickMember(targetUserId, displayName) {
+  if (!session || !currentRoomId) return;
+  if (session.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can remove members.");
+    return;
+  }
+  const label = displayName?.trim() || "this player";
+  if (!window.confirm(`Remove ${label} from this room? They will lose access immediately.`)) {
+    return;
+  }
+  showRoomsError("");
+  try {
+    await kickRoomMember(currentRoomId, targetUserId, session);
+    showRoomsError(`${label} was removed from the room.`);
+  } catch (err) {
+    console.error("kickRoomMember:", err);
+    const msg = err?.message || "";
+    if (err?.code === "permission-denied") {
+      showRoomsError(
+        "Could not remove member — Firestore rules may need updating (owner kick permission).",
+      );
+    } else {
+      showRoomsError(msg.slice(0, 120) || "Could not remove member.");
+    }
+  }
+}
+
 async function onDeleteRoom(roomId) {
   if (!session) return;
   if (
@@ -1363,6 +1397,16 @@ function openRoom(roomId) {
   );
   detailUnsubs.push(
     subscribeRoomMembers(roomId, (members) => {
+      if (
+        session?.uid &&
+        currentRoomId === roomId &&
+        !roomDetailView.hidden &&
+        !members.some((m) => m.userId === session.uid)
+      ) {
+        showRoomsError("You were removed from this room.");
+        closeRoom();
+        return;
+      }
       currentMembers = members;
       scheduleSyncSessionMembers();
       renderRoomDetail();
@@ -2324,10 +2368,21 @@ function renderRoomDetail() {
         <h4>Members (${currentMembers.length})</h4>
         <ul class="members">
           ${currentMembers
-            .map(
-              (m) =>
-                `<li><span class="dot"></span>${escapeHtml(m.displayName)} <em>${escapeHtml(m.role)}</em></li>`,
-            )
+            .map((m) => {
+              const uid = m.userId || "";
+              const canKick =
+                isOwner && uid && uid !== currentRoom.ownerId && uid !== session?.uid;
+              return `<li class="members__row">
+                <span class="dot"></span>
+                <span class="members__name">${escapeHtml(m.displayName)}</span>
+                <em class="members__role">${escapeHtml(m.role)}</em>
+                ${
+                  canKick
+                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(m.displayName)}" aria-label="Remove ${escapeHtml(m.displayName)} from room">Remove</button>`
+                    : ""
+                }
+              </li>`;
+            })
             .join("")}
         </ul>
       </section>
