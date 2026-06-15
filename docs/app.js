@@ -69,6 +69,7 @@ import {
   isHandComplete,
   isRobotPlayerId,
   HAND_ENROLLMENT_MS,
+  enrollmentDeadlineMs,
   tricksForPlayer,
 } from "./firestore.js";
 import {
@@ -812,6 +813,18 @@ async function refreshTablePlayerRatings(scores = openScores) {
   }
 }
 
+function enrollmentMsLeft(enrollment) {
+  return Math.max(0, enrollmentDeadlineMs(enrollment) - Date.now());
+}
+
+function enrollmentSecondsLeft(enrollment) {
+  return Math.max(0, Math.ceil(enrollmentMsLeft(enrollment) / 1000));
+}
+
+function enrollmentHasExpired(enrollment) {
+  return enrollment?.active === true && Date.now() >= enrollmentDeadlineMs(enrollment);
+}
+
 function stopEnrollmentTimer() {
   if (enrollmentTimer) {
     clearInterval(enrollmentTimer);
@@ -833,13 +846,14 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
-    if (
-      sessionObj.handEnrollment?.active &&
-      Date.now() >= sessionObj.handEnrollment.turnDeadlineMs
-    ) {
-      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
-        console.warn("enrollment timeout:", e),
-      );
+    if (enrollmentHasExpired(sessionObj.handEnrollment)) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
+        console.warn("enrollment timeout:", e);
+        setTableActionFeedback({
+          status: "error",
+          message: e.message || "Enrollment timer could not advance — check connection.",
+        });
+      });
     }
     processRobotActions(sessionObj, openScores);
     if (sessionObj.handEnrollment?.active) {
@@ -1449,7 +1463,7 @@ function processRobotActions(s, scores) {
 
   const enrollment = s.handEnrollment;
   if (enrollment?.active) {
-    if (Date.now() >= enrollment.turnDeadlineMs) {
+    if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
         console.warn("enrollment timeout:", e),
       );
@@ -1589,7 +1603,7 @@ function processRobotActions(s, scores) {
 function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid) {
   const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
   const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
-  const sec = Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000));
+  const sec = enrollmentSecondsLeft(enrollment);
   if (currentId === myUid) {
     return `Your turn — tap I'm in (${sec}s)`;
   }
@@ -1771,9 +1785,7 @@ function buildTableSessionProps(s) {
       const isSelf = sc.playerId === myUid;
       const onEnrollmentClock =
         enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
-      const enrollmentMsLeft = onEnrollmentClock
-        ? Math.max(0, enrollment.turnDeadlineMs - Date.now())
-        : 0;
+      const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
       return {
@@ -1801,10 +1813,10 @@ function buildTableSessionProps(s) {
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         enrollmentOnClock: onEnrollmentClock,
         enrollmentTimeLeft: onEnrollmentClock
-          ? enrollmentMsLeft / HAND_ENROLLMENT_MS
+          ? enrollmentMsLeftVal / HAND_ENROLLMENT_MS
           : undefined,
         enrollmentSecondsOnClock: onEnrollmentClock
-          ? Math.max(0, Math.ceil(enrollmentMsLeft / 1000))
+          ? enrollmentSecondsLeft(enrollment)
           : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
@@ -1850,21 +1862,31 @@ function buildTableSessionProps(s) {
           trumpSuit,
         ),
     enrollmentActive,
-    enrollmentSecondsLeft: enrollmentActive
-      ? Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000))
-      : 0,
+    enrollmentSecondsLeft: enrollmentActive ? enrollmentSecondsLeft(enrollment) : 0,
     showCoWinSettlement,
     splitSharePerWinner,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     actions: {
       onToggleInHand: (inHand) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
+          return;
+        }
+        setTableActionFeedback({ status: "loading", message: "Joining hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
           inHand,
           actorId: session.uid,
-        }).catch((e) => showRoomsError(e.message || "Could not update hand participation"));
+        })
+          .then(() => {
+            setTableActionFeedback({ status: "success", message: "You're in this hand." });
+          })
+          .catch((e) => {
+            const message = e.message || "Could not update hand participation";
+            setTableActionFeedback({ status: "error", message });
+            showRoomsError(message);
+          });
       },
       onTrickDelta: (delta) => {
         if (!session?.uid || !currentRoomId || !openSessionId) return;
