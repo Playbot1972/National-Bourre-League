@@ -14,6 +14,7 @@ interface CardTableProps {
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -33,6 +34,7 @@ export function CardTable({
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
+  handComplete = false,
   actionFeedback,
   onToggleInHand,
   onTrickDelta,
@@ -125,6 +127,7 @@ export function CardTable({
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
+        handComplete={handComplete}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}

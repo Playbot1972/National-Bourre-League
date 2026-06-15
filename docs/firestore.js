@@ -645,6 +645,21 @@ function sortedScorePlayerIds(scoreSnap) {
     .map((r) => r.id);
 }
 
+/** Clockwise seat order from session roster (join order), then any extra score rows. */
+export function seatPlayerIds(sessionData, scoreSnap) {
+  const scoreById = Object.fromEntries(
+    scoreSnap.docs.map((d) => [d.id, d.data()?.displayName || ""]),
+  );
+  const fromSession = (sessionData?.players || [])
+    .map((p) => p?.playerId)
+    .filter((id) => id && id in scoreById);
+  const seen = new Set(fromSession);
+  const extras = Object.keys(scoreById)
+    .filter((id) => !seen.has(id))
+    .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
+  return [...fromSession, ...extras];
+}
+
 /** Clockwise order starting with the first seat after the dealer. */
 export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
@@ -1174,8 +1189,8 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
   );
 }
 
-function nextDealerId(scoreSnap, currentDealerId) {
-  const ids = sortedScorePlayerIds(scoreSnap);
+function nextDealerId(scoreSnap, currentDealerId, sessionData) {
+  const ids = seatPlayerIds(sessionData, scoreSnap);
   if (ids.length === 0) return null;
   const idx = ids.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
@@ -1186,9 +1201,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
   const sessionRef = doc(sessionsCol(roomId));
-  const sortedIds = [...players]
-    .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))
-    .map((p) => p.playerId);
+  const sortedIds = players.map((p) => p.playerId).filter(Boolean);
   const initialDealer = sortedIds[0] ?? null;
   const batch = writeBatch(db);
   batch.set(sessionRef, {
@@ -1306,7 +1319,7 @@ export async function recordHand(
 ) {
   return callGameOrClient(
     () =>
-      gameRecordHand(roomId, sessionId, {
+      recordHandClient(roomId, sessionId, {
         winnerId,
         winnerIds,
         participantIds,
@@ -1315,7 +1328,7 @@ export async function recordHand(
         tricksByPlayer,
       }),
     () =>
-      recordHandClient(roomId, sessionId, {
+      gameRecordHand(roomId, sessionId, {
         winnerId,
         winnerIds,
         participantIds,
@@ -1391,7 +1404,7 @@ async function recordHandClient(
   } = handSettlement;
 
   const batch = writeBatch(db);
-  batch.set(doc(handsCol(roomId, sessionId)), {
+  const handLedger = {
     handNumber,
     winnerId: winners.length === 1 ? winners[0] : null,
     winnerIds: winners,
@@ -1409,7 +1422,7 @@ async function recordHandClient(
     deltas,
     recordedBy: recordedBy || null,
     createdAt: serverTimestamp(),
-  });
+  };
 
   participants.forEach((pid) => {
     const current = scoreById[pid];
@@ -1458,7 +1471,8 @@ async function recordHandClient(
     }
   }
 
-  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId);
+  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
+  const seatIds = seatPlayerIds(sessionData, scoreSnap);
   await deletePrivateHandsForSession(roomId, sessionId, batch);
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
@@ -1466,12 +1480,22 @@ async function recordHandClient(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
-    ...enrollmentFieldsForCreate(sortedScorePlayerIds(scoreSnap), newDealerId),
+    ...enrollmentFieldsForCreate(seatIds, newDealerId),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
 
   await batch.commit();
+
+  try {
+    const handBatch = writeBatch(db);
+    handBatch.set(doc(handsCol(roomId, sessionId)), handLedger);
+    await handBatch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    console.warn("recordHand: hand ledger skipped (rules deploy pending)", err);
+  }
+
   await recomputeSessionTotals(roomId, sessionId);
 }
 
@@ -1486,7 +1510,7 @@ export async function voteCoWinSettlement(
 ) {
   return callGameOrClient(
     () =>
-      gameVoteCoWinSettlement(roomId, sessionId, {
+      voteCoWinSettlementClient(roomId, sessionId, {
         participantIds,
         winnerIds,
         voterId,
@@ -1494,7 +1518,7 @@ export async function voteCoWinSettlement(
         recordedBy,
       }),
     () =>
-      voteCoWinSettlementClient(roomId, sessionId, {
+      gameVoteCoWinSettlement(roomId, sessionId, {
         participantIds,
         winnerIds,
         voterId,
@@ -1901,15 +1925,8 @@ export async function ensureSessionPlayer(
   const activeEnrollment = getSessionEnrollment(sessionData);
 
   const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedIds = [
-    ...allScoresSnap.docs.map((d) => ({
-      id: d.id,
-      displayName: d.data()?.displayName || "",
-    })),
-    { id: playerId, displayName: displayName || "" },
-  ]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
-    .map((r) => r.id);
+  const rosterIds = seatPlayerIds(sessionData, allScoresSnap);
+  const sortedIds = rosterIds.includes(playerId) ? rosterIds : [...rosterIds, playerId];
 
   const sessionPatch = {
     players: arrayUnion({ playerId, displayName }),
@@ -2009,7 +2026,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) return;
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedIds = sortedScorePlayerIds(scoreSnap);
+  const sortedIds = seatPlayerIds(data, scoreSnap);
   if (sortedIds.length < 2) return;
 
   const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
@@ -2037,8 +2054,9 @@ export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
 }
 
 async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
+  const sortedPlayerIds = seatPlayerIds(sessionSnap.data(), scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
 
@@ -2073,15 +2091,15 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     throw new Error("You can only change your own hand participation");
   }
 
-  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
-  const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
-
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) throw new Error("Session not found");
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") throw new Error("Session is final");
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
 
   const enrollment = getSessionEnrollment(sessionData);
   if (enrollment?.active) {

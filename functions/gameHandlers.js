@@ -147,6 +147,20 @@ function sortedScorePlayerIds(scoreDocs) {
     .map((r) => r.id);
 }
 
+function seatPlayerIds(sessionData, scoreDocs) {
+  const scoreById = Object.fromEntries(
+    scoreDocs.map((d) => [d.id, d.data()?.displayName || ""]),
+  );
+  const fromSession = (sessionData?.players || [])
+    .map((p) => p?.playerId)
+    .filter((id) => id && id in scoreById);
+  const seen = new Set(fromSession);
+  const extras = Object.keys(scoreById)
+    .filter((id) => !seen.has(id))
+    .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
+  return [...fromSession, ...extras];
+}
+
 function actionOrderFromHand(currentHand) {
   if (currentHand?.actionOrder?.length) return currentHand.actionOrder;
   return currentHand?.participantIds || [];
@@ -215,8 +229,8 @@ function playerHandStake(scoreById, playerId, sessionStake) {
   return stakeForPlayer(scoreById, playerId, sessionStake);
 }
 
-function nextDealerId(scoreDocs, currentDealerId) {
-  const ids = sortedScorePlayerIds(scoreDocs);
+function nextDealerId(scoreDocs, currentDealerId, sessionData) {
+  const ids = seatPlayerIds(sessionData, scoreDocs);
   if (ids.length === 0) return null;
   const idx = ids.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
@@ -866,7 +880,8 @@ export async function handleRecordHand(
     }
   }
 
-  const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId);
+  const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId, sessionData);
+  const seatIds = seatPlayerIds(sessionData, scoreSnap.docs);
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
   batch.update(sessionRef(db, roomId, sessionId), {
     handCount: handNumber,
@@ -874,7 +889,7 @@ export async function handleRecordHand(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: FieldValue.delete(),
-    handEnrollment: buildHandEnrollment(sortedScorePlayerIds(scoreSnap.docs), newDealerId),
+    handEnrollment: buildHandEnrollment(seatIds, newDealerId),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
   });

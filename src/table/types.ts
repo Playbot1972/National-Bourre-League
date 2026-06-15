@@ -137,6 +137,8 @@ export interface TableSessionViewProps {
   heroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
+  /** True when all five tricks are recorded for the current hand. */
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   actions: TableSessionActions;
 }

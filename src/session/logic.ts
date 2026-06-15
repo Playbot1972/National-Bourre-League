@@ -86,3 +86,21 @@ export function nextDealerId(sortedPlayerIds: string[], currentDealerId: string 
   const base = idx >= 0 ? idx : 0;
   return sortedPlayerIds[(base + 1) % sortedPlayerIds.length];
 }
+
+/** Clockwise seat order from session roster (join order), then any extra score rows. */
+export function seatPlayerIdsFromRoster(
+  sessionPlayers: Array<{ playerId?: string }> = [],
+  scoreRows: Array<{ playerId: string; displayName?: string }> = [],
+): string[] {
+  const scoreById = Object.fromEntries(
+    scoreRows.map((row) => [row.playerId, row.displayName || ""]),
+  );
+  const fromSession = sessionPlayers
+    .map((p) => p?.playerId)
+    .filter((id): id is string => Boolean(id && id in scoreById));
+  const seen = new Set(fromSession);
+  const extras = Object.keys(scoreById)
+    .filter((id) => !seen.has(id))
+    .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
+  return [...fromSession, ...extras];
+}

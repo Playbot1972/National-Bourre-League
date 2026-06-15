@@ -1961,6 +1961,7 @@ function buildTableSessionProps(s) {
     },
     heroCards: heroCardList,
     privateHandReady: privateHandSnapSeen,
+    handComplete,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {

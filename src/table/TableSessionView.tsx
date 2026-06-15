@@ -28,6 +28,7 @@ export function TableSessionView({
   heroCards = [],
   privateHandReady = false,
   legalPlayIndices,
+  handComplete = false,
   actionFeedback,
   actions,
 }: TableSessionViewProps) {
@@ -161,6 +162,7 @@ export function TableSessionView({
             privateHandReady={privateHandReady}
             currentUserId={currentUserId}
             legalPlayIndices={legalPlayIndices}
+            handComplete={handComplete}
             actionFeedback={actionFeedback}
             onToggleInHand={(playerId, inHand) => {
               const p = players.find((x) => x.playerId === playerId);
