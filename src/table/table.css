@@ -1085,27 +1085,9 @@
   border: 1px solid var(--border-mid, rgba(244, 213, 141, 0.3));
 }
 
-.session--table {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-
-@media (min-width: 1025px) {
-  .session--table {
-    grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
-    align-items: start;
-  }
-}
-
-.session-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.table-session-root {
-  min-height: 280px;
+.table-play-overlay .table-session-root {
+  min-height: 0;
+  flex: 1;
   overflow: visible;
 }
 

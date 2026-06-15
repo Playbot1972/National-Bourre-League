@@ -1439,10 +1439,8 @@ function unmountTableSessionHost() {
 }
 
 function tableSessionHost() {
-  if (tablePlayOpen) {
-    return $("#table-session-root");
-  }
-  return $("#table-session-inline-root", roomDetailView);
+  if (!tablePlayOpen) return null;
+  return $("#table-session-root");
 }
 
 function resolveOpenSessionObj(openSessionObj) {
@@ -2109,6 +2107,11 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     return;
   }
 
+  if (!tablePlayOpen) {
+    unmountTableSessionHost();
+    return;
+  }
+
   const host = tableSessionHost();
   if (!host) {
     if (attempt < 8) {
@@ -2369,7 +2372,12 @@ function renderRoomDetail() {
           )
           .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
       </div>
-      ${openSessionObj ? '<div id="session-panel-mount"></div>' : ""}
+      ${
+        openSessionObj
+          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj)}</div>
+             <div id="session-panel-mount"></div>`
+          : ""
+      }
     </section>`;
 
   // Wire detail controls
@@ -2471,6 +2479,38 @@ function buildSessionPlayerBarHtml(s) {
     </div>`;
 }
 
+function buildSessionLiveStatusHtml(s) {
+  if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
+  const enrollment = getSessionEnrollment(s);
+  const handNum = (s.handCount ?? 0) + 1;
+  let status = `Hand #${handNum}`;
+  if (enrollment?.active) {
+    status += " · enrollment open — open the table to tap I'm in";
+  } else {
+    const phase = getSessionCurrentHand(s)?.phase;
+    if (phase === "draw") status += " · draw phase";
+    else if (phase === "play") status += " · live play";
+    else status += " · ready";
+  }
+  return `<div class="session-live-card">
+      <p class="session-live-card__status">${escapeHtml(status)}</p>
+      <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
+        Open table · landscape
+      </button>
+      <p class="muted small session-live-card__hint">
+        Cards and enrollment live in the landscape table. Add players and session controls stay here.
+      </p>
+    </div>`;
+}
+
+function buildSessionToolbarHtml(s) {
+  if (!s || s.status === "final") return "";
+  return `${buildSessionPlayerBarHtml(s)}
+    <div class="session-toolbar__actions">
+      <button class="btn btn--primary btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
+    </div>`;
+}
+
 function buildSessionSidebarHtml(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
@@ -2523,13 +2563,11 @@ function buildSessionSidebarHtml(s) {
 
   const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
-  const controls = isFinal
-    ? `<span class="badge badge--closed">Session final</span>`
-    : `<button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
+  const controls = isFinal ? `<div class="session-controls"><span class="badge badge--closed">Session final</span></div>` : "";
 
   return `${lmtControl}
         ${handHistory}
-        <div class="session-controls">${controls}</div>
+        ${controls}
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
         <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
           placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
@@ -2555,7 +2593,7 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Stable inline table mount — sidebar re-renders without destroying the React root. */
+/** Session ledger panel — controls live in #session-toolbar-root; table opens in overlay only. */
 function mountSessionPanel(s) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
@@ -2563,13 +2601,13 @@ function mountSessionPanel(s) {
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
   const sidebarHtml = buildSessionSidebarHtml(s);
-  const playerBarHtml = buildSessionPlayerBarHtml(s);
+  const liveCardHtml = buildSessionLiveStatusHtml(s);
 
   if (isFinal) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table">
+      <div class="session session--stack">
         ${buildSessionResultsHtml(s)}
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2580,8 +2618,7 @@ function mountSessionPanel(s) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table session--waiting">
-        ${playerBarHtml}
+      <div class="session session--stack session--waiting">
         <p class="muted small session-waiting-players">
           Need at least two players for the live table. Add a guest or robot above, or open the room to another member.
         </p>
@@ -2590,31 +2627,13 @@ function mountSessionPanel(s) {
     return;
   }
 
-  let shell = $("#session-panel-shell", mount);
-  if (!shell) {
-    bumpTableMountGeneration();
-    mount.innerHTML = `
-      <div class="session session--table" id="session-panel-shell">
-        <div id="session-player-bar-root"></div>
-        <div class="session-table-wrap" id="session-table-wrap">
-          <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
-          <div class="session-play-cta" id="session-play-cta">
-            <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-              Open table · landscape
-            </button>
-            <p class="muted small session-play-cta__hint">
-              Full-screen landscape view. Hand results and session controls stay in the sidebar.
-            </p>
-          </div>
-        </div>
-        <aside class="session-sidebar" id="session-sidebar-root"></aside>
-      </div>`;
-  }
-
-  const sidebarRoot = $("#session-sidebar-root", mount);
-  if (sidebarRoot) sidebarRoot.innerHTML = sidebarHtml;
-  const playerBarRoot = $("#session-player-bar-root", mount);
-  if (playerBarRoot) playerBarRoot.innerHTML = buildSessionPlayerBarHtml(s);
+  bumpTableMountGeneration();
+  unmountTableSessionHost();
+  mount.innerHTML = `
+    <div class="session session--stack">
+      ${liveCardHtml}
+      <aside class="session-sidebar">${sidebarHtml}</aside>
+    </div>`;
 }
 
 function renderSessionPanel(s) {
