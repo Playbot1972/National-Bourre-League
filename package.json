@@ -48,6 +48,8 @@
     "test:release": "npm run test:qa && npm run build:functions && npm run test:e2e",
     "postinstall": "playwright install chromium || true",
     "test:qa": "npm run test && npm run check:social && npm run build:game && npm run build:table && npm run build:settlement",
+    "test:e2e:install": "playwright install chromium",
+    "postinstall": "playwright install chromium || true",
     "emulators": "npx firebase emulators:start --only auth,firestore,functions --project demo-national-bourre-league",
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
