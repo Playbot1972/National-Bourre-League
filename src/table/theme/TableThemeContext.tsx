@@ -1,4 +1,5 @@
 import {
+  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -13,7 +14,14 @@ import {
   saveTableSettings,
   type TableSettings,
 } from "./settings";
-import { TableThemeContext } from "./tableThemeContext";
+
+export interface TableThemeContextValue {
+  settings: TableSettings;
+  updateSettings: (patch: Partial<TableSettings>) => void;
+  resetSettings: () => void;
+}
+
+export const TableThemeContext = createContext<TableThemeContextValue | null>(null);
 
 function TableRoomShell({ settings, children }: { settings: TableSettings; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);

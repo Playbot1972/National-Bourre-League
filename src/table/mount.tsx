@@ -1,6 +1,6 @@
 import { createRoot, type Root } from "react-dom/client";
 import { TableSessionView } from "./TableSessionView";
-import { TableThemeProvider } from "./theme/TableThemeContext";
+import { TableThemeProvider } from "./theme/TableThemeContext.tsx";
 import type { TableSessionViewProps } from "./types";
 import {
   initGameFeedback,

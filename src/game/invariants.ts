@@ -105,7 +105,7 @@ export function effectivePlayerHand(
 
 /** Persist the holder's full private hand after draw or play. */
 export function privateHandFromEffective(
-  playerId: string,
+  _playerId: string,
   effectiveHand: Card[],
   _publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
 ): Card[] {

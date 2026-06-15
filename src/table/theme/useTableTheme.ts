@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import { TableThemeContext, type TableThemeContextValue } from "./tableThemeContext";
+import { TableThemeContext, type TableThemeContextValue } from "./TableThemeContext";
 
 export function useTableTheme(): TableThemeContextValue {
   const ctx = useContext(TableThemeContext);
