@@ -1631,8 +1631,8 @@ function processRobotActions(s, scores) {
   const now = Date.now();
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
-  // Server-authoritative path: one callable chains all robot turns.
-  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores)) {
+  // Server-authoritative draw/play/co-win — enrollment stays on client Firestore.
+  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores) && !getSessionEnrollment(s)?.active) {
     lastRobotTrickAt = now;
     robotActionInFlight = true;
     advanceSessionBots(currentRoomId, openSessionId)
