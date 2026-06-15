@@ -655,7 +655,8 @@ let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
-const ROBOT_TRICK_INTERVAL_MS = 1500;
+/** Min gap between robot card plays — must exceed post-trick hold + sweep. */
+const ROBOT_TRICK_INTERVAL_MS = 2200;
 
 function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;

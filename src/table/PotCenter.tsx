@@ -3,12 +3,8 @@ import type { Rank, Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
-import type {
-  CurrentTrickState,
-  PlayedCardEntry,
-  PotMetrics,
-  SerializedCard,
-} from "./types";
+import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
+import type { PotMetrics, SerializedCard } from "./types";
 
 interface PotCenterProps {
   potMetrics: PotMetrics;
@@ -18,8 +14,10 @@ interface PotCenterProps {
   phase?: string | null;
   enrollmentActive?: boolean;
   remainingDeckCount?: number | null;
-  currentTrick?: CurrentTrickState | null;
-  playedCards?: PlayedCardEntry[];
+  trickDisplayPlays?: TrickPlay[];
+  trickWinnerPlayerId?: string | null;
+  trickShowWinnerTag?: boolean;
+  trickPresentationPhase?: TrickPresentationPhase;
   playerNames?: Record<string, string>;
 }
 
@@ -31,8 +29,10 @@ export function PotCenter({
   phase,
   enrollmentActive = false,
   remainingDeckCount,
-  currentTrick,
-  playedCards,
+  trickDisplayPlays = [],
+  trickWinnerPlayerId = null,
+  trickShowWinnerTag = false,
+  trickPresentationPhase = "live",
   playerNames = {},
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
@@ -86,8 +86,10 @@ export function PotCenter({
 
         <div className="center-play__trick">
           <TrickRow
-            currentTrick={currentTrick}
-            playedCards={playedCards}
+            displayPlays={trickDisplayPlays}
+            winnerPlayerId={trickWinnerPlayerId}
+            showWinnerTag={trickShowWinnerTag}
+            presentationPhase={trickPresentationPhase}
             playerNames={playerNames}
           />
         </div>
