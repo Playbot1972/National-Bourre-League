@@ -1224,6 +1224,10 @@ button {
   gap: 10px;
   align-items: center;
 }
+.session-toolbar__table-btn {
+  flex: 1 1 140px;
+  min-width: 140px;
+}
 .session-live-card {
   padding: 14px 16px;
   border-radius: 12px;
