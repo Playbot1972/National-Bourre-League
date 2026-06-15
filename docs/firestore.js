@@ -553,6 +553,33 @@ export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
 }
 
+/** Writable on legacy Firestore rules (not in sessionGameFieldsChanged). */
+export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
+
+/** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
+export function getSessionEnrollment(sessionData) {
+  const live = sessionData?.liveEnrollment;
+  if (live?.active) return live;
+  return sessionData?.handEnrollment ?? null;
+}
+
+function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch) {
+  if (patch.privateHandsByPlayer) {
+    writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
+    tx.update(ref, {
+      handEnrollment: deleteField(),
+      liveEnrollment: deleteField(),
+      currentHand: patch.currentHand,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+  tx.update(ref, {
+    [LIVE_ENROLLMENT_FIELD]: patch.handEnrollment,
+    updatedAt: serverTimestamp(),
+  });
+}
+
 function buildHandEnrollment(sortedPlayerIds, dealerId) {
   const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
   return {
@@ -562,6 +589,14 @@ function buildHandEnrollment(sortedPlayerIds, dealerId) {
     turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
     enrolledIds: [],
     declinedIds: [],
+  };
+}
+
+function enrollmentFieldsForCreate(sortedIds, dealerId) {
+  const enrollment = buildHandEnrollment(sortedIds, dealerId);
+  return {
+    handEnrollment: enrollment,
+    [LIVE_ENROLLMENT_FIELD]: enrollment,
   };
 }
 
@@ -901,7 +936,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
     limEnabled,
     carryOverPot: 0,
     dealerId: initialDealer,
-    handEnrollment: buildHandEnrollment(sortedIds, initialDealer),
+    ...enrollmentFieldsForCreate(sortedIds, initialDealer),
     currentHand: emptyPreDealHand(),
     rounds: 0,
     players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
@@ -1160,7 +1195,7 @@ async function recordHandClient(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
-    handEnrollment: buildHandEnrollment(sortedScorePlayerIds(scoreSnap), newDealerId),
+    ...enrollmentFieldsForCreate(sortedScorePlayerIds(scoreSnap), newDealerId),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
@@ -1526,9 +1561,10 @@ export async function ensureSessionPlayer(
     },
     updatedAt: serverTimestamp(),
   };
-  if (sessionData.handEnrollment?.active && !joinCurrentHand) {
-    sessionPatch.handEnrollment = mergePlayerIntoEnrollment(
-      sessionData.handEnrollment,
+  const activeEnrollment = getSessionEnrollment(sessionData);
+  if (activeEnrollment?.active && !joinCurrentHand) {
+    sessionPatch[LIVE_ENROLLMENT_FIELD] = mergePlayerIntoEnrollment(
+      activeEnrollment,
       sessionData.dealerId,
       sortedIds,
     );
@@ -1605,7 +1641,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const data = sessionSnap.data();
-  if (data.status === "final" || data.handEnrollment?.active) return;
+  if (data.status === "final" || getSessionEnrollment(data)?.active) return;
   const phase = data.currentHand?.phase;
   if (phase === "draw" || phase === "play") return;
   const participantIds = data.currentHand?.participantIds || [];
@@ -1617,8 +1653,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   if (sortedIds.length < 2) return;
 
   await updateDoc(sessionDoc(roomId, sessionId), {
-    handEnrollment: buildHandEnrollment(sortedIds, data.dealerId),
-    currentHand: emptyPreDealHand(),
+    [LIVE_ENROLLMENT_FIELD]: buildHandEnrollment(sortedIds, data.dealerId),
     updatedAt: serverTimestamp(),
   });
 }
@@ -1641,7 +1676,7 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
     const snap = await tx.get(ref);
     if (!snap.exists()) return;
     const sessionData = snap.data();
-    const enrollment = sessionData.handEnrollment;
+    const enrollment = getSessionEnrollment(sessionData);
     if (!enrollment?.active) return;
     const deadline = enrollmentDeadlineMs(enrollment);
     if (Date.now() < deadline) return;
@@ -1655,9 +1690,7 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
       seed: Date.now(),
       dealingRule,
     });
-    writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
-    const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-    tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
+    applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch);
   });
 }
 
@@ -1686,7 +1719,7 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
-    const enrollment = sessionData.handEnrollment;
+    const enrollment = getSessionEnrollment(sessionData);
     if (enrollment?.active) {
       if (!inHand) throw new Error("Wait for your turn or let the timer run out");
       const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
@@ -1699,9 +1732,16 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
         seed: Date.now(),
         dealingRule,
       });
-      writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
-      const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-      tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
+      try {
+        applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch);
+      } catch (err) {
+        if (err?.code === "permission-denied" && patch.privateHandsByPlayer) {
+          throw new Error(
+            "Could not deal — Firestore rules must be deployed. Run: npm run deploy:rules",
+          );
+        }
+        throw err;
+      }
       return;
     }
 

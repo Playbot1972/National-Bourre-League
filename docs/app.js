@@ -68,6 +68,7 @@ import {
   totalTricksPlayed,
   isHandComplete,
   isRobotPlayerId,
+  getSessionEnrollment,
   HAND_ENROLLMENT_MS,
   enrollmentDeadlineMs,
   tricksForPlayer,
@@ -786,7 +787,7 @@ function sessionHasRobots(scores = openScores) {
 /** True when robots may need a human room member (or server nudge) to keep the hand moving. */
 function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  if (sessionObj.handEnrollment?.active) return sessionHasRobots(scores);
+  if (getSessionEnrollment(sessionObj)?.active) return sessionHasRobots(scores);
   if (sessionObj.pendingCoWinSettlement?.winnerIds?.some((id) => isRobotPlayerId(id))) {
     return true;
   }
@@ -836,7 +837,7 @@ function startEnrollmentTimer() {
   stopEnrollmentTimer();
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
-  const enrollmentActive = s.handEnrollment?.active === true;
+  const enrollmentActive = getSessionEnrollment(s)?.active === true;
   const needsDriver = sessionNeedsBotDriver(s, openScores);
   if (!enrollmentActive && !needsDriver) return;
 
@@ -846,7 +847,7 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
-    if (enrollmentHasExpired(sessionObj.handEnrollment)) {
+    if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
         console.warn("enrollment timeout:", e);
         setTableActionFeedback({
@@ -856,7 +857,7 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-    if (sessionObj.handEnrollment?.active) {
+    if (getSessionEnrollment(sessionObj)?.active) {
       syncTableSession(sessionObj);
     }
   }, 1000);
@@ -1461,7 +1462,7 @@ function processRobotActions(s, scores) {
     return;
   }
 
-  const enrollment = s.handEnrollment;
+  const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
     if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
@@ -1695,7 +1696,7 @@ function buildTableSessionProps(s) {
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
   const dealerId = s.dealerId ?? null;
-  const enrollment = s.handEnrollment;
+  const enrollment = getSessionEnrollment(s);
   const enrollmentActive = enrollment?.active === true;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
@@ -2019,7 +2020,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     }
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
-    if (sessionObj.handEnrollment?.active || sessionHasRobots()) {
+    if (getSessionEnrollment(sessionObj)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
@@ -2286,7 +2287,7 @@ function renderRoomDetail() {
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
-    if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
+    if (getSessionEnrollment(openSessionObj)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     }
   }
