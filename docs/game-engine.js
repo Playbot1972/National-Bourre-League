@@ -545,12 +545,17 @@ function re(e, t, n) {
 function ie(e, t) {
 	let n = Y(t);
 	if (!n.length) return 0;
-	let r = n[0], i = T(e[r]);
-	for (let t of n) {
-		let n = T(e[t]);
-		n < i && (r = t, i = n);
-	}
-	return r;
+	if (t.isLeading || !t.trickPlays.length) return n.reduce((t, n) => T(e[n]) > T(e[t]) ? n : t);
+	let r = t.leadSuit ?? t.trickPlays[0]?.suit;
+	if (!r) return n.reduce((t, n) => T(e[n]) < T(e[t]) ? n : t);
+	let i = n.filter((n) => Q([...t.trickPlays.map((e, t) => ({
+		playerId: `_${t}`,
+		card: e
+	})), {
+		playerId: "_bot",
+		card: e[n]
+	}], r, t.trumpSuit) === "_bot");
+	return (i.length ? i : n).reduce((t, n) => T(e[n]) < T(e[t]) ? n : t);
 }
 //#endregion
 export { p as CARDS_PER_PLAYER, A as CardUniquenessError, v as HAND_PHASE, f as activePlayerOrder, G as advanceAfterDraw, U as allDrawsComplete, V as applyDraw, $ as applyPlayCard, W as applyPlayerDraw, ne as applyPlayerPlayCard, M as assertCardUniqueness, g as assignTrumpUpcard, re as botDrawDiscardIndices, ie as botPlayCardIndex, C as cardKey, w as cardsEqual, z as cardsRemainingInHand, i as createDeck, m as dealInitialHand, S as deserializeCards, l as drawCardsFromDeck, I as effectiveIndexDiscardsTrump, P as effectivePlayerHand, Y as getLegalPlayIndices, E as isTrump, _ as maxDrawDiscards, H as nextPlayerInOrder, L as playedTrumpUpcard, d as playerOrderFromDealer, F as privateHandFromEffective, T as rankValue, u as remainingDeckCount, Q as resolveTrickWinner, y as serializeCard, b as serializeCards, x as serializeHandState, s as shuffleDeck, c as shuffledDeckFromSeed, B as trumpRevealMirroredInHolderHand, X as validatePlayIndex };

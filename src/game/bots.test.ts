@@ -22,17 +22,26 @@ describe("F — bot helpers", () => {
     assert.ok(indices.includes(1));
   });
 
-  it("botPlayCardIndex picks lowest legal card", () => {
+  it("botPlayCardIndex picks a legal card and leads high when opening a trick", () => {
     const hand = [c("A", "clubs"), c("2", "clubs")];
-    const ctx = {
+    const leadCtx = {
+      hand,
+      trumpSuit: "hearts" as const,
+      leadSuit: null,
+      trickPlays: [] as Card[],
+      isLeading: true,
+    };
+    assert.equal(botPlayCardIndex(hand, leadCtx), 0);
+
+    const followCtx = {
       hand,
       trumpSuit: "hearts" as const,
       leadSuit: "clubs" as const,
       trickPlays: [c("5", "clubs")],
       isLeading: false,
     };
-    const idx = botPlayCardIndex(hand, ctx);
-    const legal = getLegalPlayIndices(ctx);
+    const idx = botPlayCardIndex(hand, followCtx);
+    const legal = getLegalPlayIndices(followCtx);
     assert.ok(legal.includes(idx));
   });
 

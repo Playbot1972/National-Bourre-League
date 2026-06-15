@@ -885,10 +885,10 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  if (!SERVER_HAND_AUTHORITY) {
-    return submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId });
-  }
-  return gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId });
+  return callGameOrClient(
+    () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
+    () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
+  );
 }
 
 async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
@@ -953,10 +953,10 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
 
 /** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  if (!SERVER_HAND_AUTHORITY) {
-    return playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId });
-  }
-  return gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId });
+  return callGameOrClient(
+    () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
+    () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
+  );
 }
 
 async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {
@@ -1285,24 +1285,26 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameRecordHand(roomId, sessionId, {
-      winnerId,
-      winnerIds,
-      participantIds,
-      settlement,
-      recordedBy,
-      tricksByPlayer,
-    });
-  }
-  return recordHandClient(roomId, sessionId, {
-    winnerId,
-    winnerIds,
-    participantIds,
-    settlement,
-    recordedBy,
-    tricksByPlayer,
-  });
+  return callGameOrClient(
+    () =>
+      gameRecordHand(roomId, sessionId, {
+        winnerId,
+        winnerIds,
+        participantIds,
+        settlement,
+        recordedBy,
+        tricksByPlayer,
+      }),
+    () =>
+      recordHandClient(roomId, sessionId, {
+        winnerId,
+        winnerIds,
+        participantIds,
+        settlement,
+        recordedBy,
+        tricksByPlayer,
+      }),
+  );
 }
 
 async function recordHandClient(
@@ -1458,22 +1460,24 @@ export async function voteCoWinSettlement(
   sessionId,
   { participantIds, winnerIds, voterId, choice, recordedBy },
 ) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameVoteCoWinSettlement(roomId, sessionId, {
-      participantIds,
-      winnerIds,
-      voterId,
-      choice,
-      recordedBy,
-    });
-  }
-  return voteCoWinSettlementClient(roomId, sessionId, {
-    participantIds,
-    winnerIds,
-    voterId,
-    choice,
-    recordedBy,
-  });
+  return callGameOrClient(
+    () =>
+      gameVoteCoWinSettlement(roomId, sessionId, {
+        participantIds,
+        winnerIds,
+        voterId,
+        choice,
+        recordedBy,
+      }),
+    () =>
+      voteCoWinSettlementClient(roomId, sessionId, {
+        participantIds,
+        winnerIds,
+        voterId,
+        choice,
+        recordedBy,
+      }),
+  );
 }
 
 async function voteCoWinSettlementClient(

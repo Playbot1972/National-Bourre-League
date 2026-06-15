@@ -210,18 +210,34 @@ export function botDrawDiscardIndices(
   return ranked.slice(0, maxDiscards).map((x) => x.index);
 }
 
-/** Simple bot: lowest legal card. */
+/** Prefer winning the trick when possible; lead with strength, dump lows when losing. */
 export function botPlayCardIndex(hand: Card[], ctx: PlayContext): number {
   const legal = getLegalPlayIndices(ctx);
   if (!legal.length) return 0;
-  let best = legal[0];
-  let bestVal = rankValue(hand[best]);
-  for (const idx of legal) {
-    const v = rankValue(hand[idx]);
-    if (v < bestVal) {
-      best = idx;
-      bestVal = v;
-    }
+
+  if (ctx.isLeading || !ctx.trickPlays.length) {
+    return legal.reduce((best, idx) =>
+      rankValue(hand[idx]) > rankValue(hand[best]) ? idx : best,
+    );
   }
-  return best;
+
+  const leadSuit = ctx.leadSuit ?? ctx.trickPlays[0]?.suit;
+  if (!leadSuit) {
+    return legal.reduce((best, idx) =>
+      rankValue(hand[idx]) < rankValue(hand[best]) ? idx : best,
+    );
+  }
+
+  const winners = legal.filter((idx) => {
+    const plays = [
+      ...ctx.trickPlays.map((card, i) => ({ playerId: `_${i}`, card })),
+      { playerId: "_bot", card: hand[idx] },
+    ];
+    return resolveTrickWinner(plays, leadSuit, ctx.trumpSuit) === "_bot";
+  });
+
+  const pool = winners.length ? winners : legal;
+  return pool.reduce((best, idx) =>
+    rankValue(hand[idx]) < rankValue(hand[best]) ? idx : best,
+  );
 }

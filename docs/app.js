@@ -39,7 +39,6 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
-  advanceSessionBots,
   addSessionPlayer,
   addSessionRobot,
   removeSessionPlayer,
@@ -88,7 +87,6 @@ import {
   formatHandHistoryPublicLine,
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
-import { isServerHandAuthorityEnabled } from "./game-functions.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -1641,18 +1639,6 @@ function processRobotActions(s, scores) {
 
   const now = Date.now();
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
-
-  // Server-authoritative draw/play/co-win — enrollment stays on client Firestore.
-  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores) && !getSessionEnrollment(s)?.active) {
-    lastRobotTrickAt = now;
-    robotActionInFlight = true;
-    advanceSessionBots(currentRoomId, openSessionId)
-      .catch((e) => console.warn("advanceSessionBots:", e))
-      .finally(() => {
-        robotActionInFlight = false;
-      });
-    return;
-  }
 
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
