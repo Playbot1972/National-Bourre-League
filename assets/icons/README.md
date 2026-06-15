@@ -4,15 +4,29 @@ One consistent **BOORAY** logo for App Store, Play Store, PWA / Add to Home Scre
 
 ## Pixel-perfect source (recommended)
 
-Place your official artwork here:
+**Option A — drag into the repo**
+
+Save your official artwork as:
 
 ```
-assets/icons/booray-logo-source.png   (1024×1024, square, opaque)
+assets/icons/booray-logo-source.png
 ```
 
-Then run `npm run icons:generate`. All platform exports rasterize from that PNG.
+Then run:
 
-If the PNG is absent, exports fall back to `booray-icon-master.svg` (vector recreation of the logo).
+```bash
+npm run icons:generate
+```
+
+**Option B — import from any path**
+
+```bash
+npm run icons:import -- /path/to/your/booray-logo.png
+```
+
+Chat image attachments do not reach the cloud agent as files; add the PNG to the repo path above (or pass a local path with `icons:import`).
+
+All platform exports rasterize from `booray-logo-source.png` when present. If absent, exports fall back to `booray-icon-master.svg`.
 
 ## Vector master
 
