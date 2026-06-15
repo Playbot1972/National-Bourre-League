@@ -1457,17 +1457,33 @@ export async function finalizeSession(roomId, sessionId) {
   });
 }
 
-/** Remove a session and its score/hand subcollections from the room. */
+/** Remove a completed session and its subcollections from the room. */
 export async function deleteSession(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return;
+  if (sessionSnap.data().status !== "final") {
+    throw new Error("Only completed sessions can be removed");
+  }
+
   const [scoresSnap, handsSnap] = await Promise.all([
     getDocs(scoresCol(roomId, sessionId)),
     getDocs(handsCol(roomId, sessionId)),
   ]);
   const batch = writeBatch(db);
   scoresSnap.docs.forEach((d) => batch.delete(d.ref));
-  handsSnap.docs.forEach((d) => batch.delete(d.ref));
+  await deletePrivateHandsForSession(roomId, sessionId, batch);
   batch.delete(sessionDoc(roomId, sessionId));
   await batch.commit();
+
+  if (handsSnap.empty) return;
+  try {
+    const handsBatch = writeBatch(db);
+    handsSnap.docs.forEach((d) => handsBatch.delete(d.ref));
+    await handsBatch.commit();
+  } catch (err) {
+    if (err?.code !== "permission-denied") throw err;
+    console.warn("deleteSession: hand ledger retained (rules deploy pending)", err);
+  }
 }
 
 // ---------------------------------------------------------------------------

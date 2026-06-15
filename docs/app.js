@@ -873,6 +873,65 @@ let tableSyncFrame = 0;
 const pendingSessionCleanup = new Set();
 const sessionCleanupTimers = new Map();
 const SESSION_CLEANUP_MS = 30_000;
+const SESSION_CLEANUP_STORAGE_KEY = "bourre-session-cleanup-v1";
+
+function readCleanupQueue() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_CLEANUP_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeCleanupQueue(queue) {
+  sessionStorage.setItem(SESSION_CLEANUP_STORAGE_KEY, JSON.stringify(queue));
+}
+
+function queueSessionCleanupPersisted(roomId, sessionId, deleteAtMs) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]) queue[roomId] = {};
+  queue[roomId][sessionId] = deleteAtMs;
+  writeCleanupQueue(queue);
+}
+
+function dequeueSessionCleanupPersisted(roomId, sessionId) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]?.[sessionId]) return;
+  delete queue[roomId][sessionId];
+  if (Object.keys(queue[roomId]).length === 0) delete queue[roomId];
+  writeCleanupQueue(queue);
+}
+
+async function runSessionCleanup(roomId, sessionId) {
+  cancelSessionCleanup(sessionId);
+  dequeueSessionCleanupPersisted(roomId, sessionId);
+  await deleteSession(roomId, sessionId);
+}
+
+function restoreSessionCleanupTimers(roomId) {
+  if (!roomId) return;
+  const entries = readCleanupQueue()[roomId] || {};
+  const now = Date.now();
+  for (const [sessionId, deleteAtMs] of Object.entries(entries)) {
+    if (sessionCleanupTimers.has(sessionId)) continue;
+    pendingSessionCleanup.add(sessionId);
+    const delay = Math.max(0, Number(deleteAtMs) - now);
+    if (delay === 0) {
+      runSessionCleanup(roomId, sessionId).catch((e) =>
+        console.error("deleteSession:", e),
+      );
+    } else {
+      sessionCleanupTimers.set(
+        sessionId,
+        setTimeout(() => {
+          runSessionCleanup(roomId, sessionId).catch((e) =>
+            console.error("deleteSession:", e),
+          );
+        }, delay),
+      );
+    }
+  }
+}
 
 function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
@@ -947,12 +1006,12 @@ function scheduleSessionCleanup(sessionId) {
   if (!currentRoomId || !sessionId) return;
   cancelSessionCleanup(sessionId);
   pendingSessionCleanup.add(sessionId);
+  const deleteAtMs = Date.now() + SESSION_CLEANUP_MS;
+  queueSessionCleanupPersisted(currentRoomId, sessionId, deleteAtMs);
   sessionCleanupTimers.set(
     sessionId,
     setTimeout(() => {
-      sessionCleanupTimers.delete(sessionId);
-      pendingSessionCleanup.delete(sessionId);
-      deleteSession(currentRoomId, sessionId).catch((e) =>
+      runSessionCleanup(currentRoomId, sessionId).catch((e) =>
         console.error("deleteSession:", e),
       );
     }, SESSION_CLEANUP_MS),
@@ -969,17 +1028,36 @@ async function clearCompletedSessionsNow() {
     const open = currentSessions.find((s) => s.id === openSessionId);
     if (open?.status !== "final") ids.delete(openSessionId);
   }
-  if (ids.size === 0) return;
+  if (ids.size === 0) {
+    showRoomsError("No completed sessions to clear.");
+    return;
+  }
   stopSessionCleanupTimers();
   pendingSessionCleanup.clear();
-  await Promise.all(
-    [...ids].map((sessionId) =>
-      deleteSession(currentRoomId, sessionId).catch((e) => {
-        console.error("deleteSession:", e);
-      }),
-    ),
-  );
-  showRoomsError(`Cleared ${ids.size} session${ids.size === 1 ? "" : "s"}.`);
+  let cleared = 0;
+  const failures = [];
+  for (const sessionId of ids) {
+    try {
+      await deleteSession(currentRoomId, sessionId);
+      dequeueSessionCleanupPersisted(currentRoomId, sessionId);
+      cleared += 1;
+    } catch (e) {
+      console.error("deleteSession:", e);
+      failures.push(e?.message || String(e));
+    }
+  }
+  if (cleared > 0 && failures.length === 0) {
+    showRoomsError(`Cleared ${cleared} session${cleared === 1 ? "" : "s"}.`);
+  } else if (cleared > 0) {
+    showRoomsError(
+      `Cleared ${cleared} session${cleared === 1 ? "" : "s"}. ${failures.length} failed — deploy Firestore rules if you see permission errors.`,
+    );
+  } else {
+    showRoomsError(
+      failures[0] ||
+        "Could not clear sessions — completed sessions need updated Firestore rules (npm run deploy:rules).",
+    );
+  }
 }
 
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
@@ -1278,6 +1356,7 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeSessions(roomId, (sessions) => {
       currentSessions = sessions;
+      restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
         const nextId = sessions[0]?.id ?? null;
         if (nextId) {
@@ -1305,7 +1384,6 @@ function closeRoom() {
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
-  pendingSessionCleanup.clear();
   closeTablePlay();
   unmountTableSessionHost();
   currentRoomId = null;
