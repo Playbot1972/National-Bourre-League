@@ -18,12 +18,17 @@ pure engine as the client (`src/game/` → `functions/vendor/game-engine.js`).
 ## Setup
 
 ```bash
-# From repo root — sync engine into functions/vendor/
+# From repo root — sync engine and install function dependencies
 npm run build:functions
 
-# Install function dependencies
-cd functions && npm install
+# Or manually:
+npm run build:game
+node scripts/sync-functions-engine.mjs
+npm install --prefix functions --omit=dev
 ```
+
+`npm run deploy` runs `build:functions` automatically. If deploy warns that
+`firebase-functions` is missing, run `npm install --prefix functions` once.
 
 ## Local emulators
 
