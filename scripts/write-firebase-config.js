@@ -45,6 +45,13 @@ export const AUTH_EMULATOR_URL = isLocalhost ? "http://127.0.0.1:9099" : null;
 export const FIRESTORE_EMULATOR = isLocalhost
   ? { host: "127.0.0.1", port: 8088 }
   : null;
+
+export const FUNCTIONS_EMULATOR = isLocalhost
+  ? { host: "127.0.0.1", port: 5001 }
+  : null;
+
+/** Route deal/draw/play/settlement through Cloud Functions (required with locked Firestore rules). */
+export const SERVER_HAND_AUTHORITY = true;
 `;
 
 writeFileSync("docs/firebase-config.js", content);
