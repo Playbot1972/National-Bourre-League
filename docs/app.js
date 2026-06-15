@@ -970,7 +970,7 @@ function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
 }
 
 /** Room members plus guests/robots on the open session score sheet (for Members panel). */
-function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
+function buildRoomRosterEntries(visibleMembers, scores, sessionObj, bannedIds = new Set()) {
   const memberIds = new Set(visibleMembers.map((m) => m.userId).filter(Boolean));
   const entries = visibleMembers.map((m) => ({
     playerId: m.userId,
@@ -983,7 +983,7 @@ function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
 
   for (const sc of scores) {
     const playerId = sc.playerId;
-    if (!playerId || memberIds.has(playerId)) continue;
+    if (!playerId || memberIds.has(playerId) || bannedIds.has(playerId)) continue;
     const robot = sc.isRobot === true || isRobotPlayerId(playerId);
     entries.push({
       playerId,
@@ -1009,10 +1009,12 @@ function scheduleSyncSessionMembers() {
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
   if (syncMembersPromise) return;
+  const bannedIds = new Set(currentRoom?.bannedUserIds || []);
+  const activeMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
   syncMembersPromise = syncSessionWithRoomMembers(
     currentRoomId,
     openSessionId,
-    currentMembers,
+    activeMembers,
   )
     .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
     .catch((e) => console.error("syncSessionWithRoomMembers:", e))
@@ -1237,11 +1239,9 @@ async function onKickMember(targetUserId, displayName) {
   }
   showRoomsError("");
   try {
-    const result = await kickRoomMember(currentRoomId, targetUserId, session);
+    await kickRoomMember(currentRoomId, targetUserId, session);
     showRoomsError(
-      result.membershipRemoved
-        ? `${label} was removed from the room.`
-        : `${label} was blocked from this room. They will lose access when they next open it.`,
+      `${label} was removed from the room. Their tricks and session score for this hand are kept.`,
     );
   } catch (err) {
     console.error("kickRoomMember:", err);
@@ -1476,7 +1476,10 @@ function openRoom(roomId) {
 }
 
 async function handleRemovedFromRoom(roomId, message) {
+  if (roomGoneHandled || currentRoomId !== roomId) return;
+  roomGoneHandled = true;
   showRoomsError(message);
+  closeTablePlay();
   if (session?.uid) {
     try {
       await leaveRoom(roomId, session);
@@ -2187,6 +2190,16 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
+  if (
+    session?.uid &&
+    currentRoomId &&
+    Array.isArray(currentRoom?.bannedUserIds) &&
+    currentRoom.bannedUserIds.includes(session.uid)
+  ) {
+    handleRemovedFromRoom(currentRoomId, "You were removed from this room.");
+    return;
+  }
+
   if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
     unmountTableSessionHost();
     if (
@@ -2350,7 +2363,12 @@ function renderRoomDetail() {
   const isOwner = session?.uid === currentRoom.ownerId;
   const bannedIds = new Set(currentRoom.bannedUserIds || []);
   const visibleMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
-  const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
+  const rosterEntries = buildRoomRosterEntries(
+    visibleMembers,
+    openScores,
+    openSessionObj,
+    bannedIds,
+  );
   const sessionAnteEditable =
     isOwner &&
     openSessionObj &&

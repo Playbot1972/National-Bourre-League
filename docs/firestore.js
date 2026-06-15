@@ -431,20 +431,8 @@ export async function leaveRoom(roomId, user) {
   await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
 }
 
-/** Room owner removes another member and drops them from open session score sheets. */
-async function removeKickedMemberFromOpenSessions(roomId, targetUserId) {
-  const sessionsSnap = await getDocs(sessionsCol(roomId));
-  await Promise.all(
-    sessionsSnap.docs.map(async (sDoc) => {
-      if (sDoc.data().status === "final") return;
-      const ref = scoreDoc(roomId, sDoc.id, targetUserId);
-      const snap = await getDoc(ref);
-      if (snap.exists()) await deleteDoc(ref);
-    }),
-  );
-}
-
-/** Room owner removes another member (ban + membership delete + session cleanup). */
+/** Room owner removes another member (ban + membership delete). Session scores stay
+ *  so tricks and winnings for the current hand/session are preserved. */
 export async function kickRoomMember(roomId, targetUserId, actor) {
   if (!actor?.uid) throw new Error("Not signed in");
   if (!targetUserId) throw new Error("Missing member");
@@ -461,7 +449,6 @@ export async function kickRoomMember(roomId, targetUserId, actor) {
     throw new Error("Cannot remove the room owner.");
   }
 
-  // Ban list uses owner room update — works even when roomMembers delete rules are stale.
   await updateDoc(doc(db, "rooms", roomId), {
     bannedUserIds: arrayUnion(targetUserId),
     updatedAt: serverTimestamp(),
@@ -473,12 +460,6 @@ export async function kickRoomMember(roomId, targetUserId, actor) {
     membershipRemoved = true;
   } catch (err) {
     if (err?.code !== "permission-denied" && err?.code !== "not-found") throw err;
-  }
-
-  try {
-    await removeKickedMemberFromOpenSessions(roomId, targetUserId);
-  } catch (err) {
-    console.warn("kick score cleanup:", err);
   }
 
   return { membershipRemoved, banned: true };
@@ -559,9 +540,15 @@ export function subscribeMyRooms(uid, callback) {
         return { ...withId(roomSnap), role: m.role };
       }),
     );
+    const resolved = rooms.filter(Boolean);
+    for (const room of resolved) {
+      if (Array.isArray(room.bannedUserIds) && room.bannedUserIds.includes(uid)) {
+        leaveRoom(room.id, { uid }).catch(() => {});
+      }
+    }
     callback(
-      rooms
-        .filter(Boolean)
+      resolved
+        .filter((room) => !Array.isArray(room.bannedUserIds) || !room.bannedUserIds.includes(uid))
         .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
     );
   });
