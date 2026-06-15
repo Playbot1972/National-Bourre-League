@@ -13,7 +13,7 @@
     "icons:import": "node scripts/import-logo.mjs",
     "build:hosting": "npm run version:sync && npm run icons:generate && npm run test && npm run check:social && npm run build && npm run build:game && npm run build:table && npm run build:settlement && node scripts/prepare-hosting.js",
     "check:social": "node --check docs/app.js && node --check docs/auth.js && node --check docs/firestore.js && node --check docs/game-functions.js && node --check docs/game-engine.js && node --check docs/bourre-rules.js && node --check docs/settlement-copy.js && node --check docs/house-rules.js && node --check docs/rules-content.js && node --check docs/rules-view.js && node --check docs/theme.js && node --check docs/feedback-prefs.js",
-    "build:functions": "npm run build:game && node scripts/sync-functions-engine.mjs",
+    "build:functions": "npm run build:game && node scripts/sync-functions-engine.mjs && npm install --prefix functions --omit=dev",
     "build:game": "vite build --config vite.game.config.ts",
     "build:table": "vite build --config vite.table.config.ts",
     "build:settlement": "vite build --config vite.settlement.config.ts",
