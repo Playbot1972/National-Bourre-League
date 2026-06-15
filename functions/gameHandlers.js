@@ -327,6 +327,10 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
 
     const enrollment = sessionData.handEnrollment;
     if (enrollment?.active) {
+      if (Date.now() >= enrollment.turnDeadlineMs) {
+        await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
+        continue;
+      }
       const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
       if (
         currentId &&
