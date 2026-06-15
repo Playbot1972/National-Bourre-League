@@ -382,8 +382,27 @@ export async function joinRoomByCode(code, user) {
   const lookupSnap = await getDoc(doc(db, "inviteLookups", inviteCode));
   if (!lookupSnap.exists()) return null;
   const roomId = lookupSnap.data().roomId;
+  const membershipRef = doc(db, "roomMembers", memberId(roomId, user.uid));
+  // Create membership first — room reads require isMember(); verifying the room doc
+  // before join always fails with permission-denied for non-owners.
+  await setDoc(
+    membershipRef,
+    {
+      roomId,
+      userId: user.uid,
+      displayName: user.displayName,
+      role: "player",
+      joinedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) {
+    try {
+      await deleteDoc(membershipRef);
+    } catch (err) {
+      console.warn("rollback membership after stale join:", err);
+    }
     try {
       await deleteDoc(doc(db, "inviteLookups", inviteCode));
     } catch (err) {
@@ -395,17 +414,6 @@ export async function joinRoomByCode(code, user) {
       "That invite code is no longer valid — the room was deleted. Ask the host for a new code.",
     );
   }
-  await setDoc(
-    doc(db, "roomMembers", memberId(roomId, user.uid)),
-    {
-      roomId,
-      userId: user.uid,
-      displayName: user.displayName,
-      role: "player",
-      joinedAt: serverTimestamp(),
-    },
-    { merge: true },
-  );
   return roomId;
 }
 
