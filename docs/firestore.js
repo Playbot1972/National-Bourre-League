@@ -10,7 +10,8 @@
 //   { displayName, email, photoURL, createdAt, updatedAt }
 //
 // rooms/{roomId}
-//   { inviteCode, ownerId, name, houseRules: { ante, forcedPlay, ties, dealing },
+//   { inviteCode, ownerId, name, houseRules, bourreSettings,
+//     sessionNamePool: [4 regional preset names in room-locked order],
 //     status: "open" | "active" | "closed", createdAt }
 //
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
@@ -20,7 +21,7 @@
 //   { roomId, ownerId, createdAt }
 //
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
-//   { roomId, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
+//   { roomId, sessionName, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
 //     totals: { byPlayer: { [playerId]: tricks }, netByPlayer: { [playerId]: net }, tricks },
@@ -109,6 +110,14 @@ import {
   effectivePlayerHand,
   HAND_PHASE,
 } from "./game-engine.js";
+import {
+  MAX_ROOM_SESSIONS,
+  assignSessionNamesForMigration,
+  isValidSessionNamePool,
+  nextAvailableSessionName,
+  randomizePresetOrder,
+  seededPresetOrder,
+} from "./session-presets.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -349,6 +358,7 @@ export async function createRoom({ owner, name, houseRules }) {
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: normalizeHouseRules(houseRules),
     bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
+    sessionNamePool: randomizePresetOrder(),
     status: "open",
     createdAt: serverTimestamp(),
   });
@@ -1251,47 +1261,111 @@ function nextDealerId(scoreSnap, currentDealerId, sessionData) {
   return ids[(base + 1) % ids.length];
 }
 
+export async function ensureRoomSessionNamePool(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return null;
+
+  let pool = roomSnap.data().sessionNamePool;
+  if (!isValidSessionNamePool(pool)) {
+    pool = seededPresetOrder(roomId);
+    await updateDoc(roomRef, {
+      sessionNamePool: pool,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  const sessionsSnap = await getDocs(sessionsCol(roomId));
+  const sessions = sessionsSnap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: seconds(d.data().createdAt),
+  }));
+  const assignments = assignSessionNamesForMigration(pool, sessions);
+  await Promise.all(
+    [...assignments.entries()].map(([sessionId, sessionName]) =>
+      updateDoc(sessionDoc(roomId, sessionId), {
+        sessionName,
+        updatedAt: serverTimestamp(),
+      }),
+    ),
+  );
+  return pool;
+}
+
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
-  const sessionRef = doc(sessionsCol(roomId));
   const sortedIds = players.map((p) => p.playerId).filter(Boolean);
   const initialDealer = sortedIds[0] ?? null;
-  const batch = writeBatch(db);
-  batch.set(sessionRef, {
-    roomId,
-    status: "in_progress",
-    handCount: 0,
-    handStake: stake,
-    handStakeLocked: false,
-    limEnabled,
-    carryOverPot: 0,
-    dealerId: initialDealer,
-    ...enrollmentFieldsForCreate(sortedIds, initialDealer),
-    currentHand: emptyPreDealHand(),
-    rounds: 0,
-    players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
-    notes: "",
-    totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  players.forEach((p) => {
-    batch.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
-      sessionId: sessionRef.id,
+  const sessionRef = doc(sessionsCol(roomId));
+  let createdSessionId = null;
+
+  await runTransaction(db, async (tx) => {
+    const roomRef = doc(db, "rooms", roomId);
+    const roomSnap = await tx.get(roomRef);
+    if (!roomSnap.exists()) throw new Error("Room not found");
+
+    let pool = roomSnap.data().sessionNamePool;
+    if (!isValidSessionNamePool(pool)) {
+      pool = seededPresetOrder(roomId);
+      tx.update(roomRef, {
+        sessionNamePool: pool,
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    const sessionsSnap = await tx.get(sessionsCol(roomId));
+    if (sessionsSnap.size >= MAX_ROOM_SESSIONS) {
+      throw new Error("All 4 regional sessions already created for this room.");
+    }
+
+    const claimedNames = sessionsSnap.docs
+      .map((d) => d.data().sessionName)
+      .filter(Boolean);
+    const sessionName = nextAvailableSessionName(pool, claimedNames);
+    if (!sessionName) {
+      throw new Error("All 4 regional sessions already created for this room.");
+    }
+
+    tx.set(sessionRef, {
       roomId,
-      playerId: p.playerId,
-      displayName: p.displayName,
-      tricksWon: 0,
-      handsWon: 0,
-      net: 0,
-      total: 0,
-      joinedAtHandCount: 0,
+      sessionName,
+      status: "in_progress",
+      handCount: 0,
+      handStake: stake,
+      handStakeLocked: false,
+      limEnabled,
+      carryOverPot: 0,
+      dealerId: initialDealer,
+      ...enrollmentFieldsForCreate(sortedIds, initialDealer),
+      currentHand: emptyPreDealHand(),
+      rounds: 0,
+      players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
+      notes: "",
+      totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
+      createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    players.forEach((p) => {
+      tx.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
+        sessionId: sessionRef.id,
+        roomId,
+        playerId: p.playerId,
+        displayName: p.displayName,
+        tricksWon: 0,
+        handsWon: 0,
+        net: 0,
+        total: 0,
+        joinedAtHandCount: 0,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    createdSessionId = sessionRef.id;
   });
-  await batch.commit();
-  return sessionRef.id;
+
+  return createdSessionId;
 }
 
 export function subscribeSessions(roomId, callback) {

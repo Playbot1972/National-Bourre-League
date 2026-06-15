@@ -25,6 +25,7 @@ import {
   kickRoomMember,
   deleteRoom,
   ensureInviteLookupForRoom,
+  ensureRoomSessionNamePool,
   subscribeMyRooms,
   subscribeRoom,
   subscribeRoomMembers,
@@ -78,6 +79,13 @@ import {
   enrollmentDeadlineMs,
   tricksForPlayer,
 } from "./firestore.js";
+import {
+  MAX_ROOM_SESSIONS,
+  canCreateAnotherSession,
+  countAvailableSessionSlots,
+  isValidSessionNamePool,
+  sessionTabLabel,
+} from "./session-presets.js";
 import {
   getLegalPlayIndices,
   deserializeCards,
@@ -937,7 +945,7 @@ async function runSessionCleanup(roomId, sessionId) {
     );
     if (currentRoomId === roomId) {
       showRoomsError(
-        e?.message || "Could not auto-clear an old session — retrying in 15s (or tap Clear all now).",
+        e?.message || "Could not auto-clear an old session — retrying in 15s.",
       );
     }
   }
@@ -953,17 +961,6 @@ function resolveKeeperSessionId(sessions, preferredSessionId = null) {
   const active = sessions.find((s) => s.status !== "final");
   if (active) return active.id;
   return sessions[0].id;
-}
-
-function removableSessionIds(sessions, keeperId) {
-  const ids = new Set();
-  for (const s of sessions) {
-    if (s.id !== keeperId) ids.add(s.id);
-  }
-  for (const sessionId of pendingSessionCleanup) {
-    if (sessionId !== keeperId) ids.add(sessionId);
-  }
-  return [...ids];
 }
 
 /** Finalize with Ape Scores when needed so completed sessions can be deleted. */
@@ -1124,70 +1121,6 @@ function scheduleSessionCleanup(sessionId) {
       );
     }, SESSION_CLEANUP_MS),
   );
-}
-
-async function clearCompletedSessionsNow() {
-  if (!currentRoomId) return;
-  if (session?.uid !== currentRoom?.ownerId) {
-    showRoomsError("Only the room owner can clear sessions.");
-    return;
-  }
-  const roomId = currentRoomId;
-  const keeperId = resolveKeeperSessionId(currentSessions, openSessionId);
-  if (!keeperId) {
-    showRoomsError("No sessions to keep.");
-    return;
-  }
-  const ids = removableSessionIds(currentSessions, keeperId);
-  if (ids.length === 0) {
-    showRoomsError("Only one session remains — nothing to clear.");
-    return;
-  }
-
-  stopSessionCleanupTimers();
-  pendingSessionCleanup.clear();
-
-  let cleared = 0;
-  let apeUpdated = 0;
-  const failures = [];
-  for (const sessionId of ids) {
-    try {
-      const before = await getSession(roomId, sessionId);
-      await prepareSessionForRemoval(roomId, sessionId);
-      if (before?.status !== "final") apeUpdated += 1;
-      await deleteSession(roomId, sessionId);
-      dequeueSessionCleanupPersisted(roomId, sessionId);
-      cleared += 1;
-    } catch (e) {
-      console.error("deleteSession:", e);
-      failures.push(e?.message || String(e));
-    }
-  }
-
-  if (openSessionId && ids.includes(openSessionId)) {
-    openSession(keeperId);
-  } else {
-    renderRoomDetail();
-  }
-
-  if (cleared > 0 && failures.length === 0) {
-    const apeNote =
-      apeUpdated > 0
-        ? ` Ape Scores updated for ${apeUpdated} session${apeUpdated === 1 ? "" : "s"}.`
-        : "";
-    showRoomsError(
-      `Cleared ${cleared} older session${cleared === 1 ? "" : "s"} — kept the current session.${apeNote}`,
-    );
-  } else if (cleared > 0) {
-    showRoomsError(
-      `Cleared ${cleared} session${cleared === 1 ? "" : "s"}. ${failures.length} failed — deploy Firestore rules if you see permission errors.`,
-    );
-  } else {
-    showRoomsError(
-      failures[0] ||
-        "Could not clear sessions — only the room owner can delete completed sessions.",
-    );
-  }
 }
 
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
@@ -1527,6 +1460,9 @@ function openRoom(roomId) {
       if (room && session?.uid === room.ownerId) {
         ensureInviteLookupForRoom(roomId).catch((e) =>
           console.error("ensureInviteLookupForRoom:", e),
+        );
+        ensureRoomSessionNamePool(roomId).catch((e) =>
+          console.error("ensureRoomSessionNamePool:", e),
         );
       }
       renderRoomDetail();
@@ -2393,6 +2329,25 @@ function openSession(sessionId) {
   }
 }
 
+function renderRegionalSessionSlots(pool, sessions, activeSessionId) {
+  if (!isValidSessionNamePool(pool)) {
+    return `<p class="muted small">Loading regional tables…</p>`;
+  }
+  const byName = new Map(
+    sessions.filter((s) => s.sessionName).map((s) => [s.sessionName, s]),
+  );
+  return pool
+    .map((name) => {
+      const sessionObj = byName.get(name);
+      if (sessionObj) {
+        const active = sessionObj.id === activeSessionId;
+        return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
+      }
+      return `<span class="session-slot session-slot--available" aria-label="${escapeHtml(name)} available">${escapeHtml(name)} · available</span>`;
+    })
+    .join("");
+}
+
 function renderRoomDetail() {
   if (!currentRoomId || roomDetailView.hidden) return;
   if (!currentRoom) {
@@ -2440,10 +2395,17 @@ function renderRoomDetail() {
     openSessionObj.status !== "final" &&
     !openSessionObj.handStakeLocked;
   const showNewSessionAnte = isOwner && !sessionAnteEditable;
-  const keeperSessionId = resolveKeeperSessionId(currentSessions, openSessionId);
-  const removableCount = keeperSessionId
-    ? removableSessionIds(currentSessions, keeperSessionId).length
-    : 0;
+  const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
+    ? currentRoom.sessionNamePool
+    : [];
+  const claimedNames = currentSessions.map((s) => s.sessionName).filter(Boolean);
+  const availableSlots = sessionPool.length
+    ? countAvailableSessionSlots(sessionPool, claimedNames)
+    : MAX_ROOM_SESSIONS - currentSessions.length;
+  const canCreateSession =
+    isOwner &&
+    canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
+  const sessionCapReached = isOwner && !canCreateSession && sessionPool.length > 0;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -2549,7 +2511,8 @@ function renderRoomDetail() {
 
     <section class="subpanel">
       <div class="subpanel__head">
-        <h4>Sessions</h4>
+        <h4>Regional tables</h4>
+        <p class="muted small session-preset-note">Each room has four locked regional tables — Dirty South, Wild West, East Coast, and Midwest — assigned in a fixed order when the room is created.</p>
         <div class="session-new">
           ${
             isOwner
@@ -2566,25 +2529,25 @@ function renderRoomDetail() {
                  </label>`
                     : ""
                 }
-          <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
+          <button class="btn btn--primary btn--sm" id="new-session" type="button" ${
+            canCreateSession ? "" : "disabled aria-disabled=\"true\""
+          } title="${canCreateSession ? "Create the next regional table" : "All 4 sessions already created"}">+ New session</button>
           ${
-            removableCount > 0
-              ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
-              : ""
+            canCreateSession
+              ? `<p class="muted small session-cap-note">${availableSlots} of ${MAX_ROOM_SESSIONS} regional table${availableSlots === 1 ? "" : "s"} available</p>`
+              : sessionCapReached
+                ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
+                : ""
           }`
-              : `<p class="muted small">Only the room owner can start or clear sessions.</p>`
+              : `<p class="muted small">Only the room owner can start regional tables.</p>`
           }
         </div>
       </div>
-      <div class="session-tabs">
-        ${currentSessions
-          .map(
-            (s, i) =>
-              `<button class="session-tab ${s.id === openSessionId ? "is-active" : ""}" data-open-session="${s.id}">
-                 Session ${currentSessions.length - i} · ${s.handCount ?? 0} hands
-               </button>`,
-          )
-          .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
+      <div class="session-tabs session-tabs--preset">
+        ${
+          renderRegionalSessionSlots(sessionPool, currentSessions, openSessionId) ||
+          `<p class="muted">No regional tables yet. Start one to keep score.</p>`
+        }
       </div>
       ${
         openSessionObj
@@ -2607,15 +2570,6 @@ function renderRoomDetail() {
   const newSessionBtn = $("#new-session", roomDetailView);
   if (newSessionBtn) {
     newSessionBtn.addEventListener("click", onNewSession);
-  }
-  const clearSessionsBtn = $("#clear-sessions-now", roomDetailView);
-  if (clearSessionsBtn) {
-    clearSessionsBtn.addEventListener("click", () => {
-      clearCompletedSessionsNow().catch((e) => {
-        console.error("clearCompletedSessionsNow:", e);
-        showRoomsError(e.message || "Could not clear sessions");
-      });
-    });
   }
   const newSessionStake = $("#new-session-stake", roomDetailView);
   if (newSessionStake) {
@@ -2987,6 +2941,16 @@ async function onNewSession() {
     showRoomsError("Only the room owner can start a new session.");
     return;
   }
+  const pool = isValidSessionNamePool(currentRoom?.sessionNamePool)
+    ? currentRoom.sessionNamePool
+    : [];
+  const claimedNames = currentSessions.map((s) => s.sessionName).filter(Boolean);
+  if (
+    !canCreateAnotherSession(currentSessions.length, pool, claimedNames)
+  ) {
+    showRoomsError("All 4 sessions already created.");
+    return;
+  }
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
@@ -3007,7 +2971,7 @@ async function onNewSession() {
         scheduleSessionCleanup(previousSessionId);
       }
       showRoomsError(
-        "Previous session completed — Ape Scores updated. Clears in 30s (or Clear all now).",
+        "Previous session completed — Ape Scores updated. Clears in 30s.",
       );
     } catch (err) {
       console.error("autoCompleteSession:", err);
@@ -3035,6 +2999,7 @@ async function onNewSession() {
     openSession(sid);
   } catch (err) {
     console.error("createSession:", err);
+    showRoomsError(err.message || "Could not create session");
   }
 }
 
