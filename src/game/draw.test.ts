@@ -84,25 +84,22 @@ describe("C — draw / discard phase", () => {
     );
   });
 
-  it("clears trump upcard when dealer discards it", () => {
+  it("keeps trump reveal while dealer discards other cards", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
     const effective = effectivePlayerHand("p1", deal.privateHands.p1, pub);
-    const trumpIdx = effective.findIndex(
-      (c) => c.rank === deal.trumpUpcard.rank && c.suit === deal.trumpUpcard.suit,
-    );
-    assert.ok(trumpIdx >= 0);
+    assert.equal(effective.length, 4);
     const result = applyPlayerDraw({
       playerId: "p1",
       privateHand: deal.privateHands.p1,
       publicHand: pub,
-      discardIndices: [trumpIdx],
+      discardIndices: [0],
       deck,
       deckNextIndex: deal.deckNextIndex,
       maxDiscards: 4,
     });
-    assert.equal(result.publicHand.trumpUpcard, null);
+    assert.ok(result.publicHand.trumpUpcard);
   });
 
   it("advanceAfterDraw transitions to play with correct lead", () => {

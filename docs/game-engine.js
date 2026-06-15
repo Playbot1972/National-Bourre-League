@@ -238,11 +238,12 @@ function N(e) {
 	return e.trumpHolderId ?? e.dealerId ?? null;
 }
 function P(e, t, n) {
-	let r = [...t], i = N(n);
-	return i && e === i && n.trumpUpcard && !r.some((e) => w(e, n.trumpUpcard)) && r.push(n.trumpUpcard), r;
+	let r = [...t], i = N(n), a = n.trumpUpcard;
+	return !i || e !== i || !a ? r : r.some((e) => w(e, a)) ? r.filter((e) => !w(e, a)) : (r.push(a), r);
 }
 function F(e, t, n) {
-	return [...t];
+	let r = N(n), i = n.trumpUpcard;
+	return r && e === r && i && !t.some((e) => w(e, i)) ? [...t, i] : [...t];
 }
 function I(e, t, n, r) {
 	let i = N(r);
@@ -432,24 +433,24 @@ function te(e, t) {
 	return e[(e.indexOf(t) + 1) % e.length];
 }
 function ne(e) {
-	let t = P(e.playerId, e.privateHand, e.publicHand), n = $({
+	let t = P(e.playerId, e.privateHand, e.publicHand), n = (e.publicHand.playedCards?.length ?? 0) === 0 && (e.publicHand.currentTrick?.plays?.length ?? 0) === 0 && Object.values(e.publicHand.tricksByPlayer ?? {}).every((e) => (e ?? 0) === 0), r = $({
 		publicHand: e.publicHand,
 		playerHand: t,
 		playerId: e.playerId,
 		cardIndex: e.cardIndex,
 		actionOrder: e.actionOrder,
 		cinchEnabled: e.cinchEnabled
-	}), r = t[e.cardIndex], i = n.publicHand;
-	r && L(r, e.publicHand) && (i = {
-		...i,
+	}), i = t[e.cardIndex], a = r.publicHand;
+	e.publicHand.trumpUpcard && (n || i && L(i, e.publicHand)) && (a = {
+		...a,
 		trumpUpcard: null
 	});
-	let a = F(e.playerId, n.playerHand, i);
+	let o = F(e.playerId, r.playerHand, a);
 	return {
-		...n,
-		publicHand: i,
-		privateHand: a,
-		playerHand: a
+		...r,
+		publicHand: a,
+		privateHand: o,
+		playerHand: o
 	};
 }
 function $(e) {
