@@ -1,0 +1,16 @@
+Official BOORAY logo import slot
+================================
+
+Your logo is imported. Source file:
+
+  assets/icons/booray-logo-source.png
+
+To replace it, overwrite that PNG and run:
+
+  npm run icons:generate
+
+Or:
+
+  npm run icons:import -- /path/to/your/booray-logo.png
+
+Do not paste image data into this text file.

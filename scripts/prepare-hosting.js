@@ -19,12 +19,8 @@ if (
   console.error(
     "docs/firebase-config.js still has placeholder values — auth will fail in production.",
   );
-  console.error(
-    "Fix: npm run setup:webapp -- national-bourre-league booray.win",
-  );
-  console.error(
-    "Or export FIREBASE_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, FIREBASE_AUTH_DOMAIN and run node scripts/write-firebase-config.js",
-  );
+  console.error("Run: node scripts/ensure-firebase-config.js (or npm run deploy, which runs it first).");
+  console.error("Or: npm run setup:webapp -- national-bourre-league booray.win");
   process.exit(1);
 }
 

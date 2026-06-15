@@ -9,8 +9,14 @@ concurrency:
   group: firebase-deploy
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
       - name: Check Firebase secrets are configured
@@ -32,7 +38,7 @@ jobs:
           if [ -n "$missing" ]; then
             echo "::error::Firebase deploy blocked — missing GitHub Actions secrets:$missing"
             echo "Add them at Settings → Secrets and variables → Actions, then re-run this workflow."
-            echo "Or deploy from your machine: npm run deploy (after firebase login)."
+            echo "Or deploy locally: copy .env.firebase.example → .env.firebase, then npm run deploy"
             exit 1
           fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
@@ -51,6 +57,13 @@ jobs:
       - name: Install dependencies
         if: steps.cfg.outputs.ready == 'true'
         run: npm ci
+
+      - name: Bump app version
+        if: steps.cfg.outputs.ready == 'true'
+        id: version
+        run: |
+          node scripts/bump-version.js
+          echo "version=$(node -p "JSON.parse(require('fs').readFileSync('version.json','utf8')).version")" >> "$GITHUB_OUTPUT"
 
       - name: Write production Firebase config
         if: steps.cfg.outputs.ready == 'true'
@@ -74,3 +87,13 @@ jobs:
       - name: Deploy Hosting + Firestore rules
         if: steps.cfg.outputs.ready == 'true'
         run: npx firebase deploy --only hosting,firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+
+      - name: Commit version bump
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json package.json docs/version.js src/version.ts
+          git diff --staged --quiet && exit 0
+          git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
+          git push

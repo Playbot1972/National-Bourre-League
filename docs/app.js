@@ -626,6 +626,8 @@ let openSessionId = null;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
+let privateHandSnapSeen = false;
+let openPlayerRatings = {};
 let tableActionFeedback = null;
 let tableFeedbackTimer = null;
 let tableFeedbackSnapshot = null;
@@ -752,6 +754,21 @@ function setTableActionFeedback(feedback) {
 
 function sessionHasRobots(scores = openScores) {
   return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
+}
+
+async function refreshTablePlayerRatings(scores = openScores) {
+  const ids = [...new Set(scores.map((s) => s.playerId).filter(Boolean))];
+  if (!ids.length) {
+    openPlayerRatings = {};
+    return;
+  }
+  try {
+    openPlayerRatings = await getPlayers(ids);
+    const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+    if (sessionObj) scheduleTableSessionSync(sessionObj);
+  } catch (e) {
+    console.warn("refreshTablePlayerRatings:", e);
+  }
 }
 
 function stopEnrollmentTimer() {
@@ -1293,6 +1310,7 @@ async function openTablePlay() {
   overlay.hidden = false;
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
+  await refreshTablePlayerRatings(openScores);
   await syncTableSession(openSessionObj);
   try {
     await overlay.requestFullscreen?.();
@@ -1582,13 +1600,13 @@ function buildTableSessionProps(s) {
   const tricksThisHand = s.currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
   const heroCardList = openPrivateHand?.cards ?? [];
+  const myUid = session?.uid ?? null;
   const legalPlayIndices =
     cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
       ? computeLegalPlayIndices(s.currentHand, heroCardList, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
-  const myUid = session?.uid ?? null;
   const dealerId = s.dealerId ?? null;
   const enrollment = s.handEnrollment;
   const enrollmentActive = enrollment?.active === true;
@@ -1673,6 +1691,7 @@ function buildTableSessionProps(s) {
       cinchEnabled: s.currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
+    privateHandReady: privateHandSnapSeen,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
@@ -1682,11 +1701,21 @@ function buildTableSessionProps(s) {
       const enrollmentMsLeft = onEnrollmentClock
         ? Math.max(0, enrollment.turnDeadlineMs - Date.now())
         : 0;
+      const rating = openPlayerRatings[sc.playerId];
+      const apeScoreVal = rating?.apeScore;
       return {
         playerId: sc.playerId,
         displayName: sc.displayName,
         photoURL: isSelf ? session?.photoURL : null,
         handsWon: sc.handsWon ?? 0,
+        sessionStreak: sc.handsWon ?? 0,
+        ...(rating && !isRobotPlayerId(sc.playerId)
+          ? {
+              apeScore: apeScoreVal ?? 0,
+              apeClass: rating.apeClass ?? apeClass(apeScoreVal ?? 0),
+              apeStatus: rating.apeStatus ?? apeStatus(rating),
+            }
+          : {}),
         ...(isSelf ? { net: sc.net ?? 0 } : {}),
         ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
         inHand:
@@ -1900,7 +1929,8 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     }
   } catch (err) {
     console.error("table-session mount:", err);
-    host.innerHTML = `<p class="muted small">Table UI failed to load. Run <code>npm run build:table</code> and redeploy.</p>`;
+    const detail = err instanceof Error ? err.message : String(err);
+    host.innerHTML = `<p class="muted small">Table UI failed to load (${escapeHtml(detail)}). Run <code>npm run build:table</code>, refresh, and redeploy if this persists.</p>`;
   }
 }
 
@@ -1917,6 +1947,7 @@ function stopPrivateHandSubscription() {
     privateHandUnsub = null;
   }
   openPrivateHand = null;
+  privateHandSnapSeen = false;
 }
 
 function startPrivateHandSubscription() {
@@ -1927,7 +1958,18 @@ function startPrivateHandSubscription() {
     openSessionId,
     session.uid,
     (data) => {
+      privateHandSnapSeen = true;
       openPrivateHand = data;
+      const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+      if (sessionObj) scheduleTableSessionSync(sessionObj);
+    },
+    (err) => {
+      privateHandSnapSeen = true;
+      console.error("privateHand subscription:", err);
+      setTableActionFeedback({
+        status: "error",
+        message: err?.message || "Could not load your private hand",
+      });
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
     },
@@ -1945,6 +1987,7 @@ function openSession(sessionId) {
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
     renderRoomDetail();
   });

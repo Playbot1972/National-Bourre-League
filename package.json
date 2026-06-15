@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "1.00.64",
+  "version": "1.00.66",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,12 +10,13 @@
     "preview": "vite preview",
     "social": "npx serve docs -l 8080",
     "icons:generate": "node scripts/generate-icons.mjs",
+    "icons:import": "node scripts/import-logo.mjs",
     "build:hosting": "npm run version:sync && npm run icons:generate && npm run test && npm run check:social && npm run build && npm run build:game && npm run build:table && node scripts/prepare-hosting.js",
     "check:social": "node --check docs/app.js && node --check docs/auth.js && node --check docs/firestore.js && node --check docs/game-engine.js && node --check docs/bourre-rules.js && node --check docs/house-rules.js && node --check docs/rules-content.js && node --check docs/rules-view.js && node --check docs/theme.js && node --check docs/feedback-prefs.js",
     "build:game": "vite build --config vite.game.config.ts",
     "build:table": "vite build --config vite.table.config.ts",
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
-    "deploy": "npm run build:hosting && npx firebase deploy --only hosting,firestore:rules",
+    "deploy": "node scripts/ensure-firebase-config.js && npm run build:hosting && npx firebase deploy --only hosting,firestore:rules --project national-bourre-league",
     "deploy:rules": "npx firebase deploy --only firestore:rules",
     "setup": "./scripts/one-time-setup.sh",
     "setup:firestore": "./scripts/setup-firestore.sh",
@@ -30,10 +31,15 @@
     "setup:google-oauth": "./scripts/setup-google-oauth.sh",
     "backfill:invites": "./scripts/backfill-invite-lookups.sh",
     "version:sync": "node scripts/sync-version.js",
+    "version:bump": "node scripts/bump-version.js",
     "test:game": "tsx --test src/game/handState.test.ts",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
-    "test": "npm run test:game && npm run test:feedback",
-    "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league"
+    "test:version": "node --test scripts/bump-version.test.mjs",
+    "test": "npm run test:game && npm run test:feedback && npm run test:version",
+    "emulators": "npx firebase emulators:start --only auth,firestore --project demo-national-bourre-league",
+    "verify:local": "node scripts/verify-local-dev.mjs",
+    "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
+    "verify:prod": "node scripts/verify-production.mjs"
   },
   "dependencies": {
     "react": "^19.2.6",
@@ -50,10 +56,11 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "firebase-tools": "^15.20.0",
     "globals": "^17.6.0",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5",
+    "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "tsx": "^4.21.0",
-    "sharp": "^0.34.5",
     "vite": "^8.0.12"
   }
 }

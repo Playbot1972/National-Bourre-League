@@ -8,6 +8,8 @@ interface HandProps {
   stateFor?: (card: Card, index: number) => CardState;
   badgeFor?: (card: Card, index: number) => string | undefined;
   onCardClick?: (card: Card, index: number) => void;
+  onCardPeek?: (index: number | null) => void;
+  peekIndex?: number | null;
   fan?: boolean;
 }
 
@@ -19,12 +21,25 @@ export function Hand({
   stateFor,
   badgeFor,
   onCardClick,
+  onCardPeek,
+  peekIndex = null,
   fan = false,
 }: HandProps) {
   return (
     <div className={`hand ${fan ? "hand--fan" : ""}`}>
       {cards.map((c, i) => (
-        <div className="hand__slot" key={keyFor(c, i)}>
+        <div
+          className={[
+            "hand__slot",
+            peekIndex === i ? "hand__slot--peek" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          key={keyFor(c, i)}
+          onPointerDown={onCardPeek ? () => onCardPeek(i) : undefined}
+          onPointerUp={onCardPeek ? () => onCardPeek(null) : undefined}
+          onPointerLeave={onCardPeek ? () => onCardPeek(null) : undefined}
+        >
           <PlayingCard
             card={c}
             size={size}
