@@ -58,13 +58,23 @@ describe("A/B — deal and trump upcard", () => {
     }));
   });
 
-  it("assignTrumpUpcard uses dealer when dealer is in hand", () => {
+  it("assignTrumpUpcard uses trump holder fifth card", () => {
     const hands = {
       p1: [{ rank: "2", suit: "clubs" }, { rank: "3", suit: "clubs" }, { rank: "4", suit: "clubs" }, { rank: "5", suit: "clubs" }, { rank: "A", suit: "hearts" }],
       p2: [{ rank: "2", suit: "diamonds" }, { rank: "3", suit: "diamonds" }, { rank: "4", suit: "diamonds" }, { rank: "5", suit: "diamonds" }, { rank: "K", suit: "spades" }],
     };
-    const trump = assignTrumpUpcard("p1", ["p2", "p1"], hands);
+    const trump = assignTrumpUpcard("p1", hands);
     assert.equal(trump.rank, "A");
     assert.equal(trump.suit, "hearts");
+  });
+
+  it("dealer keeps trump in private hand storage", () => {
+    const deal = dealForTest({ dealerId: "p1", seed: 11 });
+    assert.equal(deal.privateHands.p1.length, 5);
+    assert.ok(
+      deal.privateHands.p1.some(
+        (c) => c.rank === deal.trumpUpcard.rank && c.suit === deal.trumpUpcard.suit,
+      ),
+    );
   });
 });

@@ -31,6 +31,8 @@ export {
   privateHandFromEffective,
   effectiveIndexDiscardsTrump,
   playedTrumpUpcard,
+  cardsRemainingInHand,
+  trumpRevealMirroredInHolderHand,
   CardUniquenessError,
 } from "./invariants";
 export { cardKey, cardsEqual, rankValue, isTrump } from "./cardUtils";

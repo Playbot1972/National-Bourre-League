@@ -89,18 +89,17 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 
 ## Automated checks
 
-| Command | What it validates | Available on |
-|---------|-------------------|--------------|
-| `npm run lint` | ESLint / TypeScript hygiene | `main` + feature branches |
-| `npm run build` | React app (`tsc` + Vite) | `main` + feature branches |
-| `npm run build:game` | `src/game/` → `docs/game-engine.js` | `main` + feature branches |
-| `npm run build:table` | `src/table/` → `docs/table-session.js` | `main` + feature branches |
-| `npm run check:social` | Syntax-check `docs/*.js` | `main` + feature branches |
-| `npm run test:game` | Card uniqueness + draw flow tests | **v1.00.64 RC+** (not on `main` yet) |
-| `npm run test:feedback` | Haptics fallback + prefs tests | **v1.00.64 RC+** (not on `main` yet) |
-| `npm run icons:generate` | SVG → PNG icon export | **v1.00.64 RC+** (not on `main` yet) |
+| Command | What it validates |
+|---------|-------------------|
+| `npm run test:qa` | Full release gate: unit/integration tests + builds + syntax check |
+| `npm run test` | Game, table, session, and settlement rules (~75 tests) |
+| `npm run test:e2e` | Playwright smoke + landscape layout (needs Chromium) |
+| `npm run lint` | ESLint / TypeScript hygiene |
+| `npm run build:game` | `src/game/` → `docs/game-engine.js` |
+| `npm run build:table` | `src/table/` → `docs/table-session.js` |
+| `npm run check:social` | Syntax-check `docs/*.js` |
 
-`main` today (v1.00.60): lint, build, build:game, build:table, check:social, emulators, social — **no** `test:game`, `test:feedback`, or `icons:generate`.
+**Release QA map:** see [`docs/QA_RELEASE.md`](./QA_RELEASE.md) for scenario coverage (deal, enrollment, draw, tricks, pot, bots, layout).
 
 ---
 

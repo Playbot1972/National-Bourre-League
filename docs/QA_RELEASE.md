@@ -3,29 +3,31 @@
 Run automated checks before every release:
 
 ```bash
-npm run test:qa          # unit + integration + builds + social check
-npm run test:e2e         # Playwright smoke (starts social server on :8080)
+npm run test:qa          # unit + integration + builds + social check (~75 tests)
+npm run test:e2e         # Playwright smoke + layout (8 tests, 2 viewports)
 ```
+
+See also `docs/TESTING.md` for emulator setup and manual checklists.
 
 ## Automated coverage map
 
 | Area | Tests | Command |
 |------|-------|---------|
-| **A. Table/session setup** | `src/table/logic.test.ts` (seats, bots, host) | `npm run test:table` |
-| **B. Initial deal** | `src/game/deal.test.ts`, `fullHand.test.ts` | `npm run test:game` |
-| **C. In/out + draw** | `src/game/draw.test.ts`, `fullHand.test.ts` | `npm run test:game` |
+| **A. Table/session setup** | `src/session/logic.test.ts`, `src/table/logic.test.ts` | `npm run test:session` / `test:table` |
+| **B. Initial deal** | `src/game/deal.test.ts`, `handState.test.ts`, `fullHand.test.ts` | `npm run test:game` |
+| **C. In/out + draw** | `src/game/enrollment.test.ts`, `draw.test.ts`, `fullHand.test.ts` | `npm run test:game` |
 | **D. Trick play** | `src/game/legal.test.ts`, `trick.test.ts`, `play.test.ts` | `npm run test:game` |
-| **E. Pot / bourré** | `scripts/bourre-rules.test.mjs` | `npm run test:rules` |
+| **E. Pot / bourré** | `scripts/bourre-rules.test.mjs`, settlement in `fullHand.test.ts` | `npm run test:rules` + `test:game` |
 | **F. Bots** | `src/game/bots.test.ts`, `fullHand.test.ts` | `npm run test:game` |
-| **G. Layout / UI** | `e2e/social-smoke.spec.ts` (smoke); manual checklist below | `npm run test:e2e` |
-| **H. Regression / integrity** | `assertNoDuplicateCards` in all game tests + multi-hand in `fullHand.test.ts` | `npm run test:game` |
+| **G. Layout / UI** | `e2e/table-layout.spec.ts`, `e2e/social-smoke.spec.ts` | `npm run test:e2e` |
+| **H. Regression / integrity** | `assertNoDuplicateCards`, multi-hand in `fullHand.test.ts` | `npm run test:game` |
 
 ### Card uniqueness invariant
 
 `src/game/testHelpers.ts` → `assertNoDuplicateCards()` verifies every card id appears in **at most one** of:
 
 - deck  
-- trump upcard  
+- trump upcard (when not mirrored in holder's private hand)  
 - player hands  
 - current trick  
 - completed tricks  
@@ -35,7 +37,9 @@ Used after deal, draw, and every trick in integration tests.
 
 ### Full-hand simulation
 
-`simulateFullHand()` in `testHelpers.ts` runs: deal → in/out → draw → play all tricks → settlement, with optional bot policies. Covers mixed human+bot tables without Firestore.
+`simulateFullHand()` in `testHelpers.ts` runs: optional enrollment → deal → draw → play all tricks, with bot policies. Settlement wired via `settleHandDeltas` in `fullHand.test.ts`.
+
+Pass `skipEnrollment: false` and `enrollmentJoin` to exercise in/out before deal.
 
 ## Manual emulator checklist (required before prod)
 
@@ -47,15 +51,15 @@ Used after deal, draw, and every trick in integration tests.
 6. **3-player regression:** all clients reach play phase (no “Table UI failed to load”)  
 7. Rotate phone to landscape — seats, hero hand, and felt readable  
 
-## Known release blockers (documented)
+## Known release blockers
 
 | Issue | Status | Notes |
 |-------|--------|-------|
-| Play-phase table crash (`myUid` TDZ) | **Fixed in this branch** | Was: `ReferenceError` in `buildTableSessionProps` when phase = play |
-| Trump 5-card dealer hand | Open PR #81 | Main still uses 4 + public upcard merge |
-| iPhone landscape horizontal overflow (~156px) | **Open** | E2E documents; layout fix TBD |
+| Play-phase table crash (`myUid` TDZ) | **Fixed** | `buildTableSessionProps` hoists `myUid` |
+| Trump 5-card dealer hand | **Fixed (merged)** | Dealer keeps flipped trump in private hand |
+| iPhone landscape horizontal overflow | **Fixed + E2E** | `max-width: min(100%, 100vw)` + layout spec |
 | Full gameplay E2E with Firebase emulators | **Not automated** | Requires auth + multi-tab; use manual checklist |
-| Backend trust | Documented | Draw/play legality enforced client-side; production needs rules hardening for untrusted clients |
+| Backend trust | Documented | Draw/play legality enforced client-side; production needs rules hardening |
 
 ## Backend trust assumptions
 
@@ -65,5 +69,5 @@ Used after deal, draw, and every trick in integration tests.
 
 ## Test counts (approx.)
 
-- Game + table + rules: **~58** tests via `npm test`  
-- Playwright: **4** smoke tests (version badge, sign-in, 2 viewports)
+- Game + table + session + rules: **~75** tests via `npm test`  
+- Playwright: **8** tests (smoke + layout × 2 viewports)

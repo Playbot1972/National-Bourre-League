@@ -16,6 +16,10 @@ html,
 body {
   margin: 0;
   min-height: 100%;
+  max-width: 100%;
+}
+html {
+  overflow-x: clip;
 }
 body {
   min-height: 100vh;
@@ -1529,7 +1533,7 @@ body.table-play-active .footer {
 .table-play-overlay .btable-wrap {
   --seat-gutter-x: clamp(52px, 13vw, 88px);
   --seat-gutter-y: clamp(32px, 8vh, 52px);
-  max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1000px);
+  max-width: min(100%, 100vw);
 }
 
 .table-play-overlay .btable-session__rotate-hint {
@@ -1670,6 +1674,37 @@ body.table-play-active .footer {
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: 16px;
   align-items: start;
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .topbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .nav {
+    order: 3;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+    gap: 2px;
+  }
+
+  .nav__link {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .brand {
+    font-size: 15px;
+    min-width: 0;
+  }
+
+  .auth-controls .btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 900px) {

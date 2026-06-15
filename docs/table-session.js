@@ -8129,52 +8129,52 @@ function S(e, t) {
 }
 //#endregion
 //#region src/table/HeroHand.tsx
-function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, privateHandReady: g = !1, className: _ = "" }) {
-	let [x, S] = (0, l.useState)(/* @__PURE__ */ new Set()), [C, w] = (0, l.useState)(null), [te, ne] = (0, l.useState)(!1), [T, re] = (0, l.useState)(null), [ie, ae] = (0, l.useState)(!1), oe = (0, l.useRef)(""), se = ee(t), ce = (0, l.useMemo)(() => e.map(y), [e]), le = e.map((e) => `${e.rank}-${e.suit}`).join(",");
+function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, privateHandReady: g = !1, tableTrumpUpcard: _ = null, className: x = "" }) {
+	let [S, C] = (0, l.useState)(/* @__PURE__ */ new Set()), [w, te] = (0, l.useState)(null), [ne, T] = (0, l.useState)(!1), [re, ie] = (0, l.useState)(null), [ae, oe] = (0, l.useState)(!1), se = (0, l.useRef)(""), ce = ee(t), le = (0, l.useMemo)(() => e.map(y), [e]), E = e.map((e) => `${e.rank}-${e.suit}`).join(",");
 	(0, l.useEffect)(() => {
-		if (!se || le.length === 0 || le === oe.current) return;
-		oe.current = le, ae(!0);
-		let e = window.setTimeout(() => ae(!1), 520);
+		if (!ce || E.length === 0 || E === se.current) return;
+		se.current = E, oe(!0);
+		let e = window.setTimeout(() => oe(!1), 520);
 		return () => window.clearTimeout(e);
-	}, [le, se]);
-	let E = t === "draw", D = t === "play", O = te || d?.status === "loading", ue = d?.status === "error" ? d.message : T, de = (e) => {
-		O || (re(null), S((t) => {
+	}, [E, ce]);
+	let D = t === "draw", O = t === "play", ue = ne || d?.status === "loading", de = d?.status === "error" ? d.message : re, fe = (e) => {
+		ue || (ie(null), C((t) => {
 			let n = new Set(t);
-			return n.has(e) ? n.delete(e) : n.size < c ? n.add(e) : re(`You may discard at most ${c} cards`), n;
+			return n.has(e) ? n.delete(e) : n.size < c ? n.add(e) : ie(`You may discard at most ${c} cards`), n;
 		}));
-	}, fe = (0, l.useCallback)(async (e) => {
-		if (!(!f || O)) {
+	}, k = (0, l.useCallback)(async (e) => {
+		if (!(!f || ue)) {
 			if (e.length > c) {
-				re(`You may discard at most ${c} cards`);
+				ie(`You may discard at most ${c} cards`);
 				return;
 			}
-			ne(!0), re(null);
+			T(!0), ie(null);
 			try {
-				await f(e), S(/* @__PURE__ */ new Set());
+				await f(e), C(/* @__PURE__ */ new Set());
 			} catch (e) {
-				re(e instanceof Error ? e.message : "Draw failed");
+				ie(e instanceof Error ? e.message : "Draw failed");
 			} finally {
-				ne(!1);
+				T(!1);
 			}
 		}
 	}, [
 		f,
-		O,
+		ue,
 		c
-	]), k = (0, l.useCallback)(async () => {
-		if (!(!p || O)) {
-			ne(!0), re(null);
+	]), A = (0, l.useCallback)(async () => {
+		if (!(!p || ue)) {
+			T(!0), ie(null);
 			try {
-				await p(), S(/* @__PURE__ */ new Set());
+				await p(), C(/* @__PURE__ */ new Set());
 			} catch (e) {
-				re(e instanceof Error ? e.message : "Could not stand pat");
+				ie(e instanceof Error ? e.message : "Could not stand pat");
 			} finally {
-				ne(!1);
+				T(!1);
 			}
 		}
-	}, [p, O]);
+	}, [p, ue]);
 	if (!a) return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${_}`.trim(),
+		className: `btable-hero ${x}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__label muted small",
@@ -8184,9 +8184,9 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 			children: "Sign in to see your dealt cards."
 		})]
 	});
-	if (!r && !n && !se) return null;
-	if (se && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero ${_}`.trim(),
+	if (!r && !n && !ce) return null;
+	if (ce && r && e.length === 0) return /* @__PURE__ */ (0, h.jsxs)("div", {
+		className: `btable-hero ${x}`.trim(),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__label muted small",
@@ -8196,30 +8196,30 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 			children: g ? "Cards not available — leave and re-open the session, or refresh the page." : "Loading your cards…"
 		})]
 	});
-	if (se && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
-		className: `btable-hero ${_}`.trim(),
+	if (ce && !r) return /* @__PURE__ */ (0, h.jsx)("div", {
+		className: `btable-hero ${x}`.trim(),
 		children: /* @__PURE__ */ (0, h.jsx)("p", {
 			className: "btable-hero__fallback muted small",
 			children: "You sat out this hand."
 		})
 	});
 	if (e.length === 0 && !i) return null;
-	let A = (e, t) => E && x.has(t) || D && C === t ? "selected" : D && u && !u.includes(t) ? "muted" : "default", pe = (e, t) => {
-		if (!O) {
-			if (E && o && !s) {
-				de(t);
+	let pe = (e, t) => D && S.has(t) || O && w === t ? "selected" : _ && e.rank === _.rank && e.suit === _.suit ? O && u && !u.includes(t) ? "muted" : "trump" : O && u && !u.includes(t) ? "muted" : "default", me = (e, t) => {
+		if (!ue) {
+			if (D && o && !s) {
+				fe(t);
 				return;
 			}
-			if (D && o && m) {
+			if (O && o && m) {
 				if (u && !u.includes(t)) return;
-				w(t), Promise.resolve(m(t)).catch((e) => {
-					re(e instanceof Error ? e.message : "Could not play card");
+				te(t), Promise.resolve(m(t)).catch((e) => {
+					ie(e instanceof Error ? e.message : "Could not play card");
 				});
 			}
 		}
-	}, me = x.size;
+	}, he = S.size;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
-		className: `btable-hero${ie ? " btable-hero--dealing" : ""} ${_}`.trim(),
+		className: `btable-hero${ae ? " btable-hero--dealing" : ""} ${x}`.trim(),
 		"aria-label": "Your dealt cards",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("p", {
@@ -8227,53 +8227,57 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 				children: [
 					"Your hand · ",
 					b(t, n),
-					E && !s && o && " · tap cards to discard",
-					D && o && " · tap a legal card to play"
+					D && !s && o && " · tap cards to discard",
+					O && o && " · tap a legal card to play"
 				]
 			}),
-			i && E && /* @__PURE__ */ (0, h.jsx)("p", {
+			i && D && _ && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__trump-note muted small",
-				children: "Your trump upcard is on the table — not duplicated here"
+				children: "Flipped trump is in your hand (highlighted) — it is not led automatically"
 			}),
-			ce.length > 0 && /* @__PURE__ */ (0, h.jsx)(v, {
-				cards: ce,
+			i && O && _ && le.some((e) => e.rank === _.rank && e.suit === _.suit) && /* @__PURE__ */ (0, h.jsx)("p", {
+				className: "btable-hero__trump-note muted small",
+				children: "Play the highlighted trump from your hand when it is your turn"
+			}),
+			le.length > 0 && /* @__PURE__ */ (0, h.jsx)(v, {
+				cards: le,
 				size: "sm",
 				fan: !0,
-				stateFor: A,
-				onCardClick: E || D ? pe : void 0
+				stateFor: pe,
+				onCardClick: D || O ? me : void 0
 			}),
-			ue && /* @__PURE__ */ (0, h.jsx)("p", {
+			de && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__error",
 				role: "alert",
-				children: ue
+				children: de
 			}),
 			d?.status === "success" && d.message && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__success muted small",
 				role: "status",
 				children: d.message
 			}),
-			E && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
+			D && !s && o && /* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "btable-hero__actions",
 				children: [
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm btn--primary",
-						disabled: O,
-						"aria-busy": O,
-						onClick: () => fe([...x].sort((e, t) => e - t)),
-						children: O ? "Drawing…" : `Draw${me > 0 ? ` (${me})` : ""}`
+						disabled: ue,
+						"aria-busy": ue,
+						onClick: () => k([...S].sort((e, t) => e - t)),
+						children: ue ? "Drawing…" : `Draw${he > 0 ? ` (${he})` : ""}`
 					}),
 					/* @__PURE__ */ (0, h.jsx)("button", {
 						type: "button",
 						className: "btn btn--sm",
-						disabled: O,
-						onClick: () => k(),
+						disabled: ue,
+						onClick: () => A(),
 						children: "Stand pat"
 					}),
 					/* @__PURE__ */ (0, h.jsxs)("span", {
 						className: "muted small",
 						children: [
-							me,
+							he,
 							"/",
 							c,
 							" selected"
@@ -8281,15 +8285,15 @@ function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isD
 					})
 				]
 			}),
-			E && s && /* @__PURE__ */ (0, h.jsx)("p", {
+			D && s && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Draw complete — waiting for others"
 			}),
-			E && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			D && !s && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to draw"
 			}),
-			D && !o && /* @__PURE__ */ (0, h.jsx)("p", {
+			O && !o && /* @__PURE__ */ (0, h.jsx)("p", {
 				className: "btable-hero__hint muted small",
 				children: "Waiting for your turn to play"
 			})
@@ -8357,45 +8361,49 @@ function ae({ currentTrick: e, playedCards: t = [], playerNames: n = {} }) {
 }
 //#endregion
 //#region src/table/PotCenter.tsx
-function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, phase: i, enrollmentActive: a = !1, remainingDeckCount: o, currentTrick: s, playedCards: c, playerNames: l = {} }) {
-	let u = b(i, a), d = !!n, f = d ? `${n.rank}-${n.suit}` : "none";
+function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, showTrumpReveal: i = !1, phase: a, enrollmentActive: o = !1, remainingDeckCount: s, currentTrick: c, playedCards: l, playerNames: u = {} }) {
+	let d = b(a, o), f = i && !!n, p = f ? `${n.rank}-${n.suit}` : "none", m = a === "draw" || a === "play";
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: "bpot",
 		children: [
 			/* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "bpot__phase",
 				"aria-live": "polite",
-				children: [/* @__PURE__ */ (0, h.jsx)("span", {
-					className: `bpot__phase-tag bpot__phase-tag--${i ?? "waiting"}`,
-					children: u
-				}), d && r && /* @__PURE__ */ (0, h.jsxs)("span", {
-					className: "bpot__phase-trump muted small",
-					children: ["Trump · ", x(r)]
-				})]
+				children: [
+					/* @__PURE__ */ (0, h.jsx)("span", {
+						className: `bpot__phase-tag bpot__phase-tag--${a ?? "waiting"}`,
+						children: d
+					}),
+					r && m && /* @__PURE__ */ (0, h.jsxs)("span", {
+						className: "bpot__phase-trump muted small",
+						children: ["Trump · ", x(r)]
+					}),
+					f && /* @__PURE__ */ (0, h.jsxs)("div", {
+						className: "bpot__trump bpot__trump--reveal",
+						children: [/* @__PURE__ */ (0, h.jsx)(g, {
+							card: {
+								rank: n.rank,
+								suit: n.suit
+							},
+							size: "sm",
+							state: "trump"
+						}), /* @__PURE__ */ (0, h.jsx)("span", {
+							className: "bpot__trump-label muted small",
+							children: "Trump flip"
+						})]
+					}, p)
+				]
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("div", {
 				className: "bpot__trick-area",
-				children: [d ? /* @__PURE__ */ (0, h.jsxs)("div", {
-					className: "bpot__trump bpot__trump--deal",
-					children: [/* @__PURE__ */ (0, h.jsx)(g, {
-						card: {
-							rank: n.rank,
-							suit: n.suit
-						},
-						size: "sm",
-						state: "trump"
-					}), /* @__PURE__ */ (0, h.jsx)("span", {
-						className: "bpot__trump-label muted small",
-						children: "Upcard"
-					})]
-				}, f) : /* @__PURE__ */ (0, h.jsx)("div", {
+				children: [!m && /* @__PURE__ */ (0, h.jsx)("div", {
 					className: "bpot__deck-placeholder muted small",
 					"aria-hidden": "true",
-					children: a ? "Dealing after join" : "Awaiting deal"
+					children: o ? "Dealing after join" : "Awaiting deal"
 				}), /* @__PURE__ */ (0, h.jsx)(ae, {
-					currentTrick: s,
-					playedCards: c,
-					playerNames: l
+					currentTrick: c,
+					playedCards: l,
+					playerNames: u
 				})]
 			}),
 			/* @__PURE__ */ (0, h.jsxs)("dl", {
@@ -8434,9 +8442,9 @@ function oe({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 				children: [
 					t,
 					" in this hand",
-					o != null && o > 0 && /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
+					s != null && s > 0 && /* @__PURE__ */ (0, h.jsxs)(h.Fragment, { children: [
 						" · ",
-						o,
+						s,
 						" left in deck"
 					] })
 				]
@@ -8603,7 +8611,7 @@ function ce({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 //#endregion
 //#region src/table/CardTable.tsx
 function le({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], privateHandReady: o = !1, currentUserId: s = null, legalPlayIndices: c, actionFeedback: l, onToggleInHand: u, onTrickDelta: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m }) {
-	let g = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), _ = g.findIndex((e) => e.isSelf), v = _ > 0 ? [...g.slice(_), ...g.slice(0, _)] : g, y = v.length, b = `btable--p${Math.min(8, Math.max(2, y))}`, x = ie(y), ee = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), S = t.find((e) => e.isSelf), w = !!(s && e.drawCompletedIds?.includes(s));
+	let g = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), _ = g.findIndex((e) => e.isSelf), v = _ > 0 ? [...g.slice(_), ...g.slice(0, _)] : g, y = v.length, b = `btable--p${Math.min(8, Math.max(2, y))}`, x = ie(y), ee = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), S = t.find((e) => e.isSelf), w = !!(s && e.drawCompletedIds?.includes(s)), te = !!(e.trumpUpcard && a.some((t) => t.rank === e.trumpUpcard.rank && t.suit === e.trumpUpcard.suit)), ne = (e.phase === "draw" || e.phase === "play") && !!e.trumpUpcard && !te;
 	return /* @__PURE__ */ (0, h.jsxs)("div", {
 		className: `btable-wrap ${b}`,
 		style: {
@@ -8622,6 +8630,7 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						potMetrics: n,
 						participantCount: r,
 						trumpUpcard: e.trumpUpcard,
+						showTrumpReveal: ne,
 						trumpSuit: e.trumpSuit,
 						phase: e.phase,
 						enrollmentActive: i,
@@ -8665,7 +8674,8 @@ function le({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 				actionFeedback: l,
 				onSubmitDraw: f,
 				onPassDraw: p,
-				onPlayCard: m
+				onPlayCard: m,
+				tableTrumpUpcard: e.trumpUpcard
 			})
 		]
 	});

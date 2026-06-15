@@ -21,6 +21,7 @@ import { HAND_PHASE } from "./types";
 import type { Card } from "../types";
 import type { PublicHandState } from "./types";
 import { deserializeCards } from "./serialize";
+import { runEnrollmentPhase, type DealCompletionContext } from "./enrollment";
 
 export const DEFAULT_PLAYERS = ["p1", "p2", "p3", "p4"] as const;
 
@@ -76,6 +77,7 @@ export function assertNoDuplicateCards(state: SimulatedHandState): void {
     deck: state.deck,
     deckNextIndex: state.publicHand.deckNextIndex ?? 0,
     trumpUpcard: trump,
+    trumpHolderId: state.publicHand.trumpHolderId ?? state.publicHand.dealerId,
     privateHands: state.privateHands,
     currentTrick: state.publicHand.currentTrick,
     playedCards: state.publicHand.playedCards,
@@ -219,11 +221,51 @@ function assertFirstTrickEmpty(state: SimulatedHandState, expectedLead: string):
   }
 }
 
-/** Full deal → draw → play for N players; returns final state. */
+/** Full enrollment → deal → draw → play for N players; returns final state. */
 export function simulateFullHand(
-  overrides: Partial<DealInitialHandInput> & { seed?: number } = {},
+  overrides: Partial<DealInitialHandInput> & {
+    seed?: number;
+    skipEnrollment?: boolean;
+    enrollmentJoin?: (playerId: string) => boolean;
+  } = {},
 ): SimulatedHandState {
-  let state = initSimulatedHand(overrides);
+  const participantIds = overrides.participantIds ?? [...DEFAULT_PLAYERS];
+  const sortedPlayerIds = overrides.sortedPlayerIds ?? [...participantIds];
+  const dealerId = overrides.dealerId ?? "p1";
+  const seed = overrides.seed ?? 42;
+
+  if (overrides.skipEnrollment !== false) {
+    let state = initSimulatedHand(overrides);
+    assertNoDuplicateCards(state);
+    state = runDrawPhase(state);
+    const leadId = state.publicHand.actionOrder?.[0] ?? state.publicHand.participantIds[0];
+    assertFirstTrickEmpty(state, leadId);
+    state = runPlayPhase(state);
+    return state;
+  }
+
+  const dealCtx: DealCompletionContext = {
+    dealerId,
+    sortedPlayerIds,
+    seed,
+    dealingRule: null,
+  };
+  const join = overrides.enrollmentJoin ?? (() => true);
+  const enrolled = runEnrollmentPhase(sortedPlayerIds, dealerId, join, dealCtx, seed);
+  if (enrolled.kind !== "deal") {
+    throw new Error(`Enrollment did not deal: ${enrolled.kind}`);
+  }
+
+  const privateHands: Record<string, Card[]> = {};
+  for (const [pid, doc] of Object.entries(enrolled.privateHandsByPlayer)) {
+    privateHands[pid] = deserializeCards(doc.cards);
+  }
+
+  let state: SimulatedHandState = {
+    publicHand: enrolled.currentHand,
+    privateHands,
+    deck: shuffledDeckFromSeed(enrolled.currentHand.deckSeed ?? seed),
+  };
   assertNoDuplicateCards(state);
   state = runDrawPhase(state);
   const leadId = state.publicHand.actionOrder?.[0] ?? state.publicHand.participantIds[0];

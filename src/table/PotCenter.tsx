@@ -13,8 +13,11 @@ import type {
 interface PotCenterProps {
   potMetrics: PotMetrics;
   participantCount: number;
+  /** Face-up trump reveal for suit determination (not a led trick card). */
   trumpUpcard?: SerializedCard | null;
   trumpSuit?: string | null;
+  /** When false, trump is shown only in the holder's hand — not duplicated here. */
+  showTrumpReveal?: boolean;
   phase?: string | null;
   enrollmentActive?: boolean;
   remainingDeckCount?: number | null;
@@ -28,6 +31,7 @@ export function PotCenter({
   participantCount,
   trumpUpcard,
   trumpSuit,
+  showTrumpReveal = false,
   phase,
   enrollmentActive = false,
   remainingDeckCount,
@@ -36,8 +40,9 @@ export function PotCenter({
   playerNames = {},
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrump = Boolean(trumpUpcard);
-  const trumpKey = hasTrump ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
+  const hasTrumpReveal = showTrumpReveal && Boolean(trumpUpcard);
+  const trumpKey = hasTrumpReveal ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
+  const cardsDealt = phase === "draw" || phase === "play";
 
   return (
     <div className="bpot">
@@ -45,16 +50,13 @@ export function PotCenter({
         <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
           {phaseLabel}
         </span>
-        {hasTrump && trumpSuit && (
+        {trumpSuit && cardsDealt && (
           <span className="bpot__phase-trump muted small">
             Trump · {formatTrumpSuit(trumpSuit)}
           </span>
         )}
-      </div>
-
-      <div className="bpot__trick-area">
-        {hasTrump ? (
-          <div key={trumpKey} className="bpot__trump bpot__trump--deal">
+        {hasTrumpReveal && (
+          <div key={trumpKey} className="bpot__trump bpot__trump--reveal">
             <PlayingCard
               card={{
                 rank: trumpUpcard!.rank as Rank,
@@ -63,14 +65,17 @@ export function PotCenter({
               size="sm"
               state="trump"
             />
-            <span className="bpot__trump-label muted small">Upcard</span>
+            <span className="bpot__trump-label muted small">Trump flip</span>
           </div>
-        ) : (
+        )}
+      </div>
+
+      <div className="bpot__trick-area">
+        {!cardsDealt && (
           <div className="bpot__deck-placeholder muted small" aria-hidden="true">
             {enrollmentActive ? "Dealing after join" : "Awaiting deal"}
           </div>
         )}
-
         <TrickRow
           currentTrick={currentTrick}
           playedCards={playedCards}
