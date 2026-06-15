@@ -1100,6 +1100,30 @@ async function deletePrivateHandsForSession(roomId, sessionId, batch) {
   snap.docs.forEach((d) => batch.delete(d.ref));
 }
 
+/** Best-effort removal of hole-card docs before the session doc is deleted. */
+async function purgePrivateHandsForSession(roomId, sessionId) {
+  const snap = await getDocs(privateHandsCol(roomId, sessionId));
+  if (snap.empty) return;
+  try {
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    for (const d of snap.docs) {
+      try {
+        await deleteDoc(d.ref);
+      } catch {
+        try {
+          await updateDoc(d.ref, { cards: [], updatedAt: serverTimestamp() });
+        } catch {
+          /* leave orphaned doc — session delete can still proceed */
+        }
+      }
+    }
+  }
+}
+
 /** Live subscription to the signed-in player's private hand for the session. */
 export function subscribePrivateHand(roomId, sessionId, playerId, callback, onError) {
   if (!roomId || !sessionId || !playerId) return () => {};
@@ -1768,9 +1792,12 @@ export async function deleteSession(roomId, sessionId) {
     getDocs(scoresCol(roomId, sessionId)),
     getDocs(handsCol(roomId, sessionId)),
   ]);
+
+  // Delete private hands while the session doc still exists (rules reference session state).
+  await purgePrivateHandsForSession(roomId, sessionId);
+
   const batch = writeBatch(db);
   scoresSnap.docs.forEach((d) => batch.delete(d.ref));
-  await deletePrivateHandsForSession(roomId, sessionId, batch);
   batch.delete(sessionDoc(roomId, sessionId));
   await batch.commit();
 
