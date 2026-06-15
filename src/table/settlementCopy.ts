@@ -233,15 +233,23 @@ export function buildHandOutcomeView(input: {
   if (settlement === "co_win_carry") {
     const names = namesFor(winnerIds, players);
     detailLines.push(`Tie for most tricks — ${names} (${winnerIds.length} co-winners).`);
-    detailLines.push(`No outright winner; full pot ${potLabel} carries to the next hand.`);
-    detailLines.push(`Co-winners skip the next ante; other players ante as usual.`);
+    detailLines.push(`No outright winner; full pot ${potLabel} carries to the next deal.`);
+    detailLines.push(
+      `Hand ends; enrollment opens for the next deal. Seats may change between deals.`,
+    );
+    detailLines.push(
+      `Tied leaders skip the ante for that deal; other seated players ante as usual.`,
+    );
+    detailLines.push(
+      `New players seated in time for enrollment may join that deal.`,
+    );
     if (bourreIds.length) {
       detailLines.push(`Bourré: ${bourreNames} took 0 tricks.`);
     }
     return {
       headline: "Tie — pot carries",
       detailLines,
-      carryoverLine: `Next hand starts with ${carryLabel} in the pot.`,
+      carryoverLine: `Next deal starts with ${carryLabel} in the pot.`,
     };
   }
 

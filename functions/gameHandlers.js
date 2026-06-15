@@ -837,7 +837,7 @@ export async function handleRecordHand(
     if (
       winners.includes(pid) &&
       winners.length >= 2 &&
-      (mode === "co_win_carry" || mode === "non_winner_ante_up")
+      (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split")
     ) {
       patch.skipNextAnte = true;
     }
