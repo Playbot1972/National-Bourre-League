@@ -62,6 +62,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
       className={[
         "bseat",
         `bseat--${region}`,
+        `player-${region}`,
         player.inHand ? "bseat--in-hand" : "",
         player.isSelf ? "bseat--self" : "",
         player.isLeading ? "bseat--leading" : "",
