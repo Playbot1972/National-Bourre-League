@@ -78,15 +78,19 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
         run: npm run build:hosting
 
+      - name: Build Cloud Functions bundle
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm run build:functions
+
       - name: Authenticate to Google Cloud
         if: steps.cfg.outputs.ready == 'true'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Hosting + Firestore rules
+      - name: Deploy Hosting, Firestore rules, and Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
-        run: npx firebase deploy --only hosting,firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+        run: npx firebase deploy --only hosting,firestore:rules,functions --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Commit version bump
         if: steps.cfg.outputs.ready == 'true'

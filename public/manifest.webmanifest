@@ -2,7 +2,7 @@
   "name": "National Bourré League",
   "short_name": "Booray",
   "description": "Learn Bourré, play the tutorial, and explore the rules.",
-  "start_url": "/",
+  "start_url": "/social/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
