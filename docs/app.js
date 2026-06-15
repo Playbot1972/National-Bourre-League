@@ -1293,7 +1293,7 @@ $("#join-form").addEventListener("submit", async (e) => {
       showRoomsError(msg);
     } else if (fbCode === "permission-denied") {
       showRoomsError(
-        "Join blocked by Firestore rules. Deploy firestore:rules, then create a new room.",
+        "Could not join this room — check that you are signed in and the invite code is correct. If it keeps failing, ask the host to re-open the room so the lookup syncs.",
       );
     } else if (/offline|network/i.test(msg)) {
       showRoomsError("Network error — check connection and try again.");
