@@ -276,7 +276,7 @@ button {
   background: var(--surface-chip);
 }
 .profile__menu-item--danger {
-  color: #f3b9b5;
+  color: var(--text-error);
 }
 
 /* Main / views */
@@ -475,7 +475,7 @@ button {
   margin: 0;
   background: var(--surface-error);
   border: 1px solid var(--border-error);
-  color: #f3b9b5;
+  color: var(--text-error);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
@@ -484,7 +484,7 @@ button {
   margin: 0;
   background: var(--surface-success);
   border: 1px solid var(--border-success);
-  color: #b7e4c7;
+  color: var(--text-success);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
@@ -568,7 +568,7 @@ button {
   margin: 0 0 12px;
   background: var(--surface-error);
   border: 1px solid var(--border-error);
-  color: #f3b9b5;
+  color: var(--text-error);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
@@ -607,7 +607,7 @@ button {
 .btn--danger {
   background: var(--surface-danger);
   border: 1px solid var(--border-danger);
-  color: #ffb4b4;
+  color: var(--text-danger);
 }
 
 .btn--danger:hover {
@@ -1527,12 +1527,26 @@ body.table-play-active .footer {
 }
 
 .table-play-overlay .btable-wrap {
+  --seat-gutter-x: clamp(52px, 13vw, 88px);
+  --seat-gutter-y: clamp(32px, 8vh, 52px);
   width: min(94vw, 980px);
   --table-stage-width: min(76vw, 920px);
+  max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1200px);
 }
 
 .table-play-overlay .table-stage {
   max-width: 100%;
+}
+
+@media (min-width: 1200px) {
+  .table-play-overlay .table-session-root {
+    max-width: min(1400px, 96vw);
+    margin: 0 auto;
+  }
+
+  .table-play-overlay__main {
+    align-items: stretch;
+  }
 }
 
 .table-play-overlay .btable-session__rotate-hint {

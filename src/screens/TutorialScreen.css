@@ -209,7 +209,7 @@
 .tut__feedback.is-wrong {
   background: rgba(192, 50, 43, 0.16);
   border: 1px solid rgba(192, 50, 43, 0.55);
-  color: #f3b9b5;
+  color: var(--text-error);
 }
 
 .tut__summary {

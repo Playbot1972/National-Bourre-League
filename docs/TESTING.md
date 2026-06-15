@@ -157,7 +157,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `Missing script: icons:generate` | On `main` before #70 merge | Checkout `cursor/icons-on-main-8d02` or merge [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) |
-| Table UI blank / “failed to load” | Stale `docs/table-session.js` | `npm run build:table` |
+| Table UI blank / “failed to load” | Stale `docs/table-session.js` **or** `buildTableSessionProps` crash (check browser console) | `npm run build:table`; if console shows `Cannot access 'myUid' before initialization`, pull latest `main` and redeploy |
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running | Terminal 1: `npm run emulators` |
 | Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |

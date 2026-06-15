@@ -82,6 +82,19 @@ counts only (`Seat.tsx`).
 
 See `functions/README.md` and TODO comments in `firestore.rules` / `docs/firestore.js`.
 
+### Premium table room UX (`src/table/`)
+
+Desktop-first live table polish (built to `docs/table-session.js`):
+
+- **Themes** — `src/table/theme/` presets: Carbon, Simple, Night Felt, Arena; 4-color deck;
+  high contrast; card scale; table zoom. Persisted in `localStorage` (`nbl-table-settings`).
+- **Smart HUD** — `SmartHud.tsx` at each seat (Ape Score, Class, Status, session streak,
+  tricks, turn/dealer). Uses public `players` docs + session state only.
+- **Visual highlights** — pseudo-3D avatars, hero card peek/squeeze, emoji reactions,
+  cinematic splashes for big pots / pot cap / bourré pressure.
+- **Desktop layout** — `DesktopLayoutShell.tsx` for large-monitor scaling; tiled multi-room
+  mode scaffolded (placeholder tile, settings model, hotkey hooks).
+
 **Local test & debug (open PRs, emulators, checklists):** see [`docs/TESTING.md`](docs/TESTING.md).
 
 ### Table feedback (sound + haptics)
@@ -123,6 +136,7 @@ window.BourreHaptics = {
 iOS haptics **require** a native wrapper — web-only iPhone/iPad builds get sound but
 not vibration. See `src/table/feedback/haptics.ts` for bridge contract.
 
+## Cursor Cloud specific instructions
 
 - Standard scripts live in `package.json`: `npm run dev` (Vite dev server),
   `npm run lint` (ESLint), `npm run build` (`tsc -b && vite build`).
@@ -245,9 +259,12 @@ npm run build:hosting   # vite build + copy docs/ → dist/social/
 firebase deploy --only hosting,firestore:rules
 ```
 
-**App version:** bump `version.json` (e.g. `1.00.01`) before each release; `npm run version:sync`
-updates `package.json`, `src/version.ts`, and `docs/version.js`. Displayed bottom-right as
-`v1.00.00` on `/` and `/social/`.
+**App version:** Production deploys to `main` auto-bump `version.json` (patch segment) in GitHub
+Actions before each Firebase deploy; the workflow commits `chore: release v… [skip ci]` back to
+`main` so every production push gets a unique version for tracking and rollback. Local deploys
+(`npm run deploy`) do not auto-bump — run `npm run version:bump` first if you need a new label.
+`npm run version:sync` propagates `version.json` → `package.json`, `src/version.ts`, and
+`docs/version.js`. Displayed bottom-right as `v1.00.00` on `/` and `/social/`.
 
 **Preview the combined site locally** (React at `/`, social at `/social/`, emulators
 still auto-connect on localhost):
