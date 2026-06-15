@@ -1,11 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" role="img" aria-label="Booray maskable app icon">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 432" fill="none" role="img" aria-label="Booray Android adaptive foreground">
   <defs>
-    <linearGradient id="bg" x1="80" y1="40" x2="432" y2="472" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#141a2e"/>
-      <stop offset="0.55" stop-color="#0a0e18"/>
-      <stop offset="1" stop-color="#04060c"/>
-    </linearGradient>
-    <linearGradient id="cream" x1="256" y1="120" x2="256" y2="380" gradientUnits="userSpaceOnUse">
+    <linearGradient id="cream" x1="216" y1="102" x2="216" y2="321" gradientUnits="userSpaceOnUse">
       <stop stop-color="#faf6ee"/>
       <stop offset="1" stop-color="#e5dac8"/>
     </linearGradient>
@@ -16,10 +11,8 @@
       <rect x="-3.5" y="52" width="7" height="10" fill="#faf6ee"/>
     </g>
   </defs>
-  <!-- Full-bleed background for maskable safe zone -->
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <!-- Critical artwork scaled to ~72% (Android maskable safe zone) -->
-  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+  <!-- Foreground artwork centered in Android adaptive safe zone (66dp circle in 108dp canvas) -->
+  <g transform="translate(216 216) scale(0.66) translate(-256 -256)">
     <circle cx="256" cy="248" r="198" stroke="#5eb3ff" stroke-opacity="0.38" stroke-width="5" fill="none" stroke-dasharray="420 220"/>
     <circle cx="256" cy="248" r="168" stroke="#e84855" stroke-opacity="0.34" stroke-width="4" fill="none" stroke-dasharray="360 200"/>
     <g opacity="0.22">
