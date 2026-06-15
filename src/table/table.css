@@ -294,6 +294,7 @@
 }
 
 .btrick {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -326,6 +327,109 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.btrick__winner-tag {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-900, #14110f);
+  background: linear-gradient(180deg, #36b97c, #2f9e6a);
+  box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
+  white-space: nowrap;
+  animation: btrick-winner-tag 800ms ease;
+  z-index: 2;
+}
+
+.btrick__play--land .pcard {
+  animation: btrick-card-land 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btrick__play--winner .pcard {
+  animation: btrick-winner-glow 800ms ease;
+}
+
+.btrick--hold .btrick__play:not(.btrick__play--winner) .pcard {
+  filter: grayscale(0.2) brightness(0.92);
+}
+
+.btrick--sweep {
+  animation: btrick-sweep 450ms ease forwards;
+}
+
+@keyframes btrick-card-land {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes btrick-winner-glow {
+  0% {
+    transform: translateY(0);
+    box-shadow: 0 8px 18px var(--paper-shadow);
+  }
+  45% {
+    transform: translateY(-12px);
+    box-shadow:
+      0 0 0 2px #36b97c,
+      0 16px 28px rgba(8, 60, 38, 0.55);
+  }
+  100% {
+    transform: translateY(-10px);
+    box-shadow:
+      0 0 0 2px #36b97c,
+      0 12px 26px rgba(8, 60, 38, 0.6);
+  }
+}
+
+@keyframes btrick-winner-tag {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes btrick-sweep {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.82) translateY(-8px);
+  }
+}
+
+.bseat--trick-capture .bseat__trick-badge {
+  animation: bseat-trick-capture 450ms ease;
+}
+
+@keyframes bseat-trick-capture {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .bpot__trump {

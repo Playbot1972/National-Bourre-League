@@ -9,6 +9,9 @@
 .hand__slot {
   display: flex;
 }
+.hand--pointer .hand__slot {
+  touch-action: none;
+}
 
 .hand--fan {
   gap: 0;

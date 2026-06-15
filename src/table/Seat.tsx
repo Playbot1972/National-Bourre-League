@@ -84,6 +84,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isDealer ? "bseat--dealer" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
+        player.isTrickCapture ? "bseat--trick-capture" : "",
       ]
         .filter(Boolean)
         .join(" ")}

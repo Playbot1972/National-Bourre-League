@@ -37,6 +37,8 @@
       const tick = params.get("tick") !== "0";
 
       let actionFeedback = null;
+      /** @type {{ index: number, at: number }[]} */
+      window.__fixturePlayLog = [];
 
       const HAND_ENROLLMENT_MS = 12_000;
       const deadlineStart = Date.now() + HAND_ENROLLMENT_MS;
@@ -178,7 +180,8 @@
               actionFeedback = { status: "success", message: "Standing pat" };
               render();
             },
-            onPlayCard: async () => {
+            onPlayCard: async (cardIndex) => {
+              window.__fixturePlayLog.push({ index: cardIndex, at: Date.now() });
               actionFeedback = { status: "success", message: "Card played" };
               render();
             },
