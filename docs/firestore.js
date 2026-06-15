@@ -88,6 +88,7 @@ import {
   gameSubmitDraw,
   gameTimeoutEnrollment,
   gameVoteCoWinSettlement,
+  gameAdvanceBots,
 } from "./game-functions.js";
 import {
   dealInitialHand,
@@ -700,7 +701,9 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
 /** Robot draw/play helpers — room member drives bot using bot private hand doc. */
 export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, dealingRule }) {
   const handData = await getPrivateHand(roomId, sessionId, playerId);
-  if (!handData) return;
+  if (!handData) {
+    throw new Error(`Bot private hand missing (${playerId}) — redeal or nudge bots`);
+  }
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const ch = sessionSnap.data()?.currentHand || {};
   const trumpSuit = ch.trumpSuit;
@@ -714,7 +717,9 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
 
 export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
   const handData = await getPrivateHand(roomId, sessionId, playerId);
-  if (!handData) return;
+  if (!handData) {
+    throw new Error(`Bot private hand missing (${playerId}) — redeal or nudge bots`);
+  }
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const ch = sessionSnap.data()?.currentHand || {};
   const privateHand = deserializeCards(handData?.cards || []);
@@ -1703,6 +1708,12 @@ export async function applyRankingResults(roomId, sessionId, results) {
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
+}
+
+/** Ask Cloud Functions to run bot enrollment / draw / play through robot turns. */
+export async function advanceSessionBots(roomId, sessionId) {
+  if (!SERVER_HAND_AUTHORITY) return { status: "skipped" };
+  return gameAdvanceBots(roomId, sessionId);
 }
 
 // Firestore Timestamp | server placeholder | undefined → comparable seconds.

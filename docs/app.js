@@ -38,6 +38,7 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
+  advanceSessionBots,
   addSessionPlayer,
   addSessionRobot,
   syncSessionWithRoomMembers,
@@ -82,6 +83,7 @@ import {
   formatHandHistoryPublicLine,
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
+import { isServerHandAuthorityEnabled } from "./game-functions.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
@@ -779,6 +781,21 @@ function sessionHasRobots(scores = openScores) {
   return scores.some((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId));
 }
 
+/** True when robots may need a human room member (or server nudge) to keep the hand moving. */
+function sessionNeedsBotDriver(sessionObj, scores = openScores) {
+  if (!sessionObj || sessionObj.status === "final") return false;
+  if (sessionObj.handEnrollment?.active) return sessionHasRobots(scores);
+  if (sessionObj.pendingCoWinSettlement?.winnerIds?.some((id) => isRobotPlayerId(id))) {
+    return true;
+  }
+  const ch = sessionObj.currentHand;
+  if (ch?.phase === "draw" || ch?.phase === "play") {
+    const turnId = ch.turnPlayerId;
+    return Boolean(turnId && isRobotPlayerId(turnId));
+  }
+  return sessionHasRobots(scores);
+}
+
 function stopEnrollmentTimer() {
   if (enrollmentTimer) {
     clearInterval(enrollmentTimer);
@@ -789,8 +806,7 @@ function stopEnrollmentTimer() {
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
   const s = currentSessions.find((x) => x.id === openSessionId);
-  const needsDriver =
-    s?.handEnrollment?.active || (s && s.status !== "final" && sessionHasRobots());
+  const needsDriver = sessionNeedsBotDriver(s, openScores);
   if (!needsDriver) return;
 
   enrollmentTimer = setInterval(() => {
@@ -1397,6 +1413,21 @@ function processRobotActions(s, scores) {
   );
   if (!robotScores.length) return;
 
+  const now = Date.now();
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
+
+  // Server-authoritative path: one callable chains all robot turns.
+  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores)) {
+    lastRobotTrickAt = now;
+    robotActionInFlight = true;
+    advanceSessionBots(currentRoomId, openSessionId)
+      .catch((e) => console.warn("advanceSessionBots:", e))
+      .finally(() => {
+        robotActionInFlight = false;
+      });
+    return;
+  }
+
   const enrollment = s.handEnrollment;
   if (enrollment?.active) {
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
@@ -1446,7 +1477,6 @@ function processRobotActions(s, scores) {
   if (!participants.length) return;
 
   const handPhase = currentHand.phase;
-  const now = Date.now();
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {

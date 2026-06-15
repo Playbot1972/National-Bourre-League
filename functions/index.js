@@ -2,6 +2,7 @@ import { initializeApp } from "firebase-admin/app";
 import { onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import {
+  handleAdvanceBots,
   handleEnsureHandEnrollment,
   handlePlayCard,
   handleRecordHand,
@@ -26,6 +27,9 @@ function wrap(handler) {
     return handler(db, { ...data, actorId });
   });
 }
+
+/** Nudge bot enrollment / draw / play when the table is waiting on robots. */
+export const gameAdvanceBots = wrap(handleAdvanceBots);
 
 /** Start enrollment when the session is between hands. */
 export const gameEnsureHandEnrollment = wrap(handleEnsureHandEnrollment);
