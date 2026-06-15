@@ -2630,9 +2630,17 @@ function buildSessionPlayerBarHtml(s) {
   if (!s || s.status === "final") return "";
   return `<div class="session-add-players" data-testid="session-add-players">
       <h5 class="session-add-players__title">Add guest or robot</h5>
-      <p class="muted small session-add-players__hint">Need at least two players on the score sheet before the live table opens.</p>
+      <p class="muted small session-add-players__hint">Need at least two players, then tap <strong>Go to Table</strong>.</p>
       ${buildAddPlayerFormHtml()}
     </div>`;
+}
+
+function buildGoToTableButtonHtml(s) {
+  if (!s || s.status === "final") return "";
+  const ready = tableReadyPlayerCount(s) >= 2;
+  const disabled = ready ? "" : "disabled aria-disabled=\"true\"";
+  const title = ready ? "Open the live card table" : "Add at least two players first";
+  return `<button type="button" class="btn btn--primary btn--sm session-toolbar__table-btn" id="open-table-play" data-testid="open-table-play" ${disabled} title="${title}">Go to Table</button>`;
 }
 
 function buildSessionLiveStatusHtml(s) {
@@ -2641,7 +2649,7 @@ function buildSessionLiveStatusHtml(s) {
   const handNum = (s.handCount ?? 0) + 1;
   let status = `Hand #${handNum}`;
   if (enrollment?.active) {
-    status += " · enrollment open — open the table to tap I'm in";
+    status += " · enrollment open — tap Go to Table to join";
   } else {
     const phase = getSessionCurrentHand(s)?.phase;
     if (phase === "draw") status += " · draw phase";
@@ -2650,11 +2658,8 @@ function buildSessionLiveStatusHtml(s) {
   }
   return `<div class="session-live-card">
       <p class="session-live-card__status">${escapeHtml(status)}</p>
-      <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
-        Open table · landscape
-      </button>
       <p class="muted small session-live-card__hint">
-        Cards and enrollment live in the landscape table. Add players and session controls stay here.
+        Cards and enrollment are in the table view. Hand results and session controls stay here.
       </p>
     </div>`;
 }
@@ -2663,7 +2668,8 @@ function buildSessionToolbarHtml(s) {
   if (!s || s.status === "final") return "";
   return `${buildSessionPlayerBarHtml(s)}
     <div class="session-toolbar__actions">
-      <button class="btn btn--primary btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
+      ${buildGoToTableButtonHtml(s)}
+      <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
     </div>`;
 }
 
@@ -2766,7 +2772,7 @@ function mountSessionPanel(s) {
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot above, or open the room to another member.
+          Need at least two players for the live table. Add a guest or robot above, then tap <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2801,11 +2807,11 @@ function renderSessionPanel(s) {
       : `<div class="session-table-wrap">
            <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
            <div class="session-play-cta">
-             <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-               Open table · landscape
+             <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
+               Go to Table
              </button>
              <p class="muted small session-play-cta__hint">
-               Full-screen landscape view. Hand results and session controls stay in the sidebar.
+               Full-screen table view. Hand results and session controls stay in the sidebar.
              </p>
            </div>
          </div>`;
