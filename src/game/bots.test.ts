@@ -40,7 +40,7 @@ describe("F — bot helpers", () => {
     const state = initSimulatedHand({ seed: 44 });
     const pid = state.publicHand.turnPlayerId!;
     const indices = botDiscardFor(state, pid);
-    assert.ok(indices.length <= (state.publicHand.maxDrawDiscards ?? 4));
+    assert.ok(indices.length <= (state.publicHand.maxDrawDiscards ?? 5));
   });
 
   it("bot play choices are legal during simulated play", () => {

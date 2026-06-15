@@ -134,7 +134,7 @@ export const DISCARD_RULES = {
   houseRuleNote:
     "Hosts can optionally cap discards by player count for simpler live play. This is a convenience, not the published Pagat default.",
   optionalCaps: [
-    { players: "5", maxDiscards: "5" },
+    { players: "2–5", maxDiscards: "5 (standard)" },
     { players: "6", maxDiscards: "4" },
     { players: "7", maxDiscards: "3" },
     { players: "8", maxDiscards: "2–3 (or enable reshuffle mode)" },
@@ -171,7 +171,7 @@ export const HOUSE_RULE_CATEGORIES = [
   {
     id: "dealing",
     title: "Deal & Draw",
-    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 4 (house simplifier).",
+    defaultText: "5 cards each; dealer's last card face up is trump. Draw up to 5 (2–5 players).",
     examples: [
       "Standard: up to 5 discards; reshuffle discards if deck runs out.",
       "Optional caps by player count (see Draw section).",

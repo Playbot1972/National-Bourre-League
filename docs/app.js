@@ -1561,7 +1561,7 @@ function buildTableLeaderLabel(
   };
   if (phase === "draw") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · draw round — discard up to the house limit or stand pat`;
+    return `Trump ${suitLabel} · draw round — discard up to 5 cards or stand pat`;
   }
   if (phase === "play") {
     const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
@@ -1811,7 +1811,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to draw"));
         }
-        const maxDraw = s.currentHand?.maxDrawDiscards ?? 4;
+        const maxDraw = s.currentHand?.maxDrawDiscards ?? 5;
         if (discardIndices.length > maxDraw) {
           const err = new Error(`You may discard at most ${maxDraw} cards`);
           setTableActionFeedback({ status: "error", message: err.message });

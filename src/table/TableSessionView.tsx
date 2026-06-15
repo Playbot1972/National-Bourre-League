@@ -61,7 +61,7 @@ export function TableSessionView({
         )}
         {session.phase === "draw" && isMyTurn && (
           <p className="btable-session__hint muted small">
-            Select cards to discard, then Draw — or Stand pat
+            Select cards to discard (up to 5), then Draw — or Stand pat
           </p>
         )}
         {session.phase === "play" && (

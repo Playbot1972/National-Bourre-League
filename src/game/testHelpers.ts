@@ -115,7 +115,7 @@ export function botDiscardFor(state: SimulatedHandState, playerId: string): numb
   return botDrawDiscardIndices(
     hand,
     state.publicHand.trumpSuit,
-    state.publicHand.maxDrawDiscards ?? 4,
+    state.publicHand.maxDrawDiscards ?? 5,
   );
 }
 
@@ -133,7 +133,7 @@ export function applyBotDraw(state: SimulatedHandState, playerId: string): Simul
     discardIndices,
     deck: state.deck,
     deckNextIndex: state.publicHand.deckNextIndex ?? 0,
-    maxDiscards: state.publicHand.maxDrawDiscards ?? 4,
+    maxDiscards: state.publicHand.maxDrawDiscards ?? 5,
   });
   const order = state.publicHand.actionOrder ?? state.publicHand.participantIds;
   const nextPublic = advanceAfterDraw(result.publicHand, order, playerId);

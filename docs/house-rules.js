@@ -27,7 +27,7 @@ export const DEFAULT_HOUSE_RULES = {
   ante: "Equal ante each hand (set in room Bourré settings)",
   forcedPlay: "Dealer must play when turned trump is an ace",
   ties: "Tie for most tricks — pot carries; no split",
-  dealing: "5 cards each; dealer's last card face up is trump · draw up to 4",
+  dealing: "5 cards each; dealer's last card face up is trump · draw up to 5 (2–5 players)",
 };
 
 const MAX_RULE_LENGTH = 400;

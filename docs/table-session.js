@@ -8129,7 +8129,7 @@ function S(e, t) {
 }
 //#endregion
 //#region src/table/HeroHand.tsx
-function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 4, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, privateHandReady: g = !1, tableTrumpUpcard: _ = null, className: x = "" }) {
+function C({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, isDealer: i = !1, signedIn: a = !1, isMyTurn: o = !1, drawCompleted: s = !1, maxDrawDiscards: c = 5, legalPlayIndices: u, actionFeedback: d, onSubmitDraw: f, onPassDraw: p, onPlayCard: m, privateHandReady: g = !1, tableTrumpUpcard: _ = null, className: x = "" }) {
 	let [S, C] = (0, l.useState)(/* @__PURE__ */ new Set()), [te, w] = (0, l.useState)(null), [ne, T] = (0, l.useState)(!1), [re, ie] = (0, l.useState)(null), [ae, oe] = (0, l.useState)(!1), se = (0, l.useRef)(""), ce = ee(t), le = (0, l.useMemo)(() => e.map(y), [e]), E = e.map((e) => `${e.rank}-${e.suit}`).join(",");
 	(0, l.useEffect)(() => {
 		if (!ce || E.length === 0 || E === se.current) return;
@@ -8688,7 +8688,7 @@ function E({ session: e, players: t, potMetrics: n, participantCount: r, enrollm
 				signedIn: !!s,
 				isMyTurn: !!(s && e.turnPlayerId === s),
 				drawCompleted: te,
-				maxDrawDiscards: e.maxDrawDiscards ?? 4,
+				maxDrawDiscards: e.maxDrawDiscards ?? 5,
 				legalPlayIndices: c ?? void 0,
 				actionFeedback: l,
 				onSubmitDraw: f,
@@ -9225,7 +9225,7 @@ function dt({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 					}),
 					e.phase === "draw" && w && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__hint muted small",
-						children: "Select cards to discard, then Draw — or Stand pat"
+						children: "Select cards to discard (up to 5), then Draw — or Stand pat"
 					}),
 					e.phase === "play" && /* @__PURE__ */ (0, h.jsx)("p", {
 						className: "btable-session__hint muted small",

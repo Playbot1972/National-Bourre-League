@@ -128,10 +128,9 @@ function g(e, t) {
 //#endregion
 //#region src/game/drawLimit.ts
 function _(e, t) {
-	let n = (t ?? "").toLowerCase();
-	if (n.includes("no draw")) return 0;
-	let r = Math.max(2, e || 2);
-	return r >= 8 ? 2 : r >= 7 ? 3 : r >= 6 || n.includes("up to 4") ? 4 : 5;
+	if ((t ?? "").toLowerCase().includes("no draw")) return 0;
+	let n = Math.max(2, e || 2);
+	return n >= 8 ? 2 : n >= 7 ? 3 : n >= 6 ? 4 : 5;
 }
 //#endregion
 //#region src/game/types.ts

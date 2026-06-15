@@ -10,6 +10,6 @@ export function maxDrawDiscards(
   if (n >= 8) return 2;
   if (n >= 7) return 3;
   if (n >= 6) return 4;
-  if (rule.includes("up to 4")) return 4;
+  // Standard: tables with up to 5 players may draw up to all 5 cards.
   return 5;
 }

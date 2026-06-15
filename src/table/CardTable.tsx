@@ -126,7 +126,7 @@ export function CardTable({
         signedIn={Boolean(currentUserId)}
         isMyTurn={Boolean(currentUserId && session.turnPlayerId === currentUserId)}
         drawCompleted={drawCompleted}
-        maxDrawDiscards={session.maxDrawDiscards ?? 4}
+        maxDrawDiscards={session.maxDrawDiscards ?? 5}
         legalPlayIndices={legalPlayIndices ?? undefined}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}

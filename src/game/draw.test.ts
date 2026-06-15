@@ -31,7 +31,25 @@ describe("C — draw / discard phase", () => {
     assert.equal(result.hand.length, hand.length);
   });
 
-  it("allows 1–4 discards when max is 4", () => {
+  it("allows 1–5 discards when max is 5", () => {
+    const deal = dealForTest();
+    const pub = publicHandFromDeal(deal);
+    const deck = shuffledDeckFromSeed(deal.deckSeed);
+    for (const count of [1, 2, 3, 4, 5]) {
+      const hand = effectivePlayerHand("p3", deal.privateHands.p3, pub);
+      const result = applyDraw({
+        hand,
+        discardIndices: Array.from({ length: count }, (_, i) => i),
+        deck,
+        deckNextIndex: deal.deckNextIndex,
+        maxDiscards: 5,
+      });
+      assert.equal(result.discarded, count);
+      assert.equal(result.hand.length, hand.length);
+    }
+  });
+
+  it("allows 1–4 discards when max is 4 (six-player cap)", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
@@ -100,10 +118,13 @@ describe("C — draw / discard phase", () => {
   });
 
   it("maxDrawDiscards scales with player count", () => {
+    assert.equal(maxDrawDiscards(2), 5);
     assert.equal(maxDrawDiscards(3), 5);
+    assert.equal(maxDrawDiscards(5), 5);
     assert.equal(maxDrawDiscards(6), 4);
     assert.equal(maxDrawDiscards(8), 2);
     assert.equal(maxDrawDiscards(4, "no draw"), 0);
+    assert.equal(maxDrawDiscards(4, "draw up to 4"), 5);
   });
 
   it("draw phase maintains card uniqueness", () => {

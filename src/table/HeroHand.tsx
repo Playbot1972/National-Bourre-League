@@ -35,7 +35,7 @@ export function HeroHand({
   signedIn = false,
   isMyTurn = false,
   drawCompleted = false,
-  maxDrawDiscards = 4,
+  maxDrawDiscards = 5,
   legalPlayIndices,
   actionFeedback,
   onSubmitDraw,

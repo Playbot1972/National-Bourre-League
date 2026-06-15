@@ -44,7 +44,7 @@ function publicFromDeal(d: ReturnType<typeof deal>): PublicHandState {
     deckNextIndex: d.deckNextIndex,
     actionOrder: d.dealOrder,
     drawCompletedIds: [],
-    maxDrawDiscards: 4,
+    maxDrawDiscards: 5,
   };
 }
 
