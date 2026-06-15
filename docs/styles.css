@@ -765,6 +765,9 @@ button {
   flex-direction: column;
   gap: 8px;
 }
+.members__hint {
+  margin: 0 0 10px;
+}
 .members li {
   display: flex;
   align-items: center;
@@ -793,6 +796,13 @@ button {
   height: 8px;
   border-radius: 50%;
   background: var(--gold-400);
+  flex-shrink: 0;
+}
+.dot--robot {
+  background: #6eb5ff;
+}
+.dot--guest {
+  background: #b6a0e8;
 }
 
 .btn--sm {
