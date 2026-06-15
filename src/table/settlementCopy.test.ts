@@ -16,10 +16,14 @@ const players = [
 
 describe("settlement copy — co-win vote panel", () => {
   it("buildCoWinSettlementView names tie, winners, bourré, pot, and carry rules", () => {
+    const fourPlayers = [
+      ...players,
+      { playerId: "p4", displayName: "Dave" },
+    ];
     const view = buildCoWinSettlementView({
-      tricksByPlayer: { p1: 3, p2: 3, p3: 0 },
-      participantIds: ["p1", "p2", "p3"],
-      players,
+      tricksByPlayer: { p1: 2, p2: 2, p3: 1, p4: 0 },
+      participantIds: ["p1", "p2", "p3", "p4"],
+      players: fourPlayers,
       pot: {
         currentPot: 12,
         maxWinThisHand: 10,
@@ -30,13 +34,12 @@ describe("settlement copy — co-win vote panel", () => {
       splitSharePerWinner: 5,
       currentUserId: "p1",
       winnerIds: ["p1", "p2"],
-      maxTricks: 3,
     });
 
-    assert.match(view.headline, /Tie — Alice & Bob \(3 tricks each\)/);
+    assert.match(view.headline, /Tie — Alice & Bob \(2 tricks each\)/);
     assert.match(view.subhead, /Co-winners must vote/);
-    assert.deepEqual(view.winnerLines, ["Alice — 3 tricks", "Bob — 3 tricks"]);
-    assert.match(view.bourreLine!, /Bourré: Carol took 0 tricks/);
+    assert.deepEqual(view.winnerLines, ["Alice — 2 tricks", "Bob — 2 tricks"]);
+    assert.match(view.bourreLine!, /Bourré: Dave took 0 tricks/);
     assert.match(view.potLine, /\$12.*max win \$10.*\$4 carried in/);
     assert.match(view.splitPreviewLine!, /\$10 → \$5 each/);
     assert.match(view.carryoverIfPushLine, /carries to the next hand/);

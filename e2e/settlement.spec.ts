@@ -9,17 +9,17 @@ test.describe("F — co-winner settlement clarity", () => {
     await expect(panel).toBeVisible();
 
     await expect(page.locator("[data-testid=settlement-headline]")).toHaveText(
-      /Tie — Alice & Bob \(3 tricks each\)/,
+      /Tie — Alice & Bob \(2 tricks each\)/,
     );
     await expect(page.locator("[data-testid=settlement-subhead]")).toContainText(
       "Co-winners must vote",
     );
-    await expect(page.locator("[data-testid=settlement-winners]")).toContainText("Alice — 3 tricks");
-    await expect(page.locator("[data-testid=settlement-winners]")).toContainText("Bob — 3 tricks");
+    await expect(page.locator("[data-testid=settlement-winners]")).toContainText("Alice — 2 tricks");
+    await expect(page.locator("[data-testid=settlement-winners]")).toContainText("Bob — 2 tricks");
     await expect(page.locator("[data-testid=settlement-bourre]")).toContainText(
-      "Bourré: Carol took 0 tricks",
+      "Bourré: Dave took 0 tricks",
     );
-    await expect(page.locator("[data-testid=settlement-pot]")).toContainText("$10");
+    await expect(page.locator("[data-testid=settlement-pot]")).toContainText("$12");
     await expect(page.locator("[data-testid=settlement-pot]")).toContainText("carried in");
     await expect(page.locator("[data-testid=settlement-split-preview]")).toContainText("$4 each");
     await expect(page.locator("[data-testid=settlement-carry-push]")).toContainText(

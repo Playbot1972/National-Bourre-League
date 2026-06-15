@@ -30,15 +30,16 @@
       const params = new URLSearchParams(window.location.search);
       const role = params.get("role") || "cowinner";
 
+      // Valid 4-player hand: 2 + 2 + 1 + 0 = 5 tricks (max tie count is 2, not 3)
       const baseSession = {
         sessionId: "fixture-session",
         handNumber: 3,
         handStake: 2,
         carryOverPot: 4,
         isFinal: false,
-        dealerId: "p3",
-        participantIds: ["p1", "p2", "p3"],
-        tricksByPlayer: { p1: 3, p2: 3, p3: 0 },
+        dealerId: "p4",
+        participantIds: ["p1", "p2", "p3", "p4"],
+        tricksByPlayer: { p1: 2, p2: 2, p3: 1, p4: 0 },
         phase: null,
         pendingCoWinSettlement: {
           winnerIds: ["p1", "p2"],
@@ -52,7 +53,7 @@
           displayName: "Alice",
           handsWon: 0,
           inHand: true,
-          tricksThisHand: 3,
+          tricksThisHand: 2,
           isSelf: role === "cowinner",
           isDealer: false,
           isWinner: true,
@@ -64,7 +65,7 @@
           displayName: "Bob",
           handsWon: 0,
           inHand: true,
-          tricksThisHand: 3,
+          tricksThisHand: 2,
           isSelf: false,
           isDealer: false,
           isWinner: true,
@@ -74,6 +75,18 @@
         {
           playerId: "p3",
           displayName: "Carol",
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 1,
+          isSelf: false,
+          isDealer: false,
+          isWinner: false,
+          canToggleInHand: false,
+          canEditTricks: false,
+        },
+        {
+          playerId: "p4",
+          displayName: "Dave",
           handsWon: 0,
           inHand: true,
           tricksThisHand: 0,
@@ -88,7 +101,7 @@
       const potMetrics = {
         anteAmount: 2,
         potCap: 20,
-        currentPot: 10,
+        currentPot: 12,
         maxWinThisHand: 8,
         limEnabled: false,
         overflow: 0,
@@ -100,11 +113,11 @@
         potMetrics,
         mySessionNet: role === "cowinner" ? -2 : role === "observer" ? -2 : null,
         myHandContribution: 2,
-        leaderLabel: "Tie — Alice & Bob (3 tricks each) · vote to split or push pot",
+        leaderLabel: "Tie — Alice & Bob (2 tricks each) · vote to split or push pot",
         showCoWinSettlement: true,
         splitSharePerWinner: 4,
         voteStatus: "",
-        currentUserId: role === "observer" ? "p3" : "p1",
+        currentUserId: role === "observer" ? "p4" : "p1",
         heroCards: [],
         privateHandReady: true,
         actions: {

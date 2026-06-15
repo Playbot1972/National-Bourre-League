@@ -29,6 +29,16 @@ describe("table logic — tricks and winners", () => {
     assert.deepEqual(winnerIds.sort(), ["p1", "p3"]);
   });
 
+  it("max co-win tie is 2 tricks with three players (2+2+1=5)", () => {
+    const { winnerIds, maxTricks } = deriveWinnersFromTricks(
+      { p1: 2, p2: 2, p3: 1 },
+      ["p1", "p2", "p3"],
+    );
+    assert.equal(maxTricks, 2);
+    assert.deepEqual(winnerIds.sort(), ["p1", "p2"]);
+    assert.equal(totalTricksPlayed({ p1: 2, p2: 2, p3: 1 }, ["p1", "p2", "p3"]), 5);
+  });
+
   it("tricksToWinHint scales with player count", () => {
     assert.equal(tricksToWinHint(2), 3);
     assert.equal(tricksToWinHint(3), 2);
