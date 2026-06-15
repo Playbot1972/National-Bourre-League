@@ -1,10 +1,3 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 432 432" fill="none" role="img" aria-label="Booray Android adaptive background">
-  <defs>
-    <linearGradient id="bg" x1="68" y1="34" x2="364" y2="398" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#141a2e"/>
-      <stop offset="0.55" stop-color="#0a0e18"/>
-      <stop offset="1" stop-color="#04060c"/>
-    </linearGradient>
-  </defs>
-  <rect width="432" height="432" fill="url(#bg)"/>
+  <rect width="432" height="432" fill="#000000"/>
 </svg>
