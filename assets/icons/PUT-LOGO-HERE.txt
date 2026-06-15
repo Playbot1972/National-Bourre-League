@@ -1,23 +1,16 @@
 Official BOORAY logo import slot
 ================================
 
-This file marks where your pixel-perfect logo goes.
-
-CREATE or REPLACE this file (same folder):
+Your logo is imported. Source file:
 
   assets/icons/booray-logo-source.png
 
-Requirements:
-  - PNG (your official artwork)
-  - Square is best; script normalizes to 1024x1024 on black
-  - Opaque background (no transparency for App Store)
-
-Then run:
+To replace it, overwrite that PNG and run:
 
   npm run icons:generate
 
-Or import from anywhere on your machine:
+Or:
 
   npm run icons:import -- /path/to/your/booray-logo.png
 
-Delete this PUT-LOGO-HERE.txt after you add the PNG (optional).
+Do not paste image data into this text file.
