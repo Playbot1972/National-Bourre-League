@@ -7,6 +7,7 @@ import { FeedbackSettings } from "./FeedbackSettings";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
+import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
@@ -45,10 +46,22 @@ export function TableSessionView({
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
   const selfEnroll = players.find((p) => p.isSelf && p.canToggleInHand);
+  const trickPresentation = useTrickPresentation({
+    phase: session.phase,
+    currentTrick: session.currentTrick,
+    tricksByPlayer: session.tricksByPlayer,
+    participantIds: session.participantIds,
+    trumpSuit: session.trumpSuit,
+  });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
-  const turnLabel = turnIndicatorLabel(session.turnPlayerId, players);
+  const turnLabel =
+    trickPresentation.suppressTurnPlayerId
+      ? null
+      : turnIndicatorLabel(session.turnPlayerId, players);
   const cardsDealt = isCardsDealtPhase(session.phase);
-  const isMyTurn = Boolean(currentUserId && session.turnPlayerId === currentUserId);
+  const isMyTurn =
+    Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
+    !trickPresentation.suppressTurnPlayerId;
 
   const settlementPotMetrics: PotSnapshot = {
     currentPot: potMetrics.currentPot,
@@ -110,7 +123,12 @@ export function TableSessionView({
           </button>
         </div>
         <p className="btable-session__status">{leaderLabel}</p>
-        {turnLabel && cardsDealt && (
+        {trickPresentation.phase === "hold" && session.phase === "play" && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            Trick won — next lead after cards collect
+          </p>
+        )}
+        {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
           <p className="btable-session__turn muted small" aria-live="polite">
             {turnLabel}
           </p>
@@ -164,6 +182,7 @@ export function TableSessionView({
             legalPlayIndices={legalPlayIndices}
             handComplete={handComplete}
             actionFeedback={actionFeedback}
+            trickPresentation={trickPresentation}
             onToggleInHand={(playerId, inHand) => {
               const p = players.find((x) => x.playerId === playerId);
               if (p?.isSelf) actions.onToggleInHand(inHand);
