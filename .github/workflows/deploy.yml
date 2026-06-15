@@ -95,9 +95,14 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Hosting and Firestore rules
+      - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
-        run: npx firebase deploy --only hosting,firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+        run: npx firebase deploy --only hosting --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+
+      - name: Deploy Firestore rules
+        if: steps.cfg.outputs.ready == 'true'
+        continue-on-error: true
+        run: npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
