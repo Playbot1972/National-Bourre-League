@@ -78,6 +78,7 @@
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
+import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -871,15 +872,28 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     return;
   }
 
-  const pending = sessionData.pendingCoWinSettlement;
-  const proposal = { participantIds, winnerIds };
-  const nextPending = sameCoWinProposal(pending, proposal)
-    ? pending
-    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  if (allowSplitVote) {
+    const pending = sessionData.pendingCoWinSettlement;
+    const proposal = { participantIds, winnerIds };
+    const nextPending = sameCoWinProposal(pending, proposal)
+      ? pending
+      : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    pendingCoWinSettlement: nextPending,
-    updatedAt: serverTimestamp(),
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      pendingCoWinSettlement: nextPending,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
+  await recordHand(roomId, sessionId, {
+    winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
   });
 }
 
@@ -1331,7 +1345,8 @@ async function recordHandClient(
   if (winners.length >= 2 && mode === "win") {
     throw new Error("Use push or split when there are co-winners");
   }
-  const potCarryMode = mode === "push" || mode === "non_winner_ante_up";
+  const potCarryMode =
+    mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry";
   if (!potCarryMode && winners.length === 0) throw new Error("Select at least one winner");
   for (const wid of winners) {
     if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
@@ -1403,18 +1418,22 @@ async function recordHandClient(
     if (current.skipNextAnte) {
       patch.skipNextAnte = deleteField();
     }
-    if (bourreIds.length > 0 && tricksByPlayer) {
-      const tricks = tricksForPlayer(tricksByPlayer, pid);
-      if (tricks >= 1 || bourreIds.includes(pid)) {
-        patch.skipNextAnte = true;
-      }
+    if (bourreIds.includes(pid)) {
+      patch.skipNextAnte = true;
+    }
+    if (
+      winners.includes(pid) &&
+      winners.length >= 2 &&
+      (mode === "co_win_carry" || mode === "non_winner_ante_up")
+    ) {
+      patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
     }
-    if (mode === "non_winner_ante_up") {
+    if (mode === "non_winner_ante_up" || mode === "co_win_carry") {
       if (winners.includes(pid)) {
         patch.perHandStake = deleteField();
       } else {
@@ -1499,7 +1518,7 @@ async function voteCoWinSettlementClient(
   if (winners.length < 2) throw new Error("Co-winners only");
   if (!winners.includes(voterId)) throw new Error("Only co-winners can vote");
 
-  const tricksByPlayer = sessionData.currentHand?.tricksByPlayer || {};
+  const tricksByPlayer = getSessionCurrentHand(sessionData)?.tricksByPlayer || {};
   const recordArgs = {
     winnerIds: winners,
     participantIds: participants,

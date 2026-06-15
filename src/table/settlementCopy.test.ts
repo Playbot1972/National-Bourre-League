@@ -127,6 +127,22 @@ describe("settlement copy — hand outcomes", () => {
     assert.equal(view.carryoverLine, null);
   });
 
+  it("buildHandOutcomeView for co_win_carry (default tie rule)", () => {
+    const view = buildHandOutcomeView({
+      settlement: "co_win_carry",
+      winnerIds: ["p1", "p3"],
+      participantIds: ["p1", "p2", "p3"],
+      tricksByPlayer: { p1: 2, p2: 1, p3: 2 },
+      players,
+      potMaxWin: 9,
+      carryOverPot: 9,
+    });
+
+    assert.match(view.headline, /Tie — pot carries/);
+    assert.match(view.detailLines[1], /carries to the next hand/);
+    assert.match(view.detailLines[2], /skip the next ante/);
+  });
+
   it("buildHandOutcomeView for push with carryover", () => {
     const view = buildHandOutcomeView({
       settlement: "non_winner_ante_up",
