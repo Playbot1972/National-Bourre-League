@@ -1211,14 +1211,18 @@ async function onKickMember(targetUserId, displayName) {
   }
   showRoomsError("");
   try {
-    await kickRoomMember(currentRoomId, targetUserId, session);
-    showRoomsError(`${label} was removed from the room.`);
+    const result = await kickRoomMember(currentRoomId, targetUserId, session);
+    showRoomsError(
+      result.membershipRemoved
+        ? `${label} was removed from the room.`
+        : `${label} was blocked from this room. They will lose access when they next open it.`,
+    );
   } catch (err) {
     console.error("kickRoomMember:", err);
     const msg = err?.message || "";
     if (err?.code === "permission-denied") {
       showRoomsError(
-        "Could not remove member — Firestore rules may need updating (owner kick permission).",
+        "Could not remove member. Confirm you are the room owner and try again.",
       );
     } else {
       showRoomsError(msg.slice(0, 120) || "Could not remove member.");
@@ -1325,6 +1329,8 @@ $("#join-form").addEventListener("submit", async (e) => {
     const msg = err && typeof err === "object" ? err.message : String(err);
     if (/no longer valid|was deleted/i.test(msg)) {
       showRoomsError(msg);
+    } else if (/not allowed to join/i.test(msg)) {
+      showRoomsError(msg);
     } else if (fbCode === "permission-denied") {
       showRoomsError(
         "Could not join this room — check that you are signed in and the invite code is correct. If it keeps failing, ask the host to re-open the room so the lookup syncs.",
@@ -1383,6 +1389,10 @@ function openRoom(roomId) {
         handleRoomUnavailable(roomId);
         return;
       }
+      if (session?.uid && Array.isArray(room.bannedUserIds) && room.bannedUserIds.includes(session.uid)) {
+        handleRemovedFromRoom(roomId, "You were removed from this room.");
+        return;
+      }
       currentRoom = room;
       if (room?.bourreSettings) {
         pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
@@ -1437,6 +1447,18 @@ function openRoom(roomId) {
       }
     }),
   );
+}
+
+async function handleRemovedFromRoom(roomId, message) {
+  showRoomsError(message);
+  if (session?.uid) {
+    try {
+      await leaveRoom(roomId, session);
+    } catch (err) {
+      console.warn("leaveRoom after removal:", err);
+    }
+  }
+  closeRoom();
 }
 
 async function handleRoomUnavailable(roomId) {
@@ -2300,6 +2322,8 @@ function renderRoomDetail() {
   );
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const isOwner = session?.uid === currentRoom.ownerId;
+  const bannedIds = new Set(currentRoom.bannedUserIds || []);
+  const visibleMembers = currentMembers.filter((m) => !bannedIds.has(m.userId));
   const sessionAnteEditable =
     isOwner &&
     openSessionObj &&
@@ -2365,9 +2389,9 @@ function renderRoomDetail() {
       </section>
 
       <section class="subpanel">
-        <h4>Members (${currentMembers.length})</h4>
+        <h4>Members (${visibleMembers.length})</h4>
         <ul class="members">
-          ${currentMembers
+          ${visibleMembers
             .map((m) => {
               const uid = m.userId || "";
               const canKick =
