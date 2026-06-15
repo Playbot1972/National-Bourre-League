@@ -143,7 +143,10 @@ service cloud.firestore {
             playerId.matches('bot_.*')
           );
           allow write: if isMember(roomId) && enrollmentActiveForSession(roomId, sessionId);
-          allow delete: if isRoomOwner(roomId) && sessionFinal(roomId, sessionId);
+          allow delete: if isMember(roomId) && (
+            isRoomOwner(roomId) ||
+            enrollmentActiveForSession(roomId, sessionId)
+          );
         }
       }
     }

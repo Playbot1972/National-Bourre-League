@@ -907,20 +907,48 @@ function dequeueSessionCleanupPersisted(roomId, sessionId) {
 
 async function runSessionCleanup(roomId, sessionId) {
   if (!roomId || !sessionId) return;
-  cancelSessionCleanup(sessionId);
-  dequeueSessionCleanupPersisted(roomId, sessionId);
+  const timer = sessionCleanupTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    sessionCleanupTimers.delete(sessionId);
+  }
+
   try {
     await prepareSessionForRemoval(roomId, sessionId);
     await deleteSession(roomId, sessionId);
+    dequeueSessionCleanupPersisted(roomId, sessionId);
+    pendingSessionCleanup.delete(sessionId);
+    if (currentRoomId === roomId) {
+      renderRoomDetail();
+    }
   } catch (e) {
     console.error("runSessionCleanup:", e);
-    throw e;
+    pendingSessionCleanup.add(sessionId);
+    const retryAt = Date.now() + 15_000;
+    queueSessionCleanupPersisted(roomId, sessionId, retryAt);
+    sessionCleanupTimers.set(
+      sessionId,
+      setTimeout(() => {
+        runSessionCleanup(roomId, sessionId).catch((err) =>
+          console.error("runSessionCleanup retry:", err),
+        );
+      }, 15_000),
+    );
+    if (currentRoomId === roomId) {
+      showRoomsError(
+        e?.message || "Could not auto-clear an old session — retrying in 15s (or tap Clear all now).",
+      );
+    }
   }
 }
 
-/** Keep the newest in-progress session, otherwise the newest session tab. */
-function resolveKeeperSessionId(sessions) {
+/** Keep the open in-progress session when possible, else the newest active tab. */
+function resolveKeeperSessionId(sessions, preferredSessionId = null) {
   if (!sessions.length) return null;
+  if (preferredSessionId) {
+    const open = sessions.find((s) => s.id === preferredSessionId);
+    if (open && open.status !== "final") return preferredSessionId;
+  }
   const active = sessions.find((s) => s.status !== "final");
   if (active) return active.id;
   return sessions[0].id;
@@ -939,26 +967,25 @@ function removableSessionIds(sessions, keeperId) {
 
 /** Finalize with Ape Scores when needed so completed sessions can be deleted. */
 async function prepareSessionForRemoval(roomId, sessionId) {
-  const local = currentSessions.find((s) => s.id === sessionId);
-  let status = local?.status;
-  if (!status) {
-    const remote = await getSession(roomId, sessionId);
-    if (!remote) return;
-    status = remote.status;
-  }
-  if (status === "final") return;
+  let remote = await getSession(roomId, sessionId);
+  if (!remote) return;
+  if (remote.status === "final") return;
 
-  let scores =
+  const scores =
     sessionId === openSessionId && openScores.length
       ? openScores
       : await getSessionScores(roomId, sessionId);
 
   if (scores.length > 0) {
     await completeSessionWithApeScores(roomId, sessionId, scores);
-    return;
+  } else {
+    await finalizeSession(roomId, sessionId);
   }
 
-  await finalizeSession(roomId, sessionId);
+  remote = await getSession(roomId, sessionId);
+  if (remote?.status !== "final") {
+    throw new Error("Could not finalize session before removal");
+  }
 }
 
 function restoreSessionCleanupTimers(roomId) {
@@ -1105,7 +1132,7 @@ async function clearCompletedSessionsNow() {
     return;
   }
   const roomId = currentRoomId;
-  const keeperId = resolveKeeperSessionId(currentSessions);
+  const keeperId = resolveKeeperSessionId(currentSessions, openSessionId);
   if (!keeperId) {
     showRoomsError("No sessions to keep.");
     return;
@@ -1527,7 +1554,7 @@ function openRoom(roomId) {
       currentSessions = sessions;
       restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
-        const nextId = resolveKeeperSessionId(sessions) ?? sessions[0]?.id ?? null;
+        const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
         } else {
@@ -2409,7 +2436,7 @@ function renderRoomDetail() {
     openSessionObj.status !== "final" &&
     !openSessionObj.handStakeLocked;
   const showNewSessionAnte = isOwner && !sessionAnteEditable;
-  const keeperSessionId = resolveKeeperSessionId(currentSessions);
+  const keeperSessionId = resolveKeeperSessionId(currentSessions, openSessionId);
   const removableCount = keeperSessionId
     ? removableSessionIds(currentSessions, keeperSessionId).length
     : 0;
@@ -2971,7 +2998,10 @@ async function onNewSession() {
         previousSessionId,
         previousScores,
       );
-      scheduleSessionCleanup(previousSessionId);
+      const finalized = await getSession(currentRoomId, previousSessionId);
+      if (finalized?.status === "final") {
+        scheduleSessionCleanup(previousSessionId);
+      }
       showRoomsError(
         "Previous session completed — Ape Scores updated. Clears in 30s (or Clear all now).",
       );
