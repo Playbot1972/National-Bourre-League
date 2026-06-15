@@ -1449,6 +1449,12 @@ function processRobotActions(s, scores) {
 
   const enrollment = s.handEnrollment;
   if (enrollment?.active) {
+    if (Date.now() >= enrollment.turnDeadlineMs) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
+        console.warn("enrollment timeout:", e),
+      );
+      return;
+    }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
     if (
       currentId &&

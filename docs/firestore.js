@@ -138,6 +138,39 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 
 const db = getFirestore(app);
 
+/** Cloud Functions may be unavailable in production — fall back to client transactions. */
+function isCloudFunctionUnavailable(err) {
+  const code = err?.code ?? "";
+  if (
+    code === "functions/not-found" ||
+    code === "functions/unavailable" ||
+    code === "functions/deadline-exceeded"
+  ) {
+    return true;
+  }
+  const msg = String(err?.message ?? err).toLowerCase();
+  return (
+    msg.includes("not found") ||
+    msg.includes("404") ||
+    msg.includes("failed to fetch") ||
+    msg.includes("internal")
+  );
+}
+
+async function callGameOrClient(serverFn, clientFn) {
+  if (!SERVER_HAND_AUTHORITY) return clientFn();
+  try {
+    return await serverFn();
+  } catch (err) {
+    if (!isCloudFunctionUnavailable(err)) throw err;
+    console.warn(
+      "Cloud Function unavailable — using client fallback for this action.",
+      err?.code || err,
+    );
+    return clientFn();
+  }
+}
+
 /** Five tricks per hand; winner is whoever takes the most (plurality). */
 export const MAX_TRICKS_PER_HAND = 5;
 
@@ -1534,10 +1567,10 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameEnsureHandEnrollment(roomId, sessionId);
-  }
-  return ensureHandEnrollmentClient(roomId, sessionId);
+  return callGameOrClient(
+    () => gameEnsureHandEnrollment(roomId, sessionId),
+    () => ensureHandEnrollmentClient(roomId, sessionId),
+  );
 }
 
 async function ensureHandEnrollmentClient(roomId, sessionId) {
@@ -1564,10 +1597,10 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
 /** Auto sit-out when the current player's enrollment window expires. */
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameTimeoutEnrollment(roomId, sessionId);
-  }
-  return timeoutHandEnrollmentTurnClient(roomId, sessionId);
+  return callGameOrClient(
+    () => gameTimeoutEnrollment(roomId, sessionId),
+    () => timeoutHandEnrollmentTurnClient(roomId, sessionId),
+  );
 }
 
 async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
@@ -1600,10 +1633,10 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
 
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId });
-  }
-  return setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId });
+  return callGameOrClient(
+    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId }),
+    () => setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }),
+  );
 }
 
 async function setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }) {

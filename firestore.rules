@@ -39,6 +39,23 @@ service cloud.firestore {
       ]);
     }
 
+    // Room members may drive I'm-in / timeout while enrollment is active (client fallback
+    // when Cloud Functions are unavailable). Deal completion removes handEnrollment.
+    function memberEnrollmentSessionUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.get('handEnrollment', {}).get('active', false) == true
+        && changed.hasOnly(['handEnrollment', 'currentHand', 'updatedAt'])
+        && (
+          request.resource.data.get('handEnrollment', {}).get('active', false) == true
+          || request.resource.data.get('currentHand', {}).get('phase', '') == 'draw'
+        );
+    }
+
+    function enrollmentActiveForSession(roomId, sessionId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId))
+        .data.get('handEnrollment', {}).get('active', false) == true;
+    }
+
     function scoreLedgerFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'net',
@@ -63,7 +80,8 @@ service cloud.firestore {
       match /sessions/{sessionId} {
         allow read: if isMember(roomId);
         allow create: if isMember(roomId);
-        allow update: if isMember(roomId) && !sessionGameFieldsChanged();
+        allow update: if isMember(roomId)
+          && (!sessionGameFieldsChanged() || memberEnrollmentSessionUpdate());
         allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
@@ -83,7 +101,7 @@ service cloud.firestore {
             request.auth.uid == playerId ||
             playerId.matches('bot_.*')
           );
-          allow write: if false;
+          allow write: if isMember(roomId) && enrollmentActiveForSession(roomId, sessionId);
         }
       }
     }
