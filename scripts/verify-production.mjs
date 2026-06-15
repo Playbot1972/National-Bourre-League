@@ -3,10 +3,45 @@
  * Post-deploy checks for https://booray.win
  * Run: npm run verify:prod
  */
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 const ORIGIN = process.env.PROD_ORIGIN || "https://booray.win";
 const TIMEOUT_MS = 15000;
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** @typedef {{ ok: boolean, detail: string }} CheckResult */
+
+/** @param {string} version */
+function parseAppVersion(version) {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return null;
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+/** @param {string} a @param {string} b @returns {number} */
+function compareAppVersion(a, b) {
+  const pa = parseAppVersion(a);
+  const pb = parseAppVersion(b);
+  if (!pa || !pb) return 0;
+  if (pa.major !== pb.major) return pa.major - pb.major;
+  if (pa.minor !== pb.minor) return pa.minor - pb.minor;
+  return pa.patch - pb.patch;
+}
+
+function expectedRepoVersion() {
+  try {
+    const raw = readFileSync(join(root, "version.json"), "utf8");
+    return JSON.parse(raw).version;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @param {string} path
@@ -26,10 +61,22 @@ async function checkVersion() {
   if (!ok) return { ok: false, detail: "Could not fetch /social/version.js" };
   const match = body.match(/APP_VERSION\s*=\s*"([^"]+)"/);
   if (!match) return { ok: false, detail: "APP_VERSION not found in version.js" };
-  if (match[1] === "1.00.60") {
-    return { ok: false, detail: `Still on old release v${match[1]} — redeploy required` };
+
+  const prodVersion = match[1];
+  const repoVersion = expectedRepoVersion();
+
+  if (prodVersion === "1.00.60") {
+    return { ok: false, detail: `Still on old release v${prodVersion} — run npm run deploy` };
   }
-  return { ok: true, detail: `v${match[1]}` };
+
+  if (repoVersion && compareAppVersion(prodVersion, repoVersion) < 0) {
+    return {
+      ok: false,
+      detail: `Production v${prodVersion} is behind repo v${repoVersion} — run npm run deploy (GitHub Actions deploy is blocked until Firebase secrets are set)`,
+    };
+  }
+
+  return { ok: true, detail: repoVersion ? `v${prodVersion} (repo v${repoVersion})` : `v${prodVersion}` };
 }
 
 /** @returns {Promise<CheckResult>} */
