@@ -120,25 +120,26 @@
             <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
           </div>
           <div class="protected__content" data-protected-content>
+            <p class="muted" id="rooms-intro">
+              Signed in as <strong data-current-name>player</strong>. Create a room or
+              join one with an invite code. Rooms are saved to Firestore.
+            </p>
+            <div class="room-actions">
+              <button class="btn btn--primary" id="create-room">+ Create a room</button>
+              <form class="join-form" id="join-form">
+                <input
+                  class="text-input"
+                  id="join-code"
+                  placeholder="Invite code (e.g. ABC-D23)"
+                  aria-label="Invite code"
+                  data-testid="join-code-input"
+                />
+                <button class="btn" type="submit" data-testid="join-code-submit">Join</button>
+              </form>
+            </div>
+            <p class="form-error" id="rooms-error" role="alert" hidden></p>
             <!-- List view -->
             <div id="rooms-list-view">
-              <p class="muted">
-                Signed in as <strong data-current-name>player</strong>. Create a room or
-                join one with an invite code. Rooms are saved to Firestore.
-              </p>
-              <div class="room-actions">
-                <button class="btn btn--primary" id="create-room">+ Create a room</button>
-                <form class="join-form" id="join-form">
-                  <input
-                    class="text-input"
-                    id="join-code"
-                    placeholder="Invite code (e.g. ABC-D23)"
-                    aria-label="Invite code"
-                  />
-                  <button class="btn" type="submit">Join</button>
-                </form>
-              </div>
-              <p class="form-error" id="rooms-error" role="alert" hidden></p>
               <div class="cards" id="rooms-list"></div>
             </div>
 

@@ -1175,6 +1175,25 @@ button {
   align-items: center;
   margin-bottom: 14px;
 }
+.session-add-players {
+  grid-column: 1 / -1;
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+.session--table #session-player-bar-root {
+  grid-column: 1 / -1;
+}
+.session-add-players__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.session-add-players__hint {
+  margin: 0 0 10px;
+}
 .add-player-form {
   display: flex;
   flex-wrap: wrap;
@@ -1730,6 +1749,15 @@ body.table-play-active .footer {
 @media (max-width: 900px) {
   .session--table {
     grid-template-columns: 1fr;
+  }
+
+  .session--table .session-add-players,
+  .session--table #session-player-bar-root {
+    order: -2;
+  }
+
+  .session--table .session-sidebar {
+    order: -1;
   }
 }
 
