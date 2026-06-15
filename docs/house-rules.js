@@ -54,3 +54,11 @@ export function readHouseRulesFromForm(root, idPrefix = "house-rule-") {
   }
   return out;
 }
+
+/** True when room ties house rule opts into split-the-pot (local variant). */
+export function tiesHouseRuleAllowsSplit(houseRules) {
+  const text = String(houseRules?.ties ?? "").toLowerCase();
+  if (!text) return false;
+  if (text.includes("no split") || text.includes("carries")) return false;
+  return text.includes("split evenly") || /\bsplit\b/.test(text);
+}

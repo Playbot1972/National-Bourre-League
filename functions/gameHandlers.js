@@ -241,9 +241,20 @@ async function recomputeSessionTotals(db, roomId, sessionId) {
   });
 }
 
+async function getRoomSnap(db, roomId) {
+  return db.collection("rooms").doc(roomId).get();
+}
+
 async function getDealingRule(db, roomId) {
-  const roomSnap = await db.collection("rooms").doc(roomId).get();
+  const roomSnap = await getRoomSnap(db, roomId);
   return roomSnap.data()?.houseRules?.dealing ?? null;
+}
+
+function tiesHouseRuleAllowsSplit(houseRules) {
+  const text = String(houseRules?.ties ?? "").toLowerCase();
+  if (!text) return false;
+  if (text.includes("no split") || text.includes("carries")) return false;
+  return text.includes("split evenly") || /\bsplit\b/.test(text);
 }
 
 const BOT_ADVANCE_MAX_STEPS = 48;
@@ -307,7 +318,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     if (pending?.winnerIds?.length >= 2) {
       const votes = pending.votes || {};
       const botWinner = pending.winnerIds.find(
-        (id) => isRobotPlayerId(id) && votes[id] !== "split",
+        (id) => isRobotPlayerId(id) && votes[id] !== "split" && votes[id] !== "push",
       );
       if (botWinner) {
         await handleVoteCoWinSettlement(db, {
@@ -316,7 +327,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
           participantIds: pending.participantIds || sessionData.currentHand?.participantIds || [],
           winnerIds: pending.winnerIds,
           voterId: botWinner,
-          choice: "split",
+          choice: "push",
           recordedBy: actorId,
           actorId,
         });
@@ -659,17 +670,32 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
     return { status: "settled", settlement: "win" };
   }
 
-  const pending = sessionData.pendingCoWinSettlement;
-  const proposal = { participantIds, winnerIds };
-  const nextPending = sameCoWinProposal(pending, proposal)
-    ? pending
-    : { ...proposal, votes: {}, updatedAt: FieldValue.serverTimestamp() };
+  const roomSnap = await getRoomSnap(db, roomId);
+  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  if (allowSplitVote) {
+    const pending = sessionData.pendingCoWinSettlement;
+    const proposal = { participantIds, winnerIds };
+    const nextPending = sameCoWinProposal(pending, proposal)
+      ? pending
+      : { ...proposal, votes: {}, updatedAt: FieldValue.serverTimestamp() };
 
-  await sessionRef(db, roomId, sessionId).update({
-    pendingCoWinSettlement: nextPending,
-    updatedAt: FieldValue.serverTimestamp(),
+    await sessionRef(db, roomId, sessionId).update({
+      pendingCoWinSettlement: nextPending,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { status: "cowin_pending", winnerIds };
+  }
+
+  await handleRecordHand(db, {
+    roomId,
+    sessionId,
+    winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
   });
-  return { status: "cowin_pending", winnerIds };
+  return { status: "settled", settlement: "co_win_carry" };
 }
 
 export async function handlePlayCard(db, { roomId, sessionId, playerId, cardIndex, actorId }) {
@@ -729,7 +755,8 @@ export async function handleRecordHand(
   if (winners.length >= 2 && mode === "win") {
     throw new HttpsError("invalid-argument", "Use push or split when there are co-winners");
   }
-  const potCarryMode = mode === "push" || mode === "non_winner_ante_up";
+  const potCarryMode =
+    mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry";
   if (!potCarryMode && winners.length === 0) {
     throw new HttpsError("invalid-argument", "Select at least one winner");
   }
@@ -804,16 +831,22 @@ export async function handleRecordHand(
       updatedAt: FieldValue.serverTimestamp(),
     };
     if (current.skipNextAnte) patch.skipNextAnte = FieldValue.delete();
-    if (bourreIds.length > 0 && tricksByPlayer) {
-      const tricks = tricksForPlayer(tricksByPlayer, pid);
-      if (tricks >= 1 || bourreIds.includes(pid)) patch.skipNextAnte = true;
+    if (bourreIds.includes(pid)) {
+      patch.skipNextAnte = true;
+    }
+    if (
+      winners.includes(pid) &&
+      winners.length >= 2 &&
+      (mode === "co_win_carry" || mode === "non_winner_ante_up")
+    ) {
+      patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
     }
-    if (mode === "non_winner_ante_up") {
+    if (mode === "non_winner_ante_up" || mode === "co_win_carry") {
       if (winners.includes(pid)) {
         patch.perHandStake = FieldValue.delete();
       } else {

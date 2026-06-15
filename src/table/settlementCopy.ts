@@ -144,7 +144,8 @@ export type SettlementMode =
   | "win"
   | "split"
   | "push"
-  | "non_winner_ante_up";
+  | "non_winner_ante_up"
+  | "co_win_carry";
 
 export function buildHandOutcomeView(input: {
   settlement: SettlementMode;
@@ -224,6 +225,21 @@ export function buildHandOutcomeView(input: {
     }
     return {
       headline: "No split agreement — pot pushed",
+      detailLines,
+      carryoverLine: `Next hand starts with ${carryLabel} in the pot.`,
+    };
+  }
+
+  if (settlement === "co_win_carry") {
+    const names = namesFor(winnerIds, players);
+    detailLines.push(`Tie for most tricks — ${names} (${winnerIds.length} co-winners).`);
+    detailLines.push(`No outright winner; full pot ${potLabel} carries to the next hand.`);
+    detailLines.push(`Co-winners skip the next ante; other players ante as usual.`);
+    if (bourreIds.length) {
+      detailLines.push(`Bourré: ${bourreNames} took 0 tricks.`);
+    }
+    return {
+      headline: "Tie — pot carries",
       detailLines,
       carryoverLine: `Next hand starts with ${carryLabel} in the pot.`,
     };

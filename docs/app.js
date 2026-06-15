@@ -1672,14 +1672,16 @@ function processRobotActions(s, scores) {
   if (pending?.winnerIds?.length >= 2) {
     const winners = pending.winnerIds;
     const votes = pending.votes || {};
-    const botWinner = winners.find((id) => isRobotPlayerId(id) && votes[id] !== "split");
+    const botWinner = winners.find(
+      (id) => isRobotPlayerId(id) && votes[id] !== "split" && votes[id] !== "push",
+    );
     if (botWinner) {
       robotActionInFlight = true;
       voteCoWinSettlement(currentRoomId, openSessionId, {
         participantIds: pending.participantIds || getSessionCurrentHand(s)?.participantIds || [],
         winnerIds: winners,
         voterId: botWinner,
-        choice: "split",
+        choice: "push",
         recordedBy: actorId,
       })
         .catch((e) => console.warn("robot co-win vote:", e))
@@ -1832,7 +1834,7 @@ function buildTableLeaderLabel(
     const names = activeWinnerIds
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each) · vote to split or push pot`;
+    return `Tie — ${names} (${maxTricks} tricks each) · pot carries (no split)`;
   }
   if (handReady && activeWinnerIds.length === 1) {
     const name =
@@ -2776,7 +2778,7 @@ function formatPublicHandHistoryLine(h, scores) {
       ? [h.winnerId]
       : [];
   const settlement = h.settlement === "ante_up" ? "non_winner_ante_up" : h.settlement;
-  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up") {
+  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up" || settlement === "co_win_carry") {
     return formatHandHistoryPublicLine({
       handNumber: h.handNumber,
       settlement,
@@ -2804,6 +2806,7 @@ function formatPrivateHandHistoryLine(h, myUid) {
   if (delta == null) return null;
   const parts = [`Hand #${h.handNumber}: ${formatNet(delta)}`];
   if (h.settlement === "push") parts.push("push");
+  else if (h.settlement === "co_win_carry") parts.push("carry");
   else if (h.settlement === "split") parts.push("split");
   else if (h.settlement === "win") parts.push("win");
   return parts.join(" · ");
