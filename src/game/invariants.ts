@@ -82,8 +82,9 @@ export function trumpOnTable(publicHand: Pick<PublicHandState, "trumpUpcard">): 
 }
 
 /**
- * Playable hand for draw/play. The flipped trump stays in the holder's private
- * cards; legacy sessions may still merge a public-only trump reveal.
+ * Playable hand for draw/play. While the trump reveal is on the table, the holder
+ * sees/plays four cards here; legacy sessions may only store four private cards and
+ * merge the public trump reveal.
  */
 export function effectivePlayerHand(
   playerId: string,
@@ -92,23 +93,34 @@ export function effectivePlayerHand(
 ): Card[] {
   const hand = [...privateHand];
   const owner = trumpOwnerId(publicHand);
-  if (
-    owner &&
-    playerId === owner &&
-    publicHand.trumpUpcard &&
-    !hand.some((c) => cardsEqual(c, publicHand.trumpUpcard as Card))
-  ) {
-    hand.push(publicHand.trumpUpcard as Card);
+  const trump = publicHand.trumpUpcard as Card | null;
+  if (!owner || playerId !== owner || !trump) {
+    return hand;
   }
+  const trumpInPrivate = hand.some((c) => cardsEqual(c, trump));
+  if (trumpInPrivate) {
+    return hand.filter((c) => !cardsEqual(c, trump));
+  }
+  hand.push(trump);
   return hand;
 }
 
 /** Persist the holder's full private hand after draw or play. */
 export function privateHandFromEffective(
-  _playerId: string,
+  playerId: string,
   effectiveHand: Card[],
-  _publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
+  publicHand: Pick<PublicHandState, "dealerId" | "trumpHolderId" | "trumpUpcard">,
 ): Card[] {
+  const owner = trumpOwnerId(publicHand);
+  const trump = publicHand.trumpUpcard as Card | null;
+  if (
+    owner &&
+    playerId === owner &&
+    trump &&
+    !effectiveHand.some((c) => cardsEqual(c, trump))
+  ) {
+    return [...effectiveHand, trump];
+  }
   return [...effectiveHand];
 }
 

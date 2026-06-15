@@ -60,7 +60,7 @@ describe("deal and trump reveal", () => {
         (c) => c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit,
       ),
     );
-    assert.equal(effectivePlayerHand("p1", dealerPrivate, pub).length, 5);
+    assert.equal(effectivePlayerHand("p1", dealerPrivate, pub).length, 4);
   });
 
   it("does not auto-lead the flipped trump — first trick starts empty", () => {
@@ -185,16 +185,45 @@ describe("draw flow", () => {
 });
 
 describe("dealer trump upcard during play", () => {
-  it("dealer plays the flipped trump later in turn order from their hand", () => {
-    const d = deal();
-    const dealerId = "p1";
-    const dealerPrivate = d.privateHands.p1.filter(
-      (c) => !(c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit),
-    );
-    assert.equal(dealerPrivate.length, 4);
+  it("returns trump to dealer hand after the opening card is played", () => {
+    const d = deal(42);
+    const leadId = d.dealOrder[0];
+    assert.notEqual(leadId, "p1");
 
     const pub: PublicHandState = {
       ...publicFromDeal(d),
+      phase: HAND_PHASE.PLAY,
+      turnPlayerId: leadId,
+      currentTrick: {
+        trickNumber: 1,
+        leadPlayerId: leadId,
+        leadSuit: null,
+        plays: [],
+      },
+    };
+
+    assert.equal(effectivePlayerHand("p1", d.privateHands.p1, pub).length, 4);
+
+    const result = applyPlayerPlayCard({
+      publicHand: pub,
+      privateHand: d.privateHands[leadId],
+      playerId: leadId,
+      cardIndex: 0,
+      actionOrder: d.dealOrder,
+    });
+
+    assert.equal(result.publicHand.trumpUpcard, null);
+    assert.equal(effectivePlayerHand("p1", d.privateHands.p1, result.publicHand).length, 5);
+  });
+
+  it("dealer plays the flipped trump later in turn order from their hand", () => {
+    const d = deal();
+    const dealerId = "p1";
+    const dealerPrivate = d.privateHands.p1;
+
+    const pub: PublicHandState = {
+      ...publicFromDeal(d),
+      trumpUpcard: null,
       phase: HAND_PHASE.PLAY,
       turnPlayerId: dealerId,
       currentTrick: {

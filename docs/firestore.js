@@ -192,17 +192,22 @@ async function callEnrollmentAction(clientFn, serverFn) {
   }
 }
 
-async function callGameOrClient(serverFn, clientFn) {
-  if (!SERVER_HAND_AUTHORITY) return clientFn();
+/** Draw/play/settlement — client Firestore first (works when callables are missing). */
+async function callGameOrClient(clientFn, serverFn) {
   try {
-    return await serverFn();
-  } catch (err) {
-    if (!isCloudFunctionUnavailable(err)) throw err;
+    return await clientFn();
+  } catch (clientErr) {
+    if (!SERVER_HAND_AUTHORITY) throw clientErr;
     console.warn(
-      "Cloud Function unavailable — using client fallback for this action.",
-      err?.code || err,
+      "Client game write failed, trying Cloud Function.",
+      clientErr?.code || clientErr?.message || clientErr,
     );
-    return clientFn();
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      if (isCloudFunctionUnavailable(serverErr)) throw clientErr;
+      throw serverErr;
+    }
   }
 }
 
@@ -900,8 +905,8 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
   return callGameOrClient(
-    () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
     () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
+    () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
   );
 }
 
@@ -968,8 +973,8 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
 /** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
   return callGameOrClient(
-    () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
     () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
+    () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
   );
 }
 

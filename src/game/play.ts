@@ -47,9 +47,13 @@ export interface ApplyPlayerPlayResult extends ApplyPlayResult {
   privateHand: Card[];
 }
 
-/** Play a card from the effective hand; clears trump upcard when dealer plays it. */
+/** Play a card from the effective hand; clears trump reveal after the opening lead. */
 export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPlayResult {
   const effective = effectivePlayerHand(input.playerId, input.privateHand, input.publicHand);
+  const openingPlay =
+    (input.publicHand.playedCards?.length ?? 0) === 0 &&
+    (input.publicHand.currentTrick?.plays?.length ?? 0) === 0 &&
+    Object.values(input.publicHand.tricksByPlayer ?? {}).every((n) => (n ?? 0) === 0);
   const result = applyPlayCard({
     publicHand: input.publicHand,
     playerHand: effective,
@@ -61,7 +65,10 @@ export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPla
 
   const playedCard = effective[input.cardIndex];
   let nextPublic = result.publicHand;
-  if (playedCard && playedTrumpUpcard(playedCard, input.publicHand)) {
+  if (
+    input.publicHand.trumpUpcard &&
+    (openingPlay || (playedCard && playedTrumpUpcard(playedCard, input.publicHand)))
+  ) {
     nextPublic = { ...nextPublic, trumpUpcard: null };
   }
 
