@@ -39,21 +39,16 @@ service cloud.firestore {
       ]);
     }
 
-    // Room members may drive I'm-in / timeout while enrollment is active (client fallback
-    // when Cloud Functions are unavailable). Deal completion removes handEnrollment.
+    // Room members may drive I'm-in / timeout while enrollment is active.
     function memberEnrollmentSessionUpdate() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return resource.data.get('handEnrollment', {}).get('active', false) == true
-        && changed.hasOnly(['handEnrollment', 'currentHand', 'updatedAt'])
-        && (
-          request.resource.data.get('handEnrollment', {}).get('active', false) == true
-          || request.resource.data.get('currentHand', {}).get('phase', '') == 'draw'
-        );
+      return resource.data.handEnrollment.active == true
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['handEnrollment', 'currentHand', 'updatedAt']);
     }
 
     function enrollmentActiveForSession(roomId, sessionId) {
       return get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId))
-        .data.get('handEnrollment', {}).get('active', false) == true;
+        .data.handEnrollment.active == true;
     }
 
     function scoreLedgerFieldsChanged() {

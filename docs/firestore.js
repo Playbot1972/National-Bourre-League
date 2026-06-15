@@ -157,6 +157,34 @@ function isCloudFunctionUnavailable(err) {
   );
 }
 
+/** Normalize enrollment deadline (Firestore may return Timestamp objects). */
+export function enrollmentDeadlineMs(enrollment) {
+  const raw = enrollment?.turnDeadlineMs;
+  if (raw == null) return 0;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw.toMillis === "function") return raw.toMillis();
+  if (typeof raw === "object" && typeof raw.seconds === "number") {
+    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Enrollment uses client Firestore first — works when callables are missing or return noop. */
+async function callEnrollmentAction(clientFn, serverFn) {
+  try {
+    return await clientFn();
+  } catch (clientErr) {
+    if (!SERVER_HAND_AUTHORITY) throw clientErr;
+    console.warn("Client enrollment write failed, trying Cloud Function.", clientErr?.code || clientErr);
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      throw clientErr;
+    }
+  }
+}
+
 async function callGameOrClient(serverFn, clientFn) {
   if (!SERVER_HAND_AUTHORITY) return clientFn();
   try {
@@ -1567,9 +1595,9 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
-  return callGameOrClient(
-    () => gameEnsureHandEnrollment(roomId, sessionId),
+  return callEnrollmentAction(
     () => ensureHandEnrollmentClient(roomId, sessionId),
+    () => gameEnsureHandEnrollment(roomId, sessionId),
   );
 }
 
@@ -1597,9 +1625,9 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
 /** Auto sit-out when the current player's enrollment window expires. */
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
-  return callGameOrClient(
-    () => gameTimeoutEnrollment(roomId, sessionId),
+  return callEnrollmentAction(
     () => timeoutHandEnrollmentTurnClient(roomId, sessionId),
+    () => gameTimeoutEnrollment(roomId, sessionId),
   );
 }
 
@@ -1614,7 +1642,9 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
     if (!snap.exists()) return;
     const sessionData = snap.data();
     const enrollment = sessionData.handEnrollment;
-    if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return;
+    if (!enrollment?.active) return;
+    const deadline = enrollmentDeadlineMs(enrollment);
+    if (Date.now() < deadline) return;
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
@@ -1633,9 +1663,9 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
 
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
-  return callGameOrClient(
-    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId }),
+  return callEnrollmentAction(
     () => setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }),
+    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId }),
   );
 }
 
