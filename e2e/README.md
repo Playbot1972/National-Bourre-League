@@ -22,9 +22,19 @@ PLAYWRIGHT_BASE_URL=http://localhost:8080 npm run test:e2e
 
 1. `npm run emulators` (Terminal 1)
 2. `npm run social` (Terminal 2)
-3. `npm run test` (unit/integration)
-4. `npm run test:e2e` (browser smoke)
-5. Follow `docs/QA_RELEASE.md` for live gameplay checklist
+3. `npm run test:release` — unit + builds + functions + Playwright (82 browser tests)
+4. Follow `docs/QA_RELEASE.md` for live gameplay checklist on emulators
+
+## Coverage
+
+| Suite | What it checks |
+|-------|----------------|
+| `e2e/social-smoke.spec.ts` | Home page loads, sign-in entry |
+| `e2e/settlement.spec.ts` | Co-winner settlement UI |
+| `e2e/table-layout.spec.ts` | No horizontal overflow |
+| `e2e/table-players.spec.ts` | **2–8 seats**, human/bot mixes, enrollment/draw/play phases, timer tick |
+
+Player-matrix fixture: `/e2e-fixtures/table-session?players=8&bots=4&phase=enrollment` (no `.html` — `serve` strips query params on redirect).
 
 ## CI note
 

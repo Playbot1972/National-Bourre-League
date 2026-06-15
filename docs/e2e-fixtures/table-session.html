@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Table session fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-session-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const playerCount = Math.min(8, Math.max(2, parseInt(params.get("players") || "4", 10)));
+      const botCount = Math.min(
+        playerCount - 1,
+        Math.max(0, parseInt(params.get("bots") || "0", 10)),
+      );
+      const phase = params.get("phase") || "enrollment";
+      const tick = params.get("tick") !== "0";
+
+      const HAND_ENROLLMENT_MS = 12_000;
+      const deadlineStart = Date.now() + HAND_ENROLLMENT_MS;
+
+      const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);
+      const dealerId = ids[playerCount - 1];
+      const ordered = [...ids.slice(1), ids[0]];
+      const currentId = ids[0];
+      const currentIndex = ordered.indexOf(currentId);
+
+      function isBot(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return idx > 0 && idx <= botCount;
+      }
+
+      function displayName(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return isBot(id) ? `Bot ${idx}` : `Player ${idx}`;
+      }
+
+      function buildPlayers(nowMs) {
+        const msLeft = Math.max(0, deadlineStart - nowMs);
+        const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
+        const fraction = msLeft / HAND_ENROLLMENT_MS;
+
+        return ids.map((id) => {
+          const isSelf = id === "p0";
+          const onClock = phase === "enrollment" && id === currentId;
+          const enrolled = phase !== "enrollment" || id === currentId;
+          return {
+            playerId: id,
+            displayName: displayName(id),
+            handsWon: 0,
+            inHand: phase !== "enrollment" && enrolled,
+            tricksThisHand: phase === "play" ? (id === "p1" ? 1 : 0) : 0,
+            isSelf,
+            isDealer: id === dealerId,
+            isLeading: false,
+            isWinner: false,
+            isRobot: isBot(id),
+            enrollmentOnClock: onClock,
+            enrollmentTimeLeft: onClock ? fraction : undefined,
+            enrollmentSecondsOnClock: onClock ? secLeft : undefined,
+            enrollmentJoined: enrolled && phase === "enrollment" && id !== currentId,
+            enrollmentSatOut: false,
+            canToggleInHand: phase === "enrollment" && isSelf && id === currentId,
+            canEditTricks: false,
+            showHoleCards: phase === "play" && !isSelf,
+            holeCardCount: phase === "play" ? 4 : 0,
+            isOnTurn: phase === "draw" && id === "p0",
+          };
+        });
+      }
+
+      const heroCards =
+        phase === "draw" || phase === "play"
+          ? [
+              { rank: "A", suit: "spades" },
+              { rank: "K", suit: "hearts" },
+              { rank: "Q", suit: "diamonds" },
+              { rank: "J", suit: "clubs" },
+              { rank: "10", suit: "spades" },
+            ]
+          : [];
+
+      function buildProps(nowMs = Date.now()) {
+        const secLeft = Math.max(0, Math.ceil((deadlineStart - nowMs) / 1000));
+        const session = {
+          sessionId: "fixture-session",
+          handNumber: 1,
+          handStake: 1,
+          carryOverPot: 0,
+          isFinal: false,
+          dealerId,
+          participantIds: phase === "enrollment" ? [] : ids.filter((id) => !isBot(id) || phase !== "enrollment"),
+          tricksByPlayer: phase === "play" ? { p0: 0, p1: 1 } : {},
+          phase: phase === "enrollment" ? null : phase,
+          trumpSuit: phase === "draw" || phase === "play" ? "hearts" : null,
+          trumpUpcard: phase === "draw" || phase === "play" ? { rank: "7", suit: "hearts" } : null,
+          turnPlayerId: phase === "draw" ? "p0" : phase === "play" ? "p0" : null,
+          remainingDeckCount: phase === "draw" ? 28 : null,
+          maxDrawDiscards: 4,
+          handEnrollment:
+            phase === "enrollment"
+              ? {
+                  active: true,
+                  orderedPlayerIds: ordered,
+                  currentIndex,
+                  turnDeadlineMs: deadlineStart,
+                  enrolledIds: [],
+                  declinedIds: [],
+                }
+              : null,
+        };
+
+        if (phase !== "enrollment") {
+          session.participantIds = ids;
+        }
+
+        return {
+          session,
+          players: buildPlayers(nowMs),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: playerCount,
+            maxWinThisHand: playerCount,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel:
+            phase === "enrollment"
+              ? `Your turn — tap I'm in (${secLeft}s)`
+              : phase === "draw"
+                ? "Trump Hearts · draw round"
+                : "Trump Hearts · play phase",
+          showCoWinSettlement: false,
+          enrollmentActive: phase === "enrollment",
+          enrollmentSecondsLeft: phase === "enrollment" ? secLeft : 0,
+          currentUserId: "p0",
+          heroCards,
+          privateHandReady: phase === "draw" || phase === "play",
+          legalPlayIndices: phase === "play" ? [0, 1, 2] : null,
+          actions: {
+            onToggleInHand: () => {},
+            onTrickDelta: () => {},
+            onSettle: () => {},
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+      root.dataset.playerCount = String(playerCount);
+      root.dataset.botCount = String(botCount);
+      root.dataset.phase = phase;
+
+      function render(nowMs) {
+        mountTableSession(root, buildProps(nowMs));
+      }
+
+      render();
+      if (tick && phase === "enrollment") {
+        setInterval(() => render(Date.now()), 1000);
+      }
+    </script>
+  </body>
+</html>
