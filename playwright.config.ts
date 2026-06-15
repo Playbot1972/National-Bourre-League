@@ -21,8 +21,8 @@ export default defineConfig({
     },
     {
       name: "mobile-pixel5",
-      use: { ...devices["Pixel 5 landscape"], browserName: "chromium" },
-      testMatch: [/table-smoke\.mobile\.spec\.ts$/],
+      use: { ...devices["Pixel 5 landscape"], browserName: "chromium", hasTouch: true },
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/],
     },
     {
       name: "mobile-landscape",

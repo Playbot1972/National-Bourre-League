@@ -2249,7 +2249,10 @@ function buildTableSessionProps(s) {
           .then(() => {
             tableActionFeedback = null;
             const sessionObj = currentSessions.find((x) => x.id === openSessionId);
-            if (sessionObj) scheduleTableSessionSync(sessionObj);
+            if (sessionObj) {
+              scheduleTableSessionSync(sessionObj);
+              processRobotActions(sessionObj, openScores);
+            }
           })
           .catch((e) => {
             setTableActionFeedback({
