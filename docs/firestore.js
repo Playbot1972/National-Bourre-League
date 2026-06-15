@@ -1643,16 +1643,29 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
     return;
   }
 
-  const pending = sessionData.pendingCoWinSettlement;
-  const proposal = { participantIds, winnerIds };
-  const nextPending = sameCoWinProposal(pending, proposal)
-    ? pending
-    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  if (allowSplitVote) {
+    const pending = sessionData.pendingCoWinSettlement;
+    const proposal = { participantIds, winnerIds };
+    const nextPending = sameCoWinProposal(pending, proposal)
+      ? pending
+      : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: { ...currentHand, tricksByPlayer, participantIds },
-    pendingCoWinSettlement: nextPending,
-    updatedAt: serverTimestamp(),
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      currentHand: { ...currentHand, tricksByPlayer, participantIds },
+      pendingCoWinSettlement: nextPending,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
+  await recordHand(roomId, sessionId, {
+    winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
   });
 }
 
