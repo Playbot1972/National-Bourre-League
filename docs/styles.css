@@ -1726,3 +1726,48 @@ body.table-play-active .footer {
   pointer-events: none;
   user-select: none;
 }
+
+.feedback-settings {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-faint);
+}
+
+.feedback-settings__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.feedback-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.feedback-settings__fieldset {
+  border: none;
+  margin: 0 0 6px;
+  padding: 0;
+}
+
+.feedback-settings__fieldset legend {
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+}
+
+.feedback-settings__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 12px;
+  font-size: 12px;
+}
+
+.feedback-settings__hint {
+  margin: 4px 0 0;
+}

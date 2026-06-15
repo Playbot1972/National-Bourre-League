@@ -1056,3 +1056,67 @@
     min-height: 360px;
   }
 }
+
+/* Game feedback settings (table overlay) */
+.bfeedback-settings-wrap {
+  margin-bottom: 6px;
+}
+
+.bfeedback-settings__toggle {
+  font-size: 11px;
+}
+
+.bfeedback-settings__popover {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(244, 213, 141, 0.15);
+}
+
+.bfeedback-settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.bfeedback-settings__fieldset {
+  border: none;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.bfeedback-settings__fieldset legend {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.bfeedback-settings__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 10px;
+  font-size: 11px;
+}
+
+.bfeedback-settings__note {
+  margin: 4px 0 0;
+}
+
+.bpot__trump--deal {
+  animation: bdeal-in 500ms ease backwards;
+}
+
+.btable-hero--dealing .hand {
+  animation: bdeal-in 500ms ease backwards;
+}
+
+.btable-session__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}

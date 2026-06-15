@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hand } from "../components/Hand";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
@@ -44,8 +44,20 @@ export function HeroHand({
   const [selectedPlay, setSelectedPlay] = useState<number | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [dealing, setDealing] = useState(false);
+  const prevCardKeyRef = useRef("");
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
+  const cardKey = cards.map((c) => `${c.rank}-${c.suit}`).join(",");
+
+  useEffect(() => {
+    if (!dealtPhase || cardKey.length === 0 || cardKey === prevCardKeyRef.current) return;
+    prevCardKeyRef.current = cardKey;
+    setDealing(true);
+    const timer = window.setTimeout(() => setDealing(false), 520);
+    return () => window.clearTimeout(timer);
+  }, [cardKey, dealtPhase]);
+
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
   const busy = localBusy || actionFeedback?.status === "loading";
@@ -158,7 +170,10 @@ export function HeroHand({
   const selectedCount = selectedDraw.size;
 
   return (
-    <div className={`btable-hero ${className}`.trim()} aria-label="Your dealt cards">
+    <div
+      className={`btable-hero${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      aria-label="Your dealt cards"
+    >
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
         {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
