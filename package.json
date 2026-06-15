@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "1.00.67",
+  "version": "1.00.68",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -49,7 +49,6 @@
     "postinstall": "playwright install chromium || true",
     "test:qa": "npm run test && npm run check:social && npm run build:game && npm run build:table && npm run build:settlement",
     "test:e2e:install": "playwright install chromium",
-    "postinstall": "playwright install chromium || true",
     "emulators": "npx firebase emulators:start --only auth,firestore,functions --project demo-national-bourre-league",
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
