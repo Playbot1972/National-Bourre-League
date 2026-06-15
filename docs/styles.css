@@ -830,6 +830,31 @@ button {
   font-weight: 600;
   border-color: transparent;
 }
+.session-tabs--preset {
+  align-items: center;
+}
+.session-slot {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--border-soft);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.session-slot--available {
+  opacity: 0.85;
+}
+.session-preset-note {
+  margin: 0 0 10px;
+  max-width: 52rem;
+}
+.session-cap-note {
+  margin: 8px 0 0;
+}
+.session-cap-note--full {
+  color: var(--text-dim);
+}
 
 .score-table {
   width: 100%;
