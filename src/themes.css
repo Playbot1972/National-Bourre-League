@@ -58,6 +58,9 @@
   --border-error: rgba(192, 50, 43, 0.5);
   --border-danger: rgba(220, 100, 100, 0.45);
   --border-danger-hover: rgba(255, 140, 140, 0.6);
+  --text-danger: #ffb4b4;
+  --text-error: #f3b9b5;
+  --text-success: #b7e4c7;
 
   --shadow-modal: 0 24px 60px rgba(0, 0, 0, 0.5);
   --shadow-dialog: 0 18px 40px rgba(3, 18, 12, 0.6);
@@ -139,6 +142,9 @@
   --border-error: rgba(155, 39, 67, 0.45);
   --border-danger: rgba(155, 39, 67, 0.4);
   --border-danger-hover: rgba(155, 39, 67, 0.55);
+  --text-danger: #9b2743;
+  --text-error: #8a1f38;
+  --text-success: #006b3f;
 
   --shadow-modal: 0 24px 60px rgba(28, 20, 15, 0.18);
   --shadow-dialog: 0 18px 40px rgba(28, 20, 15, 0.14);

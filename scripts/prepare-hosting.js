@@ -9,6 +9,21 @@ const socialDest = join(dist, "social");
 
 spawnSync(process.execPath, ["scripts/sync-version.js"], { stdio: "inherit" });
 
+const firebaseConfigPath = join("docs", "firebase-config.js");
+const firebaseConfig = readFileSync(firebaseConfigPath, "utf8");
+if (
+  firebaseConfig.includes("REPLACE_WITH_YOUR_API_KEY") ||
+  firebaseConfig.includes("REPLACE_WITH_YOUR_APP_ID") ||
+  firebaseConfig.includes("demo-national-bourre-league")
+) {
+  console.error(
+    "docs/firebase-config.js still has placeholder values — auth will fail in production.",
+  );
+  console.error("Run: node scripts/ensure-firebase-config.js (or npm run deploy, which runs it first).");
+  console.error("Or: npm run setup:webapp -- national-bourre-league booray.win");
+  process.exit(1);
+}
+
 if (!existsSync(dist)) {
   console.error("Run `npm run build` first — dist/ not found.");
   process.exit(1);

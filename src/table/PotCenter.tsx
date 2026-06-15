@@ -13,11 +13,8 @@ import type {
 interface PotCenterProps {
   potMetrics: PotMetrics;
   participantCount: number;
-  /** Face-up trump reveal for suit determination (not a led trick card). */
   trumpUpcard?: SerializedCard | null;
   trumpSuit?: string | null;
-  /** When false, trump is shown only in the holder's hand — not duplicated here. */
-  showTrumpReveal?: boolean;
   phase?: string | null;
   enrollmentActive?: boolean;
   remainingDeckCount?: number | null;
@@ -31,7 +28,6 @@ export function PotCenter({
   participantCount,
   trumpUpcard,
   trumpSuit,
-  showTrumpReveal = false,
   phase,
   enrollmentActive = false,
   remainingDeckCount,
@@ -40,23 +36,14 @@ export function PotCenter({
   playerNames = {},
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrumpReveal = showTrumpReveal && Boolean(trumpUpcard);
-  const trumpKey = hasTrumpReveal ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
-  const cardsDealt = phase === "draw" || phase === "play";
+  const hasTrump = Boolean(trumpUpcard);
+  const trumpKey = hasTrump ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (
-    <div className="bpot">
-      <div className="bpot__phase" aria-live="polite">
-        <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
-          {phaseLabel}
-        </span>
-        {trumpSuit && cardsDealt && (
-          <span className="bpot__phase-trump muted small">
-            Trump · {formatTrumpSuit(trumpSuit)}
-          </span>
-        )}
-        {hasTrumpReveal && (
-          <div key={trumpKey} className="bpot__trump bpot__trump--reveal">
+    <>
+      <div className="deck-stack" aria-label="Deck and trump">
+        {hasTrump ? (
+          <div key={trumpKey} className="deck-stack__trump bpot__trump--deal">
             <PlayingCard
               card={{
                 rank: trumpUpcard!.rank as Rank,
@@ -65,60 +52,78 @@ export function PotCenter({
               size="sm"
               state="trump"
             />
-            <span className="bpot__trump-label muted small">Trump flip</span>
+            <span className="deck-stack__label muted small">Trump</span>
+          </div>
+        ) : (
+          <div className="deck-stack__pile" aria-hidden="true">
+            <div className="deck-stack__card deck-stack__card--back" />
+            <div className="deck-stack__card deck-stack__card--back deck-stack__card--offset" />
+            <span className="deck-stack__label muted small">
+              {enrollmentActive ? "Dealing" : "Deck"}
+            </span>
           </div>
         )}
-      </div>
-
-      <div className="bpot__trick-area">
-        {!cardsDealt && (
-          <div className="bpot__deck-placeholder muted small" aria-hidden="true">
-            {enrollmentActive ? "Dealing after join" : "Awaiting deal"}
-          </div>
-        )}
-        <TrickRow
-          currentTrick={currentTrick}
-          playedCards={playedCards}
-          playerNames={playerNames}
-        />
-      </div>
-
-      <dl className="bpot__stats">
-        <div className="bpot__stat">
-          <dt>Current Pot</dt>
-          <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
-        </div>
-        {potMetrics.limEnabled && (
-          <>
-            <div className="bpot__stat">
-              <dt>Pot Cap</dt>
-              <dd>
-                {formatRiskStake(potMetrics.potCap)}
-                <span className="bpot__lim-tag">LmT</span>
-              </dd>
-            </div>
-            <div className="bpot__stat bpot__stat--highlight">
-              <dt>Max Win This Hand</dt>
-              <dd>{formatRiskStake(potMetrics.maxWinThisHand)}</dd>
-            </div>
-          </>
-        )}
-        <div className="bpot__stat">
-          <dt>Ante</dt>
-          <dd>{formatRiskStake(potMetrics.anteAmount)}</dd>
-        </div>
-      </dl>
-      {potMetrics.limEnabled && potMetrics.overflow > 0 && (
-        <div className="bpot__carry muted small">
-          + {formatRiskStake(potMetrics.overflow)} overflow → next hand
-        </div>
-      )}
-      <div className="bpot__meta muted small">
-        {participantCount} in this hand
         {remainingDeckCount != null && remainingDeckCount > 0 && (
-          <> · {remainingDeckCount} left in deck</>
+          <span className="deck-stack__count muted small">{remainingDeckCount} left</span>
         )}
       </div>
-    </div>
+
+      <div className="center-play">
+        <div className="center-play__phase" aria-live="polite">
+          <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
+            {phaseLabel}
+          </span>
+          {hasTrump && trumpSuit && (
+            <span className="center-play__trump-suit muted small">
+              {formatTrumpSuit(trumpSuit)}
+            </span>
+          )}
+        </div>
+
+        <div className="center-play__trick">
+          <TrickRow
+            currentTrick={currentTrick}
+            playedCards={playedCards}
+            playerNames={playerNames}
+          />
+        </div>
+
+        <dl className="center-play__stats">
+          <div className="bpot__stat bpot__stat--pot">
+            <dt>Pot</dt>
+            <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
+          </div>
+          <div className="bpot__stat">
+            <dt>Ante</dt>
+            <dd>{formatRiskStake(potMetrics.anteAmount)}</dd>
+          </div>
+          {potMetrics.limEnabled && (
+            <>
+              <div className="bpot__stat">
+                <dt>Cap</dt>
+                <dd>
+                  {formatRiskStake(potMetrics.potCap)}
+                  <span className="bpot__lim-tag">LmT</span>
+                </dd>
+              </div>
+              <div className="bpot__stat bpot__stat--highlight">
+                <dt>Max win</dt>
+                <dd>{formatRiskStake(potMetrics.maxWinThisHand)}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+
+        {potMetrics.limEnabled && potMetrics.overflow > 0 && (
+          <div className="center-play__carry muted small">
+            +{formatRiskStake(potMetrics.overflow)} carry
+          </div>
+        )}
+
+        <div className="center-play__meta muted small">
+          {participantCount} in hand
+        </div>
+      </div>
+    </>
   );
 }
