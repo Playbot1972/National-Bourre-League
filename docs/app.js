@@ -873,6 +873,65 @@ let tableSyncFrame = 0;
 const pendingSessionCleanup = new Set();
 const sessionCleanupTimers = new Map();
 const SESSION_CLEANUP_MS = 30_000;
+const SESSION_CLEANUP_STORAGE_KEY = "bourre-session-cleanup-v1";
+
+function readCleanupQueue() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_CLEANUP_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeCleanupQueue(queue) {
+  sessionStorage.setItem(SESSION_CLEANUP_STORAGE_KEY, JSON.stringify(queue));
+}
+
+function queueSessionCleanupPersisted(roomId, sessionId, deleteAtMs) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]) queue[roomId] = {};
+  queue[roomId][sessionId] = deleteAtMs;
+  writeCleanupQueue(queue);
+}
+
+function dequeueSessionCleanupPersisted(roomId, sessionId) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]?.[sessionId]) return;
+  delete queue[roomId][sessionId];
+  if (Object.keys(queue[roomId]).length === 0) delete queue[roomId];
+  writeCleanupQueue(queue);
+}
+
+async function runSessionCleanup(roomId, sessionId) {
+  cancelSessionCleanup(sessionId);
+  dequeueSessionCleanupPersisted(roomId, sessionId);
+  await deleteSession(roomId, sessionId);
+}
+
+function restoreSessionCleanupTimers(roomId) {
+  if (!roomId) return;
+  const entries = readCleanupQueue()[roomId] || {};
+  const now = Date.now();
+  for (const [sessionId, deleteAtMs] of Object.entries(entries)) {
+    if (sessionCleanupTimers.has(sessionId)) continue;
+    pendingSessionCleanup.add(sessionId);
+    const delay = Math.max(0, Number(deleteAtMs) - now);
+    if (delay === 0) {
+      runSessionCleanup(roomId, sessionId).catch((e) =>
+        console.error("deleteSession:", e),
+      );
+    } else {
+      sessionCleanupTimers.set(
+        sessionId,
+        setTimeout(() => {
+          runSessionCleanup(roomId, sessionId).catch((e) =>
+            console.error("deleteSession:", e),
+          );
+        }, delay),
+      );
+    }
+  }
+}
 
 function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
@@ -947,12 +1006,12 @@ function scheduleSessionCleanup(sessionId) {
   if (!currentRoomId || !sessionId) return;
   cancelSessionCleanup(sessionId);
   pendingSessionCleanup.add(sessionId);
+  const deleteAtMs = Date.now() + SESSION_CLEANUP_MS;
+  queueSessionCleanupPersisted(currentRoomId, sessionId, deleteAtMs);
   sessionCleanupTimers.set(
     sessionId,
     setTimeout(() => {
-      sessionCleanupTimers.delete(sessionId);
-      pendingSessionCleanup.delete(sessionId);
-      deleteSession(currentRoomId, sessionId).catch((e) =>
+      runSessionCleanup(currentRoomId, sessionId).catch((e) =>
         console.error("deleteSession:", e),
       );
     }, SESSION_CLEANUP_MS),
@@ -961,6 +1020,10 @@ function scheduleSessionCleanup(sessionId) {
 
 async function clearCompletedSessionsNow() {
   if (!currentRoomId) return;
+  if (session?.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can clear sessions.");
+    return;
+  }
   const ids = new Set(pendingSessionCleanup);
   for (const s of currentSessions) {
     if (s.status === "final") ids.add(s.id);
@@ -969,17 +1032,36 @@ async function clearCompletedSessionsNow() {
     const open = currentSessions.find((s) => s.id === openSessionId);
     if (open?.status !== "final") ids.delete(openSessionId);
   }
-  if (ids.size === 0) return;
+  if (ids.size === 0) {
+    showRoomsError("No completed sessions to clear.");
+    return;
+  }
   stopSessionCleanupTimers();
   pendingSessionCleanup.clear();
-  await Promise.all(
-    [...ids].map((sessionId) =>
-      deleteSession(currentRoomId, sessionId).catch((e) => {
-        console.error("deleteSession:", e);
-      }),
-    ),
-  );
-  showRoomsError(`Cleared ${ids.size} session${ids.size === 1 ? "" : "s"}.`);
+  let cleared = 0;
+  const failures = [];
+  for (const sessionId of ids) {
+    try {
+      await deleteSession(currentRoomId, sessionId);
+      dequeueSessionCleanupPersisted(currentRoomId, sessionId);
+      cleared += 1;
+    } catch (e) {
+      console.error("deleteSession:", e);
+      failures.push(e?.message || String(e));
+    }
+  }
+  if (cleared > 0 && failures.length === 0) {
+    showRoomsError(`Cleared ${cleared} session${cleared === 1 ? "" : "s"}.`);
+  } else if (cleared > 0) {
+    showRoomsError(
+      `Cleared ${cleared} session${cleared === 1 ? "" : "s"}. ${failures.length} failed — deploy Firestore rules if you see permission errors.`,
+    );
+  } else {
+    showRoomsError(
+      failures[0] ||
+        "Could not clear sessions — only the room owner can delete completed sessions.",
+    );
+  }
 }
 
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
@@ -1278,6 +1360,7 @@ function openRoom(roomId) {
   detailUnsubs.push(
     subscribeSessions(roomId, (sessions) => {
       currentSessions = sessions;
+      restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
         const nextId = sessions[0]?.id ?? null;
         if (nextId) {
@@ -1305,7 +1388,6 @@ function closeRoom() {
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
-  pendingSessionCleanup.clear();
   closeTablePlay();
   unmountTableSessionHost();
   currentRoomId = null;
@@ -2219,8 +2301,10 @@ function renderRoomDetail() {
         <h4>Sessions</h4>
         <div class="session-new">
           ${
-            showNewSessionAnte
-              ? `<label class="session-new__stake">
+            isOwner
+              ? `${
+                  showNewSessionAnte
+                    ? `<label class="session-new__stake">
                    <span class="muted">Ante</span>
                    <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
                      ${RISK_STAKE_OPTIONS.map(
@@ -2229,13 +2313,15 @@ function renderRoomDetail() {
                      ).join("")}
                    </select>
                  </label>`
-              : ""
-          }
+                    : ""
+                }
           <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
           ${
             currentSessions.some((s) => s.status === "final") || pendingSessionCleanup.size > 0
               ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
               : ""
+          }`
+              : `<p class="muted small">Only the room owner can start or clear sessions.</p>`
           }
         </div>
       </div>
@@ -2262,7 +2348,10 @@ function renderRoomDetail() {
   if (leaveRoomBtn) {
     leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
   }
-  $("#new-session").addEventListener("click", onNewSession);
+  const newSessionBtn = $("#new-session", roomDetailView);
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener("click", onNewSession);
+  }
   const clearSessionsBtn = $("#clear-sessions-now", roomDetailView);
   if (clearSessionsBtn) {
     clearSessionsBtn.addEventListener("click", () => {
@@ -2610,6 +2699,10 @@ function wireSessionControls() {
 
 async function onNewSession() {
   if (!currentRoomId) return;
+  if (session?.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can start a new session.");
+    return;
+  }
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
