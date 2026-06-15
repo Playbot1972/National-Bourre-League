@@ -414,6 +414,14 @@ export async function joinRoomByCode(code, user) {
       "That invite code is no longer valid — the room was deleted. Ask the host for a new code.",
     );
   }
+  if (Array.isArray(roomSnap.data().bannedUserIds) && roomSnap.data().bannedUserIds.includes(user.uid)) {
+    try {
+      await deleteDoc(membershipRef);
+    } catch (err) {
+      console.warn("rollback membership for banned user:", err);
+    }
+    throw new Error("You are not allowed to join this room. Ask the host for access.");
+  }
   return roomId;
 }
 
@@ -424,6 +432,19 @@ export async function leaveRoom(roomId, user) {
 }
 
 /** Room owner removes another member and drops them from open session score sheets. */
+async function removeKickedMemberFromOpenSessions(roomId, targetUserId) {
+  const sessionsSnap = await getDocs(sessionsCol(roomId));
+  await Promise.all(
+    sessionsSnap.docs.map(async (sDoc) => {
+      if (sDoc.data().status === "final") return;
+      const ref = scoreDoc(roomId, sDoc.id, targetUserId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) await deleteDoc(ref);
+    }),
+  );
+}
+
+/** Room owner removes another member (ban + membership delete + session cleanup). */
 export async function kickRoomMember(roomId, targetUserId, actor) {
   if (!actor?.uid) throw new Error("Not signed in");
   if (!targetUserId) throw new Error("Missing member");
@@ -440,17 +461,27 @@ export async function kickRoomMember(roomId, targetUserId, actor) {
     throw new Error("Cannot remove the room owner.");
   }
 
-  await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
+  // Ban list uses owner room update — works even when roomMembers delete rules are stale.
+  await updateDoc(doc(db, "rooms", roomId), {
+    bannedUserIds: arrayUnion(targetUserId),
+    updatedAt: serverTimestamp(),
+  });
 
-  const sessionsSnap = await getDocs(sessionsCol(roomId));
-  const batch = writeBatch(db);
-  let scoreDeletes = 0;
-  for (const sDoc of sessionsSnap.docs) {
-    if (sDoc.data().status === "final") continue;
-    batch.delete(scoreDoc(roomId, sDoc.id, targetUserId));
-    scoreDeletes += 1;
+  let membershipRemoved = false;
+  try {
+    await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
+    membershipRemoved = true;
+  } catch (err) {
+    if (err?.code !== "permission-denied" && err?.code !== "not-found") throw err;
   }
-  if (scoreDeletes > 0) await batch.commit();
+
+  try {
+    await removeKickedMemberFromOpenSessions(roomId, targetUserId);
+  } catch (err) {
+    console.warn("kick score cleanup:", err);
+  }
+
+  return { membershipRemoved, banned: true };
 }
 
 /** Delete a room entirely (owner only). Cleans up orphan membership if room is already gone. */

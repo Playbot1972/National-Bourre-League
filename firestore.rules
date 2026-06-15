@@ -114,16 +114,22 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    match /roomMembers/{memberId} {
+    match /roomMembers/{memberDocId} {
+      function memberRoomId() {
+        return resource.data.roomId != null
+          ? resource.data.roomId
+          : memberDocId.split('_')[0];
+      }
+
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        isRoomOwner(resource.data.roomId)
+        isRoomOwner(memberRoomId())
       );
       allow delete: if isSignedIn() && (
         resource.data.userId == request.auth.uid ||
-        isRoomOwner(resource.data.roomId)
+        isRoomOwner(memberRoomId())
       );
     }
 

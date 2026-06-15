@@ -20,7 +20,7 @@
     "preview:hosting": "npm run build:hosting && npx serve dist -l 5000",
     "deploy": "node scripts/ensure-firebase-config.js && node scripts/check-deploy-version.mjs && npm run build:hosting && npm run build:functions && npx firebase deploy --only hosting,firestore:rules,functions --project national-bourre-league",
     "deploy:hosting": "node scripts/ensure-firebase-config.js && node scripts/check-deploy-version.mjs && npm run build:hosting && npx firebase deploy --only hosting --project national-bourre-league",
-    "deploy:rules": "npx firebase deploy --only firestore:rules",
+    "deploy:rules": "npx firebase deploy --only firestore:rules --project national-bourre-league",
     "deploy:functions": "npm run build:functions && npx firebase deploy --only functions,firestore:rules",
     "setup": "./scripts/one-time-setup.sh",
     "setup:firestore": "./scripts/setup-firestore.sh",
