@@ -42,6 +42,7 @@ import {
   advanceSessionBots,
   addSessionPlayer,
   addSessionRobot,
+  removeSessionPlayer,
   syncSessionWithRoomMembers,
   setHandParticipation,
   ensureHandEnrollment,
@@ -545,6 +546,15 @@ function bindRoomDetailDelegatedControls() {
     if (kickBtn) {
       e.preventDefault();
       onKickMember(kickBtn.dataset.kickMember, kickBtn.dataset.kickName);
+      return;
+    }
+    const removePlayerBtn = e.target.closest("[data-remove-session-player]");
+    if (removePlayerBtn) {
+      e.preventDefault();
+      onRemoveSessionPlayer(
+        removePlayerBtn.dataset.removeSessionPlayer,
+        removePlayerBtn.dataset.removeSessionName,
+      );
       return;
     }
     if (e.target.id !== "house-rules-reset") return;
@@ -1205,6 +1215,24 @@ async function onLeaveRoom(roomId) {
   } catch (err) {
     console.error(err);
     showRoomsError("Could not leave the room. Please try again.");
+  }
+}
+
+async function onRemoveSessionPlayer(playerId, displayName) {
+  if (!session || !currentRoomId || !openSessionId) return;
+  if (session.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can remove a guest or robot.");
+    return;
+  }
+  const label = displayName?.trim() || "this player";
+  if (!window.confirm(`Remove ${label} from this session?`)) return;
+  showRoomsError("");
+  try {
+    await removeSessionPlayer(currentRoomId, openSessionId, playerId, session);
+    showRoomsError(`${label} was removed from the session.`);
+  } catch (err) {
+    console.error("removeSessionPlayer:", err);
+    showRoomsError(err?.message || "Could not remove player.");
   }
 }
 
@@ -2391,6 +2419,12 @@ function renderRoomDetail() {
                 uid &&
                 uid !== currentRoom.ownerId &&
                 uid !== session?.uid;
+              const canRemoveSessionPlayer =
+                (entry.kind === "robot" || entry.kind === "guest") &&
+                isOwner &&
+                uid &&
+                openSessionObj &&
+                openSessionObj.status !== "final";
               const roleLabel =
                 entry.role === "owner"
                   ? "owner"
@@ -2406,7 +2440,9 @@ function renderRoomDetail() {
                 ${
                   canKick
                     ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from room">Remove</button>`
-                    : ""
+                    : canRemoveSessionPlayer
+                      ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-remove-session-player="${escapeHtml(uid)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from session">Remove</button>`
+                      : ""
                 }
               </li>`;
             })
