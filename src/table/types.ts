@@ -25,6 +25,7 @@ export interface TablePlayer {
   net?: number;
   perHandStake?: number;
   inHand: boolean;
+  /** Tricks won this hand — from session.currentHand.tricksByPlayer[playerId]. */
   tricksThisHand: number;
   isSelf: boolean;
   isDealer: boolean;
@@ -42,6 +43,7 @@ export interface TablePlayer {
   canEditTricks: boolean;
   /** Opponent hole cards — face-down count only, never actual cards. */
   showHoleCards?: boolean;
+  /** Remaining hole cards (from public play history via cardsRemainingInHand). */
   holeCardCount?: number;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;

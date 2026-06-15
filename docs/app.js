@@ -1778,7 +1778,7 @@ function buildTableSessionProps(s) {
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
         holeCardCount: cardsDealt
           ? cardsRemainingInHand(s.currentHand || {}, sc.playerId)
-          : 5,
+          : 0,
         isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&
