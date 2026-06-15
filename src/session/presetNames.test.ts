@@ -7,6 +7,7 @@ import {
   canCreateAnotherSession,
   claimSessionNameConcurrent,
   countAvailableSessionSlots,
+  createdSessionsForTabs,
   isValidSessionNamePool,
   nextAvailableSessionName,
   randomizePresetOrder,
@@ -74,6 +75,15 @@ describe("preset session names", () => {
     assert.equal(first.ok, true);
     if (first.ok) assert.equal(first.name, "Midwest");
     assert.equal(second.ok, false);
+  });
+
+  it("lists only created sessions for tabs — not unclaimed preset slots", () => {
+    const pool = seededPresetOrder("room-tabs");
+    const sessions = [{ id: "s1", sessionName: pool[1], createdAt: 100 }];
+    const tabs = createdSessionsForTabs(pool, sessions);
+    assert.equal(tabs.length, 1);
+    assert.equal(tabs[0]?.sessionName, pool[1]);
+    assert.equal(createdSessionsForTabs(pool, []).length, 0);
   });
 
   it("rejects invalid custom pools", () => {

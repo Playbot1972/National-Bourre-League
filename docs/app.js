@@ -82,7 +82,7 @@ import {
 import {
   MAX_ROOM_SESSIONS,
   canCreateAnotherSession,
-  countAvailableSessionSlots,
+  createdSessionsForTabs,
   isValidSessionNamePool,
   sessionTabLabel,
 } from "./session-presets.js";
@@ -2329,21 +2329,15 @@ function openSession(sessionId) {
   }
 }
 
-function renderRegionalSessionSlots(pool, sessions, activeSessionId) {
-  if (!isValidSessionNamePool(pool)) {
-    return `<p class="muted small">Loading regional tables…</p>`;
+function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
+  const created = createdSessionsForTabs(pool, sessions);
+  if (created.length === 0) {
+    return `<p class="muted small">No regional tables yet. Tap <strong>+ New session</strong> to open one — up to ${MAX_ROOM_SESSIONS} per room.</p>`;
   }
-  const byName = new Map(
-    sessions.filter((s) => s.sessionName).map((s) => [s.sessionName, s]),
-  );
-  return pool
-    .map((name) => {
-      const sessionObj = byName.get(name);
-      if (sessionObj) {
-        const active = sessionObj.id === activeSessionId;
-        return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
-      }
-      return `<span class="session-slot session-slot--available" aria-label="${escapeHtml(name)} available">${escapeHtml(name)} · available</span>`;
+  return created
+    .map((sessionObj) => {
+      const active = sessionObj.id === activeSessionId;
+      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
     })
     .join("");
 }
@@ -2399,9 +2393,6 @@ function renderRoomDetail() {
     ? currentRoom.sessionNamePool
     : [];
   const claimedNames = currentSessions.map((s) => s.sessionName).filter(Boolean);
-  const availableSlots = sessionPool.length
-    ? countAvailableSessionSlots(sessionPool, claimedNames)
-    : MAX_ROOM_SESSIONS - currentSessions.length;
   const canCreateSession =
     isOwner &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
@@ -2512,7 +2503,7 @@ function renderRoomDetail() {
     <section class="subpanel">
       <div class="subpanel__head">
         <h4>Regional tables</h4>
-        <p class="muted small session-preset-note">Each room has four locked regional tables — Dirty South, Wild West, East Coast, and Midwest — assigned in a fixed order when the room is created.</p>
+        <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned randomly when you confirm <strong>+ New session</strong>.</p>
         <div class="session-new">
           ${
             isOwner
@@ -2531,10 +2522,10 @@ function renderRoomDetail() {
                 }
           <button class="btn btn--primary btn--sm" id="new-session" type="button" ${
             canCreateSession ? "" : "disabled aria-disabled=\"true\""
-          } title="${canCreateSession ? "Create the next regional table" : "All 4 sessions already created"}">+ New session</button>
+          } title="${canCreateSession ? "Open the next regional table" : "All 4 sessions already created"}">+ New session</button>
           ${
             canCreateSession
-              ? `<p class="muted small session-cap-note">${availableSlots} of ${MAX_ROOM_SESSIONS} regional table${availableSlots === 1 ? "" : "s"} available</p>`
+              ? `<p class="muted small session-cap-note">${currentSessions.length} of ${MAX_ROOM_SESSIONS} regional table${currentSessions.length === 1 ? "" : "s"} open</p>`
               : sessionCapReached
                 ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
                 : ""
@@ -2544,10 +2535,7 @@ function renderRoomDetail() {
         </div>
       </div>
       <div class="session-tabs session-tabs--preset">
-        ${
-          renderRegionalSessionSlots(sessionPool, currentSessions, openSessionId) ||
-          `<p class="muted">No regional tables yet. Start one to keep score.</p>`
-        }
+        ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
       ${
         openSessionObj
@@ -2951,6 +2939,16 @@ async function onNewSession() {
     showRoomsError("All 4 sessions already created.");
     return;
   }
+
+  const openingNumber = currentSessions.length + 1;
+  if (
+    !window.confirm(
+      `Open regional table ${openingNumber} of ${MAX_ROOM_SESSIONS}? The table name will be assigned when you confirm.`,
+    )
+  ) {
+    return;
+  }
+
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
