@@ -82,6 +82,19 @@ counts only (`Seat.tsx`).
 
 See `functions/README.md` and TODO comments in `firestore.rules` / `docs/firestore.js`.
 
+### Premium table room UX (`src/table/`)
+
+Desktop-first live table polish (built to `docs/table-session.js`):
+
+- **Themes** — `src/table/theme/` presets: Carbon, Simple, Night Felt, Arena; 4-color deck;
+  high contrast; card scale; table zoom. Persisted in `localStorage` (`nbl-table-settings`).
+- **Smart HUD** — `SmartHud.tsx` at each seat (Ape Score, Class, Status, session streak,
+  tricks, turn/dealer). Uses public `players` docs + session state only.
+- **Visual highlights** — pseudo-3D avatars, hero card peek/squeeze, emoji reactions,
+  cinematic splashes for big pots / pot cap / bourré pressure.
+- **Desktop layout** — `DesktopLayoutShell.tsx` for large-monitor scaling; tiled multi-room
+  mode scaffolded (placeholder tile, settings model, hotkey hooks).
+
 **Local test & debug (open PRs, emulators, checklists):** see [`docs/TESTING.md`](docs/TESTING.md).
 
 ### Table feedback (sound + haptics)
@@ -123,6 +136,7 @@ window.BourreHaptics = {
 iOS haptics **require** a native wrapper — web-only iPhone/iPad builds get sound but
 not vibration. See `src/table/feedback/haptics.ts` for bridge contract.
 
+## Cursor Cloud specific instructions
 
 - Standard scripts live in `package.json`: `npm run dev` (Vite dev server),
   `npm run lint` (ESLint), `npm run build` (`tsc -b && vite build`).

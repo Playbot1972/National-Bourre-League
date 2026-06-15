@@ -1529,7 +1529,18 @@ body.table-play-active .footer {
 .table-play-overlay .btable-wrap {
   --seat-gutter-x: clamp(52px, 13vw, 88px);
   --seat-gutter-y: clamp(32px, 8vh, 52px);
-  max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1000px);
+  max-width: min(calc(98vw + 2 * var(--seat-gutter-x)), 1200px);
+}
+
+@media (min-width: 1200px) {
+  .table-play-overlay .table-session-root {
+    max-width: min(1400px, 96vw);
+    margin: 0 auto;
+  }
+
+  .table-play-overlay__main {
+    align-items: stretch;
+  }
 }
 
 .table-play-overlay .btable-session__rotate-hint {
