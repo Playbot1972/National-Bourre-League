@@ -17,6 +17,7 @@ interface HeroHandProps {
   drawCompleted?: boolean;
   maxDrawDiscards?: number;
   legalPlayIndices?: number[];
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
@@ -36,6 +37,7 @@ export function HeroHand({
   drawCompleted = false,
   maxDrawDiscards = 4,
   legalPlayIndices,
+  handComplete = false,
   actionFeedback,
   onSubmitDraw,
   onPassDraw,
@@ -131,6 +133,16 @@ export function HeroHand({
   }
 
   if (dealtPhase && isInHand && cards.length === 0) {
+    if (handComplete) {
+      return (
+        <div className={`btable-hero ${className}`.trim()} aria-live="polite">
+          <p className="btable-hero__label muted small">Your hand</p>
+          <p className="btable-hero__hint muted small">
+            Hand complete — settling and opening the next deal…
+          </p>
+        </div>
+      );
+    }
     return (
       <div className={`btable-hero ${className}`.trim()} aria-live="polite">
         <p className="btable-hero__label muted small">Your hand</p>

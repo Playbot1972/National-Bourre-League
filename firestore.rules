@@ -51,6 +51,37 @@ service cloud.firestore {
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
 
+    // Client settlement after a hand (Cloud Functions optional on prod).
+    function memberSettlementSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'handEnrollment',
+          'liveEnrollment',
+          'currentHand',
+          'handCount',
+          'carryOverPot',
+          'dealerId',
+          'pendingCoWinSettlement',
+          'handStakeLocked',
+          'totals',
+          'rounds',
+          'updatedAt',
+        ]);
+    }
+
+    function memberSettlementScoreUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'net',
+          'tricksWon',
+          'handsWon',
+          'total',
+          'skipNextAnte',
+          'perHandStake',
+          'updatedAt',
+        ]);
+    }
+
     function enrollmentActiveForSession(roomId, sessionId) {
       return sessionEnrollmentActive(
         get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId)).data
@@ -87,13 +118,16 @@ service cloud.firestore {
         allow read: if isMember(roomId);
         allow create: if isMember(roomId);
         allow update: if isMember(roomId)
-          && (!sessionGameFieldsChanged() || memberEnrollmentSessionUpdate());
+          && (!sessionGameFieldsChanged()
+            || memberEnrollmentSessionUpdate()
+            || memberSettlementSessionUpdate());
         allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
           allow read: if isMember(roomId);
           allow create: if isMember(roomId);
-          allow update: if isMember(roomId) && !scoreLedgerFieldsChanged();
+          allow update: if isMember(roomId)
+            && (!scoreLedgerFieldsChanged() || memberSettlementScoreUpdate());
           allow delete: if isRoomOwner(roomId);
         }
 
