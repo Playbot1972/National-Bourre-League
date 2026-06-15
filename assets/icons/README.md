@@ -4,13 +4,23 @@ One consistent **BOORAY** logo for App Store, Play Store, PWA / Add to Home Scre
 
 ## Pixel-perfect source (recommended)
 
-**Option A — drag into the repo**
+**The PNG is not in the repo yet — you add it.**
 
-Save your official artwork as:
+Open this folder in the project tree:
+
+```
+assets/icons/
+```
+
+You should see `PUT-LOGO-HERE.txt` with instructions. Create this file in that same folder:
 
 ```
 assets/icons/booray-logo-source.png
 ```
+
+(Full path from repo root: `National-Bourre-League/assets/icons/booray-logo-source.png`)
+
+**In Cursor:** expand `assets` → `icons` → drag your logo PNG into that folder and name it `booray-logo-source.png`.
 
 Then run:
 
@@ -18,13 +28,13 @@ Then run:
 npm run icons:generate
 ```
 
-**Option B — import from any path**
+Or import from any path on your machine:
 
 ```bash
 npm run icons:import -- /path/to/your/booray-logo.png
 ```
 
-Chat image attachments do not reach the cloud agent as files; add the PNG to the repo path above (or pass a local path with `icons:import`).
+Chat image attachments do not reach the cloud agent as files; you must add the PNG to the repo path above.
 
 All platform exports rasterize from `booray-logo-source.png` when present. If absent, exports fall back to `booray-icon-master.svg`.
 
