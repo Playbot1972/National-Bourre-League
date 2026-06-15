@@ -47,6 +47,12 @@ export interface TablePlayer {
   holeCardCount?: number;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
+  /** Ape Score ranking — public leaderboard data, not private hand info. */
+  apeScore?: number | null;
+  apeClass?: string | null;
+  apeStatus?: string | null;
+  /** Session hands won streak proxy. */
+  sessionStreak?: number;
   /** This hand's ante — only for the viewing player. */
   myHandContribution?: number;
 }
@@ -129,7 +135,7 @@ export interface TableSessionViewProps {
   legalPlayIndices?: number[] | null;
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
-  /** True after first privateHand snapshot for this session. */
+  /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
   actionFeedback?: TableActionFeedback | null;
   actions: TableSessionActions;

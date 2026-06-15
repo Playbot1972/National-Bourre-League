@@ -1,17 +1,53 @@
 # Booray icon system
 
-Production-ready app icons for App Store, Play Store, PWA, and Add to Home Screen.
+One consistent **BOORAY** logo for App Store, Play Store, PWA / Add to Home Screen, and favicons.
 
-## Source files (`assets/icons/`)
+## Pixel-perfect source (recommended)
+
+**The PNG is not in the repo yet — you add it.**
+
+Open this folder in the project tree:
+
+```
+assets/icons/
+```
+
+You should see `PUT-LOGO-HERE.txt` with instructions. Create this file in that same folder:
+
+```
+assets/icons/booray-logo-source.png
+```
+
+(Full path from repo root: `National-Bourre-League/assets/icons/booray-logo-source.png`)
+
+**In Cursor:** expand `assets` → `icons` → drag your logo PNG into that folder and name it `booray-logo-source.png`.
+
+Then run:
+
+```bash
+npm run icons:generate
+```
+
+Or import from any path on your machine:
+
+```bash
+npm run icons:import -- /path/to/your/booray-logo.png
+```
+
+Chat image attachments do not reach the cloud agent as files; you must add the PNG to the repo path above.
+
+All platform exports rasterize from `booray-logo-source.png` when present. If absent, exports fall back to `booray-icon-master.svg`.
+
+## Vector master
 
 | File | Use |
 | --- | --- |
-| `booray-icon-app.svg` | **Primary square app icon** — simplified ace/spade on dark felt (store + PWA) |
-| `booray-icon-maskable.svg` | Android adaptive / maskable safe-zone variant |
-| `booray-brand-full.svg` | Marketing / splash — fuller mark with subtle card hints + BOORAY wordmark |
-| `booray-spade-mark.svg` | Shared spade silhouette reference |
+| `booray-icon-master.svg` | **Canonical logo** — ace, fan cards, rings, BOORAY wordmark |
+| `booray-brand-full.svg` | Same artwork (alias of master) |
+| `booray-icon-app.svg` | Same artwork (alias of master) |
+| `booray-spade-mark.svg` | Ornate spade only (in-app compact mark) |
 
-Replace or refine these SVGs against the official Booray brand artwork (navy `#0a0e18`, cream ace card, ornate spade, blue `#5eb3ff` / red `#e84855` accents, two-tone BOORAY wordmark on the full mark).
+Maskable and Android adaptive foreground layers are generated programmatically from the master (84% / 66% safe-zone scaling).
 
 ## Generate PNG exports
 
@@ -19,40 +55,26 @@ Replace or refine these SVGs against the official Booray brand artwork (navy `#0
 npm run icons:generate
 ```
 
-Outputs identical sets to:
-
-- `public/icons/` — Vite React app
-- `docs/icons/` — static social / hosting app
-
-### Sizes produced
+Outputs identical runtime sets to `public/icons/` and `docs/icons/`, plus store bundle `assets/icons/store/`.
 
 | Output | Size | Purpose |
 | --- | --- | --- |
-| `favicon-16.png` | 16 | Browser tab |
-| `favicon-32.png` | 32 | Browser tab |
-| `favicon-48.png` | 48 | Browser tab |
-| `favicon.ico` | 32 | Legacy favicon |
+| `icon-1024.png` / `app-store-icon-1024.png` | 1024 | App Store |
+| `play-store-icon-512.png` | 512 | Play Store |
+| `icon-512.png` | 512 | PWA |
+| `icon-192.png` | 192 | PWA |
+| `icon-512-maskable.png` | 512 | PWA `purpose: maskable` |
 | `apple-touch-icon.png` | 180 | iOS Add to Home Screen |
-| `icon-192.png` | 192 | PWA manifest |
-| `icon-512.png` | 512 | PWA manifest / Play Store |
-| `icon-512-maskable.png` | 512 | PWA maskable / Android adaptive |
-| `icon-1024.png` | 1024 | App Store |
-| `play-store-icon.png` | 512 | Play Store listing |
-| `booray-brand-full-1024.png` | 1024 | Splash / marketing |
-| `booray-brand-full-2048.png` | 2048 | High-res splash |
-
-Also copies `booray-icon-app.svg` → `favicon.svg` in `public/` and `docs/`.
+| `android-adaptive-*-432.png` | 432 | Android adaptive layers |
+| `favicon-*` + `favicon.ico` + `favicon.svg` | 16–48 | Browser tabs |
 
 ## Native wrapper (when added)
 
-Copy generated PNGs into native projects:
-
-- **iOS:** `icon-1024.png` → `AppIcon.appiconset/AppStore.png` (generate full set via Xcode Asset Catalog or `app-icon` tool)
-- **Android:** `play-store-icon.png` + adaptive foreground from `icon-512-maskable.png`
-
-No Capacitor/Cordova config exists in this repo yet.
+- **iOS:** `assets/icons/store/app-store-icon-1024.png` → Xcode App Icon set
+- **Android:** `play-store-icon-512.png` + adaptive layers from `assets/icons/store/`
 
 ## Wired references
 
-- `docs/index.html` + `index.html` — favicon, apple-touch-icon, manifest, theme-color
-- `docs/manifest.webmanifest` + `public/manifest.webmanifest`
+- `index.html` + `docs/index.html`
+- `public/manifest.webmanifest` + `docs/manifest.webmanifest`
+- `src/components/BoorayIcon.tsx` — `app` variant uses `/icons/icon-192.png`

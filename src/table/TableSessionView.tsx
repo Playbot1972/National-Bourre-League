@@ -1,8 +1,15 @@
+import { useCallback, useEffect, useState } from "react";
 import { CardTable } from "./CardTable";
+import { CinematicSplash } from "./CinematicSplash";
+import { DesktopLayoutShell } from "./DesktopLayoutShell";
+import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
+import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
+import { useTableEvents } from "./hooks/useTableEvents";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
+import { useTableTheme } from "./theme/useTableTheme";
 import type { TableSessionViewProps } from "./types";
 
 export function TableSessionView({
@@ -23,7 +30,15 @@ export function TableSessionView({
   actionFeedback,
   actions,
 }: TableSessionViewProps) {
+  const { settings } = useTableTheme();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const participantCount = session.participantIds.length;
+  const { events, dismissEvent, pushReaction } = useTableEvents({
+    session,
+    potMetrics,
+    participantIds: session.participantIds,
+  });
+
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
@@ -33,8 +48,28 @@ export function TableSessionView({
   const cardsDealt = isCardsDealtPhase(session.phase);
   const isMyTurn = Boolean(currentUserId && session.turnPlayerId === currentUserId);
 
+  const handleReaction = useCallback(
+    (emoji: string) => {
+      pushReaction(emoji, currentUserId ?? undefined);
+    },
+    [pushReaction, currentUserId],
+  );
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === settings.hotkeys.toggleSettings || (e.key === "," && e.metaKey)) {
+        setSettingsOpen((o) => !o);
+      }
+      if (e.key === settings.hotkeys.focusTable) {
+        document.querySelector(".btable-wrap")?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [settings.hotkeys]);
+
   return (
-    <div className="btable-session">
+    <div className={`btable-session${settingsOpen ? " btable-session--settings-open" : ""}`}>
       {actionFeedback && actionFeedback.status !== "idle" && (
         <div
           className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
@@ -52,6 +87,15 @@ export function TableSessionView({
           >
             {phaseLabel}
           </span>
+          <button
+            type="button"
+            className="btable-session__gear btn btn--sm"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Table appearance settings"
+            title={`Settings (${settings.hotkeys.toggleSettings})`}
+          >
+            ⚙
+          </button>
         </div>
         <p className="btable-session__status">{leaderLabel}</p>
         {turnLabel && cardsDealt && (
@@ -91,29 +135,38 @@ export function TableSessionView({
         Rotate your phone to <strong>landscape</strong> for the full table (up to 8 players).
       </p>
 
-      <CardTable
-        session={session}
-        players={players}
-        potMetrics={potMetrics}
-        participantCount={participantCount}
-        enrollmentActive={enrollmentActive}
-        heroCards={heroCards}
-        privateHandReady={privateHandReady}
-        currentUserId={currentUserId}
-        legalPlayIndices={legalPlayIndices}
-        actionFeedback={actionFeedback}
-        onToggleInHand={(playerId, inHand) => {
-          const p = players.find((x) => x.playerId === playerId);
-          if (p?.isSelf) actions.onToggleInHand(inHand);
-        }}
-        onTrickDelta={(playerId, delta) => {
-          const p = players.find((x) => x.playerId === playerId);
-          if (p?.isSelf) actions.onTrickDelta(delta);
-        }}
-        onSubmitDraw={actions.onSubmitDraw}
-        onPassDraw={actions.onPassDraw}
-        onPlayCard={actions.onPlayCard}
-      />
+      <DesktopLayoutShell>
+        <div className="btable-stage">
+          <EventReactions events={events} players={players} onDismiss={dismissEvent} />
+          <CinematicSplash events={events} onDismiss={dismissEvent} />
+          <CardTable
+            session={session}
+            players={players}
+            potMetrics={potMetrics}
+            participantCount={participantCount}
+            enrollmentActive={enrollmentActive}
+            heroCards={heroCards}
+            privateHandReady={privateHandReady}
+            currentUserId={currentUserId}
+            legalPlayIndices={legalPlayIndices}
+            actionFeedback={actionFeedback}
+            onToggleInHand={(playerId, inHand) => {
+              const p = players.find((x) => x.playerId === playerId);
+              if (p?.isSelf) actions.onToggleInHand(inHand);
+            }}
+            onTrickDelta={(playerId, delta) => {
+              const p = players.find((x) => x.playerId === playerId);
+              if (p?.isSelf) actions.onTrickDelta(delta);
+            }}
+            onSubmitDraw={actions.onSubmitDraw}
+            onPassDraw={actions.onPassDraw}
+            onPlayCard={actions.onPlayCard}
+            onReaction={handleReaction}
+          />
+        </div>
+      </DesktopLayoutShell>
+
+      <TableSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {showCoWinSettlement && !session.isFinal && (
         <SettlementCoWinPanel

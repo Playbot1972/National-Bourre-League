@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
+import { SmartHud } from "./SmartHud";
 import { formatNet, initials, type SeatRegion } from "./logic";
 import type { TablePlayer } from "./types";
 
@@ -9,6 +10,7 @@ interface SeatProps {
   style: CSSProperties;
   onToggleInHand: () => void;
   onTrickDelta: (delta: number) => void;
+  onReaction?: (emoji: string) => void;
 }
 
 function EnrollmentTimerRing({ fraction }: { fraction: number }) {
@@ -51,7 +53,7 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
   );
 }
 
-export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: SeatProps) {
+export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
   const showTrickBadge = player.inHand;
@@ -62,6 +64,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
       className={[
         "bseat",
         `bseat--${region}`,
+        `player-${region}`,
         player.inHand ? "bseat--in-hand" : "",
         player.isSelf ? "bseat--self" : "",
         player.isLeading ? "bseat--leading" : "",
@@ -96,26 +99,49 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
           </div>
         )}
 
-        <div className="bseat__avatar-wrap">
-          {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
-            <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+        <div className="bseat__avatar-stage">
+          <div className="bseat__avatar-wrap">
+            {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
+              <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+            )}
+            {player.isDealer && <span className="bseat__dealer">D</span>}
+            {player.photoURL ? (
+              <img className="bseat__avatar" src={player.photoURL} alt="" />
+            ) : (
+              <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+                {initials(player.displayName)}
+              </span>
+            )}
+            {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+          </div>
+          {player.isSelf && onReaction && (
+            <div className="bseat__react-bar">
+              {["👏", "😮", "🔥"].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className="bseat__react-btn"
+                  aria-label={`React ${emoji}`}
+                  onClick={() => onReaction(emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
           )}
-          {player.isDealer && <span className="bseat__dealer">D</span>}
-          {player.photoURL ? (
-            <img className="bseat__avatar" src={player.photoURL} alt="" />
-          ) : (
-            <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-              {initials(player.displayName)}
-            </span>
-          )}
-          {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
         </div>
       </div>
 
       <div className="bseat__aux">
         <div className="bseat__info">
           <span className="bseat__name">{player.displayName}</span>
-          {player.isRobot && <span className="bseat__robot-tag" aria-label="Robot">🤖</span>}
+          {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
+          {player.enrollmentSatOut && (
+            <span className="bseat__enroll-tag muted small">Sat out</span>
+          )}
+          {player.enrollmentJoined && !player.inHand && (
+            <span className="bseat__enroll-tag muted small">Joined</span>
+          )}
           {player.isSelf && player.net != null && (
             <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
               {formatNet(player.net)}
@@ -123,10 +149,12 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta }: Se
           )}
         </div>
 
+        <SmartHud player={player} compact={region === "left" || region === "right"} />
+
         {player.enrollmentOnClock && (
           <span className="bseat__enroll-timer" aria-live="polite">
             {player.isSelf
-              ? `I'm in · ${player.enrollmentSecondsOnClock ?? "?"}s`
+              ? `Tap I'm in · ${player.enrollmentSecondsOnClock ?? "?"}s`
               : `${player.enrollmentSecondsOnClock ?? "?"}s`}
           </span>
         )}
