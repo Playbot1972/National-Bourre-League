@@ -794,7 +794,46 @@ let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
-const ROBOT_TRICK_INTERVAL_MS = 6000;
+/** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
+const TRICK_PIPELINE_MS = 1400 + 300 + 200;
+const BOT_PLAY_STAGGER_MS = 350;
+const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
+/** After settlement, re-open enrollment if the hand lifecycle stalls. */
+const HAND_LIFECYCLE_WATCHDOG_MS = 12_000;
+let handLifecycleWatchdogAt = 0;
+
+function maybeRecoverHandLifecycle(sessionObj) {
+  if (!currentRoomId || !openSessionId || !sessionObj || sessionObj.status === "final") {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+  if (sessionObj.pendingCoWinSettlement) {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+  const ch = getSessionCurrentHand(sessionObj);
+  const enrollment = getSessionEnrollment(sessionObj);
+  const tricks = ch?.tricksByPlayer ?? {};
+  const hasStaleHand =
+    Boolean(ch?.phase) ||
+    (ch?.participantIds?.length ?? 0) > 0 ||
+    Object.values(tricks).some((n) => (n || 0) > 0);
+  const needsOpening = !enrollment?.active && !hasStaleHand;
+
+  if (!needsOpening) {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+
+  if (!handLifecycleWatchdogAt) handLifecycleWatchdogAt = Date.now();
+  if (Date.now() - handLifecycleWatchdogAt < HAND_LIFECYCLE_WATCHDOG_MS) return;
+
+  handLifecycleWatchdogAt = 0;
+  console.info("[hand-lifecycle] handoffToNextDeal → opening: watchdog ensureHandEnrollment");
+  ensureHandEnrollment(currentRoomId, openSessionId).catch((err) =>
+    console.warn("hand lifecycle watchdog:", err),
+  );
+}
 
 function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -2588,6 +2627,8 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
 }
 
 function scheduleRenderRoomDetail() {
+  const open = currentSessions.find((s) => s.id === openSessionId);
+  if (open) maybeRecoverHandLifecycle(open);
   if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
   renderRoomDetailTimer = window.setTimeout(() => {
     renderRoomDetailTimer = 0;

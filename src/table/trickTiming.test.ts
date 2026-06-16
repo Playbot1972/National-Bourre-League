@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BOT_PLAY_STAGGER_MS,
+  CARD_LAND_MS,
   detectTrickResolution,
-  postTrickHoldMs,
+  MIN_TRICK_PIPELINE_MS,
+  postTrickReadMs,
+  trickResolutionScheduleMs,
   trickWinnerDelta,
   trumpBeatLedSuit,
+  WINNER_REVEAL_MS,
 } from "./trickTiming";
 
 describe("trickTiming", () => {
@@ -55,7 +60,7 @@ describe("trickTiming", () => {
     );
   });
 
-  it("uses longer hold when trump beats led suit", () => {
+  it("uses longer read when trump beats led suit", () => {
     const trumpBeat = trumpBeatLedSuit(
       [
         { playerId: "p1", card: { rank: "A", suit: "hearts" } },
@@ -65,8 +70,26 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickHoldMs({ trumpBeat: true }), 4000);
-    assert.equal(postTrickHoldMs({ mobile: true }), 3600);
-    assert.equal(postTrickHoldMs({}), 3000);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 1800);
+    assert.equal(postTrickReadMs({}), 1400);
+  });
+
+  it("schedules winner reveal inside the read pause", () => {
+    const schedule = trickResolutionScheduleMs({});
+    assert.equal(schedule.readTotalMs, 1400);
+    assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
+    assert.equal(schedule.readBeforeWinnerMs, 1400 - WINNER_REVEAL_MS);
+  });
+
+  it("defines a minimum robot pipeline longer than one card play", () => {
+    assert.ok(MIN_TRICK_PIPELINE_MS >= 1800);
+  });
+
+  it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {
+    const pipeline = trickResolutionScheduleMs({}).pipelineMs;
+    const robotInterval = pipeline + BOT_PLAY_STAGGER_MS + CARD_LAND_MS;
+    assert.ok(robotInterval > pipeline);
+    assert.ok(robotInterval > pipeline + BOT_PLAY_STAGGER_MS);
+    assert.ok(robotInterval >= MIN_TRICK_PIPELINE_MS);
   });
 });

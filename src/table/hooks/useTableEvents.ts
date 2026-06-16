@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { POST_TRICK_HOLD_MOBILE_MS } from "../trickTiming";
+import { MIN_TRICK_PIPELINE_MS, POST_TRICK_READ_MS } from "../trickTiming";
 import type { PotMetrics, TableSessionData } from "../types";
 
 export type TableEventKind =
@@ -62,7 +62,7 @@ function detectEvents(
         title: "Trick captured",
         emoji: "🃏",
         playerId: pid,
-        durationMs: POST_TRICK_HOLD_MOBILE_MS,
+        durationMs: POST_TRICK_READ_MS,
       });
     }
   }

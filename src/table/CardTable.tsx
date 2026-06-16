@@ -71,12 +71,20 @@ export function CardTable({
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
     const suppressTurn = trickPresentation.suppressTurnPlayerId;
-    const capturingTrick = trickPresentation.phase === "sweep" && trickWinnerSeat;
+    const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     return {
       ...player,
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
-      isLeading: trickWinnerSeat && trickPresentation.phase === "hold" ? true : suppressTurn ? false : player.isLeading,
+      isLeading:
+        trickWinnerSeat &&
+        (trickPresentation.phase === "winnerReveal" ||
+          trickPresentation.phase === "collectTrick" ||
+          trickPresentation.phase === "hold")
+          ? true
+          : suppressTurn
+            ? false
+            : player.isLeading,
       isTrickCapture: capturingTrick,
     };
   });
