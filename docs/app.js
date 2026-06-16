@@ -1135,8 +1135,34 @@ function tableReadyPlayerCount(sessionObj) {
   return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
 }
 
-function bumpTableMountGeneration() {
-  tableMountGeneration += 1;
+let pendingSelfJoinRoomId = null;
+let pendingSelfJoinTimer = null;
+
+function markPendingSelfJoin(roomId) {
+  pendingSelfJoinRoomId = roomId;
+  if (pendingSelfJoinTimer) clearTimeout(pendingSelfJoinTimer);
+  pendingSelfJoinTimer = setTimeout(() => {
+    pendingSelfJoinTimer = null;
+    if (pendingSelfJoinRoomId !== roomId) return;
+    pendingSelfJoinRoomId = null;
+    if (
+      currentRoomId === roomId &&
+      session?.uid &&
+      !currentMembers.some((m) => m.userId === session.uid)
+    ) {
+      showRoomsError("Join is taking longer than expected — tap Join room again.");
+      closeRoom();
+    }
+  }, 15000);
+}
+
+function clearPendingSelfJoin(roomId = null) {
+  if (roomId && pendingSelfJoinRoomId !== roomId) return;
+  pendingSelfJoinRoomId = null;
+  if (pendingSelfJoinTimer) {
+    clearTimeout(pendingSelfJoinTimer);
+    pendingSelfJoinTimer = null;
+  }
 }
 
 function scheduleSyncSessionMembers() {
@@ -1466,6 +1492,7 @@ $("#join-form").addEventListener("submit", async (e) => {
   const code = $("#join-code").value.trim();
   if (!code) return;
   try {
+    await ensureUserDoc(session.uid, session.displayName);
     const roomId = await joinRoomByCode(code, session);
     if (!roomId) {
       showRoomsError(
@@ -1474,8 +1501,10 @@ $("#join-form").addEventListener("submit", async (e) => {
       return;
     }
     $("#join-code").value = "";
+    markPendingSelfJoin(roomId);
     openRoom(roomId);
   } catch (err) {
+    clearPendingSelfJoin();
     console.error("joinRoomByCode:", err);
     const fbCode = err && typeof err === "object" ? err.code : "";
     const msg = err && typeof err === "object" ? err.message : String(err);
@@ -1557,11 +1586,18 @@ function openRoom(roomId) {
   );
   detailUnsubs.push(
     subscribeRoomMembers(roomId, (members) => {
+      const isMember =
+        session?.uid && members.some((m) => m.userId === session.uid);
+      if (pendingSelfJoinRoomId === roomId && isMember) {
+        clearPendingSelfJoin(roomId);
+      }
       if (
         session?.uid &&
         currentRoomId === roomId &&
         !roomDetailView.hidden &&
-        !members.some((m) => m.userId === session.uid)
+        pendingSelfJoinRoomId !== roomId &&
+        members.length > 0 &&
+        !isMember
       ) {
         showRoomsError("You were removed from this room. You can rejoin with the invite code.");
         closeTablePlay();
@@ -1617,6 +1653,7 @@ async function handleRoomUnavailable(roomId) {
 }
 
 function closeRoom() {
+  clearPendingSelfJoin();
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();

@@ -407,6 +407,10 @@ export async function joinRoomByCode(code, user) {
   if (!lookupSnap.exists()) return null;
   const roomId = lookupSnap.data().roomId;
   const membershipRef = doc(db, "roomMembers", memberId(roomId, user.uid));
+  const displayName =
+    user.displayName?.trim() ||
+    user.email?.split("@")[0]?.trim() ||
+    "Player";
   // Create membership first — room reads require isMember(); verifying the room doc
   // before join always fails with permission-denied for non-owners.
   await setDoc(
@@ -414,12 +418,16 @@ export async function joinRoomByCode(code, user) {
     {
       roomId,
       userId: user.uid,
-      displayName: user.displayName,
+      displayName,
       role: "player",
       joinedAt: serverTimestamp(),
     },
     { merge: true },
   );
+  const membershipSnap = await getDoc(membershipRef);
+  if (!membershipSnap.exists()) {
+    throw new Error("Could not confirm room membership — try Join room again.");
+  }
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) {
     try {

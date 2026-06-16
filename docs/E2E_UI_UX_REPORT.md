@@ -74,8 +74,9 @@ These flows were recently fixed (duplicate listeners, session create, sticky Joi
 | UX goal | User action | Auto | Notes |
 |---------|-------------|------|-------|
 | Create room | + Create a room → submit | MANUAL | Modal UI exists; needs auth |
-| Join room by invite code | Enter code → Join room | MANUAL | Sticky bar in room detail (v1.00.97+) |
-| Join bar visible inside open room | Scroll room detail | MANUAL | `body.room-detail-open .room-actions` sticky |
+| Join room by invite code | Enter code → Join room | MANUAL | Fixed v1.01.00 — membership snapshot race |
+| Join bar visible inside open room | Scroll room detail | MANUAL | Sticky bar (v1.00.97+) |
+| Guest not ejected after join | Incognito join | MANUAL | **Fixed v1.01.00** — pending join grace |
 | Open room from list | Tap room card | MANUAL | |
 | Back to all rooms | ← All rooms | MANUAL | Delegated handler (v1.00.98) |
 | + New session | Confirm → regional tab appears | MANUAL | Fixed path + stale-name cap (v1.00.95–97) |
