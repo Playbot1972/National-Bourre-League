@@ -1,6 +1,6 @@
 # E2E UI / UX Pass–Fail Report
 
-**App version:** v1.00.98  
+**App version:** v1.01.01  
 **Report date:** 2026-06-16  
 **Automated run:** `npm run test:e2e`  
 **Result:** **106 / 106 PASS** (35s, Chromium + Pixel 5 + iPhone 13 + iPad viewports)
@@ -82,18 +82,19 @@ These flows were recently fixed (duplicate listeners, session create, sticky Joi
 | + New session | Confirm → regional tab appears | MANUAL | Fixed path + stale-name cap (v1.00.95–97) |
 | Session tab switch | Tap regional tab | MANUAL | Delegated handler (v1.00.98) |
 | Go to Table | Toolbar button → full-screen table | MANUAL | Sticky toolbar (v1.00.93+) |
-| Add player / robot | Add player form | MANUAL | |
+| Add player / robot | Add player form → Go to Table enables | MANUAL | **Fixed v1.01.01** — robot auto-name, roster Firestore rule; first incognito failure was Phase 3 step 19 |
 | Complete session | Complete session & update Ape Scores | MANUAL | Delegated handler (v1.00.98) |
 | Leave / delete room | Leave or Delete room | MANUAL | |
 | Invite code visible to host | Room detail header | MANUAL | |
 
-**Manual checklist (5 min, signed in):**
+**Manual checklist (5 min, signed in — incognito host OK):**
 
 1. Create room → copy invite code  
-2. Join room (second account or incognito) with code  
-3. **+ New session** → confirm → tab appears with preset name  
-4. Add robot → **Go to Table** → table overlay opens → **← Hand results** closes it  
-5. Switch session tabs, **← All rooms** — each action fires **once** (no double confirm / stuck UI)
+2. **+ New session** → confirm → tab appears with preset name  
+3. Check **Robot** → **Add player** (name optional) → **Go to Table** enables  
+4. **Go to Table** → table overlay opens → **← Hand results** closes it  
+5. Join room (second account / incognito #2) with code — guest stays in room (v1.01.00+)  
+6. Switch session tabs, **← All rooms** — each action fires **once**
 
 ---
 

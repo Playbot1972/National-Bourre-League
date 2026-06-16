@@ -631,11 +631,22 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.addEventListener("submit", (e) => {
     if (!e.target.closest("#add-player-form")) return;
     e.preventDefault();
-    if (!currentRoomId || !openSessionId) return;
+    if (!currentRoomId || !openSessionId) {
+      showRoomsError("Open a regional session tab first, then add a guest or robot.");
+      return;
+    }
     const input = $("#add-player-name", roomDetailView);
-    const name = input?.value.trim();
-    if (!name) return;
     const isRobot = $("#add-player-robot", roomDetailView)?.checked === true;
+    let name = input?.value.trim() || "";
+    if (!name) {
+      if (isRobot) {
+        name = nextDefaultRobotName();
+      } else {
+        showRoomsError("Enter a player name, or check Robot to add a bot with an auto name.");
+        input?.focus();
+        return;
+      }
+    }
     const addPromise = isRobot
       ? addSessionRobot(currentRoomId, openSessionId, name)
       : addSessionPlayer(
@@ -652,7 +663,10 @@ function bindRoomDetailDelegatedControls() {
       .then((added) => {
         if (added === false) {
           showRoomsError("That name is already on the score sheet.");
+          return;
         }
+        if (added !== true) return;
+        showRoomsError("");
       });
     if (input) input.value = "";
     const robotCheckbox = $("#add-player-robot", roomDetailView);
@@ -1133,6 +1147,23 @@ function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
   return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+}
+
+function bumpTableMountGeneration() {
+  tableMountGeneration += 1;
+}
+
+/** Auto name when adding a robot with an empty field (Phase 3 step 5 UX). */
+function nextDefaultRobotName(scores = openScores) {
+  const taken = new Set(
+    scores.map((s) => (s.displayName || "").trim().toLowerCase()).filter(Boolean),
+  );
+  if (!taken.has("robot")) return "Robot";
+  for (let n = 2; n <= 99; n += 1) {
+    const candidate = `Robot ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `Robot ${Math.random().toString(36).slice(2, 6)}`;
 }
 
 let pendingSelfJoinRoomId = null;
@@ -2731,10 +2762,10 @@ function renderRoomDetail() {
 
 function buildAddPlayerFormHtml() {
   return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
-         <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" data-testid="add-player-name" />
+         <input class="text-input" id="add-player-name" placeholder="Guest name (optional for robots)" aria-label="Add player name" data-testid="add-player-name" />
          <label class="add-player-robot">
            <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" />
-           Robot — auto I&apos;m in &amp; play to win
+           Robot — auto I&apos;m in &amp; play to win (name optional)
          </label>
          <button class="btn btn--sm" type="submit" data-testid="add-player-submit">Add player</button>
        </form>`;
