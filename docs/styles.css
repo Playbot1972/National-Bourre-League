@@ -1268,6 +1268,16 @@ body.room-detail-open .session-toolbar {
   flex-direction: column;
   gap: 16px;
 }
+.session--waiting .session-add-players {
+  margin-bottom: 0;
+}
+.session-open-hint {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+}
 .session-sidebar {
   display: flex;
   flex-direction: column;
