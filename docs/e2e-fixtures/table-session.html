@@ -11,12 +11,22 @@
         margin: 0;
         padding: 0;
         background: #0a0e18;
+        width: 100%;
+        max-width: 100vw;
+        min-height: 100dvh;
         overflow-x: clip;
+        touch-action: manipulation;
       }
       .fixture-shell {
         min-height: 100dvh;
-        padding: 8px;
+        width: 100%;
+        max-width: 100%;
+        padding: max(8px, env(safe-area-inset-top, 0px))
+          max(8px, env(safe-area-inset-right, 0px))
+          max(8px, env(safe-area-inset-bottom, 0px))
+          max(8px, env(safe-area-inset-left, 0px));
         box-sizing: border-box;
+        overflow-x: clip;
       }
     </style>
   </head>

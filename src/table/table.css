@@ -1498,6 +1498,157 @@
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* iPhone-first native shell — full screen, no horizontal pan/scale     */
+/* ------------------------------------------------------------------ */
+@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
+  .table-session-root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    box-sizing: border-box;
+  }
+
+  .btable-session--native-mobile {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: clip;
+    gap: clamp(6px, 1.2dvh, 10px);
+  }
+
+  .btable-session--native-mobile .btable-session__rotate-hint {
+    display: none;
+  }
+
+  .btable-desktop--native-mobile .btable-desktop__scale {
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .btable-desktop--native-mobile,
+  .btable-desktop--native-mobile .btable-desktop__viewport,
+  .btable-desktop--native-mobile .btable-stage {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .btable-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+    padding-inline: max(4px, env(safe-area-inset-left, 0px)) max(4px, env(safe-area-inset-right, 0px));
+    box-sizing: border-box;
+    --table-stage-width: min(
+      100%,
+      calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
+    );
+  }
+
+  .table-stage {
+    width: 100%;
+    max-width: 100%;
+    overflow: clip;
+  }
+
+  .btable__seats {
+    overflow: clip;
+  }
+
+  .bseat--left .bseat__trick-badge,
+  .bseat--right .bseat__trick-badge {
+    left: 50%;
+    right: auto;
+    top: -6px;
+    transform: translate(-50%, -100%);
+  }
+
+  .bseat--left .bseat__aux,
+  .bseat--right .bseat__aux {
+    min-width: 0;
+    max-width: 64px;
+  }
+
+  .bhud {
+    max-width: 92px;
+  }
+
+  .hand-panel,
+  .btable-hero {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .btable-hero .hand--fan {
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .btable-hero .hand--fan::-webkit-scrollbar {
+    display: none;
+  }
+
+  .btable-hero .hand--fan .hand__slot:not(:first-child) {
+    margin-left: clamp(-20px, -4.2vw, -12px);
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  .btable-session--native-mobile .btable-wrap {
+    --table-stage-width: min(
+      calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px),
+      420px
+    );
+  }
+
+  .btable-session--native-mobile .table-stage {
+    max-height: min(44dvh, 300px);
+    height: auto;
+    width: min(var(--table-stage-width), 100%);
+  }
+
+  .btable-session--native-mobile .hand-panel {
+    flex: 0 1 auto;
+    max-height: min(46dvh, 340px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape), ((orientation: landscape) and (max-height: 500px)) {
+  .btable-session--native-mobile .btable-wrap {
+    --table-stage-width: min(
+      calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px),
+      calc(min(46dvh, 320px) * var(--table-mobile-aspect, 1.12))
+    );
+  }
+
+  .btable-session--native-mobile .table-stage {
+    max-height: min(46dvh, 320px);
+    height: min(46dvh, 320px);
+    width: min(100%, var(--table-stage-width));
+  }
+
+  .btable-session--native-mobile .hand-panel {
+    max-height: min(40dvh, 260px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @media (min-width: 901px) {
   .table-session-root {
     min-height: 360px;
