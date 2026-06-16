@@ -4,23 +4,23 @@ import type { Rank, Suit } from "../types";
 import { totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, SerializedCard } from "./types";
 
-/** Card play lands on the felt. */
-export const CARD_LAND_MS = 250;
+/** Card play lands on the felt — premium table pace (~2× standard). */
+export const CARD_LAND_MS = 500;
 
 /** Winner glow / lift after the last card. */
-export const WINNER_HIGHLIGHT_MS = 800;
+export const WINNER_HIGHLIGHT_MS = 1600;
 
 /** Default post-trick hold before sweep (desktop). */
-export const POST_TRICK_HOLD_MS = 1500;
+export const POST_TRICK_HOLD_MS = 3000;
 
 /** Post-trick hold on narrow / touch viewports. */
-export const POST_TRICK_HOLD_MOBILE_MS = 1800;
+export const POST_TRICK_HOLD_MOBILE_MS = 3600;
 
 /** Longer hold when trump beats the led suit. */
-export const TRUMP_BEAT_HOLD_MS = 2000;
+export const TRUMP_BEAT_HOLD_MS = 4000;
 
 /** Sweep completed trick cards toward the winner pile. */
-export const TRICK_SWEEP_MS = 450;
+export const TRICK_SWEEP_MS = 900;
 
 export type TrickPlay = { playerId: string; card: SerializedCard };
 

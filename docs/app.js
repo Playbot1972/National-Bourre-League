@@ -793,8 +793,8 @@ let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
-/** Min gap between robot card plays — must exceed post-trick hold + sweep. */
-const ROBOT_TRICK_INTERVAL_MS = 2200;
+/** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
+const ROBOT_TRICK_INTERVAL_MS = 6000;
 
 function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -1985,9 +1985,30 @@ function processRobotActions(s, scores) {
 
   if (handPhase === "play") {
     const turnId = currentHand.turnPlayerId;
+    const trick = currentHand.currentTrick;
+    const trickNum = trick?.trickNumber ?? 0;
+    const trickPlays = trick?.plays?.length ?? 0;
     const tricks = currentHand.tricksByPlayer || {};
     const total = totalTricksPlayed(tricks, participants);
     if (total >= MAX_TRICKS_PER_HAND) return;
+
+    // Premium table: winner of trick 4 auto-leads trick 5 (final trick opener).
+    if (
+      trickNum === 5 &&
+      trickPlays === 0 &&
+      turnId &&
+      participants.includes(turnId)
+    ) {
+      lastRobotTrickAt = now;
+      robotActionInFlight = true;
+      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
+        .catch((e) => console.warn("auto trick-5 lead:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
+      return;
+    }
+
     if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
       lastRobotTrickAt = now;
       robotActionInFlight = true;

@@ -119,6 +119,41 @@
   gap: 2px;
 }
 
+.deck-stack__trump--suit-reminder {
+  pointer-events: none;
+}
+
+.trump-suit-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 58px;
+  border-radius: 8px;
+  font-size: 28px;
+  line-height: 1;
+  background: linear-gradient(165deg, rgba(244, 213, 141, 0.22), rgba(20, 17, 15, 0.85));
+  border: 2px solid rgba(244, 213, 141, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(54, 185, 124, 0.35),
+    0 8px 20px rgba(0, 0, 0, 0.45);
+}
+
+.trump-suit-badge--hearts,
+.trump-suit-badge--diamonds {
+  color: #e85d5d;
+}
+
+.trump-suit-badge--spades,
+.trump-suit-badge--clubs {
+  color: #f4f0e8;
+}
+
+.center-play__trump-suit--reminder {
+  font-weight: 600;
+  color: var(--gold-300, #f4d58d);
+}
+
 .deck-stack__pile {
   position: relative;
   width: 44px;
@@ -344,16 +379,16 @@
   background: linear-gradient(180deg, #36b97c, #2f9e6a);
   box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
   white-space: nowrap;
-  animation: btrick-winner-tag 800ms ease;
+  animation: btrick-winner-tag 1600ms ease;
   z-index: 2;
 }
 
 .btrick__play--land .pcard {
-  animation: btrick-card-land 250ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: btrick-card-land 500ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btrick__play--winner .pcard {
-  animation: btrick-winner-glow 800ms ease;
+  animation: btrick-winner-glow 1600ms ease;
 }
 
 .btrick--hold .btrick__play:not(.btrick__play--winner) .pcard {
@@ -361,7 +396,7 @@
 }
 
 .btrick--sweep {
-  animation: btrick-sweep 450ms ease forwards;
+  animation: btrick-sweep 900ms ease forwards;
 }
 
 @keyframes btrick-card-land {

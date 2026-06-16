@@ -5,7 +5,7 @@ import {
   type CardGestureKind,
   createCardGestureSession,
   isScrollCancel,
-  isSwipeUpPlay,
+  isSwipeFlickPlay,
   isTapMovement,
 } from "./cardGesture";
 
@@ -151,8 +151,8 @@ export function useCardGestureHandlers({
             finishPeek();
             return;
           }
-          if (isSwipeUpPlay(dx, dy)) {
-            firePlay("swipe-up");
+          if (isSwipeFlickPlay(dx, dy)) {
+            firePlay("swipe-flick");
           }
         }
       },

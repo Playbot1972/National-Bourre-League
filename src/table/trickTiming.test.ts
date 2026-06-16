@@ -65,8 +65,8 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickHoldMs({ trumpBeat: true }), 2000);
-    assert.equal(postTrickHoldMs({ mobile: true }), 1800);
-    assert.equal(postTrickHoldMs({}), 1500);
+    assert.equal(postTrickHoldMs({ trumpBeat: true }), 4000);
+    assert.equal(postTrickHoldMs({ mobile: true }), 3600);
+    assert.equal(postTrickHoldMs({}), 3000);
   });
 });

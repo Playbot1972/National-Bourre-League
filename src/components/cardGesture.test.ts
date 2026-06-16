@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   CARD_GESTURE,
   isScrollCancel,
+  isSwipeFlickPlay,
   isSwipeUpPlay,
   isTapMovement,
 } from "./cardGesture";
@@ -22,6 +23,13 @@ describe("cardGesture thresholds", () => {
     assert.equal(isSwipeUpPlay(0, -20), false);
   });
 
+  it("accepts outward flick in any direction except scroll-down", () => {
+    assert.equal(isSwipeFlickPlay(0, -40), true);
+    assert.equal(isSwipeFlickPlay(40, 0), true);
+    assert.equal(isSwipeFlickPlay(0, 50), false);
+    assert.equal(isSwipeFlickPlay(10, 10), false);
+  });
+
   it("cancels on downward scroll-like drag", () => {
     assert.equal(isScrollCancel(0, 50), true);
     assert.equal(isScrollCancel(10, 50), true);
@@ -32,5 +40,6 @@ describe("cardGesture thresholds", () => {
   it("documents stable threshold constants", () => {
     assert.equal(CARD_GESTURE.HOLD_MS, 220);
     assert.equal(CARD_GESTURE.SWIPE_UP_PX, 28);
+    assert.equal(CARD_GESTURE.SWIPE_FLICK_PX, 36);
   });
 });

@@ -6,11 +6,13 @@ export const CARD_GESTURE = {
   TAP_MOVE_PX: 12,
   /** Minimum upward movement (px) for swipe-up play. */
   SWIPE_UP_PX: 28,
+  /** Minimum flick distance (px) for swipe-to-play in any direction. */
+  SWIPE_FLICK_PX: 36,
   /** Downward drag beyond this cancels play (scroll gesture). */
   SCROLL_CANCEL_PX: 48,
 } as const;
 
-export type CardGestureKind = "tap" | "hold" | "swipe-up";
+export type CardGestureKind = "tap" | "hold" | "swipe-up" | "swipe-flick";
 
 export function isTapMovement(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) <= CARD_GESTURE.TAP_MOVE_PX;
@@ -26,6 +28,13 @@ export function isScrollCancel(dx: number, dy: number): boolean {
   const absDx = Math.abs(dx);
   const absDy = Math.abs(dy);
   return dy > 0 && absDy > CARD_GESTURE.SCROLL_CANCEL_PX && absDy > absDx;
+}
+
+/** Swipe-up or outward flick — premium table “throw the card” gesture. */
+export function isSwipeFlickPlay(dx: number, dy: number): boolean {
+  if (isScrollCancel(dx, dy)) return false;
+  if (isSwipeUpPlay(dx, dy)) return true;
+  return Math.hypot(dx, dy) >= CARD_GESTURE.SWIPE_FLICK_PX;
 }
 
 export interface CardGestureSession {

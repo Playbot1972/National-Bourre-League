@@ -1,5 +1,5 @@
 import { PlayingCard } from "../components/PlayingCard";
-import type { Rank, Suit } from "../types";
+import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
@@ -36,13 +36,15 @@ export function PotCenter({
   playerNames = {},
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrump = Boolean(trumpUpcard);
-  const trumpKey = hasTrump ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
+  const hasTrumpCard = Boolean(trumpUpcard);
+  const showTrumpSuitReminder =
+    !hasTrumpCard && Boolean(trumpSuit) && phase === "play";
+  const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (
     <>
       <div className="deck-stack" aria-label="Deck and trump">
-        {hasTrump ? (
+        {hasTrumpCard ? (
           <div
             key={trumpKey}
             className="deck-stack__trump bpot__trump--deal"
@@ -56,6 +58,20 @@ export function PotCenter({
               size="sm"
               state="trump"
             />
+            <span className="deck-stack__label muted small">Trump</span>
+          </div>
+        ) : showTrumpSuitReminder ? (
+          <div
+            className="deck-stack__trump deck-stack__trump--suit-reminder"
+            data-testid="trump-suit-reminder"
+            aria-label={`Trump suit: ${formatTrumpSuit(trumpSuit)}`}
+          >
+            <div
+              className={`trump-suit-badge trump-suit-badge--${trumpSuit}`}
+              aria-hidden="true"
+            >
+              {SUIT_SYMBOL[trumpSuit as Suit]}
+            </div>
             <span className="deck-stack__label muted small">Trump</span>
           </div>
         ) : (
@@ -77,9 +93,14 @@ export function PotCenter({
           <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
             {phaseLabel}
           </span>
-          {hasTrump && trumpSuit && (
+          {hasTrumpCard && trumpSuit && (
             <span className="center-play__trump-suit muted small">
               {formatTrumpSuit(trumpSuit)}
+            </span>
+          )}
+          {showTrumpSuitReminder && (
+            <span className="center-play__trump-suit center-play__trump-suit--reminder muted small">
+              {formatTrumpSuit(trumpSuit)} trump
             </span>
           )}
         </div>

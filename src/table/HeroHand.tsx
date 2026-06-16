@@ -231,7 +231,7 @@ export function HeroHand({
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
         {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
-        {inPlayPhase && isMyTurn && " · tap, hold, or swipe up on a legal card to play"}
+        {inPlayPhase && isMyTurn && " · click or flick a legal card to play"}
         {enablePeek && " · press and hold to peek"}
       </p>
       {isDealer && inDrawPhase && (

@@ -12,6 +12,8 @@ interface PlayingCardProps {
   badge?: string;
   /** @deprecated Use pointerHandlers — kept for non-table tutorial cards. */
   onClick?: () => void;
+  /** Click fallback when pointerHandlers are active (tap + mouse click). */
+  onPlayClick?: () => void;
   pointerHandlers?: {
     onPointerDown?: PointerEventHandler<HTMLElement>;
     onPointerMove?: PointerEventHandler<HTMLElement>;
@@ -36,6 +38,7 @@ export function PlayingCard({
   state = "default",
   badge,
   onClick,
+  onPlayClick,
   pointerHandlers,
   pressed = false,
   playing = false,
@@ -95,7 +98,16 @@ export function PlayingCard({
       <button
         type="button"
         className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
-        onClick={pointerInteractive ? undefined : onClick}
+        onClick={
+          pointerInteractive && playable && onPlayClick
+            ? (event) => {
+                event.preventDefault();
+                onPlayClick();
+              }
+            : pointerInteractive
+              ? undefined
+              : onClick
+        }
         disabled={disabled}
         aria-disabled={disabled || undefined}
         aria-busy={playing || undefined}
