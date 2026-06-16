@@ -56,4 +56,23 @@ describe("live enrollment hand view", () => {
     };
     assert.equal(getSessionEnrollment(session)?.active, true);
   });
+
+  it("returns active handEnrollment when stale deal has no live phase", () => {
+    const enrollment = {
+      active: true,
+      orderedPlayerIds: ["a", "b"],
+      currentIndex: 0,
+      enrolledIds: [] as string[],
+      declinedIds: [] as string[],
+    };
+    const session = {
+      handEnrollment: enrollment,
+      liveEnrollment: {
+        active: false,
+        deal: { publicHand: { participantIds: ["a", "b"], tricksByPlayer: { a: 5, b: 0 } } },
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+    assert.equal(getSessionEnrollment(session)?.active, true);
+  });
 });

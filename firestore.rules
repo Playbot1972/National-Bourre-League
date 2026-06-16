@@ -51,6 +51,13 @@ service cloud.firestore {
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
 
+    // Room members open the join window from Go to Table (enrollment not active yet).
+    function memberOpenEnrollmentUpdate() {
+      return !sessionEnrollmentActive(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
+    }
+
     // Room members add guests/robots to the roster while enrollment is open.
     function memberRosterSessionUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys()
@@ -126,6 +133,7 @@ service cloud.firestore {
         allow update: if isMember(roomId)
           && (!sessionGameFieldsChanged()
             || memberEnrollmentSessionUpdate()
+            || memberOpenEnrollmentUpdate()
             || memberRosterSessionUpdate()
             || memberSettlementSessionUpdate());
         allow delete: if isRoomOwner(roomId);

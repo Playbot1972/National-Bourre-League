@@ -51,6 +51,7 @@ import {
   ensureCurrentHandParticipants,
   subscribeHands,
   subscribePrivateHand,
+  subscribeLeaderboard,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
