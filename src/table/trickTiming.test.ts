@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BOT_PLAY_STAGGER_MS,
+  CARD_LAND_MS,
   detectTrickResolution,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
@@ -81,5 +83,13 @@ describe("trickTiming", () => {
 
   it("defines a minimum robot pipeline longer than one card play", () => {
     assert.ok(MIN_TRICK_PIPELINE_MS >= 1800);
+  });
+
+  it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {
+    const pipeline = trickResolutionScheduleMs({}).pipelineMs;
+    const robotInterval = pipeline + BOT_PLAY_STAGGER_MS + CARD_LAND_MS;
+    assert.ok(robotInterval > pipeline);
+    assert.ok(robotInterval > pipeline + BOT_PLAY_STAGGER_MS);
+    assert.ok(robotInterval >= MIN_TRICK_PIPELINE_MS);
   });
 });
