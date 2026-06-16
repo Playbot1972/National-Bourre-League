@@ -11,6 +11,7 @@ import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
+import { useMobileTable } from "./useMobileTable";
 import type { TableSessionViewProps } from "./types";
 import type { PotSnapshot } from "./settlementCopy";
 
@@ -34,6 +35,7 @@ export function TableSessionView({
   actions,
 }: TableSessionViewProps) {
   const { settings } = useTableTheme();
+  const nativeMobile = useMobileTable();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const participantCount = session.participantIds.length;
   const { events, dismissEvent, pushReaction } = useTableEvents({
@@ -92,7 +94,15 @@ export function TableSessionView({
   }, [settings.hotkeys]);
 
   return (
-    <div className={`btable-session${settingsOpen ? " btable-session--settings-open" : ""}`}>
+    <div
+      className={[
+        "btable-session",
+        nativeMobile ? "btable-session--native-mobile" : "",
+        settingsOpen ? "btable-session--settings-open" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {actionFeedback && actionFeedback.status !== "idle" && (
         <div
           className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
@@ -162,9 +172,11 @@ export function TableSessionView({
         )}
       </header>
 
-      <p className="btable-session__rotate-hint" role="note">
-        Rotate your phone to <strong>landscape</strong> for the full table (up to 8 players).
-      </p>
+      {!nativeMobile && (
+        <p className="btable-session__rotate-hint" role="note">
+          Rotate your phone to <strong>landscape</strong> for the full table (up to 8 players).
+        </p>
+      )}
 
       <DesktopLayoutShell>
         <div className="btable-stage">

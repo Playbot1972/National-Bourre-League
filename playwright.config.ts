@@ -25,6 +25,11 @@ export default defineConfig({
       testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/],
     },
     {
+      name: "mobile-iphone-portrait",
+      use: { ...devices["iPhone 13"], browserName: "chromium", hasTouch: true },
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/],
+    },
+    {
       name: "mobile-landscape",
       use: { ...devices["iPhone 13 landscape"], browserName: "chromium" },
       testMatch: [/table-players\.spec\.ts$/],

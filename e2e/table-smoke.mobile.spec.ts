@@ -7,6 +7,22 @@ test.describe("Bourré table smoke — mobile", () => {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
   });
 
+  test("eight-player table fits iPhone viewport without horizontal pan", async ({ page }) => {
+    await openTableFixture(page, { players: 8, bots: 7, phase: "play", tick: false });
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
+    await expect(page.getByTestId("table-root")).toBeVisible();
+    await expect(page.getByTestId("hero-hand")).toBeVisible();
+  });
+
+  test("portrait layout keeps controls on screen (iPhone-first)", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile-iphone-portrait", "iPhone portrait project only");
+    await openTableFixture(page, { players: 4, bots: 2, phase: "draw", tick: false });
+    expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
+    for (const id of ["table-root", "pot-display", "hero-hand", "settings-button"] as const) {
+      expect(await isElementInViewport(page, id)).toBe(true);
+    }
+  });
+
   test("critical controls stay visible and tappable on a phone viewport", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 1, phase: "enrollment", tick: false });
 
