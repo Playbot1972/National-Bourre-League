@@ -697,6 +697,10 @@ export function getSessionEnrollment(sessionData) {
   return sessionData?.handEnrollment ?? null;
 }
 
+function emptyPreDealHand() {
+  return { tricksByPlayer: {}, participantIds: [] };
+}
+
 /** Public hand from session.currentHand or legacy liveEnrollment.deal (writable without rules deploy). */
 export function getSessionCurrentHand(sessionData) {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
