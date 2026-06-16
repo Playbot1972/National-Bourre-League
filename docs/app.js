@@ -1250,6 +1250,11 @@ async function refreshOpenSessionFromServer(roomId, sessionId) {
   return mergeOpenSessionSnapshot(sessionId, fresh);
 }
 
+function tableReadyPlayerCount(sessionObj) {
+  if (!sessionObj) return 0;
+  return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+}
+
 function bumpTableMountGeneration() {
   tableMountGeneration += 1;
 }
