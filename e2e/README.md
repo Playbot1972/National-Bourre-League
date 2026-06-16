@@ -31,6 +31,8 @@ npx playwright test e2e/table-smoke.desktop.spec.ts e2e/table-smoke.mobile.spec.
 
 ## Coverage
 
+See **`docs/E2E_UI_UX_REPORT.md`** for the full pass/fail matrix by user journey (106 automated tests + manual UX checklist).
+
 | Suite | What it checks |
 |-------|----------------|
 | `e2e/table-smoke.desktop.spec.ts` | **Table smoke (desktop)** — load, felt/seats, enrollment join, settings, trump/draw/play, settlement, no console errors |

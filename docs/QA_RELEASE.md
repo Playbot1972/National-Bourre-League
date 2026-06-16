@@ -20,7 +20,9 @@ See also `docs/TESTING.md` for emulator setup and manual checklists.
 | **D. Trick play** | `src/game/legal.test.ts`, `trick.test.ts`, `play.test.ts` | `npm run test:game` |
 | **E. Pot / bourré** | `scripts/bourre-rules.test.mjs`, settlement in `fullHand.test.ts` | `npm run test:rules` + `test:game` |
 | **F. Bots** | `src/game/bots.test.ts`, `fullHand.test.ts` | `npm run test:game` |
-| **G. Layout / UI** | `e2e/table-layout.spec.ts`, `e2e/table-players.spec.ts`, `e2e/social-smoke.spec.ts` | `npm run test:e2e` |
+| **G. Layout / UI** | `e2e/table-layout.spec.ts`, `e2e/table-players.spec.ts`, `e2e/social-smoke.spec.ts`, `e2e/social-buttons.spec.ts` | `npm run test:e2e` |
+
+Full UI/UX pass–fail by journey: **`docs/E2E_UI_UX_REPORT.md`**
 | **I. Player matrix** | `src/game/playerMatrix.test.ts` (2–8 seats, enrollment + full hand) | `npm run test:game` |
 | **H. Regression / integrity** | `assertNoDuplicateCards`, multi-hand in `fullHand.test.ts` | `npm run test:game` |
 
