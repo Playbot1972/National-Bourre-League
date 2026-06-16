@@ -49,6 +49,7 @@ export function deriveHandLifecyclePhase(ctx: HandLifecycleContext): HandLifecyc
 }
 
 export function shouldOpenEnrollmentAfterSettle(ctx: HandLifecycleContext): boolean {
+  /** Hand is ready for enrollment once a member taps Go to Table. */
   return (
     ctx.sessionStatus !== "final" &&
     !ctx.enrollmentActive &&
@@ -61,10 +62,14 @@ export function shouldOpenEnrollmentAfterSettle(ctx: HandLifecycleContext): bool
 export function nextLifecycleAfterSettle(ctx: HandLifecycleContext): HandLifecycleTransition {
   const from = deriveHandLifecyclePhase(ctx);
   if (shouldOpenEnrollmentAfterSettle(ctx)) {
-    return { from, to: "opening", reason: "settlement cleared hand; opening enrollment" };
+    return {
+      from,
+      to: "handoffToNextDeal",
+      reason: "settlement cleared hand; enrollment waits for Go to Table",
+    };
   }
   if (ctx.enrollmentActive) {
-    return { from, to: "opening", reason: "enrollment already active after settlement" };
+    return { from, to: "opening", reason: "enrollment active after Go to Table" };
   }
   return {
     from,
@@ -79,7 +84,7 @@ export function describeLifecycleBlocker(ctx: HandLifecycleContext): string {
   if (ctx.pendingCoWin) return "pending_co_win_vote";
   if (ctx.handPhase === "play" || ctx.handPhase === "draw") return "hand_in_progress";
   if ((ctx.participantCount ?? 0) > 0) return "stale_participants_in_hand";
-  if (!ctx.enrollmentActive) return "enrollment_not_started";
+  if (!ctx.enrollmentActive) return "awaiting_go_to_table";
   return "none";
 }
 

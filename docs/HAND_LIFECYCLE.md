@@ -16,8 +16,8 @@ After settlement, `recordHand` cleared `currentHand` but left a stale `liveEnrol
 
 1. **`clearLiveEnrollmentDealPatch()`** on `recordHand` and `ensureHandEnrollment` removes stale deal snapshots when a hand ends.
 2. **`getSessionEnrollment`** prefers `liveEnrollment.active` before the stale-deal guard.
-3. **`maybeRecoverHandLifecycle()`** in `docs/app.js` runs every open-session tick; after 12 s without enrollment while the hand is cleared, it calls `ensureHandEnrollment`.
+3. **`maybeRecoverHandLifecycle()`** in `docs/app.js` logs when the hand is cleared but enrollment has not started; enrollment is **not** auto-opened — members must tap **Go to Table**.
 
-Split-pot and carry-over pots still loop: settlement clears participants; enrollment opens for the next deal; dealer advances via `nextDealerId` in Firestore.
+Split-pot and carry-over pots still loop: settlement clears participants and enrollment; the next join window opens when someone taps **Go to Table** (`ensureHandEnrollment`); dealer advances via `nextDealerId` in Firestore.
 
 Transition logs use `[hand-lifecycle] from → to: reason` (see `formatLifecycleLog`).

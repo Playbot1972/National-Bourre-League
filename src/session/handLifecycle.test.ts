@@ -30,7 +30,7 @@ describe("handLifecycle", () => {
     );
   });
 
-  it("requires enrollment after settlement clears the hand", () => {
+  it("requires Go to Table before enrollment after settlement clears the hand", () => {
     assert.equal(
       shouldOpenEnrollmentAfterSettle({
         sessionStatus: "in_progress",
@@ -55,14 +55,14 @@ describe("handLifecycle", () => {
     );
   });
 
-  it("plans opening transition after settle", () => {
+  it("plans handoff until Go to Table after settle", () => {
     const t = nextLifecycleAfterSettle({
       enrollmentActive: false,
       handPhase: null,
       participantCount: 0,
     });
-    assert.equal(t.to, "opening");
-    assert.match(formatLifecycleLog(t), /opening enrollment/);
+    assert.equal(t.to, "handoffToNextDeal");
+    assert.match(formatLifecycleLog(t), /Go to Table/);
   });
 
   it("blocks handoff when stale participants remain", () => {
@@ -86,7 +86,7 @@ describe("handLifecycle", () => {
     );
   });
 
-  it("loops split-pot carry-over into opening after settle clears hand", () => {
+  it("loops split-pot carry-over into handoff until Go to Table", () => {
     assert.equal(
       shouldOpenEnrollmentAfterSettle({
         sessionStatus: "in_progress",
@@ -102,7 +102,7 @@ describe("handLifecycle", () => {
       handPhase: null,
       participantCount: 0,
     });
-    assert.equal(t.to, "opening");
+    assert.equal(t.to, "handoffToNextDeal");
   });
 
   it("advances dealer each hand in a multi-hand loop", () => {
@@ -116,7 +116,13 @@ describe("handLifecycle", () => {
         handPhase: null,
         participantCount: 0,
       });
-      assert.equal(afterSettle.to, "opening");
+      assert.equal(afterSettle.to, "handoffToNextDeal");
+      const afterTable = nextLifecycleAfterSettle({
+        enrollmentActive: true,
+        handPhase: null,
+        participantCount: 0,
+      });
+      assert.equal(afterTable.to, "opening");
       dealer = nextDealerId(seats, dealer);
     }
     assert.deepEqual(phases, ["settle", "settle", "settle"]);
