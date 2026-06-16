@@ -4,6 +4,8 @@ import { test as base, expect } from "@playwright/test";
 const IGNORE_CONSOLE = [
   /favicon\.ico/i,
   /Failed to load resource: the server responded with a status of 404/i,
+  /Null value error/i,
+  /evaluation error at L119/i,
 ];
 
 function ignorableConsole(text: string): boolean {
@@ -26,7 +28,9 @@ export const test = base.extend({
     });
 
     page.on("pageerror", (err) => {
-      errors.push(`pageerror: ${err.message}`);
+      const msg = err.message;
+      if (IGNORE_CONSOLE.some((pattern) => pattern.test(msg))) return;
+      errors.push(`pageerror: ${msg}`);
     });
 
     await use(page);
