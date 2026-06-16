@@ -67,6 +67,19 @@ function emptyPreDealHand() {
   return { tricksByPlayer: {}, participantIds: [] };
 }
 
+function getSessionEnrollment(sessionData) {
+  const live = sessionData?.liveEnrollment;
+  if (live?.active) return live;
+  if (live?.deal?.publicHand?.phase) return null;
+  return sessionData?.handEnrollment ?? null;
+}
+
+function getSessionCurrentHand(sessionData) {
+  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
+  if (livePublic?.phase) return livePublic;
+  return sessionData?.currentHand ?? emptyPreDealHand();
+}
+
 function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
 }
@@ -418,19 +431,22 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   const sessionSnap = await ref.get();
   if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
   const data = sessionSnap.data();
-  if (data.status === "final" || data.handEnrollment?.active) return { status: "noop" };
-  const phase = data.currentHand?.phase;
+  if (data.status === "final" || getSessionEnrollment(data)?.active) return { status: "noop" };
+  const currentHand = getSessionCurrentHand(data);
+  const phase = currentHand?.phase;
   if (phase === "draw" || phase === "play") return { status: "noop" };
-  const participantIds = data.currentHand?.participantIds || [];
-  const tricks = data.currentHand?.tricksByPlayer || {};
+  const participantIds = currentHand?.participantIds || [];
+  const tricks = currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
     return { status: "noop" };
   }
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
   const sortedIds = sortedScorePlayerIds(scoreSnap.docs);
   if (sortedIds.length < 2) return { status: "noop" };
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
   await ref.update({
-    handEnrollment: buildHandEnrollment(sortedIds, data.dealerId),
+    handEnrollment: enrollment,
+    liveEnrollment: enrollment,
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -889,7 +905,8 @@ export async function handleRecordHand(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: FieldValue.delete(),
-    handEnrollment: buildHandEnrollment(seatIds, newDealerId),
+    handEnrollment: FieldValue.delete(),
+    liveEnrollment: FieldValue.delete(),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
   });

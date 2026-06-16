@@ -843,11 +843,16 @@ function buildHandEnrollment(sortedPlayerIds, dealerId) {
   };
 }
 
-function enrollmentFieldsForCreate(sortedIds, dealerId) {
-  const enrollment = buildHandEnrollment(sortedIds, dealerId);
+function enrollmentFieldsForCreate(_sortedIds, _dealerId) {
+  /** Enrollment (I'm in timer) starts only when a member opens Go to Table — not on create/settle. */
+  return {};
+}
+
+/** Clear join window between hands; next window opens from Go to Table. */
+function clearedEnrollmentBetweenHands() {
   return {
-    handEnrollment: enrollment,
-    [LIVE_ENROLLMENT_FIELD]: enrollment,
+    handEnrollment: deleteField(),
+    [LIVE_ENROLLMENT_FIELD]: deleteField(),
   };
 }
 
@@ -913,7 +918,6 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
-    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
@@ -925,7 +929,6 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
-    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
@@ -952,7 +955,6 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     recordedBy,
     tricksByPlayer,
   });
-  await ensureHandEnrollment(roomId, sessionId);
 }
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
@@ -1714,7 +1716,7 @@ async function recordHandClient(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
-    ...enrollmentFieldsForCreate(seatIds, newDealerId),
+    ...clearedEnrollmentBetweenHands(),
     ...clearLiveEnrollmentDealPatch(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
@@ -1744,8 +1746,8 @@ async function recordHandClient(
   await recomputeSessionTotals(roomId, sessionId);
   logHandLifecycleTransition({
     from: "settle",
-    to: "opening",
-    reason: "recordHand cleared hand and opened enrollment",
+    to: "handoffToNextDeal",
+    reason: "recordHand cleared hand; enrollment waits for Go to Table",
   });
 }
 
@@ -2326,7 +2328,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
     to: "opening",
-    reason: "ensureHandEnrollment opened join window",
+    reason: "ensureHandEnrollment opened join window (Go to Table)",
   });
 }
 

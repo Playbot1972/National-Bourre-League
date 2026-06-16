@@ -829,10 +829,7 @@ function maybeRecoverHandLifecycle(sessionObj) {
   if (Date.now() - handLifecycleWatchdogAt < HAND_LIFECYCLE_WATCHDOG_MS) return;
 
   handLifecycleWatchdogAt = 0;
-  console.info("[hand-lifecycle] handoffToNextDeal → opening: watchdog ensureHandEnrollment");
-  ensureHandEnrollment(currentRoomId, openSessionId).catch((err) =>
-    console.warn("hand lifecycle watchdog:", err),
-  );
+  console.info("[hand-lifecycle] handoffToNextDeal: waiting for Go to Table (watchdog idle)");
 }
 
 function cardKeyFromSerialized(card) {
@@ -1017,6 +1014,7 @@ function stopEnrollmentTimer() {
 
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
+  if (!tablePlayOpen) return;
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
   const enrollmentActive = getSessionEnrollment(s)?.active === true;
@@ -1766,10 +1764,6 @@ function openRoom(roomId) {
         openSession(sessions[0].id);
       } else {
         scheduleRenderRoomDetail();
-        const open = sessions.find((x) => x.id === openSessionId);
-        if (open?.status !== "final" && openSessionId) {
-          ensureHandEnrollment(roomId, openSessionId).catch(() => {});
-        }
       }
     }),
   );
@@ -1857,7 +1851,11 @@ async function openTablePlay() {
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
   await refreshTablePlayerRatings(openScores);
-  await syncTableSession(openSessionObj);
+  if (currentRoomId && openSessionId) {
+    await ensureHandEnrollment(currentRoomId, openSessionId);
+  }
+  const refreshed = currentSessions.find((s) => s.id === openSessionId) ?? openSessionObj;
+  await syncTableSession(refreshed);
   try {
     await overlay.requestFullscreen?.();
   } catch {
@@ -1872,6 +1870,7 @@ async function openTablePlay() {
 
 function closeTablePlay() {
   tablePlayOpen = false;
+  stopEnrollmentTimer();
   const overlay = $("#table-play-overlay");
   if (overlay) overlay.hidden = true;
   document.body.classList.remove("table-play-active");
@@ -1941,6 +1940,7 @@ function processRobotActions(s, scores) {
 
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
+    if (!tablePlayOpen) return;
     if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
         console.warn("enrollment timeout:", e),
@@ -2531,7 +2531,8 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
     if (getSessionEnrollment(sessionObj)?.active || sessionHasRobots()) {
-      startEnrollmentTimer();
+      if (tablePlayOpen) startEnrollmentTimer();
+      else stopEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
     }
@@ -2608,7 +2609,6 @@ function openSession(sessionId) {
   if (currentMembers.length > 0) {
     syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
       .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
-      .then(() => ensureHandEnrollment(currentRoomId, sessionId))
       .catch((e) => console.error("openSession sync:", e));
   }
 }
@@ -2857,7 +2857,8 @@ function renderRoomDetail() {
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
     if (getSessionEnrollment(openSessionObj)?.active || sessionHasRobots()) {
-      startEnrollmentTimer();
+      if (tablePlayOpen) startEnrollmentTimer();
+      else stopEnrollmentTimer();
     }
   }
   if (editingNotes) {
@@ -2929,12 +2930,12 @@ function buildSessionLiveStatusHtml(s) {
   const handNum = (s.handCount ?? 0) + 1;
   let status = `Hand #${handNum}`;
   if (enrollment?.active) {
-    status += " · enrollment open — tap Go to Table to join";
+    status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
   } else {
     const phase = getSessionCurrentHand(s)?.phase;
     if (phase === "draw") status += " · draw phase";
     else if (phase === "play") status += " · live play";
-    else status += " · ready";
+    else status += " · tap Go to Table to start I'm in";
   }
   return `<div class="session-live-card">
       <p class="session-live-card__status">${escapeHtml(status)}</p>
