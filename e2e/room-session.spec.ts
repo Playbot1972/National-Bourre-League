@@ -75,5 +75,19 @@ test.describe("Room ante dropdown and + New session", () => {
     await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(".session-tab").first()).toContainText(/hand/i);
     await expect(page.getByTestId("session-add-players")).toBeVisible();
+    await expect(page.getByTestId("add-player-robot")).toBeVisible();
+  });
+
+  test("add robot form is in session panel while waiting for players", async ({ page }) => {
+    await page.waitForTimeout(300);
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#new-session").click({ force: true });
+    await expect(page.getByTestId("session-add-players")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("add-player-robot")).toBeVisible();
+    await page.getByTestId("add-player-robot").check();
+    await page.getByTestId("add-player-submit").click();
+    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

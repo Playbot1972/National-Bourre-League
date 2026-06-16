@@ -2868,12 +2868,14 @@ function renderRoomDetail() {
         openSessionObj
           ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj, isOwner)}</div>
              <div id="session-panel-mount"></div>`
-          : ""
+          : isOwner && currentSessions.length === 0
+            ? `<p class="muted small session-open-hint" data-testid="session-open-hint">Tap <strong>+ New session</strong> above to open a table, then add guests or robots.</p>`
+            : ""
       }
     </section>`;
 
   if (openSessionObj) {
-    mountSessionPanel(openSessionObj);
+    mountSessionPanel(openSessionObj, isOwner);
   }
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
@@ -2969,7 +2971,10 @@ function buildSessionLiveStatusHtml(s) {
 
 function buildSessionToolbarHtml(s, isOwner) {
   if (!s || s.status === "final") return "";
-  return `${buildSessionPlayerSectionHtml(s, isOwner)}
+  const playerCount = tableReadyPlayerCount(s);
+  const addPlayersHtml =
+    playerCount >= 2 ? buildSessionPlayerSectionHtml(s, isOwner) : "";
+  return `${addPlayersHtml}
     <div class="session-toolbar__actions">
       ${buildGoToTableButtonHtml(s)}
       <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
@@ -3048,8 +3053,8 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Session ledger panel — add players in sticky toolbar; notes/results here. */
-function mountSessionPanel(s) {
+/** Session ledger panel — add players inline while waiting; notes/results here. */
+function mountSessionPanel(s, isOwner) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
 
@@ -3070,12 +3075,18 @@ function mountSessionPanel(s) {
   }
 
   if (playerCount < 2) {
+    const addPlayersHtml = buildSessionPlayerSectionHtml(s, isOwner);
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
+        ${addPlayersHtml}
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot in the bar above, then tap <strong>Go to Table</strong>.
+          Need at least two players for the live table. ${
+            isOwner
+              ? "Add a guest or robot above, then tap"
+              : "Ask the host to add players, then tap"
+          } <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
