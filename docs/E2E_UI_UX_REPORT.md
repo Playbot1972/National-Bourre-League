@@ -79,7 +79,7 @@ These flows were recently fixed (duplicate listeners, session create, sticky Joi
 | Guest not ejected after join | Incognito join | MANUAL | **Fixed v1.01.00** — pending join grace |
 | Open room from list | Tap room card | MANUAL | |
 | Back to all rooms | ← All rooms | MANUAL | Delegated handler (v1.00.98) |
-| + New session | Confirm → regional tab appears | MANUAL | Fixed path + stale-name cap (v1.00.95–97) |
+| + New session | Confirm → regional tab appears | MANUAL | **Fixed v1.01.02** — stale cap + optimistic tab; first incognito fail was step 5 |
 | Session tab switch | Tap regional tab | MANUAL | Delegated handler (v1.00.98) |
 | Go to Table | Toolbar button → full-screen table | MANUAL | Sticky toolbar (v1.00.93+) |
 | Add player / robot | Add player form → Go to Table enables | MANUAL | **Fixed v1.01.01** — robot auto-name, roster Firestore rule; first incognito failure was Phase 3 step 19 |

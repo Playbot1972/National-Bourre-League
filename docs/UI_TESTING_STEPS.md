@@ -1,6 +1,6 @@
 # UI Testing Steps (in order)
 
-**Current app:** v1.01.01+  
+**Current app:** v1.01.02+  
 **Run after every deploy.** Mark each step **PASS** or **FAIL**.
 
 Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
@@ -10,7 +10,7 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 ## Phase 0 — Preflight
 
 1. Hard-refresh the site (clear cache if needed).
-2. Confirm footer version matches your deploy (e.g. `v1.01.01`).
+2. Confirm footer version matches your deploy (e.g. `v1.01.02`).
 3. `npm run test:e2e` — all green.
 
 ---
@@ -42,7 +42,7 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 
 15. **Private Rooms** → **+ Create a room** and **Join room** bar visible at top.
 16. Create room → invite code shows in room header.
-17. **+ New session** → confirm → regional tab appears (no red error).
+17. **+ New session** → confirm → regional tab appears (Dirty South, Wild West, etc.; no red error).
 18. Scroll room detail → **Join room** bar still sticky at top.
 19. **Add robot(s) until Go to Table enables (≥2 players).**
     - Check **Robot** → tap **Add player** (name optional; auto-names e.g. `Robot`).
@@ -50,7 +50,19 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 20. **Go to Table** → table opens → **← Hand results** closes it.
 21. **← All rooms** → reopen same room.
 
-> **First reported manual failure (incognito host):** step **19** — robot add appeared to do nothing and **Go to Table** stayed disabled. Fixed **v1.01.01** (auto robot name, clear errors, session panel mount restore, Firestore roster rule).
+### Condensed host checklist (steps 1–7)
+
+| # | Action | PASS when |
+|---|--------|-----------|
+| 1 | Sign in (incognito OK) | Avatar/name in top bar |
+| 2 | **Private Rooms** | Create + Join bar visible |
+| 3 | **+ Create a room** | Invite code in room header |
+| 4 | Scroll room detail | Join bar stays sticky |
+| **5** | **+ New session → confirm** | **Regional tab appears (Dirty South, Wild West, …)** |
+| 6 | Add robot → **Go to Table** enables | Button no longer disabled |
+| 7 | **Go to Table** | Table overlay opens |
+
+> **First reported incognito failure:** condensed step **5** (+ New session — tab never appeared). Fixed **v1.01.02** (stale claimed-name cap, pool refresh before create, optimistic tab render).
 
 ---
 
@@ -63,7 +75,7 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 26. **PASS:** guest does **not** see **+ New session** (owner only).
 27. Guest sees host in **Members** list.
 
-> **Fixed v1.01.00:** Guest join grace period — membership snapshot race (Phase 4 only; not the first failure above).
+> **Fixed v1.01.00:** Guest join grace period — membership snapshot race.
 
 ---
 
@@ -108,9 +120,9 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 
 | Step | Symptom | Likely cause / fix |
 |------|---------|-------------------|
-| 17 | New session error | Pull latest; host needs v1.00.95+ |
-| **19** | **Go to Table stays disabled after Add** | **Fixed v1.01.01** — check Robot, tap Add (name optional); redeploy + `firebase deploy --only firestore:rules` if roster writes fail |
-| 19 | Add player seems to do nothing | Empty guest name shows error; robots auto-name |
+| **5 / 17** | **No regional tab after + New session** | **Fixed v1.01.02** — pull, redeploy; stale `claimedSessionNames` blocked create |
+| 17 | Red error on New session | Check footer ≥ v1.00.95; read error bar at top |
+| 19 | Go to Table stays disabled | Fixed v1.01.01 — check Robot, tap Add (name optional) |
 | 23–25 | Guest kicked instantly | Fixed v1.01.00 — redeploy |
 | 23 | “No room found for code” | Host must open room once so invite lookup syncs |
 | 33 | Error off-screen | Fixed v1.00.97 — scroll should auto-show |

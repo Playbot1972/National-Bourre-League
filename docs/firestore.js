@@ -116,6 +116,7 @@ import {
   assignSessionNamesForMigration,
   isValidSessionNamePool,
   nextAvailableSessionName,
+  pickClaimedNamesForCreate,
   randomizePresetOrder,
   seededPresetOrder,
 } from "./session-presets.js";
@@ -1342,8 +1343,20 @@ export async function reconcileClaimedSessionNames(roomId) {
   return fromSessions;
 }
 
+/** Reconcile preset cap + pool before + New session (repairs stale room docs). */
+export async function refreshRoomSessionCap(roomId) {
+  const liveClaimed = await reconcileClaimedSessionNames(roomId);
+  const pool = await ensureRoomSessionNamePool(roomId);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  return {
+    room: roomSnap.exists() ? withId(roomSnap) : null,
+    pool,
+    liveClaimed,
+  };
+}
+
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
-  await reconcileClaimedSessionNames(roomId);
+  const liveClaimed = await reconcileClaimedSessionNames(roomId);
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
   const rosterPlayers = players.filter((p) => p?.playerId);
@@ -1351,6 +1364,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
   const initialDealer = sortedIds[0] ?? null;
   const sessionRef = doc(sessionsCol(roomId));
   let createdSessionId = null;
+  let createdSessionName = null;
 
   await runTransaction(db, async (tx) => {
     const roomRef = doc(db, "rooms", roomId);
@@ -1363,12 +1377,10 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
       pool = seededPresetOrder(roomId);
     }
 
-    const claimedNames = Array.isArray(roomData.claimedSessionNames)
+    const docClaimed = Array.isArray(roomData.claimedSessionNames)
       ? roomData.claimedSessionNames.filter(Boolean)
       : [];
-    if (claimedNames.length >= MAX_ROOM_SESSIONS) {
-      throw new Error("All 4 regional sessions already created for this room.");
-    }
+    const claimedNames = pickClaimedNamesForCreate(liveClaimed, docClaimed);
 
     const sessionName = nextAvailableSessionName(pool, claimedNames);
     if (!sessionName) {
@@ -1422,9 +1434,10 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
       });
     });
     createdSessionId = sessionRef.id;
+    createdSessionName = sessionName;
   });
 
-  return createdSessionId;
+  return { id: createdSessionId, sessionName: createdSessionName };
 }
 
 export function subscribeSessions(roomId, callback) {

@@ -10,6 +10,7 @@ import {
   createdSessionsForTabs,
   isValidSessionNamePool,
   nextAvailableSessionName,
+  pickClaimedNamesForCreate,
   randomizePresetOrder,
   seededPresetOrder,
 } from "./presetNames";
@@ -40,6 +41,17 @@ describe("preset session names", () => {
     const staleClaimed = [...pool];
     assert.equal(canCreateAnotherSession(2, pool, staleClaimed), true);
     assert.equal(canCreateAnotherSession(4, pool, staleClaimed), false);
+  });
+
+  it("prefers live session names over stale room.claimedSessionNames", () => {
+    const pool = [...PRESET_SESSION_NAMES];
+    const staleDoc = [...pool];
+    assert.deepEqual(pickClaimedNamesForCreate([], staleDoc), []);
+    assert.equal(nextAvailableSessionName(pool, pickClaimedNamesForCreate([], staleDoc)), "Dirty South");
+    assert.deepEqual(
+      pickClaimedNamesForCreate(["Dirty South"], ["Wild West", "East Coast"]),
+      ["Dirty South"],
+    );
   });
 
   it("persists pool order — seeded shuffle is stable for the same room id", () => {

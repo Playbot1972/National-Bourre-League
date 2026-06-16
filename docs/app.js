@@ -26,6 +26,7 @@ import {
   deleteRoom,
   ensureInviteLookupForRoom,
   ensureRoomSessionNamePool,
+  refreshRoomSessionCap,
   subscribeMyRooms,
   subscribeRoom,
   subscribeRoomMembers,
@@ -728,6 +729,7 @@ let currentRoomId = null;
 let currentRoom = null;
 let currentMembers = [];
 let currentSessions = [];
+let creatingSession = false;
 let openSessionId = null;
 let roomGoneHandled = false;
 let openScores = [];
@@ -3057,7 +3059,7 @@ function wireSessionControls() {
 }
 
 async function onNewSession() {
-  if (!currentRoomId) return;
+  if (!currentRoomId || creatingSession) return;
   if (session?.uid !== currentRoom?.ownerId) {
     showRoomsError("Only the room owner can start a new session.");
     return;
@@ -3087,55 +3089,77 @@ async function onNewSession() {
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
 
-  if (
-    previousSessionId &&
-    previousSession?.status !== "final" &&
-    previousScores.length > 0
-  ) {
-    try {
-      await completeSessionWithApeScores(
-        currentRoomId,
-        previousSessionId,
-        previousScores,
-      );
-      const finalized = await getSession(currentRoomId, previousSessionId);
-      if (finalized?.status === "final") {
-        scheduleSessionCleanup(previousSessionId);
-      }
-      showRoomsError(
-        "Previous session completed — Ape Scores updated. Clears in 30s.",
-      );
-    } catch (err) {
-      console.error("autoCompleteSession:", err);
-      showRoomsError(err.message || "Could not complete previous session");
-      return;
-    }
-  }
+  creatingSession = true;
+  showRoomsError("Opening regional table…");
 
-  const players = currentMembers.map((m) => ({
-    playerId: m.userId,
-    displayName: m.displayName,
-  }));
-  if (players.length === 0 && session) {
-    players.push({ playerId: session.uid, displayName: session.displayName });
-  }
-  const stakeEl = $("#new-session-stake", roomDetailView);
-  const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
-  const roomBs = normalizeBourreSettings(
-    currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
-  );
   try {
-    const sid = await createSession(currentRoomId, players, handStake, {
+    if (
+      previousSessionId &&
+      previousSession?.status !== "final" &&
+      previousScores.length > 0
+    ) {
+      try {
+        await completeSessionWithApeScores(
+          currentRoomId,
+          previousSessionId,
+          previousScores,
+        );
+        const finalized = await getSession(currentRoomId, previousSessionId);
+        if (finalized?.status === "final") {
+          scheduleSessionCleanup(previousSessionId);
+        }
+        showRoomsError(
+          "Previous session completed — Ape Scores updated. Clears in 30s.",
+        );
+      } catch (err) {
+        console.error("autoCompleteSession:", err);
+        showRoomsError(err.message || "Could not complete previous session");
+        return;
+      }
+    }
+
+    const cap = await refreshRoomSessionCap(currentRoomId);
+    if (cap.room) currentRoom = cap.room;
+
+    const players = currentMembers.map((m) => ({
+      playerId: m.userId,
+      displayName: m.displayName,
+    }));
+    if (players.length === 0 && session) {
+      players.push({ playerId: session.uid, displayName: session.displayName });
+    }
+    const stakeEl = $("#new-session-stake", roomDetailView);
+    const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+    const roomBs = normalizeBourreSettings(
+      currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
+    );
+
+    const created = await createSession(currentRoomId, players, handStake, {
       limEnabled: roomBs.limEnabled,
     });
-    if (!sid) {
+    if (!created?.id || !created.sessionName) {
       showRoomsError("Could not create session — please try again.");
       return;
     }
-    openSession(sid);
+
+    const optimisticSession = {
+      id: created.id,
+      sessionName: created.sessionName,
+      status: "in_progress",
+      handCount: 0,
+      createdAt: { seconds: Math.floor(Date.now() / 1000) },
+    };
+    if (!currentSessions.some((s) => s.id === created.id)) {
+      currentSessions = [optimisticSession, ...currentSessions];
+    }
+    showRoomsError("");
+    openSession(created.id);
+    renderRoomDetail();
   } catch (err) {
     console.error("createSession:", err);
     showRoomsError(err.message || "Could not create session");
+  } finally {
+    creatingSession = false;
   }
 }
 
