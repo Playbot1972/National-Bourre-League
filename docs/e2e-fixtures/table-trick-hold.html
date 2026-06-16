@@ -32,8 +32,8 @@
       const resolveDelayMs = parseInt(params.get("resolveDelay") || "600", 10);
 
       /** Keep in sync with src/table/trickTiming.ts — used by E2E hold-duration checks. */
-      const POST_TRICK_HOLD_MS = trumpBeat ? 4000 : 3000;
-      const TRICK_SWEEP_MS = 900;
+      const POST_TRICK_READ_MS = trumpBeat ? 1800 : 1400;
+      const TRICK_SWEEP_MS = 300;
 
       const ids = ["p0", "p1", "p2", "p3"];
       const dealerId = "p3";
@@ -62,7 +62,7 @@
       let trickResolved = false;
 
       window.__trickHoldFixture = {
-        holdMs: POST_TRICK_HOLD_MS,
+        holdMs: POST_TRICK_READ_MS,
         sweepMs: TRICK_SWEEP_MS,
         trumpBeat,
       };

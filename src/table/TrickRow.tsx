@@ -34,12 +34,21 @@ export function TrickRow({
 
   const winnerName = winnerPlayerId ? (playerNames[winnerPlayerId] ?? "Player") : null;
 
+  const isHold =
+    presentationPhase === "trickComplete" ||
+    presentationPhase === "winnerReveal" ||
+    presentationPhase === "hold";
+  const isSweep =
+    presentationPhase === "collectTrick" ||
+    presentationPhase === "nextLeadReady" ||
+    presentationPhase === "sweep";
+
   return (
     <div
       className={[
         "btrick",
-        presentationPhase === "hold" ? "btrick--hold" : "",
-        presentationPhase === "sweep" ? "btrick--sweep" : "",
+        isHold ? "btrick--hold" : "",
+        isSweep ? "btrick--sweep" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -57,13 +66,17 @@ export function TrickRow({
       {displayPlays.map((play, i) => {
         const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
         const isNewest = i === displayPlays.length - 1 && presentationPhase === "live";
+        const showWinnerCard =
+          isWinner &&
+          presentationPhase !== "live" &&
+          presentationPhase !== "trickComplete";
         return (
           <div
             key={`${play.playerId}-${play.card.rank}-${play.card.suit}-${i}`}
             className={[
               "btrick__play",
               isNewest ? "btrick__play--land" : "",
-              isWinner && presentationPhase !== "live" ? "btrick__play--winner" : "",
+              isWinner && showWinnerCard ? "btrick__play--winner" : "",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -71,7 +84,7 @@ export function TrickRow({
             <PlayingCard
               card={serializedToCard(play.card)}
               size="sm"
-              state={isWinner && presentationPhase !== "live" ? "winner" : "default"}
+              state={showWinnerCard && isWinner ? "winner" : "default"}
             />
             <span className="btrick__name muted small">
               {playerNames[play.playerId] ?? "Player"}

@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import {
   CARD_LAND_MS,
-  detectTrickResolution,
-  isMobileViewport,
-  postTrickHoldMs,
-  serializedPlays,
-  TRICK_SWEEP_MS,
+  prefersReducedMotion,
+  trickResolutionScheduleMs,
   trumpBeatLedSuit,
-  type FrozenTrick,
-  type TrickPlay,
   type TrickPresentationPhase,
 } from "../trickTiming";
+import {
+  buildTrickPresentationModel,
+  createTrickPresentationStore,
+  reduceTrickPresentation,
+  type TrickPresentationModel,
+} from "../trickPresentationMachine";
 import type { CurrentTrickState } from "../types";
 
 interface UseTrickPresentationInput {
@@ -21,15 +22,9 @@ interface UseTrickPresentationInput {
   trumpSuit?: string | null;
 }
 
-export interface TrickPresentation {
+export type TrickPresentation = TrickPresentationModel & {
   phase: TrickPresentationPhase;
-  displayPlays: TrickPlay[];
-  winnerPlayerId: string | null;
-  showWinnerTag: boolean;
-  displayTricksByPlayer: Record<string, number>;
-  suppressTurnPlayerId: boolean;
-  trickWinnerSeatId: string | null;
-}
+};
 
 export function useTrickPresentation({
   phase,
@@ -38,16 +33,14 @@ export function useTrickPresentation({
   participantIds,
   trumpSuit,
 }: UseTrickPresentationInput): TrickPresentation {
-  const [presentationPhase, setPresentationPhase] = useState<TrickPresentationPhase>("live");
-  const [frozenTrick, setFrozenTrick] = useState<FrozenTrick | null>(null);
-  const [revealedCount, setRevealedCount] = useState(0);
-  const [showWinnerTag, setShowWinnerTag] = useState(false);
-  const [displayTricksByPlayer, setDisplayTricksByPlayer] = useState(tricksByPlayer);
-  const [mobile, setMobile] = useState(isMobileViewport);
+  const [store, dispatch] = useReducer(
+    reduceTrickPresentation,
+    tricksByPlayer,
+    (initialTricks) => createTrickPresentationStore(initialTricks, currentTrick),
+  );
 
-  const prevTricksRef = useRef(tricksByPlayer);
-  const prevTrickRef = useRef(currentTrick);
   const timersRef = useRef<number[]>([]);
+  const resolutionKeyRef = useRef<string | null>(null);
 
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -59,121 +52,85 @@ export function useTrickPresentation({
     timersRef.current.push(id);
   };
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px), (pointer: coarse)");
-    const onChange = () => setMobile(mq.matches);
-    onChange();
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  useEffect(() => {
-    return () => clearTimers();
-  }, []);
+  useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
     if (phase !== "play") {
       clearTimers();
-      setPresentationPhase("live");
-      setFrozenTrick(null);
-      setRevealedCount(0);
-      setShowWinnerTag(false);
-      setDisplayTricksByPlayer(tricksByPlayer);
-      prevTricksRef.current = tricksByPlayer;
-      prevTrickRef.current = currentTrick;
+      resolutionKeyRef.current = null;
+      dispatch({
+        type: "reinit",
+        snapshot: { currentTrick, tricksByPlayer },
+      });
       return;
     }
 
-    if (presentationPhase !== "live") return;
-
-    const resolved = detectTrickResolution({
-      prevTricks: prevTricksRef.current,
-      nextTricks: tricksByPlayer,
+    dispatch({
+      type: "serverUpdate",
+      snapshot: { currentTrick, tricksByPlayer },
       participantIds,
-      prevTrick: prevTrickRef.current,
+      trumpSuit,
+      reducedMotion: prefersReducedMotion(),
+    });
+  }, [phase, currentTrick, tricksByPlayer, participantIds, trumpSuit]);
+
+  useEffect(() => {
+    if (phase !== "play" || store.phase !== "trickComplete" || !store.frozenTrick) return;
+
+    const key = `${store.frozenTrick.trickNumber}:${store.frozenTrick.winnerId}:${store.frozenTrick.plays.length}`;
+    if (resolutionKeyRef.current === key) return;
+    resolutionKeyRef.current = key;
+    clearTimers();
+
+    const frozen = store.frozenTrick;
+    const scheduleMs = trickResolutionScheduleMs({
+      trumpBeat: trumpBeatLedSuit(frozen.plays, frozen.leadSuit, trumpSuit),
+      reducedMotion: prefersReducedMotion(),
     });
 
-    if (resolved) {
-      clearTimers();
-      setFrozenTrick(resolved);
-      setRevealedCount(resolved.plays.length);
-      setShowWinnerTag(true);
-      setPresentationPhase("hold");
-      setDisplayTricksByPlayer(prevTricksRef.current);
-
-      const holdMs = postTrickHoldMs({
-        mobile,
-        trumpBeat: trumpBeatLedSuit(resolved.plays, resolved.leadSuit, trumpSuit),
-      });
-
-      schedule(() => {
-        setPresentationPhase("sweep");
-        setDisplayTricksByPlayer(tricksByPlayer);
-        schedule(() => {
-          setPresentationPhase("live");
-          setFrozenTrick(null);
-          setShowWinnerTag(false);
-          setDisplayTricksByPlayer(tricksByPlayer);
-          prevTricksRef.current = tricksByPlayer;
-          prevTrickRef.current = currentTrick;
-          setRevealedCount(0);
-        }, TRICK_SWEEP_MS);
-      }, holdMs);
-
-      return;
-    }
-
-    prevTricksRef.current = tricksByPlayer;
-    prevTrickRef.current = currentTrick;
-    setDisplayTricksByPlayer(tricksByPlayer);
-  }, [
-    phase,
-    currentTrick,
-    tricksByPlayer,
-    participantIds,
-    trumpSuit,
-    mobile,
-    presentationPhase,
-  ]);
-
-  const livePlays = serializedPlays(currentTrick);
-  const targetReveal = livePlays.length;
+    schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.readBeforeWinnerMs);
+    schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.readTotalMs);
+    schedule(
+      () => dispatch({ type: "advancePhase" }),
+      scheduleMs.readTotalMs + scheduleMs.sweepMs,
+    );
+    schedule(
+      () => dispatch({ type: "advancePhase" }),
+      scheduleMs.pipelineMs,
+    );
+  }, [phase, store.phase, store.frozenTrick, trumpSuit]);
 
   useEffect(() => {
-    if (presentationPhase !== "live" || phase !== "play") return;
-    if (revealedCount >= targetReveal) return;
+    if (store.phase === "live") resolutionKeyRef.current = null;
+  }, [store.phase]);
 
-    const id = window.setTimeout(() => {
-      setRevealedCount((count) => Math.min(count + 1, targetReveal));
-    }, CARD_LAND_MS);
+  const targetReveal =
+    store.phase === "live"
+      ? (currentTrick?.plays?.length ?? 0)
+      : store.revealedCount;
 
+  useEffect(() => {
+    if (phase !== "play" || store.phase !== "live") return;
+    if (store.revealedCount >= targetReveal) return;
+
+    const timing = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
+    const id = window.setTimeout(() => dispatch({ type: "revealNextCard" }), timing);
     return () => window.clearTimeout(id);
-  }, [presentationPhase, phase, revealedCount, targetReveal]);
+  }, [phase, store.phase, store.revealedCount, targetReveal]);
 
   useEffect(() => {
-    if (presentationPhase !== "live" || phase !== "play") return;
-    if (targetReveal < revealedCount) {
-      setRevealedCount(targetReveal);
+    if (phase !== "play" || store.phase !== "live") return;
+    if (targetReveal < store.revealedCount) {
+      dispatch({
+        type: "serverUpdate",
+        snapshot: { currentTrick, tricksByPlayer },
+        participantIds,
+        trumpSuit,
+        reducedMotion: prefersReducedMotion(),
+      });
     }
-  }, [presentationPhase, phase, targetReveal, revealedCount]);
+  }, [phase, store.phase, targetReveal, store.revealedCount, currentTrick, tricksByPlayer, participantIds, trumpSuit]);
 
-  const displayPlays =
-    presentationPhase === "live"
-      ? livePlays.slice(0, revealedCount)
-      : frozenTrick?.plays ?? [];
-
-  const winnerPlayerId =
-    presentationPhase === "live"
-      ? null
-      : frozenTrick?.winnerId ?? null;
-
-  return {
-    phase: presentationPhase,
-    displayPlays,
-    winnerPlayerId,
-    showWinnerTag: showWinnerTag && presentationPhase !== "live",
-    displayTricksByPlayer,
-    suppressTurnPlayerId: presentationPhase !== "live",
-    trickWinnerSeatId: presentationPhase === "live" ? null : frozenTrick?.winnerId ?? null,
-  };
+  const model = buildTrickPresentationModel(store, currentTrick);
+  return model;
 }

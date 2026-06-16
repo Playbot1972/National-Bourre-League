@@ -30,9 +30,9 @@ function emptyPreDealHand() {
 }
 
 export function getSessionEnrollment(sessionData: SessionHandView | null | undefined) {
-  if (sessionData?.liveEnrollment?.deal?.publicHand?.phase) return null;
   const live = sessionData?.liveEnrollment;
   if (live?.active) return live;
+  if (live?.deal?.publicHand?.phase) return null;
   return sessionData?.handEnrollment ?? null;
 }
 

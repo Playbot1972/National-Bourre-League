@@ -123,9 +123,9 @@ export function TableSessionView({
           </button>
         </div>
         <p className="btable-session__status">{leaderLabel}</p>
-        {trickPresentation.phase === "hold" && session.phase === "play" && (
+        {trickPresentation.isResolving && session.phase === "play" && (
           <p className="btable-session__turn muted small" aria-live="polite">
-            Trick won — next lead after cards collect
+            Trick won — cards collecting before the next lead
           </p>
         )}
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (

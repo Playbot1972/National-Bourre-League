@@ -691,9 +691,9 @@ export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
 
 /** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
 export function getSessionEnrollment(sessionData) {
-  if (sessionData?.liveEnrollment?.deal?.publicHand?.phase) return null;
   const live = sessionData?.liveEnrollment;
   if (live?.active) return live;
+  if (live?.deal?.publicHand?.phase) return null;
   return sessionData?.handEnrollment ?? null;
 }
 
@@ -847,8 +847,18 @@ function enrollmentFieldsForCreate(sortedIds, dealerId) {
   };
 }
 
-function emptyPreDealHand() {
-  return { tricksByPlayer: {}, participantIds: [] };
+function clearLiveEnrollmentDealPatch() {
+  return { "liveEnrollment.deal": deleteField() };
+}
+
+function logHandLifecycleTransition(transition) {
+  if (typeof console !== "undefined" && console.info) {
+    console.info(
+      `[hand-lifecycle] ${transition.from} → ${transition.to}: ${transition.reason}${
+        transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
+      }`,
+    );
+  }
 }
 
 function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, dealingRule) {
@@ -1701,6 +1711,7 @@ async function recordHandClient(
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
     ...enrollmentFieldsForCreate(seatIds, newDealerId),
+    ...clearLiveEnrollmentDealPatch(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
@@ -1727,6 +1738,11 @@ async function recordHandClient(
   }
 
   await recomputeSessionTotals(roomId, sessionId);
+  logHandLifecycleTransition({
+    from: "settle",
+    to: "opening",
+    reason: "recordHand cleared hand and opened enrollment",
+  });
 }
 
 /**
@@ -2289,16 +2305,25 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   try {
     await updateDoc(sessionDoc(roomId, sessionId), {
       [LIVE_ENROLLMENT_FIELD]: enrollment,
+      handEnrollment: enrollment,
+      ...clearLiveEnrollmentDealPatch(),
+      currentHand: emptyPreDealHand(),
       updatedAt: serverTimestamp(),
     });
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
     await updateDoc(sessionDoc(roomId, sessionId), {
       handEnrollment: enrollment,
+      ...clearLiveEnrollmentDealPatch(),
       currentHand: emptyPreDealHand(),
       updatedAt: serverTimestamp(),
     });
   }
+  logHandLifecycleTransition({
+    from: "handoffToNextDeal",
+    to: "opening",
+    reason: "ensureHandEnrollment opened join window",
+  });
 }
 
 /** Auto sit-out when the current player's enrollment window expires. */
