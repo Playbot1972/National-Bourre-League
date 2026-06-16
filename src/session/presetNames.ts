@@ -79,9 +79,11 @@ export function canCreateAnotherSession(
 ): boolean {
   if (sessionCount >= MAX_ROOM_SESSIONS) return false;
   if (!isValidSessionNamePool(pool)) {
-    return sessionCount < MAX_ROOM_SESSIONS;
+    return true;
   }
-  return countAvailableSessionSlots(pool, claimedNames) > 0;
+  const claimed = claimedNames.filter(Boolean);
+  if (countAvailableSessionSlots(pool, claimed) > 0) return true;
+  return sessionCount < claimed.length;
 }
 
 /** Only sessions that exist — preset names are not listed until created. */

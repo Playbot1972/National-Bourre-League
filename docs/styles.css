@@ -593,6 +593,15 @@ button {
   align-items: center;
   margin: 16px 0;
 }
+body.room-detail-open .room-actions {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 12px;
+  padding: 12px 0 10px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-faint);
+}
 .join-form {
   display: flex;
   gap: 8px;

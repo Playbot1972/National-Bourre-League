@@ -566,6 +566,18 @@ function bindRoomDetailDelegatedControls() {
       );
       return;
     }
+    const newSessionBtn = e.target.closest("#new-session");
+    if (newSessionBtn) {
+      e.preventDefault();
+      if (newSessionBtn.disabled) {
+        showRoomsError(
+          newSessionBtn.title || "Cannot open another regional table right now.",
+        );
+        return;
+      }
+      onNewSession();
+      return;
+    }
     if (e.target.id !== "house-rules-reset") return;
     e.preventDefault();
     const form = $("#house-rules-form", roomDetailView);
@@ -1124,10 +1136,14 @@ function scheduleSessionCleanup(sessionId) {
 }
 
 function claimedSessionNamesForRoom(room, sessions) {
+  const fromSessions = sessions.map((s) => s.sessionName).filter(Boolean);
+  if (sessions.length > 0) {
+    return fromSessions;
+  }
   if (Array.isArray(room?.claimedSessionNames)) {
     return room.claimedSessionNames.filter(Boolean);
   }
-  return sessions.map((s) => s.sessionName).filter(Boolean);
+  return [];
 }
 
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
@@ -1170,6 +1186,9 @@ async function completeSessionWithApeScores(roomId, sessionId, scores) {
 function showRoomsError(msg) {
   roomsError.textContent = msg;
   roomsError.hidden = !msg;
+  if (msg) {
+    roomsError.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 function clearDetailSubs() {
@@ -1222,6 +1241,7 @@ function isRoomOwner(room, uid) {
 }
 
 function renderRoomsList() {
+  document.body.classList.remove("room-detail-open");
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
   if (roomsIntro) roomsIntro.hidden = false;
@@ -1454,6 +1474,7 @@ function openRoom(roomId) {
   openSessionId = null;
   openScores = [];
 
+  document.body.classList.add("room-detail-open");
   roomsListView.hidden = true;
   if (roomsIntro) roomsIntro.hidden = true;
   roomDetailView.hidden = false;
@@ -2405,10 +2426,19 @@ function renderRoomDetail() {
     ? currentRoom.sessionNamePool
     : [];
   const claimedNames = claimedSessionNamesForRoom(currentRoom, currentSessions);
+  const sessionHardCap = currentSessions.length >= MAX_ROOM_SESSIONS;
   const canCreateSession =
     isOwner &&
+    !sessionHardCap &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
-  const sessionCapReached = isOwner && !canCreateSession && sessionPool.length > 0;
+  const newSessionDisabledReason = !isOwner
+    ? ""
+    : sessionHardCap
+      ? "All 4 regional tables are already open."
+      : !canCreateSession
+        ? "No preset table names available — try again in a moment."
+        : "";
+  const sessionCapReached = isOwner && sessionHardCap;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -2534,13 +2564,19 @@ function renderRoomDetail() {
                 }
           <button class="btn btn--primary btn--sm" id="new-session" type="button" ${
             canCreateSession ? "" : "disabled aria-disabled=\"true\""
-          } title="${canCreateSession ? "Open the next regional table" : "All 4 sessions already created"}">+ New session</button>
+          } title="${escapeHtml(
+            canCreateSession
+              ? "Open the next regional table"
+              : newSessionDisabledReason || "All 4 sessions already created",
+          )}">+ New session</button>
           ${
             canCreateSession
               ? `<p class="muted small session-cap-note">${currentSessions.length} of ${MAX_ROOM_SESSIONS} regional table${currentSessions.length === 1 ? "" : "s"} open</p>`
-              : sessionCapReached
-                ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
-                : ""
+              : newSessionDisabledReason
+                ? `<p class="muted small session-cap-note session-cap-note--full">${escapeHtml(newSessionDisabledReason)}</p>`
+                : sessionCapReached
+                  ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
+                  : ""
           }`
               : `<p class="muted small">Only the room owner can start regional tables.</p>`
           }
@@ -2566,10 +2602,6 @@ function renderRoomDetail() {
   const leaveRoomBtn = $("#leave-room", roomDetailView);
   if (leaveRoomBtn) {
     leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
-  }
-  const newSessionBtn = $("#new-session", roomDetailView);
-  if (newSessionBtn) {
-    newSessionBtn.addEventListener("click", onNewSession);
   }
   const newSessionStake = $("#new-session-stake", roomDetailView);
   if (newSessionStake) {
@@ -2947,6 +2979,7 @@ async function onNewSession() {
     showRoomsError("Only the room owner can start a new session.");
     return;
   }
+  showRoomsError("");
   const pool = isValidSessionNamePool(currentRoom?.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
