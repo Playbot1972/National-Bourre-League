@@ -102,7 +102,7 @@ import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
-import { renderFeedbackSettingsHtml, wireFeedbackSettings } from "./feedback-prefs.js";
+import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
 import {
   RISK_STAKE_OPTIONS,
   formatRiskStake,
@@ -539,9 +539,20 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.dataset.controlsBound = "1";
 
   let houseRulesSaveTimer = null;
+  let sessionNotesSaveTimer = null;
 
   roomDetailView.addEventListener("input", (e) => {
     const el = e.target;
+    if (el instanceof HTMLTextAreaElement && el.id === "session-notes") {
+      if (!currentRoomId || !openSessionId) return;
+      clearTimeout(sessionNotesSaveTimer);
+      sessionNotesSaveTimer = setTimeout(() => {
+        updateSessionNotes(currentRoomId, openSessionId, el.value).catch((err) =>
+          console.error("updateSessionNotes:", err),
+        );
+      }, 500);
+      return;
+    }
     if (!(el instanceof HTMLTextAreaElement) || !el.dataset.houseRule) return;
     if (session?.uid !== currentRoom?.ownerId) return;
     clearTimeout(houseRulesSaveTimer);
@@ -551,6 +562,34 @@ function bindRoomDetailDelegatedControls() {
   });
 
   roomDetailView.addEventListener("click", (e) => {
+    if (e.target.closest("#back-to-rooms")) {
+      e.preventDefault();
+      closeRoom();
+      return;
+    }
+    const deleteRoomBtn = e.target.closest("#delete-room");
+    if (deleteRoomBtn) {
+      e.preventDefault();
+      if (currentRoomId) onDeleteRoom(currentRoomId);
+      return;
+    }
+    const leaveRoomBtn = e.target.closest("#leave-room");
+    if (leaveRoomBtn) {
+      e.preventDefault();
+      if (currentRoomId) onLeaveRoom(currentRoomId);
+      return;
+    }
+    const sessionTab = e.target.closest("[data-open-session]");
+    if (sessionTab?.dataset.openSession) {
+      e.preventDefault();
+      openSession(sessionTab.dataset.openSession);
+      return;
+    }
+    if (e.target.closest("#complete-session")) {
+      e.preventDefault();
+      onCompleteSession();
+      return;
+    }
     const kickBtn = e.target.closest("[data-kick-member]");
     if (kickBtn) {
       e.preventDefault();
@@ -623,6 +662,21 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.addEventListener("change", (e) => {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
+
+    if (el.id === "new-session-stake") {
+      pendingHandStake = parseInt(el.value, 10) || 1;
+      return;
+    }
+
+    if (el.id === "feedback-sound-enabled") {
+      saveFeedbackPrefs({ soundEnabled: el.checked });
+      return;
+    }
+
+    if (el.name === "feedback-haptics" && el.checked) {
+      saveFeedbackPrefs({ hapticsMode: el.value });
+      return;
+    }
 
     if (el.id === "room-ante-amount" || el.id === "room-lim-enabled") {
       const anteEl = $("#room-ante-amount", roomDetailView);
@@ -2593,30 +2647,9 @@ function renderRoomDetail() {
       }
     </section>`;
 
-  // Wire detail controls
-  $("#back-to-rooms").addEventListener("click", closeRoom);
-  const deleteRoomBtn = $("#delete-room", roomDetailView);
-  if (deleteRoomBtn) {
-    deleteRoomBtn.addEventListener("click", () => onDeleteRoom(currentRoomId));
-  }
-  const leaveRoomBtn = $("#leave-room", roomDetailView);
-  if (leaveRoomBtn) {
-    leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
-  }
-  const newSessionStake = $("#new-session-stake", roomDetailView);
-  if (newSessionStake) {
-    newSessionStake.addEventListener("change", () => {
-      pendingHandStake = parseInt(newSessionStake.value, 10) || 1;
-    });
-  }
-  $$("[data-open-session]", roomDetailView).forEach((btn) =>
-    btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
-  );
   if (openSessionObj) {
     mountSessionPanel(openSessionObj);
   }
-  wireFeedbackSettings(roomDetailView);
-  wireSessionControls();
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
@@ -2952,25 +2985,7 @@ function renderSettlementVoteStatus(s, displayScores, activeWinnerIds) {
 }
 
 function wireSessionControls() {
-  if (!openSessionId) return;
-
-  const notes = $("#session-notes", roomDetailView);
-  if (notes) {
-    let t = null;
-    notes.addEventListener("input", () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        updateSessionNotes(currentRoomId, openSessionId, notes.value).catch((e) =>
-          console.error("updateSessionNotes:", e),
-        );
-      }, 500);
-    });
-  }
-
-  const completeBtn = $("#complete-session", roomDetailView);
-  if (completeBtn) {
-    completeBtn.addEventListener("click", onCompleteSession);
-  }
+  /* Session controls use delegated handlers in bindRoomDetailDelegatedControls(). */
 }
 
 async function onNewSession() {
