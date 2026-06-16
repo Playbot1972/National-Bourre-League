@@ -117,15 +117,37 @@
   filter: grayscale(0.35) brightness(0.9);
   opacity: 0.7;
 }
+.pcard--disabled {
+  filter: grayscale(0.45) brightness(0.88);
+  opacity: 0.62;
+  cursor: not-allowed;
+}
 
 .pcard--interactive {
   cursor: pointer;
   appearance: none;
   font: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
-.pcard--interactive:hover {
+.pcard--playable {
+  touch-action: none;
+}
+.pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing) {
   transform: translateY(-8px);
   box-shadow: 0 16px 30px var(--paper-shadow);
+}
+.pcard--pressed:not(.pcard--playing) {
+  transform: translateY(-4px) scale(0.97);
+  box-shadow: 0 6px 14px var(--paper-shadow);
+}
+.pcard--playing {
+  opacity: 0.55;
+  transform: translateY(-18px) scale(1.02);
+  pointer-events: none;
+  box-shadow:
+    0 0 0 2px var(--gold-300),
+    0 18px 32px var(--paper-shadow);
 }
 
 .pcard__badge {

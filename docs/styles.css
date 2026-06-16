@@ -593,6 +593,15 @@ button {
   align-items: center;
   margin: 16px 0;
 }
+body.room-detail-open .room-actions {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 12px;
+  padding: 12px 0 10px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-faint);
+}
 .join-form {
   display: flex;
   gap: 8px;
@@ -829,6 +838,31 @@ button {
   color: var(--ink-900);
   font-weight: 600;
   border-color: transparent;
+}
+.session-tabs--preset {
+  align-items: center;
+}
+.session-slot {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--border-soft);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.session-slot--available {
+  opacity: 0.85;
+}
+.session-preset-note {
+  margin: 0 0 10px;
+  max-width: 52rem;
+}
+.session-cap-note {
+  margin: 8px 0 0;
+}
+.session-cap-note--full {
+  color: var(--text-dim);
 }
 
 .score-table {
@@ -1180,6 +1214,10 @@ button {
   border: 1px solid var(--border-faint);
   border-radius: 12px;
   padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.session-add-players__guest-hint {
+  margin: 0 0 12px;
 }
 .session-toolbar {
   display: flex;
@@ -1198,6 +1236,10 @@ button {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+.session-toolbar__table-btn {
+  flex: 1 1 140px;
+  min-width: 140px;
 }
 .session-live-card {
   padding: 14px 16px;
@@ -1834,8 +1876,11 @@ body.table-play-active .footer {
   z-index: 200;
   font-size: 11px;
   font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
   color: var(--text-dim);
-  opacity: 0.65;
+  opacity: 0.85;
   pointer-events: none;
   user-select: none;
 }

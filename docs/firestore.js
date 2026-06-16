@@ -10,7 +10,9 @@
 //   { displayName, email, photoURL, createdAt, updatedAt }
 //
 // rooms/{roomId}
-//   { inviteCode, ownerId, name, houseRules: { ante, forcedPlay, ties, dealing },
+//   { inviteCode, ownerId, name, houseRules, bourreSettings,
+//     sessionNamePool: [4 regional preset names in room-locked order],
+//     claimedSessionNames: [preset names currently used by open/final sessions],
 //     status: "open" | "active" | "closed", createdAt }
 //
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
@@ -20,7 +22,7 @@
 //   { roomId, ownerId, createdAt }
 //
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
-//   { roomId, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
+//   { roomId, sessionName, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
 //     totals: { byPlayer: { [playerId]: tricks }, netByPlayer: { [playerId]: net }, tricks },
@@ -109,6 +111,15 @@ import {
   effectivePlayerHand,
   HAND_PHASE,
 } from "./game-engine.js";
+import {
+  MAX_ROOM_SESSIONS,
+  assignSessionNamesForMigration,
+  isValidSessionNamePool,
+  nextAvailableSessionName,
+  pickClaimedNamesForCreate,
+  randomizePresetOrder,
+  seededPresetOrder,
+} from "./session-presets.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -349,6 +360,8 @@ export async function createRoom({ owner, name, houseRules }) {
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: normalizeHouseRules(houseRules),
     bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
+    sessionNamePool: randomizePresetOrder(),
+    claimedSessionNames: [],
     status: "open",
     createdAt: serverTimestamp(),
   });
@@ -395,6 +408,10 @@ export async function joinRoomByCode(code, user) {
   if (!lookupSnap.exists()) return null;
   const roomId = lookupSnap.data().roomId;
   const membershipRef = doc(db, "roomMembers", memberId(roomId, user.uid));
+  const displayName =
+    user.displayName?.trim() ||
+    user.email?.split("@")[0]?.trim() ||
+    "Player";
   // Create membership first — room reads require isMember(); verifying the room doc
   // before join always fails with permission-denied for non-owners.
   await setDoc(
@@ -402,12 +419,16 @@ export async function joinRoomByCode(code, user) {
     {
       roomId,
       userId: user.uid,
-      displayName: user.displayName,
+      displayName,
       role: "player",
       joinedAt: serverTimestamp(),
     },
     { merge: true },
   );
+  const membershipSnap = await getDoc(membershipRef);
+  if (!membershipSnap.exists()) {
+    throw new Error("Could not confirm room membership — try Join room again.");
+  }
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) {
     try {
@@ -1127,7 +1148,7 @@ async function purgePrivateHandsForSession(roomId, sessionId) {
   }
 }
 
-/** Clear hole cards after settlement — enrollment must already be active on the session. */
+/** Clear hole-card docs after settlement once enrollment is active on the session. */
 async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
   const snap = await getDocs(privateHandsCol(roomId, sessionId));
   if (snap.empty) return;
@@ -1251,47 +1272,172 @@ function nextDealerId(scoreSnap, currentDealerId, sessionData) {
   return ids[(base + 1) % ids.length];
 }
 
-export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
-  const stake = Math.max(1, Number(handStake) || 1);
-  const limEnabled = bourreOpts.limEnabled === true;
-  const sessionRef = doc(sessionsCol(roomId));
-  const sortedIds = players.map((p) => p.playerId).filter(Boolean);
-  const initialDealer = sortedIds[0] ?? null;
-  const batch = writeBatch(db);
-  batch.set(sessionRef, {
-    roomId,
-    status: "in_progress",
-    handCount: 0,
-    handStake: stake,
-    handStakeLocked: false,
-    limEnabled,
-    carryOverPot: 0,
-    dealerId: initialDealer,
-    ...enrollmentFieldsForCreate(sortedIds, initialDealer),
-    currentHand: emptyPreDealHand(),
-    rounds: 0,
-    players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
-    notes: "",
-    totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
-    createdAt: serverTimestamp(),
+export async function ensureRoomSessionNamePool(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return null;
+
+  let pool = roomSnap.data().sessionNamePool;
+  const needsPool = !isValidSessionNamePool(pool);
+  if (needsPool) {
+    pool = seededPresetOrder(roomId);
+  }
+
+  const sessionsSnap = await getDocs(sessionsCol(roomId));
+  const sessions = sessionsSnap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: seconds(d.data().createdAt),
+  }));
+  const assignments = assignSessionNamesForMigration(pool, sessions);
+  await Promise.all(
+    [...assignments.entries()].map(([sessionId, sessionName]) =>
+      updateDoc(sessionDoc(roomId, sessionId), {
+        sessionName,
+        updatedAt: serverTimestamp(),
+      }),
+    ),
+  );
+
+  const claimedSessionNames = [
+    ...new Set(
+      sessions
+        .map((s) => s.sessionName || assignments.get(s.id))
+        .filter(Boolean),
+    ),
+  ];
+
+  await updateDoc(roomRef, {
+    ...(needsPool ? { sessionNamePool: pool } : {}),
+    claimedSessionNames,
     updatedAt: serverTimestamp(),
   });
-  players.forEach((p) => {
-    batch.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
-      sessionId: sessionRef.id,
-      roomId,
-      playerId: p.playerId,
-      displayName: p.displayName,
-      tricksWon: 0,
-      handsWon: 0,
-      net: 0,
-      total: 0,
-      joinedAtHandCount: 0,
+  return pool;
+}
+
+/** Sync room.claimedSessionNames with live sessions (repairs stale cap after deletes). */
+export async function reconcileClaimedSessionNames(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const [roomSnap, sessionsSnap] = await Promise.all([
+    getDoc(roomRef),
+    getDocs(sessionsCol(roomId)),
+  ]);
+  if (!roomSnap.exists()) return [];
+
+  const fromSessions = [
+    ...new Set(
+      sessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
+  const stored = Array.isArray(roomSnap.data().claimedSessionNames)
+    ? roomSnap.data().claimedSessionNames.filter(Boolean)
+    : [];
+  const storedKey = [...stored].sort().join("\0");
+  const liveKey = [...fromSessions].sort().join("\0");
+  if (storedKey !== liveKey) {
+    await updateDoc(roomRef, {
+      claimedSessionNames: fromSessions,
       updatedAt: serverTimestamp(),
     });
+  }
+  return fromSessions;
+}
+
+/** Reconcile preset cap + pool before + New session (repairs stale room docs). */
+export async function refreshRoomSessionCap(roomId) {
+  const liveClaimed = await reconcileClaimedSessionNames(roomId);
+  const pool = await ensureRoomSessionNamePool(roomId);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  return {
+    room: roomSnap.exists() ? withId(roomSnap) : null,
+    pool,
+    liveClaimed,
+  };
+}
+
+export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
+  const liveClaimed = await reconcileClaimedSessionNames(roomId);
+  const stake = Math.max(1, Number(handStake) || 1);
+  const limEnabled = bourreOpts.limEnabled === true;
+  const rosterPlayers = players.filter((p) => p?.playerId);
+  const sortedIds = rosterPlayers.map((p) => p.playerId);
+  const initialDealer = sortedIds[0] ?? null;
+  const sessionRef = doc(sessionsCol(roomId));
+  let createdSessionId = null;
+  let createdSessionName = null;
+
+  await runTransaction(db, async (tx) => {
+    const roomRef = doc(db, "rooms", roomId);
+    const roomSnap = await tx.get(roomRef);
+    if (!roomSnap.exists()) throw new Error("Room not found");
+    const roomData = roomSnap.data();
+
+    let pool = roomData.sessionNamePool;
+    if (!isValidSessionNamePool(pool)) {
+      pool = seededPresetOrder(roomId);
+    }
+
+    const docClaimed = Array.isArray(roomData.claimedSessionNames)
+      ? roomData.claimedSessionNames.filter(Boolean)
+      : [];
+    const claimedNames = pickClaimedNamesForCreate(liveClaimed, docClaimed);
+
+    const sessionName = nextAvailableSessionName(pool, claimedNames);
+    if (!sessionName) {
+      throw new Error("All 4 regional sessions already created for this room.");
+    }
+
+    const roomPatch = {
+      claimedSessionNames: arrayUnion(sessionName),
+      updatedAt: serverTimestamp(),
+    };
+    if (!isValidSessionNamePool(roomData.sessionNamePool)) {
+      roomPatch.sessionNamePool = pool;
+    }
+    tx.update(roomRef, roomPatch);
+
+    tx.set(sessionRef, {
+      roomId,
+      sessionName,
+      status: "in_progress",
+      handCount: 0,
+      handStake: stake,
+      handStakeLocked: false,
+      limEnabled,
+      carryOverPot: 0,
+      dealerId: initialDealer,
+      ...enrollmentFieldsForCreate(sortedIds, initialDealer),
+      currentHand: emptyPreDealHand(),
+      rounds: 0,
+      players: rosterPlayers.map((p) => ({
+        playerId: p.playerId,
+        displayName: p.displayName || "Player",
+      })),
+      notes: "",
+      totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    rosterPlayers.forEach((p) => {
+      tx.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
+        sessionId: sessionRef.id,
+        roomId,
+        playerId: p.playerId,
+        displayName: p.displayName || "Player",
+        tricksWon: 0,
+        handsWon: 0,
+        net: 0,
+        total: 0,
+        joinedAtHandCount: 0,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    createdSessionId = sessionRef.id;
+    createdSessionName = sessionName;
   });
-  await batch.commit();
-  return sessionRef.id;
+
+  return { id: createdSessionId, sessionName: createdSessionName };
 }
 
 export function subscribeSessions(roomId, callback) {
@@ -1827,6 +1973,8 @@ export async function deleteSession(roomId, sessionId) {
     throw new Error("Only completed sessions can be removed");
   }
 
+  const sessionName = sessionSnap.data().sessionName;
+
   const [scoresSnap, handsSnap] = await Promise.all([
     getDocs(scoresCol(roomId, sessionId)),
     getDocs(handsCol(roomId, sessionId)),
@@ -1838,6 +1986,12 @@ export async function deleteSession(roomId, sessionId) {
   const batch = writeBatch(db);
   scoresSnap.docs.forEach((d) => batch.delete(d.ref));
   batch.delete(sessionDoc(roomId, sessionId));
+  if (sessionName) {
+    batch.update(doc(db, "rooms", roomId), {
+      claimedSessionNames: arrayRemove(sessionName),
+      updatedAt: serverTimestamp(),
+    });
+  }
   await batch.commit();
 
   if (handsSnap.empty) return;
