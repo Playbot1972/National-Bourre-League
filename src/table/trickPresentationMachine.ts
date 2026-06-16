@@ -1,10 +1,7 @@
 import {
   detectTrickResolution,
-  postTrickReadMs,
   serializedPlays,
   suppressesTurnIndicator,
-  trickResolutionScheduleMs,
-  trumpBeatLedSuit,
   type FrozenTrick,
   type TrickPlay,
   type TrickPresentationPhase,
@@ -161,7 +158,7 @@ export function reduceTrickPresentation(
     }
 
     case "serverUpdate": {
-      const { snapshot, participantIds, trumpSuit, reducedMotion } = event;
+      const { snapshot, participantIds } = event;
       if (store.phase !== "live") {
         return bufferServerSnapshot(store, snapshot);
       }

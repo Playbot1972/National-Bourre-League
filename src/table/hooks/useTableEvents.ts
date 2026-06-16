@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MIN_TRICK_PIPELINE_MS, POST_TRICK_READ_MS } from "../trickTiming";
+import { POST_TRICK_READ_MS } from "../trickTiming";
 import type { PotMetrics, TableSessionData } from "../types";
 
 export type TableEventKind =

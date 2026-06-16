@@ -79,8 +79,7 @@ export function CardTable({
       isLeading:
         trickWinnerSeat &&
         (trickPresentation.phase === "winnerReveal" ||
-          trickPresentation.phase === "collectTrick" ||
-          trickPresentation.phase === "hold")
+          trickPresentation.phase === "collectTrick")
           ? true
           : suppressTurn
             ? false
