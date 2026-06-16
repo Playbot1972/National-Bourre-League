@@ -285,6 +285,7 @@ export function HeroHand({
           <button
             type="button"
             className="btn btn--sm"
+            data-testid="pass-draw-button"
             disabled={busy}
             onClick={() => runPassDraw()}
           >

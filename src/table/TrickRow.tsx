@@ -20,7 +20,13 @@ export function TrickRow({
 }: TrickRowProps) {
   if (displayPlays.length === 0) {
     return (
-      <div className="btrick btrick--empty muted small" aria-hidden="true">
+      <div
+        className="btrick btrick--empty muted small"
+        aria-hidden="true"
+        data-testid="trick-row"
+        data-trick-phase={presentationPhase}
+        data-trick-card-count="0"
+      >
         Trick
       </div>
     );
@@ -39,6 +45,9 @@ export function TrickRow({
         .join(" ")}
       aria-label="Current trick"
       aria-live="polite"
+      data-testid="trick-row"
+      data-trick-phase={presentationPhase}
+      data-trick-card-count={displayPlays.length}
     >
       {showWinnerTag && winnerName && (
         <div className="btrick__winner-tag" data-testid="trick-winner-tag">

@@ -63,4 +63,31 @@ test.describe("Social UI buttons", () => {
     await expect(page.locator("#auth-title")).toHaveText(/reset password/i);
     await expect(page.locator("#reset-confirm-password")).toBeVisible();
   });
+
+  test("create room control stays hidden until signed in", async ({ page }) => {
+    await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
+    await expect(page.locator("#auth-modal")).toBeVisible();
+    await expect(page.locator("#view-rooms")).toBeHidden();
+    await expect(page.locator("#create-room")).toBeHidden();
+  });
+
+  test("rules view back link returns to home", async ({ page }) => {
+    await page.getByRole("link", { name: "Rules", exact: true }).click();
+    await expect(page.locator("#view-rules")).toBeVisible();
+
+    await page.getByRole("link", { name: "Home", exact: true }).click();
+    await expect(page.locator("#view-home")).toBeVisible();
+    await expect(page.locator("#view-rules")).toBeHidden();
+  });
+
+  test("header sign-in and sign-up buttons both open auth modal", async ({ page }) => {
+    await page.locator("#open-signup").click();
+    await expect(page.locator("#auth-modal")).toBeVisible();
+    await expect(page.locator("#auth-title")).toHaveText(/create account/i);
+    await page.locator("#close-auth").click();
+
+    await page.locator("#open-signin").click();
+    await expect(page.locator("#auth-modal")).toBeVisible();
+    await expect(page.locator("#auth-title")).toHaveText(/sign in/i);
+  });
 });

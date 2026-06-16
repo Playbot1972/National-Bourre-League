@@ -2,6 +2,11 @@ import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers } from "./logic";
+import {
+  CARD_LAND_MS,
+  TRICK_SWEEP_MS,
+  WINNER_HIGHLIGHT_MS,
+} from "./trickTiming";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
@@ -89,6 +94,9 @@ export function CardTable({
       style={{
         ["--player-count" as string]: playerCount,
         ["--table-aspect" as string]: tableAspect,
+        ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
+        ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
+        ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
       }}
     >
       <div className="table-stage">

@@ -379,16 +379,16 @@
   background: linear-gradient(180deg, #36b97c, #2f9e6a);
   box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
   white-space: nowrap;
-  animation: btrick-winner-tag 1600ms ease;
+  animation: btrick-winner-tag var(--trick-winner-highlight-ms, 1600ms) ease;
   z-index: 2;
 }
 
 .btrick__play--land .pcard {
-  animation: btrick-card-land 500ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: btrick-card-land var(--trick-card-land-ms, 500ms) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .btrick__play--winner .pcard {
-  animation: btrick-winner-glow 1600ms ease;
+  animation: btrick-winner-glow var(--trick-winner-highlight-ms, 1600ms) ease;
 }
 
 .btrick--hold .btrick__play:not(.btrick__play--winner) .pcard {
@@ -396,7 +396,7 @@
 }
 
 .btrick--sweep {
-  animation: btrick-sweep 900ms ease forwards;
+  animation: btrick-sweep var(--trick-sweep-ms, 900ms) ease forwards;
 }
 
 @keyframes btrick-card-land {
