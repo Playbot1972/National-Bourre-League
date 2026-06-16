@@ -1876,6 +1876,7 @@ async function openTablePlay() {
   if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
     startEnrollmentTimer();
   }
+  processRobotActions(refreshed, openScores);
   try {
     await overlay.requestFullscreen?.();
   } catch {
@@ -1956,8 +1957,6 @@ function processRobotActions(s, scores) {
   if (!robotScores.length) return;
 
   const now = Date.now();
-  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
-
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
     if (!tablePlayOpen) return;
@@ -1986,6 +1985,8 @@ function processRobotActions(s, scores) {
     }
     return;
   }
+
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   const pending = s.pendingCoWinSettlement;
   if (pending?.winnerIds?.length >= 2) {

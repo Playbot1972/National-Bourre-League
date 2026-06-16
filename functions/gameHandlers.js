@@ -74,6 +74,27 @@ function getSessionEnrollment(sessionData) {
   return sessionData?.handEnrollment ?? null;
 }
 
+function isClearedPreDealHand(hand) {
+  const h = hand ?? emptyPreDealHand();
+  if (h.phase === "draw" || h.phase === "play") return false;
+  if ((h.participantIds?.length ?? 0) > 0) return false;
+  const tricks = h.tricksByPlayer ?? {};
+  return !Object.values(tricks).some((n) => (n || 0) > 0);
+}
+
+function isHandComplete(tricksByPlayer, participantIds) {
+  return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
+
+function isStaleLiveDealSnapshot(sessionData) {
+  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
+  if (!livePublic?.phase) return false;
+  if (getSessionEnrollment(sessionData)?.active) return false;
+  if (sessionData?.pendingCoWinSettlement) return false;
+  if (!isClearedPreDealHand(sessionData?.currentHand)) return false;
+  return isHandComplete(livePublic.tricksByPlayer || {}, livePublic.participantIds || []);
+}
+
 function getSessionCurrentHand(sessionData) {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (livePublic?.phase) return livePublic;
@@ -428,17 +449,55 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
 export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorId }) {
   await assertRoomMember(db, roomId, actorId);
   const ref = sessionRef(db, roomId, sessionId);
-  const sessionSnap = await ref.get();
+  let sessionSnap = await ref.get();
   if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
-  const data = sessionSnap.data();
-  if (data.status === "final" || getSessionEnrollment(data)?.active) return { status: "noop" };
+  let data = sessionSnap.data();
+  if (data.status === "final") return { status: "noop" };
+
+  if (isStaleLiveDealSnapshot(data) || (isClearedPreDealHand(data.currentHand) && data.liveEnrollment?.deal)) {
+    await ref.update({
+      "liveEnrollment.deal": FieldValue.delete(),
+      currentHand: emptyPreDealHand(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    sessionSnap = await ref.get();
+    data = sessionSnap.data();
+  }
+
+  const existing = getSessionEnrollment(data);
+  if (existing?.active) {
+    const refreshedEnrollment = {
+      ...existing,
+      turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+    };
+    await ref.update({
+      handEnrollment: refreshedEnrollment,
+      liveEnrollment: refreshedEnrollment,
+      "liveEnrollment.deal": FieldValue.delete(),
+      currentHand: emptyPreDealHand(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    return { status: "refreshed" };
+  }
+
   const currentHand = getSessionCurrentHand(data);
   const phase = currentHand?.phase;
   if (phase === "draw" || phase === "play") return { status: "noop" };
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
-    return { status: "noop" };
+    if (isClearedPreDealHand(data.currentHand)) {
+      await ref.update({
+        "liveEnrollment.deal": FieldValue.delete(),
+        currentHand: emptyPreDealHand(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      sessionSnap = await ref.get();
+      data = sessionSnap.data();
+    } else {
+      return { status: "noop" };
+    }
   }
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
   const sortedIds = sortedScorePlayerIds(scoreSnap.docs);
@@ -447,6 +506,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   await ref.update({
     handEnrollment: enrollment,
     liveEnrollment: enrollment,
+    "liveEnrollment.deal": FieldValue.delete(),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
   });
