@@ -681,6 +681,7 @@ function bindRoomDetailDelegatedControls() {
     if (el.id === "new-session-stake") {
       pendingHandStake = parseInt(el.value, 10) || 1;
       userPickedNewSessionStake = true;
+      pendingRoomAnteOverride = pendingHandStake;
       return;
     }
 
@@ -700,6 +701,7 @@ function bindRoomDetailDelegatedControls() {
       if (!anteEl || !limEl || !currentRoomId) return;
       pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
       pendingHandStake = pendingRoomAnteOverride;
+      userPickedNewSessionStake = true;
       const limEnabled = limEl.checked;
       updateRoomBourreSettings(currentRoomId, {
         anteAmount: pendingRoomAnteOverride,
@@ -1236,9 +1238,16 @@ function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
   return entries;
 }
 
-function tableReadyPlayerCount(sessionObj) {
-  if (!sessionObj) return 0;
-  return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+function mergeOpenSessionSnapshot(sessionId, data) {
+  if (!sessionId || !data) return null;
+  const merged = { id: sessionId, ...data };
+  currentSessions = currentSessions.map((s) => (s.id === sessionId ? merged : s));
+  return merged;
+}
+
+async function refreshOpenSessionFromServer(roomId, sessionId) {
+  const fresh = await getSession(roomId, sessionId);
+  return mergeOpenSessionSnapshot(sessionId, fresh);
 }
 
 function bumpTableMountGeneration() {
@@ -1854,8 +1863,14 @@ async function openTablePlay() {
   if (currentRoomId && openSessionId) {
     await ensureHandEnrollment(currentRoomId, openSessionId);
   }
-  const refreshed = currentSessions.find((s) => s.id === openSessionId) ?? openSessionObj;
+  const refreshed =
+    (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ??
+    currentSessions.find((s) => s.id === openSessionId) ??
+    openSessionObj;
   await syncTableSession(refreshed);
+  if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
+    startEnrollmentTimer();
+  }
   try {
     await overlay.requestFullscreen?.();
   } catch {
@@ -2802,7 +2817,7 @@ function renderRoomDetail() {
     <section class="subpanel">
       <div class="subpanel__head">
         <h4>Regional tables</h4>
-        <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned randomly when you confirm <strong>+ New session</strong>.</p>
+        <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned when you tap <strong>+ New session</strong>.</p>
         <div class="session-new">
           ${
             isOwner
@@ -2928,7 +2943,7 @@ function buildSessionLiveStatusHtml(s) {
   if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
   const enrollment = getSessionEnrollment(s);
   const handNum = (s.handCount ?? 0) + 1;
-  let status = `Hand #${handNum}`;
+  let status = `Hand #${handNum} · ante ${formatRiskStake(s.handStake ?? 1)}`;
   if (enrollment?.active) {
     status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
   } else {
@@ -3210,15 +3225,6 @@ async function onNewSession() {
     return;
   }
 
-  const openingNumber = currentSessions.length + 1;
-  if (
-    !window.confirm(
-      `Open regional table ${openingNumber} of ${MAX_ROOM_SESSIONS}? The table name will be assigned when you confirm.`,
-    )
-  ) {
-    return;
-  }
-
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
@@ -3276,15 +3282,28 @@ async function onNewSession() {
       return;
     }
 
+    try {
+      await updateRoomBourreSettings(currentRoomId, {
+        anteAmount: handStake,
+        limEnabled: roomBs.limEnabled,
+      });
+      pendingRoomAnteOverride = null;
+    } catch (err) {
+      console.warn("updateRoomBourreSettings after create:", err);
+    }
+
     const optimisticSession = {
       id: created.id,
       sessionName: created.sessionName,
       status: "in_progress",
       handCount: 0,
+      handStake,
+      limEnabled: roomBs.limEnabled,
       createdAt: { seconds: Math.floor(Date.now() / 1000) },
     };
     rememberPendingSession(optimisticSession);
     currentSessions = mergeSessionsWithPending(currentSessions);
+    pendingHandStake = handStake;
     userPickedNewSessionStake = false;
     showRoomsError("");
     openSession(created.id);
