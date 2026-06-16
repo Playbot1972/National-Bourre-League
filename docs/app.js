@@ -755,7 +755,14 @@ function resolveActiveSession() {
   if (!openSessionId) return null;
   const found = currentSessions.find((s) => s.id === openSessionId);
   if (found) return found;
-  return pendingOpenSessions.get(openSessionId) ?? null;
+  const pending = pendingOpenSessions.get(openSessionId);
+  if (pending) return pending;
+  return {
+    id: openSessionId,
+    sessionName: "Session",
+    status: "in_progress",
+    handCount: 0,
+  };
 }
 
 function buildSessionPlayerSectionHtml(s, isOwner) {
@@ -1685,7 +1692,7 @@ function openRoom(roomId) {
       currentSessions = mergeSessionsWithPending(sessions);
       restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
-        if (pendingOpenSessions.has(openSessionId)) {
+        if (pendingOpenSessions.has(openSessionId) || creatingSession) {
           renderRoomDetail();
           return;
         }
@@ -2752,20 +2759,15 @@ function renderRoomDetail() {
         ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
       ${
-        openSessionId
-          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj)}</div>
+        openSessionObj
+          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj, isOwner)}</div>
              <div id="session-panel-mount"></div>`
           : ""
       }
     </section>`;
 
-  if (openSessionId && openSessionObj) {
-    mountSessionPanel(openSessionObj, isOwner);
-  } else if (openSessionId) {
-    const mount = $("#session-panel-mount", roomDetailView);
-    if (mount) {
-      mount.innerHTML = `<p class="muted small">Loading session…</p>`;
-    }
+  if (openSessionObj) {
+    mountSessionPanel(openSessionObj);
   }
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
@@ -2858,9 +2860,10 @@ function buildSessionLiveStatusHtml(s) {
     </div>`;
 }
 
-function buildSessionToolbarHtml(s) {
+function buildSessionToolbarHtml(s, isOwner) {
   if (!s || s.status === "final") return "";
-  return `<div class="session-toolbar__actions">
+  return `${buildSessionPlayerSectionHtml(s, isOwner)}
+    <div class="session-toolbar__actions">
       ${buildGoToTableButtonHtml(s)}
       <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
     </div>`;
@@ -2938,14 +2941,13 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Session ledger panel — add players live here; Go to Table stays in sticky toolbar. */
-function mountSessionPanel(s, isOwner) {
+/** Session ledger panel — add players in sticky toolbar; notes/results here. */
+function mountSessionPanel(s) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
 
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
-  const playerSection = buildSessionPlayerSectionHtml(s, isOwner);
   const sidebarHtml = buildSessionSidebarHtml(s);
   const liveCardHtml = buildSessionLiveStatusHtml(s);
 
@@ -2965,9 +2967,8 @@ function mountSessionPanel(s, isOwner) {
     unmountTableSessionHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
-        ${playerSection}
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot, then tap <strong>Go to Table</strong>.
+          Need at least two players for the live table. Add a guest or robot in the bar above, then tap <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2978,7 +2979,6 @@ function mountSessionPanel(s, isOwner) {
   unmountTableSessionHost();
   mount.innerHTML = `
     <div class="session session--stack">
-      ${playerSection}
       ${liveCardHtml}
       <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
