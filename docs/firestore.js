@@ -1381,6 +1381,9 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
       ? roomData.claimedSessionNames.filter(Boolean)
       : [];
     const claimedNames = pickClaimedNamesForCreate(liveClaimed, docClaimed);
+    // After reconcile, also patch room doc when transaction sees stale claimed names.
+    const claimedKey = [...claimedNames].sort().join("\0");
+    const docKey = [...docClaimed].sort().join("\0");
 
     const sessionName = nextAvailableSessionName(pool, claimedNames);
     if (!sessionName) {
@@ -1388,9 +1391,13 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
     }
 
     const roomPatch = {
-      claimedSessionNames: arrayUnion(sessionName),
       updatedAt: serverTimestamp(),
     };
+    if (claimedKey !== docKey) {
+      roomPatch.claimedSessionNames = [...new Set([...claimedNames, sessionName])];
+    } else {
+      roomPatch.claimedSessionNames = arrayUnion(sessionName);
+    }
     if (!isValidSessionNamePool(roomData.sessionNamePool)) {
       roomPatch.sessionNamePool = pool;
     }

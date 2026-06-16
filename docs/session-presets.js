@@ -83,12 +83,16 @@ export function canCreateAnotherSession(sessionCount, pool, claimedNames = []) {
 export function pickClaimedNamesForCreate(liveClaimed = [], docClaimed = []) {
   const live = liveClaimed.filter(Boolean);
   const doc = docClaimed.filter(Boolean);
+  if (live.length === 0 && doc.length > 0) {
+    // Room doc still lists old names but no live sessions — trust reconcile (empty).
+    return [];
+  }
   if (doc.length === live.length) {
     const docKey = [...doc].sort().join("\0");
     const liveKey = [...live].sort().join("\0");
     return docKey === liveKey ? doc : live;
   }
-  return live.length < doc.length ? live : doc;
+  return live.length <= doc.length ? live : doc;
 }
 
 /** Only sessions that exist — sorted by room pool order when known. */

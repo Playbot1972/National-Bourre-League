@@ -1231,6 +1231,9 @@ body.room-detail-open .room-actions {
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border-faint);
 }
+body.room-detail-open .session-toolbar {
+  top: 58px;
+}
 .session-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
