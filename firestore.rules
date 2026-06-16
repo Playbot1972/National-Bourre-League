@@ -51,6 +51,12 @@ service cloud.firestore {
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
 
+    // Room members add guests/robots to the roster while enrollment is open.
+    function memberRosterSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['players', 'liveEnrollment', 'updatedAt']);
+    }
+
     // Client settlement after a hand (Cloud Functions optional on prod).
     function memberSettlementSessionUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys()
@@ -120,6 +126,7 @@ service cloud.firestore {
         allow update: if isMember(roomId)
           && (!sessionGameFieldsChanged()
             || memberEnrollmentSessionUpdate()
+            || memberRosterSessionUpdate()
             || memberSettlementSessionUpdate());
         allow delete: if isRoomOwner(roomId);
 

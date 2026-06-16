@@ -1214,6 +1214,10 @@ body.room-detail-open .room-actions {
   border: 1px solid var(--border-faint);
   border-radius: 12px;
   padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.session-add-players__guest-hint {
+  margin: 0 0 12px;
 }
 .session-toolbar {
   display: flex;
@@ -1872,8 +1876,11 @@ body.table-play-active .footer {
   z-index: 200;
   font-size: 11px;
   font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
   color: var(--text-dim);
-  opacity: 0.65;
+  opacity: 0.85;
   pointer-events: none;
   user-select: none;
 }

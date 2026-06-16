@@ -86,6 +86,20 @@ export function canCreateAnotherSession(
   return sessionCount < claimed.length;
 }
 
+export function pickClaimedNamesForCreate(
+  liveClaimed: string[] = [],
+  docClaimed: string[] = [],
+): string[] {
+  const live = liveClaimed.filter(Boolean);
+  const doc = docClaimed.filter(Boolean);
+  if (doc.length === live.length) {
+    const docKey = [...doc].sort().join("\0");
+    const liveKey = [...live].sort().join("\0");
+    return docKey === liveKey ? doc : live;
+  }
+  return live.length < doc.length ? live : doc;
+}
+
 /** Only sessions that exist — preset names are not listed until created. */
 export function createdSessionsForTabs(pool: string[], sessions: SessionRow[] = []): SessionRow[] {
   const created = sessions.filter((s) => s.sessionName);

@@ -79,6 +79,18 @@ export function canCreateAnotherSession(sessionCount, pool, claimedNames = []) {
   return sessionCount < claimed.length;
 }
 
+/** Prefer live session names when room.claimedSessionNames is stale after deletes. */
+export function pickClaimedNamesForCreate(liveClaimed = [], docClaimed = []) {
+  const live = liveClaimed.filter(Boolean);
+  const doc = docClaimed.filter(Boolean);
+  if (doc.length === live.length) {
+    const docKey = [...doc].sort().join("\0");
+    const liveKey = [...live].sort().join("\0");
+    return docKey === liveKey ? doc : live;
+  }
+  return live.length < doc.length ? live : doc;
+}
+
 /** Only sessions that exist — sorted by room pool order when known. */
 export function createdSessionsForTabs(pool, sessions = []) {
   const created = sessions.filter((s) => s.sessionName);
