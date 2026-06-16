@@ -157,6 +157,26 @@ function isPermissionDenied(err) {
   return code === "permission-denied" || code === "PERMISSION_DENIED";
 }
 
+function isEnrollmentPermissionError(err) {
+  if (isPermissionDenied(err)) return true;
+  const code = String(err?.code ?? "");
+  const msg = String(err?.message ?? err).toLowerCase();
+  return (
+    code === "functions/permission-denied" ||
+    msg.includes("missing or insufficient permissions") ||
+    msg.includes("insufficient permissions")
+  );
+}
+
+function describeEnrollmentStartError(err) {
+  if (isEnrollmentPermissionError(err)) {
+    return new Error(
+      "Missing or insufficient permissions to open the join window. Refresh and tap Go to Table again. If it persists, deploy Firestore rules and Cloud Functions (npm run deploy).",
+    );
+  }
+  return err instanceof Error ? err : new Error(String(err));
+}
+
 function isCloudFunctionUnavailable(err) {
   const code = err?.code ?? "";
   if (
@@ -193,12 +213,12 @@ async function callEnrollmentAction(clientFn, serverFn) {
   try {
     return await clientFn();
   } catch (clientErr) {
-    if (!SERVER_HAND_AUTHORITY) throw clientErr;
+    if (!SERVER_HAND_AUTHORITY) throw describeEnrollmentStartError(clientErr);
     console.warn("Client enrollment write failed, trying Cloud Function.", clientErr?.code || clientErr);
     try {
       return await serverFn();
     } catch (serverErr) {
-      throw clientErr;
+      throw describeEnrollmentStartError(isEnrollmentPermissionError(serverErr) ? serverErr : clientErr);
     }
   }
 }
@@ -896,9 +916,25 @@ function shouldClearStaleLiveEnrollment(sessionData) {
   return isHandoffState(sessionData);
 }
 
-function clearedHandoffEnrollmentPatch() {
+function clearStaleLiveEnrollmentPatch() {
+  /** liveEnrollment is not in sessionGameFieldsChanged — members can clear stale deal snapshots. */
   return {
     [LIVE_ENROLLMENT_FIELD]: deleteField(),
+    updatedAt: serverTimestamp(),
+  };
+}
+
+function writeLiveEnrollmentOpenPatch(enrollment) {
+  /** Open/refresh join window without touching handEnrollment/currentHand (works on prod rules). */
+  return {
+    [LIVE_ENROLLMENT_FIELD]: enrollment,
+    updatedAt: serverTimestamp(),
+  };
+}
+
+function clearedHandoffEnrollmentPatch() {
+  return {
+    ...clearStaleLiveEnrollmentPatch(),
     handEnrollment: deleteField(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
@@ -906,7 +942,12 @@ function clearedHandoffEnrollmentPatch() {
 }
 
 async function clearStaleHandoffArtifacts(roomId, sessionId) {
-  await updateDoc(sessionDoc(roomId, sessionId), clearedHandoffEnrollmentPatch());
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), clearStaleLiveEnrollmentPatch());
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    await updateDoc(sessionDoc(roomId, sessionId), clearedHandoffEnrollmentPatch());
+  }
 }
 
 function writeEnrollmentPatch(enrollment) {
@@ -2365,7 +2406,9 @@ export async function ensureHandEnrollment(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   if (!getSessionEnrollment(sessionSnap.data())?.active) {
-    throw new Error("Join window could not start — tap Go to Table again or refresh the page.");
+    throw new Error(
+      "Join window could not start — refresh and tap Go to Table again. If you see permission errors, deploy rules and functions (npm run deploy).",
+    );
   }
 }
 
@@ -2390,7 +2433,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
     };
     try {
-      await updateDoc(sessionRef, writeEnrollmentPatch(refreshedEnrollment));
+      await updateDoc(sessionRef, writeLiveEnrollmentOpenPatch(refreshedEnrollment));
     } catch (err) {
       if (!isPermissionDenied(err)) throw err;
       await updateDoc(sessionRef, writeEnrollmentPatch(refreshedEnrollment));
@@ -2425,7 +2468,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
   const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
   try {
-    await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));
+    await updateDoc(sessionRef, writeLiveEnrollmentOpenPatch(enrollment));
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
     await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));

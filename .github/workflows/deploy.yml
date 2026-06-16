@@ -101,17 +101,10 @@ jobs:
 
       - name: Deploy Firestore rules
         if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
-        run: |
-          npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
-            echo "::warning::Firestore rules deploy failed — owner kick, session cleanup, and enrollment may need rules."
-            echo "Deploy locally: npx firebase login && npm run deploy:rules"
-            exit 0
-          }
+        run: npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
         run: npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Commit version bump
