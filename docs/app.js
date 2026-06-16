@@ -3366,7 +3366,11 @@ $("#create-league").addEventListener("click", () => {
 // Boot
 // ---------------------------------------------------------------------------
 const versionEl = $("#app-version");
-if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
+if (versionEl) {
+  const label = `v${APP_VERSION}`;
+  versionEl.textContent = label;
+  versionEl.title = `National Bourré League ${label}`;
+}
 
 renderRoomsList();
 renderLeagues();
