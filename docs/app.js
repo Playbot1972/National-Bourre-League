@@ -730,7 +730,42 @@ let currentRoom = null;
 let currentMembers = [];
 let currentSessions = [];
 let creatingSession = false;
+/** Optimistic session stubs until Firestore snapshot includes them. */
+const pendingOpenSessions = new Map();
 let openSessionId = null;
+function rememberPendingSession(sessionStub) {
+  if (!sessionStub?.id) return;
+  pendingOpenSessions.set(sessionStub.id, sessionStub);
+}
+
+function mergeSessionsWithPending(sessions) {
+  const merged = [...sessions];
+  const ids = new Set(sessions.map((s) => s.id));
+  for (const stub of pendingOpenSessions.values()) {
+    if (!ids.has(stub.id)) merged.push(stub);
+  }
+  return merged.sort((a, b) => {
+    const as = a.createdAt?.seconds ?? a.createdAt ?? 0;
+    const bs = b.createdAt?.seconds ?? b.createdAt ?? 0;
+    return bs - as;
+  });
+}
+
+function resolveActiveSession() {
+  if (!openSessionId) return null;
+  const found = currentSessions.find((s) => s.id === openSessionId);
+  if (found) return found;
+  return pendingOpenSessions.get(openSessionId) ?? null;
+}
+
+function buildSessionPlayerSectionHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  if (!isOwner) {
+    return `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
+  }
+  return buildSessionPlayerBarHtml(s);
+}
+
 let roomGoneHandled = false;
 let openScores = [];
 let openHands = [];
@@ -1644,9 +1679,16 @@ function openRoom(roomId) {
   );
   detailUnsubs.push(
     subscribeSessions(roomId, (sessions) => {
-      currentSessions = sessions;
+      for (const s of sessions) {
+        pendingOpenSessions.delete(s.id);
+      }
+      currentSessions = mergeSessionsWithPending(sessions);
       restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
+        if (pendingOpenSessions.has(openSessionId)) {
+          renderRoomDetail();
+          return;
+        }
         const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
@@ -1687,6 +1729,7 @@ async function handleRoomUnavailable(roomId) {
 
 function closeRoom() {
   clearPendingSelfJoin();
+  pendingOpenSessions.clear();
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
@@ -1720,8 +1763,7 @@ function tableSessionHost() {
 
 function resolveOpenSessionObj(openSessionObj) {
   if (openSessionObj) return openSessionObj;
-  if (!openSessionId) return null;
-  return currentSessions.find((s) => s.id === openSessionId) ?? null;
+  return resolveActiveSession();
 }
 
 function updateTablePlayTitle(openSessionObj) {
@@ -2536,7 +2578,7 @@ function renderRoomDetail() {
   const bourreSettings = normalizeBourreSettings(
     currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
   );
-  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  const openSessionObj = resolveActiveSession();
   const isOwner = session?.uid === currentRoom.ownerId;
   const visibleMembers = currentMembers;
   const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
@@ -2710,15 +2752,20 @@ function renderRoomDetail() {
         ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
       ${
-        openSessionObj
+        openSessionId
           ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj)}</div>
              <div id="session-panel-mount"></div>`
           : ""
       }
     </section>`;
 
-  if (openSessionObj) {
-    mountSessionPanel(openSessionObj);
+  if (openSessionId && openSessionObj) {
+    mountSessionPanel(openSessionObj, isOwner);
+  } else if (openSessionId) {
+    const mount = $("#session-panel-mount", roomDetailView);
+    if (mount) {
+      mount.innerHTML = `<p class="muted small">Loading session…</p>`;
+    }
   }
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
@@ -2813,8 +2860,7 @@ function buildSessionLiveStatusHtml(s) {
 
 function buildSessionToolbarHtml(s) {
   if (!s || s.status === "final") return "";
-  return `${buildSessionPlayerBarHtml(s)}
-    <div class="session-toolbar__actions">
+  return `<div class="session-toolbar__actions">
       ${buildGoToTableButtonHtml(s)}
       <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
     </div>`;
@@ -2892,13 +2938,14 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Session ledger panel — controls live in #session-toolbar-root; table opens in overlay only. */
-function mountSessionPanel(s) {
+/** Session ledger panel — add players live here; Go to Table stays in sticky toolbar. */
+function mountSessionPanel(s, isOwner) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
 
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
+  const playerSection = buildSessionPlayerSectionHtml(s, isOwner);
   const sidebarHtml = buildSessionSidebarHtml(s);
   const liveCardHtml = buildSessionLiveStatusHtml(s);
 
@@ -2918,8 +2965,9 @@ function mountSessionPanel(s) {
     unmountTableSessionHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
+        ${playerSection}
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot above, then tap <strong>Go to Table</strong>.
+          Need at least two players for the live table. Add a guest or robot, then tap <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2930,6 +2978,7 @@ function mountSessionPanel(s) {
   unmountTableSessionHost();
   mount.innerHTML = `
     <div class="session session--stack">
+      ${playerSection}
       ${liveCardHtml}
       <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
@@ -3149,9 +3198,8 @@ async function onNewSession() {
       handCount: 0,
       createdAt: { seconds: Math.floor(Date.now() / 1000) },
     };
-    if (!currentSessions.some((s) => s.id === created.id)) {
-      currentSessions = [optimisticSession, ...currentSessions];
-    }
+    rememberPendingSession(optimisticSession);
+    currentSessions = mergeSessionsWithPending(currentSessions);
     showRoomsError("");
     openSession(created.id);
     renderRoomDetail();

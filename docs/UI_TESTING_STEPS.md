@@ -59,7 +59,7 @@ Automated gate first: `npm run test:e2e` → expect **106/106 PASS**.
 | 3 | **+ Create a room** | Invite code in room header |
 | 4 | Scroll room detail | Join bar stays sticky |
 | **5** | **+ New session → confirm** | **Regional tab appears (Dirty South, Wild West, …)** |
-| 6 | Add robot → **Go to Table** enables | Button no longer disabled |
+| 6 | Add robot in **Add guest or robot** panel below tabs → **Go to Table** enables | Form is in session panel (not hidden behind Join bar) |
 | 7 | **Go to Table** | Table overlay opens |
 
 > **First reported incognito failure:** condensed step **5** (+ New session — tab never appeared). Fixed **v1.01.02** (stale claimed-name cap, pool refresh before create, optimistic tab render).
