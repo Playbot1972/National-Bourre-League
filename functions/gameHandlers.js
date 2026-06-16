@@ -69,8 +69,10 @@ function emptyPreDealHand() {
 
 function getSessionEnrollment(sessionData) {
   const live = sessionData?.liveEnrollment;
+  const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
-  if (live?.deal?.publicHand?.phase) return null;
+  if (livePhase === "draw" || livePhase === "play") return null;
+  if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
 }
 
@@ -93,6 +95,14 @@ function isStaleLiveDealSnapshot(sessionData) {
   if (sessionData?.pendingCoWinSettlement) return false;
   if (!isClearedPreDealHand(sessionData?.currentHand)) return false;
   return isHandComplete(livePublic.tricksByPlayer || {}, livePublic.participantIds || []);
+}
+
+function shouldClearStaleLiveEnrollment(sessionData) {
+  if (!sessionData?.liveEnrollment?.deal) return false;
+  if (isStaleLiveDealSnapshot(sessionData)) return true;
+  const livePhase = sessionData.liveEnrollment.deal.publicHand?.phase ?? null;
+  if (livePhase === "draw" || livePhase === "play") return false;
+  return isClearedPreDealHand(sessionData?.currentHand);
 }
 
 function getSessionCurrentHand(sessionData) {
@@ -454,9 +464,10 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   let data = sessionSnap.data();
   if (data.status === "final") return { status: "noop" };
 
-  if (isStaleLiveDealSnapshot(data) || (isClearedPreDealHand(data.currentHand) && data.liveEnrollment?.deal)) {
+  if (shouldClearStaleLiveEnrollment(data)) {
     await ref.update({
-      "liveEnrollment.deal": FieldValue.delete(),
+      liveEnrollment: FieldValue.delete(),
+      handEnrollment: FieldValue.delete(),
       currentHand: emptyPreDealHand(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -473,7 +484,6 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     await ref.update({
       handEnrollment: refreshedEnrollment,
       liveEnrollment: refreshedEnrollment,
-      "liveEnrollment.deal": FieldValue.delete(),
       currentHand: emptyPreDealHand(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -489,7 +499,8 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
     if (isClearedPreDealHand(data.currentHand)) {
       await ref.update({
-        "liveEnrollment.deal": FieldValue.delete(),
+        liveEnrollment: FieldValue.delete(),
+        handEnrollment: FieldValue.delete(),
         currentHand: emptyPreDealHand(),
         updatedAt: FieldValue.serverTimestamp(),
       });
@@ -506,7 +517,6 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   await ref.update({
     handEnrollment: enrollment,
     liveEnrollment: enrollment,
-    "liveEnrollment.deal": FieldValue.delete(),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
   });

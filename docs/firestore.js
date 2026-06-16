@@ -692,8 +692,10 @@ export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
 /** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
 export function getSessionEnrollment(sessionData) {
   const live = sessionData?.liveEnrollment;
+  const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
-  if (live?.deal?.publicHand?.phase) return null;
+  if (livePhase === "draw" || livePhase === "play") return null;
+  if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
 }
 
@@ -885,19 +887,32 @@ function isStaleLiveDealSnapshot(sessionData) {
   return isHandComplete(livePublic.tricksByPlayer || {}, livePublic.participantIds || []);
 }
 
-async function clearStaleHandoffArtifacts(roomId, sessionId) {
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    ...clearLiveEnrollmentDealPatch(),
+/** Clear leftover liveEnrollment.deal between hands without touching an active draw/play hand. */
+function shouldClearStaleLiveEnrollment(sessionData) {
+  if (!sessionData?.liveEnrollment?.deal) return false;
+  if (isStaleLiveDealSnapshot(sessionData)) return true;
+  const livePhase = sessionData.liveEnrollment.deal.publicHand?.phase ?? null;
+  if (livePhase === "draw" || livePhase === "play") return false;
+  return isHandoffState(sessionData);
+}
+
+function clearedHandoffEnrollmentPatch() {
+  return {
+    [LIVE_ENROLLMENT_FIELD]: deleteField(),
+    handEnrollment: deleteField(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
-  });
+  };
+}
+
+async function clearStaleHandoffArtifacts(roomId, sessionId) {
+  await updateDoc(sessionDoc(roomId, sessionId), clearedHandoffEnrollmentPatch());
 }
 
 function writeEnrollmentPatch(enrollment) {
   return {
     [LIVE_ENROLLMENT_FIELD]: enrollment,
     handEnrollment: enrollment,
-    ...clearLiveEnrollmentDealPatch(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   };
@@ -2328,10 +2343,30 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
-  return callEnrollmentAction(
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      const serverResult = await gameEnsureHandEnrollment(roomId, sessionId);
+      if (serverResult?.status === "started" || serverResult?.status === "refreshed") {
+        return serverResult;
+      }
+    } catch (serverErr) {
+      console.warn(
+        "gameEnsureHandEnrollment failed, trying client enrollment write.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+    }
+  }
+
+  await callEnrollmentAction(
     () => ensureHandEnrollmentClient(roomId, sessionId),
     () => gameEnsureHandEnrollment(roomId, sessionId),
   );
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return;
+  if (!getSessionEnrollment(sessionSnap.data())?.active) {
+    throw new Error("Join window could not start — tap Go to Table again or refresh the page.");
+  }
 }
 
 async function ensureHandEnrollmentClient(roomId, sessionId) {
@@ -2341,7 +2376,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   let data = sessionSnap.data();
   if (data.status === "final") return;
 
-  if (isStaleLiveDealSnapshot(data) || (isHandoffState(data) && data.liveEnrollment?.deal)) {
+  if (shouldClearStaleLiveEnrollment(data)) {
     await clearStaleHandoffArtifacts(roomId, sessionId);
     sessionSnap = await getDoc(sessionRef);
     if (!sessionSnap.exists()) return;
@@ -2358,11 +2393,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       await updateDoc(sessionRef, writeEnrollmentPatch(refreshedEnrollment));
     } catch (err) {
       if (!isPermissionDenied(err)) throw err;
-      await updateDoc(sessionRef, {
-        handEnrollment: refreshedEnrollment,
-        currentHand: emptyPreDealHand(),
-        updatedAt: serverTimestamp(),
-      });
+      await updateDoc(sessionRef, writeEnrollmentPatch(refreshedEnrollment));
     }
     logHandLifecycleTransition({
       from: "opening",
@@ -2397,12 +2428,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
-    await updateDoc(sessionRef, {
-      handEnrollment: enrollment,
-      ...clearLiveEnrollmentDealPatch(),
-      currentHand: emptyPreDealHand(),
-      updatedAt: serverTimestamp(),
-    });
+    await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));
   }
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
