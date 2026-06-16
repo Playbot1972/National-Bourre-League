@@ -680,6 +680,7 @@ function bindRoomDetailDelegatedControls() {
 
     if (el.id === "new-session-stake") {
       pendingHandStake = parseInt(el.value, 10) || 1;
+      userPickedNewSessionStake = true;
       return;
     }
 
@@ -697,12 +698,17 @@ function bindRoomDetailDelegatedControls() {
       const anteEl = $("#room-ante-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
       if (!anteEl || !limEl || !currentRoomId) return;
+      pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
+      pendingHandStake = pendingRoomAnteOverride;
       const limEnabled = limEl.checked;
       updateRoomBourreSettings(currentRoomId, {
-        anteAmount: parseInt(anteEl.value, 10) || 1,
+        anteAmount: pendingRoomAnteOverride,
         limEnabled,
       })
-        .then(() => syncOpenSessionLimEnabled(limEnabled))
+        .then(() => {
+          pendingRoomAnteOverride = null;
+          return syncOpenSessionLimEnabled(limEnabled);
+        })
         .then(() => {
           const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
           if (openSessionObj) {
@@ -755,7 +761,14 @@ function resolveActiveSession() {
   if (!openSessionId) return null;
   const found = currentSessions.find((s) => s.id === openSessionId);
   if (found) return found;
-  return pendingOpenSessions.get(openSessionId) ?? null;
+  const pending = pendingOpenSessions.get(openSessionId);
+  if (pending) return pending;
+  return {
+    id: openSessionId,
+    sessionName: "Session",
+    status: "in_progress",
+    handCount: 0,
+  };
 }
 
 function buildSessionPlayerSectionHtml(s, isOwner) {
@@ -994,6 +1007,11 @@ function startEnrollmentTimer() {
 }
 let tablePlayOpen = false;
 let pendingHandStake = 1;
+/** Local ante override while Bourré settings save or snapshot re-render is in flight. */
+let pendingRoomAnteOverride = null;
+/** User picked new-session ante — do not overwrite from room snapshot until create. */
+let userPickedNewSessionStake = false;
+let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
@@ -1629,6 +1647,8 @@ function openRoom(roomId) {
   roomsListView.hidden = true;
   if (roomsIntro) roomsIntro.hidden = true;
   roomDetailView.hidden = false;
+  pendingRoomAnteOverride = null;
+  userPickedNewSessionStake = false;
   roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
@@ -1639,7 +1659,12 @@ function openRoom(roomId) {
       }
       currentRoom = room;
       if (room?.bourreSettings) {
-        pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
+        const serverAnte = normalizeBourreSettings(room.bourreSettings).anteAmount;
+        if (pendingRoomAnteOverride == null && !userPickedNewSessionStake) {
+          pendingHandStake = serverAnte;
+        } else if (pendingRoomAnteOverride === serverAnte) {
+          pendingRoomAnteOverride = null;
+        }
       }
       if (room && session?.uid === room.ownerId) {
         ensureInviteLookupForRoom(roomId).catch((e) =>
@@ -1649,7 +1674,7 @@ function openRoom(roomId) {
           console.error("ensureRoomSessionNamePool:", e),
         );
       }
-      renderRoomDetail();
+      scheduleRenderRoomDetail();
     }),
   );
   detailUnsubs.push(
@@ -1674,7 +1699,7 @@ function openRoom(roomId) {
       }
       currentMembers = members;
       scheduleSyncSessionMembers();
-      renderRoomDetail();
+      scheduleRenderRoomDetail();
     }),
   );
   detailUnsubs.push(
@@ -1685,8 +1710,8 @@ function openRoom(roomId) {
       currentSessions = mergeSessionsWithPending(sessions);
       restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
-        if (pendingOpenSessions.has(openSessionId)) {
-          renderRoomDetail();
+        if (pendingOpenSessions.has(openSessionId) || creatingSession) {
+          scheduleRenderRoomDetail();
           return;
         }
         const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
@@ -1701,7 +1726,7 @@ function openRoom(roomId) {
       if (!openSessionId && sessions.length > 0) {
         openSession(sessions[0].id);
       } else {
-        renderRoomDetail();
+        scheduleRenderRoomDetail();
         const open = sessions.find((x) => x.id === openSessionId);
         if (open?.status !== "final" && openSessionId) {
           ensureHandEnrollment(roomId, openSessionId).catch(() => {});
@@ -2512,11 +2537,11 @@ function openSession(sessionId) {
     openScores = scores;
     refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
-    renderRoomDetail();
+    scheduleRenderRoomDetail();
   });
   handsUnsub = subscribeHands(currentRoomId, sessionId, (hands) => {
     openHands = hands;
-    renderRoomDetail();
+    scheduleRenderRoomDetail();
   });
   startPrivateHandSubscription();
   renderRoomDetail();
@@ -2539,6 +2564,14 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
       return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
     })
     .join("");
+}
+
+function scheduleRenderRoomDetail() {
+  if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
+  renderRoomDetailTimer = window.setTimeout(() => {
+    renderRoomDetailTimer = 0;
+    renderRoomDetail();
+  }, 80);
 }
 
 function renderRoomDetail() {
@@ -2582,12 +2615,7 @@ function renderRoomDetail() {
   const isOwner = session?.uid === currentRoom.ownerId;
   const visibleMembers = currentMembers;
   const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
-  const sessionAnteEditable =
-    isOwner &&
-    openSessionObj &&
-    openSessionObj.status !== "final" &&
-    !openSessionObj.handStakeLocked;
-  const showNewSessionAnte = isOwner && !sessionAnteEditable;
+  const roomAnteAmount = pendingRoomAnteOverride ?? bourreSettings.anteAmount;
   const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
@@ -2597,6 +2625,7 @@ function renderRoomDetail() {
     isOwner &&
     !sessionHardCap &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
+  const showNewSessionAnte = isOwner && canCreateSession;
   const newSessionDisabledReason = !isOwner
     ? ""
     : sessionHardCap
@@ -2635,7 +2664,7 @@ function renderRoomDetail() {
                    <select class="num-select" id="room-ante-amount" aria-label="Room ante amount">
                      ${RISK_STAKE_OPTIONS.map(
                        (n) =>
-                         `<option value="${n}" ${n === bourreSettings.anteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                         `<option value="${n}" ${n === roomAnteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
                      ).join("")}
                    </select>
                  </label>
@@ -2752,20 +2781,15 @@ function renderRoomDetail() {
         ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
       ${
-        openSessionId
-          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj)}</div>
+        openSessionObj
+          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj, isOwner)}</div>
              <div id="session-panel-mount"></div>`
           : ""
       }
     </section>`;
 
-  if (openSessionId && openSessionObj) {
-    mountSessionPanel(openSessionObj, isOwner);
-  } else if (openSessionId) {
-    const mount = $("#session-panel-mount", roomDetailView);
-    if (mount) {
-      mount.innerHTML = `<p class="muted small">Loading session…</p>`;
-    }
+  if (openSessionObj) {
+    mountSessionPanel(openSessionObj);
   }
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
@@ -2858,9 +2882,10 @@ function buildSessionLiveStatusHtml(s) {
     </div>`;
 }
 
-function buildSessionToolbarHtml(s) {
+function buildSessionToolbarHtml(s, isOwner) {
   if (!s || s.status === "final") return "";
-  return `<div class="session-toolbar__actions">
+  return `${buildSessionPlayerSectionHtml(s, isOwner)}
+    <div class="session-toolbar__actions">
       ${buildGoToTableButtonHtml(s)}
       <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
     </div>`;
@@ -2938,14 +2963,13 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Session ledger panel — add players live here; Go to Table stays in sticky toolbar. */
-function mountSessionPanel(s, isOwner) {
+/** Session ledger panel — add players in sticky toolbar; notes/results here. */
+function mountSessionPanel(s) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
 
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
-  const playerSection = buildSessionPlayerSectionHtml(s, isOwner);
   const sidebarHtml = buildSessionSidebarHtml(s);
   const liveCardHtml = buildSessionLiveStatusHtml(s);
 
@@ -2965,9 +2989,8 @@ function mountSessionPanel(s, isOwner) {
     unmountTableSessionHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
-        ${playerSection}
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot, then tap <strong>Go to Table</strong>.
+          Need at least two players for the live table. Add a guest or robot in the bar above, then tap <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2978,7 +3001,6 @@ function mountSessionPanel(s, isOwner) {
   unmountTableSessionHost();
   mount.innerHTML = `
     <div class="session session--stack">
-      ${playerSection}
       ${liveCardHtml}
       <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
@@ -3200,6 +3222,7 @@ async function onNewSession() {
     };
     rememberPendingSession(optimisticSession);
     currentSessions = mergeSessionsWithPending(currentSessions);
+    userPickedNewSessionStake = false;
     showRoomsError("");
     openSession(created.id);
     renderRoomDetail();

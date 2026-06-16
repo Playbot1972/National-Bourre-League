@@ -928,8 +928,12 @@ body.room-detail-open .room-actions {
   border: 1px solid var(--border-soft);
   color: var(--text-light);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 7px 28px 7px 10px;
   font-size: 14px;
+  cursor: pointer;
+  min-width: 5.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .notes-label {
@@ -1230,6 +1234,9 @@ body.room-detail-open .room-actions {
   padding: 12px 0 8px;
   background: var(--surface-panel);
   border-bottom: 1px solid var(--border-faint);
+}
+body.room-detail-open .session-toolbar {
+  top: 58px;
 }
 .session-toolbar__actions {
   display: flex;

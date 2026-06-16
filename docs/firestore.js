@@ -1307,11 +1307,20 @@ export async function ensureRoomSessionNamePool(roomId) {
     ),
   ];
 
-  await updateDoc(roomRef, {
-    ...(needsPool ? { sessionNamePool: pool } : {}),
-    claimedSessionNames,
-    updatedAt: serverTimestamp(),
-  });
+  const storedClaimed = Array.isArray(roomSnap.data().claimedSessionNames)
+    ? roomSnap.data().claimedSessionNames.filter(Boolean)
+    : [];
+  const storedKey = [...storedClaimed].sort().join("\0");
+  const claimedKey = [...claimedSessionNames].sort().join("\0");
+  const needsClaimedPatch = storedKey !== claimedKey;
+
+  if (needsPool || needsClaimedPatch || assignments.size > 0) {
+    await updateDoc(roomRef, {
+      ...(needsPool ? { sessionNamePool: pool } : {}),
+      ...(needsClaimedPatch ? { claimedSessionNames } : {}),
+      updatedAt: serverTimestamp(),
+    });
+  }
   return pool;
 }
 
@@ -1343,20 +1352,32 @@ export async function reconcileClaimedSessionNames(roomId) {
   return fromSessions;
 }
 
-/** Reconcile preset cap + pool before + New session (repairs stale room docs). */
+/** Read preset cap state without mutating the room doc (avoids tx version conflicts). */
 export async function refreshRoomSessionCap(roomId) {
-  const liveClaimed = await reconcileClaimedSessionNames(roomId);
-  const pool = await ensureRoomSessionNamePool(roomId);
-  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const roomRef = doc(db, "rooms", roomId);
+  const [roomSnap, sessionsSnap] = await Promise.all([
+    getDoc(roomRef),
+    getDocs(sessionsCol(roomId)),
+  ]);
+  const liveClaimed = [
+    ...new Set(
+      sessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
   return {
     room: roomSnap.exists() ? withId(roomSnap) : null,
-    pool,
+    pool: roomSnap.exists() ? roomSnap.data().sessionNamePool : null,
     liveClaimed,
   };
 }
 
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
-  const liveClaimed = await reconcileClaimedSessionNames(roomId);
+  const preSessionsSnap = await getDocs(sessionsCol(roomId));
+  const liveClaimed = [
+    ...new Set(
+      preSessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
   const rosterPlayers = players.filter((p) => p?.playerId);
@@ -1388,7 +1409,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
     }
 
     const roomPatch = {
-      claimedSessionNames: arrayUnion(sessionName),
+      claimedSessionNames: [...new Set([...liveClaimed, sessionName])],
       updatedAt: serverTimestamp(),
     };
     if (!isValidSessionNamePool(roomData.sessionNamePool)) {
