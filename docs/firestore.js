@@ -1306,7 +1306,36 @@ export async function ensureRoomSessionNamePool(roomId) {
   return pool;
 }
 
+/** Sync room.claimedSessionNames with live sessions (repairs stale cap after deletes). */
+export async function reconcileClaimedSessionNames(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const [roomSnap, sessionsSnap] = await Promise.all([
+    getDoc(roomRef),
+    getDocs(sessionsCol(roomId)),
+  ]);
+  if (!roomSnap.exists()) return [];
+
+  const fromSessions = [
+    ...new Set(
+      sessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
+  const stored = Array.isArray(roomSnap.data().claimedSessionNames)
+    ? roomSnap.data().claimedSessionNames.filter(Boolean)
+    : [];
+  const storedKey = [...stored].sort().join("\0");
+  const liveKey = [...fromSessions].sort().join("\0");
+  if (storedKey !== liveKey) {
+    await updateDoc(roomRef, {
+      claimedSessionNames: fromSessions,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  return fromSessions;
+}
+
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
+  await reconcileClaimedSessionNames(roomId);
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
   const rosterPlayers = players.filter((p) => p?.playerId);

@@ -71,9 +71,12 @@ export function sessionTabLabel(session) {
 export function canCreateAnotherSession(sessionCount, pool, claimedNames = []) {
   if (sessionCount >= MAX_ROOM_SESSIONS) return false;
   if (!isValidSessionNamePool(pool)) {
-    return sessionCount < MAX_ROOM_SESSIONS;
+    return true;
   }
-  return countAvailableSessionSlots(pool, claimedNames) > 0;
+  const claimed = claimedNames.filter(Boolean);
+  if (countAvailableSessionSlots(pool, claimed) > 0) return true;
+  // Stale claimedSessionNames on the room doc — trust live session count.
+  return sessionCount < claimed.length;
 }
 
 /** Only sessions that exist — sorted by room pool order when known. */

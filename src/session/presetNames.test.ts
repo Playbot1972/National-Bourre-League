@@ -35,6 +35,13 @@ describe("preset session names", () => {
     assert.equal(canCreateAnotherSession(4, [], []), false);
   });
 
+  it("allows create when claimed names are stale but session count is lower", () => {
+    const pool = [...PRESET_SESSION_NAMES];
+    const staleClaimed = [...pool];
+    assert.equal(canCreateAnotherSession(2, pool, staleClaimed), true);
+    assert.equal(canCreateAnotherSession(4, pool, staleClaimed), false);
+  });
+
   it("persists pool order — seeded shuffle is stable for the same room id", () => {
     const a = seededPresetOrder("room-abc");
     const b = seededPresetOrder("room-abc");
