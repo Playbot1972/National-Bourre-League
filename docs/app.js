@@ -1123,25 +1123,37 @@ function scheduleSessionCleanup(sessionId) {
   );
 }
 
+function claimedSessionNamesForRoom(room, sessions) {
+  if (Array.isArray(room?.claimedSessionNames)) {
+    return room.claimedSessionNames.filter(Boolean);
+  }
+  return sessions.map((s) => s.sessionName).filter(Boolean);
+}
+
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
   if (!scores.length) throw new Error("No players in this session");
   await Promise.all(
-    scores.map((sc) => ensurePlayerDoc(sc.playerId, sc.displayName)),
+    scores.map((sc) =>
+      ensurePlayerDoc(sc.playerId ?? sc.id, sc.displayName),
+    ),
   );
-  const ids = scores.map((sc) => sc.playerId);
+  const ids = scores.map((sc) => sc.playerId ?? sc.id);
   const ratings = await getPlayers(ids);
-  const input = scores.map((sc) => ({
-    id: sc.playerId,
-    displayName: sc.displayName,
-    rating: ratings[sc.playerId]
-      ? {
-          mu: ratings[sc.playerId].mu,
-          sigma: ratings[sc.playerId].sigma,
-          matchesPlayed: ratings[sc.playerId].matchesPlayed || 0,
-        }
-      : newRating(),
-    score: sc.tricksWon || 0,
-  }));
+  const input = scores.map((sc) => {
+    const id = sc.playerId ?? sc.id;
+    return {
+      id,
+      displayName: sc.displayName,
+      rating: ratings[id]
+        ? {
+            mu: ratings[id].mu,
+            sigma: ratings[id].sigma,
+            matchesPlayed: ratings[id].matchesPlayed || 0,
+          }
+        : newRating(),
+      score: sc.tricksWon || 0,
+    };
+  });
   const results = rankMatch(input).map((r) => ({
     ...r,
     apeClass: apeClass(r.apeScore),
@@ -2392,7 +2404,7 @@ function renderRoomDetail() {
   const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
-  const claimedNames = currentSessions.map((s) => s.sessionName).filter(Boolean);
+  const claimedNames = claimedSessionNamesForRoom(currentRoom, currentSessions);
   const canCreateSession =
     isOwner &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
@@ -2938,7 +2950,7 @@ async function onNewSession() {
   const pool = isValidSessionNamePool(currentRoom?.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
-  const claimedNames = currentSessions.map((s) => s.sessionName).filter(Boolean);
+  const claimedNames = claimedSessionNamesForRoom(currentRoom, currentSessions);
   if (
     !canCreateAnotherSession(currentSessions.length, pool, claimedNames)
   ) {
@@ -3000,6 +3012,10 @@ async function onNewSession() {
     const sid = await createSession(currentRoomId, players, handStake, {
       limEnabled: roomBs.limEnabled,
     });
+    if (!sid) {
+      showRoomsError("Could not create session — please try again.");
+      return;
+    }
     openSession(sid);
   } catch (err) {
     console.error("createSession:", err);

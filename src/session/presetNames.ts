@@ -78,6 +78,9 @@ export function canCreateAnotherSession(
   claimedNames: string[] = [],
 ): boolean {
   if (sessionCount >= MAX_ROOM_SESSIONS) return false;
+  if (!isValidSessionNamePool(pool)) {
+    return sessionCount < MAX_ROOM_SESSIONS;
+  }
   return countAvailableSessionSlots(pool, claimedNames) > 0;
 }
 

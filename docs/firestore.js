@@ -12,6 +12,7 @@
 // rooms/{roomId}
 //   { inviteCode, ownerId, name, houseRules, bourreSettings,
 //     sessionNamePool: [4 regional preset names in room-locked order],
+//     claimedSessionNames: [preset names currently used by open/final sessions],
 //     status: "open" | "active" | "closed", createdAt }
 //
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
@@ -359,6 +360,7 @@ export async function createRoom({ owner, name, houseRules }) {
     houseRules: normalizeHouseRules(houseRules),
     bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
     sessionNamePool: randomizePresetOrder(),
+    claimedSessionNames: [],
     status: "open",
     createdAt: serverTimestamp(),
   });
@@ -1267,12 +1269,9 @@ export async function ensureRoomSessionNamePool(roomId) {
   if (!roomSnap.exists()) return null;
 
   let pool = roomSnap.data().sessionNamePool;
-  if (!isValidSessionNamePool(pool)) {
+  const needsPool = !isValidSessionNamePool(pool);
+  if (needsPool) {
     pool = seededPresetOrder(roomId);
-    await updateDoc(roomRef, {
-      sessionNamePool: pool,
-      updatedAt: serverTimestamp(),
-    });
   }
 
   const sessionsSnap = await getDocs(sessionsCol(roomId));
@@ -1290,13 +1289,28 @@ export async function ensureRoomSessionNamePool(roomId) {
       }),
     ),
   );
+
+  const claimedSessionNames = [
+    ...new Set(
+      sessions
+        .map((s) => s.sessionName || assignments.get(s.id))
+        .filter(Boolean),
+    ),
+  ];
+
+  await updateDoc(roomRef, {
+    ...(needsPool ? { sessionNamePool: pool } : {}),
+    claimedSessionNames,
+    updatedAt: serverTimestamp(),
+  });
   return pool;
 }
 
 export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
   const stake = Math.max(1, Number(handStake) || 1);
   const limEnabled = bourreOpts.limEnabled === true;
-  const sortedIds = players.map((p) => p.playerId).filter(Boolean);
+  const rosterPlayers = players.filter((p) => p?.playerId);
+  const sortedIds = rosterPlayers.map((p) => p.playerId);
   const initialDealer = sortedIds[0] ?? null;
   const sessionRef = doc(sessionsCol(roomId));
   let createdSessionId = null;
@@ -1305,28 +1319,33 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
     const roomRef = doc(db, "rooms", roomId);
     const roomSnap = await tx.get(roomRef);
     if (!roomSnap.exists()) throw new Error("Room not found");
+    const roomData = roomSnap.data();
 
-    let pool = roomSnap.data().sessionNamePool;
+    let pool = roomData.sessionNamePool;
     if (!isValidSessionNamePool(pool)) {
       pool = seededPresetOrder(roomId);
-      tx.update(roomRef, {
-        sessionNamePool: pool,
-        updatedAt: serverTimestamp(),
-      });
     }
 
-    const sessionsSnap = await tx.get(sessionsCol(roomId));
-    if (sessionsSnap.size >= MAX_ROOM_SESSIONS) {
+    const claimedNames = Array.isArray(roomData.claimedSessionNames)
+      ? roomData.claimedSessionNames.filter(Boolean)
+      : [];
+    if (claimedNames.length >= MAX_ROOM_SESSIONS) {
       throw new Error("All 4 regional sessions already created for this room.");
     }
 
-    const claimedNames = sessionsSnap.docs
-      .map((d) => d.data().sessionName)
-      .filter(Boolean);
     const sessionName = nextAvailableSessionName(pool, claimedNames);
     if (!sessionName) {
       throw new Error("All 4 regional sessions already created for this room.");
     }
+
+    const roomPatch = {
+      claimedSessionNames: arrayUnion(sessionName),
+      updatedAt: serverTimestamp(),
+    };
+    if (!isValidSessionNamePool(roomData.sessionNamePool)) {
+      roomPatch.sessionNamePool = pool;
+    }
+    tx.update(roomRef, roomPatch);
 
     tx.set(sessionRef, {
       roomId,
@@ -1341,19 +1360,22 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
       ...enrollmentFieldsForCreate(sortedIds, initialDealer),
       currentHand: emptyPreDealHand(),
       rounds: 0,
-      players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
+      players: rosterPlayers.map((p) => ({
+        playerId: p.playerId,
+        displayName: p.displayName || "Player",
+      })),
       notes: "",
       totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
 
-    players.forEach((p) => {
+    rosterPlayers.forEach((p) => {
       tx.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
         sessionId: sessionRef.id,
         roomId,
         playerId: p.playerId,
-        displayName: p.displayName,
+        displayName: p.displayName || "Player",
         tricksWon: 0,
         handsWon: 0,
         net: 0,
@@ -1901,6 +1923,8 @@ export async function deleteSession(roomId, sessionId) {
     throw new Error("Only completed sessions can be removed");
   }
 
+  const sessionName = sessionSnap.data().sessionName;
+
   const [scoresSnap, handsSnap] = await Promise.all([
     getDocs(scoresCol(roomId, sessionId)),
     getDocs(handsCol(roomId, sessionId)),
@@ -1912,6 +1936,12 @@ export async function deleteSession(roomId, sessionId) {
   const batch = writeBatch(db);
   scoresSnap.docs.forEach((d) => batch.delete(d.ref));
   batch.delete(sessionDoc(roomId, sessionId));
+  if (sessionName) {
+    batch.update(doc(db, "rooms", roomId), {
+      claimedSessionNames: arrayRemove(sessionName),
+      updatedAt: serverTimestamp(),
+    });
+  }
   await batch.commit();
 
   if (handsSnap.empty) return;

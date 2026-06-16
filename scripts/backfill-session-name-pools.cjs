@@ -167,9 +167,24 @@ async function main() {
         s.path,
         patchFields({ sessionName: { stringValue: name } }),
       );
+      claimed.add(name);
       sessionsPatched += 1;
       console.log(`  session ${s.id}: assigned ${name}`);
     }
+
+    const claimedSessionNames = [...claimed];
+    await patchDoc(
+      token,
+      doc.name,
+      patchFields({
+        claimedSessionNames: {
+          arrayValue: {
+            values: claimedSessionNames.map((name) => ({ stringValue: name })),
+          },
+        },
+      }),
+    );
+    console.log(`  room ${roomId}: claimedSessionNames = ${claimedSessionNames.join(", ") || "(none)"}`);
   }
 
   console.log(`Done. Rooms patched: ${roomsPatched}, sessions named: ${sessionsPatched}`);

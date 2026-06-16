@@ -29,6 +29,12 @@ describe("preset session names", () => {
     assert.equal(countAvailableSessionSlots(pool, claimed), 0);
   });
 
+  it("allows create before the room preset pool has loaded", () => {
+    assert.equal(canCreateAnotherSession(0, [], []), true);
+    assert.equal(canCreateAnotherSession(3, [], []), true);
+    assert.equal(canCreateAnotherSession(4, [], []), false);
+  });
+
   it("persists pool order — seeded shuffle is stable for the same room id", () => {
     const a = seededPresetOrder("room-abc");
     const b = seededPresetOrder("room-abc");

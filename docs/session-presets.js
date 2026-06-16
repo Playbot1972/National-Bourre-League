@@ -70,6 +70,9 @@ export function sessionTabLabel(session) {
 
 export function canCreateAnotherSession(sessionCount, pool, claimedNames = []) {
   if (sessionCount >= MAX_ROOM_SESSIONS) return false;
+  if (!isValidSessionNamePool(pool)) {
+    return sessionCount < MAX_ROOM_SESSIONS;
+  }
   return countAvailableSessionSlots(pool, claimedNames) > 0;
 }
 
