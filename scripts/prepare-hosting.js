@@ -9,6 +9,27 @@ const socialDest = join(dist, "social");
 
 spawnSync(process.execPath, ["scripts/sync-version.js"], { stdio: "inherit" });
 
+const REQUIRED_FIREBASE_CONFIG_EXPORTS = [
+  "FIREBASE_SDK_VERSION",
+  "AUTH_EMULATOR_URL",
+  "FIRESTORE_EMULATOR",
+  "FUNCTIONS_EMULATOR",
+  "SERVER_HAND_AUTHORITY",
+];
+
+function assertFirebaseConfigComplete(src) {
+  const missing = REQUIRED_FIREBASE_CONFIG_EXPORTS.filter(
+    (name) => !src.includes(`export const ${name}`),
+  );
+  if (missing.length) {
+    console.error(
+      `docs/firebase-config.js is missing required exports: ${missing.join(", ")}`,
+    );
+    console.error("Regenerate with: node scripts/write-firebase-config.js");
+    process.exit(1);
+  }
+}
+
 const firebaseConfigPath = join("docs", "firebase-config.js");
 const firebaseConfig = readFileSync(firebaseConfigPath, "utf8");
 if (
@@ -23,6 +44,7 @@ if (
   console.error("Or: npm run setup:webapp -- national-bourre-league booray.win");
   process.exit(1);
 }
+assertFirebaseConfigComplete(firebaseConfig);
 
 if (!existsSync(dist)) {
   console.error("Run `npm run build` first — dist/ not found.");

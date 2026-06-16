@@ -47,6 +47,8 @@ export interface TablePlayer {
   holeCardCount?: number;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
+  /** Brief pulse when a captured trick is swept to this seat. */
+  isTrickCapture?: boolean;
   /** Ape Score ranking — public leaderboard data, not private hand info. */
   apeScore?: number | null;
   apeClass?: string | null;
@@ -137,6 +139,8 @@ export interface TableSessionViewProps {
   heroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
+  /** True when all five tricks are recorded for the current hand. */
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   actions: TableSessionActions;
 }

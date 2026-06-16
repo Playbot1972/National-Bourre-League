@@ -46,6 +46,9 @@ jobs:
       - name: Checkout
         if: steps.cfg.outputs.ready == 'true'
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         if: steps.cfg.outputs.ready == 'true'
@@ -57,6 +60,10 @@ jobs:
       - name: Install dependencies
         if: steps.cfg.outputs.ready == 'true'
         run: npm ci
+
+      - name: Install Cloud Functions dependencies
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm ci --prefix functions --omit=dev
 
       - name: Bump app version
         if: steps.cfg.outputs.ready == 'true'
@@ -88,9 +95,19 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Hosting and Firestore rules
+      - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
-        run: npx firebase deploy --only hosting,firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+        run: npx firebase deploy --only hosting --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+
+      - name: Deploy Firestore rules
+        if: steps.cfg.outputs.ready == 'true'
+        continue-on-error: true
+        run: |
+          npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
+            echo "::warning::Firestore rules deploy failed — owner kick, session cleanup, and enrollment may need rules."
+            echo "Deploy locally: npx firebase login && npm run deploy:rules"
+            exit 0
+          }
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'

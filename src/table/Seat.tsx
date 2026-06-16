@@ -59,8 +59,19 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
   const showTrickBadge = player.inHand;
   const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
 
+  const seatTestId = player.isSelf
+    ? "seat-bottom-self"
+    : region === "top"
+      ? "seat-top"
+      : region === "left"
+        ? "seat-left"
+        : region === "right"
+          ? "seat-right"
+          : "seat-bottom";
+
   return (
     <div
+      data-testid={seatTestId}
       className={[
         "bseat",
         `bseat--${region}`,
@@ -73,6 +84,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isDealer ? "bseat--dealer" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
+        player.isTrickCapture ? "bseat--trick-capture" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -100,19 +112,21 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         )}
 
         <div className="bseat__avatar-stage">
-          <div className="bseat__avatar-wrap">
+          <div className="bseat__avatar-stack">
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}
-            {player.isDealer && <span className="bseat__dealer">D</span>}
-            {player.photoURL ? (
-              <img className="bseat__avatar" src={player.photoURL} alt="" />
-            ) : (
-              <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-                {initials(player.displayName)}
-              </span>
-            )}
-            {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+            <div className="bseat__avatar-wrap">
+              {player.isDealer && <span className="bseat__dealer">D</span>}
+              {player.photoURL ? (
+                <img className="bseat__avatar" src={player.photoURL} alt="" />
+              ) : (
+                <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
+                  {initials(player.displayName)}
+                </span>
+              )}
+              {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+            </div>
           </div>
           {player.isSelf && onReaction && (
             <div className="bseat__react-bar">

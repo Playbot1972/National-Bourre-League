@@ -136,6 +136,51 @@ button {
   gap: 8px;
 }
 
+/* Phone landscape: topbar nav + auth must not widen the page */
+@media (orientation: landscape) and (max-height: 500px) {
+  .topbar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 8px 12px;
+  }
+
+  .brand {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 16px;
+  }
+
+  .nav {
+    order: 5;
+    flex: 1 1 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .nav__link {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .theme-toggle {
+    width: 34px;
+    height: 34px;
+    margin-left: auto;
+  }
+
+  .auth-controls {
+    margin-left: 0;
+    flex-shrink: 0;
+  }
+
+  .auth-controls .btn {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
@@ -548,6 +593,15 @@ button {
   align-items: center;
   margin: 16px 0;
 }
+body.room-detail-open .room-actions {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 12px;
+  padding: 12px 0 10px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-faint);
+}
 .join-form {
   display: flex;
   gap: 8px;
@@ -720,23 +774,44 @@ button {
   flex-direction: column;
   gap: 8px;
 }
+.members__hint {
+  margin: 0 0 10px;
+}
 .members li {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 14px;
 }
-.members em {
+.members__row {
+  flex-wrap: wrap;
+}
+.members__name {
+  flex: 1;
+  min-width: 0;
+}
+.members em,
+.members__role {
   color: var(--text-dim);
   font-style: normal;
   font-size: 12px;
+}
+.members__kick {
   margin-left: auto;
+  flex-shrink: 0;
 }
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--gold-400);
+  flex-shrink: 0;
+}
+.dot--robot {
+  background: #6eb5ff;
+}
+.dot--guest {
+  background: #b6a0e8;
 }
 
 .btn--sm {
@@ -763,6 +838,31 @@ button {
   color: var(--ink-900);
   font-weight: 600;
   border-color: transparent;
+}
+.session-tabs--preset {
+  align-items: center;
+}
+.session-slot {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed var(--border-soft);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+}
+.session-slot--available {
+  opacity: 0.85;
+}
+.session-preset-note {
+  margin: 0 0 10px;
+  max-width: 52rem;
+}
+.session-cap-note {
+  margin: 8px 0 0;
+}
+.session-cap-note--full {
+  color: var(--text-dim);
 }
 
 .score-table {
@@ -828,8 +928,12 @@ button {
   border: 1px solid var(--border-soft);
   color: var(--text-light);
   border-radius: 8px;
-  padding: 7px 10px;
+  padding: 7px 28px 7px 10px;
   font-size: 14px;
+  cursor: pointer;
+  min-width: 5.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .notes-label {
@@ -1065,27 +1169,6 @@ button {
   margin-top: 4px;
 }
 
-.session-lmt {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.session-lmt input {
-  margin: 0;
-  width: 14px;
-  height: 14px;
-}
-
-.session-lmt--disabled {
-  opacity: 0.65;
-  cursor: default;
-}
-
 .hand-history__num {
   color: var(--gold-300);
   font-weight: 600;
@@ -1129,6 +1212,75 @@ button {
   gap: 10px;
   align-items: center;
   margin-bottom: 14px;
+}
+.session-add-players {
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.session-add-players__guest-hint {
+  margin: 0 0 12px;
+}
+.session-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: 12px 0;
+  padding: 12px 0 8px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border-faint);
+}
+body.room-detail-open .session-toolbar {
+  top: 58px;
+}
+.session-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.session-toolbar__table-btn {
+  flex: 1 1 140px;
+  min-width: 140px;
+}
+.session-live-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+}
+.session-live-card__status {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.session-live-card__hint {
+  margin: 10px 0 0;
+  line-height: 1.45;
+}
+.session--stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.session-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.session-add-players__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.session-add-players__hint {
+  margin: 0 0 10px;
 }
 .add-player-form {
   display: flex;
@@ -1731,8 +1883,11 @@ body.table-play-active .footer {
   z-index: 200;
   font-size: 11px;
   font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
   color: var(--text-dim);
-  opacity: 0.65;
+  opacity: 0.85;
   pointer-events: none;
   user-select: none;
 }

@@ -10,7 +10,9 @@
 //   { displayName, email, photoURL, createdAt, updatedAt }
 //
 // rooms/{roomId}
-//   { inviteCode, ownerId, name, houseRules: { ante, forcedPlay, ties, dealing },
+//   { inviteCode, ownerId, name, houseRules, bourreSettings,
+//     sessionNamePool: [4 regional preset names in room-locked order],
+//     claimedSessionNames: [preset names currently used by open/final sessions],
 //     status: "open" | "active" | "closed", createdAt }
 //
 // roomMembers/{roomId}_{uid}        (flat collection for easy membership queries)
@@ -20,7 +22,7 @@
 //   { roomId, ownerId, createdAt }
 //
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
-//   { roomId, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
+//   { roomId, sessionName, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
 //     totals: { byPlayer: { [playerId]: tricks }, netByPlayer: { [playerId]: net }, tricks },
@@ -78,6 +80,7 @@
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
+import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -108,6 +111,15 @@ import {
   effectivePlayerHand,
   HAND_PHASE,
 } from "./game-engine.js";
+import {
+  MAX_ROOM_SESSIONS,
+  assignSessionNamesForMigration,
+  isValidSessionNamePool,
+  nextAvailableSessionName,
+  pickClaimedNamesForCreate,
+  randomizePresetOrder,
+  seededPresetOrder,
+} from "./session-presets.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -127,6 +139,7 @@ const {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  arrayRemove,
   deleteField,
   runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
@@ -137,6 +150,77 @@ const RATING_INITIAL = { mu: 25, sigma: 25 / 3, matchesPlayed: 0 };
 const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 
 const db = getFirestore(app);
+
+/** Cloud Functions may be unavailable in production — fall back to client transactions. */
+function isPermissionDenied(err) {
+  const code = err?.code ?? "";
+  return code === "permission-denied" || code === "PERMISSION_DENIED";
+}
+
+function isCloudFunctionUnavailable(err) {
+  const code = err?.code ?? "";
+  if (
+    code === "functions/not-found" ||
+    code === "functions/unavailable" ||
+    code === "functions/deadline-exceeded"
+  ) {
+    return true;
+  }
+  const msg = String(err?.message ?? err).toLowerCase();
+  return (
+    msg.includes("not found") ||
+    msg.includes("404") ||
+    msg.includes("failed to fetch") ||
+    msg.includes("internal")
+  );
+}
+
+/** Normalize enrollment deadline (Firestore may return Timestamp objects). */
+export function enrollmentDeadlineMs(enrollment) {
+  const raw = enrollment?.turnDeadlineMs;
+  if (raw == null) return 0;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw.toMillis === "function") return raw.toMillis();
+  if (typeof raw === "object" && typeof raw.seconds === "number") {
+    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Enrollment uses client Firestore first — works when callables are missing or return noop. */
+async function callEnrollmentAction(clientFn, serverFn) {
+  try {
+    return await clientFn();
+  } catch (clientErr) {
+    if (!SERVER_HAND_AUTHORITY) throw clientErr;
+    console.warn("Client enrollment write failed, trying Cloud Function.", clientErr?.code || clientErr);
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      throw clientErr;
+    }
+  }
+}
+
+/** Draw/play/settlement — client Firestore first (works when callables are missing). */
+async function callGameOrClient(clientFn, serverFn) {
+  try {
+    return await clientFn();
+  } catch (clientErr) {
+    if (!SERVER_HAND_AUTHORITY) throw clientErr;
+    console.warn(
+      "Client game write failed, trying Cloud Function.",
+      clientErr?.code || clientErr?.message || clientErr,
+    );
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      if (isCloudFunctionUnavailable(serverErr)) throw clientErr;
+      throw serverErr;
+    }
+  }
+}
 
 /** Five tricks per hand; winner is whoever takes the most (plurality). */
 export const MAX_TRICKS_PER_HAND = 5;
@@ -276,6 +360,8 @@ export async function createRoom({ owner, name, houseRules }) {
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: normalizeHouseRules(houseRules),
     bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
+    sessionNamePool: randomizePresetOrder(),
+    claimedSessionNames: [],
     status: "open",
     createdAt: serverTimestamp(),
   });
@@ -321,17 +407,57 @@ export async function joinRoomByCode(code, user) {
   const lookupSnap = await getDoc(doc(db, "inviteLookups", inviteCode));
   if (!lookupSnap.exists()) return null;
   const roomId = lookupSnap.data().roomId;
+  const membershipRef = doc(db, "roomMembers", memberId(roomId, user.uid));
+  const displayName =
+    user.displayName?.trim() ||
+    user.email?.split("@")[0]?.trim() ||
+    "Player";
+  // Create membership first — room reads require isMember(); verifying the room doc
+  // before join always fails with permission-denied for non-owners.
   await setDoc(
-    doc(db, "roomMembers", memberId(roomId, user.uid)),
+    membershipRef,
     {
       roomId,
       userId: user.uid,
-      displayName: user.displayName,
+      displayName,
       role: "player",
       joinedAt: serverTimestamp(),
     },
     { merge: true },
   );
+  const membershipSnap = await getDoc(membershipRef);
+  if (!membershipSnap.exists()) {
+    throw new Error("Could not confirm room membership — try Join room again.");
+  }
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) {
+    try {
+      await deleteDoc(membershipRef);
+    } catch (err) {
+      console.warn("rollback membership after stale join:", err);
+    }
+    try {
+      await deleteDoc(doc(db, "inviteLookups", inviteCode));
+    } catch (err) {
+      if (err?.code !== "permission-denied" && err?.code !== "not-found") {
+        console.warn("stale inviteLookup delete skipped:", err);
+      }
+    }
+    throw new Error(
+      "That invite code is no longer valid — the room was deleted. Ask the host for a new code.",
+    );
+  }
+  // Clear legacy ban entries so rejoin after an old kick works.
+  if (Array.isArray(roomSnap.data().bannedUserIds) && roomSnap.data().bannedUserIds.includes(user.uid)) {
+    try {
+      await updateDoc(doc(db, "rooms", roomId), {
+        bannedUserIds: arrayRemove(user.uid),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("clear legacy ban on join:", err);
+    }
+  }
   return roomId;
 }
 
@@ -339,6 +465,39 @@ export async function joinRoomByCode(code, user) {
 export async function leaveRoom(roomId, user) {
   if (!user?.uid) throw new Error("Not signed in");
   await deleteDoc(doc(db, "roomMembers", memberId(roomId, user.uid)));
+}
+
+/** Room owner removes another member from the room. Session scores stay so tricks
+ *  and winnings for the current hand/session are preserved. They may rejoin with the invite code. */
+export async function kickRoomMember(roomId, targetUserId, actor) {
+  if (!actor?.uid) throw new Error("Not signed in");
+  if (!targetUserId) throw new Error("Missing member");
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) throw new Error("Room not found");
+  const ownerId = roomSnap.data().ownerId;
+  if (ownerId !== actor.uid) {
+    throw new Error("Only the room owner can remove members.");
+  }
+  if (targetUserId === actor.uid) {
+    throw new Error("Use Leave room to remove yourself.");
+  }
+  if (targetUserId === ownerId) {
+    throw new Error("Cannot remove the room owner.");
+  }
+
+  await deleteDoc(doc(db, "roomMembers", memberId(roomId, targetUserId)));
+
+  // Best-effort: clear legacy ban flag from earlier builds (kick no longer bans).
+  if (Array.isArray(roomSnap.data().bannedUserIds) && roomSnap.data().bannedUserIds.includes(targetUserId)) {
+    try {
+      await updateDoc(doc(db, "rooms", roomId), {
+        bannedUserIds: arrayRemove(targetUserId),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn("clear legacy ban on kick:", err);
+    }
+  }
 }
 
 /** Delete a room entirely (owner only). Cleans up orphan membership if room is already gone. */
@@ -470,6 +629,26 @@ export function createRobotPlayerId() {
   return `bot_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** Remove a player from enrollment rotation when they leave mid-signup. */
+function removePlayerFromEnrollment(enrollment, removedId, dealerId, sortedPlayerIds) {
+  if (!enrollment?.active) return enrollment;
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+  const enrolledIds = (enrollment.enrolledIds || []).filter((id) => id !== removedId);
+  const declinedIds = (enrollment.declinedIds || []).filter((id) => id !== removedId);
+  const previousId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+  let currentIndex =
+    previousId === removedId ? 0 : orderedPlayerIds.indexOf(previousId ?? "");
+  if (currentIndex < 0) currentIndex = 0;
+  if (currentIndex >= orderedPlayerIds.length) currentIndex = 0;
+  return {
+    ...enrollment,
+    orderedPlayerIds,
+    currentIndex,
+    enrolledIds,
+    declinedIds,
+  };
+}
+
 /** Keep enrollment rotation when a new seat joins mid-signup. */
 function mergePlayerIntoEnrollment(enrollment, dealerId, sortedPlayerIds) {
   if (!enrollment?.active) return enrollment;
@@ -487,9 +666,165 @@ function sortedScorePlayerIds(scoreSnap) {
     .map((r) => r.id);
 }
 
+/** Clockwise seat order from session roster (join order), then any extra score rows. */
+export function seatPlayerIds(sessionData, scoreSnap) {
+  const scoreById = Object.fromEntries(
+    scoreSnap.docs.map((d) => [d.id, d.data()?.displayName || ""]),
+  );
+  const fromSession = (sessionData?.players || [])
+    .map((p) => p?.playerId)
+    .filter((id) => id && id in scoreById);
+  const seen = new Set(fromSession);
+  const extras = Object.keys(scoreById)
+    .filter((id) => !seen.has(id))
+    .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
+  return [...fromSession, ...extras];
+}
+
 /** Clockwise order starting with the first seat after the dealer. */
 export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
+}
+
+/** Writable on legacy Firestore rules (not in sessionGameFieldsChanged). */
+export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
+
+/** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
+export function getSessionEnrollment(sessionData) {
+  const live = sessionData?.liveEnrollment;
+  if (live?.active) return live;
+  if (live?.deal?.publicHand?.phase) return null;
+  return sessionData?.handEnrollment ?? null;
+}
+
+/** Public hand from session.currentHand or legacy liveEnrollment.deal (writable without rules deploy). */
+export function getSessionCurrentHand(sessionData) {
+  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
+  if (livePublic?.phase) return livePublic;
+  return sessionData?.currentHand ?? emptyPreDealHand();
+}
+
+function publicHandSessionUpdate(sessionData, nextPublicHand) {
+  if (sessionData?.liveEnrollment?.deal) {
+    return {
+      "liveEnrollment.deal.publicHand": nextPublicHand,
+      updatedAt: serverTimestamp(),
+    };
+  }
+  return { currentHand: nextPublicHand, updatedAt: serverTimestamp() };
+}
+
+function embeddedPrivateHandData(sessionData, playerId) {
+  const hand = sessionData?.liveEnrollment?.deal?.privateHandsByPlayer?.[playerId];
+  if (!hand?.cards) return null;
+  return { cards: hand.cards };
+}
+
+async function readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId) {
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  if (embedded) return embedded;
+  const privateSnap = await tx.get(privateHandDoc(roomId, sessionId, playerId));
+  return privateSnap.exists() ? privateSnap.data() : null;
+}
+
+function writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, serializedCards) {
+  if (sessionData?.liveEnrollment?.deal?.privateHandsByPlayer) {
+    tx.update(ref, {
+      [`liveEnrollment.deal.privateHandsByPlayer.${playerId}.cards`]: serializedCards,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+  tx.set(privateHandDoc(roomId, sessionId, playerId), {
+    cards: serializedCards,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function applyEnrollmentDealInTransaction(tx, ref, patch) {
+  tx.update(ref, {
+    [LIVE_ENROLLMENT_FIELD]: {
+      active: false,
+      deal: {
+        publicHand: patch.currentHand,
+        sortedPlayerIds: patch.sortedPlayerIds,
+        privateHandsByPlayer: patch.privateHandsByPlayer,
+      },
+    },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function applyEnrollmentStepLegacy(tx, ref, patch) {
+  if (patch.privateHandsByPlayer) {
+    applyEnrollmentDealInTransaction(tx, ref, patch);
+    return;
+  }
+  tx.update(ref, {
+    handEnrollment: patch.handEnrollment,
+    ...(patch.currentHand ? { currentHand: patch.currentHand } : {}),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode = "live") {
+  if (mode === "legacy") {
+    applyEnrollmentStepLegacy(tx, ref, patch);
+    return;
+  }
+  if (patch.privateHandsByPlayer) {
+    // Embed private hands on the session (liveEnrollment is client-writable on prod rules).
+    // Subcollection privateHands requires a rules deploy; sync best-effort after commit.
+    applyEnrollmentDealInTransaction(tx, ref, patch);
+    return;
+  }
+  tx.update(ref, {
+    [LIVE_ENROLLMENT_FIELD]: patch.handEnrollment,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch) {
+  const ref = sessionDoc(roomId, sessionId);
+  let dealPrivateHands = null;
+  try {
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error("Session not found");
+      const patch = buildPatch(snap.data());
+      if (!patch) return;
+      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
+      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "live");
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    dealPrivateHands = null;
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists()) throw new Error("Session not found");
+      const patch = buildPatch(snap.data());
+      if (!patch) return;
+      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
+      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "legacy");
+    });
+  }
+  if (dealPrivateHands) {
+    writePrivateHandsBestEffort(roomId, sessionId, dealPrivateHands);
+  }
+}
+
+function writePrivateHandsBestEffort(roomId, sessionId, privateHandsByPlayer) {
+  if (!privateHandsByPlayer) return;
+  const batch = writeBatch(db);
+  for (const [playerId, hand] of Object.entries(privateHandsByPlayer)) {
+    batch.set(privateHandDoc(roomId, sessionId, playerId), {
+      cards: hand.cards,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  batch.commit().catch((err) => {
+    if (err?.code !== "permission-denied") console.warn("privateHands sync:", err);
+  });
 }
 
 function buildHandEnrollment(sortedPlayerIds, dealerId) {
@@ -504,8 +839,26 @@ function buildHandEnrollment(sortedPlayerIds, dealerId) {
   };
 }
 
-function emptyPreDealHand() {
-  return { tricksByPlayer: {}, participantIds: [] };
+function enrollmentFieldsForCreate(sortedIds, dealerId) {
+  const enrollment = buildHandEnrollment(sortedIds, dealerId);
+  return {
+    handEnrollment: enrollment,
+    [LIVE_ENROLLMENT_FIELD]: enrollment,
+  };
+}
+
+function clearLiveEnrollmentDealPatch() {
+  return { "liveEnrollment.deal": deleteField() };
+}
+
+function logHandLifecycleTransition(transition) {
+  if (typeof console !== "undefined" && console.info) {
+    console.info(
+      `[hand-lifecycle] ${transition.from} → ${transition.to}: ${transition.reason}${
+        transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
+      }`,
+    );
+  }
 }
 
 function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, dealingRule) {
@@ -524,6 +877,7 @@ function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, 
     handEnrollment: deleteField(),
     currentHand: publicHand,
     privateHandsByPlayer,
+    sortedPlayerIds,
   };
 }
 
@@ -542,7 +896,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
-  const currentHand = sessionData.currentHand || {};
+  const currentHand = getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
@@ -555,6 +909,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
+    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
@@ -566,27 +921,42 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
+    await ensureHandEnrollment(roomId, sessionId);
     return;
   }
 
-  const pending = sessionData.pendingCoWinSettlement;
-  const proposal = { participantIds, winnerIds };
-  const nextPending = sameCoWinProposal(pending, proposal)
-    ? pending
-    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  if (allowSplitVote) {
+    const pending = sessionData.pendingCoWinSettlement;
+    const proposal = { participantIds, winnerIds };
+    const nextPending = sameCoWinProposal(pending, proposal)
+      ? pending
+      : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    pendingCoWinSettlement: nextPending,
-    updatedAt: serverTimestamp(),
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      pendingCoWinSettlement: nextPending,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
+  await recordHand(roomId, sessionId, {
+    winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
   });
+  await ensureHandEnrollment(roomId, sessionId);
 }
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  if (!SERVER_HAND_AUTHORITY) {
-    return submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId });
-  }
-  return gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId });
+  return callGameOrClient(
+    () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
+    () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
+  );
 }
 
 async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
@@ -601,18 +971,17 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
-    const currentHand = sessionData.currentHand || {};
+    const currentHand = getSessionCurrentHand(sessionData);
     if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
     if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
     if ((currentHand.drawCompletedIds || []).includes(playerId)) {
       throw new Error("Draw already completed");
     }
 
-    const privateRef = privateHandDoc(roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists()) throw new Error("Private hand not found");
+    const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
+    if (!handData) throw new Error("Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const deckSeed = currentHand.deckSeed;
     if (deckSeed == null) throw new Error("Missing deck seed on session");
 
@@ -637,20 +1006,25 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
     };
 
-    tx.set(privateRef, {
-      cards: serializeCards(drawResult.privateHand),
-      updatedAt: serverTimestamp(),
-    });
-    tx.update(ref, { currentHand: nextPublic, updatedAt: serverTimestamp() });
+    writePrivateHandInTransaction(
+      tx,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(drawResult.privateHand),
+    );
+    tx.update(ref, publicHandSessionUpdate(sessionData, nextPublic));
   });
 }
 
 /** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  if (!SERVER_HAND_AUTHORITY) {
-    return playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId });
-  }
-  return gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId });
+  return callGameOrClient(
+    () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
+    () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
+  );
 }
 
 async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {
@@ -667,14 +1041,13 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
-    const currentHand = sessionData.currentHand || {};
+    const currentHand = getSessionCurrentHand(sessionData);
     if (currentHand.phase !== HAND_PHASE.PLAY) throw new Error("Not in trick-play phase");
 
-    const privateRef = privateHandDoc(roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists()) throw new Error("Private hand not found");
+    const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
+    if (!handData) throw new Error("Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const result = applyPlayerPlayCard({
       publicHand: currentHand,
       privateHand: hand,
@@ -686,11 +1059,16 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
 
     handComplete = result.handComplete;
 
-    tx.set(privateRef, {
-      cards: serializeCards(result.privateHand),
-      updatedAt: serverTimestamp(),
-    });
-    tx.update(ref, { currentHand: result.publicHand, updatedAt: serverTimestamp() });
+    writePrivateHandInTransaction(
+      tx,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(result.privateHand),
+    );
+    tx.update(ref, publicHandSessionUpdate(sessionData, result.publicHand));
   });
 
   if (handComplete) {
@@ -705,7 +1083,8 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
     throw new Error(`Bot private hand missing (${playerId}) — redeal or nudge bots`);
   }
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  const ch = sessionSnap.data()?.currentHand || {};
+  const sessionData = sessionSnap.data() || {};
+  const ch = getSessionCurrentHand(sessionData);
   const trumpSuit = ch.trumpSuit;
   const maxDraw = ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
   const privateHand = deserializeCards(handData.cards || []);
@@ -721,7 +1100,7 @@ export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
     throw new Error(`Bot private hand missing (${playerId}) — redeal or nudge bots`);
   }
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  const ch = sessionSnap.data()?.currentHand || {};
+  const ch = getSessionCurrentHand(sessionSnap.data() || {});
   const privateHand = deserializeCards(handData?.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
@@ -755,23 +1134,104 @@ async function deletePrivateHandsForSession(roomId, sessionId, batch) {
   snap.docs.forEach((d) => batch.delete(d.ref));
 }
 
+/** Best-effort removal of hole-card docs before the session doc is deleted. */
+async function purgePrivateHandsForSession(roomId, sessionId) {
+  const snap = await getDocs(privateHandsCol(roomId, sessionId));
+  if (snap.empty) return;
+  try {
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    for (const d of snap.docs) {
+      try {
+        await deleteDoc(d.ref);
+      } catch {
+        try {
+          await updateDoc(d.ref, { cards: [], updatedAt: serverTimestamp() });
+        } catch {
+          /* leave orphaned doc — session delete can still proceed */
+        }
+      }
+    }
+  }
+}
+
+/** Clear hole-card docs after settlement once enrollment is active on the session. */
+async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
+  const snap = await getDocs(privateHandsCol(roomId, sessionId));
+  if (snap.empty) return;
+  try {
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    const batch = writeBatch(db);
+    snap.docs.forEach((d) =>
+      batch.update(d.ref, { cards: [], updatedAt: serverTimestamp() }),
+    );
+    await batch.commit();
+  }
+}
+
+function settlementError(err) {
+  if (isPermissionDenied(err)) {
+    return new Error(
+      "Hand settlement was blocked (missing or insufficient permissions). Sign in again, confirm you are still in this room, and ask the host to deploy updated Firestore rules if it persists.",
+    );
+  }
+  return err instanceof Error ? err : new Error(String(err));
+}
+
 /** Live subscription to the signed-in player's private hand for the session. */
 export function subscribePrivateHand(roomId, sessionId, playerId, callback, onError) {
   if (!roomId || !sessionId || !playerId) return () => {};
-  return onSnapshot(
-    privateHandDoc(roomId, sessionId, playerId),
+
+  const sessionRef = sessionDoc(roomId, sessionId);
+  let privateSub = null;
+
+  const unsubSession = onSnapshot(
+    sessionRef,
     (snap) => {
-      callback(snap.exists() ? snap.data() : null);
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+      const embedded = embeddedPrivateHandData(snap.data(), playerId);
+      if (embedded) {
+        if (privateSub) {
+          privateSub();
+          privateSub = null;
+        }
+        callback(embedded);
+        return;
+      }
+      if (!privateSub) {
+        privateSub = onSnapshot(
+          privateHandDoc(roomId, sessionId, playerId),
+          (privSnap) => callback(privSnap.exists() ? privSnap.data() : null),
+          onError,
+        );
+      }
     },
-    (err) => {
-      if (onError) onError(err);
-      else console.error("subscribePrivateHand:", err);
-    },
+    onError,
   );
+
+  return () => {
+    unsubSession();
+    privateSub?.();
+  };
 }
 
 /** One-shot read of a player's private hand (own hand only per security rules). */
 export async function getPrivateHand(roomId, sessionId, playerId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (sessionSnap.exists()) {
+    const embedded = embeddedPrivateHandData(sessionSnap.data(), playerId);
+    if (embedded) return embedded;
+  }
   const snap = await getDoc(privateHandDoc(roomId, sessionId, playerId));
   return snap.exists() ? snap.data() : null;
 }
@@ -814,57 +1274,201 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
   );
 }
 
-function nextDealerId(scoreSnap, currentDealerId) {
-  const ids = sortedScorePlayerIds(scoreSnap);
+function nextDealerId(scoreSnap, currentDealerId, sessionData) {
+  const ids = seatPlayerIds(sessionData, scoreSnap);
   if (ids.length === 0) return null;
   const idx = ids.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
   return ids[(base + 1) % ids.length];
 }
 
-export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
-  const stake = Math.max(1, Number(handStake) || 1);
-  const limEnabled = bourreOpts.limEnabled === true;
-  const sessionRef = doc(sessionsCol(roomId));
-  const sortedIds = [...players]
-    .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""))
-    .map((p) => p.playerId);
-  const initialDealer = sortedIds[0] ?? null;
-  const batch = writeBatch(db);
-  batch.set(sessionRef, {
-    roomId,
-    status: "in_progress",
-    handCount: 0,
-    handStake: stake,
-    handStakeLocked: false,
-    limEnabled,
-    carryOverPot: 0,
-    dealerId: initialDealer,
-    handEnrollment: buildHandEnrollment(sortedIds, initialDealer),
-    currentHand: emptyPreDealHand(),
-    rounds: 0,
-    players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
-    notes: "",
-    totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  players.forEach((p) => {
-    batch.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
-      sessionId: sessionRef.id,
-      roomId,
-      playerId: p.playerId,
-      displayName: p.displayName,
-      tricksWon: 0,
-      handsWon: 0,
-      net: 0,
-      total: 0,
-      joinedAtHandCount: 0,
+export async function ensureRoomSessionNamePool(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return null;
+
+  let pool = roomSnap.data().sessionNamePool;
+  const needsPool = !isValidSessionNamePool(pool);
+  if (needsPool) {
+    pool = seededPresetOrder(roomId);
+  }
+
+  const sessionsSnap = await getDocs(sessionsCol(roomId));
+  const sessions = sessionsSnap.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+    createdAt: seconds(d.data().createdAt),
+  }));
+  const assignments = assignSessionNamesForMigration(pool, sessions);
+  await Promise.all(
+    [...assignments.entries()].map(([sessionId, sessionName]) =>
+      updateDoc(sessionDoc(roomId, sessionId), {
+        sessionName,
+        updatedAt: serverTimestamp(),
+      }),
+    ),
+  );
+
+  const claimedSessionNames = [
+    ...new Set(
+      sessions
+        .map((s) => s.sessionName || assignments.get(s.id))
+        .filter(Boolean),
+    ),
+  ];
+
+  const storedClaimed = Array.isArray(roomSnap.data().claimedSessionNames)
+    ? roomSnap.data().claimedSessionNames.filter(Boolean)
+    : [];
+  const storedKey = [...storedClaimed].sort().join("\0");
+  const claimedKey = [...claimedSessionNames].sort().join("\0");
+  const needsClaimedPatch = storedKey !== claimedKey;
+
+  if (needsPool || needsClaimedPatch || assignments.size > 0) {
+    await updateDoc(roomRef, {
+      ...(needsPool ? { sessionNamePool: pool } : {}),
+      ...(needsClaimedPatch ? { claimedSessionNames } : {}),
       updatedAt: serverTimestamp(),
     });
+  }
+  return pool;
+}
+
+/** Sync room.claimedSessionNames with live sessions (repairs stale cap after deletes). */
+export async function reconcileClaimedSessionNames(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const [roomSnap, sessionsSnap] = await Promise.all([
+    getDoc(roomRef),
+    getDocs(sessionsCol(roomId)),
+  ]);
+  if (!roomSnap.exists()) return [];
+
+  const fromSessions = [
+    ...new Set(
+      sessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
+  const stored = Array.isArray(roomSnap.data().claimedSessionNames)
+    ? roomSnap.data().claimedSessionNames.filter(Boolean)
+    : [];
+  const storedKey = [...stored].sort().join("\0");
+  const liveKey = [...fromSessions].sort().join("\0");
+  if (storedKey !== liveKey) {
+    await updateDoc(roomRef, {
+      claimedSessionNames: fromSessions,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  return fromSessions;
+}
+
+/** Read preset cap state without mutating the room doc (avoids tx version conflicts). */
+export async function refreshRoomSessionCap(roomId) {
+  const roomRef = doc(db, "rooms", roomId);
+  const [roomSnap, sessionsSnap] = await Promise.all([
+    getDoc(roomRef),
+    getDocs(sessionsCol(roomId)),
+  ]);
+  const liveClaimed = [
+    ...new Set(
+      sessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
+  return {
+    room: roomSnap.exists() ? withId(roomSnap) : null,
+    pool: roomSnap.exists() ? roomSnap.data().sessionNamePool : null,
+    liveClaimed,
+  };
+}
+
+export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
+  const preSessionsSnap = await getDocs(sessionsCol(roomId));
+  const liveClaimed = [
+    ...new Set(
+      preSessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
+    ),
+  ];
+  const stake = Math.max(1, Number(handStake) || 1);
+  const limEnabled = bourreOpts.limEnabled === true;
+  const rosterPlayers = players.filter((p) => p?.playerId);
+  const sortedIds = rosterPlayers.map((p) => p.playerId);
+  const initialDealer = sortedIds[0] ?? null;
+  const sessionRef = doc(sessionsCol(roomId));
+  let createdSessionId = null;
+  let createdSessionName = null;
+
+  await runTransaction(db, async (tx) => {
+    const roomRef = doc(db, "rooms", roomId);
+    const roomSnap = await tx.get(roomRef);
+    if (!roomSnap.exists()) throw new Error("Room not found");
+    const roomData = roomSnap.data();
+
+    let pool = roomData.sessionNamePool;
+    if (!isValidSessionNamePool(pool)) {
+      pool = seededPresetOrder(roomId);
+    }
+
+    const docClaimed = Array.isArray(roomData.claimedSessionNames)
+      ? roomData.claimedSessionNames.filter(Boolean)
+      : [];
+    const claimedNames = pickClaimedNamesForCreate(liveClaimed, docClaimed);
+
+    const sessionName = nextAvailableSessionName(pool, claimedNames);
+    if (!sessionName) {
+      throw new Error("All 4 regional sessions already created for this room.");
+    }
+
+    const roomPatch = {
+      claimedSessionNames: [...new Set([...liveClaimed, sessionName])],
+      updatedAt: serverTimestamp(),
+    };
+    if (!isValidSessionNamePool(roomData.sessionNamePool)) {
+      roomPatch.sessionNamePool = pool;
+    }
+    tx.update(roomRef, roomPatch);
+
+    tx.set(sessionRef, {
+      roomId,
+      sessionName,
+      status: "in_progress",
+      handCount: 0,
+      handStake: stake,
+      handStakeLocked: false,
+      limEnabled,
+      carryOverPot: 0,
+      dealerId: initialDealer,
+      ...enrollmentFieldsForCreate(sortedIds, initialDealer),
+      currentHand: emptyPreDealHand(),
+      rounds: 0,
+      players: rosterPlayers.map((p) => ({
+        playerId: p.playerId,
+        displayName: p.displayName || "Player",
+      })),
+      notes: "",
+      totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    rosterPlayers.forEach((p) => {
+      tx.set(scoreDoc(roomId, sessionRef.id, p.playerId), {
+        sessionId: sessionRef.id,
+        roomId,
+        playerId: p.playerId,
+        displayName: p.displayName || "Player",
+        tricksWon: 0,
+        handsWon: 0,
+        net: 0,
+        total: 0,
+        joinedAtHandCount: 0,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    createdSessionId = sessionRef.id;
+    createdSessionName = sessionName;
   });
-  await batch.commit();
-  return sessionRef.id;
+
+  return { id: createdSessionId, sessionName: createdSessionName };
 }
 
 export function subscribeSessions(roomId, callback) {
@@ -944,24 +1548,26 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameRecordHand(roomId, sessionId, {
-      winnerId,
-      winnerIds,
-      participantIds,
-      settlement,
-      recordedBy,
-      tricksByPlayer,
-    });
-  }
-  return recordHandClient(roomId, sessionId, {
-    winnerId,
-    winnerIds,
-    participantIds,
-    settlement,
-    recordedBy,
-    tricksByPlayer,
-  });
+  return callGameOrClient(
+    () =>
+      recordHandClient(roomId, sessionId, {
+        winnerId,
+        winnerIds,
+        participantIds,
+        settlement,
+        recordedBy,
+        tricksByPlayer,
+      }),
+    () =>
+      gameRecordHand(roomId, sessionId, {
+        winnerId,
+        winnerIds,
+        participantIds,
+        settlement,
+        recordedBy,
+        tricksByPlayer,
+      }),
+  );
 }
 
 async function recordHandClient(
@@ -988,7 +1594,8 @@ async function recordHandClient(
   if (winners.length >= 2 && mode === "win") {
     throw new Error("Use push or split when there are co-winners");
   }
-  const potCarryMode = mode === "push" || mode === "non_winner_ante_up";
+  const potCarryMode =
+    mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry";
   if (!potCarryMode && winners.length === 0) throw new Error("Select at least one winner");
   for (const wid of winners) {
     if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
@@ -1028,7 +1635,7 @@ async function recordHandClient(
   } = handSettlement;
 
   const batch = writeBatch(db);
-  batch.set(doc(handsCol(roomId, sessionId)), {
+  const handLedger = {
     handNumber,
     winnerId: winners.length === 1 ? winners[0] : null,
     winnerIds: winners,
@@ -1046,7 +1653,7 @@ async function recordHandClient(
     deltas,
     recordedBy: recordedBy || null,
     createdAt: serverTimestamp(),
-  });
+  };
 
   participants.forEach((pid) => {
     const current = scoreById[pid];
@@ -1060,18 +1667,22 @@ async function recordHandClient(
     if (current.skipNextAnte) {
       patch.skipNextAnte = deleteField();
     }
-    if (bourreIds.length > 0 && tricksByPlayer) {
-      const tricks = tricksForPlayer(tricksByPlayer, pid);
-      if (tricks >= 1 || bourreIds.includes(pid)) {
-        patch.skipNextAnte = true;
-      }
+    if (bourreIds.includes(pid)) {
+      patch.skipNextAnte = true;
+    }
+    if (
+      winners.includes(pid) &&
+      winners.length >= 2 &&
+      (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split")
+    ) {
+      patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
       patch.handsWon = (current.handsWon || 0) + 1;
       patch.tricksWon = tricksWon;
       patch.total = Math.max(0, tricksWon);
     }
-    if (mode === "non_winner_ante_up") {
+    if (mode === "non_winner_ante_up" || mode === "co_win_carry") {
       if (winners.includes(pid)) {
         patch.perHandStake = deleteField();
       } else {
@@ -1091,21 +1702,47 @@ async function recordHandClient(
     }
   }
 
-  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId);
-  await deletePrivateHandsForSession(roomId, sessionId, batch);
+  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
+  const seatIds = seatPlayerIds(sessionData, scoreSnap);
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
-    handEnrollment: buildHandEnrollment(sortedScorePlayerIds(scoreSnap), newDealerId),
+    ...enrollmentFieldsForCreate(seatIds, newDealerId),
+    ...clearLiveEnrollmentDealPatch(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
 
-  await batch.commit();
+  try {
+    await batch.commit();
+  } catch (err) {
+    throw settlementError(err);
+  }
+
+  try {
+    await clearPrivateHandsAfterSettlement(roomId, sessionId);
+  } catch (err) {
+    console.warn("recordHand: privateHands cleanup deferred", err);
+  }
+
+  try {
+    const handBatch = writeBatch(db);
+    handBatch.set(doc(handsCol(roomId, sessionId)), handLedger);
+    await handBatch.commit();
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    console.warn("recordHand: hand ledger skipped (rules deploy pending)", err);
+  }
+
   await recomputeSessionTotals(roomId, sessionId);
+  logHandLifecycleTransition({
+    from: "settle",
+    to: "opening",
+    reason: "recordHand cleared hand and opened enrollment",
+  });
 }
 
 /**
@@ -1117,22 +1754,24 @@ export async function voteCoWinSettlement(
   sessionId,
   { participantIds, winnerIds, voterId, choice, recordedBy },
 ) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameVoteCoWinSettlement(roomId, sessionId, {
-      participantIds,
-      winnerIds,
-      voterId,
-      choice,
-      recordedBy,
-    });
-  }
-  return voteCoWinSettlementClient(roomId, sessionId, {
-    participantIds,
-    winnerIds,
-    voterId,
-    choice,
-    recordedBy,
-  });
+  return callGameOrClient(
+    () =>
+      voteCoWinSettlementClient(roomId, sessionId, {
+        participantIds,
+        winnerIds,
+        voterId,
+        choice,
+        recordedBy,
+      }),
+    () =>
+      gameVoteCoWinSettlement(roomId, sessionId, {
+        participantIds,
+        winnerIds,
+        voterId,
+        choice,
+        recordedBy,
+      }),
+  );
 }
 
 async function voteCoWinSettlementClient(
@@ -1154,7 +1793,7 @@ async function voteCoWinSettlementClient(
   if (winners.length < 2) throw new Error("Co-winners only");
   if (!winners.includes(voterId)) throw new Error("Only co-winners can vote");
 
-  const tricksByPlayer = sessionData.currentHand?.tricksByPlayer || {};
+  const tricksByPlayer = getSessionCurrentHand(sessionData)?.tricksByPlayer || {};
   const recordArgs = {
     winnerIds: winners,
     participantIds: participants,
@@ -1279,16 +1918,29 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
     return;
   }
 
-  const pending = sessionData.pendingCoWinSettlement;
-  const proposal = { participantIds, winnerIds };
-  const nextPending = sameCoWinProposal(pending, proposal)
-    ? pending
-    : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  if (allowSplitVote) {
+    const pending = sessionData.pendingCoWinSettlement;
+    const proposal = { participantIds, winnerIds };
+    const nextPending = sameCoWinProposal(pending, proposal)
+      ? pending
+      : { ...proposal, votes: {}, updatedAt: serverTimestamp() };
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: { ...currentHand, tricksByPlayer, participantIds },
-    pendingCoWinSettlement: nextPending,
-    updatedAt: serverTimestamp(),
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      currentHand: { ...currentHand, tricksByPlayer, participantIds },
+      pendingCoWinSettlement: nextPending,
+      updatedAt: serverTimestamp(),
+    });
+    return;
+  }
+
+  await recordHand(roomId, sessionId, {
+    winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
   });
 }
 
@@ -1335,17 +1987,59 @@ export async function finalizeSession(roomId, sessionId) {
   });
 }
 
-/** Remove a session and its score/hand subcollections from the room. */
+/** Fetch score rows for a session (one-shot, for cleanup / completion). */
+export async function getSessionScores(roomId, sessionId) {
+  const snap = await getDocs(scoresCol(roomId, sessionId));
+  return snap.docs
+    .map(withId)
+    .sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+}
+
+/** Fetch a session doc, or null if missing. */
+export async function getSession(roomId, sessionId) {
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() };
+}
+
+/** Remove a completed session and its subcollections from the room. */
 export async function deleteSession(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return;
+  if (sessionSnap.data().status !== "final") {
+    throw new Error("Only completed sessions can be removed");
+  }
+
+  const sessionName = sessionSnap.data().sessionName;
+
   const [scoresSnap, handsSnap] = await Promise.all([
     getDocs(scoresCol(roomId, sessionId)),
     getDocs(handsCol(roomId, sessionId)),
   ]);
+
+  // Delete private hands while the session doc still exists (rules reference session state).
+  await purgePrivateHandsForSession(roomId, sessionId);
+
   const batch = writeBatch(db);
   scoresSnap.docs.forEach((d) => batch.delete(d.ref));
-  handsSnap.docs.forEach((d) => batch.delete(d.ref));
   batch.delete(sessionDoc(roomId, sessionId));
+  if (sessionName) {
+    batch.update(doc(db, "rooms", roomId), {
+      claimedSessionNames: arrayRemove(sessionName),
+      updatedAt: serverTimestamp(),
+    });
+  }
   await batch.commit();
+
+  if (handsSnap.empty) return;
+  try {
+    const handsBatch = writeBatch(db);
+    handsSnap.docs.forEach((d) => handsBatch.delete(d.ref));
+    await handsBatch.commit();
+  } catch (err) {
+    if (err?.code !== "permission-denied") throw err;
+    console.warn("deleteSession: hand ledger retained (rules deploy pending)", err);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1406,7 +2100,7 @@ export function subscribeLeaderboard(callback) {
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function addSessionPlayer(roomId, sessionId, playerId, displayName) {
-  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: true });
+  return ensureSessionPlayer(roomId, sessionId, playerId, displayName, { joinCurrentHand: false });
 }
 
 /** Add a robot seat — joins via enrollment and auto-plays tricks when the hand is live. */
@@ -1418,7 +2112,65 @@ export async function addSessionRobot(roomId, sessionId, displayName) {
   });
 }
 
-/** Add player to session only if they are not already on the score sheet. */
+/** Room owner removes a guest or robot from the open session score sheet. */
+export async function removeSessionPlayer(roomId, sessionId, playerId, actor) {
+  if (!actor?.uid) throw new Error("Not signed in");
+  if (!playerId) throw new Error("Missing player");
+
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) throw new Error("Room not found");
+  if (roomSnap.data().ownerId !== actor.uid) {
+    throw new Error("Only the room owner can remove a guest or robot.");
+  }
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const currentHand = getSessionCurrentHand(sessionData);
+  const phase = currentHand?.phase;
+  if (phase === "draw" || phase === "play") {
+    throw new Error("Cannot remove a player during draw or play — finish the hand first.");
+  }
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  if (!scoreSnap.docs.some((d) => d.id === playerId)) {
+    throw new Error("Player is not on this session.");
+  }
+  if (scoreSnap.size <= 2) {
+    throw new Error("Need at least two players on the session.");
+  }
+
+  const remainingSorted = scoreSnap.docs
+    .filter((d) => d.id !== playerId)
+    .map((d) => ({ id: d.id, displayName: d.data()?.displayName || "" }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .map((r) => r.id);
+
+  const sessionPatch = {
+    players: (sessionData.players || []).filter((p) => p?.playerId !== playerId),
+    updatedAt: serverTimestamp(),
+  };
+
+  const activeEnrollment = getSessionEnrollment(sessionData);
+  if (activeEnrollment?.active) {
+    sessionPatch[LIVE_ENROLLMENT_FIELD] = removePlayerFromEnrollment(
+      activeEnrollment,
+      playerId,
+      sessionData.dealerId,
+      remainingSorted,
+    );
+  }
+
+  const batch = writeBatch(db);
+  batch.delete(scoreDoc(roomId, sessionId, playerId));
+  batch.update(sessionDoc(roomId, sessionId), sessionPatch);
+  await batch.commit();
+  return true;
+}
+
+/** Add a (guest or member) player to an in-progress session, with a fresh score row. */
 export async function ensureSessionPlayer(
   roomId,
   sessionId,
@@ -1441,36 +2193,29 @@ export async function ensureSessionPlayer(
   }
 
   const handCount = sessionData.handCount || 0;
-  const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
-  const participantIds = joinCurrentHand
-    ? [...new Set([...(currentHand.participantIds || []), playerId])]
-    : currentHand.participantIds || [];
+  const currentHand = getSessionCurrentHand(sessionData);
+  const activeEnrollment = getSessionEnrollment(sessionData);
 
   const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedIds = [
-    ...allScoresSnap.docs.map((d) => ({
-      id: d.id,
-      displayName: d.data()?.displayName || "",
-    })),
-    { id: playerId, displayName: displayName || "" },
-  ]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
-    .map((r) => r.id);
+  const rosterIds = seatPlayerIds(sessionData, allScoresSnap);
+  const sortedIds = rosterIds.includes(playerId) ? rosterIds : [...rosterIds, playerId];
 
   const sessionPatch = {
     players: arrayUnion({ playerId, displayName }),
-    currentHand: {
-      tricksByPlayer: currentHand.tricksByPlayer || {},
-      participantIds,
-    },
     updatedAt: serverTimestamp(),
   };
-  if (sessionData.handEnrollment?.active && !joinCurrentHand) {
-    sessionPatch.handEnrollment = mergePlayerIntoEnrollment(
-      sessionData.handEnrollment,
+  if (activeEnrollment?.active) {
+    sessionPatch[LIVE_ENROLLMENT_FIELD] = mergePlayerIntoEnrollment(
+      activeEnrollment,
       sessionData.dealerId,
       sortedIds,
     );
+  } else if (joinCurrentHand) {
+    const participantIds = [...new Set([...(currentHand.participantIds || []), playerId])];
+    sessionPatch.currentHand = {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds,
+    };
   }
 
   if (!isRobot) {
@@ -1534,76 +2279,91 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameEnsureHandEnrollment(roomId, sessionId);
-  }
-  return ensureHandEnrollmentClient(roomId, sessionId);
+  return callEnrollmentAction(
+    () => ensureHandEnrollmentClient(roomId, sessionId),
+    () => gameEnsureHandEnrollment(roomId, sessionId),
+  );
 }
 
 async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const data = sessionSnap.data();
-  if (data.status === "final" || data.handEnrollment?.active) return;
-  const phase = data.currentHand?.phase;
+  if (data.status === "final" || getSessionEnrollment(data)?.active) return;
+  const currentHand = getSessionCurrentHand(data);
+  const phase = currentHand?.phase;
   if (phase === "draw" || phase === "play") return;
-  const participantIds = data.currentHand?.participantIds || [];
-  const tricks = data.currentHand?.tricksByPlayer || {};
+  const participantIds = currentHand?.participantIds || [];
+  const tricks = currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) return;
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedIds = sortedScorePlayerIds(scoreSnap);
+  const sortedIds = seatPlayerIds(data, scoreSnap);
   if (sortedIds.length < 2) return;
 
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    handEnrollment: buildHandEnrollment(sortedIds, data.dealerId),
-    currentHand: emptyPreDealHand(),
-    updatedAt: serverTimestamp(),
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      [LIVE_ENROLLMENT_FIELD]: enrollment,
+      handEnrollment: enrollment,
+      ...clearLiveEnrollmentDealPatch(),
+      currentHand: emptyPreDealHand(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      handEnrollment: enrollment,
+      ...clearLiveEnrollmentDealPatch(),
+      currentHand: emptyPreDealHand(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  logHandLifecycleTransition({
+    from: "handoffToNextDeal",
+    to: "opening",
+    reason: "ensureHandEnrollment opened join window",
   });
 }
 
 /** Auto sit-out when the current player's enrollment window expires. */
 export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameTimeoutEnrollment(roomId, sessionId);
-  }
-  return timeoutHandEnrollmentTurnClient(roomId, sessionId);
+  return callEnrollmentAction(
+    () => timeoutHandEnrollmentTurnClient(roomId, sessionId),
+    () => gameTimeoutEnrollment(roomId, sessionId),
+  );
 }
 
 async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
+  const sortedPlayerIds = seatPlayerIds(sessionSnap.data(), scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
-  const ref = sessionDoc(roomId, sessionId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) return;
-    const sessionData = snap.data();
-    const enrollment = sessionData.handEnrollment;
-    if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return;
+
+  await runEnrollmentStepTransaction(roomId, sessionId, (sessionData) => {
+    const enrollment = getSessionEnrollment(sessionData);
+    if (!enrollment?.active) return null;
+    if (Date.now() < enrollmentDeadlineMs(enrollment)) return null;
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
-    const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
+    return enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
       dealerId: sessionData.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
     });
-    writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
-    const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-    tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
   });
 }
 
 /** Each signed-in player toggles only their own participation in the current hand. */
 export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
-  if (SERVER_HAND_AUTHORITY) {
-    return gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId });
-  }
-  return setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId });
+  return callEnrollmentAction(
+    () => setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }),
+    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId }),
+  );
 }
 
 async function setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }) {
@@ -1612,37 +2372,45 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     throw new Error("You can only change your own hand participation");
   }
 
-  const ref = sessionDoc(roomId, sessionId);
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap);
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists()) throw new Error("Session not found");
-    const sessionData = snap.data();
-    if (sessionData.status === "final") throw new Error("Session is final");
 
-    const enrollment = sessionData.handEnrollment;
-    if (enrollment?.active) {
-      if (!inHand) throw new Error("Wait for your turn or let the timer run out");
-      const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
-      if (playerId !== currentId) throw new Error("Not your turn to join yet");
-      const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
-      const declinedIds = [...(enrollment.declinedIds || [])];
-      const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
-        dealerId: sessionData.dealerId,
+  const enrollment = getSessionEnrollment(sessionData);
+  if (enrollment?.active) {
+    if (!inHand) throw new Error("Wait for your turn or let the timer run out");
+    const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
+    if (playerId !== currentId) throw new Error("Not your turn to join yet");
+
+    await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
+      const activeEnrollment = getSessionEnrollment(data);
+      if (!activeEnrollment?.active) return null;
+      const enrolledIds = [...(activeEnrollment.enrolledIds || []), playerId];
+      const declinedIds = [...(activeEnrollment.declinedIds || [])];
+      return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
+        dealerId: data.dealerId,
         sortedPlayerIds,
         seed: Date.now(),
         dealingRule,
       });
-      writePrivateHandsToTransaction(tx, roomId, sessionId, patch.privateHandsByPlayer);
-      const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-      tx.update(ref, { ...sessionPatch, updatedAt: serverTimestamp() });
-      return;
-    }
+    });
+    return;
+  }
 
-    const currentHand = sessionData.currentHand || emptyPreDealHand();
+  const ref = sessionDoc(roomId, sessionId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const data = snap.data();
+    if (data.status === "final") throw new Error("Session is final");
+
+    const currentHand = data.currentHand || emptyPreDealHand();
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
 

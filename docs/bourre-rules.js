@@ -78,7 +78,7 @@ export function settleHandDeltas({
   const deltas = {};
   let carryOverPot = 0;
 
-  if (mode === "push" || mode === "non_winner_ante_up") {
+  if (mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry") {
     carryOverPot = currentPot;
     participants.forEach((pid) => {
       deltas[pid] = -stakeForPlayer(pid);
@@ -105,7 +105,7 @@ export function settleHandDeltas({
     carryOverPot = bourreMatch + (limOn ? overflow : 0);
   }
 
-  if (bourreMatch > 0 && mode !== "win") {
+  if (bourreMatch > 0 && mode !== "win" && mode !== "split") {
     for (const pid of bourreIds) {
       deltas[pid] -= bourrePenalty;
     }

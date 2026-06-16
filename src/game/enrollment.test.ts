@@ -49,6 +49,32 @@ describe("C — in/out enrollment", () => {
     assert.equal(step.handEnrollment.currentIndex, 1);
   });
 
+  it("3-player table advances through consecutive timeouts", () => {
+    const ids = ["p1", "p2", "p3"];
+    const ctx = { dealerId: "p1", sortedPlayerIds: ids, seed: 1, dealingRule: null };
+    let enrollment = buildHandEnrollment(ids, "p1", 1_000);
+    assert.equal(currentEnrollmentPlayer(enrollment), "p2");
+
+    const step1 = applyEnrollmentTimeout(enrollment, ctx, 13_000);
+    assert.equal(step1.kind, "continue");
+    if (step1.kind !== "continue") return;
+    assert.equal(currentEnrollmentPlayer(step1.handEnrollment), "p3");
+    assert.deepEqual(step1.handEnrollment.declinedIds, ["p2"]);
+
+    const step2 = applyEnrollmentTimeout(step1.handEnrollment, ctx, 26_000);
+    assert.equal(step2.kind, "continue");
+    if (step2.kind !== "continue") return;
+    assert.equal(currentEnrollmentPlayer(step2.handEnrollment), "p1");
+    assert.deepEqual(step2.handEnrollment.declinedIds, ["p2", "p3"]);
+
+    const step3 = applyEnrollmentTimeout(step2.handEnrollment, ctx, 39_000);
+    assert.equal(step3.kind, "restart");
+    if (step3.kind !== "restart") return;
+    assert.equal(currentEnrollmentPlayer(step3.handEnrollment), "p2");
+    assert.deepEqual(step3.handEnrollment.declinedIds, []);
+    assert.deepEqual(step3.handEnrollment.enrolledIds, []);
+  });
+
   it("restarts when fewer than two players enroll", () => {
     const result = runEnrollmentPhase(
       SORTED,

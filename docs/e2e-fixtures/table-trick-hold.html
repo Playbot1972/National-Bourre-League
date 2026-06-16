@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Trick hold fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-trick-hold-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const trumpBeat = params.get("trumpBeat") === "1";
+      const resolveDelayMs = parseInt(params.get("resolveDelay") || "600", 10);
+
+      /** Keep in sync with src/table/trickTiming.ts — used by E2E hold-duration checks. */
+      const POST_TRICK_READ_MS = trumpBeat ? 1800 : 1400;
+      const TRICK_SWEEP_MS = 300;
+
+      const ids = ["p0", "p1", "p2", "p3"];
+      const dealerId = "p3";
+
+      const completedTrick = {
+        trickNumber: 2,
+        leadPlayerId: "p0",
+        leadSuit: trumpBeat ? "hearts" : "clubs",
+        plays: trumpBeat
+          ? [
+              { playerId: "p0", card: { rank: "A", suit: "hearts" } },
+              { playerId: "p1", card: { rank: "K", suit: "hearts" } },
+              { playerId: "p2", card: { rank: "Q", suit: "hearts" } },
+              { playerId: "p3", card: { rank: "9", suit: "spades" } },
+            ]
+          : [
+              { playerId: "p0", card: { rank: "A", suit: "clubs" } },
+              { playerId: "p1", card: { rank: "K", suit: "clubs" } },
+              { playerId: "p2", card: { rank: "Q", suit: "clubs" } },
+              { playerId: "p3", card: { rank: "J", suit: "clubs" } },
+            ],
+      };
+
+      let tricksByPlayer = { p0: 0, p1: 0, p2: 0, p3: 0 };
+      let currentTrick = completedTrick;
+      let trickResolved = false;
+
+      window.__trickHoldFixture = {
+        holdMs: POST_TRICK_READ_MS,
+        sweepMs: TRICK_SWEEP_MS,
+        trumpBeat,
+      };
+
+      function displayName(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return idx === 0 ? "You" : `Player ${idx}`;
+      }
+
+      function buildPlayers() {
+        return ids.map((id) => ({
+          playerId: id,
+          displayName: displayName(id),
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: tricksByPlayer[id] ?? 0,
+          isSelf: id === "p0",
+          isDealer: id === dealerId,
+          isLeading: false,
+          isWinner: false,
+          isRobot: id !== "p0",
+          enrollmentOnClock: false,
+          canToggleInHand: false,
+          canEditTricks: false,
+          showHoleCards: id !== "p0",
+          holeCardCount: 3,
+          isOnTurn: id === "p0",
+        }));
+      }
+
+      function buildProps() {
+        return {
+          session: {
+            sessionId: "fixture-trick-hold",
+            handNumber: 1,
+            handStake: 1,
+            carryOverPot: 0,
+            isFinal: false,
+            dealerId,
+            participantIds: ids,
+            tricksByPlayer: { ...tricksByPlayer },
+            phase: "play",
+            trumpSuit: trumpBeat ? "spades" : "clubs",
+            trumpUpcard: null,
+            turnPlayerId: "p0",
+            remainingDeckCount: 20,
+            maxDrawDiscards: 4,
+            currentTrick,
+            handEnrollment: null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: 4,
+            maxWinThisHand: 4,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel: "Trick hold fixture — all four cards stay on the felt",
+          showCoWinSettlement: false,
+          enrollmentActive: false,
+          enrollmentSecondsLeft: 0,
+          currentUserId: "p0",
+          heroCards: [
+            { rank: "10", suit: "diamonds" },
+            { rank: "8", suit: "hearts" },
+            { rank: "7", suit: "spades" },
+            { rank: "6", suit: "clubs" },
+            { rank: "5", suit: "diamonds" },
+          ],
+          privateHandReady: true,
+          legalPlayIndices: [0, 1, 2, 3, 4],
+          actionFeedback: null,
+          actions: {
+            onToggleInHand: () => {},
+            onTrickDelta: () => {},
+            onSettle: () => {},
+            onSubmitDraw: async () => {},
+            onPassDraw: async () => {},
+            onPlayCard: async () => {},
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+
+      function render() {
+        mountTableSession(root, buildProps());
+      }
+
+      render();
+
+      setTimeout(() => {
+        if (trickResolved) return;
+        trickResolved = true;
+        tricksByPlayer = trumpBeat
+          ? { p0: 0, p1: 0, p2: 0, p3: 1 }
+          : { p0: 1, p1: 0, p2: 0, p3: 0 };
+        currentTrick = null;
+        render();
+      }, resolveDelayMs);
+    </script>
+  </body>
+</html>

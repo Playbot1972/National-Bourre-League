@@ -75,15 +75,25 @@ function o(e) {
 			carryoverLine: null
 		};
 	}
-	return a === "push" ? (g.push("No winner with tricks — everyone who stayed in is bourré'd."), f.length && g.push(`Bourré: ${p}.`), g.push(`Full pot ${m} carries forward.`), {
+	if (a === "push") return g.push("No winner with tricks — everyone who stayed in is bourré'd."), f.length && g.push(`Bourré: ${p}.`), g.push(`Full pot ${m} carries forward.`), {
 		headline: "Hand pushed — pot carries",
 		detailLines: g,
 		carryoverLine: `Next hand pot includes ${h}.`
-	}) : a === "non_winner_ante_up" ? (g.push("Co-winners did not all agree to split."), g.push(`Pot ${m} carries to the next hand.`), g.push("Players who did not tie for the lead ante up next hand."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+	};
+	if (a === "non_winner_ante_up") return g.push("Co-winners did not all agree to split."), g.push(`Pot ${m} carries to the next hand.`), g.push("Players who did not tie for the lead ante up next hand."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
 		headline: "No split agreement — pot pushed",
 		detailLines: g,
 		carryoverLine: `Next hand starts with ${h} in the pot.`
-	}) : {
+	};
+	if (a === "co_win_carry") {
+		let e = r(o, l);
+		return g.push(`Tie for most tricks — ${e} (${o.length} co-winners).`), g.push(`No outright winner; full pot ${m} carries to the next deal.`), g.push("Hand ends; enrollment opens for the next deal. Seats may change between deals."), g.push("Tied leaders skip the ante for that deal; other seated players ante as usual."), g.push("New players seated in time for enrollment may join that deal."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+			headline: "Tie — pot carries",
+			detailLines: g,
+			carryoverLine: `Next deal starts with ${h} in the pot.`
+		};
+	}
+	return {
 		headline: "Hand complete",
 		detailLines: g,
 		carryoverLine: d > 0 ? `Carryover: ${h}` : null

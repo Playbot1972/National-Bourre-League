@@ -44,7 +44,7 @@ export function SettlementCoWinPanel({
   return (
     <div
       className="btable-session__settle"
-      data-testid="settlement-cowin-panel"
+      data-testid="settlement-panel"
       role="region"
       aria-label="Co-winner settlement vote"
     >

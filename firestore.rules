@@ -39,6 +39,66 @@ service cloud.firestore {
       ]);
     }
 
+    function sessionEnrollmentActive(data) {
+      return data.get('handEnrollment', {}).get('active', false) == true
+        || data.get('liveEnrollment', {}).get('active', false) == true;
+    }
+
+    // Room members may drive I'm-in / timeout while enrollment is active.
+    function memberEnrollmentSessionUpdate() {
+      return sessionEnrollmentActive(resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
+    }
+
+    // Room members add guests/robots to the roster while enrollment is open.
+    function memberRosterSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['players', 'liveEnrollment', 'updatedAt']);
+    }
+
+    // Client settlement after a hand (Cloud Functions optional on prod).
+    function memberSettlementSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'handEnrollment',
+          'liveEnrollment',
+          'currentHand',
+          'handCount',
+          'carryOverPot',
+          'dealerId',
+          'pendingCoWinSettlement',
+          'handStakeLocked',
+          'totals',
+          'rounds',
+          'updatedAt',
+        ]);
+    }
+
+    function memberSettlementScoreUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'net',
+          'tricksWon',
+          'handsWon',
+          'total',
+          'skipNextAnte',
+          'perHandStake',
+          'updatedAt',
+        ]);
+    }
+
+    function enrollmentActiveForSession(roomId, sessionId) {
+      return sessionEnrollmentActive(
+        get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId)).data
+      );
+    }
+
+    function sessionFinal(roomId, sessionId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId))
+        .data.status == 'final';
+    }
+
     function scoreLedgerFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'net',
@@ -63,19 +123,25 @@ service cloud.firestore {
       match /sessions/{sessionId} {
         allow read: if isMember(roomId);
         allow create: if isMember(roomId);
-        allow update: if isMember(roomId) && !sessionGameFieldsChanged();
+        allow update: if isMember(roomId)
+          && (!sessionGameFieldsChanged()
+            || memberEnrollmentSessionUpdate()
+            || memberRosterSessionUpdate()
+            || memberSettlementSessionUpdate());
         allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
           allow read: if isMember(roomId);
           allow create: if isMember(roomId);
-          allow update: if isMember(roomId) && !scoreLedgerFieldsChanged();
+          allow update: if isMember(roomId)
+            && (!scoreLedgerFieldsChanged() || memberSettlementScoreUpdate());
           allow delete: if isRoomOwner(roomId);
         }
 
         match /hands/{handId} {
           allow read: if isMember(roomId);
-          allow write: if false;
+          allow create, update: if false;
+          allow delete: if isRoomOwner(roomId) && sessionFinal(roomId, sessionId);
         }
 
         match /privateHands/{playerId} {
@@ -83,7 +149,11 @@ service cloud.firestore {
             request.auth.uid == playerId ||
             playerId.matches('bot_.*')
           );
-          allow write: if false;
+          allow write: if isMember(roomId) && enrollmentActiveForSession(roomId, sessionId);
+          allow delete: if isMember(roomId) && (
+            isRoomOwner(roomId) ||
+            enrollmentActiveForSession(roomId, sessionId)
+          );
         }
       }
     }
@@ -94,10 +164,23 @@ service cloud.firestore {
       allow update, delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
 
-    match /roomMembers/{memberId} {
+    match /roomMembers/{memberDocId} {
+      function memberRoomId() {
+        return resource.data.roomId != null
+          ? resource.data.roomId
+          : memberDocId.split('_')[0];
+      }
+
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isRoomOwner(memberRoomId())
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isRoomOwner(memberRoomId())
+      );
     }
 
     match /players/{playerId} {

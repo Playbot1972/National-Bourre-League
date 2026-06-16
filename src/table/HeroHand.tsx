@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Hand } from "../components/Hand";
+import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
@@ -17,6 +18,7 @@ interface HeroHandProps {
   drawCompleted?: boolean;
   maxDrawDiscards?: number;
   legalPlayIndices?: number[];
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
@@ -36,6 +38,7 @@ export function HeroHand({
   drawCompleted = false,
   maxDrawDiscards = 4,
   legalPlayIndices,
+  handComplete = false,
   actionFeedback,
   onSubmitDraw,
   onPassDraw,
@@ -46,11 +49,13 @@ export function HeroHand({
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
   const [selectedPlay, setSelectedPlay] = useState<number | null>(null);
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [peekIndex, setPeekIndex] = useState<number | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
   const prevCardKeyRef = useRef("");
+  const playLockRef = useRef(false);
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
   const cardKey = cards.map((c) => `${c.rank}-${c.suit}`).join(",");
@@ -59,28 +64,60 @@ export function HeroHand({
     if (!dealtPhase || cardKey.length === 0 || cardKey === prevCardKeyRef.current) return;
     prevCardKeyRef.current = cardKey;
     setDealing(true);
+    setPlayingIndex(null);
+    setSelectedPlay(null);
     const timer = window.setTimeout(() => setDealing(false), 520);
     return () => window.clearTimeout(timer);
   }, [cardKey, dealtPhase]);
 
+  useEffect(() => {
+    if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
+      setPlayingIndex(null);
+      playLockRef.current = false;
+    }
+  }, [actionFeedback?.status]);
+
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
   const cardSize = settings.cardScale === "lg" ? "md" : "sm";
-  const busy = localBusy || actionFeedback?.status === "loading";
+  const busy =
+    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
   const feedbackError =
     actionFeedback?.status === "error" ? actionFeedback.message : localError;
 
-  const toggleDrawIndex = (index: number) => {
-    if (busy) return;
-    setLocalError(null);
-    setSelectedDraw((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else if (next.size < maxDrawDiscards) next.add(index);
-      else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
-      return next;
-    });
-  };
+  const toggleDrawIndex = useCallback(
+    (index: number) => {
+      if (busy) return;
+      setLocalError(null);
+      setSelectedDraw((prev) => {
+        const next = new Set(prev);
+        if (next.has(index)) next.delete(index);
+        else if (next.size < maxDrawDiscards) next.add(index);
+        else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
+        return next;
+      });
+    },
+    [busy, maxDrawDiscards],
+  );
+
+  const triggerPlay = useCallback(
+    async (index: number) => {
+      if (playLockRef.current || busy || !onPlayCard) return;
+      if (legalPlayIndices && !legalPlayIndices.includes(index)) return;
+      playLockRef.current = true;
+      setSelectedPlay(index);
+      setPlayingIndex(index);
+      setLocalError(null);
+      try {
+        await Promise.resolve(onPlayCard(index));
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : "Could not play card");
+        setPlayingIndex(null);
+        playLockRef.current = false;
+      }
+    },
+    [busy, legalPlayIndices, onPlayCard],
+  );
 
   const runDrawAction = useCallback(
     async (indices: number[]) => {
@@ -131,6 +168,19 @@ export function HeroHand({
   }
 
   if (dealtPhase && isInHand && cards.length === 0) {
+    if (handComplete) {
+      if (enrollmentActive) {
+        return null;
+      }
+      return (
+        <div className={`btable-hero ${className}`.trim()} aria-live="polite">
+          <p className="btable-hero__label muted small">Your hand</p>
+          <p className="btable-hero__hint muted small">
+            Hand complete — settling and opening the next deal…
+          </p>
+        </div>
+      );
+    }
     return (
       <div className={`btable-hero ${className}`.trim()} aria-live="polite">
         <p className="btable-hero__label muted small">Your hand</p>
@@ -156,39 +206,32 @@ export function HeroHand({
   }
 
   const stateFor = (_: Card, i: number): CardState => {
+    if (playingIndex === i) return "selected";
     if (inDrawPhase && selectedDraw.has(i)) return "selected";
     if (inPlayPhase && selectedPlay === i) return "selected";
+    if (inPlayPhase && !isMyTurn) return "disabled";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
   };
 
-  const handleCardClick = (_: Card, i: number) => {
-    if (busy) return;
-    if (inDrawPhase && isMyTurn && !drawCompleted) {
-      toggleDrawIndex(i);
-      return;
-    }
-    if (inPlayPhase && isMyTurn && onPlayCard) {
-      if (legalPlayIndices && !legalPlayIndices.includes(i)) return;
-      setSelectedPlay(i);
-      void Promise.resolve(onPlayCard(i)).catch((err) => {
-        setLocalError(err instanceof Error ? err.message : "Could not play card");
-      });
-    }
-  };
+  const enablePeek = dealtPhase && isInHand && !(inPlayPhase && isMyTurn);
+  let gestureMode: CardGestureMode = "none";
+  if (inPlayPhase && isMyTurn) gestureMode = "play";
+  else if (inDrawPhase && isMyTurn && !drawCompleted) gestureMode = "draw-select";
+  else if (enablePeek) gestureMode = "peek";
 
-  const enablePeek = dealtPhase && isInHand;
   const selectedCount = selectedDraw.size;
 
   return (
     <div
       className={`btable-hero btable-hero--scale-${settings.cardScale}${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      data-testid="hero-hand"
       aria-label="Your dealt cards"
     >
       <p className="btable-hero__label muted small">
         Your hand · {formatHandPhase(phase, enrollmentActive)}
         {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
-        {inPlayPhase && isMyTurn && " · tap a legal card to play"}
+        {inPlayPhase && isMyTurn && " · click or flick a legal card to play"}
         {enablePeek && " · press and hold to peek"}
       </p>
       {isDealer && inDrawPhase && (
@@ -204,7 +247,17 @@ export function HeroHand({
           stateFor={stateFor}
           peekIndex={peekIndex}
           onCardPeek={enablePeek ? setPeekIndex : undefined}
-          onCardClick={inDrawPhase || inPlayPhase ? handleCardClick : undefined}
+          cardTestId={inPlayPhase && isMyTurn ? "play-button" : undefined}
+          cardInteraction={{
+            mode: gestureMode,
+            isMyTurn,
+            legalPlayIndices,
+            playingIndex,
+            busy,
+            onPlayCard: triggerPlay,
+            onSelectCard: toggleDrawIndex,
+            onPeek: setPeekIndex,
+          }}
         />
       </div>
       {feedbackError && (
@@ -222,6 +275,7 @@ export function HeroHand({
           <button
             type="button"
             className="btn btn--sm btn--primary"
+            data-testid="draw-button"
             disabled={busy}
             aria-busy={busy}
             onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}
@@ -231,6 +285,7 @@ export function HeroHand({
           <button
             type="button"
             className="btn btn--sm"
+            data-testid="pass-draw-button"
             disabled={busy}
             onClick={() => runPassDraw()}
           >

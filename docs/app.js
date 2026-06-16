@@ -22,8 +22,11 @@ import {
   createRoom,
   joinRoomByCode,
   leaveRoom,
+  kickRoomMember,
   deleteRoom,
   ensureInviteLookupForRoom,
+  ensureRoomSessionNamePool,
+  refreshRoomSessionCap,
   subscribeMyRooms,
   subscribeRoom,
   subscribeRoomMembers,
@@ -38,9 +41,9 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
-  advanceSessionBots,
   addSessionPlayer,
   addSessionRobot,
+  removeSessionPlayer,
   syncSessionWithRoomMembers,
   setHandParticipation,
   ensureHandEnrollment,
@@ -52,6 +55,9 @@ import {
   getPlayers,
   applyRankingResults,
   deleteSession,
+  finalizeSession,
+  getSession,
+  getSessionScores,
   computeHandPotState,
   normalizeBourreSettings,
   updateRoomBourreSettings,
@@ -68,9 +74,19 @@ import {
   totalTricksPlayed,
   isHandComplete,
   isRobotPlayerId,
+  getSessionEnrollment,
+  getSessionCurrentHand,
   HAND_ENROLLMENT_MS,
+  enrollmentDeadlineMs,
   tricksForPlayer,
 } from "./firestore.js";
+import {
+  MAX_ROOM_SESSIONS,
+  canCreateAnotherSession,
+  createdSessionsForTabs,
+  isValidSessionNamePool,
+  sessionTabLabel,
+} from "./session-presets.js";
 import {
   getLegalPlayIndices,
   deserializeCards,
@@ -83,12 +99,11 @@ import {
   formatHandHistoryPublicLine,
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
-import { isServerHandAuthorityEnabled } from "./game-functions.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
 import { APP_VERSION } from "./version.js";
 import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
-import { renderFeedbackSettingsHtml, wireFeedbackSettings } from "./feedback-prefs.js";
+import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
 import {
   RISK_STAKE_OPTIONS,
   formatRiskStake,
@@ -502,6 +517,7 @@ function saveHouseRulesFromDetailForm() {
 // ---------------------------------------------------------------------------
 const roomsListView = $("#rooms-list-view");
 const roomDetailView = $("#room-detail-view");
+const roomsIntro = $("#rooms-intro");
 const roomsError = $("#rooms-error");
 
 function syncOpenSessionLimEnabled(limEnabled) {
@@ -524,9 +540,20 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.dataset.controlsBound = "1";
 
   let houseRulesSaveTimer = null;
+  let sessionNotesSaveTimer = null;
 
   roomDetailView.addEventListener("input", (e) => {
     const el = e.target;
+    if (el instanceof HTMLTextAreaElement && el.id === "session-notes") {
+      if (!currentRoomId || !openSessionId) return;
+      clearTimeout(sessionNotesSaveTimer);
+      sessionNotesSaveTimer = setTimeout(() => {
+        updateSessionNotes(currentRoomId, openSessionId, el.value).catch((err) =>
+          console.error("updateSessionNotes:", err),
+        );
+      }, 500);
+      return;
+    }
     if (!(el instanceof HTMLTextAreaElement) || !el.dataset.houseRule) return;
     if (session?.uid !== currentRoom?.ownerId) return;
     clearTimeout(houseRulesSaveTimer);
@@ -536,6 +563,61 @@ function bindRoomDetailDelegatedControls() {
   });
 
   roomDetailView.addEventListener("click", (e) => {
+    if (e.target.closest("#back-to-rooms")) {
+      e.preventDefault();
+      closeRoom();
+      return;
+    }
+    const deleteRoomBtn = e.target.closest("#delete-room");
+    if (deleteRoomBtn) {
+      e.preventDefault();
+      if (currentRoomId) onDeleteRoom(currentRoomId);
+      return;
+    }
+    const leaveRoomBtn = e.target.closest("#leave-room");
+    if (leaveRoomBtn) {
+      e.preventDefault();
+      if (currentRoomId) onLeaveRoom(currentRoomId);
+      return;
+    }
+    const sessionTab = e.target.closest("[data-open-session]");
+    if (sessionTab?.dataset.openSession) {
+      e.preventDefault();
+      openSession(sessionTab.dataset.openSession);
+      return;
+    }
+    if (e.target.closest("#complete-session")) {
+      e.preventDefault();
+      onCompleteSession();
+      return;
+    }
+    const kickBtn = e.target.closest("[data-kick-member]");
+    if (kickBtn) {
+      e.preventDefault();
+      onKickMember(kickBtn.dataset.kickMember, kickBtn.dataset.kickName);
+      return;
+    }
+    const removePlayerBtn = e.target.closest("[data-remove-session-player]");
+    if (removePlayerBtn) {
+      e.preventDefault();
+      onRemoveSessionPlayer(
+        removePlayerBtn.dataset.removeSessionPlayer,
+        removePlayerBtn.dataset.removeSessionName,
+      );
+      return;
+    }
+    const newSessionBtn = e.target.closest("#new-session");
+    if (newSessionBtn) {
+      e.preventDefault();
+      if (newSessionBtn.disabled) {
+        showRoomsError(
+          newSessionBtn.title || "Cannot open another regional table right now.",
+        );
+        return;
+      }
+      onNewSession();
+      return;
+    }
     if (e.target.id !== "house-rules-reset") return;
     e.preventDefault();
     const form = $("#house-rules-form", roomDetailView);
@@ -550,11 +632,22 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.addEventListener("submit", (e) => {
     if (!e.target.closest("#add-player-form")) return;
     e.preventDefault();
-    if (!currentRoomId || !openSessionId) return;
+    if (!currentRoomId || !openSessionId) {
+      showRoomsError("Open a regional session tab first, then add a guest or robot.");
+      return;
+    }
     const input = $("#add-player-name", roomDetailView);
-    const name = input?.value.trim();
-    if (!name) return;
     const isRobot = $("#add-player-robot", roomDetailView)?.checked === true;
+    let name = input?.value.trim() || "";
+    if (!name) {
+      if (isRobot) {
+        name = nextDefaultRobotName();
+      } else {
+        showRoomsError("Enter a player name, or check Robot to add a bot with an auto name.");
+        input?.focus();
+        return;
+      }
+    }
     const addPromise = isRobot
       ? addSessionRobot(currentRoomId, openSessionId, name)
       : addSessionPlayer(
@@ -571,7 +664,10 @@ function bindRoomDetailDelegatedControls() {
       .then((added) => {
         if (added === false) {
           showRoomsError("That name is already on the score sheet.");
+          return;
         }
+        if (added !== true) return;
+        showRoomsError("");
       });
     if (input) input.value = "";
     const robotCheckbox = $("#add-player-robot", roomDetailView);
@@ -582,20 +678,19 @@ function bindRoomDetailDelegatedControls() {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
 
-    if (el.id === "session-lmt-enabled" && !el.disabled) {
-      const checked = el.checked;
-      updateSessionLimEnabled(currentRoomId, openSessionId, checked)
-        .then(() => {
-          const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-          if (openSessionObj) {
-            syncTableSession({ ...openSessionObj, limEnabled: checked });
-          }
-        })
-        .catch((err) => {
-          console.error("updateSessionLimEnabled:", err);
-          showRoomsError(err.message || "Could not update LmT");
-          el.checked = !checked;
-        });
+    if (el.id === "new-session-stake") {
+      pendingHandStake = parseInt(el.value, 10) || 1;
+      userPickedNewSessionStake = true;
+      return;
+    }
+
+    if (el.id === "feedback-sound-enabled") {
+      saveFeedbackPrefs({ soundEnabled: el.checked });
+      return;
+    }
+
+    if (el.name === "feedback-haptics" && el.checked) {
+      saveFeedbackPrefs({ hapticsMode: el.value });
       return;
     }
 
@@ -603,12 +698,17 @@ function bindRoomDetailDelegatedControls() {
       const anteEl = $("#room-ante-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
       if (!anteEl || !limEl || !currentRoomId) return;
+      pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
+      pendingHandStake = pendingRoomAnteOverride;
       const limEnabled = limEl.checked;
       updateRoomBourreSettings(currentRoomId, {
-        anteAmount: parseInt(anteEl.value, 10) || 1,
+        anteAmount: pendingRoomAnteOverride,
         limEnabled,
       })
-        .then(() => syncOpenSessionLimEnabled(limEnabled))
+        .then(() => {
+          pendingRoomAnteOverride = null;
+          return syncOpenSessionLimEnabled(limEnabled);
+        })
         .then(() => {
           const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
           if (openSessionObj) {
@@ -635,7 +735,51 @@ let currentRoomId = null;
 let currentRoom = null;
 let currentMembers = [];
 let currentSessions = [];
+let creatingSession = false;
+/** Optimistic session stubs until Firestore snapshot includes them. */
+const pendingOpenSessions = new Map();
 let openSessionId = null;
+function rememberPendingSession(sessionStub) {
+  if (!sessionStub?.id) return;
+  pendingOpenSessions.set(sessionStub.id, sessionStub);
+}
+
+function mergeSessionsWithPending(sessions) {
+  const merged = [...sessions];
+  const ids = new Set(sessions.map((s) => s.id));
+  for (const stub of pendingOpenSessions.values()) {
+    if (!ids.has(stub.id)) merged.push(stub);
+  }
+  return merged.sort((a, b) => {
+    const as = a.createdAt?.seconds ?? a.createdAt ?? 0;
+    const bs = b.createdAt?.seconds ?? b.createdAt ?? 0;
+    return bs - as;
+  });
+}
+
+function resolveActiveSession() {
+  if (!openSessionId) return null;
+  const found = currentSessions.find((s) => s.id === openSessionId);
+  if (found) return found;
+  const pending = pendingOpenSessions.get(openSessionId);
+  if (pending) return pending;
+  return {
+    id: openSessionId,
+    sessionName: "Session",
+    status: "in_progress",
+    handCount: 0,
+  };
+}
+
+function buildSessionPlayerSectionHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  if (!isOwner) {
+    return `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
+  }
+  return buildSessionPlayerBarHtml(s);
+}
+
+let roomGoneHandled = false;
 let openScores = [];
 let openHands = [];
 let openPrivateHand = null;
@@ -649,7 +793,47 @@ let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
-const ROBOT_TRICK_INTERVAL_MS = 1500;
+/** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
+/** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
+const TRICK_PIPELINE_MS = 1400 + 300 + 200;
+const BOT_PLAY_STAGGER_MS = 350;
+const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
+/** After settlement, re-open enrollment if the hand lifecycle stalls. */
+const HAND_LIFECYCLE_WATCHDOG_MS = 12_000;
+let handLifecycleWatchdogAt = 0;
+
+function maybeRecoverHandLifecycle(sessionObj) {
+  if (!currentRoomId || !openSessionId || !sessionObj || sessionObj.status === "final") {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+  if (sessionObj.pendingCoWinSettlement) {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+  const ch = getSessionCurrentHand(sessionObj);
+  const enrollment = getSessionEnrollment(sessionObj);
+  const tricks = ch?.tricksByPlayer ?? {};
+  const hasStaleHand =
+    Boolean(ch?.phase) ||
+    (ch?.participantIds?.length ?? 0) > 0 ||
+    Object.values(tricks).some((n) => (n || 0) > 0);
+  const needsOpening = !enrollment?.active && !hasStaleHand;
+
+  if (!needsOpening) {
+    handLifecycleWatchdogAt = 0;
+    return;
+  }
+
+  if (!handLifecycleWatchdogAt) handLifecycleWatchdogAt = Date.now();
+  if (Date.now() - handLifecycleWatchdogAt < HAND_LIFECYCLE_WATCHDOG_MS) return;
+
+  handLifecycleWatchdogAt = 0;
+  console.info("[hand-lifecycle] handoffToNextDeal → opening: watchdog ensureHandEnrollment");
+  ensureHandEnrollment(currentRoomId, openSessionId).catch((err) =>
+    console.warn("hand lifecycle watchdog:", err),
+  );
+}
 
 function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -657,7 +841,7 @@ function cardKeyFromSerialized(card) {
 }
 
 function buildTableFeedbackSnapshot(sessionObj) {
-  const ch = sessionObj?.currentHand;
+  const ch = getSessionCurrentHand(sessionObj);
   const myUid = session?.uid ?? null;
   const participantIds = ch?.participantIds ?? [];
   const tricks = ch?.tricksByPlayer ?? {};
@@ -785,11 +969,11 @@ function sessionHasRobots(scores = openScores) {
 /** True when robots may need a human room member (or server nudge) to keep the hand moving. */
 function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  if (sessionObj.handEnrollment?.active) return sessionHasRobots(scores);
+  if (getSessionEnrollment(sessionObj)?.active) return sessionHasRobots(scores);
   if (sessionObj.pendingCoWinSettlement?.winnerIds?.some((id) => isRobotPlayerId(id))) {
     return true;
   }
-  const ch = sessionObj.currentHand;
+  const ch = getSessionCurrentHand(sessionObj);
   if (ch?.phase === "draw" || ch?.phase === "play") {
     const turnId = ch.turnPlayerId;
     return Boolean(turnId && isRobotPlayerId(turnId));
@@ -812,6 +996,18 @@ async function refreshTablePlayerRatings(scores = openScores) {
   }
 }
 
+function enrollmentMsLeft(enrollment) {
+  return Math.max(0, enrollmentDeadlineMs(enrollment) - Date.now());
+}
+
+function enrollmentSecondsLeft(enrollment) {
+  return Math.max(0, Math.ceil(enrollmentMsLeft(enrollment) / 1000));
+}
+
+function enrollmentHasExpired(enrollment) {
+  return enrollment?.active === true && Date.now() >= enrollmentDeadlineMs(enrollment);
+}
+
 function stopEnrollmentTimer() {
   if (enrollmentTimer) {
     clearInterval(enrollmentTimer);
@@ -822,8 +1018,10 @@ function stopEnrollmentTimer() {
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
   const s = currentSessions.find((x) => x.id === openSessionId);
+  if (!s || s.status === "final") return;
+  const enrollmentActive = getSessionEnrollment(s)?.active === true;
   const needsDriver = sessionNeedsBotDriver(s, openScores);
-  if (!needsDriver) return;
+  if (!enrollmentActive && !needsDriver) return;
 
   enrollmentTimer = setInterval(() => {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);
@@ -831,22 +1029,28 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
-    if (
-      sessionObj.handEnrollment?.active &&
-      Date.now() >= sessionObj.handEnrollment.turnDeadlineMs
-    ) {
-      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
-        console.warn("enrollment timeout:", e),
-      );
+    if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
+        console.warn("enrollment timeout:", e);
+        setTableActionFeedback({
+          status: "error",
+          message: e.message || "Enrollment timer could not advance — check connection.",
+        });
+      });
     }
     processRobotActions(sessionObj, openScores);
-    if (sessionObj.handEnrollment?.active) {
+    if (getSessionEnrollment(sessionObj)?.active) {
       syncTableSession(sessionObj);
     }
   }, 1000);
 }
 let tablePlayOpen = false;
 let pendingHandStake = 1;
+/** Local ante override while Bourré settings save or snapshot re-render is in flight. */
+let pendingRoomAnteOverride = null;
+/** User picked new-session ante — do not overwrite from room snapshot until create. */
+let userPickedNewSessionStake = false;
+let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
@@ -855,6 +1059,131 @@ let tableSyncFrame = 0;
 const pendingSessionCleanup = new Set();
 const sessionCleanupTimers = new Map();
 const SESSION_CLEANUP_MS = 30_000;
+const SESSION_CLEANUP_STORAGE_KEY = "bourre-session-cleanup-v1";
+
+function readCleanupQueue() {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_CLEANUP_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeCleanupQueue(queue) {
+  sessionStorage.setItem(SESSION_CLEANUP_STORAGE_KEY, JSON.stringify(queue));
+}
+
+function queueSessionCleanupPersisted(roomId, sessionId, deleteAtMs) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]) queue[roomId] = {};
+  queue[roomId][sessionId] = deleteAtMs;
+  writeCleanupQueue(queue);
+}
+
+function dequeueSessionCleanupPersisted(roomId, sessionId) {
+  const queue = readCleanupQueue();
+  if (!queue[roomId]?.[sessionId]) return;
+  delete queue[roomId][sessionId];
+  if (Object.keys(queue[roomId]).length === 0) delete queue[roomId];
+  writeCleanupQueue(queue);
+}
+
+async function runSessionCleanup(roomId, sessionId) {
+  if (!roomId || !sessionId) return;
+  const timer = sessionCleanupTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    sessionCleanupTimers.delete(sessionId);
+  }
+
+  try {
+    await prepareSessionForRemoval(roomId, sessionId);
+    await deleteSession(roomId, sessionId);
+    dequeueSessionCleanupPersisted(roomId, sessionId);
+    pendingSessionCleanup.delete(sessionId);
+    if (currentRoomId === roomId) {
+      renderRoomDetail();
+    }
+  } catch (e) {
+    console.error("runSessionCleanup:", e);
+    pendingSessionCleanup.add(sessionId);
+    const retryAt = Date.now() + 15_000;
+    queueSessionCleanupPersisted(roomId, sessionId, retryAt);
+    sessionCleanupTimers.set(
+      sessionId,
+      setTimeout(() => {
+        runSessionCleanup(roomId, sessionId).catch((err) =>
+          console.error("runSessionCleanup retry:", err),
+        );
+      }, 15_000),
+    );
+    if (currentRoomId === roomId) {
+      showRoomsError(
+        e?.message || "Could not auto-clear an old session — retrying in 15s.",
+      );
+    }
+  }
+}
+
+/** Keep the open in-progress session when possible, else the newest active tab. */
+function resolveKeeperSessionId(sessions, preferredSessionId = null) {
+  if (!sessions.length) return null;
+  if (preferredSessionId) {
+    const open = sessions.find((s) => s.id === preferredSessionId);
+    if (open && open.status !== "final") return preferredSessionId;
+  }
+  const active = sessions.find((s) => s.status !== "final");
+  if (active) return active.id;
+  return sessions[0].id;
+}
+
+/** Finalize with Ape Scores when needed so completed sessions can be deleted. */
+async function prepareSessionForRemoval(roomId, sessionId) {
+  let remote = await getSession(roomId, sessionId);
+  if (!remote) return;
+  if (remote.status === "final") return;
+
+  const scores =
+    sessionId === openSessionId && openScores.length
+      ? openScores
+      : await getSessionScores(roomId, sessionId);
+
+  if (scores.length > 0) {
+    await completeSessionWithApeScores(roomId, sessionId, scores);
+  } else {
+    await finalizeSession(roomId, sessionId);
+  }
+
+  remote = await getSession(roomId, sessionId);
+  if (remote?.status !== "final") {
+    throw new Error("Could not finalize session before removal");
+  }
+}
+
+function restoreSessionCleanupTimers(roomId) {
+  if (!roomId) return;
+  const entries = readCleanupQueue()[roomId] || {};
+  const now = Date.now();
+  for (const [sessionId, deleteAtMs] of Object.entries(entries)) {
+    if (sessionCleanupTimers.has(sessionId)) continue;
+    pendingSessionCleanup.add(sessionId);
+    const delay = Math.max(0, Number(deleteAtMs) - now);
+    if (delay === 0) {
+      runSessionCleanup(roomId, sessionId).catch((e) =>
+        console.error("deleteSession:", e),
+      );
+    } else {
+      sessionCleanupTimers.set(
+        sessionId,
+        setTimeout(() => {
+          runSessionCleanup(roomId, sessionId).catch((e) =>
+            console.error("deleteSession:", e),
+          );
+        }, delay),
+      );
+    }
+  }
+}
 
 function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
@@ -883,6 +1212,32 @@ function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
   return [...map.values()];
 }
 
+/** Room members plus guests/robots on the open session score sheet (for Members panel). */
+function buildRoomRosterEntries(visibleMembers, scores, sessionObj) {
+  const memberIds = new Set(visibleMembers.map((m) => m.userId).filter(Boolean));
+  const entries = visibleMembers.map((m) => ({
+    playerId: m.userId,
+    displayName: m.displayName,
+    role: m.role || "player",
+    kind: "member",
+  }));
+
+  if (!sessionObj || sessionObj.status === "final") return entries;
+
+  for (const sc of scores) {
+    const playerId = sc.playerId;
+    if (!playerId || memberIds.has(playerId)) continue;
+    const robot = sc.isRobot === true || isRobotPlayerId(playerId);
+    entries.push({
+      playerId,
+      displayName: sc.displayName || (robot ? "Robot" : "Guest"),
+      role: robot ? "robot" : "guest",
+      kind: robot ? "robot" : "guest",
+    });
+  }
+  return entries;
+}
+
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
   return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
@@ -890,6 +1245,49 @@ function tableReadyPlayerCount(sessionObj) {
 
 function bumpTableMountGeneration() {
   tableMountGeneration += 1;
+}
+
+/** Auto name when adding a robot with an empty field (Phase 3 step 5 UX). */
+function nextDefaultRobotName(scores = openScores) {
+  const taken = new Set(
+    scores.map((s) => (s.displayName || "").trim().toLowerCase()).filter(Boolean),
+  );
+  if (!taken.has("robot")) return "Robot";
+  for (let n = 2; n <= 99; n += 1) {
+    const candidate = `Robot ${n}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+  }
+  return `Robot ${Math.random().toString(36).slice(2, 6)}`;
+}
+
+let pendingSelfJoinRoomId = null;
+let pendingSelfJoinTimer = null;
+
+function markPendingSelfJoin(roomId) {
+  pendingSelfJoinRoomId = roomId;
+  if (pendingSelfJoinTimer) clearTimeout(pendingSelfJoinTimer);
+  pendingSelfJoinTimer = setTimeout(() => {
+    pendingSelfJoinTimer = null;
+    if (pendingSelfJoinRoomId !== roomId) return;
+    pendingSelfJoinRoomId = null;
+    if (
+      currentRoomId === roomId &&
+      session?.uid &&
+      !currentMembers.some((m) => m.userId === session.uid)
+    ) {
+      showRoomsError("Join is taking longer than expected — tap Join room again.");
+      closeRoom();
+    }
+  }, 15000);
+}
+
+function clearPendingSelfJoin(roomId = null) {
+  if (roomId && pendingSelfJoinRoomId !== roomId) return;
+  pendingSelfJoinRoomId = null;
+  if (pendingSelfJoinTimer) {
+    clearTimeout(pendingSelfJoinTimer);
+    pendingSelfJoinTimer = null;
+  }
 }
 
 function scheduleSyncSessionMembers() {
@@ -927,62 +1325,56 @@ function cancelSessionCleanup(sessionId) {
 
 function scheduleSessionCleanup(sessionId) {
   if (!currentRoomId || !sessionId) return;
+  const roomId = currentRoomId;
   cancelSessionCleanup(sessionId);
   pendingSessionCleanup.add(sessionId);
+  const deleteAtMs = Date.now() + SESSION_CLEANUP_MS;
+  queueSessionCleanupPersisted(roomId, sessionId, deleteAtMs);
   sessionCleanupTimers.set(
     sessionId,
     setTimeout(() => {
-      sessionCleanupTimers.delete(sessionId);
-      pendingSessionCleanup.delete(sessionId);
-      deleteSession(currentRoomId, sessionId).catch((e) =>
+      runSessionCleanup(roomId, sessionId).catch((e) =>
         console.error("deleteSession:", e),
       );
     }, SESSION_CLEANUP_MS),
   );
 }
 
-async function clearCompletedSessionsNow() {
-  if (!currentRoomId) return;
-  const ids = new Set(pendingSessionCleanup);
-  for (const s of currentSessions) {
-    if (s.status === "final") ids.add(s.id);
+function claimedSessionNamesForRoom(room, sessions) {
+  const fromSessions = sessions.map((s) => s.sessionName).filter(Boolean);
+  if (sessions.length > 0) {
+    return fromSessions;
   }
-  if (openSessionId) {
-    const open = currentSessions.find((s) => s.id === openSessionId);
-    if (open?.status !== "final") ids.delete(openSessionId);
+  if (Array.isArray(room?.claimedSessionNames)) {
+    return room.claimedSessionNames.filter(Boolean);
   }
-  if (ids.size === 0) return;
-  stopSessionCleanupTimers();
-  pendingSessionCleanup.clear();
-  await Promise.all(
-    [...ids].map((sessionId) =>
-      deleteSession(currentRoomId, sessionId).catch((e) => {
-        console.error("deleteSession:", e);
-      }),
-    ),
-  );
-  showRoomsError(`Cleared ${ids.size} session${ids.size === 1 ? "" : "s"}.`);
+  return [];
 }
 
 async function completeSessionWithApeScores(roomId, sessionId, scores) {
   if (!scores.length) throw new Error("No players in this session");
   await Promise.all(
-    scores.map((sc) => ensurePlayerDoc(sc.playerId, sc.displayName)),
+    scores.map((sc) =>
+      ensurePlayerDoc(sc.playerId ?? sc.id, sc.displayName),
+    ),
   );
-  const ids = scores.map((sc) => sc.playerId);
+  const ids = scores.map((sc) => sc.playerId ?? sc.id);
   const ratings = await getPlayers(ids);
-  const input = scores.map((sc) => ({
-    id: sc.playerId,
-    displayName: sc.displayName,
-    rating: ratings[sc.playerId]
-      ? {
-          mu: ratings[sc.playerId].mu,
-          sigma: ratings[sc.playerId].sigma,
-          matchesPlayed: ratings[sc.playerId].matchesPlayed || 0,
-        }
-      : newRating(),
-    score: sc.tricksWon || 0,
-  }));
+  const input = scores.map((sc) => {
+    const id = sc.playerId ?? sc.id;
+    return {
+      id,
+      displayName: sc.displayName,
+      rating: ratings[id]
+        ? {
+            mu: ratings[id].mu,
+            sigma: ratings[id].sigma,
+            matchesPlayed: ratings[id].matchesPlayed || 0,
+          }
+        : newRating(),
+      score: sc.tricksWon || 0,
+    };
+  });
   const results = rankMatch(input).map((r) => ({
     ...r,
     apeClass: apeClass(r.apeScore),
@@ -999,6 +1391,9 @@ async function completeSessionWithApeScores(roomId, sessionId, scores) {
 function showRoomsError(msg) {
   roomsError.textContent = msg;
   roomsError.hidden = !msg;
+  if (msg) {
+    roomsError.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
 }
 
 function clearDetailSubs() {
@@ -1051,8 +1446,10 @@ function isRoomOwner(room, uid) {
 }
 
 function renderRoomsList() {
+  document.body.classList.remove("room-detail-open");
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
+  if (roomsIntro) roomsIntro.hidden = false;
   const list = $("#rooms-list");
   if (myRooms.length === 0) {
     list.innerHTML = `<p class="muted">No rooms yet. Create one to get an invite code.</p>`;
@@ -1086,6 +1483,53 @@ async function onLeaveRoom(roomId) {
   } catch (err) {
     console.error(err);
     showRoomsError("Could not leave the room. Please try again.");
+  }
+}
+
+async function onRemoveSessionPlayer(playerId, displayName) {
+  if (!session || !currentRoomId || !openSessionId) return;
+  if (session.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can remove a guest or robot.");
+    return;
+  }
+  const label = displayName?.trim() || "this player";
+  if (!window.confirm(`Remove ${label} from this session?`)) return;
+  showRoomsError("");
+  try {
+    await removeSessionPlayer(currentRoomId, openSessionId, playerId, session);
+    showRoomsError(`${label} was removed from the session.`);
+  } catch (err) {
+    console.error("removeSessionPlayer:", err);
+    showRoomsError(err?.message || "Could not remove player.");
+  }
+}
+
+async function onKickMember(targetUserId, displayName) {
+  if (!session || !currentRoomId) return;
+  if (session.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can remove members.");
+    return;
+  }
+  const label = displayName?.trim() || "this player";
+  if (!window.confirm(`Remove ${label} from this room? They can rejoin with the invite code.`)) {
+    return;
+  }
+  showRoomsError("");
+  try {
+    await kickRoomMember(currentRoomId, targetUserId, session);
+    showRoomsError(
+      `${label} was removed from the room. They can rejoin with the invite code. Session score for this hand is kept.`,
+    );
+  } catch (err) {
+    console.error("kickRoomMember:", err);
+    const msg = err?.message || "";
+    if (err?.code === "permission-denied") {
+      showRoomsError(
+        "Could not remove member — run npm run deploy:rules so owners can remove memberships.",
+      );
+    } else {
+      showRoomsError(msg.slice(0, 120) || "Could not remove member.");
+    }
   }
 }
 
@@ -1173,6 +1617,7 @@ $("#join-form").addEventListener("submit", async (e) => {
   const code = $("#join-code").value.trim();
   if (!code) return;
   try {
+    await ensureUserDoc(session.uid, session.displayName);
     const roomId = await joinRoomByCode(code, session);
     if (!roomId) {
       showRoomsError(
@@ -1181,14 +1626,18 @@ $("#join-form").addEventListener("submit", async (e) => {
       return;
     }
     $("#join-code").value = "";
+    markPendingSelfJoin(roomId);
     openRoom(roomId);
   } catch (err) {
+    clearPendingSelfJoin();
     console.error("joinRoomByCode:", err);
     const fbCode = err && typeof err === "object" ? err.code : "";
     const msg = err && typeof err === "object" ? err.message : String(err);
-    if (fbCode === "permission-denied") {
+    if (/no longer valid|was deleted/i.test(msg)) {
+      showRoomsError(msg);
+    } else if (fbCode === "permission-denied") {
       showRoomsError(
-        "Join blocked by Firestore rules. Deploy firestore:rules, then create a new room.",
+        "Could not join this room — check that you are signed in and the invite code is correct. If it keeps failing, ask the host to re-open the room so the lookup syncs.",
       );
     } else if (/offline|network/i.test(msg)) {
       showRoomsError("Network error — check connection and try again.");
@@ -1225,6 +1674,7 @@ $("#rooms-list").addEventListener("keydown", (e) => {
 
 function openRoom(roomId) {
   clearDetailSubs();
+  roomGoneHandled = false;
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -1232,36 +1682,78 @@ function openRoom(roomId) {
   openSessionId = null;
   openScores = [];
 
+  document.body.classList.add("room-detail-open");
   roomsListView.hidden = true;
+  if (roomsIntro) roomsIntro.hidden = true;
   roomDetailView.hidden = false;
+  pendingRoomAnteOverride = null;
+  userPickedNewSessionStake = false;
   roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
+      if (!room) {
+        handleRoomUnavailable(roomId);
+        return;
+      }
       currentRoom = room;
       if (room?.bourreSettings) {
-        pendingHandStake = normalizeBourreSettings(room.bourreSettings).anteAmount;
+        const serverAnte = normalizeBourreSettings(room.bourreSettings).anteAmount;
+        if (pendingRoomAnteOverride == null && !userPickedNewSessionStake) {
+          pendingHandStake = serverAnte;
+        } else if (pendingRoomAnteOverride === serverAnte) {
+          pendingRoomAnteOverride = null;
+        }
       }
       if (room && session?.uid === room.ownerId) {
         ensureInviteLookupForRoom(roomId).catch((e) =>
           console.error("ensureInviteLookupForRoom:", e),
         );
+        ensureRoomSessionNamePool(roomId).catch((e) =>
+          console.error("ensureRoomSessionNamePool:", e),
+        );
       }
-      renderRoomDetail();
+      scheduleRenderRoomDetail();
     }),
   );
   detailUnsubs.push(
     subscribeRoomMembers(roomId, (members) => {
+      const isMember =
+        session?.uid && members.some((m) => m.userId === session.uid);
+      if (pendingSelfJoinRoomId === roomId && isMember) {
+        clearPendingSelfJoin(roomId);
+      }
+      if (
+        session?.uid &&
+        currentRoomId === roomId &&
+        !roomDetailView.hidden &&
+        pendingSelfJoinRoomId !== roomId &&
+        members.length > 0 &&
+        !isMember
+      ) {
+        showRoomsError("You were removed from this room. You can rejoin with the invite code.");
+        closeTablePlay();
+        closeRoom();
+        return;
+      }
       currentMembers = members;
       scheduleSyncSessionMembers();
-      renderRoomDetail();
+      scheduleRenderRoomDetail();
     }),
   );
   detailUnsubs.push(
     subscribeSessions(roomId, (sessions) => {
-      currentSessions = sessions;
+      for (const s of sessions) {
+        pendingOpenSessions.delete(s.id);
+      }
+      currentSessions = mergeSessionsWithPending(sessions);
+      restoreSessionCleanupTimers(roomId);
       if (openSessionId && !sessions.some((s) => s.id === openSessionId)) {
-        const nextId = sessions[0]?.id ?? null;
+        if (pendingOpenSessions.has(openSessionId) || creatingSession) {
+          scheduleRenderRoomDetail();
+          return;
+        }
+        const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
         } else {
@@ -1273,7 +1765,7 @@ function openRoom(roomId) {
       if (!openSessionId && sessions.length > 0) {
         openSession(sessions[0].id);
       } else {
-        renderRoomDetail();
+        scheduleRenderRoomDetail();
         const open = sessions.find((x) => x.id === openSessionId);
         if (open?.status !== "final" && openSessionId) {
           ensureHandEnrollment(roomId, openSessionId).catch(() => {});
@@ -1283,11 +1775,28 @@ function openRoom(roomId) {
   );
 }
 
+async function handleRoomUnavailable(roomId) {
+  if (roomGoneHandled || currentRoomId !== roomId) return;
+  roomGoneHandled = true;
+  showRoomsError(
+    "This room no longer exists. Use the invite code field above to join a new room, or ask the host for a fresh code.",
+  );
+  if (session?.uid) {
+    try {
+      await leaveRoom(roomId, session);
+    } catch (err) {
+      console.warn("leaveRoom after deleted room:", err);
+    }
+  }
+  closeRoom();
+}
+
 function closeRoom() {
+  clearPendingSelfJoin();
+  pendingOpenSessions.clear();
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
-  pendingSessionCleanup.clear();
   closeTablePlay();
   unmountTableSessionHost();
   currentRoomId = null;
@@ -1312,16 +1821,13 @@ function unmountTableSessionHost() {
 }
 
 function tableSessionHost() {
-  if (tablePlayOpen) {
-    return $("#table-session-root");
-  }
-  return $("#table-session-inline-root", roomDetailView);
+  if (!tablePlayOpen) return null;
+  return $("#table-session-root");
 }
 
 function resolveOpenSessionObj(openSessionObj) {
   if (openSessionObj) return openSessionObj;
-  if (!openSessionId) return null;
-  return currentSessions.find((s) => s.id === openSessionId) ?? null;
+  return resolveActiveSession();
 }
 
 function updateTablePlayTitle(openSessionObj) {
@@ -1433,20 +1939,14 @@ function processRobotActions(s, scores) {
   const now = Date.now();
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
-  // Server-authoritative path: one callable chains all robot turns.
-  if (isServerHandAuthorityEnabled() && sessionNeedsBotDriver(s, scores)) {
-    lastRobotTrickAt = now;
-    robotActionInFlight = true;
-    advanceSessionBots(currentRoomId, openSessionId)
-      .catch((e) => console.warn("advanceSessionBots:", e))
-      .finally(() => {
-        robotActionInFlight = false;
-      });
-    return;
-  }
-
-  const enrollment = s.handEnrollment;
+  const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
+    if (enrollmentHasExpired(enrollment)) {
+      timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
+        console.warn("enrollment timeout:", e),
+      );
+      return;
+    }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
     if (
       currentId &&
@@ -1471,14 +1971,16 @@ function processRobotActions(s, scores) {
   if (pending?.winnerIds?.length >= 2) {
     const winners = pending.winnerIds;
     const votes = pending.votes || {};
-    const botWinner = winners.find((id) => isRobotPlayerId(id) && votes[id] !== "split");
+    const botWinner = winners.find(
+      (id) => isRobotPlayerId(id) && votes[id] !== "split" && votes[id] !== "push",
+    );
     if (botWinner) {
       robotActionInFlight = true;
       voteCoWinSettlement(currentRoomId, openSessionId, {
-        participantIds: pending.participantIds || s.currentHand?.participantIds || [],
+        participantIds: pending.participantIds || getSessionCurrentHand(s)?.participantIds || [],
         winnerIds: winners,
         voterId: botWinner,
-        choice: "split",
+        choice: "push",
         recordedBy: actorId,
       })
         .catch((e) => console.warn("robot co-win vote:", e))
@@ -1489,7 +1991,7 @@ function processRobotActions(s, scores) {
     return;
   }
 
-  const currentHand = s.currentHand || {};
+  const currentHand = getSessionCurrentHand(s);
   const participants = currentHand.participantIds || [];
   if (!participants.length) return;
 
@@ -1522,9 +2024,30 @@ function processRobotActions(s, scores) {
 
   if (handPhase === "play") {
     const turnId = currentHand.turnPlayerId;
+    const trick = currentHand.currentTrick;
+    const trickNum = trick?.trickNumber ?? 0;
+    const trickPlays = trick?.plays?.length ?? 0;
     const tricks = currentHand.tricksByPlayer || {};
     const total = totalTricksPlayed(tricks, participants);
     if (total >= MAX_TRICKS_PER_HAND) return;
+
+    // Premium table: winner of trick 4 auto-leads trick 5 (final trick opener).
+    if (
+      trickNum === 5 &&
+      trickPlays === 0 &&
+      turnId &&
+      participants.includes(turnId)
+    ) {
+      lastRobotTrickAt = now;
+      robotActionInFlight = true;
+      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
+        .catch((e) => console.warn("auto trick-5 lead:", e))
+        .finally(() => {
+          robotActionInFlight = false;
+        });
+      return;
+    }
+
     if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
       lastRobotTrickAt = now;
       robotActionInFlight = true;
@@ -1581,7 +2104,7 @@ function processRobotActions(s, scores) {
 function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid) {
   const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
   const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
-  const sec = Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000));
+  const sec = enrollmentSecondsLeft(enrollment);
   if (currentId === myUid) {
     return `Your turn — tap I'm in (${sec}s)`;
   }
@@ -1631,7 +2154,7 @@ function buildTableLeaderLabel(
     const names = activeWinnerIds
       .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
       .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each) · vote to split or push pot`;
+    return `Tie — ${names} (${maxTricks} tricks each) · pot carries (no split)`;
   }
   if (handReady && activeWinnerIds.length === 1) {
     const name =
@@ -1654,26 +2177,27 @@ function buildTableSessionProps(s) {
   const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
   const displayScores = sortScoresForDisplay(mergedScores, playerOrder);
-  const handParticipantIds = s.currentHand?.participantIds || [];
-  const handPhase = s.currentHand?.phase ?? null;
-  const trumpSuit = s.currentHand?.trumpSuit ?? null;
-  const trumpUpcard = s.currentHand?.trumpUpcard ?? null;
-  const tricksThisHand = s.currentHand?.tricksByPlayer || {};
+  const currentHand = getSessionCurrentHand(s);
+  const handParticipantIds = currentHand?.participantIds || [];
+  const handPhase = currentHand?.phase ?? null;
+  const trumpSuit = currentHand?.trumpSuit ?? null;
+  const trumpUpcard = currentHand?.trumpUpcard ?? null;
+  const tricksThisHand = currentHand?.tricksByPlayer || {};
   const cardsDealt = handPhase === "draw" || handPhase === "play";
   const myUid = session?.uid ?? null;
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
     myUid && cardsDealt
-      ? buildHeroCardsForTable(s.currentHand, privateHeroCards, myUid, handPhase)
+      ? buildHeroCardsForTable(currentHand, privateHeroCards, myUid, handPhase)
       : privateHeroCards;
   const legalPlayIndices =
-    cardsDealt && handPhase === "play" && myUid === s.currentHand?.turnPlayerId
-      ? computeLegalPlayIndices(s.currentHand, privateHeroCards, myUid)
+    cardsDealt && handPhase === "play" && myUid === currentHand?.turnPlayerId
+      ? computeLegalPlayIndices(currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
   const dealerId = s.dealerId ?? null;
-  const enrollment = s.handEnrollment;
+  const enrollment = getSessionEnrollment(s);
   const enrollmentActive = enrollment?.active === true;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
@@ -1746,26 +2270,25 @@ function buildTableSessionProps(s) {
       phase: handPhase,
       trumpSuit,
       trumpUpcard,
-      turnPlayerId: s.currentHand?.turnPlayerId ?? null,
-      remainingDeckCount: s.currentHand?.remainingDeckCount ?? null,
-      leadSuit: s.currentHand?.leadSuit ?? null,
-      currentTrick: s.currentHand?.currentTrick ?? null,
-      playedCards: s.currentHand?.playedCards ?? [],
-      drawCompletedIds: s.currentHand?.drawCompletedIds ?? [],
-      maxDrawDiscards: s.currentHand?.maxDrawDiscards ?? null,
-      cinchEnabled: s.currentHand?.cinchEnabled === true,
+      turnPlayerId: currentHand?.turnPlayerId ?? null,
+      remainingDeckCount: currentHand?.remainingDeckCount ?? null,
+      leadSuit: currentHand?.leadSuit ?? null,
+      currentTrick: currentHand?.currentTrick ?? null,
+      playedCards: currentHand?.playedCards ?? [],
+      drawCompletedIds: currentHand?.drawCompletedIds ?? [],
+      maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
+      cinchEnabled: currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
     privateHandReady: privateHandSnapSeen,
+    handComplete,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
       const onEnrollmentClock =
         enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
-      const enrollmentMsLeft = onEnrollmentClock
-        ? Math.max(0, enrollment.turnDeadlineMs - Date.now())
-        : 0;
+      const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
       return {
@@ -1793,10 +2316,10 @@ function buildTableSessionProps(s) {
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         enrollmentOnClock: onEnrollmentClock,
         enrollmentTimeLeft: onEnrollmentClock
-          ? enrollmentMsLeft / HAND_ENROLLMENT_MS
+          ? enrollmentMsLeftVal / HAND_ENROLLMENT_MS
           : undefined,
         enrollmentSecondsOnClock: onEnrollmentClock
-          ? Math.max(0, Math.ceil(enrollmentMsLeft / 1000))
+          ? enrollmentSecondsLeft(enrollment)
           : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
@@ -1804,9 +2327,9 @@ function buildTableSessionProps(s) {
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
         holeCardCount: cardsDealt
-          ? cardsRemainingInHand(s.currentHand || {}, sc.playerId)
+          ? cardsRemainingInHand(currentHand || {}, sc.playerId)
           : 0,
-        isOnTurn: cardsDealt && s.currentHand?.turnPlayerId === sc.playerId,
+        isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
           enrollmentActive &&
           isSelf &&
@@ -1842,21 +2365,31 @@ function buildTableSessionProps(s) {
           trumpSuit,
         ),
     enrollmentActive,
-    enrollmentSecondsLeft: enrollmentActive
-      ? Math.max(0, Math.ceil((enrollment.turnDeadlineMs - Date.now()) / 1000))
-      : 0,
+    enrollmentSecondsLeft: enrollmentActive ? enrollmentSecondsLeft(enrollment) : 0,
     showCoWinSettlement,
     splitSharePerWinner,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     actions: {
       onToggleInHand: (inHand) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
+          return;
+        }
+        setTableActionFeedback({ status: "loading", message: "Joining hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
           inHand,
           actorId: session.uid,
-        }).catch((e) => showRoomsError(e.message || "Could not update hand participation"));
+        })
+          .then(() => {
+            setTableActionFeedback({ status: "success", message: "You're in this hand." });
+          })
+          .catch((e) => {
+            const message = e.message || "Could not update hand participation";
+            setTableActionFeedback({ status: "error", message });
+            showRoomsError(message);
+          });
       },
       onTrickDelta: (delta) => {
         if (!session?.uid || !currentRoomId || !openSessionId) return;
@@ -1868,7 +2401,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to draw"));
         }
-        const maxDraw = s.currentHand?.maxDrawDiscards ?? 5;
+        const maxDraw = currentHand?.maxDrawDiscards ?? 5;
         if (discardIndices.length > maxDraw) {
           const err = new Error(`You may discard at most ${maxDraw} cards`);
           setTableActionFeedback({ status: "error", message: err.message });
@@ -1936,7 +2469,10 @@ function buildTableSessionProps(s) {
           .then(() => {
             tableActionFeedback = null;
             const sessionObj = currentSessions.find((x) => x.id === openSessionId);
-            if (sessionObj) scheduleTableSessionSync(sessionObj);
+            if (sessionObj) {
+              scheduleTableSessionSync(sessionObj);
+              processRobotActions(sessionObj, openScores);
+            }
           })
           .catch((e) => {
             setTableActionFeedback({
@@ -1967,6 +2503,11 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     return;
   }
 
+  if (!tablePlayOpen) {
+    unmountTableSessionHost();
+    return;
+  }
+
   const host = tableSessionHost();
   if (!host) {
     if (attempt < 8) {
@@ -1989,7 +2530,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     }
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
-    if (sessionObj.handEnrollment?.active || sessionHasRobots()) {
+    if (getSessionEnrollment(sessionObj)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
@@ -2056,11 +2597,11 @@ function openSession(sessionId) {
     openScores = scores;
     refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
-    renderRoomDetail();
+    scheduleRenderRoomDetail();
   });
   handsUnsub = subscribeHands(currentRoomId, sessionId, (hands) => {
     openHands = hands;
-    renderRoomDetail();
+    scheduleRenderRoomDetail();
   });
   startPrivateHandSubscription();
   renderRoomDetail();
@@ -2070,6 +2611,29 @@ function openSession(sessionId) {
       .then(() => ensureHandEnrollment(currentRoomId, sessionId))
       .catch((e) => console.error("openSession sync:", e));
   }
+}
+
+function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
+  const created = createdSessionsForTabs(pool, sessions);
+  if (created.length === 0) {
+    return `<p class="muted small">No regional tables yet. Tap <strong>+ New session</strong> to open one — up to ${MAX_ROOM_SESSIONS} per room.</p>`;
+  }
+  return created
+    .map((sessionObj) => {
+      const active = sessionObj.id === activeSessionId;
+      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
+    })
+    .join("");
+}
+
+function scheduleRenderRoomDetail() {
+  const open = currentSessions.find((s) => s.id === openSessionId);
+  if (open) maybeRecoverHandLifecycle(open);
+  if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
+  renderRoomDetailTimer = window.setTimeout(() => {
+    renderRoomDetailTimer = 0;
+    renderRoomDetail();
+  }, 80);
 }
 
 function renderRoomDetail() {
@@ -2098,18 +2662,40 @@ function renderRoomDetail() {
           end: activeEl.selectionEnd,
         }
       : null;
+  const editingAddPlayer =
+    activeEl && activeEl.id === "add-player-name"
+      ? {
+          value: activeEl.value,
+          robotChecked: $("#add-player-robot", roomDetailView)?.checked === true,
+        }
+      : null;
   const hr = currentRoom.houseRules || {};
   const bourreSettings = normalizeBourreSettings(
     currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
   );
-  const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
+  const openSessionObj = resolveActiveSession();
   const isOwner = session?.uid === currentRoom.ownerId;
-  const sessionAnteEditable =
+  const visibleMembers = currentMembers;
+  const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
+  const roomAnteAmount = pendingRoomAnteOverride ?? bourreSettings.anteAmount;
+  const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
+    ? currentRoom.sessionNamePool
+    : [];
+  const claimedNames = claimedSessionNamesForRoom(currentRoom, currentSessions);
+  const sessionHardCap = currentSessions.length >= MAX_ROOM_SESSIONS;
+  const canCreateSession =
     isOwner &&
-    openSessionObj &&
-    openSessionObj.status !== "final" &&
-    !openSessionObj.handStakeLocked;
-  const showNewSessionAnte = isOwner && !sessionAnteEditable;
+    !sessionHardCap &&
+    canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
+  const showNewSessionAnte = isOwner && canCreateSession;
+  const newSessionDisabledReason = !isOwner
+    ? ""
+    : sessionHardCap
+      ? "All 4 regional tables are already open."
+      : !canCreateSession
+        ? "No preset table names available — try again in a moment."
+        : "";
+  const sessionCapReached = isOwner && sessionHardCap;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -2140,7 +2726,7 @@ function renderRoomDetail() {
                    <select class="num-select" id="room-ante-amount" aria-label="Room ante amount">
                      ${RISK_STAKE_OPTIONS.map(
                        (n) =>
-                         `<option value="${n}" ${n === bourreSettings.anteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                         `<option value="${n}" ${n === roomAnteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
                      ).join("")}
                    </select>
                  </label>
@@ -2169,13 +2755,45 @@ function renderRoomDetail() {
       </section>
 
       <section class="subpanel">
-        <h4>Members (${currentMembers.length})</h4>
+        <h4>Members &amp; players (${rosterEntries.length})</h4>
+        <p class="muted small members__hint">Signed-in room members plus guests and robots on the open session.</p>
         <ul class="members">
-          ${currentMembers
-            .map(
-              (m) =>
-                `<li><span class="dot"></span>${escapeHtml(m.displayName)} <em>${escapeHtml(m.role)}</em></li>`,
-            )
+          ${rosterEntries
+            .map((entry) => {
+              const uid = entry.playerId || "";
+              const canKick =
+                entry.kind === "member" &&
+                isOwner &&
+                uid &&
+                uid !== currentRoom.ownerId &&
+                uid !== session?.uid;
+              const canRemoveSessionPlayer =
+                (entry.kind === "robot" || entry.kind === "guest") &&
+                isOwner &&
+                uid &&
+                openSessionObj &&
+                openSessionObj.status !== "final";
+              const roleLabel =
+                entry.role === "owner"
+                  ? "owner"
+                  : entry.role === "robot"
+                    ? "robot"
+                    : entry.role === "guest"
+                      ? "guest"
+                      : "player";
+              return `<li class="members__row" data-testid="roster-entry-${escapeHtml(entry.kind)}">
+                <span class="dot${entry.kind === "robot" ? " dot--robot" : entry.kind === "guest" ? " dot--guest" : ""}"></span>
+                <span class="members__name">${escapeHtml(entry.displayName)}</span>
+                <em class="members__role">${escapeHtml(roleLabel)}</em>
+                ${
+                  canKick
+                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from room">Remove</button>`
+                    : canRemoveSessionPlayer
+                      ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-remove-session-player="${escapeHtml(uid)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from session">Remove</button>`
+                      : ""
+                }
+              </li>`;
+            })
             .join("")}
         </ul>
       </section>
@@ -2183,11 +2801,14 @@ function renderRoomDetail() {
 
     <section class="subpanel">
       <div class="subpanel__head">
-        <h4>Sessions</h4>
+        <h4>Regional tables</h4>
+        <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned randomly when you confirm <strong>+ New session</strong>.</p>
         <div class="session-new">
           ${
-            showNewSessionAnte
-              ? `<label class="session-new__stake">
+            isOwner
+              ? `${
+                  showNewSessionAnte
+                    ? `<label class="session-new__stake">
                    <span class="muted">Ante</span>
                    <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
                      ${RISK_STAKE_OPTIONS.map(
@@ -2196,67 +2817,46 @@ function renderRoomDetail() {
                      ).join("")}
                    </select>
                  </label>`
-              : ""
-          }
-          <button class="btn btn--primary btn--sm" id="new-session">+ New session</button>
+                    : ""
+                }
+          <button class="btn btn--primary btn--sm" id="new-session" type="button" ${
+            canCreateSession ? "" : "disabled aria-disabled=\"true\""
+          } title="${escapeHtml(
+            canCreateSession
+              ? "Open the next regional table"
+              : newSessionDisabledReason || "All 4 sessions already created",
+          )}">+ New session</button>
           ${
-            currentSessions.some((s) => s.status === "final") || pendingSessionCleanup.size > 0
-              ? `<button class="btn btn--sm" id="clear-sessions-now" type="button">Clear all now</button>`
-              : ""
+            canCreateSession
+              ? `<p class="muted small session-cap-note">${currentSessions.length} of ${MAX_ROOM_SESSIONS} regional table${currentSessions.length === 1 ? "" : "s"} open</p>`
+              : newSessionDisabledReason
+                ? `<p class="muted small session-cap-note session-cap-note--full">${escapeHtml(newSessionDisabledReason)}</p>`
+                : sessionCapReached
+                  ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
+                  : ""
+          }`
+              : `<p class="muted small">Only the room owner can start regional tables.</p>`
           }
         </div>
       </div>
-      <div class="session-tabs">
-        ${currentSessions
-          .map(
-            (s, i) =>
-              `<button class="session-tab ${s.id === openSessionId ? "is-active" : ""}" data-open-session="${s.id}">
-                 Session ${currentSessions.length - i} · ${s.handCount ?? 0} hands
-               </button>`,
-          )
-          .join("") || `<p class="muted">No sessions yet. Start one to keep score.</p>`}
+      <div class="session-tabs session-tabs--preset">
+        ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
-      ${openSessionObj ? '<div id="session-panel-mount"></div>' : ""}
+      ${
+        openSessionObj
+          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj, isOwner)}</div>
+             <div id="session-panel-mount"></div>`
+          : ""
+      }
     </section>`;
 
-  // Wire detail controls
-  $("#back-to-rooms").addEventListener("click", closeRoom);
-  const deleteRoomBtn = $("#delete-room", roomDetailView);
-  if (deleteRoomBtn) {
-    deleteRoomBtn.addEventListener("click", () => onDeleteRoom(currentRoomId));
-  }
-  const leaveRoomBtn = $("#leave-room", roomDetailView);
-  if (leaveRoomBtn) {
-    leaveRoomBtn.addEventListener("click", () => onLeaveRoom(currentRoomId));
-  }
-  $("#new-session").addEventListener("click", onNewSession);
-  const clearSessionsBtn = $("#clear-sessions-now", roomDetailView);
-  if (clearSessionsBtn) {
-    clearSessionsBtn.addEventListener("click", () => {
-      clearCompletedSessionsNow().catch((e) => {
-        console.error("clearCompletedSessionsNow:", e);
-        showRoomsError(e.message || "Could not clear sessions");
-      });
-    });
-  }
-  const newSessionStake = $("#new-session-stake", roomDetailView);
-  if (newSessionStake) {
-    newSessionStake.addEventListener("change", () => {
-      pendingHandStake = parseInt(newSessionStake.value, 10) || 1;
-    });
-  }
-  $$("[data-open-session]", roomDetailView).forEach((btn) =>
-    btn.addEventListener("click", () => openSession(btn.dataset.openSession)),
-  );
   if (openSessionObj) {
     mountSessionPanel(openSessionObj);
   }
-  wireFeedbackSettings(roomDetailView);
-  wireSessionControls();
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
-    if (openSessionObj.handEnrollment?.active || sessionHasRobots()) {
+    if (getSessionEnrollment(openSessionObj)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     }
   }
@@ -2284,21 +2884,78 @@ function renderRoomDetail() {
       }
     }
   }
+  if (editingAddPlayer) {
+    const addPlayerEl = $("#add-player-name", roomDetailView);
+    const robotEl = $("#add-player-robot", roomDetailView);
+    if (addPlayerEl) {
+      addPlayerEl.value = editingAddPlayer.value;
+      addPlayerEl.focus();
+    }
+    if (robotEl) robotEl.checked = editingAddPlayer.robotChecked;
+  }
+}
+
+function buildAddPlayerFormHtml() {
+  return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
+         <input class="text-input" id="add-player-name" placeholder="Guest name (optional for robots)" aria-label="Add player name" data-testid="add-player-name" />
+         <label class="add-player-robot">
+           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" />
+           Robot — auto I&apos;m in &amp; play to win (name optional)
+         </label>
+         <button class="btn btn--sm" type="submit" data-testid="add-player-submit">Add player</button>
+       </form>`;
+}
+
+function buildSessionPlayerBarHtml(s) {
+  if (!s || s.status === "final") return "";
+  return `<div class="session-add-players" data-testid="session-add-players">
+      <h5 class="session-add-players__title">Add guest or robot</h5>
+      <p class="muted small session-add-players__hint">Need at least two players, then tap <strong>Go to Table</strong>.</p>
+      ${buildAddPlayerFormHtml()}
+    </div>`;
+}
+
+function buildGoToTableButtonHtml(s) {
+  if (!s || s.status === "final") return "";
+  const ready = tableReadyPlayerCount(s) >= 2;
+  const disabled = ready ? "" : "disabled aria-disabled=\"true\"";
+  const title = ready ? "Open the live card table" : "Add at least two players first";
+  return `<button type="button" class="btn btn--primary btn--sm session-toolbar__table-btn" id="open-table-play" data-testid="open-table-play" ${disabled} title="${title}">Go to Table</button>`;
+}
+
+function buildSessionLiveStatusHtml(s) {
+  if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
+  const enrollment = getSessionEnrollment(s);
+  const handNum = (s.handCount ?? 0) + 1;
+  let status = `Hand #${handNum}`;
+  if (enrollment?.active) {
+    status += " · enrollment open — tap Go to Table to join";
+  } else {
+    const phase = getSessionCurrentHand(s)?.phase;
+    if (phase === "draw") status += " · draw phase";
+    else if (phase === "play") status += " · live play";
+    else status += " · ready";
+  }
+  return `<div class="session-live-card">
+      <p class="session-live-card__status">${escapeHtml(status)}</p>
+      <p class="muted small session-live-card__hint">
+        Cards and enrollment are in the table view. Hand results and session controls stay here.
+      </p>
+    </div>`;
+}
+
+function buildSessionToolbarHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  return `${buildSessionPlayerSectionHtml(s, isOwner)}
+    <div class="session-toolbar__actions">
+      ${buildGoToTableButtonHtml(s)}
+      <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
+    </div>`;
 }
 
 function buildSessionSidebarHtml(s) {
   const isFinal = s.status === "final";
   const disabled = isFinal ? "disabled" : "";
-  const isOwner = session?.uid === currentRoom?.ownerId;
-  const stakeLocked = Boolean(s.handStakeLocked);
-  const limEnabled = s.limEnabled === true;
-  const handCount = s.handCount ?? 0;
-  const lmtDisabled = isFinal || stakeLocked || !isOwner;
-
-  const lmtControl = `<label class="session-lmt ${lmtDisabled ? "session-lmt--disabled" : ""}">
-      <input type="checkbox" id="session-lmt-enabled" ${limEnabled ? "checked" : ""} ${lmtDisabled ? "disabled" : ""} />
-      <span>LmT</span>
-    </label>`;
 
   const myUid = session?.uid ?? null;
   const myScore = myUid ? openScores.find((sc) => sc.playerId === myUid) : null;
@@ -2338,21 +2995,11 @@ function buildSessionSidebarHtml(s) {
 
   const handHistory = `${handHistoryPublic}${handHistoryPrivate}`;
 
-  const controls = isFinal
-    ? `<span class="badge badge--closed">Session final</span>`
-    : `<form class="add-player-form" id="add-player-form">
-         <input class="text-input" id="add-player-name" placeholder="Add a player (e.g. Thibodeaux)" aria-label="Add player name" />
-         <label class="add-player-robot">
-           <input type="checkbox" id="add-player-robot" />
-           Robot — auto I&apos;m in &amp; play to win
-         </label>
-         <button class="btn btn--sm" type="submit">Add player</button>
-       </form>
-       <button class="btn btn--primary btn--sm" id="complete-session">Complete session &amp; update Ape Scores</button>`;
+  const handCount = s.handCount ?? 0;
+  const controls = isFinal ? `<div class="session-controls"><span class="badge badge--closed">Session final</span></div>` : "";
 
-  return `${lmtControl}
-        ${handHistory}
-        <div class="session-controls">${controls}</div>
+  return `${handHistory}
+        ${controls}
         <label class="notes-label" for="session-notes">Side notes only — no money movement</label>
         <textarea id="session-notes" class="notes-field" rows="3" ${disabled}
           placeholder="Seating, house-rule tweaks, reminders. Not a ledger.">${escapeHtml(s.notes || "")}</textarea>
@@ -2378,7 +3025,7 @@ function buildSessionResultsHtml(s) {
          </div>`;
 }
 
-/** Stable inline table mount — sidebar re-renders without destroying the React root. */
+/** Session ledger panel — add players in sticky toolbar; notes/results here. */
 function mountSessionPanel(s) {
   const mount = $("#session-panel-mount", roomDetailView);
   if (!mount) return;
@@ -2386,12 +3033,13 @@ function mountSessionPanel(s) {
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
   const sidebarHtml = buildSessionSidebarHtml(s);
+  const liveCardHtml = buildSessionLiveStatusHtml(s);
 
   if (isFinal) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table">
+      <div class="session session--stack">
         ${buildSessionResultsHtml(s)}
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -2402,37 +3050,22 @@ function mountSessionPanel(s) {
     bumpTableMountGeneration();
     unmountTableSessionHost();
     mount.innerHTML = `
-      <div class="session session--table session--waiting">
+      <div class="session session--stack session--waiting">
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. Add a guest or robot below, or open the room to another member.
+          Need at least two players for the live table. Add a guest or robot in the bar above, then tap <strong>Go to Table</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
     return;
   }
 
-  let shell = $("#session-panel-shell", mount);
-  if (!shell) {
-    bumpTableMountGeneration();
-    mount.innerHTML = `
-      <div class="session session--table" id="session-panel-shell">
-        <div class="session-table-wrap" id="session-table-wrap">
-          <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
-          <div class="session-play-cta" id="session-play-cta">
-            <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-              Open table · landscape
-            </button>
-            <p class="muted small session-play-cta__hint">
-              Full-screen landscape view. Hand results and session controls stay in the sidebar.
-            </p>
-          </div>
-        </div>
-        <aside class="session-sidebar" id="session-sidebar-root"></aside>
-      </div>`;
-  }
-
-  const sidebarRoot = $("#session-sidebar-root", mount);
-  if (sidebarRoot) sidebarRoot.innerHTML = sidebarHtml;
+  bumpTableMountGeneration();
+  unmountTableSessionHost();
+  mount.innerHTML = `
+    <div class="session session--stack">
+      ${liveCardHtml}
+      <aside class="session-sidebar">${sidebarHtml}</aside>
+    </div>`;
 }
 
 function renderSessionPanel(s) {
@@ -2454,11 +3087,11 @@ function renderSessionPanel(s) {
       : `<div class="session-table-wrap">
            <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
            <div class="session-play-cta">
-             <button type="button" class="btn btn--primary btn--block" id="open-table-play">
-               Open table · landscape
+             <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
+               Go to Table
              </button>
              <p class="muted small session-play-cta__hint">
-               Full-screen landscape view. Hand results and session controls stay in the sidebar.
+               Full-screen table view. Hand results and session controls stay in the sidebar.
              </p>
            </div>
          </div>`;
@@ -2481,7 +3114,7 @@ function formatPublicHandHistoryLine(h, scores) {
       ? [h.winnerId]
       : [];
   const settlement = h.settlement === "ante_up" ? "non_winner_ante_up" : h.settlement;
-  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up") {
+  if (settlement === "win" || settlement === "split" || settlement === "push" || settlement === "non_winner_ante_up" || settlement === "co_win_carry") {
     return formatHandHistoryPublicLine({
       handNumber: h.handNumber,
       settlement,
@@ -2509,6 +3142,7 @@ function formatPrivateHandHistoryLine(h, myUid) {
   if (delta == null) return null;
   const parts = [`Hand #${h.handNumber}: ${formatNet(delta)}`];
   if (h.settlement === "push") parts.push("push");
+  else if (h.settlement === "co_win_carry") parts.push("carry");
   else if (h.settlement === "split") parts.push("split");
   else if (h.settlement === "win") parts.push("win");
   return parts.join(" · ");
@@ -2520,8 +3154,9 @@ function formatHandHistoryLine(h, scores) {
 
 function getCurrentHandState() {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  const participantIds = openSessionObj?.currentHand?.participantIds || [];
-  const tricksByPlayer = openSessionObj?.currentHand?.tricksByPlayer || {};
+  const currentHand = getSessionCurrentHand(openSessionObj);
+  const participantIds = currentHand?.participantIds || [];
+  const tricksByPlayer = currentHand?.tricksByPlayer || {};
   const derived = deriveWinnersFromTricks(tricksByPlayer, participantIds);
   const pending = openSessionObj?.pendingCoWinSettlement;
   const winnerIds =
@@ -2553,74 +3188,111 @@ function renderSettlementVoteStatus(s, displayScores, activeWinnerIds) {
 }
 
 function wireSessionControls() {
-  if (!openSessionId) return;
-
-  const notes = $("#session-notes", roomDetailView);
-  if (notes) {
-    let t = null;
-    notes.addEventListener("input", () => {
-      clearTimeout(t);
-      t = setTimeout(() => {
-        updateSessionNotes(currentRoomId, openSessionId, notes.value).catch((e) =>
-          console.error("updateSessionNotes:", e),
-        );
-      }, 500);
-    });
-  }
-
-  const completeBtn = $("#complete-session", roomDetailView);
-  if (completeBtn) {
-    completeBtn.addEventListener("click", onCompleteSession);
-  }
+  /* Session controls use delegated handlers in bindRoomDetailDelegatedControls(). */
 }
 
 async function onNewSession() {
-  if (!currentRoomId) return;
+  if (!currentRoomId || creatingSession) return;
+  if (session?.uid !== currentRoom?.ownerId) {
+    showRoomsError("Only the room owner can start a new session.");
+    return;
+  }
+  showRoomsError("");
+  const pool = isValidSessionNamePool(currentRoom?.sessionNamePool)
+    ? currentRoom.sessionNamePool
+    : [];
+  const claimedNames = claimedSessionNamesForRoom(currentRoom, currentSessions);
+  if (
+    !canCreateAnotherSession(currentSessions.length, pool, claimedNames)
+  ) {
+    showRoomsError("All 4 sessions already created.");
+    return;
+  }
+
+  const openingNumber = currentSessions.length + 1;
+  if (
+    !window.confirm(
+      `Open regional table ${openingNumber} of ${MAX_ROOM_SESSIONS}? The table name will be assigned when you confirm.`,
+    )
+  ) {
+    return;
+  }
+
   const previousSessionId = openSessionId;
   const previousScores = [...openScores];
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
 
-  if (
-    previousSessionId &&
-    previousSession?.status !== "final" &&
-    previousScores.length > 0
-  ) {
-    try {
-      await completeSessionWithApeScores(
-        currentRoomId,
-        previousSessionId,
-        previousScores,
-      );
-      scheduleSessionCleanup(previousSessionId);
-      showRoomsError(
-        "Previous session completed — Ape Scores updated. Clears in 30s (or Clear all now).",
-      );
-    } catch (err) {
-      console.error("autoCompleteSession:", err);
-      showRoomsError(err.message || "Could not complete previous session");
-      return;
-    }
-  }
+  creatingSession = true;
+  showRoomsError("Opening regional table…");
 
-  const players = currentMembers.map((m) => ({
-    playerId: m.userId,
-    displayName: m.displayName,
-  }));
-  if (players.length === 0 && session) {
-    players.push({ playerId: session.uid, displayName: session.displayName });
-  }
-  const stakeEl = $("#new-session-stake", roomDetailView);
-  const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
-  const roomBs = normalizeBourreSettings(
-    currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
-  );
   try {
-    const sid = await createSession(currentRoomId, players, handStake, {
+    if (
+      previousSessionId &&
+      previousSession?.status !== "final" &&
+      previousScores.length > 0
+    ) {
+      try {
+        await completeSessionWithApeScores(
+          currentRoomId,
+          previousSessionId,
+          previousScores,
+        );
+        const finalized = await getSession(currentRoomId, previousSessionId);
+        if (finalized?.status === "final") {
+          scheduleSessionCleanup(previousSessionId);
+        }
+        showRoomsError(
+          "Previous session completed — Ape Scores updated. Clears in 30s.",
+        );
+      } catch (err) {
+        console.error("autoCompleteSession:", err);
+        showRoomsError(err.message || "Could not complete previous session");
+        return;
+      }
+    }
+
+    const cap = await refreshRoomSessionCap(currentRoomId);
+    if (cap.room) currentRoom = cap.room;
+
+    const players = currentMembers.map((m) => ({
+      playerId: m.userId,
+      displayName: m.displayName,
+    }));
+    if (players.length === 0 && session) {
+      players.push({ playerId: session.uid, displayName: session.displayName });
+    }
+    const stakeEl = $("#new-session-stake", roomDetailView);
+    const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+    const roomBs = normalizeBourreSettings(
+      currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
+    );
+
+    const created = await createSession(currentRoomId, players, handStake, {
       limEnabled: roomBs.limEnabled,
     });
-    openSession(sid);
+    if (!created?.id || !created.sessionName) {
+      showRoomsError("Could not create session — please try again.");
+      return;
+    }
+
+    const optimisticSession = {
+      id: created.id,
+      sessionName: created.sessionName,
+      status: "in_progress",
+      handCount: 0,
+      createdAt: { seconds: Math.floor(Date.now() / 1000) },
+    };
+    rememberPendingSession(optimisticSession);
+    currentSessions = mergeSessionsWithPending(currentSessions);
+    userPickedNewSessionStake = false;
+    showRoomsError("");
+    openSession(created.id);
+    renderRoomDetail();
   } catch (err) {
     console.error("createSession:", err);
+    showRoomsError(err.message || "Could not create session");
+  } finally {
+    creatingSession = false;
   }
 }
 
@@ -2779,7 +3451,11 @@ $("#create-league").addEventListener("click", () => {
 // Boot
 // ---------------------------------------------------------------------------
 const versionEl = $("#app-version");
-if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
+if (versionEl) {
+  const label = `v${APP_VERSION}`;
+  versionEl.textContent = label;
+  versionEl.title = `National Bourré League ${label}`;
+}
 
 renderRoomsList();
 renderLeagues();

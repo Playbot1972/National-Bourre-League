@@ -2,6 +2,12 @@ import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers } from "./logic";
+import {
+  CARD_LAND_MS,
+  TRICK_SWEEP_MS,
+  WINNER_HIGHLIGHT_MS,
+} from "./trickTiming";
+import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface CardTableProps {
@@ -14,7 +20,9 @@ interface CardTableProps {
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
+  handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
+  trickPresentation: TrickPresentation;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
@@ -33,7 +41,9 @@ export function CardTable({
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
+  handComplete = false,
   actionFeedback,
+  trickPresentation,
   onToggleInHand,
   onTrickDelta,
   onSubmitDraw,
@@ -57,6 +67,27 @@ export function CardTable({
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
+  const displayPlayers = players.map((player) => {
+    const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
+    const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
+    const suppressTurn = trickPresentation.suppressTurnPlayerId;
+    const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
+    return {
+      ...player,
+      tricksThisHand,
+      isOnTurn: suppressTurn ? false : player.isOnTurn,
+      isLeading:
+        trickWinnerSeat &&
+        (trickPresentation.phase === "winnerReveal" ||
+          trickPresentation.phase === "collectTrick" ||
+          trickPresentation.phase === "hold")
+          ? true
+          : suppressTurn
+            ? false
+            : player.isLeading,
+      isTrickCapture: capturingTrick,
+    };
+  });
   const selfPlayer = players.find((p) => p.isSelf);
   const drawCompleted =
     Boolean(
@@ -67,15 +98,19 @@ export function CardTable({
   return (
     <div
       className={`btable-wrap ${countClass}`}
+      data-testid="table-root"
       style={{
         ["--player-count" as string]: playerCount,
         ["--table-aspect" as string]: tableAspect,
+        ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
+        ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
+        ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
       }}
     >
       <div className="table-stage">
         <div className="table-oval" aria-hidden="true">
           <div className="btable__rail" />
-          <div className="btable__felt" />
+          <div className="btable__felt" data-testid="table-felt" />
         </div>
 
         <PotCenter
@@ -86,18 +121,21 @@ export function CardTable({
           phase={session.phase}
           enrollmentActive={enrollmentActive}
           remainingDeckCount={session.remainingDeckCount}
-          currentTrick={session.currentTrick}
-          playedCards={session.playedCards}
+          trickDisplayPlays={trickPresentation.displayPlays}
+          trickWinnerPlayerId={trickPresentation.winnerPlayerId}
+          trickShowWinnerTag={trickPresentation.showWinnerTag}
+          trickPresentationPhase={trickPresentation.phase}
           playerNames={playerNames}
         />
 
         <div className="btable__seats" aria-label="Players at the table">
           {rotated.map((player, i) => {
             const pos = seatPosition(i, rotated.length);
+            const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
             return (
               <Seat
                 key={player.playerId}
-                player={player}
+                player={seatPlayer}
                 region={pos.region}
                 style={{
                   left: `${pos.x}%`,
@@ -120,10 +158,14 @@ export function CardTable({
         isInHand={Boolean(selfPlayer?.inHand)}
         isDealer={Boolean(selfPlayer?.isDealer)}
         signedIn={Boolean(currentUserId)}
-        isMyTurn={Boolean(currentUserId && session.turnPlayerId === currentUserId)}
+        isMyTurn={
+          Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
+          !trickPresentation.suppressTurnPlayerId
+        }
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
+        handComplete={handComplete}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}

@@ -18,7 +18,7 @@ export function TableSettingsPanel({ open, onClose }: TableSettingsPanelProps) {
   if (!open) return null;
 
   return (
-    <div className="bsettings" role="dialog" aria-label="Table appearance">
+    <div className="bsettings" role="dialog" aria-label="Table appearance" data-testid="settings-panel">
       <div className="bsettings__panel">
         <header className="bsettings__head">
           <h6 className="bsettings__title">Table room</h6>

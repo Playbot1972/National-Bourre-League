@@ -72,11 +72,13 @@ export const STANDARD_RULE_SECTIONS = [
   },
   {
     id: "split",
-    title: "Split Pot",
-    summary: "A tie for most tricks does not split the pot — it carries over.",
+    title: "Tied Pot (Pagat)",
+    summary: "A tie for most tricks ends the hand and carries the pot — it is not split.",
     points: [
-      "If two or more players tie for most tricks, the pot is not shared.",
-      "The pot stays and carries to the next hand.",
+      "If two or more players tie for most tricks, the hand ends with no outright winner.",
+      "The full pot carries forward to the next deal.",
+      "Enrollment opens for the next deal; seats may change between deals.",
+      "Players seated in time may join that deal; tied leaders skip the ante for it.",
       "New antes and any penalties are added to the carried pot.",
     ],
   },
@@ -96,9 +98,9 @@ export const STANDARD_RULE_SECTIONS = [
     title: "Antes After a Hand",
     summary: "Who posts the next ante depends on how the last hand ended.",
     points: [
-      "A player who paid a bourré penalty does not post the normal ante on the next hand.",
-      "Players tied for most tricks in a split pot also skip the next ante.",
-      "All other players ante as usual.",
+      "A player who paid a bourré penalty does not post the normal ante on the next deal.",
+      "Players tied for most tricks (carry or agreed split) skip the ante for that next deal.",
+      "All other seated players ante as usual.",
     ],
   },
   {

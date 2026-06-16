@@ -5,6 +5,7 @@ import {
   isRobotPlayerId,
   mergeScoresWithMembers,
   nextDealerId,
+  seatPlayerIdsFromRoster,
   sessionHasRobots,
   sortScoresForDisplay,
 } from "./logic";
@@ -50,5 +51,22 @@ describe("A — session and bot helpers", () => {
   it("nextDealerId rotates clockwise in sorted order", () => {
     assert.equal(nextDealerId(["a", "b", "c"], "a"), "b");
     assert.equal(nextDealerId(["a", "b", "c"], "c"), "a");
+  });
+
+  it("seatPlayerIdsFromRoster uses session join order for dealer rotation", () => {
+    const seats = seatPlayerIdsFromRoster(
+      [
+        { playerId: "carol" },
+        { playerId: "alice" },
+        { playerId: "bob" },
+      ],
+      [
+        { playerId: "alice", displayName: "Alice" },
+        { playerId: "bob", displayName: "Bob" },
+        { playerId: "carol", displayName: "Carol" },
+      ],
+    );
+    assert.deepEqual(seats, ["carol", "alice", "bob"]);
+    assert.equal(nextDealerId(seats, "carol"), "alice");
   });
 });

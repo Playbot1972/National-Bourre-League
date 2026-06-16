@@ -15,12 +15,30 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "desktop-chromium",
+      use: { ...devices["Desktop Chrome"], browserName: "chromium" },
+      testIgnore: [/table-smoke\.mobile\.spec\.ts$/],
+    },
+    {
+      name: "mobile-pixel5",
+      use: { ...devices["Pixel 5 landscape"], browserName: "chromium", hasTouch: true },
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/],
+    },
+    {
       name: "mobile-landscape",
       use: { ...devices["iPhone 13 landscape"], browserName: "chromium" },
+      testMatch: [/table-players\.spec\.ts$/],
     },
     {
       name: "tablet-landscape",
       use: { ...devices["iPad (gen 7) landscape"], browserName: "chromium" },
+      testMatch: [/table-layout\.spec\.ts$/],
     },
   ],
+  webServer: {
+    command: "npm run social",
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });
