@@ -25,6 +25,18 @@ export interface StageFitResult {
 }
 
 /** Contain-fit the table stage + hero hand inside the available viewport box. */
+/** Keep hero budget at peak measured height so draw→play UI changes do not shrink the stage. */
+export function stabilizeHeroHeight(
+  measured: number,
+  peak: number,
+  floor: number,
+): { height: number; peak: number } {
+  const safe = Number.isFinite(measured) && measured > 0 ? measured : 0;
+  const nextPeak = safe > 0 ? Math.max(peak, safe) : peak;
+  const height = nextPeak > 0 ? nextPeak : floor;
+  return { height: Math.max(height, floor), peak: nextPeak };
+}
+
 export function computeStageFit(input: StageFitInput): StageFitResult {
   const {
     availWidth,
