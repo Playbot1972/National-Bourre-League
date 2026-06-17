@@ -106,7 +106,11 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         )}
 
         {showHoleCards && (
-          <div className="bseat__hole-cards" aria-label={`${cardsHeld} cards in hand`}>
+          <div
+            className="bseat__hole-cards"
+            aria-label={`${cardsHeld} cards in hand`}
+            data-trick-play-origin={player.playerId}
+          >
             {Array.from({ length: cardsHeld }, (_, i) => (
               <div key={i} className="bseat__hole-card" style={{ ["--hole-i" as string]: i }}>
                 <PlayingCard faceDown size="xs" />
@@ -116,7 +120,12 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         )}
 
         <div className="bseat__avatar-stage">
-          <div className="bseat__avatar-stack">
+          <div
+            className="bseat__avatar-stack"
+            data-trick-play-origin={
+              !player.isSelf && player.inHand && !showHoleCards ? player.playerId : undefined
+            }
+          >
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}

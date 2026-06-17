@@ -12,6 +12,7 @@ export interface HandCardInteraction {
   legalPlayIndices?: number[];
   playingIndex?: number | null;
   busy?: boolean;
+  trickPlayOriginPlayerId?: string | null;
   onPlayCard?: (index: number) => void;
   onSelectCard?: (index: number) => void;
   onPeek?: (index: number | null) => void;
@@ -99,6 +100,11 @@ function HandCard({
     <div
       className={["hand__slot", peekActive ? "hand__slot--peek" : ""].filter(Boolean).join(" ")}
       style={style}
+      data-trick-play-origin-active={
+        interaction?.playingIndex === index && interaction.trickPlayOriginPlayerId
+          ? interaction.trickPlayOriginPlayerId
+          : undefined
+      }
     >
       <PlayingCard
         card={card}
