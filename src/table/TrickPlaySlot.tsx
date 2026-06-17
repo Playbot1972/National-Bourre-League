@@ -16,7 +16,6 @@ interface TrickPlaySlotProps {
   displayCount: number;
   playerName: string;
   winnerPlayerId?: string | null;
-  showWinnerTag?: boolean;
 }
 
 export function TrickPlaySlot({
@@ -26,7 +25,6 @@ export function TrickPlaySlot({
   displayCount,
   playerName,
   winnerPlayerId = null,
-  showWinnerTag = false,
 }: TrickPlaySlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
