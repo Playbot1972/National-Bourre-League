@@ -25,6 +25,11 @@ export interface TrickPresentationModel {
   isResolving: boolean;
 }
 
+export interface PendingTrickResolution {
+  frozen: FrozenTrick;
+  snapshot: ServerTrickSnapshot;
+}
+
 export interface TrickPresentationStore {
   phase: TrickPresentationPhase;
   frozenTrick: FrozenTrick | null;
@@ -35,6 +40,8 @@ export interface TrickPresentationStore {
   prevTrick: CurrentTrickState | null | undefined;
   pendingServer: ServerTrickSnapshot | null;
   resolvedTricks: Record<string, number> | null;
+  /** Resolved on server but waiting for in-flight card land animations. */
+  pendingResolution: PendingTrickResolution | null;
 }
 
 export function createTrickPresentationStore(
@@ -51,6 +58,7 @@ export function createTrickPresentationStore(
     prevTrick: currentTrick,
     pendingServer: null,
     resolvedTricks: null,
+    pendingResolution: null,
   };
 }
 
@@ -102,6 +110,7 @@ export type TrickPresentationEvent =
   | { type: "reinit"; snapshot: ServerTrickSnapshot }
   | { type: "serverUpdate"; snapshot: ServerTrickSnapshot; participantIds: string[]; trumpSuit?: string | null; reducedMotion?: boolean }
   | { type: "revealNextCard" }
+  | { type: "commitTrickResolution" }
   | { type: "advancePhase" };
 
 export function reduceTrickPresentation(
@@ -118,9 +127,22 @@ export function reduceTrickPresentation(
 
     case "revealNextCard": {
       if (store.phase !== "live") return store;
-      const target = serializedPlays(store.prevTrick).length;
+      const target =
+        store.pendingResolution?.frozen.plays.length ??
+        serializedPlays(store.prevTrick).length;
       if (store.revealedCount >= target) return store;
       return { ...store, revealedCount: store.revealedCount + 1 };
+    }
+
+    case "commitTrickResolution": {
+      const pending = store.pendingResolution;
+      if (!pending || store.phase !== "live") return store;
+      return beginTrickResolution(
+        { ...store, pendingResolution: null },
+        pending.frozen,
+        pending.snapshot.tricksByPlayer,
+        pending.snapshot.currentTrick,
+      );
     }
 
     case "advancePhase": {
@@ -159,6 +181,12 @@ export function reduceTrickPresentation(
 
     case "serverUpdate": {
       const { snapshot, participantIds } = event;
+      if (store.pendingResolution) {
+        return {
+          ...store,
+          pendingResolution: { frozen: store.pendingResolution.frozen, snapshot },
+        };
+      }
       if (store.phase !== "live") {
         return bufferServerSnapshot(store, snapshot);
       }
@@ -171,12 +199,10 @@ export function reduceTrickPresentation(
       });
 
       if (resolved) {
-        return beginTrickResolution(
-          store,
-          resolved,
-          snapshot.tricksByPlayer,
-          snapshot.currentTrick,
-        );
+        return {
+          ...store,
+          pendingResolution: { frozen: resolved, snapshot },
+        };
       }
 
       return applyLiveServerUpdate(store, snapshot);
@@ -192,9 +218,13 @@ export function buildTrickPresentationModel(
   liveCurrentTrick: CurrentTrickState | null | undefined,
 ): TrickPresentationModel {
   const livePlays = serializedPlays(liveCurrentTrick);
+  const holdPlays =
+    livePlays.length > 0
+      ? livePlays
+      : store.pendingResolution?.frozen.plays ?? serializedPlays(store.prevTrick);
   const displayPlays =
     store.phase === "live"
-      ? livePlays.slice(0, store.revealedCount)
+      ? holdPlays.slice(0, store.revealedCount)
       : store.frozenTrick?.plays ?? [];
 
   const winnerPlayerId =
