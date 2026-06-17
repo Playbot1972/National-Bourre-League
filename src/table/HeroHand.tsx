@@ -74,10 +74,10 @@ export function HeroHand({
     const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
     const prev = prevCardIdsRef.current;
     const added = [...nextIds].some((id) => !prev.has(id));
-    const isSubset =
-      prev.size > 0 && [...prev].every((id) => nextIds.has(id));
     prevCardIdsRef.current = nextIds;
-    if (!added || isSubset) return;
+    if (!added) return;
+    // Draw replacements and post-draw sync use draw-phase animations, not deal stagger.
+    if (prev.size > 0) return;
     setDealing(true);
     setPlayingIndex(null);
     setSelectedPlay(null);

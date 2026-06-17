@@ -1,11 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
-import { computeStageFit, isWithinViewport, rectFromDomRect } from "../stageFit";
+import { computeStageFit, isWithinViewport, rectFromDomRect, stabilizeHeroHeight } from "../stageFit";
 import { useTableTheme } from "../theme/useTableTheme";
 import { useMobileTable } from "../useMobileTable";
 
 interface UseStageFitOptions {
   aspect: number;
   enabled?: boolean;
+  /** Resets hero peak budget when the hand changes. */
+  sessionKey?: string;
 }
 
 function readSafePx(name: string, fallback: number): number {
@@ -16,8 +18,10 @@ function readSafePx(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
+export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitOptions) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const heroPeakRef = useRef(0);
+  const sessionKeyRef = useRef(sessionKey);
   const { settings } = useTableTheme();
   const nativeMobile = useMobileTable();
 
@@ -26,6 +30,11 @@ export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
 
     const wrap = wrapRef.current;
     if (!wrap) return;
+
+    if (sessionKeyRef.current !== sessionKey) {
+      sessionKeyRef.current = sessionKey;
+      heroPeakRef.current = 0;
+    }
 
     const viewport =
       wrap.closest(".btable-desktop__viewport") ??
@@ -37,7 +46,11 @@ export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
       const hostRect = host.getBoundingClientRect();
       const hero = wrap.querySelector<HTMLElement>(".hand-panel");
       const heroRect = hero?.getBoundingClientRect();
-      const heroMinHeight = heroRect?.height ?? (nativeMobile ? 132 : 148);
+      const heroFloor = nativeMobile ? 132 : 148;
+      const measuredHero = heroRect?.height ?? 0;
+      const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
+      heroPeakRef.current = stableHero.peak;
+      const heroMinHeight = stableHero.height;
 
       const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16);
       const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12);
@@ -78,6 +91,7 @@ export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
         }).length;
         console.debug("[stage-fit]", {
           host: { w: hostRect.width, h: hostRect.height },
+          hero: { measured: measuredHero, budget: heroMinHeight, peak: heroPeakRef.current },
           fit,
           stageBounds,
           seatOverflow,
@@ -87,6 +101,8 @@ export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
 
     const ro = new ResizeObserver(apply);
     ro.observe(wrap);
+    const hero = wrap.querySelector<HTMLElement>(".hand-panel");
+    if (hero) ro.observe(hero);
     if (viewport instanceof HTMLElement) ro.observe(viewport);
     apply();
     window.addEventListener("orientationchange", apply);
@@ -94,7 +110,7 @@ export function useStageFit({ aspect, enabled = true }: UseStageFitOptions) {
       ro.disconnect();
       window.removeEventListener("orientationchange", apply);
     };
-  }, [aspect, enabled, nativeMobile, settings.tableScale]);
+  }, [aspect, enabled, nativeMobile, sessionKey, settings.tableScale]);
 
   return wrapRef;
 }

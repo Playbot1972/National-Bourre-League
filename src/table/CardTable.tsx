@@ -76,7 +76,8 @@ export function CardTable({
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
-  const wrapRef = useStageFit({ aspect: tableAspect });
+  const sessionKey = `${session.sessionId}:${session.handNumber}`;
+  const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
   const displayPlayers = players.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;

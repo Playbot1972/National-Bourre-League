@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStageFit, isWithinViewport } from "./stageFit";
+import { computeStageFit, isWithinViewport, stabilizeHeroHeight } from "./stageFit";
 
 describe("stageFit", () => {
   it("contain-fits stage inside viewport without exceeding width", () => {
@@ -48,6 +48,20 @@ describe("stageFit", () => {
     });
     assert.ok(fit.stageWidth < 900);
     assert.ok(fit.stageHeight <= 420 - 20 - 150 - 8);
+  });
+
+  it("stabilizes hero height at peak to avoid draw-to-play shrink flicker", () => {
+    const first = stabilizeHeroHeight(220, 0, 140);
+    assert.equal(first.height, 220);
+    assert.equal(first.peak, 220);
+
+    const shrunk = stabilizeHeroHeight(150, first.peak, 140);
+    assert.equal(shrunk.height, 220);
+    assert.equal(shrunk.peak, 220);
+
+    const reset = stabilizeHeroHeight(0, 0, 140);
+    assert.equal(reset.height, 140);
+    assert.equal(reset.peak, 0);
   });
 
   it("detects bounds inside viewport", () => {
