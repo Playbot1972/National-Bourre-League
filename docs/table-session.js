@@ -8454,7 +8454,7 @@ function ge({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 		if (!(de.current || ge || !h) && !(u && !u.includes(e))) {
 			de.current = !0, ee(e), E(e), k(null);
 			try {
-				await Promise.resolve(h(e));
+				await Promise.resolve(h(e)), E(null), de.current = !1;
 			} catch (e) {
 				k(e instanceof Error ? e.message : "Could not play card"), E(null), de.current = !1;
 			}
@@ -10100,6 +10100,15 @@ function hn(e, t) {
 		case "serverUpdate": {
 			let { snapshot: n, heroDrawDiscardCount: r = 0, heroDrawReplaceCount: i = 0 } = t, a = e.prevSnapshot ?? n;
 			if (e.sessionKey !== n.sessionKey) return ln(n);
+			if (n.phase === "play" && e.phase !== "play") return un(e, "play", {
+				displayDrawCompletedIds: [...n.drawCompletedIds],
+				animatingDrawPlayerId: null,
+				drawAnimSubPhase: "done",
+				trumpRevealActive: !1,
+				anteAnimActive: !1,
+				prevSnapshot: n,
+				pendingSnapshot: null
+			});
 			if (on(e.phase) && e.phase !== "drawPlayer" || e.phase === "drawPlayer" && e.drawAnimSubPhase !== "done") return {
 				...e,
 				pendingSnapshot: n
@@ -10133,14 +10142,7 @@ function hn(e, t) {
 				}
 				if (n.drawCompletedIds.length === n.participantIds.length && n.participantIds.length > 0 && e.phase === "drawPlayer" && e.drawAnimSubPhase === "done") return un(e, "drawReady", { prevSnapshot: n });
 			}
-			return n.phase === "play" && e.phase !== "play" && (e.phase === "drawReady" || e.phase === "drawPlayer" || e.phase === "trumpReveal" || e.phase === "ante") ? un(e, "play", {
-				displayDrawCompletedIds: [...n.drawCompletedIds],
-				animatingDrawPlayerId: null,
-				trumpRevealActive: !1,
-				anteAnimActive: !1,
-				prevSnapshot: n,
-				pendingSnapshot: null
-			}) : n.handComplete && n.phase === "play" && e.phase === "play" ? un(e, "settle", {
+			return n.handComplete && n.phase === "play" && e.phase === "play" ? un(e, "settle", {
 				settleAnimActive: !0,
 				settleCarryOver: n.carryOverPot > 0,
 				prevSnapshot: n,

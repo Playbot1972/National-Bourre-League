@@ -73,6 +73,22 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "play");
   });
 
+  it("forces play phase when server enters play during draw animation", () => {
+    let store = createHandPresentationStore(baseSnap);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"] },
+    });
+    assert.equal(store.drawAnimSubPhase, "discard");
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, phase: "play", drawCompletedIds: ["p1", "p2", "p3"] },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.drawAnimSubPhase, "done");
+    assert.equal(buildHandPresentationModel(store).suppressTurnIndicator, false);
+  });
+
   it("enters settle when hand completes", () => {
     let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
     store = reduceHandPresentation(store, {

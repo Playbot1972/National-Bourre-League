@@ -119,6 +119,9 @@ export function HeroHand({
       setLocalError(null);
       try {
         await Promise.resolve(onPlayCard(index));
+        // Parent often clears feedback without a success status after play.
+        setPlayingIndex(null);
+        playLockRef.current = false;
       } catch (err) {
         setLocalError(err instanceof Error ? err.message : "Could not play card");
         setPlayingIndex(null);
