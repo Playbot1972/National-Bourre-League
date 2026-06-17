@@ -1933,6 +1933,13 @@ function unmountTableSessionHost() {
   }
 }
 
+/** Sidebar HTML rebuild must not tear down the live table overlay React tree. */
+function resetSessionPanelTableHost() {
+  if (tablePlayOpen) return;
+  bumpTableMountGeneration();
+  unmountTableSessionHost();
+}
+
 function tableSessionHost() {
   if (!tablePlayOpen) return null;
   return $("#table-session-root");
@@ -3191,8 +3198,7 @@ function mountSessionPanel(s, isOwner) {
   const liveCardHtml = buildSessionLiveStatusHtml(s);
 
   if (isFinal) {
-    bumpTableMountGeneration();
-    unmountTableSessionHost();
+    resetSessionPanelTableHost();
     mount.innerHTML = `
       <div class="session session--stack">
         ${buildSessionResultsHtml(s)}
@@ -3203,8 +3209,7 @@ function mountSessionPanel(s, isOwner) {
 
   if (playerCount < 2) {
     const addPlayersHtml = buildSessionPlayerSectionHtml(s, isOwner);
-    bumpTableMountGeneration();
-    unmountTableSessionHost();
+    resetSessionPanelTableHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
         ${addPlayersHtml}
@@ -3220,8 +3225,7 @@ function mountSessionPanel(s, isOwner) {
     return;
   }
 
-  bumpTableMountGeneration();
-  unmountTableSessionHost();
+  resetSessionPanelTableHost();
   mount.innerHTML = `
     <div class="session session--stack">
       ${liveCardHtml}

@@ -3,6 +3,7 @@ import { PlayingCard, type CardState } from "./PlayingCard";
 import type { Card } from "../types";
 import type { CardGestureMode } from "./useCardGestureHandlers";
 import { useCardGestureHandlers } from "./useCardGestureHandlers";
+import { cardKey } from "../game/cardUtils";
 import "./Hand.css";
 
 export interface HandCardInteraction {
@@ -30,7 +31,7 @@ interface HandProps {
   cardInteraction?: HandCardInteraction;
 }
 
-const keyFor = (c: Card, i: number) => `${c.rank}-${c.suit}-${i}`;
+const keyFor = (c: Card) => cardKey(c);
 
 interface HandCardProps {
   card: Card;
@@ -130,7 +131,7 @@ export function Hand({
     <div className={`hand ${fan ? "hand--fan" : ""} ${cardInteraction ? "hand--pointer" : ""}`}>
       {cards.map((c, i) => (
         <HandCard
-          key={keyFor(c, i)}
+          key={keyFor(c)}
           card={c}
           index={i}
           size={size}
