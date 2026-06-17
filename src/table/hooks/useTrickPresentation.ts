@@ -157,16 +157,9 @@ export function useTrickPresentation({
 
   useEffect(() => {
     if (phase !== "play" || store.phase !== "live") return;
-    if (targetReveal < store.revealedCount) {
-      dispatch({
-        type: "serverUpdate",
-        snapshot: { currentTrick, tricksByPlayer },
-        participantIds,
-        trumpSuit,
-        reducedMotion: prefersReducedMotion(),
-      });
-    }
-  }, [phase, store.phase, targetReveal, store.revealedCount, currentTrick, tricksByPlayer, participantIds, trumpSuit]);
+    if (store.revealedCount <= targetReveal) return;
+    dispatch({ type: "clampRevealedCount", target: targetReveal });
+  }, [phase, store.phase, targetReveal, store.revealedCount]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
   return model;

@@ -74,8 +74,17 @@ export function applyLiveServerUpdate(
   store: TrickPresentationStore,
   snapshot: ServerTrickSnapshot,
 ): TrickPresentationStore {
+  const livePlays = serializedPlays(snapshot.currentTrick);
+  const targetReveal =
+    store.pendingResolution?.frozen.plays.length ?? livePlays.length;
+  const revealedCount =
+    store.phase === "live" && !store.pendingResolution
+      ? Math.min(store.revealedCount, targetReveal)
+      : store.revealedCount;
+
   return {
     ...store,
+    revealedCount,
     prevTricks: { ...snapshot.tricksByPlayer },
     prevTrick: snapshot.currentTrick,
     displayTricksByPlayer: { ...snapshot.tricksByPlayer },
@@ -110,6 +119,7 @@ export type TrickPresentationEvent =
   | { type: "reinit"; snapshot: ServerTrickSnapshot }
   | { type: "serverUpdate"; snapshot: ServerTrickSnapshot; participantIds: string[]; trumpSuit?: string | null; reducedMotion?: boolean }
   | { type: "revealNextCard" }
+  | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
   | { type: "advancePhase" };
 
@@ -132,6 +142,12 @@ export function reduceTrickPresentation(
         serializedPlays(store.prevTrick).length;
       if (store.revealedCount >= target) return store;
       return { ...store, revealedCount: store.revealedCount + 1 };
+    }
+
+    case "clampRevealedCount": {
+      if (store.phase !== "live") return store;
+      if (store.revealedCount <= event.target) return store;
+      return { ...store, revealedCount: event.target };
     }
 
     case "commitTrickResolution": {

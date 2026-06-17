@@ -12,6 +12,9 @@ import { PRESENTATION_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
+const EMPTY_IDS: string[] = [];
+const EMPTY_HERO_CARDS: SerializedCard[] = [];
+
 function heroDrawDelta(
   prevKeys: string[],
   nextKeys: string[],
@@ -41,9 +44,9 @@ export function useHandPresentation({
   enrollmentActive,
   potAmount,
   handComplete,
-  heroCards = [],
-  enrolledIds = [],
-  declinedIds = [],
+  heroCards = EMPTY_HERO_CARDS,
+  enrolledIds = EMPTY_IDS,
+  declinedIds = EMPTY_IDS,
   actionOrder,
 }: UseHandPresentationInput): HandPresentation {
   const snapshot = useMemo(

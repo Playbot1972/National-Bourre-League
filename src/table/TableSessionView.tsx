@@ -18,6 +18,10 @@ import { useMobileTable } from "./useMobileTable";
 import type { TableSessionViewProps } from "./types";
 import type { PotSnapshot } from "./settlementCopy";
 
+/** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
+const EMPTY_ENROLLMENT_IDS: string[] = [];
+const EMPTY_HERO_CARDS: never[] = [];
+
 export function TableSessionView({
   session,
   players,
@@ -30,7 +34,7 @@ export function TableSessionView({
   enrollmentActive = false,
   enrollmentSecondsLeft = 0,
   currentUserId,
-  heroCards = [],
+  heroCards = EMPTY_HERO_CARDS,
   privateHandReady = false,
   legalPlayIndices,
   handComplete = false,
@@ -64,8 +68,8 @@ export function TableSessionView({
     potAmount: potMetrics.currentPot,
     handComplete,
     heroCards,
-    enrolledIds: session.handEnrollment?.enrolledIds ?? [],
-    declinedIds: session.handEnrollment?.declinedIds ?? [],
+    enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
+    declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
     actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
   });
   const suppressTurn =
