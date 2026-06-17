@@ -10329,7 +10329,8 @@ function xn(e, t) {
 		prevTricks: { ...e },
 		prevTrick: t,
 		pendingServer: null,
-		resolvedTricks: null
+		resolvedTricks: null,
+		pendingResolution: null
 	};
 }
 function Sn(e, t) {
@@ -10369,11 +10370,18 @@ function Tn(e, t) {
 		case "reinit": return xn(t.type === "reinit" ? t.snapshot.tricksByPlayer : e.displayTricksByPlayer, t.type === "reinit" ? t.snapshot.currentTrick : null);
 		case "revealNextCard": {
 			if (e.phase !== "live") return e;
-			let t = Re(e.prevTrick).length;
+			let t = e.pendingResolution?.frozen.plays.length ?? Re(e.prevTrick).length;
 			return e.revealedCount >= t ? e : {
 				...e,
 				revealedCount: e.revealedCount + 1
 			};
+		}
+		case "commitTrickResolution": {
+			let t = e.pendingResolution;
+			return !t || e.phase !== "live" ? e : wn({
+				...e,
+				pendingResolution: null
+			}, t.frozen, t.snapshot.tricksByPlayer, t.snapshot.currentTrick);
 		}
 		case "advancePhase": switch (e.phase) {
 			case "trickComplete": return {
@@ -10409,6 +10417,13 @@ function Tn(e, t) {
 		}
 		case "serverUpdate": {
 			let { snapshot: n, participantIds: r } = t;
+			if (e.pendingResolution) return {
+				...e,
+				pendingResolution: {
+					frozen: e.pendingResolution.frozen,
+					snapshot: n
+				}
+			};
 			if (e.phase !== "live") return Sn(e, n);
 			let i = Be({
 				prevTricks: e.prevTricks,
@@ -10416,18 +10431,24 @@ function Tn(e, t) {
 				participantIds: r,
 				prevTrick: e.prevTrick
 			});
-			return i ? wn(e, i, n.tricksByPlayer, n.currentTrick) : Cn(e, n);
+			return i ? {
+				...e,
+				pendingResolution: {
+					frozen: i,
+					snapshot: n
+				}
+			} : Cn(e, n);
 		}
 		default: return e;
 	}
 }
 function En(e, t) {
-	let n = Re(t), r = e.phase === "live" ? n.slice(0, e.revealedCount) : e.frozenTrick?.plays ?? [], i = e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null, a = e.showWinnerTag && (e.phase === "winnerReveal" || e.phase === "collectTrick");
+	let n = Re(t), r = n.length > 0 ? n : e.pendingResolution?.frozen.plays ?? Re(e.prevTrick), i = e.phase === "live" ? r.slice(0, e.revealedCount) : e.frozenTrick?.plays ?? [], a = e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null, o = e.showWinnerTag && (e.phase === "winnerReveal" || e.phase === "collectTrick");
 	return {
 		phase: e.phase,
-		displayPlays: r,
-		winnerPlayerId: i,
-		showWinnerTag: a,
+		displayPlays: i,
+		winnerPlayerId: a,
+		showWinnerTag: o,
 		displayTricksByPlayer: e.displayTricksByPlayer,
 		suppressTurnPlayerId: Pe(e.phase),
 		trickWinnerSeatId: e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null,
@@ -10488,9 +10509,20 @@ function Dn({ phase: e, currentTrick: t, tricksByPlayer: n, participantIds: r, t
 		a.frozenTrick,
 		i
 	]), (0, l.useEffect)(() => {
+		if (e !== "play" || a.phase !== "live" || !a.pendingResolution) return;
+		let t = a.pendingResolution.frozen.plays.length;
+		if (a.revealedCount < t) return;
+		let n = Ve() ? 121 : 220, r = window.setTimeout(() => o({ type: "commitTrickResolution" }), n);
+		return () => window.clearTimeout(r);
+	}, [
+		e,
+		a.phase,
+		a.pendingResolution,
+		a.revealedCount
+	]), (0, l.useEffect)(() => {
 		a.phase === "live" && (c.current = null);
 	}, [a.phase]);
-	let f = a.phase === "live" ? t?.plays?.length ?? 0 : a.revealedCount;
+	let f = a.phase === "live" ? a.pendingResolution?.frozen.plays.length ?? t?.plays?.length ?? 0 : a.revealedCount;
 	return (0, l.useEffect)(() => {
 		if (e !== "play" || a.phase !== "live" || a.revealedCount >= f) return;
 		let t = Ve() ? 121 : 220, n = window.setTimeout(() => o({ type: "revealNextCard" }), t);

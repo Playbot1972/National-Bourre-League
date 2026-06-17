@@ -101,12 +101,24 @@ export function useTrickPresentation({
   }, [phase, store.phase, store.frozenTrick, trumpSuit]);
 
   useEffect(() => {
+    if (phase !== "play" || store.phase !== "live" || !store.pendingResolution) return;
+
+    const playCount = store.pendingResolution.frozen.plays.length;
+    if (store.revealedCount < playCount) return;
+
+    const landMs = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
+    const id = window.setTimeout(() => dispatch({ type: "commitTrickResolution" }), landMs);
+    return () => window.clearTimeout(id);
+  }, [phase, store.phase, store.pendingResolution, store.revealedCount]);
+
+  useEffect(() => {
     if (store.phase === "live") resolutionKeyRef.current = null;
   }, [store.phase]);
 
   const targetReveal =
     store.phase === "live"
-      ? (currentTrick?.plays?.length ?? 0)
+      ? store.pendingResolution?.frozen.plays.length ??
+        (currentTrick?.plays?.length ?? 0)
       : store.revealedCount;
 
   useEffect(() => {

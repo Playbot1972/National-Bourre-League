@@ -26,6 +26,9 @@ describe("trickPresentationMachine", () => {
       { p1: 0, p2: 0, p3: 0, p4: 0 },
       completedTrick,
     );
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: {
@@ -34,6 +37,11 @@ describe("trickPresentationMachine", () => {
       },
       participantIds: participants,
     });
+    assert.equal(store.phase, "live");
+    assert.ok(store.pendingResolution);
+    const pendingModel = buildTrickPresentationModel(store, null);
+    assert.equal(pendingModel.displayPlays.length, 4);
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
     assert.equal(store.phase, "trickComplete");
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.displayPlays.length, 4);
@@ -43,6 +51,9 @@ describe("trickPresentationMachine", () => {
 
   it("does not clear the trick immediately on final play", () => {
     let store = createTrickPresentationStore({}, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: {
@@ -51,17 +62,22 @@ describe("trickPresentationMachine", () => {
       },
       participantIds: ["p1", "p2"],
     });
-    assert.notEqual(store.phase, "live");
-    assert.equal(store.frozenTrick?.plays.length, 4);
+    assert.equal(store.phase, "live");
+    assert.ok(store.pendingResolution);
+    assert.equal(store.pendingResolution?.frozen.plays.length, 4);
   });
 
   it("shows winner highlight before collection", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "winnerReveal");
     const model = buildTrickPresentationModel(store, null);
@@ -71,24 +87,47 @@ describe("trickPresentationMachine", () => {
 
   it("increments trick count only when collection starts", () => {
     let store = createTrickPresentationStore({}, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "collectTrick");
     assert.equal(store.displayTricksByPlayer.p1, 1);
   });
 
-  it("buffers fast backend updates until collection finishes", () => {
-    let store = createTrickPresentationStore({}, completedTrick);
+  it("keeps cards visible while server clears trick before land animations finish", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 3; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 3);
+    store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
+  });
+
+  it("buffers fast backend updates until collection finishes", () => {
+    let store = createTrickPresentationStore({}, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
       snapshot: {
