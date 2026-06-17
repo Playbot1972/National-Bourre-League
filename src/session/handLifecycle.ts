@@ -22,6 +22,7 @@ export interface HandLifecycleContext {
   pendingCoWin?: boolean;
   trickCount?: number;
   maxTricks?: number;
+  tablePlayOpen?: boolean;
 }
 
 export interface HandLifecycleTransition {
@@ -49,7 +50,7 @@ export function deriveHandLifecyclePhase(ctx: HandLifecycleContext): HandLifecyc
 }
 
 export function shouldOpenEnrollmentAfterSettle(ctx: HandLifecycleContext): boolean {
-  /** Hand is ready for enrollment once a member taps Go to Table. */
+  /** Hand is ready for enrollment once settlement cleared participants and enrollment. */
   return (
     ctx.sessionStatus !== "final" &&
     !ctx.enrollmentActive &&
@@ -59,8 +60,20 @@ export function shouldOpenEnrollmentAfterSettle(ctx: HandLifecycleContext): bool
   );
 }
 
+/** When the live table overlay is open, auto-start the next join window after settle. */
+export function shouldAutoOpenNextHand(ctx: HandLifecycleContext): boolean {
+  return ctx.tablePlayOpen === true && shouldOpenEnrollmentAfterSettle(ctx);
+}
+
 export function nextLifecycleAfterSettle(ctx: HandLifecycleContext): HandLifecycleTransition {
   const from = deriveHandLifecyclePhase(ctx);
+  if (shouldAutoOpenNextHand(ctx)) {
+    return {
+      from,
+      to: "opening",
+      reason: "settlement cleared hand; auto-opening join window on live table",
+    };
+  }
   if (shouldOpenEnrollmentAfterSettle(ctx)) {
     return {
       from,
