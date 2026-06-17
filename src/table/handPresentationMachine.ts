@@ -260,6 +260,19 @@ export function reduceHandPresentation(
         return createHandPresentationStore(snapshot);
       }
 
+      // Authoritative play phase must not wait on draw/trump presentation.
+      if (snapshot.phase === "play" && store.phase !== "play") {
+        return withPhase(store, "play", {
+          displayDrawCompletedIds: [...snapshot.drawCompletedIds],
+          animatingDrawPlayerId: null,
+          drawAnimSubPhase: "done",
+          trumpRevealActive: false,
+          anteAnimActive: false,
+          prevSnapshot: snapshot,
+          pendingSnapshot: null,
+        });
+      }
+
       if (isHandPresentingPhase(store.phase) && store.phase !== "drawPlayer") {
         return { ...store, pendingSnapshot: snapshot };
       }
@@ -313,19 +326,6 @@ export function reduceHandPresentation(
           store.drawAnimSubPhase === "done"
         ) {
           return withPhase(store, "drawReady", { prevSnapshot: snapshot });
-        }
-      }
-
-      if (snapshot.phase === "play" && store.phase !== "play") {
-        if (store.phase === "drawReady" || store.phase === "drawPlayer" || store.phase === "trumpReveal" || store.phase === "ante") {
-          return withPhase(store, "play", {
-            displayDrawCompletedIds: [...snapshot.drawCompletedIds],
-            animatingDrawPlayerId: null,
-            trumpRevealActive: false,
-            anteAnimActive: false,
-            prevSnapshot: snapshot,
-            pendingSnapshot: null,
-          });
         }
       }
 
