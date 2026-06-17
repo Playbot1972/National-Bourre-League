@@ -9050,6 +9050,7 @@ function De({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 				e.canToggleInHand && /* @__PURE__ */ (0, g.jsx)("button", {
 					type: "button",
 					className: "bseat__opt-in btn btn--sm",
+					"data-testid": "seat-opt-in",
 					onClick: r,
 					children: "I'm in"
 				}),
@@ -9209,7 +9210,7 @@ function Ve({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 								left: `${n.x}%`,
 								top: `${n.y}%`
 							},
-							onToggleInHand: () => f(e.playerId, !e.inHand),
+							onToggleInHand: () => f(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
 							onTrickDelta: (t) => p(e.playerId, t),
 							onReaction: e.isSelf ? v : void 0
 						}, e.playerId);

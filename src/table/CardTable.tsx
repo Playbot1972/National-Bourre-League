@@ -140,7 +140,12 @@ export function CardTable({
                   left: `${pos.x}%`,
                   top: `${pos.y}%`,
                 }}
-                onToggleInHand={() => onToggleInHand(player.playerId, !player.inHand)}
+                onToggleInHand={() =>
+                  onToggleInHand(
+                    player.playerId,
+                    player.canToggleInHand ? true : !player.inHand,
+                  )
+                }
                 onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
                 onReaction={player.isSelf ? onReaction : undefined}
               />
