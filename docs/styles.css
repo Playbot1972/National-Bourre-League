@@ -1856,10 +1856,40 @@ body.table-play-active .footer {
     flex-direction: column;
   }
 
-  .table-play-overlay .btable-session__head,
   .table-play-overlay .btable-session__foot,
   .table-play-overlay .btable-session__settle {
     display: none !important;
+  }
+
+  /* Keep I'm in + settings visible; collapse verbose status lines in landscape overlay. */
+  .table-play-overlay .btable-session__head {
+    display: flex !important;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 2px 0 4px;
+  }
+
+  .table-play-overlay .btable-session__title,
+  .table-play-overlay .btable-session__phase-tag,
+  .table-play-overlay .btable-session__status,
+  .table-play-overlay .btable-session__turn,
+  .table-play-overlay .btable-session__hint,
+  .table-play-overlay .btable-session__enroll {
+    display: none !important;
+  }
+
+  .table-play-overlay .btable-session__head-row {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .table-play-overlay .btable-session__enroll-cta {
+    display: flex !important;
   }
 
   .table-play-overlay__rotate {

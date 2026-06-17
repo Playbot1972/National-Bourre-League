@@ -788,6 +788,7 @@ function applyEnrollmentStepLegacy(tx, ref, patch) {
   }
   tx.update(ref, {
     handEnrollment: patch.handEnrollment,
+    [LIVE_ENROLLMENT_FIELD]: patch.handEnrollment,
     ...(patch.currentHand ? { currentHand: patch.currentHand } : {}),
     updatedAt: serverTimestamp(),
   });
@@ -806,36 +807,40 @@ function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mod
   }
   tx.update(ref, {
     [LIVE_ENROLLMENT_FIELD]: patch.handEnrollment,
-    ...(patch.handEnrollment ? { handEnrollment: patch.handEnrollment } : {}),
     ...(patch.currentHand ? { currentHand: patch.currentHand } : {}),
     updatedAt: serverTimestamp(),
   });
 }
 
-async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch) {
+async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { requirePatch = false } = {}) {
   const ref = sessionDoc(roomId, sessionId);
   let dealPrivateHands = null;
-  try {
+  let applied = false;
+
+  async function attempt(mode) {
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error("Session not found");
       const patch = buildPatch(snap.data());
-      if (!patch) return;
+      if (!patch) {
+        if (requirePatch) throw new Error("Enrollment step did not apply");
+        return;
+      }
+      applied = true;
       if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
-      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "live");
-    });
-  } catch (err) {
-    if (!isPermissionDenied(err)) throw err;
-    dealPrivateHands = null;
-    await runTransaction(db, async (tx) => {
-      const snap = await tx.get(ref);
-      if (!snap.exists()) throw new Error("Session not found");
-      const patch = buildPatch(snap.data());
-      if (!patch) return;
-      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
-      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, "legacy");
+      applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode);
     });
   }
+
+  try {
+    await attempt("live");
+  } catch (err) {
+    if (!isPermissionDenied(err) && err?.message !== "Enrollment step did not apply") throw err;
+    applied = false;
+    dealPrivateHands = null;
+    await attempt("legacy");
+  }
+  if (requirePatch && !applied) throw new Error("Enrollment step did not apply");
   if (dealPrivateHands) {
     writePrivateHandsBestEffort(roomId, sessionId, dealPrivateHands);
   }
@@ -2541,19 +2546,28 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     if (!inHand) throw new Error("Wait for your turn or let the timer run out");
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     if (playerId !== currentId) throw new Error("Not your turn to join yet");
+    if ((enrollment.enrolledIds || []).includes(playerId)) return;
 
-    await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
-      const activeEnrollment = getSessionEnrollment(data);
-      if (!activeEnrollment?.active) return null;
-      const enrolledIds = [...(activeEnrollment.enrolledIds || []), playerId];
-      const declinedIds = [...(activeEnrollment.declinedIds || [])];
-      return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
-        dealerId: data.dealerId,
-        sortedPlayerIds,
-        seed: Date.now(),
-        dealingRule,
-      });
-    });
+    await runEnrollmentStepTransaction(
+      roomId,
+      sessionId,
+      (data) => {
+        const activeEnrollment = getSessionEnrollment(data);
+        if (!activeEnrollment?.active) return null;
+        const turnId = activeEnrollment.orderedPlayerIds[activeEnrollment.currentIndex];
+        if (playerId !== turnId) return null;
+        if ((activeEnrollment.enrolledIds || []).includes(playerId)) return null;
+        const enrolledIds = [...(activeEnrollment.enrolledIds || []), playerId];
+        const declinedIds = [...(activeEnrollment.declinedIds || [])];
+        return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
+          dealerId: data.dealerId,
+          sortedPlayerIds,
+          seed: Date.now(),
+          dealingRule,
+        });
+      },
+      { requirePatch: true },
+    );
     return;
   }
 

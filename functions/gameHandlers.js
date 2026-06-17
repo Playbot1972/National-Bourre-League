@@ -220,6 +220,31 @@ function writePrivateHands(tx, db, roomId, sessionId, privateHandsByPlayer) {
   }
 }
 
+/** Keep liveEnrollment in sync with enrollment steps (client reads liveEnrollment first). */
+function applyEnrollmentPatchInTransaction(tx, ref, patch) {
+  if (patch.privateHandsByPlayer) {
+    tx.update(ref, {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: patch.currentHand,
+          privateHandsByPlayer: patch.privateHandsByPlayer,
+        },
+      },
+      handEnrollment: FieldValue.delete(),
+      currentHand: patch.currentHand,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  tx.update(ref, {
+    liveEnrollment: patch.handEnrollment,
+    handEnrollment: patch.handEnrollment,
+    ...(patch.currentHand ? { currentHand: patch.currentHand } : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 async function deletePrivateHandsForSession(db, roomId, sessionId, batch) {
   const snap = await sessionRef(db, roomId, sessionId).collection("privateHands").get();
   snap.docs.forEach((d) => batch.delete(d.ref));
@@ -394,7 +419,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       return;
     }
 
-    const enrollment = sessionData.handEnrollment;
+    const enrollment = getSessionEnrollment(sessionData);
     if (enrollment?.active) {
       if (Date.now() >= enrollment.turnDeadlineMs) {
         await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
@@ -418,7 +443,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       return;
     }
 
-    const currentHand = sessionData.currentHand || {};
+    const currentHand = getSessionCurrentHand(sessionData);
     const participants = currentHand.participantIds || [];
     if (!participants.length) return;
 
@@ -535,7 +560,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
     const snap = await tx.get(ref);
     if (!snap.exists) return { status: "noop" };
     const sessionData = snap.data();
-    const enrollment = sessionData.handEnrollment;
+    const enrollment = getSessionEnrollment(sessionData);
     if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return { status: "noop" };
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
@@ -548,8 +573,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       dealingRule,
     });
     writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
-    const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-    tx.update(ref, { ...sessionPatch, updatedAt: FieldValue.serverTimestamp() });
+    applyEnrollmentPatchInTransaction(tx, ref, patch);
     return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
@@ -577,11 +601,12 @@ export async function handleSetHandParticipation(
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
-    const enrollment = sessionData.handEnrollment;
+    const enrollment = getSessionEnrollment(sessionData);
     if (enrollment?.active) {
       if (!inHand) throw new HttpsError("failed-precondition", "Wait for your turn or let the timer run out");
       const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
       if (playerId !== currentId) throw new HttpsError("failed-precondition", "Not your turn to join yet");
+      if ((enrollment.enrolledIds || []).includes(playerId)) return { status: "noop" };
       const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
       const declinedIds = [...(enrollment.declinedIds || [])];
       const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
@@ -591,12 +616,11 @@ export async function handleSetHandParticipation(
         dealingRule,
       });
       writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
-      const { privateHandsByPlayer: _omit, ...sessionPatch } = patch;
-      tx.update(ref, { ...sessionPatch, updatedAt: FieldValue.serverTimestamp() });
+      applyEnrollmentPatchInTransaction(tx, ref, patch);
       return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
     }
 
-    const currentHand = sessionData.currentHand || emptyPreDealHand();
+    const currentHand = getSessionCurrentHand(sessionData);
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
     if (inHand) {

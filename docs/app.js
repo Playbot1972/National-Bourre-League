@@ -16,6 +16,7 @@ import {
   describeAuthError,
   usingEmulator,
 } from "./auth.js";
+import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   ensureUserDoc,
   ensurePlayerDoc,
@@ -49,6 +50,7 @@ import {
   ensureHandEnrollment,
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
+  advanceSessionBots,
   subscribeHands,
   subscribePrivateHand,
   subscribeLeaderboard,
@@ -1948,6 +1950,14 @@ function bindTablePlayControls() {
 
 /** Room members drive robot enrollment, draw/play, and co-win votes while viewing. */
 function processRobotActions(s, scores) {
+  try {
+    processRobotActionsInner(s, scores);
+  } catch (e) {
+    console.warn("processRobotActions:", e);
+  }
+}
+
+function processRobotActionsInner(s, scores) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
   if (!actorId || robotActionInFlight) return;
@@ -1960,6 +1970,11 @@ function processRobotActions(s, scores) {
   const now = Date.now();
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
+    if (SERVER_HAND_AUTHORITY && tablePlayOpen) {
+      advanceSessionBots(currentRoomId, openSessionId).catch((e) =>
+        console.warn("advanceSessionBots:", e),
+      );
+    }
     if (!tablePlayOpen) return;
     if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>

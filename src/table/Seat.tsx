@@ -174,7 +174,12 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         )}
 
         {player.canToggleInHand && (
-          <button type="button" className="bseat__opt-in btn btn--sm" onClick={onToggleInHand}>
+          <button
+            type="button"
+            className="bseat__opt-in btn btn--sm"
+            data-testid="seat-opt-in"
+            onClick={onToggleInHand}
+          >
             I&apos;m in
           </button>
         )}

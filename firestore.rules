@@ -22,8 +22,10 @@ service cloud.firestore {
     }
 
     function isRoomOwner(roomId) {
+      let roomRef = /databases/$(database)/documents/rooms/$(roomId);
       return isSignedIn() &&
-        get(/databases/$(database)/documents/rooms/$(roomId)).data.ownerId == request.auth.uid;
+        exists(roomRef) &&
+        get(roomRef).data.ownerId == request.auth.uid;
     }
 
     // Session fields mutated only by Cloud Functions during deal/draw/play/settlement.
@@ -96,14 +98,14 @@ service cloud.firestore {
     }
 
     function enrollmentActiveForSession(roomId, sessionId) {
-      return sessionEnrollmentActive(
-        get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId)).data
-      );
+      let sessionRef = /databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId);
+      return exists(sessionRef) &&
+        sessionEnrollmentActive(get(sessionRef).data);
     }
 
     function sessionFinal(roomId, sessionId) {
-      return get(/databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId))
-        .data.status == 'final';
+      let sessionRef = /databases/$(database)/documents/rooms/$(roomId)/sessions/$(sessionId);
+      return exists(sessionRef) && get(sessionRef).data.status == 'final';
     }
 
     function scoreLedgerFieldsChanged() {
