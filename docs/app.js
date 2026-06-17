@@ -803,38 +803,140 @@ let lastRobotTrickAt = 0;
 const TRICK_PIPELINE_MS = 1400 + 300 + 200;
 const BOT_PLAY_STAGGER_MS = 350;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
-/** After settlement, re-open enrollment if the hand lifecycle stalls. */
+/** After settlement, force-open the next join window if auto-open stalls. */
 const HAND_LIFECYCLE_WATCHDOG_MS = 12_000;
-let handLifecycleWatchdogAt = 0;
+/** Brief pause so "Hand complete…" is readable before the next I'm-in window. */
+const NEXT_HAND_SETTLE_MS = 2_000;
+let nextHandOpenTimer = null;
+let nextHandOpenStartedAt = 0;
+let nextHandOpenInFlight = false;
+
+function shouldOpenEnrollmentAfterSettle(ctx) {
+  return (
+    ctx.sessionStatus !== "final" &&
+    !ctx.enrollmentActive &&
+    !ctx.handPhase &&
+    (ctx.participantCount ?? 0) === 0 &&
+    !ctx.pendingCoWin
+  );
+}
+
+function logHandLifecycleTransition(transition) {
+  if (typeof console !== "undefined" && console.info) {
+    console.info(
+      `[hand-lifecycle] ${transition.from} → ${transition.to}: ${transition.reason}${
+        transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
+      }`,
+    );
+  }
+}
+
+function sessionHandLifecycleContext(sessionObj) {
+  const ch = getSessionCurrentHand(sessionObj);
+  const enrollment = getSessionEnrollment(sessionObj);
+  return {
+    sessionStatus: sessionObj?.status ?? null,
+    enrollmentActive: enrollment?.active === true,
+    handPhase: ch?.phase ?? null,
+    participantCount: ch?.participantIds?.length ?? 0,
+    pendingCoWin: Boolean(sessionObj?.pendingCoWinSettlement),
+    tablePlayOpen,
+  };
+}
+
+function sessionNeedsNextHandEnrollment(sessionObj) {
+  if (!sessionObj || sessionObj.status === "final") return false;
+  const ctx = sessionHandLifecycleContext(sessionObj);
+  return shouldOpenEnrollmentAfterSettle(ctx);
+}
+
+function cancelNextHandOpenTimer() {
+  if (nextHandOpenTimer) {
+    clearTimeout(nextHandOpenTimer);
+    nextHandOpenTimer = null;
+  }
+  nextHandOpenStartedAt = 0;
+}
+
+async function openNextHandEnrollment(sessionObj) {
+  if (!currentRoomId || !openSessionId || !tablePlayOpen || nextHandOpenInFlight) return;
+  if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
+  if (tableReadyPlayerCount(sessionObj) < 2) return;
+
+  nextHandOpenInFlight = true;
+  cancelNextHandOpenTimer();
+  openPrivateHand = null;
+  privateHandSnapSeen = false;
+  tableFeedbackSnapshot = null;
+
+  try {
+    setTableActionFeedback({ status: "loading", message: "Shuffling — opening next join window…" });
+    await ensureHandEnrollment(currentRoomId, openSessionId);
+    const refreshed =
+      (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
+    await syncTableSession(refreshed);
+    if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
+      startEnrollmentTimer();
+    }
+    processRobotActions(refreshed, openScores);
+    const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
+    const dealerLabel = dealerSc?.displayName ?? "dealer";
+    setTableActionFeedback({
+      status: "success",
+      message: `Hand #${(refreshed.handCount ?? 0) + 1} — I'm in (clockwise from ${dealerLabel})`,
+    });
+    const api = await ensureTableFeedbackApi();
+    api?.playShuffleFeedback?.({ delayMs: 80 });
+    logHandLifecycleTransition({
+      from: "handoffToNextDeal",
+      to: "opening",
+      reason: "auto-opened join window after settlement (live table)",
+    });
+  } catch (err) {
+    console.warn("openNextHandEnrollment:", err);
+    setTableActionFeedback({
+      status: "error",
+      message: err?.message || "Could not open the next join window",
+    });
+    showRoomsError(err?.message || "Could not open the next join window");
+  } finally {
+    nextHandOpenInFlight = false;
+  }
+}
 
 function maybeRecoverHandLifecycle(sessionObj) {
   if (!currentRoomId || !openSessionId || !sessionObj || sessionObj.status === "final") {
-    handLifecycleWatchdogAt = 0;
+    cancelNextHandOpenTimer();
     return;
   }
   if (sessionObj.pendingCoWinSettlement) {
-    handLifecycleWatchdogAt = 0;
-    return;
-  }
-  const ch = getSessionCurrentHand(sessionObj);
-  const enrollment = getSessionEnrollment(sessionObj);
-  const tricks = ch?.tricksByPlayer ?? {};
-  const hasStaleHand =
-    Boolean(ch?.phase) ||
-    (ch?.participantIds?.length ?? 0) > 0 ||
-    Object.values(tricks).some((n) => (n || 0) > 0);
-  const needsOpening = !enrollment?.active && !hasStaleHand;
-
-  if (!needsOpening) {
-    handLifecycleWatchdogAt = 0;
+    cancelNextHandOpenTimer();
     return;
   }
 
-  if (!handLifecycleWatchdogAt) handLifecycleWatchdogAt = Date.now();
-  if (Date.now() - handLifecycleWatchdogAt < HAND_LIFECYCLE_WATCHDOG_MS) return;
+  const ctx = sessionHandLifecycleContext(sessionObj);
+  if (!shouldOpenEnrollmentAfterSettle(ctx)) {
+    cancelNextHandOpenTimer();
+    return;
+  }
 
-  handLifecycleWatchdogAt = 0;
-  console.info("[hand-lifecycle] handoffToNextDeal: waiting for Go to Table (watchdog idle)");
+  if (!tablePlayOpen) return;
+
+  if (nextHandOpenInFlight || nextHandOpenTimer) return;
+
+  if (!nextHandOpenStartedAt) nextHandOpenStartedAt = Date.now();
+  const elapsed = Date.now() - nextHandOpenStartedAt;
+  const delay =
+    elapsed >= HAND_LIFECYCLE_WATCHDOG_MS
+      ? 0
+      : Math.max(0, NEXT_HAND_SETTLE_MS - elapsed);
+
+  nextHandOpenTimer = setTimeout(() => {
+    nextHandOpenTimer = null;
+    nextHandOpenStartedAt = 0;
+    const latest = currentSessions.find((s) => s.id === openSessionId);
+    if (latest) openNextHandEnrollment(latest);
+  }, delay);
 }
 
 function cardKeyFromSerialized(card) {
@@ -1902,6 +2004,7 @@ async function openTablePlay() {
 
 function closeTablePlay() {
   tablePlayOpen = false;
+  cancelNextHandOpenTimer();
   stopEnrollmentTimer();
   const overlay = $("#table-play-overlay");
   if (overlay) overlay.hidden = true;
@@ -2581,6 +2684,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     } else {
       stopEnrollmentTimer();
     }
+    maybeRecoverHandLifecycle(sessionObj);
   } catch (err) {
     console.error("table-session mount:", err);
     const detail = err instanceof Error ? err.message : String(err);

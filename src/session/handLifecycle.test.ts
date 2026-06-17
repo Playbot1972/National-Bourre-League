@@ -7,6 +7,7 @@ import {
   handLifecycleWatchdogFired,
   HAND_LIFECYCLE_WATCHDOG_MS,
   nextLifecycleAfterSettle,
+  shouldAutoOpenNextHand,
   shouldOpenEnrollmentAfterSettle,
 } from "./handLifecycle";
 
@@ -55,14 +56,37 @@ describe("handLifecycle", () => {
     );
   });
 
-  it("plans handoff until Go to Table after settle", () => {
+  it("plans handoff until Go to Table after settle when table is closed", () => {
     const t = nextLifecycleAfterSettle({
       enrollmentActive: false,
       handPhase: null,
       participantCount: 0,
+      tablePlayOpen: false,
     });
     assert.equal(t.to, "handoffToNextDeal");
     assert.match(formatLifecycleLog(t), /Go to Table/);
+  });
+
+  it("auto-opens the next join window when the live table is open after settle", () => {
+    assert.equal(
+      shouldAutoOpenNextHand({
+        sessionStatus: "in_progress",
+        enrollmentActive: false,
+        handPhase: null,
+        participantCount: 0,
+        pendingCoWin: false,
+        tablePlayOpen: true,
+      }),
+      true,
+    );
+    const t = nextLifecycleAfterSettle({
+      enrollmentActive: false,
+      handPhase: null,
+      participantCount: 0,
+      tablePlayOpen: true,
+    });
+    assert.equal(t.to, "opening");
+    assert.match(formatLifecycleLog(t), /auto-opening join window on live table/);
   });
 
   it("blocks handoff when stale participants remain", () => {
@@ -101,6 +125,7 @@ describe("handLifecycle", () => {
       enrollmentActive: false,
       handPhase: null,
       participantCount: 0,
+      tablePlayOpen: false,
     });
     assert.equal(t.to, "handoffToNextDeal");
   });
@@ -111,12 +136,20 @@ describe("handLifecycle", () => {
     const phases: string[] = [];
     for (let hand = 0; hand < 3; hand += 1) {
       phases.push(deriveHandLifecyclePhase({ handPhase: "play", participantCount: 3, trickCount: 5, handComplete: true }));
-      const afterSettle = nextLifecycleAfterSettle({
+      const afterSettleClosed = nextLifecycleAfterSettle({
         enrollmentActive: false,
         handPhase: null,
         participantCount: 0,
+        tablePlayOpen: false,
       });
-      assert.equal(afterSettle.to, "handoffToNextDeal");
+      assert.equal(afterSettleClosed.to, "handoffToNextDeal");
+      const afterSettleLive = nextLifecycleAfterSettle({
+        enrollmentActive: false,
+        handPhase: null,
+        participantCount: 0,
+        tablePlayOpen: true,
+      });
+      assert.equal(afterSettleLive.to, "opening");
       const afterTable = nextLifecycleAfterSettle({
         enrollmentActive: true,
         handPhase: null,

@@ -1880,7 +1880,7 @@ async function recordHandClient(
   logHandLifecycleTransition({
     from: "settle",
     to: "handoffToNextDeal",
-    reason: "recordHand cleared hand; enrollment waits for Go to Table",
+    reason: "recordHand cleared hand; next join window opens on live table or Go to Table",
   });
 }
 
@@ -2506,7 +2506,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
     to: "opening",
-    reason: "ensureHandEnrollment opened join window (Go to Table)",
+    reason: "ensureHandEnrollment opened join window",
   });
 }
 
