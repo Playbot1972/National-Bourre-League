@@ -84,7 +84,9 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isDealer ? "bseat--dealer" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
+        player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
+        player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
         player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
         player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
@@ -97,7 +99,8 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
       <div className="bseat__core">
         {showTrickBadge && (
           <div
-            className={`bseat__trick-badge${trickCount === 0 ? " bseat__trick-badge--zero" : ""}`}
+            className={`bseat__trick-badge${trickCount === 0 ? " bseat__trick-badge--zero" : ""}${player.trickBadgeTick ? " bseat__trick-badge--tick" : ""}`}
+            key={player.trickBadgeTick ? `trick-${player.trickBadgeTick}` : "trick-static"}
             aria-label={`${trickCount} trick${trickCount === 1 ? "" : "s"} won`}
             title={`${trickCount} trick${trickCount === 1 ? "" : "s"}`}
           >
@@ -130,7 +133,13 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}
             <div className="bseat__avatar-wrap">
-              {player.isDealer && <span className="bseat__dealer">D</span>}
+              {player.isDealer && (
+                <span
+                  className={`bseat__dealer${player.dealerMoved ? " bseat__dealer--moved" : ""}`}
+                >
+                  D
+                </span>
+              )}
               {player.photoURL ? (
                 <img className="bseat__avatar" src={player.photoURL} alt="" />
               ) : (

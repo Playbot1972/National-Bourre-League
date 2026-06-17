@@ -5,6 +5,8 @@ import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
+import { MICRO_MS } from "./tableMicrointeractions";
+import { playIllegalActionFeedback } from "./feedback";
 import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
@@ -60,6 +62,7 @@ export function HeroHand({
   const [peekIndex, setPeekIndex] = useState<number | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
   const [dealing, setDealing] = useState(false);
   const prevCardIdsRef = useRef<Set<string>>(new Set());
   const playLockRef = useRef(false);
@@ -115,7 +118,13 @@ export function HeroHand({
   const triggerPlay = useCallback(
     async (index: number) => {
       if (playLockRef.current || busy || !onPlayCard) return;
-      if (legalPlayIndices && !legalPlayIndices.includes(index)) return;
+      if (legalPlayIndices && !legalPlayIndices.includes(index)) {
+        playIllegalActionFeedback();
+        setIllegalShakeIndex(index);
+        window.setTimeout(() => setIllegalShakeIndex(null), MICRO_MS.illegalShake);
+        setLocalError("That card can't be played now");
+        return;
+      }
       playLockRef.current = true;
       setSelectedPlay(index);
       setPlayingIndex(index);
@@ -179,6 +188,13 @@ export function HeroHand({
       setLocalBusy(false);
     }
   }, [onPassDraw, busy]);
+
+  const handleIllegalPlay = useCallback((index: number) => {
+    playIllegalActionFeedback();
+    setIllegalShakeIndex(index);
+    window.setTimeout(() => setIllegalShakeIndex(null), MICRO_MS.illegalShake);
+    setLocalError("That card can't be played now");
+  }, []);
 
   if (!signedIn) {
     return (
@@ -288,10 +304,12 @@ export function HeroHand({
             isMyTurn,
             legalPlayIndices,
             playingIndex,
+            illegalShakeIndex,
             busy,
             trickPlayOriginPlayerId: currentUserId,
             onPlayCard: triggerPlay,
             onSelectCard: toggleDrawIndex,
+            onIllegalPlay: handleIllegalPlay,
             onPeek: setPeekIndex,
           }}
         />

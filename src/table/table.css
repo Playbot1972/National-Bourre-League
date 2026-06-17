@@ -2319,6 +2319,144 @@
   }
 }
 
+/* Table microinteractions */
+.bseat--turn-handoff .bseat__avatar-wrap {
+  animation: bmicro-turn-handoff 620ms ease;
+}
+
+.bseat__dealer--moved {
+  animation: bmicro-dealer-move 720ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.bseat--winner-flash .bseat__avatar-wrap {
+  animation: bmicro-winner-flash 520ms ease;
+}
+
+.bseat__trick-badge--tick {
+  animation: bseat-trick-capture 450ms ease;
+}
+
+.bpot__stat--tick dd {
+  animation: bmicro-pot-tick 480ms ease;
+}
+
+.deck-stack__trump--suit-reminder-pulse {
+  animation: bmicro-trump-reminder 900ms ease;
+}
+
+.btable-session__feedback--pulse {
+  animation: bmicro-feedback-pulse 420ms ease;
+}
+
+.btable-session__feedback--pulse-error {
+  animation: bmicro-feedback-shake 420ms ease;
+}
+
+.btable-hero__actions .btn:disabled,
+.btable-session__enroll-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.25);
+}
+
+@keyframes bmicro-turn-handoff {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(230, 180, 80, 0),
+      0 0 0 rgba(230, 180, 80, 0);
+    transform: rotateX(10deg) translateZ(8px) scale(1);
+  }
+  35% {
+    box-shadow:
+      0 0 0 3px rgba(230, 180, 80, 0.85),
+      0 0 22px rgba(230, 180, 80, 0.55);
+    transform: rotateX(4deg) translateZ(22px) scale(1.1);
+  }
+  100% {
+    box-shadow:
+      0 0 0 2px var(--gold-400, #e6b450),
+      0 0 14px rgba(230, 180, 80, 0.45);
+    transform: rotateX(4deg) translateZ(18px) scale(1.06);
+  }
+}
+
+@keyframes bmicro-dealer-move {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(8px);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1.18) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes bmicro-winner-flash {
+  0%,
+  100% {
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+  }
+  40% {
+    filter: drop-shadow(0 0 16px rgba(54, 185, 124, 0.75));
+  }
+}
+
+@keyframes bmicro-pot-tick {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.1);
+    color: #fff;
+  }
+}
+
+@keyframes bmicro-trump-reminder {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+  45% {
+    transform: scale(1.06);
+    box-shadow: 0 0 18px rgba(230, 180, 80, 0.45);
+  }
+}
+
+@keyframes bmicro-feedback-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.015);
+  }
+}
+
+@keyframes bmicro-feedback-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bpot__ante-chip,
   .center-play__discard-card,
@@ -2326,6 +2464,16 @@
   .bseat--enroll-join .bseat__avatar-wrap,
   .bseat--enroll-pass .bseat__avatar-wrap {
     animation-duration: 120ms !important;
+  }
+
+  .bseat--turn-handoff .bseat__avatar-wrap,
+  .bseat--winner-flash .bseat__avatar-wrap,
+  .bseat__dealer--moved,
+  .bpot__stat--tick dd,
+  .deck-stack__trump--suit-reminder-pulse,
+  .btable-session__feedback--pulse,
+  .btable-session__feedback--pulse-error {
+    animation-duration: 80ms !important;
   }
 }
 

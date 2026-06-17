@@ -3,6 +3,8 @@ export {
   playShuffleFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
+  playIllegalActionFeedback,
+  playActionSuccessFeedback,
   getFeedbackPrefs,
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,

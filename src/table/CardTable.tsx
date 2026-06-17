@@ -9,6 +9,7 @@ import {
 } from "./trickTiming";
 import { handTimingScale } from "./handPresentationTiming";
 import type { HandPresentation } from "./hooks/useHandPresentation";
+import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
@@ -26,6 +27,7 @@ interface CardTableProps {
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
   handPresentation: HandPresentation;
+  microinteractions: TableMicrointeractions;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
@@ -48,6 +50,7 @@ export function CardTable({
   actionFeedback,
   trickPresentation,
   handPresentation,
+  microinteractions,
   onToggleInHand,
   onTrickDelta,
   onSubmitDraw,
@@ -97,6 +100,10 @@ export function CardTable({
       drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
       drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
+      turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
+      dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
+      trickBadgeTick: microinteractions.trickBadgeTicks[player.playerId] ?? 0,
+      winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
     };
   });
   const selfPlayer = players.find((p) => p.isSelf);
@@ -152,6 +159,8 @@ export function CardTable({
           drawDiscardCount={handPresentation.drawDiscardCount}
           settleAnimActive={handPresentation.settleAnimActive}
           settleCarryOver={handPresentation.settleCarryOver}
+          potTick={microinteractions.potTick}
+          trumpReminderPulse={microinteractions.trumpReminderPulse}
         />
 
         <div className="btable__seats" aria-label="Players at the table">

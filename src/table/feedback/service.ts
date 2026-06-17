@@ -14,10 +14,12 @@ export const DEAL_ANIM_DURATION_MS = 500;
 const SHUFFLE_COOLDOWN_MS = 700;
 const TRICK_WIN_COOLDOWN_MS = 450;
 const BIG_WIN_COOLDOWN_MS = 1200;
+const ILLEGAL_ACTION_COOLDOWN_MS = 280;
 
 let lastShuffleAt = 0;
 let lastTrickWinAt = 0;
 let lastBigWinAt = 0;
+let lastIllegalActionAt = 0;
 let shuffleTimer: ReturnType<typeof setTimeout> | null = null;
 let initialized = false;
 
@@ -84,6 +86,17 @@ export function playBigWinFeedback(): void {
   lastBigWinAt = now;
   if (prefs.soundEnabled) playBigWinSound();
   fireHaptic("strong");
+}
+
+export function playIllegalActionFeedback(): void {
+  const now = Date.now();
+  if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
+  lastIllegalActionAt = now;
+  fireHaptic("light");
+}
+
+export function playActionSuccessFeedback(): void {
+  fireHaptic("light");
 }
 
 export {
