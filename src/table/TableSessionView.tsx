@@ -7,6 +7,7 @@ import { FeedbackSettings } from "./FeedbackSettings";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
+import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -55,15 +56,27 @@ export function TableSessionView({
     participantIds: session.participantIds,
     trumpSuit: session.trumpSuit,
   });
+  const handPresentation = useHandPresentation({
+    session,
+    enrollmentActive,
+    potAmount: potMetrics.currentPot,
+    handComplete,
+    heroCards,
+    enrolledIds: session.handEnrollment?.enrolledIds ?? [],
+    declinedIds: session.handEnrollment?.declinedIds ?? [],
+    actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
+  });
+  const suppressTurn =
+    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
-    trickPresentation.suppressTurnPlayerId
+    suppressTurn
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
   const cardsDealt = isCardsDealtPhase(session.phase);
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
-    !trickPresentation.suppressTurnPlayerId;
+    !suppressTurn;
 
   const settlementPotMetrics: PotSnapshot = {
     currentPot: potMetrics.currentPot,
@@ -133,6 +146,21 @@ export function TableSessionView({
           </button>
         </div>
         <p className="btable-session__status">{leaderLabel}</p>
+        {handPresentation.trumpRevealActive && session.phase === "draw" && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            Trump revealed — {formatHandPhase("draw", false)}
+          </p>
+        )}
+        {handPresentation.phase === "drawReady" && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            Draw complete — first lead coming up
+          </p>
+        )}
+        {handPresentation.settleAnimActive && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            Settling the pot…
+          </p>
+        )}
         {trickPresentation.isResolving && session.phase === "play" && (
           <p className="btable-session__turn muted small" aria-live="polite">
             Trick won — cards collecting before the next lead
@@ -195,6 +223,7 @@ export function TableSessionView({
             handComplete={handComplete}
             actionFeedback={actionFeedback}
             trickPresentation={trickPresentation}
+            handPresentation={handPresentation}
             onToggleInHand={(playerId, inHand) => {
               const p = players.find((x) => x.playerId === playerId);
               if (p?.isSelf) actions.onToggleInHand(inHand);

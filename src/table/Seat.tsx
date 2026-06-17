@@ -85,6 +85,10 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.isDealer ? "bseat--dealer" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
+        player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
+        player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
+        player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
+        player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
       ]
         .filter(Boolean)
         .join(" ")}

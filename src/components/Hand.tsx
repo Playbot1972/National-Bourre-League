@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { PlayingCard, type CardState } from "./PlayingCard";
 import type { Card } from "../types";
 import type { CardGestureMode } from "./useCardGestureHandlers";
@@ -45,6 +45,7 @@ interface HandCardProps {
   onCardClick?: (card: Card, index: number) => void;
   onCardPeek?: (index: number | null) => void;
   peekActive: boolean;
+  style?: CSSProperties;
 }
 
 function HandCard({
@@ -58,6 +59,7 @@ function HandCard({
   onCardClick,
   onCardPeek,
   peekActive,
+  style,
 }: HandCardProps) {
   const [pressed, setPressed] = useState(false);
   const interaction = cardInteraction;
@@ -94,7 +96,10 @@ function HandCard({
       : cardTestId;
 
   return (
-    <div className={["hand__slot", peekActive ? "hand__slot--peek" : ""].filter(Boolean).join(" ")}>
+    <div
+      className={["hand__slot", peekActive ? "hand__slot--peek" : ""].filter(Boolean).join(" ")}
+      style={style}
+    >
       <PlayingCard
         card={card}
         size={size}
@@ -134,6 +139,7 @@ export function Hand({
           key={keyFor(c)}
           card={c}
           index={i}
+          style={fan ? ({ ["--card-i" as string]: i } as CSSProperties) : undefined}
           size={size}
           state={stateFor?.(c, i) ?? "default"}
           badge={badgeFor?.(c, i)}

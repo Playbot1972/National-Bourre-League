@@ -25,6 +25,8 @@ interface HeroHandProps {
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
   privateHandReady?: boolean;
   className?: string;
+  dealStaggerMs?: number;
+  drawAnimSubPhase?: "discard" | "receive" | "done" | null;
 }
 
 export function HeroHand({
@@ -45,6 +47,8 @@ export function HeroHand({
   onPlayCard,
   privateHandReady = false,
   className = "",
+  dealStaggerMs = 120,
+  drawAnimSubPhase = null,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -229,7 +233,16 @@ export function HeroHand({
 
   return (
     <div
-      className={`btable-hero btable-hero--scale-${settings.cardScale}${dealing ? " btable-hero--dealing" : ""} ${className}`.trim()}
+      className={[
+        `btable-hero btable-hero--scale-${settings.cardScale}`,
+        dealing ? "btable-hero--dealing" : "",
+        drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
+        drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      style={{ ["--deal-card-stagger-ms" as string]: `${dealStaggerMs}ms` }}
       data-testid="hero-hand"
       aria-label="Your dealt cards"
     >

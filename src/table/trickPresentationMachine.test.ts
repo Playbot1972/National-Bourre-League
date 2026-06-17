@@ -113,8 +113,8 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 1800);
-    assert.equal(schedule.readTotalMs, 1400);
+    assert.ok(schedule.pipelineMs >= 2400);
+    assert.equal(schedule.readTotalMs, 2000);
     assert.equal(schedule.sweepMs, 300);
   });
 });

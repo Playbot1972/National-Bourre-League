@@ -7,6 +7,8 @@ import {
   TRICK_SWEEP_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
+import { handTimingScale } from "./handPresentationTiming";
+import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
@@ -23,6 +25,7 @@ interface CardTableProps {
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
+  handPresentation: HandPresentation;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
@@ -44,6 +47,7 @@ export function CardTable({
   handComplete = false,
   actionFeedback,
   trickPresentation,
+  handPresentation,
   onToggleInHand,
   onTrickDelta,
   onSubmitDraw,
@@ -67,11 +71,15 @@ export function CardTable({
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
+  const handTiming = handTimingScale();
   const displayPlayers = players.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
-    const suppressTurn = trickPresentation.suppressTurnPlayerId;
+    const suppressTurn =
+      trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
+    const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
+    const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
     return {
       ...player,
       tricksThisHand,
@@ -85,9 +93,15 @@ export function CardTable({
             ? false
             : player.isLeading,
       isTrickCapture: capturingTrick,
+      enrollmentPulse,
+      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
+      drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
+      drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
     };
   });
   const selfPlayer = players.find((p) => p.isSelf);
+  const suppressTurn =
+    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const drawCompleted =
     Boolean(
       currentUserId &&
@@ -104,6 +118,9 @@ export function CardTable({
         ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
         ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
         ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
+        ["--deal-card-stagger-ms" as string]: `${handTiming.dealCardStaggerMs}ms`,
+        ["--draw-discard-ms" as string]: `${handTiming.drawDiscardMs}ms`,
+        ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,
       }}
     >
       <div className="table-stage">
@@ -113,7 +130,10 @@ export function CardTable({
         </div>
 
         <PotCenter
-          potMetrics={potMetrics}
+          potMetrics={{
+            ...potMetrics,
+            currentPot: handPresentation.displayPotAmount,
+          }}
           participantCount={participantCount}
           trumpUpcard={session.trumpUpcard}
           trumpSuit={session.trumpSuit}
@@ -125,6 +145,13 @@ export function CardTable({
           trickShowWinnerTag={trickPresentation.showWinnerTag}
           trickPresentationPhase={trickPresentation.phase}
           playerNames={playerNames}
+          anteAnimActive={handPresentation.anteAnimActive}
+          trumpRevealActive={handPresentation.trumpRevealActive}
+          drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
+          drawAnimSubPhase={handPresentation.drawAnimSubPhase}
+          drawDiscardCount={handPresentation.drawDiscardCount}
+          settleAnimActive={handPresentation.settleAnimActive}
+          settleCarryOver={handPresentation.settleCarryOver}
         />
 
         <div className="btable__seats" aria-label="Players at the table">
@@ -164,7 +191,13 @@ export function CardTable({
         signedIn={Boolean(currentUserId)}
         isMyTurn={
           Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
-          !trickPresentation.suppressTurnPlayerId
+          !suppressTurn
+        }
+        dealStaggerMs={handTiming.dealCardStaggerMs}
+        drawAnimSubPhase={
+          handPresentation.animatingDrawPlayerId === currentUserId
+            ? handPresentation.drawAnimSubPhase
+            : null
         }
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
