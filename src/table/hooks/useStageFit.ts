@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from "react";
-import { computeStageFit, isWithinViewport, rectFromDomRect, stabilizeHeroHeight } from "../stageFit";
+import { computeStageFit, isWithinViewport, rectFromDomRect, stabilizeHeroHeight, STAGE_SEAT_OVERFLOW_PAD } from "../stageFit";
 import { useTableTheme } from "../theme/useTableTheme";
 import { useMobileTable } from "../useMobileTable";
 
@@ -47,24 +47,26 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
       const hero = wrap.querySelector<HTMLElement>(".hand-panel");
       const heroRect = hero?.getBoundingClientRect();
       const heroFloor = nativeMobile ? 132 : 148;
+      const heroCap = nativeMobile ? 220 : 280;
       const measuredHero = heroRect?.height ?? 0;
       const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
       heroPeakRef.current = stableHero.peak;
-      const heroMinHeight = stableHero.height;
+      const heroMinHeight = Math.min(stableHero.height, heroCap);
 
-      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16);
-      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12);
+      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16) + STAGE_SEAT_OVERFLOW_PAD;
+      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12) + STAGE_SEAT_OVERFLOW_PAD;
       const gap = readSafePx("--stage-fit-gap", 12);
 
       const vv = window.visualViewport;
       const availWidth = Math.min(hostRect.width, vv?.width ?? window.innerWidth);
       const availHeight = Math.min(hostRect.height, vv?.height ?? window.innerHeight);
 
+      const userScale = nativeMobile ? 1 : settings.tableScale;
       const fit = computeStageFit({
         availWidth,
         availHeight,
         aspect,
-        userScale: nativeMobile ? 1 : settings.tableScale,
+        userScale,
         padX,
         padY,
         heroMinHeight,

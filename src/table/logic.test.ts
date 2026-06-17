@@ -61,4 +61,11 @@ describe("G — seat layout helpers", () => {
     assert.ok(tableAspectForPlayers(8) > tableAspectForPlayers(3));
     assert.ok(tableAspectForPlayers(3) >= tableAspectForPlayers(2));
   });
+
+  it("places side seats near the rail, not bunched at center", () => {
+    const left = seatPosition(1, 4);
+    const right = seatPosition(3, 4);
+    assert.ok(Math.abs(left.x - 50) >= 44);
+    assert.ok(Math.abs(right.x - 50) >= 44);
+  });
 });
