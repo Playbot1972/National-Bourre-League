@@ -915,6 +915,12 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
+  pointer-events: none;
+}
+
+.bseat__aux .bseat__opt-in,
+.bseat__aux .bseat__trick-btn,
+.bseat__aux .bseat__react-btn {
   pointer-events: auto;
 }
 
@@ -1059,6 +1065,8 @@
   display: flex;
   justify-content: center;
   margin: 4px 0 2px;
+  position: relative;
+  z-index: 20;
 }
 
 .btable-session__enroll-btn {
@@ -1771,7 +1779,7 @@
   text-align: center;
 }
 
-/* Smart HUD */
+/* Smart HUD — display-only; must not steal taps from header enroll CTA above hero seat */
 .bhud {
   display: flex;
   flex-wrap: wrap;
@@ -1779,6 +1787,7 @@
   justify-content: center;
   max-width: 140px;
   margin-top: 2px;
+  pointer-events: none;
 }
 
 .bhud--compact {

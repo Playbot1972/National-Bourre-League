@@ -1882,6 +1882,8 @@ body.table-play-active .footer {
 
   .table-play-overlay .btable-session__enroll-cta {
     display: flex !important;
+    position: relative;
+    z-index: 20;
   }
 
   .table-play-overlay__rotate {
