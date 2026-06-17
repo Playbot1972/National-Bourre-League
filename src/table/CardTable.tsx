@@ -8,6 +8,7 @@ import {
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
 import { handTimingScale } from "./handPresentationTiming";
+import { useStageFit } from "./hooks/useStageFit";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
@@ -75,6 +76,7 @@ export function CardTable({
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
+  const wrapRef = useStageFit({ aspect: tableAspect });
   const displayPlayers = players.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
@@ -117,7 +119,8 @@ export function CardTable({
 
   return (
     <div
-      className={`btable-wrap ${countClass}`}
+      ref={wrapRef}
+      className={`btable-wrap btable-wrap--stage-fit ${countClass}`}
       data-testid="table-root"
       style={{
         ["--player-count" as string]: playerCount,
@@ -130,6 +133,7 @@ export function CardTable({
         ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,
       }}
     >
+      <div className="table-stage-fit">
       <div className="table-stage">
         <div className="table-oval" aria-hidden="true">
           <div className="btable__rail" />
@@ -188,6 +192,7 @@ export function CardTable({
             );
           })}
         </div>
+      </div>
       </div>
       <HeroHand
         className="hand-panel"

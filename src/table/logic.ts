@@ -60,14 +60,21 @@ export function initials(name: string) {
 }
 
 /**
- * Outer rail ellipse — matches `.btable__rail` with border-radius 50% / 50%
- * (semi-axes are half the seat-layer width and height).
+ * Seat rail ellipse inside the safe inset zone (percent of `.btable__seats` box).
+ * Keeps avatar anchors away from viewport edges.
  */
-export const RAIL_RX = 50;
-export const RAIL_RY = 50;
+export const RAIL_RX = 42;
+export const RAIL_RY = 40;
 
-/** Push avatar centers onto the outer rail lip (outside the felt). */
-export const SEAT_RAIL_OUTSET = 9;
+/** Small outward nudge onto the rail lip — stays inside safe inset. */
+export const SEAT_RAIL_OUTSET = 4;
+
+export function seatRailAxes(total: number): { rx: number; ry: number; outset: number } {
+  const n = Math.max(2, Math.min(8, total || 2));
+  if (n >= 7) return { rx: 36, ry: 34, outset: 2 };
+  if (n >= 5) return { rx: 40, ry: 38, outset: 3 };
+  return { rx: RAIL_RX, ry: RAIL_RY, outset: SEAT_RAIL_OUTSET };
+}
 
 export type SeatRegion = "bottom" | "top" | "left" | "right";
 
@@ -93,20 +100,21 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   const n = Math.max(2, Math.min(8, total || 2));
   if (n <= 0) return { x: 50, y: 50, region: "bottom" };
 
+  const { rx, ry, outset } = seatRailAxes(n);
   // Negative angle step: bottom → right → top → left (clockwise on screen).
   const theta = -((index / n) * Math.PI * 2) + Math.PI / 2;
   const nx = Math.cos(theta);
   const ny = Math.sin(theta);
 
   return {
-    x: 50 + RAIL_RX * nx + nx * SEAT_RAIL_OUTSET,
-    y: 50 + RAIL_RY * ny + ny * SEAT_RAIL_OUTSET,
+    x: 50 + rx * nx + nx * outset,
+    y: 50 + ry * ny + ny * outset,
     region: seatRegion(theta),
   };
 }
 
-/** Table width:height — wider oval reads better on mobile. */
+/** Table width:height — compact racetrack shape on all devices. */
 export function tableAspectForPlayers(total: number): number {
   const n = Math.max(2, Math.min(8, total || 2));
-  return 1.38 + ((n - 2) * 0.52) / 6;
+  return 1.12 + ((n - 2) * 0.12) / 6;
 }
