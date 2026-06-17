@@ -2127,6 +2127,188 @@
   animation: bdeal-in 500ms ease backwards;
 }
 
+.btable-hero--dealing .hand__slot {
+  animation: bdeal-in 500ms ease backwards;
+  animation-delay: calc(var(--deal-card-stagger-ms, 120ms) * var(--card-i, 0));
+}
+
+.btable-hero--draw-discard .hand {
+  animation: bdraw-discard 360ms ease forwards;
+}
+
+.btable-hero--draw-receive .hand {
+  animation: bdraw-receive 420ms ease backwards;
+}
+
+@keyframes bdraw-discard {
+  to {
+    opacity: 0.55;
+    transform: translateY(-18px) scale(0.94);
+  }
+}
+
+@keyframes bdraw-receive {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.9);
+  }
+}
+
+.bpot__trump--reveal {
+  animation: btrump-reveal 600ms ease;
+}
+
+@keyframes btrump-reveal {
+  0% {
+    transform: scale(0.85) rotateY(90deg);
+    opacity: 0.4;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.center-play--ante-in .bpot__ante-chips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.bpot__ante-chip {
+  position: absolute;
+  left: 50%;
+  top: 72%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--gold-300, #f4d58d);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  animation: bante-to-pot 220ms ease forwards;
+  animation-delay: calc(var(--ante-i, 0) * 80ms);
+}
+
+@keyframes bante-to-pot {
+  from {
+    opacity: 0;
+    transform: translate(calc(-50% + (var(--ante-i) - 2) * 28px), 40px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.center-play__discard {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.center-play__discard-card {
+  width: 28px;
+  height: 40px;
+  border-radius: 4px;
+  background: linear-gradient(160deg, #2a4a7a, #1a3058);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  animation: bdiscard-to-center var(--draw-discard-ms, 180ms) ease forwards;
+  animation-delay: calc(var(--discard-i, 0) * 60ms);
+}
+
+@keyframes bdiscard-to-center {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bseat--enroll-join .bseat__avatar-wrap {
+  animation: benroll-join 480ms ease;
+}
+
+.bseat--enroll-pass .bseat__avatar-wrap {
+  animation: benroll-pass 480ms ease;
+}
+
+@keyframes benroll-join {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(72, 187, 120, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(72, 187, 120, 0.45);
+  }
+}
+
+@keyframes benroll-pass {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.bseat--draw-discard .bseat__hole-cards {
+  animation: bdraw-discard 320ms ease;
+}
+
+.bseat--draw-receive .bseat__hole-cards {
+  animation: bdraw-receive 320ms ease;
+}
+
+.center-play--settle .bpot__stat--pot dd {
+  animation: bsettle-pot 900ms ease;
+}
+
+.center-play--carry .center-play__carry {
+  animation: bsettle-carry 900ms ease;
+}
+
+@keyframes bsettle-pot {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+    color: var(--gold-300, #f4d58d);
+  }
+}
+
+@keyframes bsettle-carry {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bpot__ante-chip,
+  .center-play__discard-card,
+  .bpot__trump--reveal,
+  .bseat--enroll-join .bseat__avatar-wrap,
+  .bseat--enroll-pass .bseat__avatar-wrap {
+    animation-duration: 120ms !important;
+  }
+}
+
 .btable-session__foot {
   display: flex;
   flex-direction: column;

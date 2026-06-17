@@ -71,14 +71,14 @@ describe("trickTiming", () => {
     );
     assert.equal(trumpBeat, true);
     assert.equal(postTrickReadMs({ trumpBeat: true }), 1800);
-    assert.equal(postTrickReadMs({}), 1400);
+    assert.equal(postTrickReadMs({}), 2000);
   });
 
   it("schedules winner reveal inside the read pause", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 1400);
+    assert.equal(schedule.readTotalMs, 2000);
     assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
-    assert.equal(schedule.readBeforeWinnerMs, 1400 - WINNER_REVEAL_MS);
+    assert.equal(schedule.readBeforeWinnerMs, 2000 - WINNER_REVEAL_MS);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {

@@ -3,6 +3,7 @@ import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
+import type { DrawAnimSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import type { PotMetrics, SerializedCard } from "./types";
 
@@ -19,6 +20,13 @@ interface PotCenterProps {
   trickShowWinnerTag?: boolean;
   trickPresentationPhase?: TrickPresentationPhase;
   playerNames?: Record<string, string>;
+  anteAnimActive?: boolean;
+  trumpRevealActive?: boolean;
+  drawAnimPlayerId?: string | null;
+  drawAnimSubPhase?: DrawAnimSubPhase;
+  drawDiscardCount?: number;
+  settleAnimActive?: boolean;
+  settleCarryOver?: boolean;
 }
 
 export function PotCenter({
@@ -34,6 +42,13 @@ export function PotCenter({
   trickShowWinnerTag = false,
   trickPresentationPhase = "live",
   playerNames = {},
+  anteAnimActive = false,
+  trumpRevealActive = false,
+  drawAnimPlayerId = null,
+  drawAnimSubPhase = "done",
+  drawDiscardCount = 0,
+  settleAnimActive = false,
+  settleCarryOver = false,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const hasTrumpCard = Boolean(trumpUpcard);
@@ -47,7 +62,13 @@ export function PotCenter({
         {hasTrumpCard ? (
           <div
             key={trumpKey}
-            className="deck-stack__trump bpot__trump--deal"
+            className={[
+              "deck-stack__trump",
+              "bpot__trump--deal",
+              trumpRevealActive ? "bpot__trump--reveal" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             data-testid="trump-button"
           >
             <PlayingCard
@@ -88,7 +109,35 @@ export function PotCenter({
         )}
       </div>
 
-      <div className="center-play">
+      <div
+        className={[
+          "center-play",
+          anteAnimActive ? "center-play--ante-in" : "",
+          settleAnimActive ? "center-play--settle" : "",
+          settleCarryOver ? "center-play--carry" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {anteAnimActive && (
+          <div className="bpot__ante-chips" aria-hidden="true">
+            {Array.from({ length: Math.min(participantCount, 8) }, (_, i) => (
+              <span
+                key={i}
+                className="bpot__ante-chip"
+                style={{ ["--ante-i" as string]: i }}
+              />
+            ))}
+          </div>
+        )}
+
+        {(drawAnimPlayerId && drawAnimSubPhase === "discard" && drawDiscardCount > 0) && (
+          <div className="center-play__discard" aria-hidden="true">
+            {Array.from({ length: drawDiscardCount }, (_, i) => (
+              <span key={i} className="center-play__discard-card" style={{ ["--discard-i" as string]: i }} />
+            ))}
+          </div>
+        )}
         <div className="center-play__phase" aria-live="polite">
           <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
             {phaseLabel}
