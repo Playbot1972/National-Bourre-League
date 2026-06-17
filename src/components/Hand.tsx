@@ -11,10 +11,12 @@ export interface HandCardInteraction {
   isMyTurn?: boolean;
   legalPlayIndices?: number[];
   playingIndex?: number | null;
+  illegalShakeIndex?: number | null;
   busy?: boolean;
   trickPlayOriginPlayerId?: string | null;
   onPlayCard?: (index: number) => void;
   onSelectCard?: (index: number) => void;
+  onIllegalPlay?: (index: number) => void;
   onPeek?: (index: number | null) => void;
 }
 
@@ -72,23 +74,36 @@ function HandCard({
     !interaction?.legalPlayIndices || interaction.legalPlayIndices.includes(index);
   const playable = isPlayMode && isMyTurn && legalPlay && !interaction?.busy;
   const playing = interaction?.playingIndex === index;
-  const disabled =
+  const illegalTarget =
+    isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
+  const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
-    (isPlayMode && (!isMyTurn || !legalPlay)) ||
+    (isPlayMode && !isMyTurn) ||
+    (isDrawMode && !isMyTurn);
+  const disabled =
+    gestureDisabled ||
+    (isPlayMode && !legalPlay) ||
     (isDrawMode && !isMyTurn);
 
   const pointerHandlers = useCardGestureHandlers({
-    disabled: disabled || (!playable && !isDrawMode && !isPeekMode),
-    mode: interaction?.mode ?? "none",
+    disabled: gestureDisabled || (!playable && !isDrawMode && !isPeekMode && !illegalTarget),
+    mode: illegalTarget ? "draw-select" : (interaction?.mode ?? "none"),
     onPlay: playable ? () => interaction?.onPlayCard?.(index) : undefined,
-    onSelect: isDrawMode && isMyTurn ? () => interaction?.onSelectCard?.(index) : undefined,
+    onSelect:
+      isDrawMode && isMyTurn
+        ? () => interaction?.onSelectCard?.(index)
+        : illegalTarget
+          ? () => interaction?.onIllegalPlay?.(index)
+          : undefined,
     onPeekStart: isPeekMode ? () => onCardPeek?.(index) : undefined,
     onPeekEnd: isPeekMode ? () => onCardPeek?.(null) : undefined,
     onPressChange: setPressed,
   });
 
-  const usePointer = Boolean(interaction) && interaction?.mode !== "none";
+  const usePointer =
+    Boolean(interaction) &&
+    (interaction?.mode !== "none" || illegalTarget);
   const testId =
     isPlayMode && isMyTurn
       ? playable
@@ -109,7 +124,7 @@ function HandCard({
       <PlayingCard
         card={card}
         size={size}
-        state={disabled && isPlayMode ? "disabled" : state}
+        state={disabled && isPlayMode && !illegalTarget ? "disabled" : state}
         badge={badge}
         onClick={!usePointer && onCardClick ? () => onCardClick(card, index) : undefined}
         onPlayClick={usePointer && playable ? () => interaction?.onPlayCard?.(index) : undefined}
@@ -117,7 +132,8 @@ function HandCard({
         pressed={pressed}
         playing={playing}
         playable={playable}
-        disabled={disabled && (isPlayMode || isDrawMode)}
+        illegalShake={interaction?.illegalShakeIndex === index}
+        disabled={gestureDisabled && (isPlayMode || isDrawMode) && !illegalTarget}
         data-testid={testId}
         data-card-index={index}
         data-playable={isPlayMode ? (playable ? "true" : "false") : undefined}

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CardTable } from "./CardTable";
 import { CinematicSplash } from "./CinematicSplash";
 import { DesktopLayoutShell } from "./DesktopLayoutShell";
 import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
+import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -78,6 +80,41 @@ export function TableSessionView({
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
 
+  const showTrumpSuitReminder =
+    !session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play";
+  const tricksSnapshot = useMemo(
+    () => ({ ...trickPresentation.displayTricksByPlayer }),
+    [trickPresentation.displayTricksByPlayer],
+  );
+  const microinteractions = useTableMicrointeractions({
+    turnPlayerId: session.turnPlayerId ?? null,
+    dealerId: session.dealerId,
+    potAmount: handPresentation.displayPotAmount,
+    tricksByPlayer: tricksSnapshot,
+    phase: session.phase ?? null,
+    showTrumpSuitReminder,
+    suppressTurn: Boolean(suppressTurn),
+    actionFeedbackStatus: actionFeedback?.status ?? "idle",
+    trickWinnerSeatId: trickPresentation.trickWinnerSeatId,
+    trickPhase: trickPresentation.phase,
+  });
+
+  const prevErrorPulseRef = useRef(0);
+  const prevSuccessPulseRef = useRef(0);
+  useEffect(() => {
+    if (microinteractions.feedbackErrorPulse > prevErrorPulseRef.current) {
+      playIllegalActionFeedback();
+    }
+    prevErrorPulseRef.current = microinteractions.feedbackErrorPulse;
+  }, [microinteractions.feedbackErrorPulse]);
+
+  useEffect(() => {
+    if (microinteractions.feedbackSuccessPulse > prevSuccessPulseRef.current) {
+      playActionSuccessFeedback();
+    }
+    prevSuccessPulseRef.current = microinteractions.feedbackSuccessPulse;
+  }, [microinteractions.feedbackSuccessPulse]);
+
   const settlementPotMetrics: PotSnapshot = {
     currentPot: potMetrics.currentPot,
     maxWinThisHand: potMetrics.maxWinThisHand,
@@ -118,7 +155,20 @@ export function TableSessionView({
     >
       {actionFeedback && actionFeedback.status !== "idle" && (
         <div
-          className={`btable-session__feedback btable-session__feedback--${actionFeedback.status}`}
+          className={[
+            `btable-session__feedback btable-session__feedback--${actionFeedback.status}`,
+            actionFeedback.status === "error" ? "btable-session__feedback--pulse-error" : "",
+            actionFeedback.status === "success" ? "btable-session__feedback--pulse" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          key={
+            actionFeedback.status === "error"
+              ? `feedback-error-${microinteractions.feedbackErrorPulse}`
+              : actionFeedback.status === "success"
+                ? `feedback-success-${microinteractions.feedbackSuccessPulse}`
+                : `feedback-${actionFeedback.status}`
+          }
           data-testid="feedback-banner"
           role={actionFeedback.status === "error" ? "alert" : "status"}
           aria-live="polite"
@@ -224,6 +274,7 @@ export function TableSessionView({
             actionFeedback={actionFeedback}
             trickPresentation={trickPresentation}
             handPresentation={handPresentation}
+            microinteractions={microinteractions}
             onToggleInHand={(playerId, inHand) => {
               const p = players.find((x) => x.playerId === playerId);
               if (p?.isSelf) actions.onToggleInHand(inHand);

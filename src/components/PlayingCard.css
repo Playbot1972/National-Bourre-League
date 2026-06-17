@@ -112,6 +112,7 @@
     0 0 0 2px var(--gold-300),
     0 12px 26px var(--paper-shadow);
   transform: translateY(-8px);
+  animation: pcard-select-pulse 380ms ease;
 }
 .pcard--muted {
   filter: grayscale(0.35) brightness(0.9);
@@ -132,6 +133,67 @@
 }
 .pcard--playable {
   touch-action: none;
+  animation: pcard-playable-hint 2.4s ease-in-out infinite;
+}
+
+.pcard--illegal-shake {
+  animation: pcard-illegal-shake 340ms ease;
+}
+
+@keyframes pcard-playable-hint {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(230, 180, 80, 0.35),
+      0 8px 18px var(--paper-shadow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px rgba(230, 180, 80, 0.55),
+      0 12px 22px rgba(230, 180, 80, 0.18);
+  }
+}
+
+@keyframes pcard-illegal-shake {
+  0%,
+  100% {
+    transform: translateY(-4px) translateX(0);
+  }
+  20% {
+    transform: translateY(-4px) translateX(-4px);
+  }
+  40% {
+    transform: translateY(-4px) translateX(4px);
+  }
+  60% {
+    transform: translateY(-4px) translateX(-3px);
+  }
+  80% {
+    transform: translateY(-4px) translateX(3px);
+  }
+}
+
+@keyframes pcard-select-pulse {
+  0% {
+    transform: translateY(-2px) scale(0.98);
+  }
+  45% {
+    transform: translateY(-10px) scale(1.02);
+  }
+  100% {
+    transform: translateY(-8px) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard--playable {
+    animation: none;
+  }
+
+  .pcard--illegal-shake,
+  .pcard--selected {
+    animation-duration: 80ms !important;
+  }
 }
 .pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing) {
   transform: translateY(-8px);

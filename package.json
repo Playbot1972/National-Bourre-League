@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "1.01.28",
+  "version": "1.01.29",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -38,7 +38,7 @@
     "version:sync": "node scripts/sync-version.js",
     "version:bump": "node scripts/bump-version.js",
     "test:game": "tsx --test src/game/handState.test.ts src/game/deal.test.ts src/game/draw.test.ts src/game/legal.test.ts src/game/trick.test.ts src/game/play.test.ts src/game/bots.test.ts src/game/enrollment.test.ts src/game/fullHand.test.ts src/game/playerMatrix.test.ts",
-    "test:table": "tsx --test src/table/logic.test.ts src/table/handUi.test.ts src/table/settlementCopy.test.ts src/table/trickTiming.test.ts src/table/trickPresentationMachine.test.ts src/table/trickPlayFly.test.ts src/table/handPresentationMachine.test.ts src/table/feedback/feedback.test.ts src/components/cardGesture.test.ts",
+    "test:table": "tsx --test src/table/logic.test.ts src/table/handUi.test.ts src/table/settlementCopy.test.ts src/table/trickTiming.test.ts src/table/trickPresentationMachine.test.ts src/table/trickPlayFly.test.ts src/table/handPresentationMachine.test.ts src/table/tableMicrointeractions.test.ts src/table/feedback/feedback.test.ts src/components/cardGesture.test.ts",
     "test:session": "tsx --test src/session/logic.test.ts src/session/liveHand.test.ts src/session/handLifecycle.test.ts src/session/presetNames.test.ts",
     "test:rules": "node --test scripts/bourre-rules.test.mjs",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",

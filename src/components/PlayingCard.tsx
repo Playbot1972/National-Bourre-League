@@ -24,6 +24,7 @@ interface PlayingCardProps {
   pressed?: boolean;
   playing?: boolean;
   playable?: boolean;
+  illegalShake?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
   "data-testid"?: string;
@@ -43,6 +44,7 @@ export function PlayingCard({
   pressed = false,
   playing = false,
   playable = false,
+  illegalShake = false,
   disabled = false,
   ariaLabel,
   "data-testid": dataTestId,
@@ -60,6 +62,7 @@ export function PlayingCard({
     playable ? "pcard--playable" : "",
     pressed ? "pcard--pressed" : "",
     playing ? "pcard--playing" : "",
+    illegalShake ? "pcard--illegal-shake" : "",
     disabled ? "pcard--disabled" : "",
   ]
     .filter(Boolean)

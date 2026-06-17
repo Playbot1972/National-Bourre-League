@@ -27,6 +27,8 @@ interface PotCenterProps {
   drawDiscardCount?: number;
   settleAnimActive?: boolean;
   settleCarryOver?: boolean;
+  potTick?: number;
+  trumpReminderPulse?: number;
 }
 
 export function PotCenter({
@@ -49,6 +51,8 @@ export function PotCenter({
   drawDiscardCount = 0,
   settleAnimActive = false,
   settleCarryOver = false,
+  potTick = 0,
+  trumpReminderPulse = 0,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const hasTrumpCard = Boolean(trumpUpcard);
@@ -83,7 +87,14 @@ export function PotCenter({
           </div>
         ) : showTrumpSuitReminder ? (
           <div
-            className="deck-stack__trump deck-stack__trump--suit-reminder"
+            className={[
+              "deck-stack__trump",
+              "deck-stack__trump--suit-reminder",
+              trumpReminderPulse > 0 ? "deck-stack__trump--suit-reminder-pulse" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            key={trumpReminderPulse > 0 ? `trump-reminder-${trumpReminderPulse}` : "trump-reminder"}
             data-testid="trump-suit-reminder"
             aria-label={`Trump suit: ${formatTrumpSuit(trumpSuit)}`}
           >
@@ -165,7 +176,11 @@ export function PotCenter({
         </div>
 
         <dl className="center-play__stats">
-          <div className="bpot__stat bpot__stat--pot" data-testid="pot-display">
+          <div
+            className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
+            data-testid="pot-display"
+            key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
+          >
             <dt>Pot</dt>
             <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
           </div>

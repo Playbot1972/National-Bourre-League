@@ -63,6 +63,14 @@ export interface TablePlayer {
   sessionStreak?: number;
   /** This hand's ante — only for the viewing player. */
   myHandContribution?: number;
+  /** Brief pulse when turn passes to this seat. */
+  turnHandoff?: boolean;
+  /** Dealer badge just moved to this seat. */
+  dealerMoved?: boolean;
+  /** Incrementing key retriggers trick badge tick animation. */
+  trickBadgeTick?: number;
+  /** Brief winner flash during trick reveal. */
+  winnerFlash?: boolean;
 }
 
 export interface PotMetrics {
