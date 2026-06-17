@@ -1,0 +1,95 @@
+/** Safe padding inside the gameplay stage before seat anchors are placed. */
+export const STAGE_SEAT_INSET = {
+  top: 0.1,
+  right: 0.08,
+  bottom: 0.12,
+  left: 0.08,
+} as const;
+
+export interface StageFitInput {
+  availWidth: number;
+  availHeight: number;
+  aspect: number;
+  userScale: number;
+  padX: number;
+  padY: number;
+  heroMinHeight: number;
+  gap: number;
+}
+
+export interface StageFitResult {
+  stageWidth: number;
+  stageHeight: number;
+  fitScale: number;
+  effectiveScale: number;
+}
+
+/** Contain-fit the table stage + hero hand inside the available viewport box. */
+export function computeStageFit(input: StageFitInput): StageFitResult {
+  const {
+    availWidth,
+    availHeight,
+    aspect,
+    userScale,
+    padX,
+    padY,
+    heroMinHeight,
+    gap,
+  } = input;
+
+  const scale = Math.max(0.85, Math.min(1.35, userScale || 1));
+  const maxW = Math.max(0, availWidth - padX * 2);
+  const maxH = Math.max(0, availHeight - padY * 2);
+  const stageBudgetH = Math.max(120, maxH - heroMinHeight - gap);
+
+  let stageW = maxW;
+  let stageH = stageW / aspect;
+  if (stageH > stageBudgetH) {
+    stageH = stageBudgetH;
+    stageW = stageH * aspect;
+  }
+
+  const contentW = stageW;
+  const contentH = stageH + gap + heroMinHeight;
+  const fitScale = Math.min(1, maxW / (contentW * scale), maxH / (contentH * scale));
+
+  return {
+    stageWidth: stageW,
+    stageHeight: stageH,
+    fitScale,
+    effectiveScale: fitScale * scale,
+  };
+}
+
+export interface BoundsRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
+export function rectFromDomRect(r: DOMRect): BoundsRect {
+  return {
+    left: r.left,
+    top: r.top,
+    right: r.right,
+    bottom: r.bottom,
+    width: r.width,
+    height: r.height,
+  };
+}
+
+export function isWithinViewport(
+  inner: BoundsRect,
+  viewport: BoundsRect,
+  tolerancePx = 2,
+): boolean {
+  return (
+    inner.left >= viewport.left - tolerancePx &&
+    inner.top >= viewport.top - tolerancePx &&
+    inner.right <= viewport.right + tolerancePx &&
+    inner.bottom <= viewport.bottom + tolerancePx
+  );
+}

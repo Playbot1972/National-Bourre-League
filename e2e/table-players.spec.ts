@@ -45,6 +45,26 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
 
         expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
 
+        const avatarsInView = await page.evaluate(() => {
+          const viewport = {
+            left: 0,
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight,
+          };
+          const nodes = [...document.querySelectorAll(".bseat__avatar")];
+          return nodes.every((node) => {
+            const r = node.getBoundingClientRect();
+            return (
+              r.left >= viewport.left - 1 &&
+              r.top >= viewport.top - 1 &&
+              r.right <= viewport.right + 1 &&
+              r.bottom <= viewport.bottom + 1
+            );
+          });
+        });
+        expect(avatarsInView).toBe(true);
+
         if (phase === "enrollment") {
           await expect(page.locator(".bseat__timer-ring")).toBeVisible();
           await expect(page.locator(".btable-session__enroll-btn")).toBeVisible();

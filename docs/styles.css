@@ -1679,15 +1679,14 @@ body.table-play-active .footer {
   }
 
   .table-play-overlay .btable-wrap {
-    --table-stage-width: min(
-      calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 12px),
-      420px
-    );
+    --stage-fit-pad-x: max(10px, env(safe-area-inset-left, 0px));
+    width: min(100%, var(--stage-fit-width, 100%));
   }
 
   .table-play-overlay .table-stage {
-    max-height: min(42dvh, 280px);
-    width: min(100%, var(--table-stage-width));
+    max-height: var(--stage-fit-height, min(42dvh, 280px));
+    width: min(100%, var(--stage-fit-width, 100%));
+    overflow: visible;
   }
 
   .table-play-overlay .hand-panel {
@@ -1732,13 +1731,10 @@ body.table-play-active .footer {
 }
 
 .table-play-overlay .btable-wrap {
-  width: 100%;
+  width: min(100%, var(--stage-fit-width, 100%));
   max-width: 100%;
   min-width: 0;
-  --table-stage-width: min(
-    100%,
-    calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px)
-  );
+  --stage-fit-pad-x: max(12px, env(safe-area-inset-left, 0px));
 }
 
 .table-play-overlay .table-stage {
@@ -1773,12 +1769,8 @@ body.table-play-active .footer {
   }
 
   .table-play-overlay .btable-wrap {
-    width: 100%;
+    width: min(100%, var(--stage-fit-width, 100%));
     max-width: 100%;
-    --table-stage-width: min(
-      calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 12px),
-      calc(var(--table-max-h, 42dvh) * var(--table-aspect))
-    );
     gap: clamp(6px, 1.2dvh, 12px);
   }
 
@@ -1790,11 +1782,11 @@ body.table-play-active .footer {
           env(safe-area-inset-bottom, 0px) - min(38dvh, 260px) - 20px
       )
     );
-    width: min(100%, var(--table-stage-width), calc(var(--table-max-h) * var(--table-aspect)));
-    max-height: var(--table-max-h);
+    width: min(100%, var(--stage-fit-width, 100%), calc(var(--table-max-h) * var(--table-aspect)));
+    max-height: min(var(--stage-fit-height, var(--table-max-h)), var(--table-max-h));
     height: auto;
     aspect-ratio: var(--table-aspect) / 1;
-    overflow: clip;
+    overflow: visible;
   }
 
   .table-play-overlay .hand-panel {
@@ -1829,8 +1821,8 @@ body.table-play-active .footer {
 
 @media (orientation: landscape) and (min-width: 768px) {
   .table-play-overlay .btable-wrap {
-    width: min(96vw, 1100px);
-    --table-stage-width: min(76vw, 1100px);
+    width: min(96vw, var(--stage-fit-width, 680px));
+    max-width: min(96vw, 680px);
   }
 }
 
