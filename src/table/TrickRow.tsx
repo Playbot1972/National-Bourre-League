@@ -1,4 +1,3 @@
-import { PlayingCard } from "../components/PlayingCard";
 import { TrickPlaySlot } from "./TrickPlaySlot";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 
@@ -70,7 +69,6 @@ export function TrickRow({
           displayCount={displayPlays.length}
           playerName={playerNames[play.playerId] ?? "Player"}
           winnerPlayerId={winnerPlayerId}
-          showWinnerTag={showWinnerTag}
         />
       ))}
     </div>

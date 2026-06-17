@@ -58,7 +58,7 @@ export function readCachedPlayOrigin(playKey: string): PlayOriginRect | undefine
 
 export function flyOffsetToSlot(
   origin: PlayOriginRect,
-  slotRect: DOMRect,
+  _slotRect: DOMRect,
   cardRect: DOMRect,
 ): { dx: number; dy: number } {
   const ox = origin.left + origin.width / 2;
