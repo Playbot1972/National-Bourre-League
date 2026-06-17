@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import {
   CARD_LAND_MS,
   prefersReducedMotion,
@@ -6,6 +6,11 @@ import {
   trumpBeatLedSuit,
   type TrickPresentationPhase,
 } from "../trickTiming";
+import {
+  playFlyKey,
+  clearPlayOriginCache,
+  snapshotPlayOrigin,
+} from "../trickPlayFly";
 import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
@@ -41,6 +46,16 @@ export function useTrickPresentation({
 
   const timersRef = useRef<number[]>([]);
   const resolutionKeyRef = useRef<string | null>(null);
+  const snapshottedPlaysRef = useRef<Set<string>>(new Set());
+
+  const snapshotTrickPlayOrigins = (plays: { playerId: string; card: { rank: string; suit: string } }[]) => {
+    for (const play of plays) {
+      const key = playFlyKey(play);
+      if (snapshottedPlaysRef.current.has(key)) continue;
+      snapshottedPlaysRef.current.add(key);
+      snapshotPlayOrigin(play.playerId, key);
+    }
+  };
 
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -58,6 +73,8 @@ export function useTrickPresentation({
     if (phase !== "play") {
       clearTimers();
       resolutionKeyRef.current = null;
+      snapshottedPlaysRef.current.clear();
+      clearPlayOriginCache();
       dispatch({
         type: "reinit",
         snapshot: { currentTrick, tricksByPlayer },
@@ -73,6 +90,14 @@ export function useTrickPresentation({
       reducedMotion: prefersReducedMotion(),
     });
   }, [phase, currentTrick, tricksByPlayer, participantIds, trumpSuit]);
+
+  useLayoutEffect(() => {
+    if (phase !== "play") return;
+    const livePlays = currentTrick?.plays ?? [];
+    if (livePlays.length > 0) snapshotTrickPlayOrigins(livePlays);
+    const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
+    if (pendingPlays.length > 0) snapshotTrickPlayOrigins(pendingPlays);
+  }, [phase, currentTrick?.plays, store.pendingResolution?.frozen.plays]);
 
   useEffect(() => {
     if (phase !== "play" || store.phase !== "trickComplete" || !store.frozenTrick) return;

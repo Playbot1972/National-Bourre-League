@@ -383,6 +383,26 @@
   z-index: 2;
 }
 
+.btrick__play--fly-pending .pcard {
+  opacity: 0;
+}
+
+.btrick__play--fly-from-hand .pcard {
+  animation: btrick-fly-from-hand var(--trick-card-land-ms, 220ms) cubic-bezier(0.22, 1, 0.36, 1)
+    forwards;
+}
+
+@keyframes btrick-fly-from-hand {
+  from {
+    transform: translate(var(--fly-dx, 0), var(--fly-dy, 0));
+    opacity: 0.92;
+  }
+  to {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+}
+
 .btrick__play--land .pcard {
   animation: btrick-card-land var(--trick-card-land-ms, 500ms) cubic-bezier(0.22, 1, 0.36, 1);
 }

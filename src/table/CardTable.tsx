@@ -207,6 +207,7 @@ export function CardTable({
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}
         onPlayCard={onPlayCard}
+        currentUserId={currentUserId}
       />
     </div>
   );

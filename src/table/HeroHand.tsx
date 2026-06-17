@@ -4,6 +4,7 @@ import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
+import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
@@ -27,6 +28,7 @@ interface HeroHandProps {
   className?: string;
   dealStaggerMs?: number;
   drawAnimSubPhase?: "discard" | "receive" | "done" | null;
+  currentUserId?: string | null;
 }
 
 export function HeroHand({
@@ -49,6 +51,7 @@ export function HeroHand({
   className = "",
   dealStaggerMs = 120,
   drawAnimSubPhase = null,
+  currentUserId = null,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -117,6 +120,17 @@ export function HeroHand({
       setSelectedPlay(index);
       setPlayingIndex(index);
       setLocalError(null);
+      const card = typedCards[index];
+      if (currentUserId && card) {
+        snapshotHeroHandCardOrigin(
+          currentUserId,
+          playFlyKey({
+            playerId: currentUserId,
+            card: { rank: String(card.rank), suit: String(card.suit) },
+          }),
+          index,
+        );
+      }
       try {
         await Promise.resolve(onPlayCard(index));
         // Parent often clears feedback without a success status after play.
@@ -128,7 +142,7 @@ export function HeroHand({
         playLockRef.current = false;
       }
     },
-    [busy, legalPlayIndices, onPlayCard],
+    [busy, legalPlayIndices, onPlayCard, currentUserId, typedCards],
   );
 
   const runDrawAction = useCallback(
@@ -260,7 +274,7 @@ export function HeroHand({
           Your trump upcard is on the table — not duplicated here
         </p>
       )}
-      <div className="btable-hero__hand-3d">
+      <div className="btable-hero__hand-3d" data-trick-play-origin={currentUserId ?? undefined}>
         <Hand
           cards={typedCards}
           size={cardSize}
@@ -275,6 +289,7 @@ export function HeroHand({
             legalPlayIndices,
             playingIndex,
             busy,
+            trickPlayOriginPlayerId: currentUserId,
             onPlayCard: triggerPlay,
             onSelectCard: toggleDrawIndex,
             onPeek: setPeekIndex,
