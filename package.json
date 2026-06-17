@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "social": "npx serve docs -l 8080",
+    "presocial": "node scripts/ensure-repo-root.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "icons:import": "node scripts/import-logo.mjs",
     "build:hosting": "npm run version:sync && npm run icons:generate && npm run test && npm run check:social && npm run build && npm run build:game && npm run build:table && npm run build:settlement && node scripts/prepare-hosting.js",
@@ -52,6 +53,9 @@
     "test:qa": "npm run test && npm run check:social && npm run build:game && npm run build:table && npm run build:settlement",
     "test:e2e:install": "playwright install chromium",
     "emulators": "npx firebase emulators:start --only auth,firestore,functions --project demo-national-bourre-league",
+    "preemulators": "node scripts/ensure-repo-root.mjs",
+    "dev:local": "node scripts/dev-local.mjs",
+    "start": "npm run dev:local",
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
     "verify:prod": "node scripts/verify-production.mjs"
