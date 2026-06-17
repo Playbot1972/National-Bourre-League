@@ -54,21 +54,26 @@ export function HeroHand({
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [dealing, setDealing] = useState(false);
-  const prevCardKeyRef = useRef("");
+  const prevCardIdsRef = useRef<Set<string>>(new Set());
   const playLockRef = useRef(false);
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
-  const cardKey = cards.map((c) => `${c.rank}-${c.suit}`).join(",");
 
   useEffect(() => {
-    if (!dealtPhase || cardKey.length === 0 || cardKey === prevCardKeyRef.current) return;
-    prevCardKeyRef.current = cardKey;
+    if (!dealtPhase || cards.length === 0) return;
+    const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
+    const prev = prevCardIdsRef.current;
+    const added = [...nextIds].some((id) => !prev.has(id));
+    const isSubset =
+      prev.size > 0 && [...prev].every((id) => nextIds.has(id));
+    prevCardIdsRef.current = nextIds;
+    if (!added || isSubset) return;
     setDealing(true);
     setPlayingIndex(null);
     setSelectedPlay(null);
     const timer = window.setTimeout(() => setDealing(false), 520);
     return () => window.clearTimeout(timer);
-  }, [cardKey, dealtPhase]);
+  }, [cards, dealtPhase]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
