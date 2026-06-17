@@ -781,6 +781,20 @@ function applyEnrollmentDealInTransaction(tx, ref, patch) {
   });
 }
 
+/** After client deal, mirror publicHand to currentHand when rules allow (trump UI on prod). */
+async function syncDealPublicHandBestEffort(roomId, sessionId, publicHand) {
+  if (!publicHand?.phase) return;
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      currentHand: publicHand,
+      handEnrollment: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) console.warn("currentHand sync after deal:", err);
+  }
+}
+
 function applyEnrollmentStepLegacy(tx, ref, patch) {
   if (patch.privateHandsByPlayer) {
     applyEnrollmentDealInTransaction(tx, ref, patch);
@@ -815,6 +829,7 @@ function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mod
 async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { requirePatch = false } = {}) {
   const ref = sessionDoc(roomId, sessionId);
   let dealPrivateHands = null;
+  let dealPublicHand = null;
   let applied = false;
 
   async function attempt(mode) {
@@ -827,7 +842,10 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
         return;
       }
       applied = true;
-      if (patch.privateHandsByPlayer) dealPrivateHands = patch.privateHandsByPlayer;
+      if (patch.privateHandsByPlayer) {
+        dealPrivateHands = patch.privateHandsByPlayer;
+        dealPublicHand = patch.currentHand ?? null;
+      }
       applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode);
     });
   }
@@ -838,11 +856,13 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
     if (!isPermissionDenied(err) && err?.message !== "Enrollment step did not apply") throw err;
     applied = false;
     dealPrivateHands = null;
+    dealPublicHand = null;
     await attempt("legacy");
   }
   if (requirePatch && !applied) throw new Error("Enrollment step did not apply");
   if (dealPrivateHands) {
     writePrivateHandsBestEffort(roomId, sessionId, dealPrivateHands);
+    await syncDealPublicHandBestEffort(roomId, sessionId, dealPublicHand);
   }
 }
 
@@ -962,6 +982,15 @@ function writeEnrollmentPatch(enrollment) {
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   };
+}
+
+async function writeEnrollmentOpenWithFallback(sessionRef, enrollment) {
+  try {
+    await updateDoc(sessionRef, writeLiveEnrollmentOpenPatch(enrollment));
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+    await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));
+  }
 }
 
 function logHandLifecycleTransition(transition) {
@@ -2437,12 +2466,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       ...existing,
       turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
     };
-    try {
-      await updateDoc(sessionRef, writeLiveEnrollmentOpenPatch(refreshedEnrollment));
-    } catch (err) {
-      if (!isPermissionDenied(err)) throw err;
-      await updateDoc(sessionRef, writeEnrollmentPatch(refreshedEnrollment));
-    }
+    await writeEnrollmentOpenWithFallback(sessionRef, refreshedEnrollment);
     logHandLifecycleTransition({
       from: "opening",
       to: "opening",
@@ -2473,10 +2497,11 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
   const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
   try {
-    await updateDoc(sessionRef, writeLiveEnrollmentOpenPatch(enrollment));
+    await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
   } catch (err) {
-    if (!isPermissionDenied(err)) throw err;
-    await updateDoc(sessionRef, writeEnrollmentPatch(enrollment));
+    if (!isEnrollmentPermissionError(err)) throw err;
+    await clearStaleHandoffArtifacts(roomId, sessionId);
+    await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
   }
   logHandLifecycleTransition({
     from: "handoffToNextDeal",

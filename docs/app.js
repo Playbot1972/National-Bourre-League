@@ -1869,7 +1869,15 @@ async function openTablePlay() {
   updateTablePlayTitle(openSessionObj);
   await refreshTablePlayerRatings(openScores);
   if (currentRoomId && openSessionId) {
-    await ensureHandEnrollment(currentRoomId, openSessionId);
+    try {
+      await ensureHandEnrollment(currentRoomId, openSessionId);
+    } catch (err) {
+      const message =
+        err?.message ||
+        "Could not open the join window — refresh and tap Go to Table again.";
+      setTableActionFeedback({ status: "error", message });
+      showRoomsError(message);
+    }
   }
   const refreshed =
     (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ??
