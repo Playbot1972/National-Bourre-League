@@ -60,19 +60,19 @@ export function initials(name: string) {
 }
 
 /**
- * Seat rail ellipse inside the safe inset zone (percent of `.btable__seats` box).
- * Keeps avatar anchors away from viewport edges.
+ * Seat rail ellipse inside `.btable__seats` (percent of seat box).
+ * Stage-fit contain handles viewport edges; rails can sit near the felt lip.
  */
-export const RAIL_RX = 42;
-export const RAIL_RY = 40;
+export const RAIL_RX = 46;
+export const RAIL_RY = 44;
 
-/** Small outward nudge onto the rail lip — stays inside safe inset. */
-export const SEAT_RAIL_OUTSET = 4;
+/** Outward nudge onto the rail lip — balanced for spacing vs safe contain-fit. */
+export const SEAT_RAIL_OUTSET = 5;
 
 export function seatRailAxes(total: number): { rx: number; ry: number; outset: number } {
   const n = Math.max(2, Math.min(8, total || 2));
-  if (n >= 7) return { rx: 36, ry: 34, outset: 2 };
-  if (n >= 5) return { rx: 40, ry: 38, outset: 3 };
+  if (n >= 7) return { rx: 42, ry: 40, outset: 4 };
+  if (n >= 5) return { rx: 44, ry: 42, outset: 4 };
   return { rx: RAIL_RX, ry: RAIL_RY, outset: SEAT_RAIL_OUTSET };
 }
 

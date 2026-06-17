@@ -14,8 +14,8 @@ describe("stageFit", () => {
       heroMinHeight: 140,
       gap: 12,
     });
-    assert.ok(fit.stageWidth <= 800 - 32);
-    assert.ok(fit.stageHeight <= 600 - 24 - 140 - 12);
+    assert.ok(fit.displayStageWidth <= 800 - 32);
+    assert.ok(fit.displayStageHeight <= 600 - 24 - 140 - 12);
     assert.equal(fit.fitScale, 1);
     assert.equal(fit.effectiveScale, 1);
   });

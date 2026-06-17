@@ -9069,17 +9069,17 @@ function Ft(e) {
 function It(e) {
 	let t = Math.max(2, Math.min(8, e || 2));
 	return t >= 7 ? {
-		rx: 36,
-		ry: 34,
-		outset: 2
-	} : t >= 5 ? {
-		rx: 40,
-		ry: 38,
-		outset: 3
-	} : {
 		rx: 42,
 		ry: 40,
 		outset: 4
+	} : t >= 5 ? {
+		rx: 44,
+		ry: 42,
+		outset: 4
+	} : {
+		rx: 46,
+		ry: 44,
+		outset: 5
 	};
 }
 function Lt(e) {
@@ -9674,12 +9674,14 @@ function ln(e, t, n) {
 function un(e) {
 	let { availWidth: t, availHeight: n, aspect: r, userScale: i, padX: a, padY: o, heroMinHeight: s, gap: c } = e, l = Math.max(.85, Math.min(1.35, i || 1)), u = Math.max(0, t - a * 2), d = Math.max(0, n - o * 2), f = Math.max(120, d - s - c), p = u, m = p / r;
 	m > f && (m = f, p = m * r);
-	let h = p, g = m + c + s, _ = Math.min(1, u / (h * l), d / (g * l));
+	let h = p, g = m + c + s, _ = Math.max(0, Math.min(1, u / (h * l), d / (g * l))), v = p * _, y = m * _;
 	return {
 		stageWidth: p,
 		stageHeight: m,
 		fitScale: _,
-		effectiveScale: _ * l
+		effectiveScale: _ * l,
+		displayStageWidth: v,
+		displayStageHeight: y
 	};
 }
 function dn(e) {
@@ -9720,33 +9722,33 @@ function gn({ aspect: e, enabled: t = !0, sessionKey: n }) {
 		if (!c) return;
 		a.current !== n && (a.current = n, i.current = 0);
 		let l = c.closest(".btable-desktop__viewport") ?? c.closest(".table-play-overlay__main") ?? c.closest(".btable-session"), u = () => {
-			let t = (l instanceof HTMLElement ? l : c).getBoundingClientRect(), n = c.querySelector(".hand-panel")?.getBoundingClientRect(), r = s ? 132 : 148, a = n?.height ?? 0, u = ln(a, i.current, r);
-			i.current = u.peak;
-			let d = u.height, f = hn("--stage-fit-pad-x", s ? 10 : 16), p = hn("--stage-fit-pad-y", s ? 8 : 12), m = hn("--stage-fit-gap", 12), h = window.visualViewport, g = un({
-				availWidth: Math.min(t.width, h?.width ?? window.innerWidth),
-				availHeight: Math.min(t.height, h?.height ?? window.innerHeight),
+			let t = (l instanceof HTMLElement ? l : c).getBoundingClientRect(), n = c.querySelector(".hand-panel")?.getBoundingClientRect(), r = s ? 132 : 148, a = s ? 220 : 280, u = n?.height ?? 0, d = ln(u, i.current, r);
+			i.current = d.peak;
+			let f = Math.min(d.height, a), p = hn("--stage-fit-pad-x", s ? 10 : 16) + 28, m = hn("--stage-fit-pad-y", s ? 8 : 12) + 28, h = hn("--stage-fit-gap", 12), g = window.visualViewport, _ = un({
+				availWidth: Math.min(t.width, g?.width ?? window.innerWidth),
+				availHeight: Math.min(t.height, g?.height ?? window.innerHeight),
 				aspect: e,
 				userScale: s ? 1 : o.tableScale,
-				padX: f,
-				padY: p,
-				heroMinHeight: d,
-				gap: m
+				padX: p,
+				padY: m,
+				heroMinHeight: f,
+				gap: h
 			});
-			if (c.style.setProperty("--stage-fit-width", `${Math.round(g.stageWidth)}px`), c.style.setProperty("--stage-fit-height", `${Math.round(g.stageHeight)}px`), c.style.setProperty("--stage-fit-scale", String(g.fitScale)), c.style.setProperty("--stage-effective-scale", String(g.effectiveScale)), (c.closest(".btable-desktop__scale") ?? c.parentElement)?.style.setProperty("--stage-effective-scale", String(g.effectiveScale)), localStorage.getItem("stageFitDebug") === "1") {
-				let e = c.querySelector(".table-stage"), n = c.querySelectorAll(".bseat__avatar-wrap"), r = e ? dn(e.getBoundingClientRect()) : null, o = dn(document.documentElement.getBoundingClientRect()), s = [...n].filter((e) => !fn(dn(e.getBoundingClientRect()), o, 1)).length;
+			if (c.style.setProperty("--stage-fit-width", `${Math.round(_.stageWidth)}px`), c.style.setProperty("--stage-fit-height", `${Math.round(_.stageHeight)}px`), c.style.setProperty("--stage-fit-scale", String(_.fitScale)), c.style.setProperty("--stage-effective-scale", String(_.effectiveScale)), (c.closest(".btable-desktop__scale") ?? c.parentElement)?.style.setProperty("--stage-effective-scale", String(_.effectiveScale)), localStorage.getItem("stageFitDebug") === "1") {
+				let e = c.querySelector(".table-stage"), n = c.querySelectorAll(".bseat__avatar-wrap"), r = e ? dn(e.getBoundingClientRect()) : null, a = dn(document.documentElement.getBoundingClientRect()), o = [...n].filter((e) => !fn(dn(e.getBoundingClientRect()), a, 1)).length;
 				console.debug("[stage-fit]", {
 					host: {
 						w: t.width,
 						h: t.height
 					},
 					hero: {
-						measured: a,
-						budget: d,
+						measured: u,
+						budget: f,
 						peak: i.current
 					},
-					fit: g,
+					fit: _,
 					stageBounds: r,
-					seatOverflow: s
+					seatOverflow: o
 				});
 			}
 		}, d = new ResizeObserver(u);

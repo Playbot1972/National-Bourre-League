@@ -1,10 +1,13 @@
 /** Safe padding inside the gameplay stage before seat anchors are placed. */
 export const STAGE_SEAT_INSET = {
-  top: 0.1,
-  right: 0.08,
-  bottom: 0.12,
-  left: 0.08,
+  top: 0.07,
+  right: 0.06,
+  bottom: 0.09,
+  left: 0.06,
 } as const;
+
+/** Extra viewport pad so avatar/metadata outside the felt stays inside contain-fit. */
+export const STAGE_SEAT_OVERFLOW_PAD = 28;
 
 export interface StageFitInput {
   availWidth: number;
@@ -22,6 +25,9 @@ export interface StageFitResult {
   stageHeight: number;
   fitScale: number;
   effectiveScale: number;
+  /** Pixel width/height after contain-fit (excludes extra user table scale). */
+  displayStageWidth: number;
+  displayStageHeight: number;
 }
 
 /** Contain-fit the table stage + hero hand inside the available viewport box. */
@@ -63,13 +69,20 @@ export function computeStageFit(input: StageFitInput): StageFitResult {
 
   const contentW = stageW;
   const contentH = stageH + gap + heroMinHeight;
-  const fitScale = Math.min(1, maxW / (contentW * scale), maxH / (contentH * scale));
+  const fitScale = Math.max(
+    0,
+    Math.min(1, maxW / (contentW * scale), maxH / (contentH * scale)),
+  );
+  const displayStageWidth = stageW * fitScale;
+  const displayStageHeight = stageH * fitScale;
 
   return {
     stageWidth: stageW,
     stageHeight: stageH,
     fitScale,
     effectiveScale: fitScale * scale,
+    displayStageWidth,
+    displayStageHeight,
   };
 }
 
