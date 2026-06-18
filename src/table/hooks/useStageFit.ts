@@ -5,7 +5,7 @@ import {
   isWithinViewport,
   landscapeStageShareForPlayers,
   rectFromDomRect,
-  stabilizeHeroHeight,
+  resolveHeroBudget,
   STAGE_SEAT_OVERFLOW_PAD,
   tableAspectForMobileViewport,
 } from "../stageFit";
@@ -130,12 +130,14 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
               ? 210
               : 280;
       const measuredHero = heroRect?.height ?? 0;
-      const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
+      const stableHero = resolveHeroBudget(
+        measuredHero,
+        heroPeakRef.current,
+        heroFloor,
+        heroCap,
+      );
       heroPeakRef.current = stableHero.peak;
-      const heroMinHeight =
-        inOverlay && nativeMobile && measuredHero > 0
-          ? Math.min(Math.max(measuredHero, heroFloor), heroCap)
-          : Math.min(stableHero.height, heroCap);
+      const heroMinHeight = stableHero.height;
 
       const overflowPad =
         nativeMobile && inOverlay

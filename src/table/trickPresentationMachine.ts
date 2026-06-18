@@ -76,18 +76,17 @@ export function applyLiveServerUpdate(
   snapshot: ServerTrickSnapshot,
 ): TrickPresentationStore {
   const livePlays = serializedPlays(snapshot.currentTrick);
-  const targetReveal =
-    store.pendingResolution?.frozen.plays.length ?? livePlays.length;
-  const revealedCount =
-    store.phase === "live" && !store.pendingResolution
-      ? Math.min(store.revealedCount, targetReveal)
-      : store.revealedCount;
+  const prevPlays = serializedPlays(store.prevTrick);
+  const keepPrevTrick =
+    store.phase === "live" &&
+    !store.pendingResolution &&
+    livePlays.length < store.revealedCount &&
+    prevPlays.length >= store.revealedCount;
 
   return {
     ...store,
-    revealedCount,
     prevTricks: { ...snapshot.tricksByPlayer },
-    prevTrick: snapshot.currentTrick,
+    prevTrick: keepPrevTrick ? store.prevTrick : snapshot.currentTrick,
     displayTricksByPlayer: { ...snapshot.tricksByPlayer },
     pendingServer: null,
     resolvedTricks: null,
@@ -146,7 +145,7 @@ export function reduceTrickPresentation(
     }
 
     case "clampRevealedCount": {
-      if (store.phase !== "live") return store;
+      if (store.phase !== "live" || store.pendingResolution) return store;
       if (store.revealedCount <= event.target) return store;
       return { ...store, revealedCount: event.target };
     }
@@ -237,13 +236,16 @@ export function buildTrickPresentationModel(
   liveCurrentTrick: CurrentTrickState | null | undefined,
 ): TrickPresentationModel {
   const livePlays = serializedPlays(liveCurrentTrick);
+  const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
   const holdPlays =
-    livePlays.length > 0
-      ? livePlays
-      : store.pendingResolution?.frozen.plays ?? serializedPlays(store.prevTrick);
+    pendingPlays.length > 0
+      ? pendingPlays
+      : livePlays.length > 0
+        ? livePlays
+        : serializedPlays(store.prevTrick);
   const displayPlays =
     store.phase === "live"
-      ? holdPlays.slice(0, store.revealedCount)
+      ? holdPlays.slice(0, Math.min(store.revealedCount, holdPlays.length))
       : store.frozenTrick?.plays ?? [];
 
   const winnerPlayerId =
