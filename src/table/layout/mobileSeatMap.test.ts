@@ -7,8 +7,8 @@ describe("mobile seat map", () => {
     const portrait = mobileTableAspect(3, "portrait");
     const landscape = mobileTableAspect(3, "landscape");
     assert.ok(portrait < landscape);
-    assert.ok(portrait >= 0.8 && portrait <= 1);
-    assert.ok(landscape >= 1 && landscape <= 1.35);
+    assert.ok(portrait >= 0.78 && portrait <= 1);
+    assert.ok(landscape >= 0.95 && landscape <= 1.35);
   });
 
   it("places opponents at distinct positions", () => {

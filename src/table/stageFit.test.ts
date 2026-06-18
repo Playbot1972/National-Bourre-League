@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStageFit, isWithinViewport, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
+import { computeStageFit, isWithinViewport, landscapeStageShareForPlayers, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
 
 describe("stageFit", () => {
   it("contain-fits stage inside viewport without exceeding width", () => {
@@ -75,5 +75,10 @@ describe("stageFit", () => {
   it("tightens mobile portrait aspect", () => {
     assert.equal(tableAspectForMobileViewport(1.2, { portrait: true }), 0.98);
     assert.equal(tableAspectForMobileViewport(1.2, { portrait: false }), 1.2);
+  });
+
+  it("allocates more landscape width to stage for 3–4 players", () => {
+    assert.ok(landscapeStageShareForPlayers(3) > landscapeStageShareForPlayers(6));
+    assert.equal(landscapeStageShareForPlayers(4), 0.68);
   });
 });

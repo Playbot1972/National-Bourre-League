@@ -3,6 +3,7 @@ import {
   computeStageFit,
   computeMobileLandscapeOverlayFit,
   isWithinViewport,
+  landscapeStageShareForPlayers,
   rectFromDomRect,
   stabilizeHeroHeight,
   STAGE_SEAT_OVERFLOW_PAD,
@@ -168,6 +169,9 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
         ? tableAspectForMobileViewport(aspect, { portrait })
         : aspect;
 
+      const playerCount =
+        parseInt(getComputedStyle(wrap).getPropertyValue("--player-count").trim(), 10) || 4;
+
       const landscapeRow = inOverlay && nativeMobile && !portrait;
       const fit = landscapeRow
         ? {
@@ -178,6 +182,7 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
               userScale: fitScaleForLayout,
               padX,
               padY,
+              stageShare: landscapeStageShareForPlayers(playerCount),
             }),
             stageWidth: 0,
             stageHeight: 0,

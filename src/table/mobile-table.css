@@ -212,6 +212,73 @@
   gap: 2px 6px;
 }
 
+/* 3–4 player mobile — larger felt, compact avatars, boosted trump */
+.btable-mobile-wrap.btable--p3,
+.btable-mobile-wrap.btable--p4 {
+  --stage-seat-inset-top: 2.5%;
+  --stage-seat-inset-x: 2%;
+  --stage-seat-inset-bottom: 3.5%;
+}
+
+.btable-mobile-wrap.btable--p3 .btable-mobile-oval,
+.btable-mobile-wrap.btable--p4 .btable-mobile-oval {
+  inset: 5% 3.5% 6% 3.5%;
+}
+
+.btable-mobile-wrap.btable--p3 .bseat__avatar,
+.btable-mobile-wrap.btable--p4 .bseat__avatar {
+  width: 34px;
+  height: 34px;
+}
+
+.btable-mobile-wrap.btable--p3 .bseat__avatar--initials,
+.btable-mobile-wrap.btable--p4 .bseat__avatar--initials {
+  font-size: 12px;
+}
+
+.btable-mobile-wrap.btable--p3 .deck-stack,
+.btable-mobile-wrap.btable--p4 .deck-stack {
+  left: 17%;
+  top: 40%;
+  width: 54px;
+}
+
+.btable-mobile-wrap.btable--p3 .deck-stack .pcard--sm,
+.btable-mobile-wrap.btable--p4 .deck-stack .pcard--sm {
+  transform: scale(1.02);
+}
+
+.btable-mobile-wrap.btable--p3 .center-play,
+.btable-mobile-wrap.btable--p4 .center-play {
+  width: min(54%, 190px);
+  top: 42%;
+}
+
+.btable-mobile-wrap.btable--p3 .bseat__aux,
+.btable-mobile-wrap.btable--p4 .bseat__aux,
+.btable-mobile-wrap.btable--p3 .bhud,
+.btable-mobile-wrap.btable--p4 .bhud {
+  max-width: 76px;
+}
+
+/* Landscape row — immersive full-screen for 3–4 players */
+.btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage-fit,
+.btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage-fit {
+  flex: 1 1 68%;
+  min-width: 0;
+}
+
+.btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-hero-dock,
+.btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-hero-dock {
+  flex: 0 1 30%;
+  max-width: 32%;
+}
+
+.btable-mobile-wrap--landscape-row.btable--p3,
+.btable-mobile-wrap--landscape-row.btable--p4 {
+  gap: clamp(4px, 0.8dvh, 8px);
+}
+
 /* Overlay integration */
 .table-play-overlay .btable-mobile,
 .table-play-overlay .btable-mobile__viewport,
@@ -220,6 +287,24 @@
   min-height: 0;
   overflow: hidden;
   overflow-x: clip;
+}
+
+.table-play-overlay .btable-mobile__viewport {
+  padding-inline: max(2px, env(safe-area-inset-left, 0px))
+    max(2px, env(safe-area-inset-right, 0px));
+  padding-top: max(2px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+}
+
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3,
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 {
+  width: 100%;
+  max-width: 100%;
+}
+
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage,
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage {
+  max-height: min(var(--stage-fit-height, 100%), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 48px));
 }
 
 .table-play-overlay .btable-session--mobile-layout {
@@ -241,6 +326,11 @@
 .table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
   max-height: none;
   max-width: min(44%, 280px);
+}
+
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-hero-dock,
+.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-hero-dock {
+  max-width: min(32%, 220px);
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

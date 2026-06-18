@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import {
   computeMobileLandscapeOverlayFit,
   computeStageFit,
+  landscapeStageShareForPlayers,
   stabilizeHeroHeight,
 } from "../stageFit";
 import { useTableLayoutMode } from "../layout/useTableLayoutMode";
@@ -78,8 +79,21 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
         heroCap,
       );
 
-      const padX = readSafePx("--mobile-fit-pad-x", 8) + 12;
-      const padY = readSafePx("--mobile-fit-pad-y", 6) + 10;
+      const playerCount = parseInt(
+        getComputedStyle(wrap).getPropertyValue("--player-count").trim(),
+        10,
+      ) || 4;
+      const lowCount = playerCount <= 4;
+      const landscapeRow = !portrait;
+
+      const padX =
+        (landscapeRow && lowCount
+          ? readSafePx("--mobile-fit-pad-x", 4)
+          : readSafePx("--mobile-fit-pad-x", 8)) + (landscapeRow && inOverlay ? 4 : 12);
+      const padY =
+        (landscapeRow && lowCount
+          ? readSafePx("--mobile-fit-pad-y", 2)
+          : readSafePx("--mobile-fit-pad-y", 6)) + (landscapeRow && inOverlay ? 4 : 10);
       const gap = readSafePx("--mobile-fit-gap", portrait ? 8 : 6);
 
       const vv = visualViewport;
@@ -92,7 +106,6 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
       }
 
       const userScale = Math.max(0.85, Math.min(1.35, settings.tableScale || 1));
-      const landscapeRow = !portrait;
 
       const fit = landscapeRow
         ? {
@@ -103,7 +116,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
               userScale: 1,
               padX,
               padY,
-              stageShare: 0.56,
+              stageShare: landscapeStageShareForPlayers(playerCount),
             }),
             stageWidth: 0,
             stageHeight: 0,
@@ -127,6 +140,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
       const layoutHeight = Math.min(fit.displayStageHeight * userScale, maxStageH);
 
       wrap.classList.toggle("btable-mobile-wrap--landscape-row", landscapeRow);
+      wrap.classList.toggle("btable-mobile-wrap--low-count", lowCount);
       wrap.dataset.layout = portrait ? "portrait" : "landscape";
 
       wrap.style.setProperty("--stage-fit-width", `${Math.round(layoutWidth)}px`);

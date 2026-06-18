@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
@@ -54,6 +54,14 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
 }
 
 export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
+  const [avatarPeek, setAvatarPeek] = useState(false);
+  const toggleAvatarPeek = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (window.matchMedia("(hover: none), (pointer: coarse)").matches) {
+      setAvatarPeek((open) => !open);
+    }
+  }, []);
+
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
   const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
@@ -133,7 +141,24 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
                 Bourré
               </span>
             )}
-            <div className="bseat__avatar-wrap">
+            <div
+              className={`bseat__avatar-wrap${avatarPeek ? " bseat__avatar-wrap--peek" : ""}`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${player.displayName} seat`}
+              aria-expanded={avatarPeek}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleAvatarPeek();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleAvatarPeek();
+                }
+              }}
+              onBlur={() => setAvatarPeek(false)}
+            >
               {player.isDealer && (
                 <span
                   className={`bseat__dealer${player.dealerMoved ? " bseat__dealer--moved" : ""}`}
