@@ -101,7 +101,7 @@ export default function App() {
               className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
               onClick={() => setScreen("room")}
             >
-              Private Room
+              Private room
             </button>
             <a className="app__nav-link app__nav-link--external" href="/social/">
               Social

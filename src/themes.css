@@ -171,7 +171,9 @@
 }
 
 [data-theme="light"] .btn--primary,
+[data-theme="light"] .app__nav-link.is-active,
 [data-theme="light"] .nav__link.is-active,
+[data-theme="light"] .tab.is-active,
 [data-theme="light"] .brand__mark {
   background: linear-gradient(160deg, #a68952, #8b7342);
   color: #faf6ea;
@@ -186,8 +188,10 @@
   border-color: transparent;
 }
 
+[data-theme="light"] .rules__tab.is-active,
 [data-theme="light"] .rules-tab.is-active,
-[data-theme="light"] .modal__tab.is-active {
+[data-theme="light"] .modal__tab.is-active,
+[data-theme="light"] .session-tab.is-active {
   background: linear-gradient(160deg, #a68952, #8b7342);
   color: #faf6ea;
 }

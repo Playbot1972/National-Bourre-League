@@ -182,10 +182,10 @@ export function PrivateRoomScreen() {
 
   return (
     <div className="room">
-      <header className="room__head">
+      <header className="room__head screen-header">
         <p className="eyebrow">Private room</p>
         <h1>Table lobby</h1>
-        <p className="room__lede">
+        <p className="screen-lede">
           Invite friends, record hands, and track per-hand stakes for a friendly game.
         </p>
         <p className="room__memory" role="note">
@@ -312,7 +312,7 @@ export function PrivateRoomScreen() {
 
         <div className="room__add">
           <input
-            className="room__input"
+            className="text-input room__input"
             type="text"
             placeholder="Add a player by name"
             value={newName}
@@ -336,7 +336,7 @@ export function PrivateRoomScreen() {
             <span></span>
           </li>
           {players.length === 0 && (
-            <li className="room__empty">No players yet — add someone to start.</li>
+            <li className="state-box state-box--empty room__empty">No players yet — add someone to start.</li>
           )}
           {players.map((p) => {
             const isLeader = p.handsWon > 0 && p.handsWon === leaderHands;
@@ -418,7 +418,7 @@ export function PrivateRoomScreen() {
         </label>
         <textarea
           id="room-notes"
-          className="room__notes-field"
+          className="text-area room__notes-field"
           rows={4}
           placeholder="Jot down reminders, seating, or house-rule tweaks. This is not a ledger."
           value={notes}

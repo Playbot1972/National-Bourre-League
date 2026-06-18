@@ -17,7 +17,7 @@ export function TutorialScreen() {
 
   return (
     <div className="tut">
-      <header className="tut__head">
+      <header className="tut__head screen-header">
         <p className="eyebrow">Interactive tutorial</p>
         <h1>Play a hand of Bourré</h1>
         <ProgressDots total={total} current={index} onPick={setIndex} />
@@ -268,8 +268,12 @@ function InteractiveTrick({
 
       {feedback && (
         <p
-          className={`tut__feedback ${
-            isCorrect ? "is-correct" : isLegal ? "is-ok" : "is-wrong"
+          className={`tut__feedback state-box ${
+            isCorrect
+              ? "state-box--success"
+              : isLegal
+                ? "state-box--info"
+                : "state-box--error"
           }`}
           role="status"
         >

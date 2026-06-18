@@ -361,6 +361,7 @@ document.addEventListener("click", (e) => {
 $("#sign-out").addEventListener("click", async () => {
   toggleProfileMenu(false);
   await signOutUser();
+  location.hash = "#home";
 });
 
 // ---------------------------------------------------------------------------
@@ -1516,12 +1517,25 @@ async function completeSessionWithApeScores(roomId, sessionId, scores) {
   return results;
 }
 
-function showRoomsError(msg) {
+function showRoomsFeedback(msg, kind = "error") {
   roomsError.textContent = msg;
   roomsError.hidden = !msg;
+  roomsError.classList.remove(
+    "form-feedback--error",
+    "form-feedback--success",
+    "form-feedback--info",
+  );
   if (msg) {
+    if (kind === "success") roomsError.classList.add("form-feedback--success");
+    else if (kind === "info") roomsError.classList.add("form-feedback--info");
+    else roomsError.classList.add("form-feedback--error");
     roomsError.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+}
+
+/** @deprecated Use showRoomsFeedback(msg, kind) */
+function showRoomsError(msg, kind) {
+  showRoomsFeedback(msg, kind);
 }
 
 function clearDetailSubs() {
@@ -1627,7 +1641,7 @@ async function onRemoveSessionPlayer(playerId, displayName) {
     await removeSessionPlayer(currentRoomId, openSessionId, playerId, session);
     openScores = openScores.filter((sc) => sc.playerId !== playerId);
     scheduleRenderRoomDetail();
-    showRoomsError(`${label} was removed from the session.`);
+    showRoomsError(`${label} was removed from the session.`, "success");
   } catch (err) {
     console.error("removeSessionPlayer:", err);
     showRoomsError(err?.message || "Could not remove player.");
@@ -1775,7 +1789,7 @@ $("#join-form").addEventListener("submit", async (e) => {
     markPendingSelfJoin(roomId);
     openRoom(roomId);
     const roomName = currentRoom?.name;
-    showRoomsError(roomName ? `Joined ${roomName}.` : "Joined room.");
+    showRoomsError(roomName ? `Joined ${roomName}.` : "Joined room.", "success");
   } catch (err) {
     clearPendingSelfJoin();
     console.error("joinRoomByCode:", err);
@@ -3455,7 +3469,7 @@ async function onNewSession() {
   const previousSession = currentSessions.find((s) => s.id === previousSessionId);
 
   creatingSession = true;
-  showRoomsError("Opening regional table…");
+  showRoomsError("Opening regional table…", "info");
 
   try {
     if (
@@ -3563,11 +3577,11 @@ async function onSettleHand(choice) {
       recordedBy: session.uid,
     });
     if (result.status === "pending") {
-      showRoomsError(formatVoteRecordedMessage(choice, result));
+      showRoomsError(formatVoteRecordedMessage(choice, result), "success");
     } else if (result.settlement === "split") {
-      showRoomsError(formatVoteRecordedMessage(choice, result));
+      showRoomsError(formatVoteRecordedMessage(choice, result), "success");
     } else if (result.settlement === "non_winner_ante_up") {
-      showRoomsError(formatVoteRecordedMessage(choice, result));
+      showRoomsError(formatVoteRecordedMessage(choice, result), "success");
     }
   } catch (err) {
     console.error("voteCoWinSettlement:", err);
@@ -3605,11 +3619,15 @@ async function onCompleteSession() {
 // ---------------------------------------------------------------------------
 let leaderboardUnsub = null;
 let leaderboard = [];
+let leaderboardLoaded = false;
 
 function startLeaderboardSubscription() {
   stopLeaderboardSubscription();
+  leaderboardLoaded = false;
+  renderLeaderboard();
   leaderboardUnsub = subscribeLeaderboard((players) => {
     leaderboard = players;
+    leaderboardLoaded = true;
     renderLeaderboard();
   });
 }
@@ -3620,6 +3638,7 @@ function stopLeaderboardSubscription() {
     leaderboardUnsub = null;
   }
   leaderboard = [];
+  leaderboardLoaded = false;
 }
 
 const APE_CLASS_EMOJI = {
@@ -3634,8 +3653,12 @@ const APE_CLASS_EMOJI = {
 function renderLeaderboard() {
   const list = $("#leaderboard-list");
   if (!list) return;
+  if (!leaderboardLoaded) {
+    list.innerHTML = `<p class="state-box state-box--loading" role="status">Loading leaderboard…</p>`;
+    return;
+  }
   if (leaderboard.length === 0) {
-    list.innerHTML = `<p class="muted">No ranked players yet. Complete a session to put apes on the board.</p>`;
+    list.innerHTML = `<p class="state-box state-box--empty">No ranked players yet. Complete a session to put apes on the board.</p>`;
     return;
   }
   list.innerHTML = leaderboard
@@ -3678,7 +3701,7 @@ function renderLeagues() {
   const list = $("#leagues-list");
   list.innerHTML = "";
   if (leagues.length === 0) {
-    list.innerHTML = `<p class="muted">No leagues yet. Start one to track standings.</p>`;
+    list.innerHTML = `<p class="state-box state-box--empty">No leagues yet. Start one to track standings.</p>`;
     return;
   }
   leagues.forEach((league) => {

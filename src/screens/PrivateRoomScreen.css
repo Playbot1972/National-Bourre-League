@@ -4,22 +4,6 @@
   gap: 22px;
 }
 
-.room__head {
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.room__head h1 {
-  font-size: clamp(28px, 5vw, 44px);
-}
-.room__lede {
-  max-width: 56ch;
-  color: var(--text-dim);
-  line-height: 1.6;
-  margin: 0;
-}
 .room__memory {
   margin: 6px 0 0;
   font-size: 13px;
@@ -130,20 +114,6 @@
 }
 .room__input {
   flex: 1 1 220px;
-  min-width: 0;
-  background: rgba(7, 28, 20, 0.6);
-  border: 1px solid rgba(244, 213, 141, 0.25);
-  color: var(--text-light);
-  border-radius: 10px;
-  padding: 11px 14px;
-  font-size: 15px;
-}
-.room__input::placeholder {
-  color: var(--text-dim);
-}
-.room__input:focus-visible {
-  outline: 2px solid var(--gold-300);
-  outline-offset: 1px;
 }
 
 .room__list {
@@ -220,23 +190,14 @@
 .room__score-input {
   width: 56px;
   text-align: center;
-  background: rgba(7, 28, 20, 0.6);
-  border: 1px solid rgba(244, 213, 141, 0.25);
+  background: var(--surface-input);
+  border: 1px solid var(--border-soft);
   color: var(--text-light);
   border-radius: 8px;
   padding: 7px 6px;
   font-size: 15px;
 }
 
-.room__select {
-  width: 100%;
-  background: rgba(7, 28, 20, 0.6);
-  border: 1px solid rgba(244, 213, 141, 0.25);
-  color: var(--text-light);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 14px;
-}
 .room__select:focus-visible,
 .room__score-input:focus-visible {
   outline: 2px solid var(--gold-300);
@@ -246,6 +207,10 @@
 .room__row-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.room__session-stake {
+  margin-bottom: 16px;
 }
 .room__remove {
   background: none;
@@ -261,15 +226,20 @@
 }
 
 .room__empty {
+  list-style: none;
   text-align: center;
-  color: var(--text-dim);
-  padding: 18px;
-  font-style: italic;
 }
 
-.room__session-stake {
-  margin-bottom: 16px;
+.room__select {
+  width: 100%;
+  background: var(--surface-input);
+  border: 1px solid var(--border-soft);
+  color: var(--text-light);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
+
 .room__stake-locked {
   display: flex;
   align-items: center;
@@ -372,24 +342,9 @@
 
 /* Notes */
 .room__notes-field {
-  width: 100%;
-  resize: vertical;
-  background: rgba(7, 28, 20, 0.6);
-  border: 1px solid rgba(244, 213, 141, 0.25);
-  color: var(--text-light);
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 15px;
-  font-family: inherit;
-  line-height: 1.5;
+  min-height: 100px;
 }
-.room__notes-field::placeholder {
-  color: var(--text-dim);
-}
-.room__notes-field:focus-visible {
-  outline: 2px solid var(--gold-300);
-  outline-offset: 1px;
-}
+
 .room__notes-hint {
   margin: 10px 0 0;
   font-size: 13px;
