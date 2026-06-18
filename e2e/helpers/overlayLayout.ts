@@ -9,7 +9,114 @@ export interface OverlayStageMetrics {
   heightRatio: number;
 }
 
-/** Read overlay vs felt stage size — catches compacted-table regressions. */
+export interface OverlayFixtureOptions {
+  players?: number;
+  bots?: number;
+  phase?: "enrollment" | "draw" | "play";
+}
+
+export function overlayFixtureUrl(options: OverlayFixtureOptions = {}): string {
+  const qs = new URLSearchParams({
+    players: String(options.players ?? 4),
+    bots: String(options.bots ?? 1),
+    phase: options.phase ?? "draw",
+  });
+  return `/e2e-fixtures/table-overlay.html?${qs}`;
+}
+
+/** Open the full-screen gameplay overlay fixture (mobile + desktop layout checks). */
+export async function openOverlayFixture(page: Page, options: OverlayFixtureOptions = {}) {
+  await page.goto(overlayFixtureUrl(options));
+  const overlay = page.locator("#table-play-overlay");
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
+  await expect(overlay.getByTestId("table-felt")).toBeVisible();
+  await page.waitForFunction(() => {
+    const stage = document.querySelector("#table-play-overlay .table-stage") as HTMLElement | null;
+    const wrap = document.querySelector("#table-play-overlay .btable-wrap") as HTMLElement | null;
+    if (!stage || !wrap) return false;
+    const w = stage.getBoundingClientRect().width;
+    const fitW = parseFloat(getComputedStyle(wrap).getPropertyValue("--stage-fit-width"));
+    return w > 180 && fitW > 180;
+  });
+}
+
+export async function overlayHorizontalOverflow(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const overlay = document.querySelector("#table-play-overlay");
+    if (!overlay) return document.documentElement.scrollWidth - document.documentElement.clientWidth;
+    const el = overlay as HTMLElement;
+    return el.scrollWidth - el.clientWidth;
+  });
+}
+
+/** True when element center is inside the visual viewport. */
+export async function isOverlayControlInViewport(page: Page, testId: string): Promise<boolean> {
+  const overlay = page.locator("#table-play-overlay");
+  const locator = overlay.getByTestId(testId).first();
+  await locator.scrollIntoViewIfNeeded();
+  return locator.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const vx = window.visualViewport?.offsetLeft ?? 0;
+    const vy = window.visualViewport?.offsetTop ?? 0;
+    return (
+      cx >= vx &&
+      cy >= vy &&
+      cx <= vx + vw &&
+      cy <= vy + vh &&
+      rect.width > 0 &&
+      rect.height > 0
+    );
+  });
+}
+
+/** Combined gameplay block (stage + hero) width vs overlay — better for landscape row layout. */
+export async function readOverlayGameplayMetrics(page: Page) {
+  return page.evaluate(() => {
+    const overlay = document.querySelector("#table-play-overlay");
+    const wrap = document.querySelector("#table-play-overlay .btable-wrap");
+    const stage = document.querySelector("#table-play-overlay .table-stage");
+    if (!overlay || !wrap || !stage) return null;
+    const o = overlay.getBoundingClientRect();
+    const w = wrap.getBoundingClientRect();
+    const s = stage.getBoundingClientRect();
+    if (o.width <= 0 || o.height <= 0) return null;
+    return {
+      overlayW: o.width,
+      overlayH: o.height,
+      gameplayW: w.width,
+      stageW: s.width,
+      stageH: s.height,
+      gameplayWidthRatio: w.width / o.width,
+      stageWidthRatio: s.width / o.width,
+      stageHeightRatio: s.height / o.height,
+      landscapeRow: wrap.classList.contains("btable-wrap--landscape-row"),
+    };
+  });
+}
+
+export async function expectMobileOverlayGameplayFits(
+  page: Page,
+  opts: { portrait: boolean },
+) {
+  const metrics = await readOverlayGameplayMetrics(page);
+  expect(metrics, "overlay gameplay block should be measurable").not.toBeNull();
+  expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
+
+  if (opts.portrait) {
+    expect(metrics!.stageWidthRatio).toBeGreaterThan(0.42);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.16);
+  } else {
+    expect(metrics!.landscapeRow).toBe(true);
+    expect(metrics!.gameplayWidthRatio).toBeGreaterThan(0.82);
+    expect(metrics!.stageW).toBeGreaterThan(180);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.18);
+  }
+}
 export async function readOverlayStageMetrics(page: Page): Promise<OverlayStageMetrics | null> {
   return page.evaluate(() => {
     const overlay = document.querySelector("#table-play-overlay");

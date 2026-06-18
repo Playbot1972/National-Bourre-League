@@ -1,5 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
-import { computeStageFit, isWithinViewport, rectFromDomRect, stabilizeHeroHeight, STAGE_SEAT_OVERFLOW_PAD } from "../stageFit";
+import {
+  computeStageFit,
+  computeMobileLandscapeOverlayFit,
+  isWithinViewport,
+  rectFromDomRect,
+  stabilizeHeroHeight,
+  STAGE_SEAT_OVERFLOW_PAD,
+  tableAspectForMobileViewport,
+} from "../stageFit";
 import { useTableTheme } from "../theme/useTableTheme";
 import { useMobileTable } from "../useMobileTable";
 
@@ -16,6 +24,49 @@ function readSafePx(name: string, fallback: number): number {
   const raw = getComputedStyle(root).getPropertyValue(name).trim();
   const parsed = parseFloat(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function measureSessionChromePx(wrap: HTMLElement, nativeMobile: boolean): number {
+  const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
+  const main = wrap.closest<HTMLElement>(".table-play-overlay__main");
+  if (inOverlay && nativeMobile && main) {
+    const session = wrap.closest<HTMLElement>(".btable-session");
+    if (!session) return 0;
+    let chrome = 0;
+    const head = session.querySelector<HTMLElement>(".btable-session__head");
+    const foot = session.querySelector<HTMLElement>(".btable-session__foot");
+    const settle = session.querySelector<HTMLElement>(".btable-session__settle");
+    if (head) chrome += head.getBoundingClientRect().height;
+    if (foot && foot.offsetParent !== null) chrome += foot.getBoundingClientRect().height;
+    if (settle && settle.offsetParent !== null) chrome += settle.getBoundingClientRect().height;
+    return chrome + 4;
+  }
+
+  const session = wrap.closest<HTMLElement>(".btable-session");
+  if (!session) return 0;
+  let chrome = 0;
+  const head = session.querySelector<HTMLElement>(".btable-session__head");
+  const foot = session.querySelector<HTMLElement>(".btable-session__foot");
+  const settle = session.querySelector<HTMLElement>(".btable-session__settle");
+  if (head) chrome += head.getBoundingClientRect().height;
+  if (foot && foot.offsetParent !== null) chrome += foot.getBoundingClientRect().height;
+  if (settle && settle.offsetParent !== null) chrome += settle.getBoundingClientRect().height;
+  if (nativeMobile) chrome += 4;
+  return chrome;
+}
+
+function stageFitHost(wrap: HTMLElement, nativeMobile: boolean): HTMLElement {
+  const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
+  if (nativeMobile && inOverlay) {
+    const main = wrap.closest<HTMLElement>(".table-play-overlay__main");
+    if (main) return main;
+  }
+  const viewport = wrap.closest<HTMLElement>(".btable-desktop__viewport");
+  if (viewport) return viewport;
+  const main = wrap.closest<HTMLElement>(".table-play-overlay__main");
+  if (main) return main;
+  const session = wrap.closest<HTMLElement>(".btable-session");
+  return session ?? wrap;
 }
 
 export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitOptions) {
@@ -41,48 +92,94 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
       wrap.closest(".table-play-overlay__main") ??
       wrap.closest(".btable-session");
 
+    const visualViewport = window.visualViewport;
+
     const apply = () => {
       const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
-      const host = viewport instanceof HTMLElement ? viewport : wrap;
+      const portrait =
+        typeof window !== "undefined" &&
+        window.matchMedia("(orientation: portrait)").matches;
+      const host = stageFitHost(wrap, nativeMobile);
       const hostRect = host.getBoundingClientRect();
       const hero = wrap.querySelector<HTMLElement>(".hand-panel");
       const heroRect = hero?.getBoundingClientRect();
-      const heroFloor = inOverlay && !nativeMobile ? 120 : nativeMobile ? 132 : 148;
-      const heroCap = inOverlay && !nativeMobile ? 200 : nativeMobile ? 220 : 280;
+      const heroFloor =
+        inOverlay && nativeMobile && portrait
+          ? 100
+          : inOverlay && !nativeMobile
+            ? 120
+            : nativeMobile
+              ? 112
+              : 148;
+      const heroCap =
+        inOverlay && nativeMobile && portrait
+          ? 200
+          : inOverlay && !nativeMobile
+            ? 200
+            : nativeMobile
+              ? 210
+              : 280;
       const measuredHero = heroRect?.height ?? 0;
       const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
       heroPeakRef.current = stableHero.peak;
-      const heroMinHeight = Math.min(stableHero.height, heroCap);
+      const heroMinHeight =
+        inOverlay && nativeMobile && measuredHero > 0
+          ? Math.min(Math.max(measuredHero, heroFloor), heroCap)
+          : Math.min(stableHero.height, heroCap);
 
-      const overflowPad = inOverlay && !nativeMobile ? 16 : STAGE_SEAT_OVERFLOW_PAD;
-      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16) + overflowPad;
-      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12) + overflowPad;
-      const gap = readSafePx("--stage-fit-gap", 12);
+      const overflowPad = nativeMobile ? 22 : inOverlay && !nativeMobile ? 16 : STAGE_SEAT_OVERFLOW_PAD;
+      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 8 : 16) + overflowPad;
+      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 6 : 12) + overflowPad;
+      const gap = readSafePx("--stage-fit-gap", nativeMobile ? 8 : 12);
 
-      const vv = window.visualViewport;
+      const vv = visualViewport;
       const availWidth = Math.min(hostRect.width, vv?.width ?? window.innerWidth);
-      const availHeight = Math.min(hostRect.height, vv?.height ?? window.innerHeight);
+      let availHeight = Math.min(hostRect.height, vv?.height ?? window.innerHeight);
+      if (inOverlay && nativeMobile) {
+        availHeight = Math.max(160, availHeight - measureSessionChromePx(wrap, nativeMobile));
+      }
 
-      const userScale = nativeMobile ? 1 : settings.tableScale;
-      const fit = computeStageFit({
-        availWidth,
-        availHeight,
-        aspect,
-        userScale,
-        padX,
-        padY,
-        heroMinHeight,
-        gap,
-      });
+      const userScale = Math.max(0.85, Math.min(1.35, settings.tableScale || 1));
+      const fitAspect = nativeMobile
+        ? tableAspectForMobileViewport(aspect, { portrait })
+        : aspect;
 
-      const layoutWidth =
-        inOverlay && !nativeMobile ? fit.displayStageWidth : fit.stageWidth;
-      const layoutHeight =
-        inOverlay && !nativeMobile ? fit.displayStageHeight : fit.stageHeight;
+      const landscapeRow = inOverlay && nativeMobile && !portrait;
+      const fit = landscapeRow
+        ? {
+            ...computeMobileLandscapeOverlayFit({
+              availWidth,
+              availHeight,
+              aspect: fitAspect,
+              userScale,
+              padX,
+              padY,
+            }),
+            stageWidth: 0,
+            stageHeight: 0,
+          }
+        : computeStageFit({
+            availWidth,
+            availHeight,
+            aspect: fitAspect,
+            userScale,
+            padX,
+            padY,
+            heroMinHeight,
+            gap,
+          });
+
+      wrap.classList.toggle("btable-wrap--landscape-row", landscapeRow);
+
+      const useContainPixels = nativeMobile || inOverlay;
+      const layoutWidth = useContainPixels ? fit.displayStageWidth : fit.stageWidth;
+      const layoutHeight = useContainPixels ? fit.displayStageHeight : fit.stageHeight;
       const transformScale =
         inOverlay && !nativeMobile
-          ? Math.max(0.85, Math.min(1.35, userScale || 1))
-          : fit.effectiveScale;
+          ? userScale
+          : nativeMobile
+            ? 1
+            : fit.effectiveScale;
 
       wrap.style.setProperty("--stage-fit-width", `${Math.round(layoutWidth)}px`);
       wrap.style.setProperty("--stage-fit-height", `${Math.round(layoutHeight)}px`);
@@ -108,6 +205,9 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
           fit,
           stageBounds,
           seatOverflow,
+          nativeMobile,
+          inOverlay,
+          portrait,
         });
       }
     };
@@ -117,11 +217,19 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
     const hero = wrap.querySelector<HTMLElement>(".hand-panel");
     if (hero) ro.observe(hero);
     if (viewport instanceof HTMLElement) ro.observe(viewport);
+    const session = wrap.closest(".btable-session");
+    if (session instanceof HTMLElement) ro.observe(session);
+    const main = wrap.closest(".table-play-overlay__main");
+    if (main instanceof HTMLElement) ro.observe(main);
     apply();
     window.addEventListener("orientationchange", apply);
+    visualViewport?.addEventListener("resize", apply);
+    visualViewport?.addEventListener("scroll", apply);
     return () => {
       ro.disconnect();
       window.removeEventListener("orientationchange", apply);
+      visualViewport?.removeEventListener("resize", apply);
+      visualViewport?.removeEventListener("scroll", apply);
     };
   }, [aspect, enabled, nativeMobile, sessionKey, settings.tableScale]);
 

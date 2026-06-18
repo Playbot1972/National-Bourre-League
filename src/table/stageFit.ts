@@ -43,6 +43,48 @@ export function stabilizeHeroHeight(
   return { height: Math.max(height, floor), peak: nextPeak };
 }
 
+/** Tighter aspect on phones so the racetrack fits portrait without horizontal squeeze. */
+export function tableAspectForMobileViewport(
+  baseAspect: number,
+  opts: { portrait: boolean },
+): number {
+  const aspect = Math.max(0.75, baseAspect);
+  if (opts.portrait) return Math.min(aspect, 0.98);
+  return Math.min(aspect, 1.32);
+}
+
+export function computeMobileLandscapeOverlayFit(
+  input: Pick<StageFitInput, "availWidth" | "availHeight" | "aspect" | "userScale" | "padX" | "padY"> & {
+    stageShare?: number;
+  },
+): Pick<StageFitResult, "displayStageWidth" | "displayStageHeight" | "fitScale" | "effectiveScale"> {
+  const {
+    availWidth,
+    availHeight,
+    aspect,
+    userScale,
+    padX,
+    padY,
+    stageShare = 0.58,
+  } = input;
+  const scale = Math.max(0.85, Math.min(1.35, userScale || 1));
+  const maxW = Math.max(0, availWidth * stageShare - padX * 2);
+  const maxH = Math.max(0, availHeight - padY * 2);
+  let stageW = maxW;
+  let stageH = stageW / aspect;
+  if (stageH > maxH) {
+    stageH = maxH;
+    stageW = stageH * aspect;
+  }
+  const fitScale = Math.max(0, Math.min(1, maxW / (stageW * scale), maxH / (stageH * scale)));
+  return {
+    displayStageWidth: stageW * fitScale,
+    displayStageHeight: stageH * fitScale,
+    fitScale,
+    effectiveScale: fitScale * scale,
+  };
+}
+
 export function computeStageFit(input: StageFitInput): StageFitResult {
   const {
     availWidth,

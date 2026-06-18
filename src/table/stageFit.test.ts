@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStageFit, isWithinViewport, stabilizeHeroHeight } from "./stageFit";
+import { computeStageFit, isWithinViewport, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
 
 describe("stageFit", () => {
   it("contain-fits stage inside viewport without exceeding width", () => {
@@ -70,5 +70,10 @@ describe("stageFit", () => {
     assert.equal(isWithinViewport(inner, viewport), true);
     const clipped = { left: -4, top: 40, right: 380, bottom: 760, width: 384, height: 720 };
     assert.equal(isWithinViewport(clipped, viewport), false);
+  });
+
+  it("tightens mobile portrait aspect", () => {
+    assert.equal(tableAspectForMobileViewport(1.2, { portrait: true }), 0.98);
+    assert.equal(tableAspectForMobileViewport(1.2, { portrait: false }), 1.2);
   });
 });

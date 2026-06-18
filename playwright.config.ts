@@ -17,22 +17,22 @@ export default defineConfig({
     {
       name: "desktop-chromium",
       use: { ...devices["Desktop Chrome"], browserName: "chromium" },
-      testIgnore: [/table-smoke\.mobile\.spec\.ts$/],
+      testIgnore: [/table-smoke\.mobile\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
     },
     {
       name: "mobile-pixel5",
       use: { ...devices["Pixel 5 landscape"], browserName: "chromium", hasTouch: true },
-      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/],
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
     },
     {
       name: "mobile-iphone-portrait",
       use: { ...devices["iPhone 13"], browserName: "chromium", hasTouch: true },
-      testMatch: [/table-smoke\.mobile\.spec\.ts$/],
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
     },
     {
       name: "mobile-landscape",
       use: { ...devices["iPhone 13 landscape"], browserName: "chromium" },
-      testMatch: [/table-players\.spec\.ts$/],
+      testMatch: [/table-players\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
     },
     {
       name: "tablet-landscape",

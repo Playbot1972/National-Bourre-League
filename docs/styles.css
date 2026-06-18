@@ -1895,6 +1895,148 @@ body.table-play-active .footer {
   }
 }
 
+/* Mobile gameplay overlay — contain-fit stage; no horizontal pan */
+@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
+  .table-play-overlay {
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  .table-play-overlay__main {
+    overflow: hidden;
+    overscroll-behavior: none;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .table-play-overlay .table-session-root,
+  .table-play-overlay .btable-session--native-mobile,
+  .table-play-overlay .btable-desktop--native-mobile,
+  .table-play-overlay .btable-desktop--native-mobile .btable-desktop__viewport,
+  .table-play-overlay .btable-desktop--native-mobile .btable-desktop__scale,
+  .table-play-overlay .btable-stage {
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .table-play-overlay .btable-desktop--native-mobile .btable-desktop__scale {
+    transform: none;
+    width: 100%;
+    --stage-effective-scale: 1;
+  }
+
+  .table-play-overlay .btable-wrap {
+    width: min(100%, var(--stage-fit-width, 100%));
+    max-width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    justify-content: center;
+    --stage-fit-pad-x: max(8px, env(safe-area-inset-left, 0px));
+    --stage-fit-pad-y: max(6px, env(safe-area-inset-top, 0px));
+  }
+
+  .table-play-overlay .table-stage {
+    width: min(100%, var(--stage-fit-width, 100%));
+    max-width: 100%;
+    height: var(--stage-fit-height, auto);
+    max-height: var(--stage-fit-height, none);
+    aspect-ratio: unset;
+    flex-shrink: 1;
+    overflow: visible;
+  }
+
+  .table-play-overlay .btable-hero__actions {
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .table-play-overlay .btable-session__gear {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 900px) and (orientation: portrait), ((hover: none) and (pointer: coarse) and (orientation: portrait)) {
+  .table-play-overlay .btable-session__head {
+    flex-shrink: 0;
+    padding-bottom: 2px;
+  }
+
+  .table-play-overlay .hand-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    max-height: min(36dvh, 260px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-play-overlay .table-stage {
+    max-height: var(--stage-fit-height, min(42dvh, 340px));
+    height: var(--stage-fit-height, auto);
+    aspect-ratio: unset;
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape), ((hover: none) and (pointer: coarse) and (orientation: landscape)) {
+  .table-play-overlay__bar {
+    padding-bottom: 2px;
+    margin-bottom: 2px;
+  }
+
+  .table-play-overlay__main {
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .table-play-overlay .btable-wrap--landscape-row {
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: center;
+    gap: clamp(6px, 1.2vw, 10px);
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .table-play-overlay .btable-wrap--landscape-row .table-stage-fit {
+    flex: 1 1 58%;
+    min-width: 0;
+    max-width: 62%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .table-play-overlay .btable-wrap--landscape-row .table-stage {
+    width: min(100%, var(--stage-fit-width, 100%));
+    max-width: 100%;
+  }
+
+  .table-play-overlay .btable-wrap--landscape-row .hand-panel {
+    flex: 1 1 38%;
+    min-width: 0;
+    max-width: 42%;
+    max-height: none;
+    overflow-y: auto;
+    align-self: center;
+  }
+
+  .table-play-overlay .hand-panel {
+    max-height: min(34dvh, 220px);
+  }
+
+  .table-play-overlay .table-stage {
+    max-height: var(--stage-fit-height, min(48dvh, 300px));
+    height: var(--stage-fit-height, auto);
+    aspect-ratio: unset;
+  }
+}
+
 .session-play-cta {
   margin-bottom: 4px;
   padding: 16px 18px;
