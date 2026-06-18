@@ -108,7 +108,7 @@ import {
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
-import { VERSION_LABEL, BUILD_STAMPED_AT } from "./version.js";
+import { VERSION_DISPLAY_LABEL, BUILD_STAMPED_AT } from "./version.js";
 import {
   mountVersionFooter,
   startVersionUpdateWatcher,
@@ -3760,7 +3760,7 @@ $("#create-league").addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-mountVersionFooter(VERSION_LABEL, BUILD_STAMPED_AT);
+mountVersionFooter(VERSION_DISPLAY_LABEL, BUILD_STAMPED_AT);
 startVersionUpdateWatcher();
 
 renderRoomsList();

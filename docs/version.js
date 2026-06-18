@@ -4,3 +4,4 @@ export const BUILD_ID = "b3636750";
 export const BUILD_CHANNEL = "production";
 export const BUILD_STAMPED_AT = "2026-06-18T14:14:57.724Z";
 export const VERSION_LABEL = "v1.01.49+b3636750";
+export const VERSION_DISPLAY_LABEL = "v1.01.49";

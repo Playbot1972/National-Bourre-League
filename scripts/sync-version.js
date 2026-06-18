@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { formatVersionLabel, isAppVersion } from "./lib/version-format.mjs";
+import { formatVersionLabel, formatVersionDisplayLabel, isAppVersion } from "./lib/version-format.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pkgPath = join(root, "package.json");
@@ -43,6 +43,7 @@ const buildId =
 const channel = resolveBuildChannel();
 const stampedAt = new Date().toISOString();
 const label = formatVersionLabel(version, buildId, channel);
+const displayLabel = formatVersionDisplayLabel(label);
 
 const meta = {
   version,
@@ -61,6 +62,7 @@ export const BUILD_ID = ${JSON.stringify(buildId)};
 export const BUILD_CHANNEL = ${JSON.stringify(channel)};
 export const BUILD_STAMPED_AT = ${JSON.stringify(stampedAt)};
 export const VERSION_LABEL = ${JSON.stringify(label)};
+export const VERSION_DISPLAY_LABEL = ${JSON.stringify(displayLabel)};
 `,
 );
 
@@ -71,6 +73,7 @@ export const BUILD_ID = ${JSON.stringify(buildId)} as const;
 export const BUILD_CHANNEL = ${JSON.stringify(channel)} as const;
 export const BUILD_STAMPED_AT = ${JSON.stringify(stampedAt)} as const;
 export const VERSION_LABEL = ${JSON.stringify(label)} as const;
+export const VERSION_DISPLAY_LABEL = ${JSON.stringify(displayLabel)} as const;
 `,
 );
 
