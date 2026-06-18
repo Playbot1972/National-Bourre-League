@@ -9581,8 +9581,8 @@ function Xt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 					}),
 					p && /* @__PURE__ */ (0, g.jsx)("span", {
 						className: `bseat__stack${e.isOut ? " bseat__stack--out" : ""}`,
-						"aria-label": `Bankroll ${Rt(e.bankroll ?? 0)}`,
-						title: `Stack ${Rt(e.bankroll ?? 0)}`,
+						"aria-label": `Chips ${Rt(e.bankroll ?? 0)}`,
+						title: `Chips ${Rt(e.bankroll ?? 0)}`,
 						children: Rt(e.bankroll ?? 0)
 					}),
 					e.isSelf && a && /* @__PURE__ */ (0, g.jsx)("div", {

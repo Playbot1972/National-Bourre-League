@@ -68,12 +68,13 @@ function sessionWithLegacyDeal() {
   };
 }
 
-function scoreRow(playerId, displayName) {
+function scoreRow(playerId, displayName, buyIn = 20) {
   return {
     sessionId: SESSION_ID,
     roomId: ROOM_ID,
     playerId,
     displayName,
+    bankroll: buyIn,
     tricksWon: 0,
     handsWon: 0,
     net: 0,
@@ -105,8 +106,12 @@ async function commitSettlementBatch(db, actorUid) {
   for (const pid of [HOST_UID, GUEST_UID]) {
     const patch = {
       net: pid === HOST_UID ? 2 : -2,
+      bankroll: pid === HOST_UID ? 22 : 18,
       updatedAt: serverTimestamp(),
     };
+    if (pid === GUEST_UID) {
+      patch.out = deleteField();
+    }
     if (pid === HOST_UID) {
       patch.handsWon = 1;
       patch.tricksWon = 1;
