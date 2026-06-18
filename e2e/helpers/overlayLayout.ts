@@ -21,7 +21,7 @@ export function overlayFixtureUrl(options: OverlayFixtureOptions = {}): string {
     bots: String(options.bots ?? 1),
     phase: options.phase ?? "draw",
   });
-  return `/e2e-fixtures/table-overlay.html?${qs}`;
+  return `/e2e-fixtures/table-overlay?${qs}`;
 }
 
 /** Open the full-screen gameplay overlay fixture (mobile + desktop layout checks). */
