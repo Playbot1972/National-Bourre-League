@@ -79,7 +79,15 @@
 
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
-import { settleHandDeltas, DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings } from "./bourre-rules.js";
+import {
+  settleHandDeltas,
+  applySolventSettlement,
+  scoreBankroll,
+  canEnrollWithBankroll,
+  resolveSessionBuyIn,
+  DEFAULT_BOURRE_SETTINGS,
+  normalizeBourreSettings,
+} from "./bourre-rules.js";
 import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
@@ -421,6 +429,10 @@ export {
   normalizeBourreSettings,
   resolveSessionBuyIn,
   computeHandPotState,
+  scoreBankroll,
+  applyBankrollDelta,
+  canEnrollWithBankroll,
+  applySolventSettlement,
 } from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
@@ -657,7 +669,35 @@ export async function updateRoomBourreSettings(roomId, bourreSettings) {
       buyInAmount: normalized.buyInAmount,
       anteAmount: normalized.anteAmount,
       limEnabled: normalized.limEnabled,
+      rebuyEnabled: normalized.rebuyEnabled,
     },
+    updatedAt: serverTimestamp(),
+  });
+}
+
+/** Manual top-up when rebuy house rule is enabled and bankroll is empty. */
+export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId }) {
+  if (!playerId || !actorId) throw new Error("Missing player");
+  if (playerId !== actorId) throw new Error("You can only rebuy for yourself");
+
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) throw new Error("Room not found");
+  const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
+
+  if (!bourre.rebuyEnabled) throw new Error("Rebuy is not enabled for this room");
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  if (sessionSnap.data().status === "final") throw new Error("Session is final");
+
+  const buyIn = resolveSessionBuyIn(sessionSnap.data(), bourre);
+  const scoreRef = scoreDoc(roomId, sessionId, playerId);
+  const scoreSnap = await getDoc(scoreRef);
+  if (!scoreSnap.exists()) throw new Error("Player not in session");
+
+  await updateDoc(scoreRef, {
+    bankroll: buyIn,
+    out: deleteField(),
     updatedAt: serverTimestamp(),
   });
 }
@@ -1845,8 +1885,8 @@ async function recordHandClient(
   });
 
   const {
-    deltas,
-    carryOverPot,
+    deltas: nominalDeltas,
+    carryOverPot: nominalCarry,
     bourreIds,
     bourreMatch,
     potState,
@@ -1854,6 +1894,24 @@ async function recordHandClient(
     cappedPot,
     overflow,
   } = handSettlement;
+
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const roomBourre = roomSnap.data()?.bourreSettings ?? DEFAULT_BOURRE_SETTINGS;
+  const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
+
+  const solvent = applySolventSettlement({
+    mode,
+    winners,
+    participants,
+    nominalDeltas,
+    scoreById,
+    carryOverPot: nominalCarry,
+    buyInFallback: buyIn,
+    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+  });
+
+  const deltas = solvent.appliedDeltas;
+  const carryOverPot = solvent.carryOverPot;
 
   const batch = writeBatch(db);
   const handLedger = {
@@ -1883,8 +1941,14 @@ async function recordHandClient(
       (current.tricksWon || 0) + (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
     const patch = {
       net: (current.net || 0) + deltas[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
       updatedAt: serverTimestamp(),
     };
+    if ((solvent.bankrolls[pid] ?? 0) <= 0) {
+      patch.out = true;
+    } else {
+      patch.out = deleteField();
+    }
     if (current.skipNextAnte) {
       patch.skipNextAnte = deleteField();
     }
@@ -2660,7 +2724,17 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+
+  if (inHand) {
+    const row = scoreById[playerId];
+    if (!canEnrollWithBankroll(scoreBankroll(row, buyIn))) {
+      throw new Error("You're out — bankroll is empty. Rebuy is required before joining.");
+    }
+  }
+
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
 
   const enrollment = getSessionEnrollment(sessionData);

@@ -23,6 +23,14 @@ export interface TablePlayer {
   handsWon: number;
   /** Session net — only populated for the viewing player. */
   net?: number;
+  /** Live stack — public to all observers. */
+  bankroll?: number | null;
+  /** True when bankroll is zero and player cannot enroll without rebuy. */
+  isOut?: boolean;
+  /** Brief pulse after bankroll changes at settlement. */
+  bankrollTick?: "up" | "down" | null;
+  /** Bourré avatar alert — pulse then stable marker. */
+  bourreAlert?: "pulse" | "marker" | null;
   perHandStake?: number;
   inHand: boolean;
   /** Tricks won this hand — from session.currentHand.tricksByPlayer[playerId]. */
@@ -149,6 +157,8 @@ export interface TableSessionViewProps {
   currentUserId: string | null;
   /** Indices of legal plays for the viewing player (computed from private hand). */
   legalPlayIndices?: number[] | null;
+  /** Bourré players from the most recently settled hand (drives avatar alert). */
+  recentBourreIds?: string[];
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */

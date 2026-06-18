@@ -1200,6 +1200,123 @@
   color: #e5989b;
 }
 
+.bseat__stack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-300, #d4af37);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  line-height: 1.2;
+}
+
+.bseat__stack--out {
+  color: #c9c9c9;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.bseat--bankroll-up .bseat__stack {
+  animation: bankroll-tick-up 900ms ease-out;
+}
+
+.bseat--bankroll-down .bseat__stack {
+  animation: bankroll-tick-down 900ms ease-out;
+}
+
+@keyframes bankroll-tick-up {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+  40% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 2px rgba(125, 206, 160, 0.45);
+  }
+}
+
+@keyframes bankroll-tick-down {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+  40% {
+    transform: scale(1.06);
+    box-shadow: 0 0 0 2px rgba(229, 152, 155, 0.45);
+  }
+}
+
+.bseat__out-tag {
+  color: #e5989b;
+}
+
+.bseat__bourre-badge {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #1a1208;
+  background: linear-gradient(160deg, #f4d03f, #e67e22);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.bseat__bourre-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid #e74c3c;
+  pointer-events: none;
+  animation: bourre-attention-pulse 1.2s ease-out 2;
+}
+
+@keyframes bourre-attention-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.bseat--bourre-pulse .bseat__avatar-wrap {
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.55);
+}
+
+.bseat--bourre .bseat__avatar-wrap {
+  outline: 1px solid rgba(231, 76, 60, 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bseat__bourre-ring {
+    animation: none;
+    opacity: 0.85;
+  }
+
+  .bseat--bankroll-up .bseat__stack,
+  .bseat--bankroll-down .bseat__stack {
+    animation: none;
+  }
+}
+
 .bseat__opt-in {
   font-size: 11px;
   padding: 4px 10px;

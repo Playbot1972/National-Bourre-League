@@ -29,13 +29,6 @@ function HudPill({
 
 export function SmartHud({ player, compact = false }: SmartHudProps) {
   const showRating = player.apeScore != null && !player.isRobot;
-  const positionLabel = player.isDealer
-    ? "Dealer"
-    : player.isOnTurn
-      ? "Turn"
-      : player.inHand
-        ? "In"
-        : null;
 
   return (
     <div className={`bhud${compact ? " bhud--compact" : ""}`} aria-label={`${player.displayName} stats`}>
@@ -53,10 +46,6 @@ export function SmartHud({ player, compact = false }: SmartHudProps) {
       {player.sessionStreak != null && player.sessionStreak > 0 && (
         <HudPill label="Streak" value={player.sessionStreak} title="Hands won this session" />
       )}
-      {player.inHand && (
-        <HudPill label="Tricks" value={player.tricksThisHand} accent={player.isLeading} />
-      )}
-      {positionLabel && <HudPill label="Seat" value={positionLabel} accent={player.isOnTurn} />}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
-import { formatNet, initials, type SeatRegion } from "./logic";
+import { formatBankroll, initials, type SeatRegion } from "./logic";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -56,8 +56,10 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
 export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
-  const showTrickBadge = player.inHand;
   const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
+  const showBankroll = player.bankroll != null;
+  const bourrePulse = player.bourreAlert === "pulse";
+  const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -82,6 +84,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.isWinner ? "bseat--winner" : "",
         player.enrollmentOnClock ? "bseat--enroll-clock" : "",
         player.enrollmentSatOut ? "bseat--sat-out" : "",
+        player.isOut ? "bseat--out" : "",
         player.isDealer ? "bseat--dealer" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
         player.turnHandoff ? "bseat--turn-handoff" : "",
@@ -91,23 +94,16 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
         player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
         player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
+        bourrePulse ? "bseat--bourre-pulse" : "",
+        bourreMarker ? "bseat--bourre" : "",
+        player.bankrollTick === "up" ? "bseat--bankroll-up" : "",
+        player.bankrollTick === "down" ? "bseat--bankroll-down" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       style={style}
     >
       <div className="bseat__core">
-        {showTrickBadge && (
-          <div
-            className={`bseat__trick-badge${trickCount === 0 ? " bseat__trick-badge--zero" : ""}${player.trickBadgeTick ? " bseat__trick-badge--tick" : ""}`}
-            key={player.trickBadgeTick ? `trick-${player.trickBadgeTick}` : "trick-static"}
-            aria-label={`${trickCount} trick${trickCount === 1 ? "" : "s"} won`}
-            title={`${trickCount} trick${trickCount === 1 ? "" : "s"}`}
-          >
-            {trickCount}
-          </div>
-        )}
-
         {showHoleCards && (
           <div
             className="bseat__hole-cards"
@@ -132,6 +128,11 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}
+            {bourreMarker && (
+              <span className="bseat__bourre-badge" aria-label="Bourré" title="Bourré">
+                Bourré
+              </span>
+            )}
             <div className="bseat__avatar-wrap">
               {player.isDealer && (
                 <span
@@ -148,8 +149,20 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
                 </span>
               )}
               {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+              {bourrePulse && (
+                <span className="bseat__bourre-ring" aria-hidden="true" />
+              )}
             </div>
           </div>
+          {showBankroll && (
+            <span
+              className={`bseat__stack${player.isOut ? " bseat__stack--out" : ""}`}
+              aria-label={`Bankroll ${formatBankroll(player.bankroll ?? 0)}`}
+              title={`Stack ${formatBankroll(player.bankroll ?? 0)}`}
+            >
+              {formatBankroll(player.bankroll ?? 0)}
+            </span>
+          )}
           {player.isSelf && onReaction && (
             <div className="bseat__react-bar">
               {["👏", "😮", "🔥"].map((emoji) => (
@@ -172,16 +185,14 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         <div className="bseat__info">
           <span className="bseat__name">{player.displayName}</span>
           {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
-          {player.enrollmentSatOut && (
+          {player.isOut && (
+            <span className="bseat__out-tag muted small">Out</span>
+          )}
+          {player.enrollmentSatOut && !player.isOut && (
             <span className="bseat__enroll-tag muted small">Sat out</span>
           )}
-          {player.enrollmentJoined && !player.inHand && (
+          {player.enrollmentJoined && !player.inHand && !player.isOut && (
             <span className="bseat__enroll-tag muted small">Joined</span>
-          )}
-          {player.isSelf && player.net != null && (
-            <span className={`bseat__net ${player.net > 0 ? "up" : player.net < 0 ? "down" : ""}`}>
-              {formatNet(player.net)}
-            </span>
           )}
         </div>
 

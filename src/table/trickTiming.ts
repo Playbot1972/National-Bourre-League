@@ -10,8 +10,8 @@ export const CARD_LAND_MS = 220;
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 350;
 
-/** Readability pause after last card before winner highlight (2000 ms per spec). */
-export const POST_TRICK_READ_MS = 2000;
+/** Readability pause after last card before winner highlight (1600 ms — within 1400–1800 spec). */
+export const POST_TRICK_READ_MS = 1600;
 
 /** Winner glow inside the read pause (300–500 ms). */
 export const WINNER_REVEAL_MS = 400;

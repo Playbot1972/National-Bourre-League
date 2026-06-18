@@ -11,6 +11,8 @@ const base = (): MicroTrackInput => ({
   dealerId: "p1",
   potAmount: 10,
   tricksByPlayer: { p1: 0, p2: 0 },
+  bankrollByPlayer: { p1: 10, p2: 10 },
+  bourrePlayerIds: [],
   phase: "play",
   showTrumpSuitReminder: false,
   suppressTurn: false,
@@ -89,5 +91,23 @@ describe("tableMicrointeractions", () => {
     const diff = diffMicrointeractions(null, base());
     assert.equal(diff.turnHandoffPlayerId, null);
     assert.equal(diff.potTick, false);
+  });
+
+  it("detects bankroll decrease after settlement", () => {
+    const prev = createMicroPrevSnapshot(base());
+    const diff = diffMicrointeractions(prev, {
+      ...base(),
+      bankrollByPlayer: { p1: 10, p2: 7 },
+    });
+    assert.equal(diff.bankrollChanges.p2, "down");
+  });
+
+  it("detects bourré alert for newly settled bourré players", () => {
+    const prev = createMicroPrevSnapshot(base());
+    const diff = diffMicrointeractions(prev, {
+      ...base(),
+      bourrePlayerIds: ["p2"],
+    });
+    assert.deepEqual(diff.bourrePlayerIds, ["p2"]);
   });
 });

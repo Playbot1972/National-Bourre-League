@@ -114,8 +114,9 @@ export function MobileCardTable({
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
       turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
-      trickBadgeTick: microinteractions.trickBadgeTicks[player.playerId] ?? 0,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
+      bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
+      bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
     };
   });
 

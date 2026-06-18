@@ -50,6 +50,10 @@ export function formatNet(amount: number) {
   return formatRiskStake(0);
 }
 
+export function formatBankroll(amount: number) {
+  return formatRiskStake(Math.max(0, Number(amount) || 0));
+}
+
 export function initials(name: string) {
   return (name || "?")
     .split(/\s+/)

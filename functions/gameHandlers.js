@@ -21,7 +21,7 @@ import {
   maxDrawDiscards,
   HAND_PHASE,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -913,8 +913,8 @@ export async function handleRecordHand(
   });
 
   const {
-    deltas,
-    carryOverPot,
+    deltas: nominalDeltas,
+    carryOverPot: nominalCarry,
     bourreIds,
     bourreMatch,
     potState,
@@ -922,6 +922,24 @@ export async function handleRecordHand(
     cappedPot,
     overflow,
   } = handSettlement;
+
+  const roomSnap = await db.doc(`rooms/${roomId}`).get();
+  const roomBourre = roomSnap.data()?.bourreSettings ?? {};
+  const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
+
+  const solvent = applySolventSettlement({
+    mode,
+    winners,
+    participants,
+    nominalDeltas,
+    scoreById,
+    carryOverPot: nominalCarry,
+    buyInFallback: buyIn,
+    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+  });
+
+  const deltas = solvent.appliedDeltas;
+  const carryOverPot = solvent.carryOverPot;
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -952,8 +970,14 @@ export async function handleRecordHand(
       (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
     const patch = {
       net: (current.net || 0) + deltas[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
       updatedAt: FieldValue.serverTimestamp(),
     };
+    if ((solvent.bankrolls[pid] ?? 0) <= 0) {
+      patch.out = true;
+    } else {
+      patch.out = FieldValue.delete();
+    }
     if (current.skipNextAnte) patch.skipNextAnte = FieldValue.delete();
     if (bourreIds.includes(pid)) {
       patch.skipNextAnte = true;

@@ -23,6 +23,7 @@ import type { PotSnapshot } from "./settlementCopy";
 /** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
 const EMPTY_ENROLLMENT_IDS: string[] = [];
 const EMPTY_HERO_CARDS: never[] = [];
+const EMPTY_BOURRE_IDS: string[] = [];
 
 export function TableSessionView({
   session,
@@ -39,6 +40,7 @@ export function TableSessionView({
   heroCards = EMPTY_HERO_CARDS,
   privateHandReady = false,
   legalPlayIndices,
+  recentBourreIds = EMPTY_BOURRE_IDS,
   handComplete = false,
   actionFeedback,
   actions,
@@ -93,11 +95,20 @@ export function TableSessionView({
     () => ({ ...trickPresentation.displayTricksByPlayer }),
     [trickPresentation.displayTricksByPlayer],
   );
+  const bankrollByPlayer = useMemo(
+    () =>
+      Object.fromEntries(
+        players.map((p) => [p.playerId, Math.max(0, Number(p.bankroll) || 0)]),
+      ),
+    [players],
+  );
   const microinteractions = useTableMicrointeractions({
     turnPlayerId: session.turnPlayerId ?? null,
     dealerId: session.dealerId,
     potAmount: handPresentation.displayPotAmount,
     tricksByPlayer: tricksSnapshot,
+    bankrollByPlayer,
+    bourrePlayerIds: recentBourreIds ?? [],
     phase: session.phase ?? null,
     showTrumpSuitReminder,
     suppressTurn: Boolean(suppressTurn),
