@@ -30,6 +30,7 @@ interface CardTableProps {
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
+  onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
@@ -53,6 +54,7 @@ export function CardTable({
   handPresentation,
   microinteractions,
   onToggleInHand,
+  onPassEnrollment,
   onTrickDelta,
   onSubmitDraw,
   onPassDraw,
@@ -77,6 +79,7 @@ export function CardTable({
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
   const sessionKey = `${session.sessionId}:${session.handNumber}`;
+  const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -96,8 +99,17 @@ export function CardTable({
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
+    let holeCardCount = player.holeCardCount ?? 0;
+    if (
+      handPresentation.trumpMerged &&
+      player.playerId === trumpHolderId &&
+      session.trumpUpcard
+    ) {
+      holeCardCount = Math.min(5, holeCardCount + 1);
+    }
     return {
       ...player,
+      holeCardCount,
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
       isLeading:
@@ -119,6 +131,10 @@ export function CardTable({
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
       bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
       bourrePressure: bourreRiskIds.has(player.playerId),
+      trumpMerging:
+        handPresentation.trumpMerged &&
+        player.playerId === trumpHolderId &&
+        session.phase === "draw",
     };
   });
   const selfPlayer = players.find((p) => p.isSelf);
@@ -171,6 +187,7 @@ export function CardTable({
           playerNames={playerNames}
           anteAnimActive={handPresentation.anteAnimActive}
           trumpRevealActive={handPresentation.trumpRevealActive}
+          trumpMerged={handPresentation.trumpMerged}
           drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
           drawAnimSubPhase={handPresentation.drawAnimSubPhase}
           drawDiscardCount={handPresentation.drawDiscardCount}
@@ -198,6 +215,11 @@ export function CardTable({
                     player.playerId,
                     player.canToggleInHand ? true : !player.inHand,
                   )
+                }
+                onPassEnrollment={
+                  player.canPassEnrollment && onPassEnrollment
+                    ? () => onPassEnrollment(player.playerId)
+                    : undefined
                 }
                 onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
                 onReaction={player.isSelf ? onReaction : undefined}

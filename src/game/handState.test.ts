@@ -8,6 +8,7 @@ import {
   effectivePlayerHand,
   privateHandFromEffective,
   cardsRemainingInHand,
+  displayHoleCardCount,
 } from "./invariants";
 import { activePlayerOrder } from "./playerOrder";
 import { shuffledDeckFromSeed } from "./deckState";
@@ -271,5 +272,15 @@ describe("dealer trump upcard during play", () => {
       currentTrick: null,
     };
     assert.equal(cardsRemainingInHand(pub, "p2"), 1);
+  });
+
+  it("displayHoleCardCount hides trump holder fifth back while reveal is on table", () => {
+    const d = deal();
+    const pub = publicFromDeal(d);
+    const holder = pub.trumpHolderId ?? pub.dealerId;
+    assert.ok(holder);
+    assert.equal(displayHoleCardCount(pub, holder!, false), 4);
+    assert.equal(displayHoleCardCount(pub, holder!, true), 5);
+    assert.equal(displayHoleCardCount(pub, "p2", false), 5);
   });
 });

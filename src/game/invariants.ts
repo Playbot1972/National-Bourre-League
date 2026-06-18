@@ -158,6 +158,27 @@ export function cardsRemainingInHand(
   return Math.max(0, CARDS_PER_HAND - played - inTrick);
 }
 
+/**
+ * Hole-card count for seat display. While the trump reveal is on the table, the
+ * holder shows one fewer back until presentation merges trump into the hand.
+ */
+export function displayHoleCardCount(
+  publicHand: Pick<
+    PublicHandState,
+    "playedCards" | "currentTrick" | "dealerId" | "trumpHolderId" | "trumpUpcard"
+  >,
+  playerId: string,
+  trumpMergedPresentation = false,
+): number {
+  const base = cardsRemainingInHand(publicHand, playerId);
+  if (trumpMergedPresentation) return base;
+  const owner = trumpOwnerId(publicHand);
+  if (owner === playerId && trumpOnTable(publicHand)) {
+    return Math.max(0, base - 1);
+  }
+  return base;
+}
+
 export function trumpRevealMirroredInHolderHand(
   publicHand: Pick<PublicHandState, "trumpHolderId" | "trumpUpcard">,
   privateHands: Record<string, Card[]>,

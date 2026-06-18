@@ -33,6 +33,7 @@ export interface HandPresentationModel {
   drawDiscardCount: number;
   drawReplaceCount: number;
   trumpRevealActive: boolean;
+  trumpMerged: boolean;
   anteAnimActive: boolean;
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
@@ -54,6 +55,7 @@ export interface HandPresentationStore {
   drawDiscardCount: number;
   drawReplaceCount: number;
   trumpRevealActive: boolean;
+  trumpMerged: boolean;
   anteAnimActive: boolean;
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
@@ -139,6 +141,7 @@ export function createHandPresentationStore(
     drawDiscardCount: 0,
     drawReplaceCount: 0,
     trumpRevealActive: false,
+    trumpMerged: false,
     anteAnimActive: false,
     dealStaggerCount: 0,
     enrollmentPulse: {},
@@ -267,6 +270,7 @@ export function reduceHandPresentation(
           animatingDrawPlayerId: null,
           drawAnimSubPhase: "done",
           trumpRevealActive: false,
+          trumpMerged: true,
           anteAnimActive: false,
           prevSnapshot: snapshot,
           pendingSnapshot: null,
@@ -379,6 +383,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       }
       return withPhase(store, "drawPlayer", {
         trumpRevealActive: false,
+        trumpMerged: true,
         pendingSnapshot: null,
       });
 
@@ -447,6 +452,7 @@ export function buildHandPresentationModel(
     drawDiscardCount: store.drawDiscardCount,
     drawReplaceCount: store.drawReplaceCount,
     trumpRevealActive: store.trumpRevealActive,
+    trumpMerged: store.trumpMerged,
     anteAnimActive: store.anteAnimActive,
     dealStaggerCount: store.dealStaggerCount,
     enrollmentPulse: store.enrollmentPulse,

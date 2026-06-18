@@ -101,6 +101,7 @@ import {
   effectivePlayerHand,
   serializeCards,
   cardsRemainingInHand,
+  displayHoleCardCount,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -2473,8 +2474,9 @@ function buildTableSessionProps(s) {
         : [];
 
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
+  const postedAntes = currentHand?.postedAntes ?? {};
   const antePot = handParticipantIds.reduce(
-    (sum, pid) => sum + playerHandStake(scoreById, pid, handStake),
+    (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, handStake)),
     0,
   );
   const limEnabled = s.limEnabled === true;
@@ -2589,7 +2591,7 @@ function buildTableSessionProps(s) {
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
         holeCardCount: cardsDealt
-          ? cardsRemainingInHand(currentHand || {}, sc.playerId)
+          ? displayHoleCardCount(currentHand || {}, sc.playerId, false)
           : 0,
         isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
@@ -2599,6 +2601,12 @@ function buildTableSessionProps(s) {
           sc.playerId === currentEnrollmentPlayerId &&
           scoreBankroll(sc, sessionBuyIn) > 0 &&
           sc.out !== true,
+        canPassEnrollment:
+          enrollmentActive &&
+          isSelf &&
+          !isFinal &&
+          sc.playerId === currentEnrollmentPlayerId &&
+          !declinedEnrollmentIds.includes(sc.playerId),
         canEditTricks:
           !cardsDealt &&
           !isFinal &&
@@ -2641,17 +2649,40 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
           return;
         }
-        setTableActionFeedback({ status: "loading", message: "Joining hand…" });
+        setTableActionFeedback({ status: "loading", message: inHand ? "Joining hand…" : "Passing hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
           inHand,
           actorId: session.uid,
         })
           .then(() => {
-            setTableActionFeedback({ status: "success", message: "You're in this hand." });
+            setTableActionFeedback({
+              status: "success",
+              message: inHand ? "You're in this hand." : "You passed this hand.",
+            });
           })
           .catch((e) => {
             const message = e.message || "Could not update hand participation";
+            setTableActionFeedback({ status: "error", message });
+            showRoomsError(message);
+          });
+      },
+      onPassEnrollment: () => {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          setTableActionFeedback({ status: "error", message: "Sign in to pass." });
+          return;
+        }
+        setTableActionFeedback({ status: "loading", message: "Passing hand…" });
+        setHandParticipation(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          inHand: false,
+          actorId: session.uid,
+        })
+          .then(() => {
+            setTableActionFeedback({ status: "success", message: "You passed this hand." });
+          })
+          .catch((e) => {
+            const message = e.message || "Could not pass this hand";
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
           });

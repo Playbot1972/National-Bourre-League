@@ -22,6 +22,7 @@ interface PotCenterProps {
   playerNames?: Record<string, string>;
   anteAnimActive?: boolean;
   trumpRevealActive?: boolean;
+  trumpMerged?: boolean;
   drawAnimPlayerId?: string | null;
   drawAnimSubPhase?: DrawAnimSubPhase;
   drawDiscardCount?: number;
@@ -46,6 +47,7 @@ export function PotCenter({
   playerNames = {},
   anteAnimActive = false,
   trumpRevealActive = false,
+  trumpMerged = false,
   drawAnimPlayerId = null,
   drawAnimSubPhase = "done",
   drawDiscardCount = 0,
@@ -55,9 +57,9 @@ export function PotCenter({
   trumpReminderPulse = 0,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrumpCard = Boolean(trumpUpcard);
+  const hasTrumpCard = Boolean(trumpUpcard) && !trumpMerged;
   const showTrumpSuitReminder =
-    !hasTrumpCard && Boolean(trumpSuit) && phase === "play";
+    !hasTrumpCard && Boolean(trumpSuit) && (phase === "play" || trumpMerged);
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (

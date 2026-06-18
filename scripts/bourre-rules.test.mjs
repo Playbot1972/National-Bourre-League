@@ -8,6 +8,7 @@ import {
   applyBankrollDelta,
   applySolventSettlement,
   canEnrollWithBankroll,
+  collectHandAntes,
   scoreBankroll,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
@@ -208,5 +209,25 @@ describe("bankroll solvency", () => {
     assert.equal(scoreBankroll({ bankroll: 20, net: -8 }, buyIn), 12);
     assert.equal(scoreBankroll({ bankroll: 25, net: 5 }, buyIn), 25);
     assert.equal(scoreBankroll({ bankroll: 0, net: -20 }, buyIn), 0);
+  });
+
+  it("collectHandAntes deducts ante at deal and marks busted players out", () => {
+    const scoreById = {
+      p1: { bankroll: 5, net: 0 },
+      p2: { bankroll: 1, net: 0 },
+      p3: { bankroll: 0, net: -10, out: true },
+    };
+    const result = collectHandAntes({
+      participants: ["p1", "p2", "p3"],
+      scoreById,
+      buyInFallback: 10,
+      stakeForPlayer: () => 2,
+    });
+    assert.equal(result.bankrolls.p1, 3);
+    assert.equal(result.postedAntes.p1, 2);
+    assert.equal(result.bankrolls.p2, 0);
+    assert.equal(result.postedAntes.p2, 1);
+    assert.ok(result.outIds.includes("p2"));
+    assert.deepEqual(result.activeParticipants, ["p1"]);
   });
 });

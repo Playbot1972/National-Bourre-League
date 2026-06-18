@@ -9,6 +9,7 @@ interface SeatProps {
   region: SeatRegion;
   style: CSSProperties;
   onToggleInHand: () => void;
+  onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
   onReaction?: (emoji: string) => void;
 }
@@ -53,7 +54,7 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
   );
 }
 
-export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onReaction }: SeatProps) {
+export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
   const [avatarPeek, setAvatarPeek] = useState(false);
   const toggleAvatarPeek = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -96,6 +97,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.enrollmentSatOut ? "bseat--sat-out" : "",
         player.isOut ? "bseat--out" : "",
         player.isDealer ? "bseat--dealer" : "",
+        player.trumpMerging ? "bseat--trump-merge" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
         player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
@@ -255,6 +257,17 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
             onClick={onToggleInHand}
           >
             I&apos;m in
+          </button>
+        )}
+
+        {player.canPassEnrollment && onPassEnrollment && (
+          <button
+            type="button"
+            className="bseat__pass btn btn--sm btn--ghost"
+            data-testid="seat-pass-enrollment"
+            onClick={onPassEnrollment}
+          >
+            Pass
           </button>
         )}
 

@@ -10,6 +10,7 @@
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
+  transition: padding 220ms ease, gap 220ms ease;
   --mobile-fit-pad-x: max(8px, env(safe-area-inset-left, 0px));
   --mobile-fit-pad-y: max(6px, env(safe-area-inset-top, 0px));
   --mobile-fit-gap: 8px;
