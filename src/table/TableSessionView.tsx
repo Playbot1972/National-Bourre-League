@@ -11,7 +11,8 @@ import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
+import { useYourTurnAttention } from "./hooks/useYourTurnAttention";
+import { YourTurnAttention } from "./YourTurnAttention";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -88,6 +89,15 @@ export function TableSessionView({
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
+
+  const yourTurnAttention = useYourTurnAttention({
+    isMyTurn,
+    phase: session.phase,
+    suppressTurn: Boolean(suppressTurn),
+    turnPlayerId: session.turnPlayerId,
+    trickNumber: session.currentTrick?.trickNumber ?? 0,
+    trickPlaysCount: session.currentTrick?.plays?.length ?? 0,
+  });
 
   const showTrumpSuitReminder =
     !session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play";
@@ -186,6 +196,7 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
+      <YourTurnAttention visible={yourTurnAttention} />
       <EventReactions events={events} players={players} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
       {nativeMobile ? (

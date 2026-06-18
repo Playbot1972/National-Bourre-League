@@ -184,7 +184,7 @@ export function PotCenter({
             <dt>Pot</dt>
             <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
           </div>
-          <div className="bpot__stat">
+          <div className="bpot__stat" data-testid="ante-display">
             <dt>Ante</dt>
             <dd>{formatRiskStake(potMetrics.anteAmount)}</dd>
           </div>
