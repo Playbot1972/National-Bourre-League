@@ -10,6 +10,8 @@ export const DEFAULT_BOURRE_SETTINGS = {
   buyInAmount: 1,
   anteAmount: DEFAULT_HAND_ANTE,
   limEnabled: false,
+  /** Optional house rule — manual top-up when bankroll hits zero (off by default). */
+  rebuyEnabled: false,
 };
 
 /**
@@ -34,6 +36,7 @@ export function normalizeBourreSettings(raw = {}) {
     anteAmount,
     potCap: anteAmount * POT_CAP_MULTIPLIER,
     limEnabled: raw.limEnabled === true,
+    rebuyEnabled: raw.rebuyEnabled === true,
   };
 }
 
@@ -152,5 +155,139 @@ export function settleHandDeltas({
     pot: currentPot,
     cappedPot: winnerTake,
     overflow,
+  };
+}
+
+/** Live stack for a score row — prefers bankroll field, else buy-in + net. */
+export function scoreBankroll(score, buyInFallback = 0) {
+  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
+    return Math.max(0, Number(score.bankroll));
+  }
+  const buyIn = Math.max(0, Number(buyInFallback) || 0);
+  const net = Number(score?.net) || 0;
+  if (buyIn > 0) return Math.max(0, buyIn + net);
+  return Math.max(0, net);
+}
+
+/** Apply a settlement delta against a bankroll; negative deltas clamp at zero. */
+export function applyBankrollDelta(bankroll, delta) {
+  const start = Math.max(0, Number(bankroll) || 0);
+  const d = Number(delta) || 0;
+  if (d >= 0) {
+    return { newBankroll: start + d, appliedDelta: d, busted: false };
+  }
+  const owed = Math.abs(d);
+  const paid = Math.min(start, owed);
+  return {
+    newBankroll: start - paid,
+    appliedDelta: -paid,
+    busted: owed > 0 && paid < owed,
+  };
+}
+
+/** True when a player may opt into the next hand. */
+export function canEnrollWithBankroll(bankroll) {
+  return Math.max(0, Number(bankroll) || 0) > 0;
+}
+
+/** Amount not collected when a loss was clamped to remaining stack. */
+export function settlementShortfall(nominalDelta, appliedDelta) {
+  const nom = Number(nominalDelta) || 0;
+  const app = Number(appliedDelta) || 0;
+  if (nom < 0 && app > nom) return app - nom;
+  return 0;
+}
+
+/**
+ * Clamp nominal settlement deltas to each player's bankroll.
+ * Winners are rebalanced to the actual pool collected from losers.
+ */
+export function applySolventSettlement({
+  mode,
+  winners,
+  participants,
+  nominalDeltas,
+  scoreById,
+  carryOverPot,
+  buyInFallback = 0,
+  stakeForPlayer = () => 0,
+}) {
+  const appliedDeltas = {};
+  const bankrolls = {};
+  const bustedIds = [];
+
+  for (const pid of participants) {
+    const br = scoreBankroll(scoreById[pid], buyInFallback);
+    const nominal = nominalDeltas[pid] ?? 0;
+    if (nominal < 0) {
+      const result = applyBankrollDelta(br, nominal);
+      appliedDeltas[pid] = result.appliedDelta;
+      bankrolls[pid] = result.newBankroll;
+      if (result.busted) bustedIds.push(pid);
+    } else {
+      appliedDeltas[pid] = 0;
+      bankrolls[pid] = br;
+    }
+  }
+
+  for (const pid of participants) {
+    const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
+    if (stake <= 0) continue;
+    if ((nominalDeltas[pid] ?? 0) < 0) continue;
+    const br = bankrolls[pid] ?? scoreBankroll(scoreById[pid], buyInFallback);
+    const result = applyBankrollDelta(br, -stake);
+    appliedDeltas[pid] = (appliedDeltas[pid] ?? 0) + result.appliedDelta;
+    bankrolls[pid] = result.newBankroll;
+    if (result.busted) bustedIds.push(pid);
+  }
+
+  let shortfall = 0;
+  for (const pid of participants) {
+    shortfall += settlementShortfall(nominalDeltas[pid] ?? 0, appliedDeltas[pid] ?? 0);
+  }
+
+  const adjustedCarry = Math.max(0, (Number(carryOverPot) || 0) - shortfall);
+
+  const totalPool = participants.reduce((sum, pid) => {
+    const loss = appliedDeltas[pid] ?? 0;
+    return loss < 0 ? sum + Math.abs(loss) : sum;
+  }, 0);
+
+  if (mode === "win" && winners.length === 1) {
+    const winner = winners[0];
+    const winDelta = totalPool;
+    const br = scoreBankroll(scoreById[winner], buyInFallback);
+    bankrolls[winner] = br + winDelta;
+    appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
+  } else if (mode === "split" && winners.length >= 2) {
+    const share = totalPool / winners.length;
+    for (const winner of winners) {
+      const br = scoreBankroll(scoreById[winner], buyInFallback);
+      const already = appliedDeltas[winner] ?? 0;
+      const winDelta = share + already;
+      bankrolls[winner] = br + share;
+      appliedDeltas[winner] = winDelta;
+    }
+  } else {
+    for (const pid of participants) {
+      const nominal = nominalDeltas[pid] ?? 0;
+      if (nominal > 0 && !winners.includes(pid)) {
+        const br = bankrolls[pid] ?? scoreBankroll(scoreById[pid], buyInFallback);
+        const result = applyBankrollDelta(br, nominal);
+        appliedDeltas[pid] = result.appliedDelta;
+        bankrolls[pid] = result.newBankroll;
+      }
+    }
+  }
+
+  const outIds = participants.filter((pid) => (bankrolls[pid] ?? 0) <= 0);
+
+  return {
+    appliedDeltas,
+    bankrolls,
+    bustedIds: [...new Set(bustedIds)],
+    outIds,
+    carryOverPot: adjustedCarry,
+    shortfall,
   };
 }

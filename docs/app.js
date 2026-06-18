@@ -75,6 +75,8 @@ import {
   deriveWinnersFromTricks,
   tricksToWinHint,
   playerHandStake,
+  scoreBankroll,
+  rebuySessionPlayer,
   MAX_TRICKS_PER_HAND,
   totalTricksPlayed,
   isHandComplete,
@@ -697,17 +699,20 @@ function bindRoomDetailDelegatedControls() {
       return;
     }
 
-    if (el.id === "room-buy-in-amount" || el.id === "room-lim-enabled") {
+    if (el.id === "room-buy-in-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
       const buyInEl = $("#room-buy-in-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
+      const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
       if (!buyInEl || !limEl || !currentRoomId) return;
       pendingRoomBuyInOverride = parseInt(buyInEl.value, 10) || 1;
       const limEnabled = limEl.checked;
+      const rebuyEnabled = rebuyEl?.checked === true;
       const roomBs = normalizeBourreSettings(currentRoom?.bourreSettings || DEFAULT_BOURRE_SETTINGS);
       updateRoomBourreSettings(currentRoomId, {
         buyInAmount: pendingRoomBuyInOverride,
         anteAmount: roomBs.anteAmount,
         limEnabled,
+        rebuyEnabled,
       })
         .then(() => {
           pendingRoomBuyInOverride = null;
@@ -799,8 +804,8 @@ let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
-/** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (2000+300+200). */
-const TRICK_PIPELINE_MS = 2000 + 300 + 200;
+/** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (1600+300+200). */
+const TRICK_PIPELINE_MS = 1600 + 300 + 200;
 const BOT_PLAY_STAGGER_MS = 350;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
 /** After settlement, force-open the next join window if auto-open stalls. */
@@ -2448,6 +2453,13 @@ function buildTableSessionProps(s) {
         ? 0
         : null;
 
+  const sessionBuyIn = s.buyInAmount ?? normalizeBourreSettings(currentRoom?.bourreSettings).buyInAmount;
+  const lastHand = openHands[0];
+  const recentBourreIds =
+    lastHand && lastHand.handNumber === (s.handCount ?? 0)
+      ? (lastHand.bourreIds || []).filter(Boolean)
+      : [];
+
   return {
     session: {
       sessionId: s.id,
@@ -2498,6 +2510,8 @@ function buildTableSessionProps(s) {
             }
           : {}),
         ...(isSelf ? { net: sc.net ?? 0 } : {}),
+        bankroll: scoreBankroll(sc, sessionBuyIn),
+        isOut: sc.out === true || scoreBankroll(sc, sessionBuyIn) <= 0,
         ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
         inHand:
           handParticipantIds.includes(sc.playerId) ||
@@ -2527,7 +2541,9 @@ function buildTableSessionProps(s) {
           enrollmentActive &&
           isSelf &&
           !isFinal &&
-          sc.playerId === currentEnrollmentPlayerId,
+          sc.playerId === currentEnrollmentPlayerId &&
+          scoreBankroll(sc, sessionBuyIn) > 0 &&
+          sc.out !== true,
         canEditTricks:
           !cardsDealt &&
           !isFinal &&
@@ -2561,6 +2577,7 @@ function buildTableSessionProps(s) {
     enrollmentSecondsLeft: enrollmentActive ? enrollmentSecondsLeft(enrollment) : 0,
     showCoWinSettlement,
     splitSharePerWinner,
+    recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     actions: {
@@ -2929,6 +2946,11 @@ function renderRoomDetail() {
                    <span>LmT</span>
                    <span class="muted small">Pot cap 20× ante · overflow → next hand</span>
                  </label>
+                 <label class="bourre-settings__row bourre-settings__lim">
+                   <input type="checkbox" id="room-rebuy-enabled" ${bourreSettings.rebuyEnabled ? "checked" : ""} />
+                   <span>Rebuy</span>
+                   <span class="muted small">Allow manual top-up when bankroll hits zero</span>
+                 </label>
                  <p class="muted small">Applies to new sessions. Each player starts with this buy-in; per-hand ante stays at ${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}.</p>
                </div>`
             : `<ul class="kv">
@@ -2939,6 +2961,7 @@ function renderRoomDetail() {
                      : ""
                  }
                  <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
+                 <li><span>Rebuy</span><span>${bourreSettings.rebuyEnabled ? "On" : "Off"}</span></li>
                </ul>`
         }
       </section>

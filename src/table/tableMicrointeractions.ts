@@ -8,6 +8,9 @@ export const MICRO_MS = {
   illegalShake: 340,
   cardSelect: 380,
   winnerFlash: 520,
+  bankrollTick: 900,
+  bourrePulse: 1200,
+  bourreMarker: 4500,
 } as const;
 
 export interface MicroTrackInput {
@@ -15,6 +18,8 @@ export interface MicroTrackInput {
   dealerId: string | null;
   potAmount: number;
   tricksByPlayer: Record<string, number>;
+  bankrollByPlayer: Record<string, number>;
+  bourrePlayerIds: string[];
   phase: string | null;
   showTrumpSuitReminder: boolean;
   suppressTurn: boolean;
@@ -28,6 +33,8 @@ export interface MicroTrackState {
   dealerMovedPlayerId: string | null;
   potTick: number;
   trickBadgeTicks: Record<string, number>;
+  bankrollTicks: Record<string, "up" | "down">;
+  bourreAlerts: Record<string, "pulse" | "marker">;
   trumpReminderPulse: number;
   feedbackErrorPulse: number;
   feedbackSuccessPulse: number;
@@ -39,6 +46,8 @@ export interface MicroPrevSnapshot {
   dealerId: string | null;
   potAmount: number;
   tricksByPlayer: Record<string, number>;
+  bankrollByPlayer: Record<string, number>;
+  bourrePlayerIds: string[];
   showTrumpSuitReminder: boolean;
   actionFeedbackStatus: MicroTrackInput["actionFeedbackStatus"];
   trickWinnerSeatId: string | null;
@@ -50,6 +59,8 @@ export const EMPTY_MICRO_STATE: MicroTrackState = {
   dealerMovedPlayerId: null,
   potTick: 0,
   trickBadgeTicks: {},
+  bankrollTicks: {},
+  bourreAlerts: {},
   trumpReminderPulse: 0,
   feedbackErrorPulse: 0,
   feedbackSuccessPulse: 0,
@@ -62,6 +73,8 @@ export function createMicroPrevSnapshot(input: MicroTrackInput): MicroPrevSnapsh
     dealerId: input.dealerId,
     potAmount: input.potAmount,
     tricksByPlayer: { ...input.tricksByPlayer },
+    bankrollByPlayer: { ...input.bankrollByPlayer },
+    bourrePlayerIds: [...input.bourrePlayerIds],
     showTrumpSuitReminder: input.showTrumpSuitReminder,
     actionFeedbackStatus: input.actionFeedbackStatus,
     trickWinnerSeatId: input.trickWinnerSeatId,
@@ -74,6 +87,8 @@ export interface MicroDiff {
   dealerMovedPlayerId: string | null;
   potTick: boolean;
   trickBadgeIncrements: Record<string, number>;
+  bankrollChanges: Record<string, "up" | "down">;
+  bourrePlayerIds: string[];
   trumpReminderPulse: boolean;
   feedbackErrorPulse: boolean;
   feedbackSuccessPulse: boolean;
@@ -89,6 +104,8 @@ export function diffMicrointeractions(
     dealerMovedPlayerId: null,
     potTick: false,
     trickBadgeIncrements: {},
+    bankrollChanges: {},
+    bourrePlayerIds: [],
     trumpReminderPulse: false,
     feedbackErrorPulse: false,
     feedbackSuccessPulse: false,
@@ -122,6 +139,22 @@ export function diffMicrointeractions(
     if (after > before) trickBadgeIncrements[playerId] = after - before;
   }
 
+  const bankrollChanges: Record<string, "up" | "down"> = {};
+  const bankrollIds = new Set([
+    ...Object.keys(prev.bankrollByPlayer),
+    ...Object.keys(input.bankrollByPlayer),
+  ]);
+  for (const playerId of bankrollIds) {
+    const before = prev.bankrollByPlayer[playerId] ?? 0;
+    const after = input.bankrollByPlayer[playerId] ?? 0;
+    if (after > before) bankrollChanges[playerId] = "up";
+    else if (after < before) bankrollChanges[playerId] = "down";
+  }
+
+  const bourrePlayerIds = input.bourrePlayerIds.filter(
+    (id) => !prev.bourrePlayerIds.includes(id),
+  );
+
   const trumpReminderPulse =
     input.showTrumpSuitReminder && !prev.showTrumpSuitReminder;
 
@@ -143,6 +176,8 @@ export function diffMicrointeractions(
     dealerMovedPlayerId,
     potTick,
     trickBadgeIncrements,
+    bankrollChanges,
+    bourrePlayerIds,
     trumpReminderPulse,
     feedbackErrorPulse,
     feedbackSuccessPulse,

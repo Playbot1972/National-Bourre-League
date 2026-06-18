@@ -5,6 +5,9 @@ import {
   settleHandDeltas,
   normalizeBourreSettings,
   resolveSessionBuyIn,
+  applyBankrollDelta,
+  applySolventSettlement,
+  canEnrollWithBankroll,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
 
@@ -138,5 +141,52 @@ describe("E — pot and bourré settlement", () => {
     assert.ok(result.carryOverPot > 0);
     assert.ok(result.deltas.p3 < 0);
     assert.deepEqual(result.bourreIds, []);
+  });
+});
+
+describe("bankroll solvency", () => {
+  it("applyBankrollDelta clamps losses at remaining stack", () => {
+    const result = applyBankrollDelta(3, -10);
+    assert.equal(result.newBankroll, 0);
+    assert.equal(result.appliedDelta, -3);
+    assert.equal(result.busted, true);
+  });
+
+  it("applySolventSettlement marks insolvent bourré player out", () => {
+    const participants = ["p1", "p2", "p3"];
+    const nominal = settleHandDeltas({
+      mode: "win",
+      winners: ["p1"],
+      participants,
+      tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+      anteAmount: 1,
+      limEnabled: false,
+      carryIn: 0,
+      stakeForPlayer: () => 1,
+    });
+    const scoreById = {
+      p1: { bankroll: 10, net: 0 },
+      p2: { bankroll: 5, net: 0 },
+      p3: { bankroll: 2, net: 0 },
+    };
+    const solvent = applySolventSettlement({
+      mode: "win",
+      winners: ["p1"],
+      participants,
+      nominalDeltas: nominal.deltas,
+      scoreById,
+      carryOverPot: nominal.carryOverPot,
+      buyInFallback: 10,
+      stakeForPlayer: () => 1,
+    });
+    assert.equal(solvent.bankrolls.p3, 0);
+    assert.ok(solvent.outIds.includes("p3"));
+    assert.ok(solvent.bustedIds.includes("p3"));
+    assert.ok(solvent.appliedDeltas.p3 > nominal.deltas.p3);
+  });
+
+  it("canEnrollWithBankroll blocks zero stack", () => {
+    assert.equal(canEnrollWithBankroll(0), false);
+    assert.equal(canEnrollWithBankroll(1), true);
   });
 });
