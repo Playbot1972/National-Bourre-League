@@ -699,23 +699,27 @@ function bindRoomDetailDelegatedControls() {
       return;
     }
 
-    if (el.id === "room-buy-in-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
+    if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
       const buyInEl = $("#room-buy-in-amount", roomDetailView);
+      const anteEl = $("#room-ante-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
       const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
-      if (!buyInEl || !limEl || !currentRoomId) return;
+      if (!buyInEl || !anteEl || !limEl || !currentRoomId) return;
       pendingRoomBuyInOverride = parseInt(buyInEl.value, 10) || 1;
+      pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
       const limEnabled = limEl.checked;
       const rebuyEnabled = rebuyEl?.checked === true;
-      const roomBs = normalizeBourreSettings(currentRoom?.bourreSettings || DEFAULT_BOURRE_SETTINGS);
       updateRoomBourreSettings(currentRoomId, {
         buyInAmount: pendingRoomBuyInOverride,
-        anteAmount: roomBs.anteAmount,
+        anteAmount: pendingRoomAnteOverride,
         limEnabled,
         rebuyEnabled,
       })
         .then(() => {
           pendingRoomBuyInOverride = null;
+          pendingRoomAnteOverride = null;
+          pendingHandStake = parseInt(anteEl.value, 10) || 1;
+          userPickedNewSessionStake = false;
           return syncOpenSessionLimEnabled(limEnabled);
         })
         .then(() => {
@@ -2889,6 +2893,7 @@ function renderRoomDetail() {
   const visibleMembers = currentMembers;
   const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
   const roomBuyInAmount = pendingRoomBuyInOverride ?? bourreSettings.buyInAmount;
+  const roomAnteAmount = pendingRoomAnteOverride ?? bourreSettings.anteAmount;
   const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
@@ -2941,6 +2946,15 @@ function renderRoomDetail() {
                      ).join("")}
                    </select>
                  </label>
+                 <label class="bourre-settings__row">
+                   <span class="bourre-settings__label">Ante</span>
+                   <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
+                     ${RISK_STAKE_OPTIONS.map(
+                       (n) =>
+                         `<option value="${n}" ${n === roomAnteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                     ).join("")}
+                   </select>
+                 </label>
                  <label class="bourre-settings__row bourre-settings__lim">
                    <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
                    <span>LmT</span>
@@ -2951,10 +2965,11 @@ function renderRoomDetail() {
                    <span>Rebuy</span>
                    <span class="muted small">Allow manual top-up when bankroll hits zero</span>
                  </label>
-                 <p class="muted small">Applies to new sessions. Each player starts with this buy-in; per-hand ante stays at ${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}.</p>
+                 <p class="muted small">Applies to new sessions. Buy-in is each player&apos;s starting stack; ante is the per-hand contribution to the pot.</p>
                </div>`
             : `<ul class="kv">
                  <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
+                 <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
                  ${
                    bourreSettings.limEnabled
                      ? `<li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>`

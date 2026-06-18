@@ -1260,6 +1260,62 @@ body.room-detail-open .room-actions {
   margin-top: 4px;
 }
 
+@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
+  .modal {
+    place-items: end stretch;
+    padding: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal__dialog,
+  .modal__dialog--wide {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(92dvh, 100%);
+    margin: 0;
+    border-radius: 18px 18px 0 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 16px max(20px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+
+  .create-room-form {
+    min-height: 0;
+  }
+
+  .create-room-form__actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 12px;
+    padding-top: 12px;
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(
+      180deg,
+      rgba(12, 43, 31, 0) 0%,
+      rgba(12, 43, 31, 0.92) 24%,
+      #0c2b1f 100%
+    );
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .create-room-form__actions .btn {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+
+  .create-room-form__actions .btn--primary {
+    flex: 1.4 1 auto;
+  }
+
+  .house-rules-form--create .house-rules__input {
+    min-height: 56px;
+  }
+}
+
 .hand-history__num {
   color: var(--gold-300);
   font-weight: 600;

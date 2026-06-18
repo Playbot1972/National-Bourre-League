@@ -55,16 +55,16 @@ export function resolveSessionBuyIn(sessionData, roomBourreSettings) {
  */
 export function computeHandPotState({ anteAmount, limEnabled = false, carryIn = 0, antePot }) {
   const limOn = limEnabled === true;
-  const settings = normalizeBourreSettings({ anteAmount, limEnabled: limOn });
+  const resolvedAnte = Math.max(1, Number(anteAmount) || DEFAULT_HAND_ANTE);
+  const potCap = resolvedAnte * POT_CAP_MULTIPLIER;
   const currentPot = Math.max(0, Number(antePot) || 0) + Math.max(0, Number(carryIn) || 0);
-  const potCap = settings.potCap;
   const maxWinThisHand = limOn ? Math.min(currentPot, potCap) : currentPot;
   const overflow = limOn ? Math.max(0, currentPot - potCap) : 0;
   const winnerTake = maxWinThisHand;
   const bourrePenalty = maxWinThisHand;
 
   return {
-    anteAmount: settings.anteAmount,
+    anteAmount: resolvedAnte,
     limEnabled: limOn,
     potCap,
     currentPot,

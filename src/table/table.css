@@ -2674,3 +2674,97 @@
   align-items: flex-start;
   gap: 4px;
 }
+
+/* Delayed local-player "Your Turn" attention cue */
+.byour-turn {
+  position: fixed;
+  left: 50%;
+  bottom: max(18%, 120px);
+  transform: translateX(-50%);
+  z-index: 28;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.byour-turn__text {
+  display: inline-block;
+  padding: 14px 28px;
+  border-radius: 999px;
+  font-size: clamp(22px, 5vw, 34px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1a1208;
+  background: linear-gradient(160deg, #ffe566 0%, #ffb347 55%, #ff8c42 100%);
+  border: 3px solid #fff8dc;
+  box-shadow:
+    0 8px 0 rgba(0, 0, 0, 0.25),
+    0 12px 32px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.byour-turn--pop .byour-turn__text {
+  animation: byour-turn-pop 680ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards,
+    byour-turn-gentle-pulse 1.4s ease-in-out 680ms 2;
+}
+
+@keyframes byour-turn-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes byour-turn-gentle-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 8px 0 rgba(0, 0, 0, 0.25),
+      0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow:
+      0 10px 0 rgba(0, 0, 0, 0.22),
+      0 16px 36px rgba(255, 180, 60, 0.35);
+  }
+}
+
+.byour-turn--reduced .byour-turn__text {
+  animation: none;
+  transform: scale(1);
+  box-shadow: 0 0 0 3px #ffb347, 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.table-play-overlay .byour-turn {
+  bottom: max(14%, 96px);
+}
+
+@media (max-width: 768px), (pointer: coarse) {
+  .byour-turn {
+    bottom: max(22%, 140px);
+    width: min(92vw, 360px);
+  }
+
+  .byour-turn__text {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .byour-turn--pop .byour-turn__text {
+    animation: none;
+  }
+}

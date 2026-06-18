@@ -55,6 +55,17 @@ describe("E — pot and bourré settlement", () => {
     assert.ok(state.overflow > 0);
   });
 
+  it("computeHandPotState preserves explicit session ante (not legacy default 1)", () => {
+    const state = computeHandPotState({
+      anteAmount: 5,
+      limEnabled: false,
+      carryIn: 0,
+      antePot: 15,
+    });
+    assert.equal(state.anteAmount, 5);
+    assert.equal(state.potCap, 100);
+  });
+
   it("winner take-all settlement assigns pot to winner", () => {
     const participants = ["p1", "p2", "p3"];
     const result = settleHandDeltas({
