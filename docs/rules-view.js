@@ -88,7 +88,7 @@ function renderHouseTab() {
         ${APP_DEFAULT_TEMPLATE.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
       </ul>
       <p class="muted small">
-        Room owners set ante and LmT under <strong>Bourré settings</strong> in each private room.
+        Room owners set buy-in and LmT under <strong>Bourré settings</strong> in each private room.
         <a href="#rooms">Open your rooms</a> to configure a table.
       </p>
     </article>`;

@@ -22,14 +22,14 @@
 //   { roomId, ownerId, createdAt }
 //
 // rooms/{roomId}/sessions/{sessionId}     (sessions are a subcollection of room)
-//   { roomId, sessionName, status: "in_progress" | "final", handCount, handStake, handStakeLocked,
+//   { roomId, sessionName, status: "in_progress" | "final", handCount, buyInAmount, handStake, handStakeLocked,
 //     players: [{ playerId, displayName }],
 //     notes,                          // informational ONLY — never money
 //     totals: { byPlayer: { [playerId]: tricks }, netByPlayer: { [playerId]: net }, tricks },
 //     createdAt, updatedAt }
 //
 // rooms/{roomId}/sessions/{sessionId}/scores/{playerId}   (one row per player)
-//   { sessionId, roomId, playerId, displayName, tricksWon, handsWon, net, total,
+//   { sessionId, roomId, playerId, displayName, bankroll, tricksWon, handsWon, net, total,
 //     updatedAt }
 //
 //   rooms/{roomId}/sessions/{sessionId}/hands/{handId}
@@ -415,7 +415,13 @@ export function playerHandStake(scoreById, playerId, sessionStake) {
   return stakeForPlayer(scoreById, playerId, sessionStake);
 }
 
-export { DEFAULT_BOURRE_SETTINGS, normalizeBourreSettings, computeHandPotState } from "./bourre-rules.js";
+export {
+  DEFAULT_BOURRE_SETTINGS,
+  DEFAULT_HAND_ANTE,
+  normalizeBourreSettings,
+  resolveSessionBuyIn,
+  computeHandPotState,
+} from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -648,6 +654,7 @@ export async function updateRoomBourreSettings(roomId, bourreSettings) {
   const normalized = normalizeBourreSettings(bourreSettings);
   await updateDoc(doc(db, "rooms", roomId), {
     bourreSettings: {
+      buyInAmount: normalized.buyInAmount,
       anteAmount: normalized.anteAmount,
       limEnabled: normalized.limEnabled,
     },
@@ -1589,14 +1596,18 @@ export async function refreshRoomSessionCap(roomId) {
   };
 }
 
-export async function createSession(roomId, players, handStake = 1, bourreOpts = {}) {
+export async function createSession(roomId, players, buyInAmount = 1, bourreOpts = {}) {
   const preSessionsSnap = await getDocs(sessionsCol(roomId));
   const liveClaimed = [
     ...new Set(
       preSessionsSnap.docs.map((d) => d.data().sessionName).filter(Boolean),
     ),
   ];
-  const stake = Math.max(1, Number(handStake) || 1);
+  const buyIn = Math.max(1, Number(buyInAmount) || 1);
+  const handStake = Math.max(
+    1,
+    Number(bourreOpts.handStake ?? bourreOpts.anteAmount) || 1,
+  );
   const limEnabled = bourreOpts.limEnabled === true;
   const rosterPlayers = players.filter((p) => p?.playerId);
   const sortedIds = rosterPlayers.map((p) => p.playerId);
@@ -1640,7 +1651,8 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
       sessionName,
       status: "in_progress",
       handCount: 0,
-      handStake: stake,
+      buyInAmount: buyIn,
+      handStake,
       handStakeLocked: false,
       limEnabled,
       carryOverPot: 0,
@@ -1664,6 +1676,7 @@ export async function createSession(roomId, players, handStake = 1, bourreOpts =
         roomId,
         playerId: p.playerId,
         displayName: p.displayName || "Player",
+        bankroll: buyIn,
         tricksWon: 0,
         handsWon: 0,
         net: 0,
@@ -2439,6 +2452,10 @@ export async function ensureSessionPlayer(
   if (!isRobot) {
     await ensurePlayerDoc(playerId, displayName);
   }
+  const buyIn = Math.max(
+    1,
+    Number(sessionData.buyInAmount ?? sessionData.handStake) || 1,
+  );
   const batch = writeBatch(db);
   batch.update(sessionDoc(roomId, sessionId), sessionPatch);
   batch.set(scoreRef, {
@@ -2446,6 +2463,7 @@ export async function ensureSessionPlayer(
     roomId,
     playerId,
     displayName,
+    bankroll: buyIn,
     tricksWon: 0,
     handsWon: 0,
     net: 0,

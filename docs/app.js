@@ -681,10 +681,10 @@ function bindRoomDetailDelegatedControls() {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
 
-    if (el.id === "new-session-stake") {
-      pendingHandStake = parseInt(el.value, 10) || 1;
-      userPickedNewSessionStake = true;
-      pendingRoomAnteOverride = pendingHandStake;
+    if (el.id === "new-session-buy-in") {
+      pendingBuyInAmount = parseInt(el.value, 10) || 1;
+      userPickedNewSessionBuyIn = true;
+      pendingRoomBuyInOverride = pendingBuyInAmount;
       return;
     }
 
@@ -698,20 +698,20 @@ function bindRoomDetailDelegatedControls() {
       return;
     }
 
-    if (el.id === "room-ante-amount" || el.id === "room-lim-enabled") {
-      const anteEl = $("#room-ante-amount", roomDetailView);
+    if (el.id === "room-buy-in-amount" || el.id === "room-lim-enabled") {
+      const buyInEl = $("#room-buy-in-amount", roomDetailView);
       const limEl = $("#room-lim-enabled", roomDetailView);
-      if (!anteEl || !limEl || !currentRoomId) return;
-      pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
-      pendingHandStake = pendingRoomAnteOverride;
-      userPickedNewSessionStake = true;
+      if (!buyInEl || !limEl || !currentRoomId) return;
+      pendingRoomBuyInOverride = parseInt(buyInEl.value, 10) || 1;
+      pendingBuyInAmount = pendingRoomBuyInOverride;
+      userPickedNewSessionBuyIn = true;
       const limEnabled = limEl.checked;
       updateRoomBourreSettings(currentRoomId, {
-        anteAmount: pendingRoomAnteOverride,
+        buyInAmount: pendingRoomBuyInOverride,
         limEnabled,
       })
         .then(() => {
-          pendingRoomAnteOverride = null;
+          pendingRoomBuyInOverride = null;
           return syncOpenSessionLimEnabled(limEnabled);
         })
         .then(() => {
@@ -1151,11 +1151,11 @@ function startEnrollmentTimer() {
   }, 1000);
 }
 let tablePlayOpen = false;
-let pendingHandStake = 1;
-/** Local ante override while Bourré settings save or snapshot re-render is in flight. */
-let pendingRoomAnteOverride = null;
-/** User picked new-session ante — do not overwrite from room snapshot until create. */
-let userPickedNewSessionStake = false;
+let pendingBuyInAmount = 1;
+/** Local buy-in override while Bourré settings save or snapshot re-render is in flight. */
+let pendingRoomBuyInOverride = null;
+/** User picked new-session buy-in — do not overwrite from room snapshot until create. */
+let userPickedNewSessionBuyIn = false;
 let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
@@ -1836,8 +1836,8 @@ function openRoom(roomId) {
   roomsListView.hidden = true;
   if (roomsIntro) roomsIntro.hidden = true;
   roomDetailView.hidden = false;
-  pendingRoomAnteOverride = null;
-  userPickedNewSessionStake = false;
+  pendingRoomBuyInOverride = null;
+  userPickedNewSessionBuyIn = false;
   roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
@@ -1848,11 +1848,11 @@ function openRoom(roomId) {
       }
       currentRoom = room;
       if (room?.bourreSettings) {
-        const serverAnte = normalizeBourreSettings(room.bourreSettings).anteAmount;
-        if (pendingRoomAnteOverride == null && !userPickedNewSessionStake) {
-          pendingHandStake = serverAnte;
-        } else if (pendingRoomAnteOverride === serverAnte) {
-          pendingRoomAnteOverride = null;
+        const serverBuyIn = normalizeBourreSettings(room.bourreSettings).buyInAmount;
+        if (pendingRoomBuyInOverride == null && !userPickedNewSessionBuyIn) {
+          pendingBuyInAmount = serverBuyIn;
+        } else if (pendingRoomBuyInOverride === serverBuyIn) {
+          pendingRoomBuyInOverride = null;
         }
       }
       if (room && session?.uid === room.ownerId) {
@@ -2866,7 +2866,7 @@ function renderRoomDetail() {
   const isOwner = session?.uid === currentRoom.ownerId;
   const visibleMembers = currentMembers;
   const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
-  const roomAnteAmount = pendingRoomAnteOverride ?? bourreSettings.anteAmount;
+  const roomBuyInAmount = pendingRoomBuyInOverride ?? bourreSettings.buyInAmount;
   const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
     ? currentRoom.sessionNamePool
     : [];
@@ -2876,7 +2876,7 @@ function renderRoomDetail() {
     isOwner &&
     !sessionHardCap &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
-  const showNewSessionAnte = isOwner && canCreateSession;
+  const showNewSessionBuyIn = isOwner && canCreateSession;
   const newSessionDisabledReason = !isOwner
     ? ""
     : sessionHardCap
@@ -2911,11 +2911,11 @@ function renderRoomDetail() {
           isOwner
             ? `<div class="bourre-settings-form">
                  <label class="bourre-settings__row">
-                   <span class="bourre-settings__label">Ante</span>
-                   <select class="num-select" id="room-ante-amount" aria-label="Room ante amount">
+                   <span class="bourre-settings__label">Buy-in</span>
+                   <select class="num-select" id="room-buy-in-amount" aria-label="Room buy-in amount">
                      ${RISK_STAKE_OPTIONS.map(
                        (n) =>
-                         `<option value="${n}" ${n === roomAnteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                         `<option value="${n}" ${n === roomBuyInAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
                      ).join("")}
                    </select>
                  </label>
@@ -2924,10 +2924,10 @@ function renderRoomDetail() {
                    <span>LmT</span>
                    <span class="muted small">Pot cap 20× ante · overflow → next hand</span>
                  </label>
-                 <p class="muted small">Applies to new sessions. Each hand: winner take &amp; bourré penalty = min(pot, cap).</p>
+                 <p class="muted small">Applies to new sessions. Each player starts with this buy-in; per-hand ante stays at ${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}.</p>
                </div>`
             : `<ul class="kv">
-                 <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
+                 <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
                  ${
                    bourreSettings.limEnabled
                      ? `<li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>`
@@ -2996,13 +2996,13 @@ function renderRoomDetail() {
           ${
             isOwner
               ? `${
-                  showNewSessionAnte
+                  showNewSessionBuyIn
                     ? `<label class="session-new__stake">
-                   <span class="muted">Ante</span>
-                   <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
+                   <span class="muted">Buy-in</span>
+                   <select class="num-select" id="new-session-buy-in" aria-label="Buy-in for new session">
                      ${RISK_STAKE_OPTIONS.map(
                        (n) =>
-                         `<option value="${n}" ${n === pendingHandStake ? "selected" : ""}>${formatRiskStake(n)}</option>`,
+                         `<option value="${n}" ${n === pendingBuyInAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
                      ).join("")}
                    </select>
                  </label>`
@@ -3119,7 +3119,8 @@ function buildSessionLiveStatusHtml(s) {
   if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
   const enrollment = getSessionEnrollment(s);
   const handNum = (s.handCount ?? 0) + 1;
-  let status = `Hand #${handNum} · ante ${formatRiskStake(s.handStake ?? 1)}`;
+  const buyIn = s.buyInAmount ?? s.handStake ?? 1;
+  let status = `Hand #${handNum} · buy-in ${formatRiskStake(buyIn)}`;
   if (enrollment?.active) {
     status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
   } else {
@@ -3450,13 +3451,14 @@ async function onNewSession() {
     if (players.length === 0 && session) {
       players.push({ playerId: session.uid, displayName: session.displayName });
     }
-    const stakeEl = $("#new-session-stake", roomDetailView);
-    const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+    const buyInEl = $("#new-session-buy-in", roomDetailView);
+    const buyInAmount = buyInEl ? parseInt(buyInEl.value, 10) : pendingBuyInAmount;
     const roomBs = normalizeBourreSettings(
-      currentRoom?.bourreSettings || { anteAmount: handStake, limEnabled: false },
+      currentRoom?.bourreSettings || { buyInAmount, limEnabled: false },
     );
 
-    const created = await createSession(currentRoomId, players, handStake, {
+    const created = await createSession(currentRoomId, players, buyInAmount, {
+      handStake: roomBs.anteAmount,
       limEnabled: roomBs.limEnabled,
     });
     if (!created?.id || !created.sessionName) {
@@ -3466,10 +3468,10 @@ async function onNewSession() {
 
     try {
       await updateRoomBourreSettings(currentRoomId, {
-        anteAmount: handStake,
+        buyInAmount,
         limEnabled: roomBs.limEnabled,
       });
-      pendingRoomAnteOverride = null;
+      pendingRoomBuyInOverride = null;
     } catch (err) {
       console.warn("updateRoomBourreSettings after create:", err);
     }
@@ -3479,14 +3481,15 @@ async function onNewSession() {
       sessionName: created.sessionName,
       status: "in_progress",
       handCount: 0,
-      handStake,
+      buyInAmount,
+      handStake: roomBs.anteAmount,
       limEnabled: roomBs.limEnabled,
       createdAt: { seconds: Math.floor(Date.now() / 1000) },
     };
     rememberPendingSession(optimisticSession);
     currentSessions = mergeSessionsWithPending(currentSessions);
-    pendingHandStake = handStake;
-    userPickedNewSessionStake = false;
+    pendingBuyInAmount = buyInAmount;
+    userPickedNewSessionBuyIn = false;
     showRoomsError("");
     openSession(created.id);
     renderRoomDetail();
