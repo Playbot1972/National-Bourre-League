@@ -99,6 +99,72 @@ export async function readOverlayGameplayMetrics(page: Page) {
   });
 }
 
+/** True when every seat avatar is inside the overlay visual viewport. */
+export async function expectOverlaySeatsInViewport(page: Page): Promise<void> {
+  const clipped = await page.evaluate(() => {
+    const overlay = document.querySelector("#table-play-overlay");
+    if (!overlay) return 0;
+    const o = overlay.getBoundingClientRect();
+    const vw = window.visualViewport?.width ?? window.innerWidth;
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const vx = window.visualViewport?.offsetLeft ?? 0;
+    const vy = window.visualViewport?.offsetTop ?? 0;
+    const seats = overlay.querySelectorAll<HTMLElement>(".bseat__avatar-wrap");
+    let out = 0;
+    for (const seat of seats) {
+      const r = seat.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      if (
+        cx < vx - 2 ||
+        cy < vy - 2 ||
+        cx > vx + vw + 2 ||
+        cy > vy + vh + 2 ||
+        r.width <= 0 ||
+        r.height <= 0
+      ) {
+        out += 1;
+      }
+    }
+    return out;
+  });
+  expect(clipped, `${clipped} seat(s) clipped outside viewport`).toBe(0);
+}
+
+export async function expectMobileOverlayTableScale(page: Page): Promise<void> {
+  const overlay = page.locator("#table-play-overlay");
+  const readMetrics = () =>
+    page.evaluate(() => {
+      const stage = document.querySelector("#table-play-overlay .table-stage");
+      const wrap = document.querySelector("#table-play-overlay .btable-wrap");
+      if (!stage || !wrap) return null;
+      const s = stage.getBoundingClientRect();
+      const fitW = parseFloat(getComputedStyle(wrap).getPropertyValue("--stage-fit-width"));
+      const fitH = parseFloat(getComputedStyle(wrap).getPropertyValue("--stage-fit-height"));
+      return { stageW: s.width, stageH: s.height, fitW, fitH };
+    });
+
+  await overlay.getByTestId("settings-button").click();
+  const panel = overlay.getByTestId("settings-panel");
+  await expect(panel).toBeVisible();
+  const slider = panel.locator(".bsettings__field--row input[type='range']");
+
+  await slider.fill("0.85");
+  await page.waitForTimeout(450);
+  const small = await readMetrics();
+  expect(small).not.toBeNull();
+
+  await slider.fill("1.25");
+  await page.waitForTimeout(450);
+  const large = await readMetrics();
+  expect(large).not.toBeNull();
+
+  expect(large!.fitW).toBeGreaterThan(small!.fitW * 1.02);
+  expect(large!.stageW).toBeGreaterThan(small!.stageW * 0.98);
+
+  await panel.getByRole("button", { name: "Close" }).first().click();
+}
+
 export async function expectMobileOverlayGameplayFits(
   page: Page,
   opts: { portrait: boolean },
@@ -106,15 +172,16 @@ export async function expectMobileOverlayGameplayFits(
   const metrics = await readOverlayGameplayMetrics(page);
   expect(metrics, "overlay gameplay block should be measurable").not.toBeNull();
   expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
+  await expectOverlaySeatsInViewport(page);
 
   if (opts.portrait) {
-    expect(metrics!.stageWidthRatio).toBeGreaterThan(0.42);
-    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.16);
+    expect(metrics!.stageWidthRatio).toBeGreaterThan(0.48);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.22);
   } else {
     expect(metrics!.landscapeRow).toBe(true);
-    expect(metrics!.gameplayWidthRatio).toBeGreaterThan(0.82);
-    expect(metrics!.stageW).toBeGreaterThan(180);
-    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.18);
+    expect(metrics!.gameplayWidthRatio).toBeGreaterThan(0.85);
+    expect(metrics!.stageW).toBeGreaterThan(200);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.22);
   }
 }
 export async function readOverlayStageMetrics(page: Page): Promise<OverlayStageMetrics | null> {

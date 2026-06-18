@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   expectMobileOverlayGameplayFits,
+  expectMobileOverlayTableScale,
   isOverlayControlInViewport,
   openOverlayFixture,
   overlayHorizontalOverflow,
@@ -29,6 +30,19 @@ test.describe("Mobile gameplay overlay layout", () => {
     });
   }
 
+  for (const layout of MOBILE_LAYOUTS) {
+    test(`${layout.name} — eight players fit without seat clipping`, async ({ page }) => {
+      await page.setViewportSize({ width: layout.width, height: layout.height });
+      await openOverlayFixture(page, { players: 8, bots: 3, phase: "draw" });
+
+      await expectMobileOverlayGameplayFits(page, {
+        portrait: layout.height > layout.width,
+      });
+      expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
+      expect(await isOverlayControlInViewport(page, "table-root")).toBe(true);
+    });
+  }
+
   test("settings panel opens on mobile overlay", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openOverlayFixture(page, { phase: "draw" });
@@ -38,5 +52,11 @@ test.describe("Mobile gameplay overlay layout", () => {
     await expect(overlay.getByTestId("settings-panel")).toBeVisible();
     await overlay.getByRole("button", { name: "Close" }).first().click();
     await expect(overlay.getByTestId("settings-panel")).toBeHidden();
+  });
+
+  test("table scale slider enlarges stage on iPhone portrait", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openOverlayFixture(page, { players: 4, bots: 1, phase: "draw" });
+    await expectMobileOverlayTableScale(page);
   });
 });
