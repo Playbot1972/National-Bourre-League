@@ -197,7 +197,7 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      <YourTurnAttention visible={yourTurnAttention} />
+      <YourTurnAttention phase={yourTurnAttention} />
       <EventReactions events={events} players={players} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
       {nativeMobile ? (

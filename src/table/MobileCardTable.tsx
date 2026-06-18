@@ -17,6 +17,7 @@ import { useMobileStageFit } from "./hooks/useMobileStageFit";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
+import { isPlayerAtBourreRisk } from "./logic";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface MobileCardTableProps {
@@ -86,6 +87,16 @@ export function MobileCardTable({
   const handTiming = handTimingScale();
   const sessionKey = `${session.sessionId}:${session.handNumber}`;
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
+  const bourreRiskIds = new Set(
+    session.participantIds.filter((pid) =>
+      isPlayerAtBourreRisk(
+        pid,
+        trickPresentation.displayTricksByPlayer,
+        session.participantIds,
+        session.phase,
+      ),
+    ),
+  );
 
   const displayPlayers = players.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
@@ -117,6 +128,7 @@ export function MobileCardTable({
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
       bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
+      bourrePressure: bourreRiskIds.has(player.playerId),
     };
   });
 

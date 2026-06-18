@@ -68,6 +68,8 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
+  const bourrePressure = Boolean(player.bourrePressure);
+  const bourrePressureSelf = bourrePressure && player.isSelf;
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -104,6 +106,8 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
         bourrePulse ? "bseat--bourre-pulse" : "",
         bourreMarker ? "bseat--bourre" : "",
+        bourrePressure ? "bseat--bourre-pressure" : "",
+        bourrePressureSelf ? "bseat--bourre-pressure-self" : "",
         player.bankrollTick === "up" ? "bseat--bankroll-up" : "",
         player.bankrollTick === "down" ? "bseat--bankroll-down" : "",
       ]
@@ -136,7 +140,16 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}
-            {bourreMarker && (
+            {bourrePressure && (
+              <span
+                className="bseat__bourre-pressure-badge"
+                aria-label={bourrePressureSelf ? "You need this trick to avoid bourré" : "At risk of bourré"}
+                title={bourrePressureSelf ? "Win this trick or go bourré" : "Must win this trick"}
+              >
+                {bourrePressureSelf ? "Bourré risk!" : "0 tricks"}
+              </span>
+            )}
+            {bourreMarker && !bourrePressure && (
               <span className="bseat__bourre-badge" aria-label="Bourré" title="Bourré">
                 Bourré
               </span>
@@ -174,7 +187,10 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
                 </span>
               )}
               {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
-              {bourrePulse && (
+              {bourrePressure && (
+                <span className="bseat__bourre-pressure-ring" aria-hidden="true" />
+              )}
+              {bourrePulse && !bourrePressure && (
                 <span className="bseat__bourre-ring" aria-hidden="true" />
               )}
             </div>

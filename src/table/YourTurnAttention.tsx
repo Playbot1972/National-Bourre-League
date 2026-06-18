@@ -1,11 +1,14 @@
-import { yourTurnAttentionReducedMotion } from "./hooks/useYourTurnAttention";
+import {
+  yourTurnAttentionReducedMotion,
+  type YourTurnAttentionPhase,
+} from "./hooks/useYourTurnAttention";
 
 interface YourTurnAttentionProps {
-  visible: boolean;
+  phase: YourTurnAttentionPhase;
 }
 
-export function YourTurnAttention({ visible }: YourTurnAttentionProps) {
-  if (!visible) return null;
+export function YourTurnAttention({ phase }: YourTurnAttentionProps) {
+  if (phase === "hidden") return null;
 
   const reduced = yourTurnAttentionReducedMotion();
 
@@ -13,8 +16,11 @@ export function YourTurnAttention({ visible }: YourTurnAttentionProps) {
     <div
       className={[
         "byour-turn",
-        reduced ? "byour-turn--reduced" : "byour-turn--pop",
-      ].join(" ")}
+        phase === "exit" ? "byour-turn--exit" : "byour-turn--pop",
+        reduced ? "byour-turn--reduced" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-testid="your-turn-attention"
       role="status"
       aria-live="polite"

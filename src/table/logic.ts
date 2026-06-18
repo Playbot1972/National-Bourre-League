@@ -19,6 +19,35 @@ export function isHandComplete(
   return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
 }
 
+/**
+ * Players who must win the current (final) trick to avoid bourré.
+ * Only applies during play once four tricks are complete — not a vague early warning.
+ */
+export function playersAtBourreRisk(
+  tricksByPlayer: Record<string, number>,
+  participantIds: string[],
+  phase: string | null | undefined,
+): string[] {
+  if (phase !== "play") return [];
+  const participants = [...new Set(participantIds.filter(Boolean))];
+  if (participants.length < 2) return [];
+
+  const tricksPlayed = totalTricksPlayed(tricksByPlayer, participants);
+  const tricksRemaining = MAX_TRICKS_PER_HAND - tricksPlayed;
+  if (tricksRemaining !== 1) return [];
+
+  return participants.filter((pid) => (tricksByPlayer[pid] ?? 0) === 0);
+}
+
+export function isPlayerAtBourreRisk(
+  playerId: string,
+  tricksByPlayer: Record<string, number>,
+  participantIds: string[],
+  phase: string | null | undefined,
+): boolean {
+  return playersAtBourreRisk(tricksByPlayer, participantIds, phase).includes(playerId);
+}
+
 /** Most tricks wins; ties at the top share winner status. */
 export function deriveWinnersFromTricks(
   tricksByPlayer: Record<string, number>,
