@@ -67,6 +67,40 @@ describe("trickPresentationMachine", () => {
     assert.equal(store.pendingResolution?.frozen.plays.length, 4);
   });
 
+  it("recovers completing card from playedCards on atomic server resolve", () => {
+    const threePlays = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts",
+      plays: completedTrick.plays.slice(0, 3),
+    };
+    const playedCards = completedTrick.plays.map((play) => ({
+      ...play,
+      trickNumber: 1,
+    }));
+
+    let store = createTrickPresentationStore(
+      { p1: 0, p2: 0, p3: 0, p4: 0 },
+      threePlays,
+    );
+    for (let i = 0; i < 3; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { trickNumber: 2, leadPlayerId: "p1", leadSuit: "clubs", plays: [] },
+        tricksByPlayer: { p1: 1, p2: 0, p3: 0, p4: 0 },
+        playedCards,
+      },
+      participantIds: participants,
+    });
+    assert.equal(store.pendingResolution?.frozen.plays.length, 4);
+    store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
+  });
+
   it("shows winner highlight before collection", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
     for (let i = 0; i < 4; i++) {
@@ -148,6 +182,7 @@ describe("trickPresentationMachine", () => {
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "live");
     assert.equal(store.prevTrick?.plays.length, 1);
+    assert.equal(store.revealedCount, 1);
   });
 
   it("does not allow live phase until pipeline completes", () => {

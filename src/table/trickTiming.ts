@@ -2,7 +2,7 @@ import { isTrump } from "../game/cardUtils";
 import { resolveTrickWinner } from "../game/trick";
 import type { Rank, Suit } from "../types";
 import { totalTricksPlayed } from "./logic";
-import type { CurrentTrickState, SerializedCard } from "./types";
+import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
 /** Card travel to center (180–260 ms). */
 export const CARD_LAND_MS = 220;
@@ -149,6 +149,22 @@ export function serializedPlays(trick: CurrentTrickState | null | undefined): Tr
   return trick?.plays?.map((p) => ({ playerId: p.playerId, card: p.card })) ?? [];
 }
 
+/** Recover full trick plays when the server resolves atomically (last card not in prevTrick). */
+export function completedTrickPlays(input: {
+  prevTrick: CurrentTrickState | null | undefined;
+  playedCards?: PlayedCardEntry[];
+  trickNumber: number;
+}): TrickPlay[] {
+  const prevPlays = serializedPlays(input.prevTrick);
+  const historyPlays =
+    input.playedCards
+      ?.filter((entry) => entry.trickNumber === input.trickNumber)
+      .map((entry) => ({ playerId: entry.playerId, card: entry.card })) ?? [];
+
+  if (historyPlays.length > prevPlays.length) return historyPlays;
+  return prevPlays;
+}
+
 export function trumpBeatLedSuit(
   plays: TrickPlay[],
   leadSuit: string | null | undefined,
@@ -178,18 +194,20 @@ export function detectTrickResolution(input: {
   nextTricks: Record<string, number>;
   participantIds: string[];
   prevTrick: CurrentTrickState | null | undefined;
+  playedCards?: PlayedCardEntry[];
 }): FrozenTrick | null {
-  const { prevTricks, nextTricks, participantIds, prevTrick } = input;
+  const { prevTricks, nextTricks, participantIds, prevTrick, playedCards } = input;
   const prevTotal = totalTricksPlayed(prevTricks, participantIds);
   const nextTotal = totalTricksPlayed(nextTricks, participantIds);
   if (nextTotal <= prevTotal) return null;
 
   const winnerId = trickWinnerDelta(prevTricks, nextTricks, participantIds);
-  const plays = serializedPlays(prevTrick);
+  const trickNumber = prevTrick?.trickNumber ?? nextTotal;
+  const plays = completedTrickPlays({ prevTrick, playedCards, trickNumber });
   if (!winnerId || !plays.length) return null;
 
   return {
-    trickNumber: prevTrick?.trickNumber ?? nextTotal,
+    trickNumber,
     leadSuit: prevTrick?.leadSuit ?? null,
     plays,
     winnerId,

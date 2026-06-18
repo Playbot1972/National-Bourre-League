@@ -36,9 +36,7 @@ export function TrickRow({
   const isHold =
     presentationPhase === "trickComplete" ||
     presentationPhase === "winnerReveal";
-  const isSweep =
-    presentationPhase === "collectTrick" ||
-    presentationPhase === "nextLeadReady";
+  const isSweep = presentationPhase === "collectTrick";
 
   return (
     <div

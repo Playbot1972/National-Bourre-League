@@ -63,6 +63,7 @@ export function TableSessionView({
     tricksByPlayer: session.tricksByPlayer,
     participantIds: session.participantIds,
     trumpSuit: session.trumpSuit,
+    playedCards: session.playedCards,
   });
   const handPresentation = useHandPresentation({
     session,
