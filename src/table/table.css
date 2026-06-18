@@ -224,6 +224,73 @@
   transform-origin: center bottom;
 }
 
+/* 3–4 player layouts — taller felt, compact avatars, larger trump lane */
+.btable--p3,
+.btable--p4 {
+  --stage-seat-inset-top: 5%;
+  --stage-seat-inset-x: 4%;
+  --stage-seat-inset-bottom: 7%;
+}
+
+.btable--p3 .table-oval,
+.btable--p4 .table-oval {
+  inset: 7% 4.5% 9% 4.5%;
+}
+
+.btable--p3 .deck-stack,
+.btable--p4 .deck-stack {
+  left: 18%;
+  top: 42%;
+  width: 58px;
+}
+
+.btable--p3 .deck-stack .pcard--sm,
+.btable--p4 .deck-stack .pcard--sm {
+  transform: scale(1);
+  transform-origin: center bottom;
+}
+
+.btable--p3 .trump-suit-badge,
+.btable--p4 .trump-suit-badge {
+  width: 50px;
+  height: 66px;
+  font-size: 30px;
+}
+
+.btable--p3 .center-play,
+.btable--p4 .center-play {
+  width: min(52%, 210px);
+  top: 44%;
+  max-width: calc(100% - 96px);
+}
+
+.btable--p3 .center-play__trick,
+.btable--p4 .center-play__trick {
+  min-height: 68px;
+}
+
+.btable--p3 .bseat__avatar,
+.btable--p4 .bseat__avatar {
+  width: 36px;
+  height: 36px;
+}
+
+.btable--p3 .bseat__avatar--initials,
+.btable--p4 .bseat__avatar--initials {
+  font-size: 13px;
+}
+
+.btable--p3 .bseat__name,
+.btable--p4 .bseat__name {
+  max-width: 80px;
+  font-size: 11px;
+}
+
+.btable--p3 .bhud,
+.btable--p4 .bhud {
+  max-width: 108px;
+}
+
 /* Center play lane — tricks, phase, pot stats only */
 .center-play {
   position: absolute;
@@ -852,6 +919,14 @@
     0 2px 8px rgba(0, 0, 0, 0.45),
     0 0 0 2px rgba(244, 213, 141, 0.25);
   z-index: 2;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  color: inherit;
 }
 
 .bseat__trick-badge {
@@ -1139,11 +1214,13 @@
 }
 
 .bseat__avatar {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   object-fit: cover;
   display: block;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  transform-origin: center center;
 }
 
 .bseat__avatar--initials {
@@ -1522,6 +1599,25 @@
     --stage-seat-inset-top: 6%;
     --stage-seat-inset-x: 5%;
     --stage-seat-inset-bottom: 8%;
+  }
+
+  .btable--p3,
+  .btable--p4 {
+    --stage-seat-inset-top: 4%;
+    --stage-seat-inset-x: 3.5%;
+    --stage-seat-inset-bottom: 6%;
+  }
+
+  .btable-wrap--landscape-row.btable--p3 .table-stage-fit,
+  .btable-wrap--landscape-row.btable--p4 .table-stage-fit {
+    flex: 1 1 68%;
+    max-width: 72%;
+  }
+
+  .btable-wrap--landscape-row.btable--p3 .hand-panel,
+  .btable-wrap--landscape-row.btable--p4 .hand-panel {
+    flex: 1 1 30%;
+    max-width: 32%;
   }
 
   .btable--p7,
@@ -2007,6 +2103,31 @@
 
 .bseat--leading .bseat__avatar-wrap {
   transform: rotateX(6deg) translateZ(12px);
+}
+
+.bseat__avatar-wrap--peek,
+.bseat__avatar-wrap:focus-visible {
+  z-index: 40;
+}
+
+.bseat__avatar-wrap--peek .bseat__avatar,
+.bseat__avatar-wrap--peek .bseat__avatar--initials,
+.bseat__avatar-wrap:focus-visible .bseat__avatar,
+.bseat__avatar-wrap:focus-visible .bseat__avatar--initials {
+  transform: scale(1.3);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bseat__avatar-wrap:hover {
+    z-index: 40;
+  }
+
+  .bseat__avatar-wrap:hover .bseat__avatar,
+  .bseat__avatar-wrap:hover .bseat__avatar--initials {
+    transform: scale(1.3);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  }
 }
 
 .bseat__react-bar {

@@ -57,9 +57,10 @@ describe("G — seat layout helpers", () => {
     }
   });
 
-  it("widens table aspect for more players", () => {
-    assert.ok(tableAspectForPlayers(8) > tableAspectForPlayers(3));
-    assert.ok(tableAspectForPlayers(3) >= tableAspectForPlayers(2));
+  it("uses taller felt for 3–4 players than larger tables", () => {
+    assert.ok(tableAspectForPlayers(3) < tableAspectForPlayers(6));
+    assert.ok(tableAspectForPlayers(4) < tableAspectForPlayers(8));
+    assert.ok(tableAspectForPlayers(3) <= tableAspectForPlayers(4));
   });
 
   it("places side seats near the rail, not bunched at center", () => {

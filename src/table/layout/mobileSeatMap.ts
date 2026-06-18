@@ -2,16 +2,20 @@ import type { SeatPlacement, SeatRegion } from "../logic";
 
 export type MobileOrientation = "portrait" | "landscape";
 
-/** Intentional mobile felt shape — squarer in portrait, wider racetrack in landscape. */
+/** Intentional mobile felt shape — taller in portrait for 3–4 player games. */
 export function mobileTableAspect(opponentCount: number, orientation: MobileOrientation): number {
   const n = Math.max(1, Math.min(7, opponentCount || 1));
   if (orientation === "portrait") {
-    if (n <= 2) return 0.86;
+    if (n <= 1) return 0.8;
+    if (n <= 2) return 0.82;
+    if (n <= 3) return 0.86;
     if (n <= 4) return 0.9;
     return 0.94;
   }
-  if (n <= 3) return 1.12;
-  if (n <= 5) return 1.2;
+  if (n <= 1) return 1.02;
+  if (n <= 2) return 0.98;
+  if (n <= 3) return 1.02;
+  if (n <= 5) return 1.16;
   return 1.26;
 }
 
@@ -36,13 +40,13 @@ export function mobileOpponentSeatPosition(
   const i = Math.max(0, Math.min(n - 1, opponentIndex));
 
   if (orientation === "portrait") {
-    const startDeg = 200;
-    const endDeg = 340;
+    const startDeg = 205;
+    const endDeg = 335;
     const t = n === 1 ? 0.5 : i / (n - 1);
     const deg = startDeg + (endDeg - startDeg) * t;
     const rad = (deg * Math.PI) / 180;
-    const rx = 38;
-    const ry = 28;
+    const rx = n <= 2 ? 40 : 38;
+    const ry = n <= 2 ? 26 : 28;
     const nx = Math.cos(rad);
     const ny = Math.sin(rad);
     return {

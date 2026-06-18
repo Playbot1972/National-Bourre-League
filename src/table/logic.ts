@@ -77,6 +77,7 @@ export function seatRailAxes(total: number): { rx: number; ry: number; outset: n
   const n = Math.max(2, Math.min(8, total || 2));
   if (n >= 7) return { rx: 42, ry: 40, outset: 4 };
   if (n >= 5) return { rx: 44, ry: 42, outset: 4 };
+  if (n <= 4) return { rx: 48, ry: 46, outset: 6 };
   return { rx: RAIL_RX, ry: RAIL_RY, outset: SEAT_RAIL_OUTSET };
 }
 
@@ -117,8 +118,17 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   };
 }
 
-/** Table width:height — compact racetrack shape on all devices. */
+/**
+ * Table width:height — squarer / taller felt for 3–4 players so trump/upcard stays readable.
+ * Wider racetrack as seat count grows.
+ */
 export function tableAspectForPlayers(total: number): number {
   const n = Math.max(2, Math.min(8, total || 2));
-  return 1.12 + ((n - 2) * 0.12) / 6;
+  if (n === 2) return 1.04;
+  if (n === 3) return 0.94;
+  if (n === 4) return 0.98;
+  if (n === 5) return 1.08;
+  if (n === 6) return 1.12;
+  if (n === 7) return 1.16;
+  return 1.2;
 }

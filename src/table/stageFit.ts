@@ -53,6 +53,15 @@ export function tableAspectForMobileViewport(
   return Math.min(aspect, 1.32);
 }
 
+/** Landscape row: stage column share — more felt for 3–4 player tables. */
+export function landscapeStageShareForPlayers(playerCount: number): number {
+  const n = Math.max(2, Math.min(8, playerCount || 4));
+  if (n <= 3) return 0.7;
+  if (n <= 4) return 0.68;
+  if (n <= 5) return 0.62;
+  return 0.56;
+}
+
 export function computeMobileLandscapeOverlayFit(
   input: Pick<StageFitInput, "availWidth" | "availHeight" | "aspect" | "userScale" | "padX" | "padY"> & {
     stageShare?: number;
