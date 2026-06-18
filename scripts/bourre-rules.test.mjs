@@ -3,7 +3,39 @@ import assert from "node:assert/strict";
 import {
   computeHandPotState,
   settleHandDeltas,
+  normalizeBourreSettings,
+  resolveSessionBuyIn,
+  DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
+
+describe("buy-in settings normalization", () => {
+  it("maps legacy anteAmount-only config to buy-in with default per-hand ante", () => {
+    const settings = normalizeBourreSettings({ anteAmount: 100, limEnabled: true });
+    assert.equal(settings.buyInAmount, 100);
+    assert.equal(settings.anteAmount, DEFAULT_HAND_ANTE);
+    assert.equal(settings.potCap, 20);
+    assert.equal(settings.limEnabled, true);
+  });
+
+  it("keeps explicit buy-in separate from per-hand ante", () => {
+    const settings = normalizeBourreSettings({
+      buyInAmount: 500,
+      anteAmount: 2,
+      limEnabled: false,
+    });
+    assert.equal(settings.buyInAmount, 500);
+    assert.equal(settings.anteAmount, 2);
+    assert.equal(settings.potCap, 40);
+  });
+
+  it("resolveSessionBuyIn prefers session buy-in over room settings", () => {
+    assert.equal(
+      resolveSessionBuyIn({ buyInAmount: 50 }, { buyInAmount: 100 }),
+      50,
+    );
+    assert.equal(resolveSessionBuyIn({}, { anteAmount: 25 }), 25);
+  });
+});
 
 describe("E — pot and bourré settlement", () => {
   const stake = (n) => () => n;

@@ -3,19 +3,47 @@
 /** Pot cap is always ante × this multiplier. */
 export const POT_CAP_MULTIPLIER = 20;
 
+/** Per-hand ante used for pot math and LmT (separate from table buy-in). */
+export const DEFAULT_HAND_ANTE = 1;
+
 export const DEFAULT_BOURRE_SETTINGS = {
-  anteAmount: 1,
+  buyInAmount: 1,
+  anteAmount: DEFAULT_HAND_ANTE,
   limEnabled: false,
 };
 
-/** Normalize room/session Bourré settings. */
+/**
+ * Normalize room/session Bourré settings.
+ * buyInAmount — starting stack each player brings to the table.
+ * anteAmount — per-hand ante for pot/LmT (not the buy-in dropdown).
+ *
+ * Legacy rooms stored only anteAmount on the old dropdown; treat that as buy-in
+ * and default per-hand ante to 1.
+ */
 export function normalizeBourreSettings(raw = {}) {
-  const anteAmount = Math.max(1, Number(raw.anteAmount ?? raw.handStake) || 1);
+  const hasExplicitBuyIn = raw.buyInAmount != null;
+  const buyInAmount = Math.max(
+    1,
+    Number(hasExplicitBuyIn ? raw.buyInAmount : raw.anteAmount ?? raw.handStake) || 1,
+  );
+  const anteAmount = hasExplicitBuyIn
+    ? Math.max(1, Number(raw.anteAmount ?? DEFAULT_HAND_ANTE) || DEFAULT_HAND_ANTE)
+    : DEFAULT_HAND_ANTE;
   return {
+    buyInAmount,
     anteAmount,
     potCap: anteAmount * POT_CAP_MULTIPLIER,
     limEnabled: raw.limEnabled === true,
   };
+}
+
+/** Starting stack for a session — prefers session buy-in, then room settings. */
+export function resolveSessionBuyIn(sessionData, roomBourreSettings) {
+  const fromSession = sessionData?.buyInAmount;
+  if (fromSession != null && Number(fromSession) > 0) {
+    return Math.max(1, Number(fromSession) || 1);
+  }
+  return normalizeBourreSettings(roomBourreSettings).buyInAmount;
 }
 
 /**
