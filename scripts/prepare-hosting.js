@@ -2,12 +2,19 @@
 // Appends a build id to module URLs so phones pick up new JS after deploy.
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
 
 const dist = "dist";
 const socialDest = join(dist, "social");
 
-spawnSync(process.execPath, ["scripts/sync-version.js"], { stdio: "inherit" });
+function readBuildIdFromMeta() {
+  const metaPath = join("public", "build-meta.json");
+  if (!existsSync(metaPath)) return null;
+  try {
+    return JSON.parse(readFileSync(metaPath, "utf8")).buildId;
+  } catch {
+    return null;
+  }
+}
 
 const REQUIRED_FIREBASE_CONFIG_EXPORTS = [
   "FIREBASE_SDK_VERSION",
@@ -58,8 +65,9 @@ if (existsSync(socialDest)) {
 cpSync("docs", socialDest, { recursive: true });
 
 const buildId =
-  process.env.GITHUB_SHA?.slice(0, 8) ||
   process.env.BUILD_ID ||
+  readBuildIdFromMeta() ||
+  process.env.GITHUB_SHA?.slice(0, 8) ||
   Date.now().toString(36);
 
 for (const name of readdirSync(socialDest)) {

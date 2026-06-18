@@ -3,18 +3,57 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
-import { APP_VERSION } from "./version";
+import { BUILD_ID, BUILD_STAMPED_AT, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
 
+function shouldCheckForUpdates() {
+  const host = window.location.hostname;
+  return host !== "localhost" && host !== "127.0.0.1";
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home");
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
+  const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
     initTheme();
+  }, []);
+
+  useEffect(() => {
+    if (!shouldCheckForUpdates()) return;
+
+    let cancelled = false;
+
+    async function checkForUpdate() {
+      try {
+        const res = await fetch(`/build-meta.json?check=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const meta = (await res.json()) as { buildId?: string };
+        if (!cancelled && meta.buildId && meta.buildId !== BUILD_ID) {
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // Ignore network errors during background update checks.
+      }
+    }
+
+    checkForUpdate();
+    const onFocus = () => {
+      checkForUpdate();
+    };
+    window.addEventListener("focus", onFocus);
+    const timer = window.setInterval(checkForUpdate, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(timer);
+    };
   }, []);
 
   const toggleTheme = () => {
@@ -25,6 +64,14 @@ export default function App() {
 
   return (
     <div className="app">
+      {updateAvailable ? (
+        <div className="app-update-banner" role="status">
+          <span>A new version is available.</span>
+          <button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      ) : null}
       <header className="app__header">
         <button
           className="app__brand"
@@ -89,8 +136,12 @@ export default function App() {
       <footer className="app__footer">
         <span>National Bourré League · learn the Louisiana classic</span>
       </footer>
-      <div className="app-version" aria-label="App version">
-        v{APP_VERSION}
+      <div
+        className="app-version"
+        aria-label="App version"
+        title={`National Bourré League ${VERSION_LABEL} · built ${BUILD_STAMPED_AT}`}
+      >
+        {VERSION_LABEL}
       </div>
     </div>
   );

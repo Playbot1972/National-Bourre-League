@@ -261,12 +261,28 @@ npm run build:hosting   # vite build + copy docs/ → dist/social/
 firebase deploy --only hosting,firestore:rules
 ```
 
-**App version:** Production deploys to `main` auto-bump `version.json` (patch segment) in GitHub
-Actions before each Firebase deploy; the workflow commits `chore: release v… [skip ci]` back to
-`main` so every production push gets a unique version for tracking and rollback. Local deploys
-(`npm run deploy`) do not auto-bump — run `npm run version:bump` first if you need a new label.
-`npm run version:sync` propagates `version.json` → `package.json`, `src/version.ts`, and
-`docs/version.js`. Displayed bottom-right as `v1.00.00` on `/` and `/social/`.
+**App version:** `package.json` `version` is the single source of truth (`N.NN.NN`). Every
+build runs `npm run version:sync`, which stamps `src/version.ts`, `docs/version.js`, and
+`public/build-meta.json` with semantic version + short git SHA (example footer:
+`v1.01.30+abc12345 dev` locally, `v1.01.31+abc12345` in production). The footer label always
+comes from these generated artifacts, not hand-edited strings.
+
+| Command | When to use |
+| --- | --- |
+| `npm run build:test-version` | Local test build after code changes — bumps patch, stamps **dev** channel, runs full `build:hosting` |
+| `npm run deploy:patch` | Local production deploy — bumps patch, stamps **production**, deploys |
+| `npm run version:sync` | Regenerate version files from current `package.json` without bumping |
+| `npm run verify:prod` | Confirm production `/social/version.js` and `/build-meta.json` match or exceed repo version |
+
+GitHub Actions deploys on `main` auto-bump patch with `BUILD_CHANNEL=production` before deploy
+and commit `chore: release v… [skip ci]` back to `main`. Plain `npm run deploy` does **not**
+auto-bump (use `deploy:patch` when you need a new label). `index.html`, `version.js`, and
+`build-meta.json` are served with `no-cache` headers; module URLs get `?v=` cache-bust query
+strings in hosting builds. Deployed apps poll for newer `BUILD_ID` and show a reload banner.
+
+**Rollback:** check out a known commit or tag, then `npm ci && BUILD_CHANNEL=production npm run build:hosting`
+and `FORCE_DEPLOY=1 npm run deploy:hosting` (or use Firebase Hosting release history). Tag a
+release after deploy if you want a named rollback point: `git tag v1.01.31 && git push origin v1.01.31`.
 
 **Preview the combined site locally** (React at `/`, social at `/social/`, emulators
 still auto-connect on localhost):

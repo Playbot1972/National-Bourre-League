@@ -6,6 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compareAppVersion } from "./lib/version-format.mjs";
 
 const ORIGIN = process.env.PROD_ORIGIN || "https://booray.win";
 const TIMEOUT_MS = 15000;
@@ -13,30 +14,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** @typedef {{ ok: boolean, detail: string }} CheckResult */
 
-/** @param {string} version */
-function parseAppVersion(version) {
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) return null;
-  return {
-    major: Number(match[1]),
-    minor: Number(match[2]),
-    patch: Number(match[3]),
-  };
-}
-
-/** @param {string} a @param {string} b @returns {number} */
-function compareAppVersion(a, b) {
-  const pa = parseAppVersion(a);
-  const pb = parseAppVersion(b);
-  if (!pa || !pb) return 0;
-  if (pa.major !== pb.major) return pa.major - pb.major;
-  if (pa.minor !== pb.minor) return pa.minor - pb.minor;
-  return pa.patch - pb.patch;
-}
-
 function expectedRepoVersion() {
   try {
-    const raw = readFileSync(join(root, "version.json"), "utf8");
+    const raw = readFileSync(join(root, "package.json"), "utf8");
     return JSON.parse(raw).version;
   } catch {
     return null;
@@ -51,6 +31,7 @@ async function fetchPath(path) {
   const res = await fetch(`${ORIGIN}${path}`, {
     signal: AbortSignal.timeout(TIMEOUT_MS),
     redirect: "follow",
+    cache: "no-store",
   });
   return { ok: res.ok, status: res.status, body: await res.text() };
 }
@@ -59,24 +40,43 @@ async function fetchPath(path) {
 async function checkVersion() {
   const { ok, body } = await fetchPath("/social/version.js");
   if (!ok) return { ok: false, detail: "Could not fetch /social/version.js" };
-  const match = body.match(/APP_VERSION\s*=\s*"([^"]+)"/);
-  if (!match) return { ok: false, detail: "APP_VERSION not found in version.js" };
 
-  const prodVersion = match[1];
+  const prodVersion = body.match(/APP_VERSION\s*=\s*"([^"]+)"/)?.[1];
+  if (!prodVersion) return { ok: false, detail: "APP_VERSION not found in version.js" };
+
+  const prodBuildId = body.match(/BUILD_ID\s*=\s*"([^"]+)"/)?.[1];
+  const prodLabel = body.match(/VERSION_LABEL\s*=\s*"([^"]+)"/)?.[1];
   const repoVersion = expectedRepoVersion();
-
-  if (prodVersion === "1.00.60") {
-    return { ok: false, detail: `Still on old release v${prodVersion} — run npm run deploy` };
-  }
 
   if (repoVersion && compareAppVersion(prodVersion, repoVersion) < 0) {
     return {
       ok: false,
-      detail: `Production v${prodVersion} is behind repo v${repoVersion} — run npm run deploy (GitHub Actions deploy is blocked until Firebase secrets are set)`,
+      detail: `Production ${prodLabel ?? `v${prodVersion}`} is behind repo v${repoVersion} — run npm run deploy:patch or push to main`,
     };
   }
 
-  return { ok: true, detail: repoVersion ? `v${prodVersion} (repo v${repoVersion})` : `v${prodVersion}` };
+  const buildHint = prodBuildId ? `+${prodBuildId}` : "";
+  return {
+    ok: true,
+    detail: repoVersion
+      ? `${prodLabel ?? `v${prodVersion}${buildHint}`} (repo v${repoVersion})`
+      : prodLabel ?? `v${prodVersion}${buildHint}`,
+  };
+}
+
+/** @returns {Promise<CheckResult>} */
+async function checkBuildMeta() {
+  const { ok, body } = await fetchPath("/build-meta.json");
+  if (!ok) return { ok: false, detail: "Could not fetch /build-meta.json" };
+  try {
+    const meta = JSON.parse(body);
+    if (!meta.version || !meta.buildId || !meta.label) {
+      return { ok: false, detail: "build-meta.json missing version/buildId/label" };
+    }
+    return { ok: true, detail: meta.label };
+  } catch {
+    return { ok: false, detail: "build-meta.json is not valid JSON" };
+  }
 }
 
 /** @returns {Promise<CheckResult>} */
@@ -130,7 +130,10 @@ function print(label, result) {
 console.log(`Production verify — ${ORIGIN}\n`);
 
 const version = await checkVersion();
-print("Version", version);
+print("Social version", version);
+
+const buildMeta = await checkBuildMeta();
+print("React build meta", buildMeta);
 
 const firebase = await checkFirebaseConfig();
 print("Firebase config", firebase);
@@ -138,6 +141,6 @@ print("Firebase config", firebase);
 const social = await checkSocialApp();
 print("Social app", social);
 
-const passed = version.ok && firebase.ok && social.ok;
+const passed = version.ok && buildMeta.ok && firebase.ok && social.ok;
 console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
 process.exit(passed ? 0 : 1);
