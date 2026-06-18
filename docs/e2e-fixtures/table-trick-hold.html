@@ -29,6 +29,7 @@
 
       const params = new URLSearchParams(window.location.search);
       const trumpBeat = params.get("trumpBeat") === "1";
+      const atomicResolve = params.get("atomic") === "1";
       const resolveDelayMs = parseInt(params.get("resolveDelay") || "600", 10);
 
       /** Keep in sync with src/table/trickTiming.ts — used by E2E hold-duration checks. */
@@ -58,7 +59,10 @@
       };
 
       let tricksByPlayer = { p0: 0, p1: 0, p2: 0, p3: 0 };
-      let currentTrick = completedTrick;
+      let currentTrick = atomicResolve
+        ? { ...completedTrick, plays: completedTrick.plays.slice(0, 3) }
+        : completedTrick;
+      let playedCards = [];
       let trickResolved = false;
 
       window.__trickHoldFixture = {
@@ -111,6 +115,7 @@
             remainingDeckCount: 20,
             maxDrawDiscards: 4,
             currentTrick,
+            playedCards,
             handEnrollment: null,
           },
           players: buildPlayers(),
@@ -164,6 +169,7 @@
         tricksByPlayer = trumpBeat
           ? { p0: 0, p1: 0, p2: 0, p3: 1 }
           : { p0: 1, p1: 0, p2: 0, p3: 0 };
+        playedCards = completedTrick.plays.map((play) => ({ ...play, trickNumber: completedTrick.trickNumber }));
         currentTrick = null;
         render();
       }, resolveDelayMs);

@@ -17,7 +17,7 @@ import {
   reduceTrickPresentation,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
-import type { CurrentTrickState } from "../types";
+import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
 interface UseTrickPresentationInput {
   phase?: string | null;
@@ -25,6 +25,7 @@ interface UseTrickPresentationInput {
   tricksByPlayer: Record<string, number>;
   participantIds: string[];
   trumpSuit?: string | null;
+  playedCards?: PlayedCardEntry[];
 }
 
 export type TrickPresentation = TrickPresentationModel & {
@@ -37,6 +38,7 @@ export function useTrickPresentation({
   tricksByPlayer,
   participantIds,
   trumpSuit,
+  playedCards,
 }: UseTrickPresentationInput): TrickPresentation {
   const [store, dispatch] = useReducer(
     reduceTrickPresentation,
@@ -77,19 +79,19 @@ export function useTrickPresentation({
       clearPlayOriginCache();
       dispatch({
         type: "reinit",
-        snapshot: { currentTrick, tricksByPlayer },
+        snapshot: { currentTrick, tricksByPlayer, playedCards },
       });
       return;
     }
 
     dispatch({
       type: "serverUpdate",
-      snapshot: { currentTrick, tricksByPlayer },
+      snapshot: { currentTrick, tricksByPlayer, playedCards },
       participantIds,
       trumpSuit,
       reducedMotion: prefersReducedMotion(),
     });
-  }, [phase, currentTrick, tricksByPlayer, participantIds, trumpSuit]);
+  }, [phase, currentTrick, tricksByPlayer, participantIds, trumpSuit, playedCards]);
 
   useLayoutEffect(() => {
     if (phase !== "play") return;

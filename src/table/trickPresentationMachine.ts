@@ -6,11 +6,12 @@ import {
   type TrickPlay,
   type TrickPresentationPhase,
 } from "./trickTiming";
-import type { CurrentTrickState } from "./types";
+import type { CurrentTrickState, PlayedCardEntry } from "./types";
 
 export interface ServerTrickSnapshot {
   currentTrick: CurrentTrickState | null | undefined;
   tricksByPlayer: Record<string, number>;
+  playedCards?: PlayedCardEntry[];
 }
 
 export interface TrickPresentationModel {
@@ -175,12 +176,13 @@ export function reduceTrickPresentation(
           return { ...store, phase: "nextLeadReady" };
         case "nextLeadReady": {
           const pending = store.pendingServer;
+          const pendingReveal = serializedPlays(pending?.currentTrick).length;
           return {
             ...store,
             phase: "live",
             frozenTrick: null,
             showWinnerTag: false,
-            revealedCount: 0,
+            revealedCount: pendingReveal,
             resolvedTricks: null,
             pendingServer: null,
             prevTricks: pending ? { ...pending.tricksByPlayer } : store.prevTricks,
@@ -212,6 +214,7 @@ export function reduceTrickPresentation(
         nextTricks: snapshot.tricksByPlayer,
         participantIds,
         prevTrick: store.prevTrick,
+        playedCards: snapshot.playedCards,
       });
 
       if (resolved) {

@@ -800,6 +800,7 @@ let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
+/** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (2000+300+200). */
 const TRICK_PIPELINE_MS = 2000 + 300 + 200;
 const BOT_PLAY_STAGGER_MS = 350;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   BOT_PLAY_STAGGER_MS,
   CARD_LAND_MS,
+  completedTrickPlays,
   detectTrickResolution,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
@@ -41,6 +42,39 @@ describe("trickTiming", () => {
     assert.equal(frozen!.winnerId, "p2");
     assert.equal(frozen!.plays.length, 2);
     assert.equal(frozen!.trickNumber, 2);
+  });
+
+  it("recovers completing card from playedCards when server resolves atomically", () => {
+    const prevTrick = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts",
+      plays: [
+        { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+        { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+        { playerId: "p3", card: { rank: "Q", suit: "hearts" } },
+      ],
+    };
+    const playedCards = [
+      { playerId: "p1", card: { rank: "A", suit: "hearts" }, trickNumber: 1 },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" }, trickNumber: 1 },
+      { playerId: "p3", card: { rank: "Q", suit: "hearts" }, trickNumber: 1 },
+      { playerId: "p4", card: { rank: "J", suit: "hearts" }, trickNumber: 1 },
+    ];
+
+    const plays = completedTrickPlays({ prevTrick, playedCards, trickNumber: 1 });
+    assert.equal(plays.length, 4);
+
+    const frozen = detectTrickResolution({
+      prevTricks: { p1: 0, p2: 0, p3: 0, p4: 0 },
+      nextTricks: { p1: 1, p2: 0, p3: 0, p4: 0 },
+      participantIds: ["p1", "p2", "p3", "p4"],
+      prevTrick,
+      playedCards,
+    });
+    assert.ok(frozen);
+    assert.equal(frozen!.plays.length, 4);
+    assert.equal(frozen!.plays[3]?.playerId, "p4");
   });
 
   it("returns null when trick count unchanged", () => {

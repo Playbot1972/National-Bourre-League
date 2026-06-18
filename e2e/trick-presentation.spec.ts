@@ -48,6 +48,18 @@ test.describe("Trick presentation — premium hold timing", () => {
     expect(Date.now() - trickCompleteAt).toBeGreaterThanOrEqual(TRUMP_BEAT_READ_MS - 400);
   });
 
+  test("atomic server resolve keeps all four cards visible", async ({ page }) => {
+    await page.goto("/e2e-fixtures/table-trick-hold?atomic=1&resolveDelay=900");
+    await expect(page.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
+
+    const trickRow = page.getByTestId("trick-row");
+    await expect(trickRow).toHaveAttribute("data-trick-phase", "trickComplete", {
+      timeout: 8_000,
+    });
+    await expect(trickRow).toHaveAttribute("data-trick-card-count", "4");
+    await expect(trickRow.locator(".btrick__play .pcard")).toHaveCount(4);
+  });
+
   test("trump suit reminder shows after upcard clears in play", async ({ page }) => {
     await page.goto("/e2e-fixtures/table-trick-hold?resolveDelay=99999");
     await expect(page.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
