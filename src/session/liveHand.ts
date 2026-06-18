@@ -15,6 +15,7 @@ export interface PublicHandView {
   phase?: string | null;
   participantIds?: string[];
   tricksByPlayer?: Record<string, number>;
+  drawCompletedIds?: string[];
 }
 
 export interface SessionHandView {
@@ -53,11 +54,35 @@ function handInProgress(hand: PublicHandView | null | undefined): boolean {
   return true;
 }
 
+/** Prefer the mirror that reflects more hand progress when both are in-flight. */
+function handProgressScore(hand: PublicHandView | null | undefined): number {
+  if (!hand) return 0;
+  const phase = hand.phase ?? "";
+  let score = phase === "play" ? 1_000 : phase === "draw" ? 100 : 0;
+  score += (hand.drawCompletedIds?.length ?? 0) * 10;
+  const participants = hand.participantIds ?? [];
+  score += totalTricksPlayed(hand.tricksByPlayer ?? {}, participants);
+  return score;
+}
+
+function preferInProgressHand(
+  current: PublicHandView,
+  livePublic: PublicHandView | null | undefined,
+): PublicHandView {
+  if (!handInProgress(livePublic)) return current;
+  if (!handInProgress(current)) return livePublic!;
+  return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic! : current;
+}
+
 /** Ignore orphan liveEnrollment.deal snapshots between hands after deploy. */
 export function authoritativeCurrentHand(sessionData: SessionHandView | null | undefined): PublicHandView {
   const current = sessionData?.currentHand ?? emptyPreDealHand();
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   const livePhase = livePublic?.phase ?? null;
+
+  if (handInProgress(current) && handInProgress(livePublic)) {
+    return preferInProgressHand(current, livePublic);
+  }
 
   if (handInProgress(current)) return current;
 
