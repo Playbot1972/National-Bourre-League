@@ -29,8 +29,10 @@ export interface TablePlayer {
   isOut?: boolean;
   /** Brief pulse after bankroll changes at settlement. */
   bankrollTick?: "up" | "down" | null;
-  /** Bourré avatar alert — pulse then stable marker. */
+  /** Bourré avatar alert — pulse then stable marker (post-settlement). */
   bourreAlert?: "pulse" | "marker" | null;
+  /** In-hand bourré risk — must win final trick (live play only). */
+  bourrePressure?: boolean;
   perHandStake?: number;
   inHand: boolean;
   /** Tricks won this hand — from session.currentHand.tricksByPlayer[playerId]. */

@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   deriveWinnersFromTricks,
   isHandComplete,
+  isPlayerAtBourreRisk,
+  playersAtBourreRisk,
   seatPosition,
   tableAspectForPlayers,
   totalTricksPlayed,
@@ -43,6 +45,34 @@ describe("table logic — tricks and winners", () => {
     assert.equal(tricksToWinHint(2), 3);
     assert.equal(tricksToWinHint(3), 2);
     assert.equal(tricksToWinHint(4), 2);
+  });
+});
+
+describe("bourré pressure — final trick risk", () => {
+  const participants = ["p1", "p2", "p3"];
+
+  it("flags only zero-trick players on the final trick during play", () => {
+    const tricks = { p1: 2, p2: 2, p3: 0 };
+    assert.deepEqual(playersAtBourreRisk(tricks, participants, "play"), ["p3"]);
+    assert.equal(isPlayerAtBourreRisk("p3", tricks, participants, "play"), true);
+    assert.equal(isPlayerAtBourreRisk("p1", tricks, participants, "play"), false);
+  });
+
+  it("does not warn before the final trick", () => {
+    const tricks = { p1: 1, p2: 1, p3: 0 };
+    assert.deepEqual(playersAtBourreRisk(tricks, participants, "play"), []);
+  });
+
+  it("does not warn outside play phase", () => {
+    const tricks = { p1: 2, p2: 2, p3: 0 };
+    assert.deepEqual(playersAtBourreRisk(tricks, participants, "draw"), []);
+    assert.deepEqual(playersAtBourreRisk(tricks, participants, null), []);
+  });
+
+  it("allows multiple at-risk players when tied at zero tricks", () => {
+    const four = ["p1", "p2", "p3", "p4"];
+    const tricks = { p1: 2, p2: 2, p3: 0, p4: 0 };
+    assert.deepEqual(playersAtBourreRisk(tricks, four, "play").sort(), ["p3", "p4"]);
   });
 });
 

@@ -6,7 +6,6 @@ export type TableEventKind =
   | "trick-win"
   | "big-pot"
   | "pot-cap"
-  | "bourre"
   | "hand-win"
   | "reaction";
 
@@ -47,8 +46,6 @@ function detectEvents(
   participantIds: string[],
 ): TableEvent[] {
   const tricks = session.tricksByPlayer ?? {};
-  const trickPlays = session.currentTrick?.plays?.length ?? 0;
-  const phase = session.phase;
   const pot = potMetrics.currentPot;
   const newEvents: TableEvent[] = [];
 
@@ -84,23 +81,6 @@ function detectEvents(
       emoji: "💰",
       durationMs: 2000,
     });
-  }
-
-  if (phase === "play" && prev.phase === "play") {
-    const totalTricks = Object.values(tricks).reduce((s, n) => s + (n || 0), 0);
-    if (totalTricks >= 4 && trickPlays === 0 && prev.trickPlays > 0) {
-      const bourreIds = participantIds.filter((id) => (tricks[id] ?? 0) === 0);
-      if (bourreIds.length) {
-        newEvents.push({
-          id: nextId(),
-          kind: "bourre",
-          title: "Bourré pressure",
-          subtitle: "Zero tricks on the line",
-          emoji: "😬",
-          durationMs: 2400,
-        });
-      }
-    }
   }
 
   return newEvents;
