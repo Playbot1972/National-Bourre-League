@@ -61,7 +61,7 @@ export function PotCenter({
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (
-    <>
+    <div className="table-center-cluster" aria-label="Table center">
       <div className="deck-stack" aria-label="Deck and trump">
         {hasTrumpCard ? (
           <div
@@ -215,6 +215,6 @@ export function PotCenter({
           {participantCount} in hand
         </div>
       </div>
-    </>
+    </div>
   );
 }

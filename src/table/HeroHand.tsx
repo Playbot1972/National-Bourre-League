@@ -33,6 +33,31 @@ interface HeroHandProps {
   currentUserId?: string | null;
 }
 
+function heroShellClass(
+  settings: { cardScale: string },
+  className: string,
+  extras: string[] = [],
+): string {
+  return [
+    `btable-hero btable-hero--bare btable-hero--scale-${settings.cardScale}`,
+    ...extras,
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/** Stable placeholder — reserves hand dock height without visible chrome. */
+function HeroHandReserve({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`btable-hero btable-hero--bare btable-hero--reserved ${className}`.trim()}
+      aria-hidden="true"
+      data-testid="hero-hand"
+    />
+  );
+}
+
 export function HeroHand({
   cards,
   phase,
@@ -76,7 +101,6 @@ export function HeroHand({
     const added = [...nextIds].some((id) => !prev.has(id));
     prevCardIdsRef.current = nextIds;
     if (!added) return;
-    // Draw replacements and post-draw sync use draw-phase animations, not deal stagger.
     if (prev.size > 0) return;
     setDealing(true);
     setPlayingIndex(null);
@@ -99,6 +123,7 @@ export function HeroHand({
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
   const feedbackError =
     actionFeedback?.status === "error" ? actionFeedback.message : localError;
+  const phaseStatus = formatHandPhase(phase, enrollmentActive);
 
   const toggleDrawIndex = useCallback(
     (index: number) => {
@@ -142,7 +167,6 @@ export function HeroHand({
       }
       try {
         await Promise.resolve(onPlayCard(index));
-        // Parent often clears feedback without a success status after play.
         setPlayingIndex(null);
         playLockRef.current = false;
       } catch (err) {
@@ -198,34 +222,22 @@ export function HeroHand({
 
   if (!signedIn) {
     return (
-      <div className={`btable-hero ${className}`.trim()} aria-live="polite">
-        <p className="btable-hero__label muted small">Your hand</p>
+      <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
         <p className="btable-hero__fallback muted small">Sign in to see your dealt cards.</p>
       </div>
     );
   }
 
   if (!isInHand && !enrollmentActive && !dealtPhase) {
-    return null;
+    return <HeroHandReserve className={className} />;
   }
 
   if (dealtPhase && isInHand && cards.length === 0) {
-    if (handComplete) {
-      if (enrollmentActive) {
-        return null;
-      }
-      return (
-        <div className={`btable-hero ${className}`.trim()} aria-live="polite">
-          <p className="btable-hero__label muted small">Your hand</p>
-          <p className="btable-hero__hint muted small">
-            Hand complete — settling and opening the next deal…
-          </p>
-        </div>
-      );
+    if (handComplete && enrollmentActive) {
+      return <HeroHandReserve className={className} />;
     }
     return (
-      <div className={`btable-hero ${className}`.trim()} aria-live="polite">
-        <p className="btable-hero__label muted small">Your hand</p>
+      <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
         <p className="btable-hero__fallback muted small">
           {privateHandReady
             ? "Cards not available — leave and re-open the session, or refresh the page."
@@ -237,14 +249,14 @@ export function HeroHand({
 
   if (dealtPhase && !isInHand) {
     return (
-      <div className={`btable-hero ${className}`.trim()}>
+      <div className={heroShellClass(settings, className)} data-testid="hero-hand">
         <p className="btable-hero__fallback muted small">You sat out this hand.</p>
       </div>
     );
   }
 
   if (cards.length === 0 && !isDealer) {
-    return null;
+    return <HeroHandReserve className={className} />;
   }
 
   const stateFor = (_: Card, i: number): CardState => {
@@ -263,34 +275,26 @@ export function HeroHand({
   else if (enablePeek) gestureMode = "peek";
 
   const selectedCount = selectedDraw.size;
+  const showDrawActions = inDrawPhase && !drawCompleted && isMyTurn;
 
   return (
     <div
-      className={[
-        `btable-hero btable-hero--scale-${settings.cardScale}`,
+      className={heroShellClass(settings, className, [
         dealing ? "btable-hero--dealing" : "",
         inDrawPhase && isMyTurn && !drawCompleted ? "btable-hero--draw-select" : "",
         drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
         drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
+        showDrawActions ? "btable-hero--draw-actions" : "",
+      ])}
       style={{ ["--deal-card-stagger-ms" as string]: `${dealStaggerMs}ms` }}
       data-testid="hero-hand"
-      aria-label="Your dealt cards"
+      aria-label={`Your dealt cards — ${phaseStatus}`}
     >
-      <p className="btable-hero__label muted small">
-        Your hand · {formatHandPhase(phase, enrollmentActive)}
-        {inDrawPhase && !drawCompleted && isMyTurn && " · tap cards to discard"}
-        {inPlayPhase && isMyTurn && " · click or flick a legal card to play"}
-        {enablePeek && " · press and hold to peek"}
+      <p className="btable-sr-only" aria-live="polite">
+        {phaseStatus}
+        {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
+        {inPlayPhase && isMyTurn && " — select a legal card to play"}
       </p>
-      {isDealer && inDrawPhase && (
-        <p className="btable-hero__trump-note muted small">
-          Your trump upcard is on the table — not duplicated here
-        </p>
-      )}
       <div className="btable-hero__hand-3d" data-trick-play-origin={currentUserId ?? undefined}>
         <Hand
           cards={typedCards}
@@ -320,46 +324,34 @@ export function HeroHand({
           {feedbackError}
         </p>
       )}
-      {actionFeedback?.status === "success" && actionFeedback.message && (
-        <p className="btable-hero__success muted small" role="status">
-          {actionFeedback.message}
-        </p>
-      )}
-      {inDrawPhase && !drawCompleted && isMyTurn && (
-        <div className="btable-hero__actions">
-          <button
-            type="button"
-            className="btn btn--sm btn--primary"
-            data-testid="draw-button"
-            disabled={busy}
-            aria-busy={busy}
-            onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}
-          >
-            {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
-          </button>
-          <button
-            type="button"
-            className="btn btn--sm"
-            data-testid="pass-draw-button"
-            disabled={busy}
-            onClick={() => runPassDraw()}
-          >
-            Stand pat
-          </button>
-          <span className="muted small">
-            {selectedCount}/{maxDrawDiscards} selected
-          </span>
-        </div>
-      )}
-      {inDrawPhase && drawCompleted && (
-        <p className="btable-hero__hint muted small">Draw complete — waiting for others</p>
-      )}
-      {inDrawPhase && !drawCompleted && !isMyTurn && (
-        <p className="btable-hero__hint muted small">Waiting for your turn to draw</p>
-      )}
-      {inPlayPhase && !isMyTurn && (
-        <p className="btable-hero__hint muted small">Waiting for your turn to play</p>
-      )}
+      <div
+        className="btable-hero__actions-slot"
+        aria-hidden={!showDrawActions}
+      >
+        {showDrawActions && (
+          <div className="btable-hero__actions">
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              data-testid="draw-button"
+              disabled={busy}
+              aria-busy={busy}
+              onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}
+            >
+              {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+            </button>
+            <button
+              type="button"
+              className="btn btn--sm"
+              data-testid="pass-draw-button"
+              disabled={busy}
+              onClick={() => runPassDraw()}
+            >
+              Stand pat
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

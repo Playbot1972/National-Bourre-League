@@ -158,10 +158,10 @@ export function useTrickPresentation({
   }, [phase, store.phase, store.revealedCount, targetReveal]);
 
   useEffect(() => {
-    if (phase !== "play" || store.phase !== "live") return;
+    if (phase !== "play" || store.phase !== "live" || store.pendingResolution) return;
     if (store.revealedCount <= targetReveal) return;
     dispatch({ type: "clampRevealedCount", target: targetReveal });
-  }, [phase, store.phase, targetReveal, store.revealedCount]);
+  }, [phase, store.phase, store.pendingResolution, targetReveal, store.revealedCount]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
   return model;

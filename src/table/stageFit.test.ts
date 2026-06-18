@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStageFit, isWithinViewport, landscapeStageShareForPlayers, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
+import { computeStageFit, isWithinViewport, landscapeStageShareForPlayers, resolveHeroBudget, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
 
 describe("stageFit", () => {
   it("contain-fits stage inside viewport without exceeding width", () => {
@@ -48,6 +48,20 @@ describe("stageFit", () => {
     });
     assert.ok(fit.stageWidth < 900);
     assert.ok(fit.stageHeight <= 420 - 20 - 150 - 8);
+  });
+
+  it("resolves hero budget from peak without live shrink", () => {
+    const first = resolveHeroBudget(220, 0, 140, 280);
+    assert.equal(first.height, 220);
+    assert.equal(first.peak, 220);
+
+    const shrunk = resolveHeroBudget(150, first.peak, 140, 280);
+    assert.equal(shrunk.height, 220);
+    assert.equal(shrunk.peak, 220);
+
+    const cold = resolveHeroBudget(0, 0, 140, 280);
+    assert.equal(cold.height, 152);
+    assert.equal(cold.peak, 0);
   });
 
   it("stabilizes hero height at peak to avoid draw-to-play shrink flicker", () => {

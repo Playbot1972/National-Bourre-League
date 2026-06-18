@@ -185,6 +185,38 @@ describe("trickPresentationMachine", () => {
     assert.equal(store.revealedCount, 1);
   });
 
+  it("does not clamp revealed count down on mid-trick server sync", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    assert.equal(store.revealedCount, 4);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { trickNumber: 1, leadPlayerId: "p1", leadSuit: "hearts", plays: [] },
+        tricksByPlayer: { p1: 0, p2: 0, p3: 0, p4: 0 },
+      },
+      participantIds: participants,
+    });
+    assert.equal(store.revealedCount, 4);
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
+  });
+
+  it("ignores clamp while pending resolution holds the trick", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "clampRevealedCount", target: 0 });
+    assert.equal(store.revealedCount, 4);
+  });
+
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
     assert.ok(schedule.pipelineMs >= 2100);

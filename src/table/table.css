@@ -47,9 +47,11 @@
   --stage-fit-height: auto;
   --stage-fit-scale: 1;
   --stage-effective-scale: var(--table-scale, 1);
-  --stage-seat-inset-top: 7%;
-  --stage-seat-inset-x: 6%;
-  --stage-seat-inset-bottom: 9%;
+  --stage-seat-inset-top: 5%;
+  --stage-seat-inset-x: 4%;
+  --stage-seat-inset-bottom: 6%;
+  --hand-panel-min-height: 152px;
+  --hand-actions-slot-height: 52px;
   --player-count: 4;
   --table-aspect: 1.12;
 }
@@ -80,7 +82,7 @@
 
 .table-oval {
   position: absolute;
-  inset: 8% 5% 10% 5%;
+  inset: 4% 2.5% 5% 2.5%;
   pointer-events: none;
 }
 
@@ -97,7 +99,7 @@
 
 .table-oval .btable__felt {
   position: absolute;
-  inset: 5.5% 4%;
+  inset: 4% 3%;
   border-radius: 50% / 50%;
   background:
     radial-gradient(ellipse 90% 60% at 50% 45%, var(--table-felt-highlight) 0%, transparent 70%),
@@ -124,18 +126,34 @@
   pointer-events: auto;
 }
 
-/* Deck / trump — left of center play lane */
-.deck-stack {
+/* Center cluster — trump + trick lane composed as one unit */
+.table-center-cluster {
   position: absolute;
-  left: 16%;
+  left: 50%;
   top: 44%;
   transform: translate(-50%, -50%);
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 1.8vw, 12px);
+  max-width: calc(100% - 48px);
+  pointer-events: none;
+}
+
+/* Deck / trump — left of center play lane */
+.deck-stack {
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
   width: 52px;
+  flex: 0 0 auto;
   pointer-events: none;
 }
 
@@ -224,23 +242,55 @@
   transform-origin: center bottom;
 }
 
-/* 3–4 player layouts — taller felt, compact avatars, larger trump lane */
+/* 2–8 player layout variants — felt size + seat rail breathing room */
+.btable--p2 {
+  --stage-seat-inset-top: 6%;
+  --stage-seat-inset-x: 5%;
+  --stage-seat-inset-bottom: 8%;
+}
+
+.btable--p2 .table-oval {
+  inset: 5% 3% 7% 3%;
+}
+
 .btable--p3,
 .btable--p4 {
-  --stage-seat-inset-top: 5%;
-  --stage-seat-inset-x: 4%;
-  --stage-seat-inset-bottom: 7%;
+  --stage-seat-inset-top: 4%;
+  --stage-seat-inset-x: 3.5%;
+  --stage-seat-inset-bottom: 5.5%;
 }
 
 .btable--p3 .table-oval,
 .btable--p4 .table-oval {
-  inset: 7% 4.5% 9% 4.5%;
+  inset: 3.5% 2% 4.5% 2%;
+}
+
+.btable--p5,
+.btable--p6 {
+  --stage-seat-inset-top: 5%;
+  --stage-seat-inset-x: 4%;
+  --stage-seat-inset-bottom: 6.5%;
+}
+
+.btable--p5 .table-oval,
+.btable--p6 .table-oval {
+  inset: 4% 2.5% 5% 2.5%;
+}
+
+.btable--p7,
+.btable--p8 {
+  --stage-seat-inset-top: 5.5%;
+  --stage-seat-inset-x: 4.5%;
+  --stage-seat-inset-bottom: 7%;
+}
+
+.btable--p7 .table-oval,
+.btable--p8 .table-oval {
+  inset: 4.5% 3% 5.5% 3%;
 }
 
 .btable--p3 .deck-stack,
 .btable--p4 .deck-stack {
-  left: 18%;
-  top: 42%;
   width: 58px;
 }
 
@@ -259,9 +309,8 @@
 
 .btable--p3 .center-play,
 .btable--p4 .center-play {
-  width: min(52%, 210px);
-  top: 44%;
-  max-width: calc(100% - 96px);
+  width: min(54%, 220px);
+  max-width: none;
 }
 
 .btable--p3 .center-play__trick,
@@ -293,13 +342,14 @@
 
 /* Center play lane — tricks, phase, pot stats only */
 .center-play {
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  transform: translate(-50%, -50%);
+  position: relative;
+  left: auto;
+  top: auto;
+  transform: none;
   z-index: 4;
-  width: min(44%, 176px);
-  max-width: calc(100% - 120px);
+  width: min(48%, 188px);
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -379,6 +429,20 @@
   max-width: 100%;
   margin: 0;
   flex-shrink: 0;
+  min-height: var(--hand-panel-min-height);
+  box-sizing: border-box;
+}
+
+.btable-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .btable-wrap__hero {
@@ -644,10 +708,31 @@
 
 .btable-hero {
   text-align: center;
-  padding: 10px 12px 6px;
-  border-radius: 12px;
-  background: var(--surface-chip, rgba(244, 213, 141, 0.08));
-  border: 1px solid var(--border-faint, rgba(244, 213, 141, 0.2));
+  padding: 4px 0 2px;
+  min-height: var(--hand-panel-min-height);
+  box-sizing: border-box;
+}
+
+.btable-hero--bare {
+  background: none;
+  border: none;
+  border-radius: 0;
+}
+
+.btable-hero--reserved {
+  padding: 0;
+  pointer-events: none;
+}
+
+.btable-hero__actions-slot {
+  min-height: var(--hand-actions-slot-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btable-hero:not(.btable-hero--draw-actions) .btable-hero__actions-slot {
+  visibility: hidden;
 }
 
 .btable-hero__label {
@@ -729,11 +814,11 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .btable-hero__actions .muted {
-  flex: 1 1 100%;
+  display: none;
 }
 
 .btable-hero .hand--fan {
@@ -1509,7 +1594,7 @@
   }
 
   .table-oval {
-    inset: 5% 3.5% 7% 3.5%;
+    inset: 3.5% 2% 4.5% 2%;
   }
 
   .table-oval .btable__rail {
@@ -1546,14 +1631,13 @@
     transform: translate(-50%, calc(-50% - 3px));
   }
 
-  .deck-stack {
-    left: 17%;
-    top: 46%;
+  .table-center-cluster {
+    top: 43%;
+    gap: clamp(4px, 1.2vw, 10px);
   }
 
   .center-play {
-    width: min(48%, 168px);
-    top: 47%;
+    width: min(50%, 176px);
   }
 }
 
@@ -1571,15 +1655,17 @@
     min-height: 0;
   }
 
+  .table-center-cluster {
+    top: 42%;
+    gap: 6px;
+  }
+
   .deck-stack {
-    left: 15%;
-    top: 44%;
     width: 46px;
   }
 
   .center-play {
-    width: min(46%, 160px);
-    top: 46%;
+    width: min(50%, 164px);
   }
 
   .hand-panel {

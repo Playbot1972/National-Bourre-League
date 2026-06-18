@@ -3,7 +3,7 @@ import {
   computeMobileLandscapeOverlayFit,
   computeStageFit,
   landscapeStageShareForPlayers,
-  stabilizeHeroHeight,
+  resolveHeroBudget,
 } from "../stageFit";
 import { useTableLayoutMode } from "../layout/useTableLayoutMode";
 import { useTableTheme } from "../theme/useTableTheme";
@@ -72,12 +72,14 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
       const heroFloor = portrait ? 104 : 92;
       const heroCap = portrait ? 210 : 168;
       const measuredHero = heroRect?.height ?? 0;
-      const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
-      heroPeakRef.current = stableHero.peak;
-      const heroMinHeight = Math.min(
-        measuredHero > 0 ? Math.max(measuredHero, heroFloor) : stableHero.height,
+      const stableHero = resolveHeroBudget(
+        measuredHero,
+        heroPeakRef.current,
+        heroFloor,
         heroCap,
       );
+      heroPeakRef.current = stableHero.peak;
+      const heroMinHeight = stableHero.height;
 
       const playerCount = parseInt(
         getComputedStyle(wrap).getPropertyValue("--player-count").trim(),

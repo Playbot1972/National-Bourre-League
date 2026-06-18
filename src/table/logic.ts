@@ -75,10 +75,24 @@ export const SEAT_RAIL_OUTSET = 5;
 
 export function seatRailAxes(total: number): { rx: number; ry: number; outset: number } {
   const n = Math.max(2, Math.min(8, total || 2));
-  if (n >= 7) return { rx: 42, ry: 40, outset: 4 };
-  if (n >= 5) return { rx: 44, ry: 42, outset: 4 };
-  if (n <= 4) return { rx: 48, ry: 46, outset: 6 };
-  return { rx: RAIL_RX, ry: RAIL_RY, outset: SEAT_RAIL_OUTSET };
+  switch (n) {
+    case 2:
+      return { rx: 44, ry: 42, outset: 8 };
+    case 3:
+      return { rx: 50, ry: 48, outset: 6 };
+    case 4:
+      return { rx: 48, ry: 46, outset: 6 };
+    case 5:
+      return { rx: 45, ry: 43, outset: 5 };
+    case 6:
+      return { rx: 43, ry: 41, outset: 4 };
+    case 7:
+      return { rx: 41, ry: 39, outset: 4 };
+    case 8:
+      return { rx: 40, ry: 38, outset: 3 };
+    default:
+      return { rx: RAIL_RX, ry: RAIL_RY, outset: SEAT_RAIL_OUTSET };
+  }
 }
 
 export type SeatRegion = "bottom" | "top" | "left" | "right";

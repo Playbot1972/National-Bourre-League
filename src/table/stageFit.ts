@@ -9,6 +9,9 @@ export const STAGE_SEAT_INSET = {
 /** Extra viewport pad so avatar/metadata outside the felt stays inside contain-fit. */
 export const STAGE_SEAT_OVERFLOW_PAD = 28;
 
+/** Fixed hero dock budget — decouples felt sizing from draw/play chrome changes. */
+export const HERO_HAND_RESERVE_PX = 152;
+
 export interface StageFitInput {
   availWidth: number;
   availHeight: number;
@@ -41,6 +44,20 @@ export function stabilizeHeroHeight(
   const nextPeak = safe > 0 ? Math.max(peak, safe) : peak;
   const height = nextPeak > 0 ? nextPeak : floor;
   return { height: Math.max(height, floor), peak: nextPeak };
+}
+
+/** Peak-stabilized hero budget capped for stage-fit (never shrinks on draw→play). */
+export function resolveHeroBudget(
+  measured: number,
+  peak: number,
+  floor: number,
+  cap: number,
+): { height: number; peak: number } {
+  const stable = stabilizeHeroHeight(measured, peak, floor);
+  const reserve = Math.max(HERO_HAND_RESERVE_PX, floor);
+  const height =
+    stable.peak > 0 ? Math.min(stable.height, cap) : Math.min(reserve, cap);
+  return { height, peak: stable.peak };
 }
 
 /** Tighter aspect on phones so the racetrack fits portrait without horizontal squeeze. */
