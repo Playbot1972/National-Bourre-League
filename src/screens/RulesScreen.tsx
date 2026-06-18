@@ -12,18 +12,18 @@ export function RulesScreen() {
 
   return (
     <div className="rules">
-      <header className="rules__head">
+      <header className="rules__head screen-header">
         <p className="eyebrow">Reference</p>
-        <h1>Bourré Rules</h1>
-        <p className="rules__lede">
+        <h1>Bourré rules</h1>
+        <p className="screen-lede">
           The official standard rules, plus editable placeholders to capture how
           your table likes to play.
         </p>
-        <div className="rules__tabs" role="tablist" aria-label="Rules type">
+        <div className="tab-bar" role="tablist" aria-label="Rules type">
           <button
             role="tab"
             aria-selected={tab === "standard"}
-            className={`rules__tab ${tab === "standard" ? "is-active" : ""}`}
+            className={`tab ${tab === "standard" ? "is-active" : ""}`}
             onClick={() => setTab("standard")}
           >
             Standard rules
@@ -31,7 +31,7 @@ export function RulesScreen() {
           <button
             role="tab"
             aria-selected={tab === "house"}
-            className={`rules__tab ${tab === "house" ? "is-active" : ""}`}
+            className={`tab ${tab === "house" ? "is-active" : ""}`}
             onClick={() => setTab("house")}
           >
             House rules

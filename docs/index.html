@@ -34,7 +34,7 @@
         <a class="nav__link" href="/">Tutorial</a>
         <a class="nav__link" href="#home">Home</a>
         <a class="nav__link" href="#rules">Rules</a>
-        <a class="nav__link" href="#rooms" data-requires-auth>Private Rooms</a>
+        <a class="nav__link" href="#rooms" data-requires-auth>Rooms</a>
         <a class="nav__link" href="#leaderboard" data-requires-auth>Leaderboard</a>
         <a class="nav__link" href="#leagues" data-requires-auth>Leagues</a>
       </nav>
@@ -106,7 +106,7 @@
       </section>
 
       <!-- Rules (public) -->
-      <section class="view" id="view-rules" hidden>
+      <section class="view view--scroll" id="view-rules" hidden>
         <div id="rules-root"></div>
       </section>
 
@@ -137,7 +137,7 @@
                 <button class="btn" type="submit" data-testid="join-code-submit">Join room</button>
               </form>
             </div>
-            <p class="form-error" id="rooms-error" role="alert" hidden></p>
+            <p class="form-feedback form-feedback--error" id="rooms-error" role="alert" hidden></p>
             <!-- List view -->
             <div id="rooms-list-view">
               <div class="cards" id="rooms-list"></div>
@@ -194,23 +194,23 @@
         <button class="modal__close" id="close-auth" aria-label="Close">&times;</button>
         <h2 class="modal__title" id="auth-title">Sign in</h2>
 
-        <div class="modal__tabs" role="tablist">
-          <button class="modal__tab is-active" id="tab-signin" role="tab">Sign in</button>
-          <button class="modal__tab" id="tab-signup" role="tab">Create account</button>
+        <div class="modal__tabs tab-bar tab-bar--stretch" role="tablist">
+          <button class="modal__tab tab is-active" id="tab-signin" role="tab">Sign in</button>
+          <button class="modal__tab tab" id="tab-signup" role="tab">Create account</button>
         </div>
 
         <form class="auth-form" id="auth-form" novalidate>
           <label class="auth-form__field" data-field="name" hidden>
             <span>Display name</span>
-            <input type="text" id="auth-name" autocomplete="name" placeholder="Boudreaux" />
+            <input class="text-input" type="text" id="auth-name" autocomplete="name" placeholder="Boudreaux" />
           </label>
           <label class="auth-form__field">
             <span>Email</span>
-            <input type="email" id="auth-email" autocomplete="email" required placeholder="you@example.com" />
+            <input class="text-input" type="email" id="auth-email" autocomplete="email" required placeholder="you@example.com" />
           </label>
           <label class="auth-form__field" data-field="password">
             <span>Password</span>
-            <input type="password" id="auth-password" autocomplete="current-password" required placeholder="••••••••" />
+            <input class="text-input" type="password" id="auth-password" autocomplete="current-password" required placeholder="••••••••" />
             <button type="button" class="auth-form__link" id="forgot-password" hidden>Forgot password?</button>
             <p class="auth-form__hint muted small" id="password-manager-hint" hidden>
               Chrome may have saved an auto-generated password for this site.

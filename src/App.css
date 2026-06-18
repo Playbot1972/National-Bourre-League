@@ -55,21 +55,29 @@
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-dim);
-  padding: 8px 16px;
+  padding: 8px 14px;
   border-radius: 999px;
   font-size: 15px;
-  transition: all 140ms ease;
+  transition: color 140ms ease, border-color 140ms ease, background 140ms ease;
   text-decoration: none;
 }
 .app__nav-link:hover {
   color: var(--text-light);
   border-color: var(--border-mid);
 }
+.app__nav-link:focus-visible {
+  outline: 3px solid var(--gold-300);
+  outline-offset: 2px;
+}
 .app__nav-link.is-active {
   color: var(--ink-900);
   background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
   border-color: transparent;
   font-weight: 600;
+}
+.app__nav-link.is-active:hover {
+  color: var(--ink-900);
+  border-color: transparent;
 }
 
 [data-theme="light"] .app__nav-link.is-active,
@@ -112,7 +120,8 @@
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
-  padding: clamp(20px, 4vw, 44px) clamp(16px, 4vw, 48px) 64px;
+  padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 48px) 64px;
+  min-width: 0;
 }
 
 .app__footer {
@@ -169,11 +178,144 @@
 
 /* Shared building blocks */
 .panel {
-  background: rgba(7, 28, 20, 0.55);
-  border: 1px solid rgba(244, 213, 141, 0.18);
+  background: var(--surface-panel);
+  border: 1px solid var(--border-faint);
   border-radius: 16px;
   padding: clamp(18px, 3vw, 28px);
-  box-shadow: 0 16px 40px rgba(3, 18, 12, 0.45);
+  box-shadow: var(--shadow-card);
+}
+
+/* Screen headers — shared across Rules, Tutorial, Room */
+.screen-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.screen-header h1,
+.screen-header h2 {
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.1;
+}
+.screen-lede {
+  max-width: 58ch;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0;
+  font-size: clamp(15px, 2vw, 17px);
+}
+
+/* Tab bar — pill segmented control (Rules, modals) */
+.tab-bar {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  margin-top: 8px;
+  background: var(--surface-panel-muted);
+  border: 1px solid var(--border-faint);
+  border-radius: 999px;
+}
+.tab-bar--stretch {
+  display: flex;
+  width: 100%;
+}
+.tab-bar--stretch .tab {
+  flex: 1;
+  padding: 9px 12px;
+}
+.tab {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  padding: 9px 22px;
+  border-radius: 999px;
+  font-size: 15px;
+  transition: color 140ms ease, background 140ms ease;
+}
+.tab:hover:not(.is-active):not(:disabled) {
+  color: var(--text-light);
+}
+.tab.is-active {
+  background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
+  color: var(--ink-900);
+  font-weight: 600;
+}
+.tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Form controls */
+.text-input,
+.text-area {
+  width: 100%;
+  background: var(--surface-input);
+  border: 1px solid var(--border-soft);
+  color: var(--text-light);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  line-height: 1.5;
+  min-width: 0;
+}
+.text-input::placeholder,
+.text-area::placeholder {
+  color: var(--text-faint);
+}
+.text-input:focus-visible,
+.text-area:focus-visible {
+  outline: 2px solid var(--gold-300);
+  outline-offset: 1px;
+}
+.text-area {
+  resize: vertical;
+}
+
+/* Feedback states */
+.state-box {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+.state-box--error {
+  background: var(--surface-error);
+  border: 1px solid var(--border-error);
+  color: var(--text-error);
+}
+.state-box--success {
+  background: var(--surface-success);
+  border: 1px solid var(--border-success);
+  color: var(--text-success);
+}
+.state-box--info {
+  background: var(--surface-chip);
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+.state-box--empty {
+  background: transparent;
+  border: 1px dashed var(--border-dashed);
+  color: var(--text-dim);
+  font-style: italic;
+}
+.state-box--loading {
+  background: var(--surface-chip);
+  border: 1px solid var(--border-faint);
+  color: var(--text-dim);
+}
+
+/* Long-content scroll — page scroll is default; constrain inner regions when needed */
+.scroll-region {
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  max-height: min(70vh, 720px);
 }
 
 .eyebrow {
@@ -213,4 +355,53 @@
 }
 .btn--primary:hover:not(:disabled) {
   filter: brightness(1.04);
+}
+
+/* Mobile — match social app topbar wrap + safe fit */
+@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
+  html,
+  body,
+  #root {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
+  .app__header {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 10px clamp(12px, 3vw, 20px);
+  }
+
+  .app__brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: clamp(16px, 4vw, 20px);
+  }
+
+  .app__brand-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app__header-actions {
+    flex-shrink: 0;
+  }
+
+  .app__nav {
+    order: 5;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 100%;
+  }
+
+  .app__nav-link {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  .app__main {
+    padding-inline: clamp(12px, 3vw, 20px);
+  }
 }

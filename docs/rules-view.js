@@ -124,19 +124,19 @@ function renderRulesBody() {
 
 function renderRulesShell() {
   return `
-    <header class="rules-head">
+    <header class="rules-head screen-header">
       <p class="eyebrow">Reference</p>
       <h2>Bourré rules</h2>
-      <p class="rules-lede">
+      <p class="rules-lede screen-lede">
         Standard trick-taking rules from published sources, plus the house-rule template this app uses
         for scoring, pot caps, and privacy.
       </p>
-      <div class="rules-tabs" role="tablist" aria-label="Rules type">
-        <button type="button" role="tab" class="rules-tab ${activeTab === "standard" ? "is-active" : ""}" data-rules-tab="standard" aria-selected="${activeTab === "standard"}">
+      <div class="rules-tabs tab-bar" role="tablist" aria-label="Rules type">
+        <button type="button" role="tab" class="rules-tab tab ${activeTab === "standard" ? "is-active" : ""}" data-rules-tab="standard" aria-selected="${activeTab === "standard"}">
           Standard rules
         </button>
-        <button type="button" role="tab" class="rules-tab ${activeTab === "house" ? "is-active" : ""}" data-rules-tab="house" aria-selected="${activeTab === "house"}">
-          House rules &amp; app defaults
+        <button type="button" role="tab" class="rules-tab tab ${activeTab === "house" ? "is-active" : ""}" data-rules-tab="house" aria-selected="${activeTab === "house"}">
+          House rules
         </button>
       </div>
     </header>
