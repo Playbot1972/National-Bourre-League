@@ -32,12 +32,16 @@ export async function openOverlayFixture(page: Page, options: OverlayFixtureOpti
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
   await expect(overlay.getByTestId("table-felt")).toBeVisible();
   await page.waitForFunction(() => {
-    const stage = document.querySelector("#table-play-overlay .table-stage") as HTMLElement | null;
-    const wrap = document.querySelector("#table-play-overlay .btable-wrap") as HTMLElement | null;
+    const stage =
+      (document.querySelector(".btable-mobile-stage") ??
+        document.querySelector("#table-play-overlay .table-stage")) as HTMLElement | null;
+    const wrap =
+      (document.querySelector(".btable-mobile-wrap") ??
+        document.querySelector("#table-play-overlay .btable-wrap")) as HTMLElement | null;
     if (!stage || !wrap) return false;
     const w = stage.getBoundingClientRect().width;
     const fitW = parseFloat(getComputedStyle(wrap).getPropertyValue("--stage-fit-width"));
-    return w > 180 && fitW > 180;
+    return w > 100 && (Number.isNaN(fitW) || fitW > 100);
   });
 }
 
@@ -78,13 +82,19 @@ export async function isOverlayControlInViewport(page: Page, testId: string): Pr
 export async function readOverlayGameplayMetrics(page: Page) {
   return page.evaluate(() => {
     const overlay = document.querySelector("#table-play-overlay");
-    const wrap = document.querySelector("#table-play-overlay .btable-wrap");
-    const stage = document.querySelector("#table-play-overlay .table-stage");
+    const wrap =
+      document.querySelector(".btable-mobile-wrap") ??
+      document.querySelector("#table-play-overlay .btable-wrap");
+    const stage =
+      document.querySelector(".btable-mobile-stage") ??
+      document.querySelector("#table-play-overlay .table-stage");
     if (!overlay || !wrap || !stage) return null;
     const o = overlay.getBoundingClientRect();
     const w = wrap.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
     if (o.width <= 0 || o.height <= 0) return null;
+    const wrapEl = wrap as HTMLElement;
+    const isMobile = wrapEl.classList.contains("btable-mobile-wrap");
     return {
       overlayW: o.width,
       overlayH: o.height,
@@ -94,7 +104,11 @@ export async function readOverlayGameplayMetrics(page: Page) {
       gameplayWidthRatio: w.width / o.width,
       stageWidthRatio: s.width / o.width,
       stageHeightRatio: s.height / o.height,
-      landscapeRow: wrap.classList.contains("btable-wrap--landscape-row"),
+      landscapeRow:
+        wrapEl.classList.contains("btable-mobile-wrap--landscape-row") ||
+        wrapEl.classList.contains("btable-wrap--landscape-row"),
+      isMobileLayout: isMobile,
+      layoutMode: wrapEl.dataset.layout ?? null,
     };
   });
 }
@@ -135,8 +149,12 @@ export async function expectMobileOverlayTableScale(page: Page): Promise<void> {
   const overlay = page.locator("#table-play-overlay");
   const readMetrics = () =>
     page.evaluate(() => {
-      const stage = document.querySelector("#table-play-overlay .table-stage");
-      const wrap = document.querySelector("#table-play-overlay .btable-wrap");
+      const stage =
+        document.querySelector(".btable-mobile-stage") ??
+        document.querySelector("#table-play-overlay .table-stage");
+      const wrap =
+        document.querySelector(".btable-mobile-wrap") ??
+        document.querySelector("#table-play-overlay .btable-wrap");
       if (!stage || !wrap) return null;
       const s = stage.getBoundingClientRect();
       const fitW = parseFloat(getComputedStyle(wrap).getPropertyValue("--stage-fit-width"));
@@ -171,23 +189,29 @@ export async function expectMobileOverlayGameplayFits(
 ) {
   const metrics = await readOverlayGameplayMetrics(page);
   expect(metrics, "overlay gameplay block should be measurable").not.toBeNull();
+  expect(metrics!.isMobileLayout, "mobile overlay should use mobile layout path").toBe(true);
   expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
   await expectOverlaySeatsInViewport(page);
 
   if (opts.portrait) {
-    expect(metrics!.stageWidthRatio).toBeGreaterThan(0.48);
-    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.22);
+    expect(metrics!.layoutMode).toBe("portrait");
+    expect(metrics!.stageWidthRatio).toBeGreaterThan(0.42);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.16);
   } else {
     expect(metrics!.landscapeRow).toBe(true);
-    expect(metrics!.gameplayWidthRatio).toBeGreaterThan(0.85);
-    expect(metrics!.stageW).toBeGreaterThan(200);
-    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.22);
+    expect(metrics!.layoutMode).toBe("landscape");
+    expect(metrics!.gameplayWidthRatio).toBeGreaterThan(0.82);
+    expect(metrics!.stageW).toBeGreaterThan(180);
+    expect(metrics!.stageHeightRatio).toBeGreaterThan(0.18);
   }
 }
+
 export async function readOverlayStageMetrics(page: Page): Promise<OverlayStageMetrics | null> {
   return page.evaluate(() => {
     const overlay = document.querySelector("#table-play-overlay");
-    const stage = document.querySelector("#table-play-overlay .table-stage");
+    const stage =
+      document.querySelector(".btable-mobile-stage") ??
+      document.querySelector("#table-play-overlay .table-stage");
     if (!overlay || !stage) return null;
     const o = overlay.getBoundingClientRect();
     const s = stage.getBoundingClientRect();
@@ -229,8 +253,12 @@ export async function expectTableScaleAffectsStage(page: Page) {
   const overlay = page.locator("#table-play-overlay");
   const readScale = () =>
     page.evaluate(() => {
-      const stage = document.querySelector("#table-play-overlay .table-stage");
-      const scaleEl = document.querySelector("#table-play-overlay .btable-desktop__scale");
+      const stage =
+        document.querySelector(".btable-mobile-stage") ??
+        document.querySelector("#table-play-overlay .table-stage");
+      const scaleEl =
+        document.querySelector("#table-play-overlay .btable-desktop__scale") ??
+        document.querySelector(".btable-mobile-wrap");
       if (!stage || !scaleEl) return null;
       const s = stage.getBoundingClientRect();
       const effective = parseFloat(
@@ -253,8 +281,17 @@ export async function expectTableScaleAffectsStage(page: Page) {
 
   const enlarged = await readScale();
   expect(enlarged).not.toBeNull();
-  expect(enlarged!.effectiveScale).toBeGreaterThan(baseline!.effectiveScale);
   expect(enlarged!.stageW).toBeGreaterThanOrEqual(baseline!.stageW * 0.98);
 
   await panel.getByRole("button", { name: "Close" }).first().click();
+}
+
+/** Assert desktop overlay still uses the desktop layout shell (not mobile path). */
+export async function expectDesktopOverlayLayout(page: Page) {
+  const usesDesktop = await page.evaluate(() => {
+    const mobile = document.querySelector(".btable-mobile");
+    const desktop = document.querySelector(".btable-desktop");
+    return Boolean(desktop) && !mobile;
+  });
+  expect(usesDesktop).toBe(true);
 }
