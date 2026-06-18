@@ -24,6 +24,7 @@ import {
   mapEffectiveIndicesToDisplay,
   resolveHeroHandDisplay,
 } from "./heroHandDisplay";
+import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { TableSessionViewProps } from "./types";
 import type { PotSnapshot } from "./settlementCopy";
 
@@ -85,6 +86,31 @@ export function TableSessionView({
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
     actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
   });
+
+  const trumpHolderPresentation = useMemo(
+    () =>
+      resolveTrumpHolderPresentation({
+        trumpHolderId: session.trumpHolderId ?? session.dealerId,
+        trumpUpcard: session.trumpUpcard ?? null,
+        trumpSuit: session.trumpSuit ?? null,
+        phase: session.phase ?? null,
+        handPresentation: {
+          trumpRevealActive: handPresentation.trumpRevealActive,
+          trumpMergeActive: handPresentation.trumpMergeActive,
+          trumpMergedIntoHand: handPresentation.trumpMergedIntoHand,
+        },
+      }),
+    [
+      session.trumpHolderId,
+      session.dealerId,
+      session.trumpUpcard,
+      session.trumpSuit,
+      session.phase,
+      handPresentation.trumpRevealActive,
+      handPresentation.trumpMergeActive,
+      handPresentation.trumpMergedIntoHand,
+    ],
+  );
 
   const heroHandDisplay = useMemo(
     () =>
@@ -149,7 +175,7 @@ export function TableSessionView({
   });
 
   const showTrumpSuitReminder =
-    heroHandDisplay.showTrumpSuitReminder ||
+    trumpHolderPresentation.showTrumpSuitReminder ||
     (!session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play");
   const tricksSnapshot = useMemo(
     () => ({ ...trickPresentation.displayTricksByPlayer }),
@@ -257,8 +283,9 @@ export function TableSessionView({
     revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
     trumpMergeActive: heroHandDisplay.trumpMergeActive,
     trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
-    hideCenterTrump: heroHandDisplay.hideCenterTrumpForHolder,
+    hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
     showTrumpSuitReminder,
+    trumpHolderPresentation,
     privateHandReady,
     currentUserId,
     legalPlayIndices: displayLegalPlayIndices,

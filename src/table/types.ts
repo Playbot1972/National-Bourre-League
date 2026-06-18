@@ -55,6 +55,10 @@ export interface TablePlayer {
   showHoleCards?: boolean;
   /** Remaining hole cards (from public play history via cardsRemainingInHand). */
   holeCardCount?: number;
+  /** Face-up trump on holder seat during reveal (opponent/bot dealer). */
+  revealedTrumpUpcard?: SerializedCard | null;
+  revealedTrumpIndex?: number | null;
+  seatTrumpMergeActive?: boolean;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
   /** Brief pulse when a captured trick is swept to this seat. */
