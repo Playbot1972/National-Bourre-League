@@ -100,7 +100,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
               availWidth,
               availHeight,
               aspect,
-              userScale,
+              userScale: 1,
               padX,
               padY,
               stageShare: 0.56,
@@ -112,18 +112,25 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
             availWidth,
             availHeight,
             aspect,
-            userScale,
+            userScale: 1,
             padX,
             padY,
             heroMinHeight,
             gap,
           });
 
+      const maxW = Math.max(0, availWidth - padX * 2);
+      const maxStageH = landscapeRow
+        ? Math.max(0, availHeight - padY * 2)
+        : Math.max(120, availHeight - padY * 2 - heroMinHeight - gap);
+      const layoutWidth = Math.min(fit.displayStageWidth * userScale, maxW);
+      const layoutHeight = Math.min(fit.displayStageHeight * userScale, maxStageH);
+
       wrap.classList.toggle("btable-mobile-wrap--landscape-row", landscapeRow);
       wrap.dataset.layout = portrait ? "portrait" : "landscape";
 
-      wrap.style.setProperty("--stage-fit-width", `${Math.round(fit.displayStageWidth)}px`);
-      wrap.style.setProperty("--stage-fit-height", `${Math.round(fit.displayStageHeight)}px`);
+      wrap.style.setProperty("--stage-fit-width", `${Math.round(layoutWidth)}px`);
+      wrap.style.setProperty("--stage-fit-height", `${Math.round(layoutHeight)}px`);
       wrap.style.setProperty("--stage-fit-scale", String(fit.fitScale));
       wrap.style.setProperty("--stage-effective-scale", "1");
     };

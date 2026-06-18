@@ -1689,12 +1689,6 @@ body.table-play-active .footer {
     width: min(100%, var(--stage-fit-width, 100%));
     overflow: visible;
   }
-
-  .table-play-overlay .hand-panel {
-    flex: 1 1 auto;
-    max-height: min(44dvh, 320px);
-    overflow-y: auto;
-  }
 }
 
 .table-play-overlay__main {
@@ -1968,20 +1962,50 @@ body.table-play-active .footer {
   .table-play-overlay .btable-session__head {
     flex-shrink: 0;
     padding-bottom: 2px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 8px;
+    width: 100%;
+  }
+
+  .table-play-overlay .btable-session__status,
+  .table-play-overlay .btable-session__turn,
+  .table-play-overlay .btable-session__hint,
+  .table-play-overlay .btable-session__enroll {
+    display: none !important;
+  }
+
+  .table-play-overlay .btable-session__head-row {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-play-overlay .btable-session__enroll-cta {
+    display: flex !important;
+    position: relative;
+    z-index: 20;
   }
 
   .table-play-overlay .hand-panel {
     flex: 0 0 auto;
     width: 100%;
-    max-height: min(36dvh, 260px);
+    max-height: min(38dvh, 280px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   }
 
   .table-play-overlay .table-stage {
-    max-height: var(--stage-fit-height, min(42dvh, 340px));
+    max-height: var(--stage-fit-height, min(48dvh, 380px));
     height: var(--stage-fit-height, auto);
     aspect-ratio: unset;
+    min-height: 0;
   }
 }
 
@@ -2032,9 +2056,10 @@ body.table-play-active .footer {
   }
 
   .table-play-overlay .table-stage {
-    max-height: var(--stage-fit-height, min(48dvh, 300px));
+    max-height: var(--stage-fit-height, min(52dvh, 320px));
     height: var(--stage-fit-height, auto);
     aspect-ratio: unset;
+    min-height: 0;
   }
 }
 
