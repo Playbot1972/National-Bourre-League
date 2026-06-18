@@ -12,7 +12,8 @@ dist
 .firebase
 .firebase-sa-key.json
 .env.firebase
-dist-ssr
+public/build-meta.json
+
 *.local
 
 # Editor directories and files

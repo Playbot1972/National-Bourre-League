@@ -5,7 +5,7 @@ test.describe("Bourré table smoke — desktop", () => {
   test("app home loads without runtime crash", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#app-version")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator("#app-version")).toContainText(/^v\d+\.\d{2}\.\d{2}$/);
+    await expect(page.locator("#app-version")).toContainText(/^v\d+\.\d{2}\.\d{2}\+[a-z0-9]+( dev)?$/);
   });
 
   test("table fixture renders felt, pot, and seats", async ({ page }) => {

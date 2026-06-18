@@ -105,7 +105,11 @@ import {
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
 import { rankMatch, apeClass, apeStatus, newRating } from "./ranking.js";
-import { APP_VERSION } from "./version.js";
+import { VERSION_LABEL, BUILD_STAMPED_AT } from "./version.js";
+import {
+  mountVersionFooter,
+  startVersionUpdateWatcher,
+} from "./version-update.js";
 import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
 import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
@@ -3647,12 +3651,8 @@ $("#create-league").addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-const versionEl = $("#app-version");
-if (versionEl) {
-  const label = `v${APP_VERSION}`;
-  versionEl.textContent = label;
-  versionEl.title = `National Bourré League ${label}`;
-}
+mountVersionFooter(VERSION_LABEL, BUILD_STAMPED_AT);
+startVersionUpdateWatcher();
 
 renderRoomsList();
 renderLeagues();

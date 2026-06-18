@@ -7,31 +7,16 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { compareAppVersion } from "./lib/version-format.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-function parseVersion(v) {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v);
-  if (!m) return null;
-  return [Number(m[1]), Number(m[2]), Number(m[3])];
-}
-
-function compare(a, b) {
-  const pa = parseVersion(a);
-  const pb = parseVersion(b);
-  if (!pa || !pb) return 0;
-  for (let i = 0; i < 3; i += 1) {
-    if (pa[i] !== pb[i]) return pa[i] - pb[i];
-  }
-  return 0;
-}
-
 function localVersion() {
-  return JSON.parse(readFileSync(join(root, "version.json"), "utf8")).version;
+  return JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 }
 
 function originMainVersion() {
-  const result = spawnSync("git", ["show", "origin/main:version.json"], {
+  const result = spawnSync("git", ["show", "origin/main:package.json"], {
     cwd: root,
     encoding: "utf8",
   });
@@ -43,15 +28,18 @@ function originMainVersion() {
   }
 }
 
-async function productionVersion() {
+async function productionVersionInfo() {
   try {
     const res = await fetch("https://booray.win/social/version.js", {
       signal: AbortSignal.timeout(12_000),
+      cache: "no-store",
     });
     if (!res.ok) return null;
     const body = await res.text();
-    const match = body.match(/APP_VERSION\s*=\s*"([^"]+)"/);
-    return match?.[1] ?? null;
+    const version = body.match(/APP_VERSION\s*=\s*"([^"]+)"/)?.[1] ?? null;
+    const buildId = body.match(/BUILD_ID\s*=\s*"([^"]+)"/)?.[1] ?? null;
+    if (!version) return null;
+    return { version, buildId };
   } catch {
     return null;
   }
@@ -63,22 +51,24 @@ if (process.env.CI || process.env.GITHUB_ACTIONS === "true" || process.env.FORCE
 
 const local = localVersion();
 const origin = originMainVersion();
-const prod = await productionVersion();
+const prod = await productionVersionInfo();
 
-if (origin && compare(local, origin) < 0) {
+if (origin && compareAppVersion(local, origin) < 0) {
   console.error(`Deploy blocked: local v${local} is behind origin/main v${origin}.`);
   console.error("Run: git fetch origin && git checkout main && git pull origin main");
   process.exit(1);
 }
 
-if (prod && compare(local, prod) < 0) {
-  console.error(`Deploy blocked: local v${local} would overwrite production v${prod}.`);
+if (prod && compareAppVersion(local, prod.version) < 0) {
+  console.error(`Deploy blocked: local v${local} would overwrite production v${prod.version}.`);
   console.error("Pull latest main before deploying. To override: FORCE_DEPLOY=1 npm run deploy:hosting");
   process.exit(1);
 }
 
-if (prod && compare(local, prod) > 0) {
-  console.log(`Deploy will update production v${prod} → v${local}`);
+if (prod && compareAppVersion(local, prod.version) > 0) {
+  const buildHint = prod.buildId ? `+${prod.buildId}` : "";
+  console.log(`Deploy will update production v${prod.version}${buildHint} → v${local}`);
 } else if (prod) {
-  console.log(`Production already at v${prod} (local v${local})`);
+  const buildHint = prod.buildId ? `+${prod.buildId}` : "";
+  console.log(`Production already at v${prod.version}${buildHint} (local v${local})`);
 }
