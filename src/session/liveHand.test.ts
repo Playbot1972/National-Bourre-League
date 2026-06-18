@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { getSessionCurrentHand, getSessionEnrollment } from "./liveHand";
 
 describe("live enrollment hand view", () => {
-  it("prefers liveEnrollment deal publicHand over stale handEnrollment", () => {
+  it("ignores orphan liveEnrollment deal when currentHand is cleared between hands", () => {
     const session = {
       handEnrollment: { active: true, enrolledIds: ["a", "b"] },
       liveEnrollment: {
@@ -16,8 +16,8 @@ describe("live enrollment hand view", () => {
       currentHand: { tricksByPlayer: {}, participantIds: [] },
     };
     assert.equal(getSessionEnrollment(session), null);
-    assert.equal(getSessionCurrentHand(session).phase, "draw");
-    assert.deepEqual(getSessionCurrentHand(session).participantIds, ["a", "b"]);
+    assert.equal(getSessionCurrentHand(session).phase, undefined);
+    assert.deepEqual(getSessionCurrentHand(session).participantIds, []);
   });
 
   it("uses active liveEnrollment during I'm-in rotation", () => {
@@ -55,6 +55,7 @@ describe("live enrollment hand view", () => {
       currentHand: { tricksByPlayer: {}, participantIds: [] },
     };
     assert.equal(getSessionEnrollment(session)?.active, true);
+    assert.equal(getSessionCurrentHand(session).phase, "play");
   });
 
   it("returns active handEnrollment when stale deal has no live phase", () => {

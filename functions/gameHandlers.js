@@ -84,6 +84,52 @@ function isClearedPreDealHand(hand) {
   return !Object.values(tricks).some((n) => (n || 0) > 0);
 }
 
+function handInProgress(hand) {
+  if (!hand) return false;
+  const phase = hand.phase ?? null;
+  if (phase !== "draw" && phase !== "play") return false;
+  const participantIds = hand.participantIds ?? [];
+  if (participantIds.length === 0) return false;
+  const tricks = hand.tricksByPlayer ?? {};
+  if (isHandComplete(tricks, participantIds)) return false;
+  if (totalTricksPlayed(tricks, participantIds) >= MAX_TRICKS_PER_HAND) return false;
+  return true;
+}
+
+function authoritativeCurrentHand(sessionData) {
+  const current = sessionData?.currentHand ?? emptyPreDealHand();
+  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
+  const livePhase = livePublic?.phase ?? null;
+  const enrollmentActive = Boolean(
+    sessionData?.liveEnrollment?.active || sessionData?.handEnrollment?.active,
+  );
+
+  if (handInProgress(current)) return current;
+
+  if (livePhase === "draw" || livePhase === "play") {
+    if (handInProgress(livePublic)) {
+      const liveTricks = totalTricksPlayed(
+        livePublic?.tricksByPlayer ?? {},
+        livePublic?.participantIds ?? [],
+      );
+      if (
+        isClearedPreDealHand(current) &&
+        liveTricks === 0 &&
+        livePhase === "draw" &&
+        !sessionData?.liveEnrollment?.active
+      ) {
+        return emptyPreDealHand();
+      }
+      return livePublic;
+    }
+    if (isClearedPreDealHand(current)) return emptyPreDealHand();
+    return current;
+  }
+
+  if (livePhase && livePublic) return livePublic;
+  return current;
+}
+
 function isHandComplete(tricksByPlayer, participantIds) {
   return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
 }
@@ -101,14 +147,18 @@ function shouldClearStaleLiveEnrollment(sessionData) {
   if (!sessionData?.liveEnrollment?.deal) return false;
   if (isStaleLiveDealSnapshot(sessionData)) return true;
   const livePhase = sessionData.liveEnrollment.deal.publicHand?.phase ?? null;
+  const enrollmentActive = Boolean(
+    sessionData?.liveEnrollment?.active || sessionData?.handEnrollment?.active,
+  );
+  if ((livePhase === "draw" || livePhase === "play") && !enrollmentActive) {
+    return isClearedPreDealHand(sessionData?.currentHand);
+  }
   if (livePhase === "draw" || livePhase === "play") return false;
   return isClearedPreDealHand(sessionData?.currentHand);
 }
 
 function getSessionCurrentHand(sessionData) {
-  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
-  if (livePublic?.phase) return livePublic;
-  return sessionData?.currentHand ?? emptyPreDealHand();
+  return authoritativeCurrentHand(sessionData);
 }
 
 function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
