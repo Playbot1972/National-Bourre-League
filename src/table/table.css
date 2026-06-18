@@ -736,12 +736,28 @@
   flex: 1 1 100%;
 }
 
+.btable-hero .hand--fan {
+  width: 100%;
+  max-width: 100%;
+}
+
 .btable-hero .hand--fan .hand__slot:not(:first-child) {
-  margin-left: -14px;
+  margin-left: var(--hand-fan-overlap, -10px);
 }
 
 .btable-hero .hand--fan .hand__slot:hover {
-  z-index: 3;
+  z-index: 4;
+}
+
+.btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+  filter: grayscale(0.15) brightness(0.9);
+  opacity: 0.78;
+  transform: translateY(2px);
+}
+
+.btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard {
+  filter: none;
+  opacity: 1;
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
@@ -1873,7 +1889,7 @@
   }
 
   .btable-hero .hand--fan .hand__slot:not(:first-child) {
-    margin-left: clamp(-20px, -4.2vw, -12px);
+    margin-left: var(--hand-fan-overlap, clamp(-16px, calc((100% - var(--hand-card-w, 52px)) / max(1, var(--hand-count, 5) - 1) - var(--hand-card-w, 52px)), 4px));
   }
 }
 

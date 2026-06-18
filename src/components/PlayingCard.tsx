@@ -2,7 +2,14 @@ import type { PointerEventHandler } from "react";
 import { SUIT_SYMBOL, SUIT_LABEL, isRedSuit, type Card } from "../types";
 import "./PlayingCard.css";
 
-export type CardState = "default" | "trump" | "winner" | "muted" | "selected" | "disabled";
+export type CardState =
+  | "default"
+  | "trump"
+  | "winner"
+  | "muted"
+  | "selected"
+  | "draw-selected"
+  | "disabled";
 
 interface PlayingCardProps {
   card?: Card;
