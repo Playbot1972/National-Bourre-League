@@ -5,6 +5,10 @@ import {
   setupRoomWithBots,
   waitForDrawPhase,
 } from "./helpers/roomFlow";
+import {
+  expectOverlayStageFillsViewport,
+  expectTableScaleAffectsStage,
+} from "./helpers/overlayLayout";
 
 const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
 
@@ -64,5 +68,17 @@ test.describe("Go to Table — room buttons smoke", () => {
 
     await expect(page.getByTestId("open-table-play").first()).toBeVisible();
     await expect(page.getByTestId("session-add-players")).toBeVisible();
+  });
+
+  test("overlay stage fills viewport and table scale changes size", async ({ page }) => {
+    await setupRoomWithBots(page, 4);
+    await goToTable(page);
+
+    const overlay = page.locator("#table-play-overlay");
+    await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+    await expect(overlay.getByTestId("table-felt")).toBeVisible();
+
+    await expectOverlayStageFillsViewport(page);
+    await expectTableScaleAffectsStage(page);
   });
 });

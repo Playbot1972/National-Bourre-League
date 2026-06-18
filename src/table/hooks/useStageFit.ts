@@ -42,19 +42,21 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
       wrap.closest(".btable-session");
 
     const apply = () => {
+      const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
       const host = viewport instanceof HTMLElement ? viewport : wrap;
       const hostRect = host.getBoundingClientRect();
       const hero = wrap.querySelector<HTMLElement>(".hand-panel");
       const heroRect = hero?.getBoundingClientRect();
-      const heroFloor = nativeMobile ? 132 : 148;
-      const heroCap = nativeMobile ? 220 : 280;
+      const heroFloor = inOverlay && !nativeMobile ? 120 : nativeMobile ? 132 : 148;
+      const heroCap = inOverlay && !nativeMobile ? 200 : nativeMobile ? 220 : 280;
       const measuredHero = heroRect?.height ?? 0;
       const stableHero = stabilizeHeroHeight(measuredHero, heroPeakRef.current, heroFloor);
       heroPeakRef.current = stableHero.peak;
       const heroMinHeight = Math.min(stableHero.height, heroCap);
 
-      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16) + STAGE_SEAT_OVERFLOW_PAD;
-      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12) + STAGE_SEAT_OVERFLOW_PAD;
+      const overflowPad = inOverlay && !nativeMobile ? 16 : STAGE_SEAT_OVERFLOW_PAD;
+      const padX = readSafePx("--stage-fit-pad-x", nativeMobile ? 10 : 16) + overflowPad;
+      const padY = readSafePx("--stage-fit-pad-y", nativeMobile ? 8 : 12) + overflowPad;
       const gap = readSafePx("--stage-fit-gap", 12);
 
       const vv = window.visualViewport;
@@ -73,14 +75,23 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
         gap,
       });
 
-      wrap.style.setProperty("--stage-fit-width", `${Math.round(fit.stageWidth)}px`);
-      wrap.style.setProperty("--stage-fit-height", `${Math.round(fit.stageHeight)}px`);
+      const layoutWidth =
+        inOverlay && !nativeMobile ? fit.displayStageWidth : fit.stageWidth;
+      const layoutHeight =
+        inOverlay && !nativeMobile ? fit.displayStageHeight : fit.stageHeight;
+      const transformScale =
+        inOverlay && !nativeMobile
+          ? Math.max(0.85, Math.min(1.35, userScale || 1))
+          : fit.effectiveScale;
+
+      wrap.style.setProperty("--stage-fit-width", `${Math.round(layoutWidth)}px`);
+      wrap.style.setProperty("--stage-fit-height", `${Math.round(layoutHeight)}px`);
       wrap.style.setProperty("--stage-fit-scale", String(fit.fitScale));
-      wrap.style.setProperty("--stage-effective-scale", String(fit.effectiveScale));
+      wrap.style.setProperty("--stage-effective-scale", String(transformScale));
 
       const scaleTarget =
         wrap.closest<HTMLElement>(".btable-desktop__scale") ?? wrap.parentElement;
-      scaleTarget?.style.setProperty("--stage-effective-scale", String(fit.effectiveScale));
+      scaleTarget?.style.setProperty("--stage-effective-scale", String(transformScale));
 
       if (localStorage.getItem("stageFitDebug") === "1") {
         const stage = wrap.querySelector<HTMLElement>(".table-stage");
