@@ -249,7 +249,7 @@ export function HeroHand({
 
   const stateFor = (_: Card, i: number): CardState => {
     if (playingIndex === i) return "selected";
-    if (inDrawPhase && selectedDraw.has(i)) return "selected";
+    if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
     if (inPlayPhase && selectedPlay === i) return "selected";
     if (inPlayPhase && !isMyTurn) return "disabled";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
@@ -269,6 +269,7 @@ export function HeroHand({
       className={[
         `btable-hero btable-hero--scale-${settings.cardScale}`,
         dealing ? "btable-hero--dealing" : "",
+        inDrawPhase && isMyTurn && !drawCompleted ? "btable-hero--draw-select" : "",
         drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
         drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
         className,

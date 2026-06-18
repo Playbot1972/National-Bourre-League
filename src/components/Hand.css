@@ -15,15 +15,53 @@
 
 .hand--fan {
   gap: 0;
+  width: 100%;
+  max-width: 100%;
+  justify-content: center;
 }
 .hand--fan .hand__slot:not(:first-child) {
-  margin-left: -18px;
+  margin-left: var(--hand-fan-overlap, -14px);
 }
 .hand--fan .hand__slot {
-  transition: transform 160ms ease;
+  transition:
+    margin-left 200ms ease,
+    transform 200ms ease,
+    z-index 0s;
 }
 .hand--fan .hand__slot:hover {
+  z-index: 4;
+}
+
+.hand__slot--draw-selected {
+  z-index: 6;
+}
+
+.hand__slot--draw-selected::after {
+  content: "✓ Discard";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #14110f;
+  background: linear-gradient(160deg, #f4d58d, #e6b450);
+  border: 1px solid rgba(20, 17, 15, 0.35);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(244, 213, 141, 0.55);
+  pointer-events: none;
   z-index: 2;
+}
+
+.hand__slot {
+  position: relative;
 }
 
 /* Hero squeeze / peek — press and hold */

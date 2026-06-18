@@ -1,9 +1,10 @@
-import { useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { PlayingCard, type CardState } from "./PlayingCard";
 import type { Card } from "../types";
 import type { CardGestureMode } from "./useCardGestureHandlers";
 import { useCardGestureHandlers } from "./useCardGestureHandlers";
 import { cardKey } from "../game/cardUtils";
+import { cardWidthForHandSize, computeHandFanOverlapPx } from "./handLayout";
 import "./Hand.css";
 
 export interface HandCardInteraction {
@@ -76,6 +77,7 @@ function HandCard({
   const playing = interaction?.playingIndex === index;
   const illegalTarget =
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
+  const isDrawSelected = isDrawMode && state === "draw-selected";
   const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
@@ -113,8 +115,15 @@ function HandCard({
 
   return (
     <div
-      className={["hand__slot", peekActive ? "hand__slot--peek" : ""].filter(Boolean).join(" ")}
+      className={[
+        "hand__slot",
+        peekActive ? "hand__slot--peek" : "",
+        isDrawSelected ? "hand__slot--draw-selected" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={style}
+      aria-selected={isDrawSelected ? true : undefined}
       data-trick-play-origin-active={
         interaction?.playingIndex === index && interaction.trickPlayOriginPlayerId
           ? interaction.trickPlayOriginPlayerId
@@ -154,8 +163,36 @@ export function Hand({
   cardTestId,
   cardInteraction,
 }: HandProps) {
+  const handRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!fan || typeof window === "undefined") return;
+    const el = handRef.current;
+    if (!el) return;
+
+    const cardW = cardWidthForHandSize(size);
+    const apply = () => {
+      const overlap = computeHandFanOverlapPx(el.clientWidth, cards.length, cardW);
+      el.style.setProperty("--hand-fan-overlap", `${overlap}px`);
+      el.style.setProperty("--hand-card-w", `${cardW}px`);
+    };
+
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    apply();
+    return () => ro.disconnect();
+  }, [fan, cards.length, size]);
+
   return (
-    <div className={`hand ${fan ? "hand--fan" : ""} ${cardInteraction ? "hand--pointer" : ""}`}>
+    <div
+      ref={handRef}
+      className={`hand ${fan ? "hand--fan" : ""} ${cardInteraction ? "hand--pointer" : ""}`}
+      style={
+        fan
+          ? ({ ["--hand-count" as string]: cards.length } as CSSProperties)
+          : undefined
+      }
+    >
       {cards.map((c, i) => (
         <HandCard
           key={keyFor(c)}
