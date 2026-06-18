@@ -10,15 +10,39 @@ export async function emulatorReady(): Promise<boolean> {
 }
 
 export async function signUpHost(page: Page, label = "E2E Host") {
+  await signUpUser(page, label);
+}
+
+export async function signUpGuest(page: Page, label = "E2E Guest") {
+  await signUpUser(page, label);
+}
+
+async function signUpUser(page: Page, label: string) {
   await page.locator("#hero-signup").click();
   await expect(page.locator("#auth-modal")).toBeVisible();
   await expect(page.locator("#auth-name")).toBeVisible();
-  const email = `host-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
+  const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const email = `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
   await page.locator("#auth-name").fill(label);
   await page.locator("#auth-email").fill(email);
   await page.locator("#auth-password").fill("test-pass-123456");
   await page.locator("#auth-submit").click();
   await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
+}
+
+export async function readRoomInviteCode(page: Page) {
+  const codeEl = page.getByTestId("room-invite-code");
+  await expect(codeEl).toBeVisible({ timeout: 15_000 });
+  const code = (await codeEl.textContent())?.trim() ?? "";
+  expect(code).toMatch(/^[A-Z0-9]{3}-[A-Z0-9]{3}$/);
+  return code;
+}
+
+export async function joinRoomWithCode(page: Page, code: string) {
+  await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
+  await expect(page.locator("#view-rooms")).toBeVisible();
+  await page.getByTestId("join-code-input").fill(code.replace(/\s+/g, ""));
+  await page.getByTestId("join-code-submit").click();
 }
 
 export async function createRoom(page: Page, name = "E2E Bot Flow Room") {

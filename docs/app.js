@@ -28,6 +28,8 @@ import {
   ensureInviteLookupForRoom,
   ensureRoomSessionNamePool,
   refreshRoomSessionCap,
+  formatInviteCodeDisplay,
+  isValidInviteCodeFormat,
   subscribeMyRooms,
   subscribeRoom,
   subscribeRoomMembers,
@@ -461,12 +463,6 @@ function escapeHtml(value) {
         "'": "&#39;",
       })[ch],
   );
-}
-
-function normalizeInviteCodeDisplay(code) {
-  let c = code.trim().toUpperCase().replace(/\s+/g, "");
-  if (/^[A-Z0-9]{6}$/.test(c)) c = `${c.slice(0, 3)}-${c.slice(3)}`;
-  return c;
 }
 
 function renderHouseRulesEditor(houseRules) {
@@ -1729,28 +1725,50 @@ $$("[data-close-create-room]").forEach((el) => {
 
 $("#join-form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!session) return;
+  if (!session) {
+    showRoomsError("Sign in to join a room.");
+    openAuth("signin");
+    return;
+  }
   showRoomsError("");
-  const code = $("#join-code").value.trim();
-  if (!code) return;
+  const rawCode = $("#join-code").value;
+  const code = rawCode.trim();
+  if (!code) {
+    showRoomsError("Enter an invite code.");
+    return;
+  }
+  if (!isValidInviteCodeFormat(code)) {
+    showRoomsError(
+      `Invalid invite code "${formatInviteCodeDisplay(code)}". Use 6 characters like ABC-D23.`,
+    );
+    return;
+  }
+  const joinBtn = $("#join-form button[type='submit']");
+  if (joinBtn) {
+    joinBtn.disabled = true;
+    joinBtn.dataset.busy = "true";
+  }
   try {
-    await ensureUserDoc(session.uid, session.displayName);
+    await ensureUserDoc(session);
+    await ensurePlayerDoc(session.uid, session.displayName).catch((err) =>
+      console.warn("ensurePlayerDoc on join:", err),
+    );
     const roomId = await joinRoomByCode(code, session);
-    if (!roomId) {
-      showRoomsError(
-        `No room found for code "${normalizeInviteCodeDisplay(code)}". Ask the host to open Private Rooms on their phone (wait a few seconds), then try again.`,
-      );
-      return;
-    }
     $("#join-code").value = "";
     markPendingSelfJoin(roomId);
     openRoom(roomId);
+    const roomName = currentRoom?.name;
+    showRoomsError(roomName ? `Joined ${roomName}.` : "Joined room.");
   } catch (err) {
     clearPendingSelfJoin();
     console.error("joinRoomByCode:", err);
     const fbCode = err && typeof err === "object" ? err.code : "";
     const msg = err && typeof err === "object" ? err.message : String(err);
-    if (/no longer valid|was deleted/i.test(msg)) {
+    if (/invalid invite code/i.test(msg)) {
+      showRoomsError(msg);
+    } else if (/no room found/i.test(msg)) {
+      showRoomsError(msg);
+    } else if (/no longer valid|was deleted/i.test(msg)) {
       showRoomsError(msg);
     } else if (fbCode === "permission-denied") {
       showRoomsError(
@@ -1758,8 +1776,16 @@ $("#join-form").addEventListener("submit", async (e) => {
       );
     } else if (/offline|network/i.test(msg)) {
       showRoomsError("Network error — check connection and try again.");
+    } else if (/sign in/i.test(msg)) {
+      showRoomsError(msg);
+      openAuth("signin");
     } else {
-      showRoomsError(`Could not join (${fbCode || "error"}). ${msg}`.slice(0, 160));
+      showRoomsError(`Could not join (${fbCode || "error"}). ${msg}`.slice(0, 200));
+    }
+  } finally {
+    if (joinBtn) {
+      joinBtn.disabled = false;
+      joinBtn.dataset.busy = "false";
     }
   }
 });
@@ -2862,7 +2888,7 @@ function renderRoomDetail() {
       </div>
       <div class="room-detail__code">
         <span class="muted">Invite code</span>
-        <strong>${escapeHtml(currentRoom.inviteCode)}</strong>
+        <strong data-testid="room-invite-code">${escapeHtml(currentRoom.inviteCode)}</strong>
       </div>
       ${
         session?.uid === currentRoom.ownerId
