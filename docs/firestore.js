@@ -307,6 +307,9 @@ if (FIRESTORE_EMULATOR) {
   }
 }
 
+export { formatInviteCodeDisplay, isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
+import { isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -318,14 +321,6 @@ export function generateInviteCode() {
     s += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
   }
   return `${s.slice(0, 3)}-${s.slice(3)}`;
-}
-
-function normalizeInviteCode(code) {
-  let c = code.trim().toUpperCase().replace(/\s+/g, "");
-  if (/^[A-Z0-9]{6}$/.test(c)) {
-    c = `${c.slice(0, 3)}-${c.slice(3)}`;
-  }
-  return c;
 }
 
 const memberId = (roomId, uid) => `${roomId}_${uid}`;
@@ -422,11 +417,19 @@ export async function ensureInviteLookupForRoom(roomId) {
   return true;
 }
 
-/** Join an existing room by invite code. Returns the roomId or null. */
+/** Join an existing room by invite code. Returns the roomId. */
 export async function joinRoomByCode(code, user) {
+  if (!user?.uid) throw new Error("Sign in to join a room.");
   const inviteCode = normalizeInviteCode(code);
+  if (!isValidInviteCodeFormat(inviteCode)) {
+    throw new Error("Invalid invite code — enter 6 characters like ABC-D23.");
+  }
   const lookupSnap = await getDoc(doc(db, "inviteLookups", inviteCode));
-  if (!lookupSnap.exists()) return null;
+  if (!lookupSnap.exists()) {
+    throw new Error(
+      `No room found for code ${inviteCode}. Double-check with the host. If they just created the room, ask them to open Private Rooms once, then try again.`,
+    );
+  }
   const roomId = lookupSnap.data().roomId;
   const membershipRef = doc(db, "roomMembers", memberId(roomId, user.uid));
   const displayName =
