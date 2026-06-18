@@ -841,8 +841,11 @@ export function getSessionCurrentHand(sessionData) {
 
 function publicHandSessionUpdate(sessionData, nextPublicHand) {
   if (sessionData?.liveEnrollment?.deal) {
+    // Keep currentHand and liveEnrollment.deal.publicHand in sync — reads prefer currentHand
+    // once deal mirrors, so draw/play must update both or the table stalls in draw.
     return {
       "liveEnrollment.deal.publicHand": nextPublicHand,
+      currentHand: nextPublicHand,
       updatedAt: serverTimestamp(),
     };
   }
@@ -886,6 +889,8 @@ function applyEnrollmentDealInTransaction(tx, ref, patch) {
         privateHandsByPlayer: patch.privateHandsByPlayer,
       },
     },
+    currentHand: patch.currentHand,
+    handEnrollment: deleteField(),
     updatedAt: serverTimestamp(),
   });
 }

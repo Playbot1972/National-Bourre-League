@@ -76,4 +76,55 @@ describe("live enrollment hand view", () => {
     };
     assert.equal(getSessionEnrollment(session)?.active, true);
   });
+
+  it("prefers the more advanced mirror when currentHand and live deal diverge", () => {
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "play",
+            participantIds: ["a", "b"],
+            tricksByPlayer: {},
+            drawCompletedIds: ["a", "b"],
+          },
+        },
+      },
+      currentHand: {
+        phase: "draw",
+        participantIds: ["a", "b"],
+        tricksByPlayer: {},
+        drawCompletedIds: [],
+        turnPlayerId: "a",
+      },
+    };
+    assert.equal(getSessionCurrentHand(session).phase, "play");
+  });
+
+  it("prefers live draw progress when currentHand stalled mid-draw", () => {
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "draw",
+            participantIds: ["a", "b"],
+            tricksByPlayer: {},
+            drawCompletedIds: ["a"],
+            turnPlayerId: "b",
+          },
+        },
+      },
+      currentHand: {
+        phase: "draw",
+        participantIds: ["a", "b"],
+        tricksByPlayer: {},
+        drawCompletedIds: [],
+        turnPlayerId: "a",
+      },
+    };
+    const hand = getSessionCurrentHand(session);
+    assert.deepEqual(hand.drawCompletedIds, ["a"]);
+    assert.equal(hand.turnPlayerId, "b");
+  });
 });

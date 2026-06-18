@@ -96,6 +96,22 @@ function handInProgress(hand) {
   return true;
 }
 
+function handProgressScore(hand) {
+  if (!hand) return 0;
+  const phase = hand.phase ?? "";
+  let score = phase === "play" ? 1000 : phase === "draw" ? 100 : 0;
+  score += (hand.drawCompletedIds?.length ?? 0) * 10;
+  const participants = hand.participantIds ?? [];
+  score += totalTricksPlayed(hand.tricksByPlayer ?? {}, participants);
+  return score;
+}
+
+function preferInProgressHand(current, livePublic) {
+  if (!handInProgress(livePublic)) return current;
+  if (!handInProgress(current)) return livePublic;
+  return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic : current;
+}
+
 function authoritativeCurrentHand(sessionData) {
   const current = sessionData?.currentHand ?? emptyPreDealHand();
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
@@ -103,6 +119,10 @@ function authoritativeCurrentHand(sessionData) {
   const enrollmentActive = Boolean(
     sessionData?.liveEnrollment?.active || sessionData?.handEnrollment?.active,
   );
+
+  if (handInProgress(current) && handInProgress(livePublic)) {
+    return preferInProgressHand(current, livePublic);
+  }
 
   if (handInProgress(current)) return current;
 
@@ -159,6 +179,44 @@ function shouldClearStaleLiveEnrollment(sessionData) {
 
 function getSessionCurrentHand(sessionData) {
   return authoritativeCurrentHand(sessionData);
+}
+
+function publicHandSessionUpdate(sessionData, nextPublicHand) {
+  if (sessionData?.liveEnrollment?.deal) {
+    return {
+      "liveEnrollment.deal.publicHand": nextPublicHand,
+      currentHand: nextPublicHand,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+  }
+  return { currentHand: nextPublicHand, updatedAt: FieldValue.serverTimestamp() };
+}
+
+function embeddedPrivateHandData(sessionData, playerId) {
+  const hand = sessionData?.liveEnrollment?.deal?.privateHandsByPlayer?.[playerId];
+  if (!hand?.cards) return null;
+  return { cards: hand.cards };
+}
+
+async function readPrivateHandInTransaction(tx, db, roomId, sessionId, sessionData, playerId) {
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  if (embedded) return embedded;
+  const privateSnap = await tx.get(privateHandRef(db, roomId, sessionId, playerId));
+  return privateSnap.exists ? privateSnap.data() : null;
+}
+
+function writePrivateHandInTransaction(tx, db, ref, sessionData, roomId, sessionId, playerId, serializedCards) {
+  if (sessionData?.liveEnrollment?.deal?.privateHandsByPlayer) {
+    tx.update(ref, {
+      [`liveEnrollment.deal.privateHandsByPlayer.${playerId}.cards`]: serializedCards,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+  tx.set(privateHandRef(db, roomId, sessionId, playerId), {
+    cards: serializedCards,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 }
 
 function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
@@ -697,7 +755,7 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
-    const currentHand = sessionData.currentHand || {};
+    const currentHand = getSessionCurrentHand(sessionData);
     if (currentHand.phase !== HAND_PHASE.DRAW) {
       throw new HttpsError("failed-precondition", "Not in draw phase");
     }
@@ -708,11 +766,17 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
       throw new HttpsError("failed-precondition", "Draw already completed");
     }
 
-    const privateRef = privateHandRef(db, roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists) throw new HttpsError("not-found", "Private hand not found");
+    const handData = await readPrivateHandInTransaction(
+      tx,
+      db,
+      roomId,
+      sessionId,
+      sessionData,
+      playerId,
+    );
+    if (!handData) throw new HttpsError("not-found", "Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const deckSeed = currentHand.deckSeed;
     if (deckSeed == null) throw new HttpsError("failed-precondition", "Missing deck seed on session");
 
@@ -741,11 +805,17 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
       remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
     };
 
-    tx.set(privateRef, {
-      cards: serializeCards(drawResult.privateHand),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.update(ref, { currentHand: nextPublic, updatedAt: FieldValue.serverTimestamp() });
+    writePrivateHandInTransaction(
+      tx,
+      db,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(drawResult.privateHand),
+    );
+    tx.update(ref, publicHandSessionUpdate(sessionData, nextPublic));
     return { status: "ok", phase: nextPublic.phase };
   });
 }
@@ -778,16 +848,22 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
-    const currentHand = sessionData.currentHand || {};
+    const currentHand = getSessionCurrentHand(sessionData);
     if (currentHand.phase !== HAND_PHASE.PLAY) {
       throw new HttpsError("failed-precondition", "Not in trick-play phase");
     }
 
-    const privateRef = privateHandRef(db, roomId, sessionId, playerId);
-    const privateSnap = await tx.get(privateRef);
-    if (!privateSnap.exists) throw new HttpsError("not-found", "Private hand not found");
+    const handData = await readPrivateHandInTransaction(
+      tx,
+      db,
+      roomId,
+      sessionId,
+      sessionData,
+      playerId,
+    );
+    if (!handData) throw new HttpsError("not-found", "Private hand not found");
 
-    const hand = deserializeCards(privateSnap.data().cards || []);
+    const hand = deserializeCards(handData.cards || []);
     const result = applyPlayerPlayCard({
       publicHand: currentHand,
       privateHand: hand,
@@ -799,11 +875,17 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
 
     handComplete = result.handComplete;
 
-    tx.set(privateRef, {
-      cards: serializeCards(result.privateHand),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    tx.update(ref, { currentHand: result.publicHand, updatedAt: FieldValue.serverTimestamp() });
+    writePrivateHandInTransaction(
+      tx,
+      db,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      serializeCards(result.privateHand),
+    );
+    tx.update(ref, publicHandSessionUpdate(sessionData, result.publicHand));
   });
 
   return { handComplete };
