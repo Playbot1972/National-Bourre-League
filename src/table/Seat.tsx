@@ -198,8 +198,8 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
           {showBankroll && (
             <span
               className={`bseat__stack${player.isOut ? " bseat__stack--out" : ""}`}
-              aria-label={`Bankroll ${formatBankroll(player.bankroll ?? 0)}`}
-              title={`Stack ${formatBankroll(player.bankroll ?? 0)}`}
+              aria-label={`Chips ${formatBankroll(player.bankroll ?? 0)}`}
+              title={`Chips ${formatBankroll(player.bankroll ?? 0)}`}
             >
               {formatBankroll(player.bankroll ?? 0)}
             </span>

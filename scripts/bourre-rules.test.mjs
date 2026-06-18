@@ -8,6 +8,7 @@ import {
   applyBankrollDelta,
   applySolventSettlement,
   canEnrollWithBankroll,
+  scoreBankroll,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
 
@@ -199,5 +200,13 @@ describe("bankroll solvency", () => {
   it("canEnrollWithBankroll blocks zero stack", () => {
     assert.equal(canEnrollWithBankroll(0), false);
     assert.equal(canEnrollWithBankroll(1), true);
+  });
+
+  it("scoreBankroll recovers from stale create-time buy-in when net moved", () => {
+    const buyIn = 20;
+    assert.equal(scoreBankroll({ bankroll: 20, net: 5 }, buyIn), 25);
+    assert.equal(scoreBankroll({ bankroll: 20, net: -8 }, buyIn), 12);
+    assert.equal(scoreBankroll({ bankroll: 25, net: 5 }, buyIn), 25);
+    assert.equal(scoreBankroll({ bankroll: 0, net: -20 }, buyIn), 0);
   });
 });

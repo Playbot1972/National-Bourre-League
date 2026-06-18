@@ -158,15 +158,19 @@ export function settleHandDeltas({
   };
 }
 
-/** Live stack for a score row — prefers bankroll field, else buy-in + net. */
+/** Live stack for a score row — bankroll field when current; else buy-in + session net. */
 export function scoreBankroll(score, buyInFallback = 0) {
-  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
-    return Math.max(0, Number(score.bankroll));
-  }
   const buyIn = Math.max(0, Number(buyInFallback) || 0);
   const net = Number(score?.net) || 0;
-  if (buyIn > 0) return Math.max(0, buyIn + net);
-  return Math.max(0, net);
+  const fromLedger = buyIn > 0 ? Math.max(0, buyIn + net) : Math.max(0, net);
+
+  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
+    const stored = Math.max(0, Number(score.bankroll));
+    // Recover when settlement updated net but bankroll stayed at create-time buy-in.
+    if (net !== 0 && buyIn > 0 && stored === buyIn) return fromLedger;
+    return stored;
+  }
+  return fromLedger;
 }
 
 /** Apply a settlement delta against a bankroll; negative deltas clamp at zero. */

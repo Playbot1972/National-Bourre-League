@@ -90,6 +90,8 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly([
           'net',
+          'bankroll',
+          'out',
           'tricksWon',
           'handsWon',
           'total',
@@ -113,6 +115,8 @@ service cloud.firestore {
     function scoreLedgerFieldsChanged() {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'net',
+        'bankroll',
+        'out',
         'tricksWon',
         'handsWon',
         'total',
