@@ -67,11 +67,13 @@ service cloud.firestore {
     }
 
     // Client settlement after a hand (Cloud Functions optional on prod).
+    // liveEnrollment.deal — nested delete when clearing legacy deal snapshots at settle.
     function memberSettlementSessionUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly([
           'handEnrollment',
           'liveEnrollment',
+          'liveEnrollment.deal',
           'currentHand',
           'handCount',
           'carryOverPot',

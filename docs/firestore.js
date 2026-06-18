@@ -224,7 +224,7 @@ async function callEnrollmentAction(clientFn, serverFn) {
   }
 }
 
-/** Draw/play/settlement — client Firestore first (works when callables are missing). */
+/** Draw/play — client Firestore first (works when callables are missing). */
 async function callGameOrClient(clientFn, serverFn) {
   try {
     return await clientFn();
@@ -241,6 +241,78 @@ async function callGameOrClient(clientFn, serverFn) {
       throw serverErr;
     }
   }
+}
+
+/** Settlement — Cloud Functions first when enabled; client batch is the fallback. */
+async function callSettlementOrClient(clientFn, serverFn) {
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      if (isCloudFunctionUnavailable(serverErr)) {
+        console.warn(
+          "Settlement Cloud Function unavailable, trying client batch.",
+          serverErr?.code || serverErr?.message || serverErr,
+        );
+        try {
+          return await clientFn();
+        } catch (clientErr) {
+          throw settlementError(clientErr, "client-batch", serverErr);
+        }
+      }
+      console.warn(
+        "Settlement Cloud Function failed, trying client batch.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+      try {
+        return await clientFn();
+      } catch (clientErr) {
+        throw settlementError(clientErr, "client-batch", serverErr);
+      }
+    }
+  }
+  try {
+    return await clientFn();
+  } catch (clientErr) {
+    throw settlementError(clientErr, "client-batch");
+  }
+}
+
+function isSettlementDevLogging() {
+  return (
+    FIRESTORE_EMULATOR != null ||
+    (typeof location !== "undefined" &&
+      (location.hostname === "localhost" || location.hostname === "127.0.0.1"))
+  );
+}
+
+function logSettlementFailure(source, err, relatedErr = null) {
+  const detail = {
+    source,
+    code: err?.code ?? null,
+    message: err?.message ?? String(err),
+  };
+  if (relatedErr) {
+    detail.related = {
+      code: relatedErr?.code ?? null,
+      message: relatedErr?.message ?? String(relatedErr),
+    };
+  }
+  if (isSettlementDevLogging()) {
+    console.error("[settlement] Firestore operation failed", detail, err);
+  } else {
+    console.warn("[settlement] failed", detail.code || detail.message);
+  }
+}
+
+function isAuthExpiredError(err) {
+  const code = String(err?.code ?? "");
+  return code === "unauthenticated" || code === "functions/unauthenticated";
+}
+
+function isRoomMembershipError(err) {
+  const msg = String(err?.message ?? err).toLowerCase();
+  return msg.includes("not a room member");
 }
 
 /** Five tricks per hand; winner is whoever takes the most (plurality). */
@@ -1301,10 +1373,21 @@ async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
   }
 }
 
-function settlementError(err) {
-  if (isPermissionDenied(err)) {
+function settlementError(err, source = "client", relatedErr = null) {
+  logSettlementFailure(source, err, relatedErr);
+  if (isAuthExpiredError(err)) {
     return new Error(
-      "Hand settlement was blocked (missing or insufficient permissions). Sign in again, confirm you are still in this room, and ask the host to deploy updated Firestore rules if it persists.",
+      "Hand settlement was blocked — your sign-in expired. Sign in again and retry.",
+    );
+  }
+  if (isRoomMembershipError(err)) {
+    return new Error(
+      "Hand settlement was blocked — you are not listed as a member of this room. Rejoin with the invite code or ask the host to confirm you are in the room.",
+    );
+  }
+  if (isPermissionDenied(err) || isEnrollmentPermissionError(err)) {
+    return new Error(
+      "Hand settlement was blocked (room permissions). Confirm you are still in this room. If you joined by invite code, ask the host to deploy updated Firestore rules.",
     );
   }
   return err instanceof Error ? err : new Error(String(err));
@@ -1673,7 +1756,7 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
-  return callGameOrClient(
+  return callSettlementOrClient(
     () =>
       recordHandClient(roomId, sessionId, {
         winnerId,
@@ -1836,7 +1919,6 @@ async function recordHandClient(
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
     ...clearedEnrollmentBetweenHands(),
-    ...clearLiveEnrollmentDealPatch(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
   });
@@ -1844,7 +1926,7 @@ async function recordHandClient(
   try {
     await batch.commit();
   } catch (err) {
-    throw settlementError(err);
+    throw settlementError(err, "client-batch");
   }
 
   try {
@@ -1862,7 +1944,11 @@ async function recordHandClient(
     console.warn("recordHand: hand ledger skipped (rules deploy pending)", err);
   }
 
-  await recomputeSessionTotals(roomId, sessionId);
+  try {
+    await recomputeSessionTotals(roomId, sessionId);
+  } catch (err) {
+    throw settlementError(err, "client-totals");
+  }
   logHandLifecycleTransition({
     from: "settle",
     to: "handoffToNextDeal",
@@ -1879,7 +1965,7 @@ export async function voteCoWinSettlement(
   sessionId,
   { participantIds, winnerIds, voterId, choice, recordedBy },
 ) {
-  return callGameOrClient(
+  return callSettlementOrClient(
     () =>
       voteCoWinSettlementClient(roomId, sessionId, {
         participantIds,
