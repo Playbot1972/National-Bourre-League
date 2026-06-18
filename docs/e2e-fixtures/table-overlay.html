@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Table overlay layout fixture</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100dvh;
+        overflow: hidden;
+        background: #0a0e18;
+      }
+      body.table-play-active {
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body class="table-play-active">
+    <div id="table-play-overlay" class="table-play-overlay">
+      <header class="table-play-overlay__bar">
+        <button type="button" id="close-table-play">← Hand results</button>
+        <span class="table-play-overlay__title">Hand #1 · live table</span>
+      </header>
+      <main class="table-play-overlay__main">
+        <div id="table-session-root" class="table-session-root" data-testid="overlay-fixture-root"></div>
+      </main>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const playerCount = Math.min(8, Math.max(2, parseInt(params.get("players") || "4", 10)));
+      const botCount = Math.min(
+        playerCount - 1,
+        Math.max(0, parseInt(params.get("bots") || "1", 10)),
+      );
+      const phase = params.get("phase") || "draw";
+
+      const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);
+      const dealerId = ids[playerCount - 1];
+
+      function isBot(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return idx > 0 && idx <= botCount;
+      }
+
+      function displayName(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return isBot(id) ? `Bot ${idx}` : `Player ${idx}`;
+      }
+
+      function buildPlayers() {
+        return ids.map((id) => ({
+          playerId: id,
+          displayName: displayName(id),
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 0,
+          isSelf: id === "p0",
+          isDealer: id === dealerId,
+          isLeading: false,
+          isWinner: false,
+          isRobot: isBot(id),
+          enrollmentOnClock: false,
+          enrollmentJoined: false,
+          enrollmentSatOut: false,
+          canToggleInHand: false,
+          canEditTricks: false,
+          showHoleCards: phase === "play" && id !== "p0",
+          holeCardCount: phase === "play" ? 4 : 0,
+          isOnTurn: phase === "draw" && id === "p0",
+        }));
+      }
+
+      const heroCards =
+        phase === "draw" || phase === "play"
+          ? [
+              { rank: "A", suit: "spades" },
+              { rank: "K", suit: "hearts" },
+              { rank: "Q", suit: "diamonds" },
+              { rank: "J", suit: "clubs" },
+              { rank: "10", suit: "spades" },
+            ]
+          : [];
+
+      const root = document.getElementById("table-session-root");
+      mountTableSession(root, {
+        session: {
+          sessionId: "overlay-fixture",
+          handNumber: 1,
+          handStake: 1,
+          carryOverPot: 0,
+          isFinal: false,
+          dealerId,
+          participantIds: ids,
+          tricksByPlayer: {},
+          phase,
+          trumpSuit: "hearts",
+          trumpUpcard: { rank: "7", suit: "hearts" },
+          turnPlayerId: "p0",
+          remainingDeckCount: 28,
+          maxDrawDiscards: 4,
+          handEnrollment: null,
+        },
+        players: buildPlayers(),
+        potMetrics: {
+          anteAmount: 1,
+          potCap: 20,
+          currentPot: playerCount,
+          maxWinThisHand: playerCount,
+          limEnabled: false,
+          overflow: 0,
+        },
+        mySessionNet: 0,
+        myHandContribution: 1,
+        leaderLabel: "Trump Hearts · draw round",
+        showCoWinSettlement: false,
+        enrollmentActive: false,
+        enrollmentSecondsLeft: 0,
+        currentUserId: "p0",
+        heroCards,
+        privateHandReady: true,
+        legalPlayIndices: null,
+        actionFeedback: null,
+        actions: {
+          onToggleInHand: () => {},
+          onTrickDelta: () => {},
+          onSettle: () => {},
+          onSubmitDraw: async () => {},
+          onPassDraw: async () => {},
+          onPlayCard: async () => {},
+        },
+      });
+    </script>
+  </body>
+</html>

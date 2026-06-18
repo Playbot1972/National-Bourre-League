@@ -9722,31 +9722,31 @@ function _n({ aspect: e, enabled: t = !0, sessionKey: n }) {
 		if (!c) return;
 		a.current !== n && (a.current = n, i.current = 0);
 		let l = c.closest(".btable-desktop__viewport") ?? c.closest(".table-play-overlay__main") ?? c.closest(".btable-session"), u = () => {
-			let t = (l instanceof HTMLElement ? l : c).getBoundingClientRect(), n = c.querySelector(".hand-panel")?.getBoundingClientRect(), r = s ? 132 : 148, a = s ? 220 : 280, u = n?.height ?? 0, d = un(u, i.current, r);
-			i.current = d.peak;
-			let f = Math.min(d.height, a), p = gn("--stage-fit-pad-x", s ? 10 : 16) + 28, m = gn("--stage-fit-pad-y", s ? 8 : 12) + 28, h = gn("--stage-fit-gap", 12), g = window.visualViewport, _ = dn({
-				availWidth: Math.min(t.width, g?.width ?? window.innerWidth),
-				availHeight: Math.min(t.height, g?.height ?? window.innerHeight),
+			let t = !!c.closest(".table-play-overlay"), n = (l instanceof HTMLElement ? l : c).getBoundingClientRect(), r = c.querySelector(".hand-panel")?.getBoundingClientRect(), a = t && !s ? 120 : s ? 132 : 148, u = t && !s ? 200 : s ? 220 : 280, d = r?.height ?? 0, f = un(d, i.current, a);
+			i.current = f.peak;
+			let p = Math.min(f.height, u), m = t && !s ? 16 : 28, h = gn("--stage-fit-pad-x", s ? 10 : 16) + m, g = gn("--stage-fit-pad-y", s ? 8 : 12) + m, _ = gn("--stage-fit-gap", 12), v = window.visualViewport, y = Math.min(n.width, v?.width ?? window.innerWidth), b = Math.min(n.height, v?.height ?? window.innerHeight), x = s ? 1 : o.tableScale, S = dn({
+				availWidth: y,
+				availHeight: b,
 				aspect: e,
-				userScale: s ? 1 : o.tableScale,
-				padX: p,
-				padY: m,
-				heroMinHeight: f,
-				gap: h
-			});
-			if (c.style.setProperty("--stage-fit-width", `${Math.round(_.stageWidth)}px`), c.style.setProperty("--stage-fit-height", `${Math.round(_.stageHeight)}px`), c.style.setProperty("--stage-fit-scale", String(_.fitScale)), c.style.setProperty("--stage-effective-scale", String(_.effectiveScale)), (c.closest(".btable-desktop__scale") ?? c.parentElement)?.style.setProperty("--stage-effective-scale", String(_.effectiveScale)), localStorage.getItem("stageFitDebug") === "1") {
-				let e = c.querySelector(".table-stage"), n = c.querySelectorAll(".bseat__avatar-wrap"), r = e ? fn(e.getBoundingClientRect()) : null, a = fn(document.documentElement.getBoundingClientRect()), o = [...n].filter((e) => !pn(fn(e.getBoundingClientRect()), a, 1)).length;
+				userScale: x,
+				padX: h,
+				padY: g,
+				heroMinHeight: p,
+				gap: _
+			}), C = t && !s ? S.displayStageWidth : S.stageWidth, w = t && !s ? S.displayStageHeight : S.stageHeight, T = t && !s ? Math.max(.85, Math.min(1.35, x || 1)) : S.effectiveScale;
+			if (c.style.setProperty("--stage-fit-width", `${Math.round(C)}px`), c.style.setProperty("--stage-fit-height", `${Math.round(w)}px`), c.style.setProperty("--stage-fit-scale", String(S.fitScale)), c.style.setProperty("--stage-effective-scale", String(T)), (c.closest(".btable-desktop__scale") ?? c.parentElement)?.style.setProperty("--stage-effective-scale", String(T)), localStorage.getItem("stageFitDebug") === "1") {
+				let e = c.querySelector(".table-stage"), t = c.querySelectorAll(".bseat__avatar-wrap"), r = e ? fn(e.getBoundingClientRect()) : null, a = fn(document.documentElement.getBoundingClientRect()), o = [...t].filter((e) => !pn(fn(e.getBoundingClientRect()), a, 1)).length;
 				console.debug("[stage-fit]", {
 					host: {
-						w: t.width,
-						h: t.height
+						w: n.width,
+						h: n.height
 					},
 					hero: {
-						measured: u,
-						budget: f,
+						measured: d,
+						budget: p,
 						peak: i.current
 					},
-					fit: _,
+					fit: S,
 					stageBounds: r,
 					seatOverflow: o
 				});
