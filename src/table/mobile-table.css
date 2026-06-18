@@ -75,7 +75,7 @@
   min-height: 0;
   flex-shrink: 1;
   margin: 0 auto;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .btable-mobile-oval {
@@ -231,7 +231,7 @@
 }
 
 .table-play-overlay .btable-mobile-stage {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .table-play-overlay .btable-mobile-hero-dock {
