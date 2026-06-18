@@ -871,6 +871,20 @@ function cancelNextHandOpenTimer() {
   nextHandOpenStartedAt = 0;
 }
 
+function sessionAutoDealtNextHand(sessionObj) {
+  if (getSessionEnrollment(sessionObj)?.active) return false;
+  const phase = getSessionCurrentHand(sessionObj)?.phase;
+  return phase === "draw" || phase === "play";
+}
+
+function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
+  const handNum = (sessionObj?.handCount ?? 0) + 1;
+  if (sessionAutoDealtNextHand(sessionObj)) {
+    return `Hand #${handNum} — dealing next hand…`;
+  }
+  return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
+}
+
 async function openNextHandEnrollment(sessionObj) {
   if (!currentRoomId || !openSessionId || !tablePlayOpen || nextHandOpenInFlight) return;
   if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
@@ -883,11 +897,12 @@ async function openNextHandEnrollment(sessionObj) {
   tableFeedbackSnapshot = null;
 
   try {
-    setTableActionFeedback({ status: "loading", message: "Shuffling — opening next join window…" });
+    setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
     await ensureHandEnrollment(currentRoomId, openSessionId);
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
+    const autoDealt = sessionAutoDealtNextHand(refreshed);
     if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     }
@@ -896,14 +911,16 @@ async function openNextHandEnrollment(sessionObj) {
     const dealerLabel = dealerSc?.displayName ?? "dealer";
     setTableActionFeedback({
       status: "success",
-      message: `Hand #${(refreshed.handCount ?? 0) + 1} — I'm in (clockwise from ${dealerLabel})`,
+      message: nextHandOpenFeedbackMessage(refreshed, dealerLabel),
     });
     const api = await ensureTableFeedbackApi();
     api?.playShuffleFeedback?.({ delayMs: 80 });
     logHandLifecycleTransition({
       from: "handoffToNextDeal",
-      to: "opening",
-      reason: "auto-opened join window after settlement (live table)",
+      to: autoDealt ? "deal" : "opening",
+      reason: autoDealt
+        ? "auto-dealt next hand for opted-in table members (live table)"
+        : "auto-opened join window after settlement (live table)",
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
