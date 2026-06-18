@@ -3,7 +3,7 @@ import { createRoom, emulatorReady, openNewSession, signUpHost } from "./helpers
 
 const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
 
-test.describe("Room buy-in dropdown and + New session", () => {
+test.describe("Room buy-in and session ante dropdowns", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
 
   test.beforeAll(async () => {
@@ -24,15 +24,18 @@ test.describe("Room buy-in dropdown and + New session", () => {
     await expect(roomBuyIn).toHaveValue("5");
     await page.waitForTimeout(400);
     await expect(roomBuyIn).toHaveValue("5");
+    await expect(page.locator("#new-session-stake")).toBeVisible();
+    await expect(page.locator("#new-session-stake")).not.toHaveValue("5");
   });
 
-  test("new session buy-in dropdown keeps selected value after change", async ({ page }) => {
-    const sessionBuyIn = page.locator("#new-session-buy-in");
-    await expect(sessionBuyIn).toBeVisible();
-    await sessionBuyIn.selectOption("10");
-    await expect(sessionBuyIn).toHaveValue("10");
+  test("new session ante dropdown keeps selected value after change", async ({ page }) => {
+    const sessionAnte = page.locator("#new-session-stake");
+    await expect(sessionAnte).toBeVisible();
+    await sessionAnte.selectOption("10");
+    await expect(sessionAnte).toHaveValue("10");
     await page.waitForTimeout(400);
-    await expect(sessionBuyIn).toHaveValue("10");
+    await expect(sessionAnte).toHaveValue("10");
+    await expect(page.locator("#room-buy-in-amount")).not.toHaveValue("10");
   });
 
   test("+ New session opens a regional tab after confirm", async ({ page }) => {
