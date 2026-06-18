@@ -163,6 +163,8 @@ export interface TableSessionViewProps {
   recentBourreIds?: string[];
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
+  /** Unadjusted private hand — presentation uses this for trump-holder fan. */
+  rawHeroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
   /** True when all five tricks are recorded for the current hand. */

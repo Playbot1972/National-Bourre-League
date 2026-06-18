@@ -19,6 +19,11 @@ import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
 import { useMobileTable } from "./useMobileTable";
+import {
+  mapDisplayIndicesToEffective,
+  mapEffectiveIndicesToDisplay,
+  resolveHeroHandDisplay,
+} from "./heroHandDisplay";
 import type { TableSessionViewProps } from "./types";
 import type { PotSnapshot } from "./settlementCopy";
 
@@ -40,6 +45,7 @@ export function TableSessionView({
   enrollmentSecondsLeft = 0,
   currentUserId,
   heroCards = EMPTY_HERO_CARDS,
+  rawHeroCards = EMPTY_HERO_CARDS,
   privateHandReady = false,
   legalPlayIndices,
   recentBourreIds = EMPTY_BOURRE_IDS,
@@ -79,6 +85,48 @@ export function TableSessionView({
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
     actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
   });
+
+  const heroHandDisplay = useMemo(
+    () =>
+      resolveHeroHandDisplay({
+        rawHeroCards,
+        effectiveHeroCards: heroCards,
+        playerId: currentUserId,
+        trumpHolderId: session.trumpHolderId ?? session.dealerId,
+        trumpUpcard: session.trumpUpcard ?? null,
+        trumpSuit: session.trumpSuit ?? null,
+        phase: session.phase ?? null,
+        handPresentation: {
+          trumpRevealActive: handPresentation.trumpRevealActive,
+          trumpMergeActive: handPresentation.trumpMergeActive,
+          trumpMergedIntoHand: handPresentation.trumpMergedIntoHand,
+        },
+      }),
+    [
+      rawHeroCards,
+      heroCards,
+      currentUserId,
+      session.trumpHolderId,
+      session.dealerId,
+      session.trumpUpcard,
+      session.trumpSuit,
+      session.phase,
+      handPresentation.trumpRevealActive,
+      handPresentation.trumpMergeActive,
+      handPresentation.trumpMergedIntoHand,
+    ],
+  );
+
+  const displayHeroCards = heroHandDisplay.displayCards;
+  const displayLegalPlayIndices = useMemo(() => {
+    if (!legalPlayIndices?.length || heroHandDisplay.indexMode === "effective") {
+      return legalPlayIndices;
+    }
+    return mapEffectiveIndicesToDisplay(
+      legalPlayIndices,
+      heroHandDisplay.trumpDisabledIndex,
+    );
+  }, [legalPlayIndices, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex]);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
@@ -101,7 +149,8 @@ export function TableSessionView({
   });
 
   const showTrumpSuitReminder =
-    !session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play";
+    heroHandDisplay.showTrumpSuitReminder ||
+    (!session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play");
   const tricksSnapshot = useMemo(
     () => ({ ...trickPresentation.displayTricksByPlayer }),
     [trickPresentation.displayTricksByPlayer],
@@ -169,12 +218,33 @@ export function TableSessionView({
         const p = players.find((x) => x.playerId === playerId);
         if (p?.isSelf) actions.onTrickDelta(delta);
       },
-      onSubmitDraw: actions.onSubmitDraw,
+      onSubmitDraw: (discardIndices: number[]) => {
+        if (!actions.onSubmitDraw) return;
+        const indices =
+          heroHandDisplay.indexMode === "display"
+            ? mapDisplayIndicesToEffective(
+                discardIndices,
+                heroHandDisplay.trumpDisabledIndex,
+              )
+            : discardIndices;
+        return actions.onSubmitDraw(indices);
+      },
       onPassDraw: actions.onPassDraw,
-      onPlayCard: actions.onPlayCard,
+      onPlayCard: (cardIndex: number) => {
+        if (!actions.onPlayCard) return;
+        if (heroHandDisplay.indexMode !== "display") {
+          return actions.onPlayCard(cardIndex);
+        }
+        const effective = mapDisplayIndicesToEffective(
+          [cardIndex],
+          heroHandDisplay.trumpDisabledIndex,
+        )[0];
+        if (effective == null) return;
+        return actions.onPlayCard(effective);
+      },
       onReaction: handleReaction,
     }),
-    [actions, handleReaction, players],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
   );
 
   const sharedTableProps = {
@@ -183,10 +253,15 @@ export function TableSessionView({
     potMetrics,
     participantCount,
     enrollmentActive,
-    heroCards,
+    heroCards: displayHeroCards,
+    revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
+    trumpMergeActive: heroHandDisplay.trumpMergeActive,
+    trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
+    hideCenterTrump: heroHandDisplay.hideCenterTrumpForHolder,
+    showTrumpSuitReminder,
     privateHandReady,
     currentUserId,
-    legalPlayIndices,
+    legalPlayIndices: displayLegalPlayIndices,
     handComplete,
     actionFeedback,
     trickPresentation,
@@ -276,7 +351,12 @@ export function TableSessionView({
         <p className="btable-session__status">{leaderLabel}</p>
         {handPresentation.trumpRevealActive && session.phase === "draw" && (
           <p className="btable-session__turn muted small" aria-live="polite">
-            Trump revealed — {formatHandPhase("draw", false)}
+            Trump revealed — settling into your hand
+          </p>
+        )}
+        {handPresentation.trumpMergeActive && session.phase === "draw" && (
+          <p className="btable-session__turn muted small" aria-live="polite">
+            Trump joining your hand…
           </p>
         )}
         {handPresentation.phase === "drawReady" && (

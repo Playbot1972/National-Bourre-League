@@ -27,6 +27,11 @@ interface MobileCardTableProps {
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
+  revealedTrumpIndex?: number | null;
+  trumpMergeActive?: boolean;
+  trumpDisabledIndex?: number | null;
+  hideCenterTrump?: boolean;
+  showTrumpSuitReminder?: boolean;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -49,6 +54,11 @@ export function MobileCardTable({
   participantCount,
   enrollmentActive = false,
   heroCards = [],
+  revealedTrumpIndex = null,
+  trumpMergeActive = false,
+  trumpDisabledIndex = null,
+  hideCenterTrump = false,
+  showTrumpSuitReminder = false,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
@@ -183,6 +193,8 @@ export function MobileCardTable({
             playerNames={playerNames}
             anteAnimActive={handPresentation.anteAnimActive}
             trumpRevealActive={handPresentation.trumpRevealActive}
+            hideCenterTrump={hideCenterTrump}
+            showTrumpSuitReminder={showTrumpSuitReminder}
             drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
             drawAnimSubPhase={handPresentation.drawAnimSubPhase}
             drawDiscardCount={handPresentation.drawDiscardCount}
@@ -248,6 +260,9 @@ export function MobileCardTable({
           onPassDraw={onPassDraw}
           onPlayCard={onPlayCard}
           currentUserId={currentUserId}
+          revealedTrumpIndex={revealedTrumpIndex}
+          trumpMergeActive={trumpMergeActive}
+          trumpDisabledIndex={trumpDisabledIndex}
         />
         {enrollmentActive && !selfPlayer?.inHand && (
           <p className="btable-mobile-hero-dock__hint muted small">
