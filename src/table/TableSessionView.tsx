@@ -11,6 +11,7 @@ import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { useYourTurnAttention } from "./hooks/useYourTurnAttention";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
