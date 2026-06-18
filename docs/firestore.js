@@ -129,6 +129,12 @@ import {
   randomizePresetOrder,
   seededPresetOrder,
 } from "./session-presets.js";
+import {
+  analyzeTableStartup,
+  authoritativeCurrentHand,
+  shouldClearOrphanLiveEnrollment,
+  tableStartupUserMessage,
+} from "./session-startup.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -180,7 +186,7 @@ function isEnrollmentPermissionError(err) {
 function describeEnrollmentStartError(err) {
   if (isEnrollmentPermissionError(err)) {
     return new Error(
-      "Missing or insufficient permissions to open the join window. Refresh and tap Go to Table again. If it persists, deploy Firestore rules and Cloud Functions (npm run deploy).",
+      "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.",
     );
   }
   return err instanceof Error ? err : new Error(String(err));
@@ -830,9 +836,7 @@ function emptyPreDealHand() {
 
 /** Public hand from session.currentHand or legacy liveEnrollment.deal (writable without rules deploy). */
 export function getSessionCurrentHand(sessionData) {
-  const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
-  if (livePublic?.phase) return livePublic;
-  return sessionData?.currentHand ?? emptyPreDealHand();
+  return authoritativeCurrentHand(sessionData);
 }
 
 function publicHandSessionUpdate(sessionData, nextPublicHand) {
@@ -1039,11 +1043,7 @@ function isStaleLiveDealSnapshot(sessionData) {
 
 /** Clear leftover liveEnrollment.deal between hands without touching an active draw/play hand. */
 function shouldClearStaleLiveEnrollment(sessionData) {
-  if (!sessionData?.liveEnrollment?.deal) return false;
-  if (isStaleLiveDealSnapshot(sessionData)) return true;
-  const livePhase = sessionData.liveEnrollment.deal.publicHand?.phase ?? null;
-  if (livePhase === "draw" || livePhase === "play") return false;
-  return isHandoffState(sessionData);
+  return shouldClearOrphanLiveEnrollment(sessionData);
 }
 
 function clearStaleLiveEnrollmentPatch() {
@@ -2577,8 +2577,33 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
   });
 }
 
+/** Repair stale handoff artifacts before opening the live table overlay. */
+export async function prepareSessionForTableOpen(roomId, sessionId) {
+  const sessionRef = sessionDoc(roomId, sessionId);
+  let sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) {
+    const err = new Error("This session is no longer available.");
+    err.code = "session-missing";
+    throw err;
+  }
+  let data = sessionSnap.data();
+  if (data.status === "final") return data;
+
+  if (shouldClearOrphanLiveEnrollment(data)) {
+    await clearStaleHandoffArtifacts(roomId, sessionId);
+    sessionSnap = await getDoc(sessionRef);
+    if (!sessionSnap.exists()) return null;
+    data = sessionSnap.data();
+  }
+
+  await ensureCurrentHandParticipants(roomId, sessionId);
+  return data;
+}
+
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId) {
+  await prepareSessionForTableOpen(roomId, sessionId);
+
   if (SERVER_HAND_AUTHORITY) {
     try {
       const serverResult = await gameEnsureHandEnrollment(roomId, sessionId);
@@ -2600,10 +2625,16 @@ export async function ensureHandEnrollment(roomId, sessionId) {
 
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
-  if (!getSessionEnrollment(sessionSnap.data())?.active) {
-    throw new Error(
-      "Join window could not start — refresh and tap Go to Table again. If you see permission errors, deploy rules and functions (npm run deploy).",
+  const data = sessionSnap.data();
+  const hand = authoritativeCurrentHand(data);
+  const needsJoinWindow = hand.phase !== "draw" && hand.phase !== "play";
+  if (needsJoinWindow && !getSessionEnrollment(data)?.active) {
+    const analysis = analyzeTableStartup(data, 2);
+    const err = new Error(
+      tableStartupUserMessage({ ...analysis, kind: "enrollment_failed" }),
     );
+    err.code = "enrollment-failed";
+    throw err;
   }
 }
 

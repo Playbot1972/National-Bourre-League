@@ -50,6 +50,7 @@ import {
   syncSessionWithRoomMembers,
   setHandParticipation,
   ensureHandEnrollment,
+  prepareSessionForTableOpen,
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
   advanceSessionBots,
@@ -120,6 +121,7 @@ import {
   formatRiskStake,
   formatNet,
 } from "./risk-stakes.js";
+import { analyzeTableStartup, tableStartupUserMessage } from "./session-startup.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -2021,16 +2023,60 @@ function updateTablePlayTitle(openSessionObj) {
   titleEl.textContent = `Hand #${(openSessionObj.handCount ?? 0) + 1} · live table`;
 }
 
+function abortTablePlayStartup() {
+  tablePlayOpen = false;
+  cancelNextHandOpenTimer();
+  stopEnrollmentTimer();
+  const overlay = $("#table-play-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("table-play-active");
+  unmountTableSessionHost();
+}
+
+function showTableStartupFailure(analysis, err) {
+  abortTablePlayStartup();
+  const kind =
+    err?.code === "enrollment-failed" ? "enrollment_failed" : analysis?.kind ?? "ready_enrollment";
+  const message = tableStartupUserMessage({ ...analysis, kind }, err);
+  setTableActionFeedback({ status: "error", message });
+  showRoomsError(message);
+  roomDetailView?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 async function openTablePlay() {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
-  if (
-    !openSessionObj ||
-    openSessionObj.status === "final" ||
-    tableReadyPlayerCount(openSessionObj) < 2
-  ) {
-    showRoomsError("Need an active session with at least two players.");
+  const readyCount = tableReadyPlayerCount(openSessionObj);
+  let startupAnalysis = analyzeTableStartup(openSessionObj, readyCount);
+
+  if (!startupAnalysis.canOpenTable) {
+    showTableStartupFailure(startupAnalysis);
     return;
   }
+
+  if (!currentRoomId || !openSessionId) {
+    showTableStartupFailure(startupAnalysis, new Error("Open a room session first."));
+    return;
+  }
+
+  try {
+    const repaired = await prepareSessionForTableOpen(currentRoomId, openSessionId);
+    const mergedSession = repaired
+      ? { ...openSessionObj, ...repaired, id: openSessionId }
+      : openSessionObj;
+    startupAnalysis = analyzeTableStartup(mergedSession, readyCount);
+    if (!startupAnalysis.canOpenTable) {
+      showTableStartupFailure(startupAnalysis);
+      return;
+    }
+    if (startupAnalysis.needsEnrollment) {
+      await ensureHandEnrollment(currentRoomId, openSessionId);
+    }
+  } catch (err) {
+    console.error("openTablePlay prepare:", err);
+    showTableStartupFailure(startupAnalysis, err);
+    return;
+  }
+
   const overlay = $("#table-play-overlay");
   if (!overlay) return;
   tablePlayOpen = true;
@@ -2038,17 +2084,7 @@ async function openTablePlay() {
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
   await refreshTablePlayerRatings(openScores);
-  if (currentRoomId && openSessionId) {
-    try {
-      await ensureHandEnrollment(currentRoomId, openSessionId);
-    } catch (err) {
-      const message =
-        err?.message ||
-        "Could not open the join window — refresh and tap Go to Table again.";
-      setTableActionFeedback({ status: "error", message });
-      showRoomsError(message);
-    }
-  }
+
   const refreshed =
     (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ??
     currentSessions.find((s) => s.id === openSessionId) ??
@@ -2121,7 +2157,8 @@ function bindTablePlayControls() {
       e.preventDefault();
       openTablePlay().catch((err) => {
         console.error("openTablePlay:", err);
-        showRoomsError(err.message || "Could not open table");
+        const analysis = analyzeTableStartup(resolveOpenSessionObj(), tableReadyPlayerCount(resolveOpenSessionObj()));
+        showTableStartupFailure(analysis, err);
       });
     }
   });
