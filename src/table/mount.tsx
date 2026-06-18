@@ -12,6 +12,7 @@ import {
   subscribeFeedbackPrefs,
 } from "./feedback";
 import "./table.css";
+import "./mobile-table.css";
 import "./theme/table-themes.css";
 import "../components/PlayingCard.css";
 import "../components/Hand.css";

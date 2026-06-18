@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CardTable } from "./CardTable";
+import { MobileCardTable } from "./MobileCardTable";
 import { CinematicSplash } from "./CinematicSplash";
 import { DesktopLayoutShell } from "./DesktopLayoutShell";
+import { MobileLayoutShell } from "./MobileLayoutShell";
 import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
@@ -134,6 +136,54 @@ export function TableSessionView({
     [pushReaction, currentUserId],
   );
 
+  const tableCallbacks = useMemo(
+    () => ({
+      onToggleInHand: (playerId: string, inHand: boolean) => {
+        const p = players.find((x) => x.playerId === playerId);
+        if (p?.isSelf) actions.onToggleInHand(inHand);
+      },
+      onTrickDelta: (playerId: string, delta: number) => {
+        const p = players.find((x) => x.playerId === playerId);
+        if (p?.isSelf) actions.onTrickDelta(delta);
+      },
+      onSubmitDraw: actions.onSubmitDraw,
+      onPassDraw: actions.onPassDraw,
+      onPlayCard: actions.onPlayCard,
+      onReaction: handleReaction,
+    }),
+    [actions, handleReaction, players],
+  );
+
+  const sharedTableProps = {
+    session,
+    players,
+    potMetrics,
+    participantCount,
+    enrollmentActive,
+    heroCards,
+    privateHandReady,
+    currentUserId,
+    legalPlayIndices,
+    handComplete,
+    actionFeedback,
+    trickPresentation,
+    handPresentation,
+    microinteractions,
+    ...tableCallbacks,
+  };
+
+  const gameplayStage = (
+    <>
+      <EventReactions events={events} players={players} onDismiss={dismissEvent} />
+      <CinematicSplash events={events} onDismiss={dismissEvent} />
+      {nativeMobile ? (
+        <MobileCardTable {...sharedTableProps} />
+      ) : (
+        <CardTable {...sharedTableProps} />
+      )}
+    </>
+  );
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === settings.hotkeys.toggleSettings || (e.key === "," && e.metaKey)) {
@@ -151,7 +201,7 @@ export function TableSessionView({
     <div
       className={[
         "btable-session",
-        nativeMobile ? "btable-session--native-mobile" : "",
+        nativeMobile ? "btable-session--native-mobile btable-session--mobile-layout" : "",
         settingsOpen ? "btable-session--settings-open" : "",
       ]
         .filter(Boolean)
@@ -260,40 +310,15 @@ export function TableSessionView({
         </p>
       )}
 
-      <DesktopLayoutShell>
-        <div className="btable-stage">
-          <EventReactions events={events} players={players} onDismiss={dismissEvent} />
-          <CinematicSplash events={events} onDismiss={dismissEvent} />
-          <CardTable
-            session={session}
-            players={players}
-            potMetrics={potMetrics}
-            participantCount={participantCount}
-            enrollmentActive={enrollmentActive}
-            heroCards={heroCards}
-            privateHandReady={privateHandReady}
-            currentUserId={currentUserId}
-            legalPlayIndices={legalPlayIndices}
-            handComplete={handComplete}
-            actionFeedback={actionFeedback}
-            trickPresentation={trickPresentation}
-            handPresentation={handPresentation}
-            microinteractions={microinteractions}
-            onToggleInHand={(playerId, inHand) => {
-              const p = players.find((x) => x.playerId === playerId);
-              if (p?.isSelf) actions.onToggleInHand(inHand);
-            }}
-            onTrickDelta={(playerId, delta) => {
-              const p = players.find((x) => x.playerId === playerId);
-              if (p?.isSelf) actions.onTrickDelta(delta);
-            }}
-            onSubmitDraw={actions.onSubmitDraw}
-            onPassDraw={actions.onPassDraw}
-            onPlayCard={actions.onPlayCard}
-            onReaction={handleReaction}
-          />
-        </div>
-      </DesktopLayoutShell>
+      {nativeMobile ? (
+        <MobileLayoutShell>
+          <div className="btable-stage">{gameplayStage}</div>
+        </MobileLayoutShell>
+      ) : (
+        <DesktopLayoutShell>
+          <div className="btable-stage">{gameplayStage}</div>
+        </DesktopLayoutShell>
+      )}
 
       <TableSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 

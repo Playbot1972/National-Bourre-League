@@ -13,6 +13,8 @@ const MOBILE_LAYOUTS = [
   { name: "Android landscape", width: 915, height: 412 },
 ] as const;
 
+const PHASES = ["enrollment", "draw", "play"] as const;
+
 test.describe("Mobile gameplay overlay layout", () => {
   for (const layout of MOBILE_LAYOUTS) {
     test(`${layout.name} — no horizontal overflow and controls reachable`, async ({ page }) => {
@@ -28,6 +30,30 @@ test.describe("Mobile gameplay overlay layout", () => {
       }
     });
   }
+
+  for (const phase of PHASES) {
+    test(`iPhone portrait — ${phase} phase layout stable`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await openOverlayFixture(page, { players: 4, bots: 1, phase });
+
+      await expectMobileOverlayGameplayFits(page, { portrait: true });
+      expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
+      expect(await isOverlayControlInViewport(page, "hero-hand")).toBe(true);
+      expect(await isOverlayControlInViewport(page, "settings-button")).toBe(true);
+    });
+  }
+
+  test("iPhone portrait — visual snapshot of mobile layout", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openOverlayFixture(page, { players: 4, bots: 1, phase: "draw" });
+    await page.waitForTimeout(200);
+
+    await expect(page.locator("#table-play-overlay .btable-mobile")).toBeVisible();
+    await expect(page).toHaveScreenshot("mobile-overlay-portrait-draw.png", {
+      fullPage: false,
+      maxDiffPixelRatio: 0.08,
+    });
+  });
 
   test("settings panel opens on mobile overlay", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });

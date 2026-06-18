@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
+  expectDesktopOverlayLayout,
   expectOverlayStageFillsViewport,
   expectTableScaleAffectsStage,
   readOverlayStageMetrics,
@@ -15,6 +16,7 @@ test.describe("Table overlay layout — full-screen stage fit", () => {
     await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
     await expect(overlay.getByTestId("table-felt")).toBeVisible();
 
+    await expectDesktopOverlayLayout(page);
     await expectOverlayStageFillsViewport(page);
   });
 
@@ -25,6 +27,7 @@ test.describe("Table overlay layout — full-screen stage fit", () => {
       timeout: 15_000,
     });
 
+    await expectDesktopOverlayLayout(page);
     await expectTableScaleAffectsStage(page);
   });
 
