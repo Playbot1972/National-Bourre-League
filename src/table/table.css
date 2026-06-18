@@ -2169,7 +2169,7 @@
 .bsettings__panel {
   position: relative;
   z-index: 1;
-  width: min(360px, calc(100vw - 24px));
+  width: min(360px, calc(100% - 24px));
   max-height: min(90vh, 560px);
   overflow: auto;
   padding: 16px;
