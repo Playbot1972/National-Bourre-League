@@ -22,12 +22,12 @@ export default defineConfig({
     {
       name: "mobile-pixel5",
       use: { ...devices["Pixel 5 landscape"], browserName: "chromium", hasTouch: true },
-      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-card-play\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/, /table-overlay-enrollment\.spec\.ts$/],
     },
     {
       name: "mobile-iphone-portrait",
       use: { ...devices["iPhone 13"], browserName: "chromium", hasTouch: true },
-      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/],
+      testMatch: [/table-smoke\.mobile\.spec\.ts$/, /table-overlay-mobile\.spec\.ts$/, /table-overlay-enrollment\.spec\.ts$/],
     },
     {
       name: "mobile-landscape",

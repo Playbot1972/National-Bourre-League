@@ -1778,18 +1778,19 @@ body.table-play-active .footer {
   display: none !important;
 }
 
-@media (orientation: landscape) {
-  .table-play-overlay .btable-session__feedback {
-    position: fixed;
-    top: max(8px, env(safe-area-inset-top, 0px));
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(92vw, 520px);
-    margin: 0;
-    z-index: 200;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  }
+/* Keep join/success feedback out of the flex column so stage fit does not jump after "I'm in". */
+.table-play-overlay .btable-session__feedback {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(92vw, 520px);
+  margin: 0;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
 
+@media (orientation: landscape) {
   .table-play-overlay .btable-wrap {
     width: min(100%, var(--stage-fit-width, 100%));
     max-width: 100%;

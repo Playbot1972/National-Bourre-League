@@ -26,28 +26,27 @@ function readSafePx(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/** Session chrome = everything in `.btable-session` outside the table shell (head, feedback, footer, …). */
 function measureSessionChromePx(wrap: HTMLElement, nativeMobile: boolean): number {
-  const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
-  const main = wrap.closest<HTMLElement>(".table-play-overlay__main");
-  if (inOverlay && nativeMobile && main) {
-    const session = wrap.closest<HTMLElement>(".btable-session");
-    if (!session) return 0;
-    let chrome = 0;
-    const head = session.querySelector<HTMLElement>(".btable-session__head");
-    const foot = session.querySelector<HTMLElement>(".btable-session__foot");
-    const settle = session.querySelector<HTMLElement>(".btable-session__settle");
-    if (head) chrome += head.getBoundingClientRect().height;
-    if (foot && foot.offsetParent !== null) chrome += foot.getBoundingClientRect().height;
-    if (settle && settle.offsetParent !== null) chrome += settle.getBoundingClientRect().height;
-    return chrome + 4;
-  }
-
   const session = wrap.closest<HTMLElement>(".btable-session");
   if (!session) return 0;
+
+  const tableShell = session.querySelector<HTMLElement>(".btable-desktop");
+  if (tableShell) {
+    const sessionRect = session.getBoundingClientRect();
+    const shellRect = tableShell.getBoundingClientRect();
+    const extra = nativeMobile ? 4 : 0;
+    return Math.max(0, sessionRect.height - shellRect.height) + extra;
+  }
+
   let chrome = 0;
   const head = session.querySelector<HTMLElement>(".btable-session__head");
   const foot = session.querySelector<HTMLElement>(".btable-session__foot");
   const settle = session.querySelector<HTMLElement>(".btable-session__settle");
+  const feedback = session.querySelector<HTMLElement>(".btable-session__feedback");
+  if (feedback && feedback.offsetParent !== null) {
+    chrome += feedback.getBoundingClientRect().height;
+  }
   if (head) chrome += head.getBoundingClientRect().height;
   if (foot && foot.offsetParent !== null) chrome += foot.getBoundingClientRect().height;
   if (settle && settle.offsetParent !== null) chrome += settle.getBoundingClientRect().height;
@@ -72,6 +71,7 @@ function stageFitHost(wrap: HTMLElement, nativeMobile: boolean): HTMLElement {
 export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitOptions) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const heroPeakRef = useRef(0);
+  const chromePeakRef = useRef(0);
   const sessionKeyRef = useRef(sessionKey);
   const { settings } = useTableTheme();
   const nativeMobile = useMobileTable();
@@ -85,6 +85,7 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
     if (sessionKeyRef.current !== sessionKey) {
       sessionKeyRef.current = sessionKey;
       heroPeakRef.current = 0;
+      chromePeakRef.current = 0;
     }
 
     const viewport =
@@ -136,7 +137,9 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
       const availWidth = Math.min(hostRect.width, vv?.width ?? window.innerWidth);
       let availHeight = Math.min(hostRect.height, vv?.height ?? window.innerHeight);
       if (inOverlay && nativeMobile) {
-        availHeight = Math.max(160, availHeight - measureSessionChromePx(wrap, nativeMobile));
+        const measuredChrome = measureSessionChromePx(wrap, nativeMobile);
+        chromePeakRef.current = Math.max(chromePeakRef.current, measuredChrome);
+        availHeight = Math.max(160, availHeight - chromePeakRef.current);
       }
 
       const userScale = Math.max(0.85, Math.min(1.35, settings.tableScale || 1));
@@ -218,7 +221,13 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
     if (hero) ro.observe(hero);
     if (viewport instanceof HTMLElement) ro.observe(viewport);
     const session = wrap.closest(".btable-session");
-    if (session instanceof HTMLElement) ro.observe(session);
+    if (session instanceof HTMLElement) {
+      ro.observe(session);
+      const feedback = session.querySelector(".btable-session__feedback");
+      if (feedback instanceof HTMLElement) ro.observe(feedback);
+      const head = session.querySelector(".btable-session__head");
+      if (head instanceof HTMLElement) ro.observe(head);
+    }
     const main = wrap.closest(".table-play-overlay__main");
     if (main instanceof HTMLElement) ro.observe(main);
     apply();
