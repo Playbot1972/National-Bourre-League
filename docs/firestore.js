@@ -93,6 +93,7 @@ import {
   gameVoteCoWinSettlement,
   gameAdvanceBots,
 } from "./game-functions.js";
+import { removePlayerFromEnrollment } from "./enrollment-roster.js";
 import {
   dealInitialHand,
   playerOrderFromDealer,
@@ -652,25 +653,7 @@ export function createRobotPlayerId() {
   return `bot_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/** Remove a player from enrollment rotation when they leave mid-signup. */
-function removePlayerFromEnrollment(enrollment, removedId, dealerId, sortedPlayerIds) {
-  if (!enrollment?.active) return enrollment;
-  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
-  const enrolledIds = (enrollment.enrolledIds || []).filter((id) => id !== removedId);
-  const declinedIds = (enrollment.declinedIds || []).filter((id) => id !== removedId);
-  const previousId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
-  let currentIndex =
-    previousId === removedId ? 0 : orderedPlayerIds.indexOf(previousId ?? "");
-  if (currentIndex < 0) currentIndex = 0;
-  if (currentIndex >= orderedPlayerIds.length) currentIndex = 0;
-  return {
-    ...enrollment,
-    orderedPlayerIds,
-    currentIndex,
-    enrolledIds,
-    declinedIds,
-  };
-}
+export { removePlayerFromEnrollment } from "./enrollment-roster.js";
 
 /** Keep enrollment rotation when a new seat joins mid-signup. */
 function mergePlayerIntoEnrollment(enrollment, dealerId, sortedPlayerIds) {
@@ -2280,8 +2263,8 @@ export async function removeSessionPlayer(roomId, sessionId, playerId, actor) {
   if (!scoreSnap.docs.some((d) => d.id === playerId)) {
     throw new Error("Player is not on this session.");
   }
-  if (scoreSnap.size <= 2) {
-    throw new Error("Need at least two players on the session.");
+  if (scoreSnap.size <= 1) {
+    throw new Error("Cannot remove the last player on this session.");
   }
 
   const remainingSorted = scoreSnap.docs
@@ -2291,22 +2274,29 @@ export async function removeSessionPlayer(roomId, sessionId, playerId, actor) {
     .map((r) => r.id);
 
   const sessionPatch = {
-    players: (sessionData.players || []).filter((p) => p?.playerId !== playerId),
+    players: (sessionData.players || []).filter((p) => {
+      const id = typeof p === "string" ? p : p?.playerId;
+      return id !== playerId;
+    }),
     updatedAt: serverTimestamp(),
   };
 
   const activeEnrollment = getSessionEnrollment(sessionData);
   if (activeEnrollment?.active) {
-    sessionPatch[LIVE_ENROLLMENT_FIELD] = removePlayerFromEnrollment(
-      activeEnrollment,
-      playerId,
-      sessionData.dealerId,
-      remainingSorted,
-    );
+    sessionPatch[LIVE_ENROLLMENT_FIELD] = {
+      ...removePlayerFromEnrollment(
+        activeEnrollment,
+        playerId,
+        sessionData.dealerId,
+        remainingSorted,
+      ),
+      active: true,
+    };
   }
 
   const batch = writeBatch(db);
   batch.delete(scoreDoc(roomId, sessionId, playerId));
+  batch.delete(privateHandDoc(roomId, sessionId, playerId));
   batch.update(sessionDoc(roomId, sessionId), sessionPatch);
   await batch.commit();
   return true;

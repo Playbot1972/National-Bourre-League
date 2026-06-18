@@ -1610,6 +1610,8 @@ async function onRemoveSessionPlayer(playerId, displayName) {
   showRoomsError("");
   try {
     await removeSessionPlayer(currentRoomId, openSessionId, playerId, session);
+    openScores = openScores.filter((sc) => sc.playerId !== playerId);
+    scheduleRenderRoomDetail();
     showRoomsError(`${label} was removed from the session.`);
   } catch (err) {
     console.error("removeSessionPlayer:", err);
