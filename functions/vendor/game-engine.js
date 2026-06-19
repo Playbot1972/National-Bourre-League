@@ -219,7 +219,7 @@ function j(e, t, n) {
 	let r = C(t);
 	return e.get(r) ? [r] : (e.set(r, n), []);
 }
-function M(e) {
+function ee(e) {
 	let t = /* @__PURE__ */ new Map(), n = [];
 	for (let r = e.deckNextIndex; r < e.deck.length; r += 1) n.push(...j(t, e.deck[r], `deck[${r}]`));
 	for (let [r, i] of Object.entries(e.privateHands)) for (let e = 0; e < i.length; e += 1) n.push(...j(t, i[e], `hand:${r}[${e}]`));
@@ -234,19 +234,22 @@ function M(e) {
 		throw new A(`Duplicate card(s) in game state: ${e.map((e) => `${e} (${t.get(e)})`).join(", ")}`, e);
 	}
 }
-function N(e) {
+function M(e) {
 	return e.trumpHolderId ?? e.dealerId ?? null;
 }
+function N(e) {
+	return !!e.trumpUpcard;
+}
 function P(e, t, n) {
-	let r = [...t], i = N(n), a = n.trumpUpcard;
+	let r = [...t], i = M(n), a = n.trumpUpcard;
 	return !i || e !== i || !a ? r : r.some((e) => w(e, a)) ? r.filter((e) => !w(e, a)) : (r.push(a), r);
 }
 function F(e, t, n) {
-	let r = N(n), i = n.trumpUpcard;
+	let r = M(n), i = n.trumpUpcard;
 	return r && e === r && i && !t.some((e) => w(e, i)) ? [...t, i] : [...t];
 }
 function I(e, t, n, r) {
-	let i = N(r);
+	let i = M(r);
 	return !i || e !== i || !r.trumpUpcard ? !1 : t.some((e) => {
 		let t = n[e];
 		return t && w(t, r.trumpUpcard);
@@ -260,14 +263,18 @@ function z(e, t) {
 	let n = (e.playedCards ?? []).filter((e) => e.playerId === t).length, r = (e.currentTrick?.plays ?? []).filter((e) => e.playerId === t).length;
 	return Math.max(0, R - n - r);
 }
-function B(e, t) {
+function B(e, t, n = !1) {
+	let r = z(e, t);
+	return n ? r : M(e) === t && N(e) ? Math.max(0, r - 1) : r;
+}
+function V(e, t) {
 	if (!e.trumpUpcard || !e.trumpHolderId) return !1;
 	let n = t[e.trumpHolderId];
 	return n?.length ? n.some((t) => w(t, e.trumpUpcard)) : !1;
 }
 //#endregion
 //#region src/game/draw.ts
-function V(e) {
+function H(e) {
 	let t = [...new Set(e.discardIndices)].sort((e, t) => e - t);
 	if (t.some((t) => t < 0 || t >= e.hand.length)) throw Error("Invalid discard selection");
 	if (t.length > e.maxDiscards) throw Error(`You may discard at most ${e.maxDiscards} cards`);
@@ -285,16 +292,16 @@ function V(e) {
 		discarded: r
 	};
 }
-function H(e, t) {
+function U(e, t) {
 	let n = e.indexOf(t);
 	return n < 0 ? e[0] ?? null : e[(n + 1) % e.length] ?? null;
 }
-function U(e, t) {
+function W(e, t) {
 	let n = new Set(t);
 	return e.every((e) => n.has(e));
 }
-function W(e) {
-	let t = P(e.playerId, e.privateHand, e.publicHand), n = V({
+function G(e) {
+	let t = P(e.playerId, e.privateHand, e.publicHand), n = H({
 		hand: t,
 		discardIndices: e.discardIndices,
 		deck: e.deck,
@@ -315,10 +322,10 @@ function W(e) {
 		discarded: n.discarded
 	};
 }
-function G(e, t, n) {
+function K(e, t, n) {
 	let r = [...new Set([...e.drawCompletedIds ?? [], n])], i = e.participantIds;
-	if (!U(i, r)) {
-		let i = H(t, n);
+	if (!W(i, r)) {
+		let i = U(t, n);
 		return {
 			...e,
 			drawCompletedIds: r,
@@ -342,22 +349,22 @@ function G(e, t, n) {
 }
 //#endregion
 //#region src/game/legal.ts
-function K(e, t, n) {
+function q(e, t, n) {
 	let r = e.filter((e) => !E(e, n) && e.suit === t);
 	return r.length ? r.reduce((e, t) => T(t) > T(e) ? t : e) : null;
 }
-function q(e, t) {
+function J(e, t) {
 	let n = e.filter((e) => E(e, t));
 	return n.length ? n.reduce((e, t) => T(t) > T(e) ? t : e) : null;
 }
-function J(e, t) {
+function Y(e, t) {
 	return T(e) > T(t);
 }
-function Y(e) {
+function X(e) {
 	let { hand: t, trumpSuit: n, leadSuit: r, trickPlays: i, isLeading: a } = e;
 	if (!t.length) return [];
 	if (a || !r || i.length === 0) {
-		if (e.cinchEnabled && Z(t, n) >= 3) {
+		if (e.cinchEnabled && te(t, n) >= 3) {
 			let e = D(t, n);
 			if (e.length) {
 				let n = e.reduce((e, t) => T(e) >= T(t) ? e : t), r = t.findIndex((e) => e.rank === n.rank && e.suit === n.suit);
@@ -366,15 +373,15 @@ function Y(e) {
 		}
 		return t.map((e, t) => t);
 	}
-	let o = D(t, r), s = D(t, n), c = K(i, r, n), l = q(i, n), u;
+	let o = D(t, r), s = D(t, n), c = q(i, r, n), l = J(i, n), u;
 	if (o.length > 0) {
 		if (u = o, !l && c) {
-			let e = o.filter((e) => J(e, c));
+			let e = o.filter((e) => Y(e, c));
 			e.length && (u = e);
 		}
 	} else if (s.length > 0) {
 		if (u = s, l) {
-			let e = s.filter((e) => J(e, l));
+			let e = s.filter((e) => Y(e, l));
 			e.length && (u = e);
 		}
 	} else u = [...t];
@@ -382,14 +389,14 @@ function Y(e) {
 	for (let e = 0; e < t.length; e += 1) u.some((n) => n.rank === t[e].rank && n.suit === t[e].suit) && d.push(e);
 	return d;
 }
-function X(e, t) {
+function Z(e, t) {
 	if (t < 0 || t >= e.hand.length) return {
 		ok: !1,
 		code: "INVALID_INDEX",
 		message: "Invalid card selection"
 	};
-	if (!Y(e).includes(t)) {
-		let n = e.hand[t], r = e.leadSuit, i = r ? D(e.hand, r) : [], a = D(e.hand, e.trumpSuit), o = r ? q(e.trickPlays, e.trumpSuit) : null;
+	if (!X(e).includes(t)) {
+		let n = e.hand[t], r = e.leadSuit, i = r ? D(e.hand, r) : [], a = D(e.hand, e.trumpSuit), o = r ? J(e.trickPlays, e.trumpSuit) : null;
 		return r && i.length && n.suit !== r ? {
 			ok: !1,
 			code: "MUST_FOLLOW_SUIT",
@@ -398,7 +405,7 @@ function X(e, t) {
 			ok: !1,
 			code: "MUST_TRUMP",
 			message: "You must play a trump when void in the led suit"
-		} : o && E(n, e.trumpSuit) && !J(n, o) ? {
+		} : o && E(n, e.trumpSuit) && !Y(n, o) ? {
 			ok: !1,
 			code: "MUST_OVERTRUMP",
 			message: "You must overtrump if you can"
@@ -414,7 +421,7 @@ function X(e, t) {
 	}
 	return { ok: !0 };
 }
-function Z(e, t) {
+function te(e, t) {
 	return D(e, t).sort((e, t) => T(t) - T(e)).filter((e) => T(e) >= 13).length;
 }
 //#endregion
@@ -428,11 +435,11 @@ function Q(e, t, n) {
 }
 //#endregion
 //#region src/game/play.ts
-var ee = 5;
-function te(e, t) {
+var ne = 5;
+function re(e, t) {
 	return e[(e.indexOf(t) + 1) % e.length];
 }
-function ne(e) {
+function ie(e) {
 	let t = P(e.playerId, e.privateHand, e.publicHand), n = (e.publicHand.playedCards?.length ?? 0) === 0 && (e.publicHand.currentTrick?.plays?.length ?? 0) === 0 && Object.values(e.publicHand.tricksByPlayer ?? {}).every((e) => (e ?? 0) === 0), r = $({
 		publicHand: e.publicHand,
 		playerHand: t,
@@ -462,7 +469,7 @@ function $(e) {
 	let s = o.plays.map((e) => ({
 		rank: e.card.rank,
 		suit: e.card.suit
-	})), c = o.plays.length === 0, l = o.leadSuit ?? (c ? null : s[0]?.suit), u = X({
+	})), c = o.plays.length === 0, l = o.leadSuit ?? (c ? null : s[0]?.suit), u = Z({
 		hand: e.playerHand,
 		trumpSuit: t.trumpSuit,
 		leadSuit: c ? null : l,
@@ -476,7 +483,7 @@ function $(e) {
 		card: y(d)
 	}, m = [...o.plays, p], h = c ? d.suit : l, g = t.participantIds;
 	if (!(m.length >= g.length)) {
-		let e = te(i, n), r = {
+		let e = re(i, n), r = {
 			...o,
 			leadSuit: h,
 			plays: m
@@ -502,7 +509,7 @@ function $(e) {
 		...e,
 		trickNumber: o.trickNumber
 	}))];
-	if (Object.values(b).reduce((e, t) => e + (t || 0), 0) >= ee) return {
+	if (Object.values(b).reduce((e, t) => e + (t || 0), 0) >= ne) return {
 		publicHand: {
 			...t,
 			tricksByPlayer: b,
@@ -535,7 +542,7 @@ function $(e) {
 		handComplete: !1
 	};
 }
-function re(e, t, n) {
+function ae(e, t, n) {
 	return n <= 0 ? [] : e.map((e, n) => ({
 		card: e,
 		index: n,
@@ -543,8 +550,8 @@ function re(e, t, n) {
 		trump: E(e, t)
 	})).sort((e, t) => e.trump === t.trump ? e.value - t.value : e.trump ? 1 : -1).slice(0, n).map((e) => e.index);
 }
-function ie(e, t) {
-	let n = Y(t);
+function oe(e, t) {
+	let n = X(t);
 	if (!n.length) return 0;
 	if (t.isLeading || !t.trickPlays.length) return n.reduce((t, n) => T(e[n]) > T(e[t]) ? n : t);
 	let r = t.leadSuit ?? t.trickPlays[0]?.suit;
@@ -559,4 +566,4 @@ function ie(e, t) {
 	return (i.length ? i : n).reduce((t, n) => T(e[n]) < T(e[t]) ? n : t);
 }
 //#endregion
-export { p as CARDS_PER_PLAYER, A as CardUniquenessError, v as HAND_PHASE, f as activePlayerOrder, G as advanceAfterDraw, U as allDrawsComplete, V as applyDraw, $ as applyPlayCard, W as applyPlayerDraw, ne as applyPlayerPlayCard, M as assertCardUniqueness, g as assignTrumpUpcard, re as botDrawDiscardIndices, ie as botPlayCardIndex, C as cardKey, w as cardsEqual, z as cardsRemainingInHand, i as createDeck, m as dealInitialHand, S as deserializeCards, l as drawCardsFromDeck, I as effectiveIndexDiscardsTrump, P as effectivePlayerHand, Y as getLegalPlayIndices, E as isTrump, _ as maxDrawDiscards, H as nextPlayerInOrder, L as playedTrumpUpcard, d as playerOrderFromDealer, F as privateHandFromEffective, T as rankValue, u as remainingDeckCount, Q as resolveTrickWinner, y as serializeCard, b as serializeCards, x as serializeHandState, s as shuffleDeck, c as shuffledDeckFromSeed, B as trumpRevealMirroredInHolderHand, X as validatePlayIndex };
+export { p as CARDS_PER_PLAYER, A as CardUniquenessError, v as HAND_PHASE, f as activePlayerOrder, K as advanceAfterDraw, W as allDrawsComplete, H as applyDraw, $ as applyPlayCard, G as applyPlayerDraw, ie as applyPlayerPlayCard, ee as assertCardUniqueness, g as assignTrumpUpcard, ae as botDrawDiscardIndices, oe as botPlayCardIndex, C as cardKey, w as cardsEqual, z as cardsRemainingInHand, i as createDeck, m as dealInitialHand, S as deserializeCards, B as displayHoleCardCount, l as drawCardsFromDeck, I as effectiveIndexDiscardsTrump, P as effectivePlayerHand, X as getLegalPlayIndices, E as isTrump, _ as maxDrawDiscards, U as nextPlayerInOrder, L as playedTrumpUpcard, d as playerOrderFromDealer, F as privateHandFromEffective, T as rankValue, u as remainingDeckCount, Q as resolveTrickWinner, y as serializeCard, b as serializeCards, x as serializeHandState, s as shuffleDeck, c as shuffledDeckFromSeed, N as trumpOnTable, M as trumpOwnerId, V as trumpRevealMirroredInHolderHand, Z as validatePlayIndex };

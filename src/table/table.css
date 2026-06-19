@@ -3136,3 +3136,147 @@
     animation: byour-turn-exit-reduced 240ms ease-in forwards;
   }
 }
+
+/* Escalating urgency on repeat "Your Turn" beats */
+.byour-turn--urgency-1 .byour-turn__text {
+  box-shadow:
+    0 8px 0 rgba(0, 0, 0, 0.28),
+    0 0 0 4px rgba(255, 180, 60, 0.45),
+    0 14px 36px rgba(0, 0, 0, 0.5);
+}
+
+.byour-turn--urgency-2 .byour-turn__text {
+  transform: scale(1.04);
+}
+
+.byour-turn--urgency-3 .byour-turn__text,
+.byour-turn--urgency-4 .byour-turn__text,
+.byour-turn--urgency-5 .byour-turn__text {
+  transform: scale(1.08);
+  border-color: #fff;
+}
+
+/* Trump reveal merges into dealer hand (presentation) */
+.bseat--trump-merge .bseat__hole-cards {
+  animation: btrump-merge-in 520ms ease forwards;
+}
+
+@keyframes btrump-merge-in {
+  0% {
+    opacity: 0.7;
+    transform: translateY(-8px) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bseat__pass {
+  margin-top: 4px;
+}
+
+.btable-session__enroll-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Bourré result sting — single controlled wash, not theme toggle */
+.bbourre-sting {
+  position: fixed;
+  inset: 0;
+  z-index: 32;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bbourre-sting__wash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 248, 230, 0.55) 0%, rgba(0, 0, 0, 0.72) 70%);
+  animation: bbourre-sting-wash 1.4s ease forwards;
+}
+
+.bbourre-sting__badge {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 28px;
+  border-radius: 16px;
+  background: rgba(18, 12, 8, 0.88);
+  border: 2px solid rgba(255, 220, 140, 0.65);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  animation: bbourre-sting-badge 1.4s ease forwards;
+}
+
+.bbourre-sting__label {
+  font-size: clamp(28px, 6vw, 40px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffe9b0;
+}
+
+.bbourre-sting--reduced .bbourre-sting__wash {
+  animation: bbourre-sting-wash-reduced 0.9s ease forwards;
+}
+
+.bbourre-sting--reduced .bbourre-sting__badge {
+  animation: none;
+}
+
+@keyframes bbourre-sting-wash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.92;
+    background: radial-gradient(circle at 50% 40%, rgba(255, 252, 240, 0.75) 0%, rgba(0, 0, 0, 0.55) 72%);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes bbourre-sting-wash-reduced {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes bbourre-sting-badge {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bseat--trump-merge .bseat__hole-cards {
+    animation-duration: 200ms !important;
+  }
+}

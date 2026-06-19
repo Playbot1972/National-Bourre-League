@@ -13,6 +13,7 @@ import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { useYourTurnAttention } from "./hooks/useYourTurnAttention";
+import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
@@ -202,6 +203,11 @@ export function TableSessionView({
     trickWinnerSeatId: trickPresentation.trickWinnerSeatId,
     trickPhase: trickPresentation.phase,
   });
+  const selfPlayer = players.find((p) => p.isSelf);
+  const selfBourreSting =
+    Boolean(selfPlayer?.playerId) &&
+    (recentBourreIds ?? []).includes(selfPlayer!.playerId) &&
+    microinteractions.bourreAlerts[selfPlayer!.playerId] === "pulse";
 
   const prevErrorPulseRef = useRef(0);
   const prevSuccessPulseRef = useRef(0);
@@ -239,6 +245,10 @@ export function TableSessionView({
       onToggleInHand: (playerId: string, inHand: boolean) => {
         const p = players.find((x) => x.playerId === playerId);
         if (p?.isSelf) actions.onToggleInHand(inHand);
+      },
+      onPassEnrollment: (playerId: string) => {
+        const p = players.find((x) => x.playerId === playerId);
+        if (p?.isSelf && actions.onPassEnrollment) actions.onPassEnrollment();
       },
       onTrickDelta: (playerId: string, delta: number) => {
         const p = players.find((x) => x.playerId === playerId);
@@ -299,7 +309,8 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      <YourTurnAttention phase={yourTurnAttention.phase} cycleIndex={yourTurnAttention.cycleIndex} />
+      <YourTurnAttention phase={yourTurnAttention.phase} beat={yourTurnAttention.beat} />
+      <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
       <EventReactions events={events} players={players} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
       {nativeMobile ? (
@@ -426,14 +437,16 @@ export function TableSessionView({
             >
               I&apos;m in · {enrollmentSecondsLeft}s
             </button>
-            <button
-              type="button"
-              className="btn btn--sm btable-session__enroll-btn btable-session__enroll-btn--pass"
-              data-testid="pass-enroll-button"
-              onClick={() => actions.onToggleInHand(false)}
-            >
-              Pass
-            </button>
+            {actions.onPassEnrollment && (
+              <button
+                type="button"
+                className="btn btn--sm btn--ghost btable-session__pass-btn"
+                data-testid="pass-enrollment-button"
+                onClick={() => actions.onPassEnrollment?.()}
+              >
+                Pass
+              </button>
+            )}
           </div>
         )}
         {enrollmentActive && !selfEnroll && (

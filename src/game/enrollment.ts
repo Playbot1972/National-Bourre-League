@@ -156,6 +156,7 @@ export function applyEnrollmentTimeout(
   );
 }
 
+/** Explicit pass/fold during the play-or-pass enrollment window. */
 export function applyEnrollmentPass(
   enrollment: HandEnrollment,
   playerId: string,
@@ -166,8 +167,8 @@ export function applyEnrollmentPass(
   if (currentId !== playerId) {
     throw new Error("Not your turn to pass yet");
   }
-  if ((enrollment.enrolledIds || []).includes(playerId)) {
-    throw new Error("Already joined this hand");
+  if (enrollment.declinedIds.includes(playerId)) {
+    throw new Error("Already passed this hand");
   }
   const declinedIds = [...enrollment.declinedIds, playerId];
   return enrollmentPatchAfterStep(

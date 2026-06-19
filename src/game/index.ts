@@ -32,7 +32,10 @@ export {
   effectiveIndexDiscardsTrump,
   playedTrumpUpcard,
   cardsRemainingInHand,
+  displayHoleCardCount,
   trumpRevealMirroredInHolderHand,
+  trumpOnTable,
+  trumpOwnerId,
   CardUniquenessError,
 } from "./invariants";
 export { cardKey, cardsEqual, rankValue, isTrump } from "./cardUtils";

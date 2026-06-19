@@ -9480,10 +9480,10 @@ function Zt({ fraction: e }) {
 		})]
 	});
 }
-function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i, onReaction: a }) {
-	let [o, s] = (0, l.useState)(!1), c = (0, l.useCallback)(() => {
-		typeof window > "u" || window.matchMedia("(hover: none), (pointer: coarse)").matches && s((e) => !e);
-	}, []), u = e.tricksThisHand, d = Math.max(0, e.holeCardCount ?? 0), f = !!(e.showHoleCards && !e.isSelf && e.inHand && d > 0), p = e.bankroll != null, m = e.bourreAlert === "pulse", h = e.bourreAlert === "marker" || e.bourreAlert === "pulse", v = !!e.bourrePressure, y = v && e.isSelf, b = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
+function Qt({ player: e, region: t, style: n, onToggleInHand: r, onPassEnrollment: i, onTrickDelta: a, onReaction: o }) {
+	let [s, c] = (0, l.useState)(!1), u = (0, l.useCallback)(() => {
+		typeof window > "u" || window.matchMedia("(hover: none), (pointer: coarse)").matches && c((e) => !e);
+	}, []), d = e.tricksThisHand, f = Math.max(0, e.holeCardCount ?? 0), p = !!(e.showHoleCards && !e.isSelf && e.inHand && f > 0), m = e.bankroll != null, h = e.bourreAlert === "pulse", v = e.bourreAlert === "marker" || e.bourreAlert === "pulse", y = !!e.bourrePressure, b = y && e.isSelf, x = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
 		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
 		className: [
@@ -9498,6 +9498,7 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 			e.enrollmentSatOut ? "bseat--sat-out" : "",
 			e.isOut ? "bseat--out" : "",
 			e.isDealer ? "bseat--dealer" : "",
+			e.trumpMerging ? "bseat--trump-merge" : "",
 			e.isOnTurn ? "bseat--on-turn" : "",
 			e.turnHandoff ? "bseat--turn-handoff" : "",
 			e.isTrickCapture ? "bseat--trick-capture" : "",
@@ -9506,23 +9507,23 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 			e.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
 			e.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
 			e.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
-			m ? "bseat--bourre-pulse" : "",
-			h ? "bseat--bourre" : "",
-			v ? "bseat--bourre-pressure" : "",
-			y ? "bseat--bourre-pressure-self" : "",
+			h ? "bseat--bourre-pulse" : "",
+			v ? "bseat--bourre" : "",
+			y ? "bseat--bourre-pressure" : "",
+			b ? "bseat--bourre-pressure-self" : "",
 			e.bankrollTick === "up" ? "bseat--bankroll-up" : "",
 			e.bankrollTick === "down" ? "bseat--bankroll-down" : "",
-			b ? "bseat--trump-reveal" : "",
+			x ? "bseat--trump-reveal" : "",
 			e.seatTrumpMergeActive ? "bseat--trump-merge" : ""
 		].filter(Boolean).join(" "),
 		style: n,
 		children: [/* @__PURE__ */ (0, g.jsxs)("div", {
 			className: "bseat__core",
-			children: [f && /* @__PURE__ */ (0, g.jsx)("div", {
+			children: [p && /* @__PURE__ */ (0, g.jsx)("div", {
 				className: "bseat__hole-cards",
-				"aria-label": `${d} cards in hand`,
+				"aria-label": `${f} cards in hand`,
 				"data-trick-play-origin": e.playerId,
-				children: Array.from({ length: d }, (t, n) => {
+				children: Array.from({ length: f }, (t, n) => {
 					let r = e.revealedTrumpIndex === n && e.revealedTrumpUpcard;
 					return /* @__PURE__ */ (0, g.jsx)("div", {
 						className: [
@@ -9549,34 +9550,34 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 				children: [
 					/* @__PURE__ */ (0, g.jsxs)("div", {
 						className: "bseat__avatar-stack",
-						"data-trick-play-origin": !e.isSelf && e.inHand && !f ? e.playerId : void 0,
+						"data-trick-play-origin": !e.isSelf && e.inHand && !p ? e.playerId : void 0,
 						children: [
 							e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, g.jsx)(Zt, { fraction: e.enrollmentTimeLeft }),
-							v && /* @__PURE__ */ (0, g.jsx)("span", {
+							y && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__bourre-pressure-badge",
-								"aria-label": y ? "You need this trick to avoid bourré" : "At risk of bourré",
-								title: y ? "Win this trick or go bourré" : "Must win this trick",
-								children: y ? "Bourré risk!" : "0 tricks"
+								"aria-label": b ? "You need this trick to avoid bourré" : "At risk of bourré",
+								title: b ? "Win this trick or go bourré" : "Must win this trick",
+								children: b ? "Bourré risk!" : "0 tricks"
 							}),
-							h && !v && /* @__PURE__ */ (0, g.jsx)("span", {
+							v && !y && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__bourre-badge",
 								"aria-label": "Bourré",
 								title: "Bourré",
 								children: "Bourré"
 							}),
 							/* @__PURE__ */ (0, g.jsxs)("div", {
-								className: `bseat__avatar-wrap${o ? " bseat__avatar-wrap--peek" : ""}`,
+								className: `bseat__avatar-wrap${s ? " bseat__avatar-wrap--peek" : ""}`,
 								role: "button",
 								tabIndex: 0,
 								"aria-label": `${e.displayName} seat`,
-								"aria-expanded": o,
+								"aria-expanded": s,
 								onClick: (e) => {
-									e.stopPropagation(), c();
+									e.stopPropagation(), u();
 								},
 								onKeyDown: (e) => {
-									(e.key === "Enter" || e.key === " ") && (e.preventDefault(), c());
+									(e.key === "Enter" || e.key === " ") && (e.preventDefault(), u());
 								},
-								onBlur: () => s(!1),
+								onBlur: () => c(!1),
 								children: [
 									e.isDealer && /* @__PURE__ */ (0, g.jsx)("span", {
 										className: `bseat__dealer${e.dealerMoved ? " bseat__dealer--moved" : ""}`,
@@ -9595,11 +9596,11 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 										className: "bseat__in-badge",
 										title: "In this hand"
 									}),
-									v && /* @__PURE__ */ (0, g.jsx)("span", {
+									y && /* @__PURE__ */ (0, g.jsx)("span", {
 										className: "bseat__bourre-pressure-ring",
 										"aria-hidden": "true"
 									}),
-									m && !v && /* @__PURE__ */ (0, g.jsx)("span", {
+									h && !y && /* @__PURE__ */ (0, g.jsx)("span", {
 										className: "bseat__bourre-ring",
 										"aria-hidden": "true"
 									})
@@ -9607,13 +9608,13 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 							})
 						]
 					}),
-					p && /* @__PURE__ */ (0, g.jsx)("span", {
+					m && /* @__PURE__ */ (0, g.jsx)("span", {
 						className: `bseat__stack${e.isOut ? " bseat__stack--out" : ""}`,
 						"aria-label": `Chips ${zt(e.bankroll ?? 0)}`,
 						title: `Chips ${zt(e.bankroll ?? 0)}`,
 						children: zt(e.bankroll ?? 0)
 					}),
-					e.isSelf && a && /* @__PURE__ */ (0, g.jsx)("div", {
+					e.isSelf && o && /* @__PURE__ */ (0, g.jsx)("div", {
 						className: "bseat__react-bar",
 						children: [
 							"👏",
@@ -9623,7 +9624,7 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 							type: "button",
 							className: "bseat__react-btn",
 							"aria-label": `React ${e}`,
-							onClick: () => a(e),
+							onClick: () => o(e),
 							children: e
 						}, e))
 					})
@@ -9673,14 +9674,21 @@ function Qt({ player: e, region: t, style: n, onToggleInHand: r, onTrickDelta: i
 					onClick: r,
 					children: "I'm in"
 				}),
+				e.canPassEnrollment && i && /* @__PURE__ */ (0, g.jsx)("button", {
+					type: "button",
+					className: "bseat__pass btn btn--sm btn--ghost",
+					"data-testid": "seat-pass-enrollment",
+					onClick: i,
+					children: "Pass"
+				}),
 				e.canEditTricks && /* @__PURE__ */ (0, g.jsx)("div", {
 					className: "bseat__controls",
 					children: /* @__PURE__ */ (0, g.jsx)("button", {
 						type: "button",
 						className: "bseat__trick-btn bseat__trick-btn--plus",
 						"aria-label": "Won a trick",
-						disabled: u >= 5,
-						onClick: () => i(1),
+						disabled: d >= 5,
+						onClick: () => a(1),
 						children: "+"
 					})
 				})
@@ -10024,11 +10032,11 @@ function Pn(e, t, n, r, i) {
 }
 //#endregion
 //#region src/table/CardTable.tsx
-function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: l = !1, showTrumpSuitReminder: u = !1, trumpHolderPresentation: d, privateHandReady: f = !1, currentUserId: p = null, legalPlayIndices: m, handComplete: h = !1, actionFeedback: _, trickPresentation: v, handPresentation: y, microinteractions: b, onToggleInHand: x, onTrickDelta: S, onSubmitDraw: C, onPassDraw: w, onPlayCard: T, onReaction: E }) {
-	let D = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), O = D.findIndex((e) => e.isSelf), ee = O > 0 ? [...D.slice(O), ...D.slice(0, O)] : D, te = ee.length, k = `btable--p${Math.min(8, Math.max(2, te))}`, A = Gt(te), ne = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), re = hn(), j = jn({
-		aspect: A,
+function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: l = !1, showTrumpSuitReminder: u = !1, trumpHolderPresentation: d, privateHandReady: f = !1, currentUserId: p = null, legalPlayIndices: m, handComplete: h = !1, actionFeedback: _, trickPresentation: v, handPresentation: y, microinteractions: b, onToggleInHand: x, onPassEnrollment: S, onTrickDelta: C, onSubmitDraw: w, onPassDraw: T, onPlayCard: E, onReaction: D }) {
+	let O = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), ee = O.findIndex((e) => e.isSelf), te = ee > 0 ? [...O.slice(ee), ...O.slice(0, ee)] : O, k = te.length, A = `btable--p${Math.min(8, Math.max(2, k))}`, ne = Gt(k), re = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), j = hn(), M = jn({
+		aspect: ne,
 		sessionKey: `${e.sessionId}:${e.handNumber}`
-	}), M = new Set(e.participantIds.filter((t) => Ft(t, v.displayTricksByPlayer, e.participantIds, e.phase))), N = t.map((t) => {
+	}), N = new Set(e.participantIds.filter((t) => Ft(t, v.displayTricksByPlayer, e.participantIds, e.phase))), ie = t.map((t) => {
 		let r = v.displayTricksByPlayer[t.playerId] ?? 0, i = v.trickWinnerSeatId === t.playerId, a = v.suppressTurnPlayerId || y.suppressTurnIndicator, o = v.phase === "collectTrick" && i, s = y.enrollmentPulse[t.playerId], c = y.animatingDrawPlayerId === t.playerId, l = Pn(t.playerId, d, e.trumpUpcard ?? null, t.holeCardCount ?? 0, t.isSelf);
 		return {
 			...t,
@@ -10050,22 +10058,22 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			winnerFlash: b.winnerFlashPlayerId === t.playerId,
 			bankrollTick: b.bankrollTicks[t.playerId] ?? null,
 			bourreAlert: t.isSelf ? b.bourreAlerts[t.playerId] ?? null : null,
-			bourrePressure: M.has(t.playerId)
+			bourrePressure: N.has(t.playerId)
 		};
-	}), ie = t.find((e) => e.isSelf), ae = v.suppressTurnPlayerId || y.suppressTurnIndicator, oe = !!(p && e.drawCompletedIds?.includes(p));
+	}), ae = t.find((e) => e.isSelf), oe = v.suppressTurnPlayerId || y.suppressTurnIndicator, se = !!(p && e.drawCompletedIds?.includes(p));
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
-		ref: j,
-		className: `btable-wrap btable-wrap--stage-fit ${k}`,
+		ref: M,
+		className: `btable-wrap btable-wrap--stage-fit ${A}`,
 		"data-testid": "table-root",
 		style: {
-			"--player-count": te,
-			"--table-aspect": A,
+			"--player-count": k,
+			"--table-aspect": ne,
 			"--trick-card-land-ms": "220ms",
 			"--trick-winner-highlight-ms": "400ms",
 			"--trick-sweep-ms": "300ms",
-			"--deal-card-stagger-ms": `${re.dealCardStaggerMs}ms`,
-			"--draw-discard-ms": `${re.drawDiscardMs}ms`,
-			"--draw-replace-ms": `${re.drawReplaceMs}ms`
+			"--deal-card-stagger-ms": `${j.dealCardStaggerMs}ms`,
+			"--draw-discard-ms": `${j.drawDiscardMs}ms`,
+			"--draw-replace-ms": `${j.drawReplaceMs}ms`
 		},
 		children: [/* @__PURE__ */ (0, g.jsx)("div", {
 			className: "table-stage-fit",
@@ -10095,7 +10103,7 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						trickWinnerPlayerId: v.winnerPlayerId,
 						trickShowWinnerTag: v.showWinnerTag,
 						trickPresentationPhase: v.phase,
-						playerNames: ne,
+						playerNames: re,
 						anteAnimActive: y.anteAnimActive,
 						trumpRevealActive: y.trumpRevealActive,
 						hideCenterTrump: l,
@@ -10111,18 +10119,19 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 					/* @__PURE__ */ (0, g.jsx)("div", {
 						className: "btable__seats",
 						"aria-label": "Players at the table",
-						children: ee.map((e, t) => {
-							let n = Wt(t, ee.length);
+						children: te.map((e, t) => {
+							let n = Wt(t, te.length);
 							return /* @__PURE__ */ (0, g.jsx)(Qt, {
-								player: N.find((t) => t.playerId === e.playerId) ?? e,
+								player: ie.find((t) => t.playerId === e.playerId) ?? e,
 								region: n.region,
 								style: {
 									left: `${n.x}%`,
 									top: `${n.y}%`
 								},
 								onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-								onTrickDelta: (t) => S(e.playerId, t),
-								onReaction: e.isSelf ? E : void 0
+								onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+								onTrickDelta: (t) => C(e.playerId, t),
+								onReaction: e.isSelf ? D : void 0
 							}, e.playerId);
 						})
 					})
@@ -10134,20 +10143,20 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			privateHandReady: f,
 			phase: e.phase,
 			enrollmentActive: i,
-			isInHand: !!ie?.inHand,
-			isDealer: !!ie?.isDealer,
+			isInHand: !!ae?.inHand,
+			isDealer: !!ae?.isDealer,
 			signedIn: !!p,
-			isMyTurn: !!(p && e.turnPlayerId === p) && !ae,
-			dealStaggerMs: re.dealCardStaggerMs,
+			isMyTurn: !!(p && e.turnPlayerId === p) && !oe,
+			dealStaggerMs: j.dealCardStaggerMs,
 			drawAnimSubPhase: y.animatingDrawPlayerId === p ? y.drawAnimSubPhase : null,
-			drawCompleted: oe,
+			drawCompleted: se,
 			maxDrawDiscards: e.maxDrawDiscards ?? 4,
 			legalPlayIndices: m ?? void 0,
 			handComplete: h,
 			actionFeedback: _,
-			onSubmitDraw: C,
-			onPassDraw: w,
-			onPlayCard: T,
+			onSubmitDraw: w,
+			onPassDraw: T,
+			onPlayCard: E,
 			currentUserId: p,
 			revealedTrumpIndex: o,
 			trumpMergeActive: s,
@@ -10275,11 +10284,11 @@ function Wn({ aspect: e, sessionKey: t }) {
 }
 //#endregion
 //#region src/table/MobileCardTable.tsx
-function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: l = !1, showTrumpSuitReminder: u = !1, trumpHolderPresentation: d, privateHandReady: f = !1, currentUserId: p = null, legalPlayIndices: m, handComplete: h = !1, actionFeedback: _, trickPresentation: v, handPresentation: y, microinteractions: b, onToggleInHand: x, onTrickDelta: S, onSubmitDraw: C, onPassDraw: w, onPlayCard: T }) {
-	let E = Bn() === "mobile-landscape" ? "landscape" : "portrait", D = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), O = D.findIndex((e) => e.isSelf), ee = O > 0 ? [...D.slice(O), ...D.slice(0, O)] : D, te = ee.filter((e) => !e.isSelf), k = ee.length, A = `btable--p${Math.min(8, Math.max(2, k))}`, ne = In(te.length, E), re = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), j = hn(), M = Wn({
-		aspect: ne,
+function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: l = !1, showTrumpSuitReminder: u = !1, trumpHolderPresentation: d, privateHandReady: f = !1, currentUserId: p = null, legalPlayIndices: m, handComplete: h = !1, actionFeedback: _, trickPresentation: v, handPresentation: y, microinteractions: b, onToggleInHand: x, onPassEnrollment: S, onTrickDelta: C, onSubmitDraw: w, onPassDraw: T, onPlayCard: E }) {
+	let D = Bn() === "mobile-landscape" ? "landscape" : "portrait", O = [...t].sort((e, t) => e.isSelf ? -1 : t.isSelf ? 1 : e.displayName.localeCompare(t.displayName)), ee = O.findIndex((e) => e.isSelf), te = ee > 0 ? [...O.slice(ee), ...O.slice(0, ee)] : O, k = te.filter((e) => !e.isSelf), A = te.length, ne = `btable--p${Math.min(8, Math.max(2, A))}`, re = In(k.length, D), j = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), M = hn(), N = Wn({
+		aspect: re,
 		sessionKey: `${e.sessionId}:${e.handNumber}`
-	}), N = new Set(e.participantIds.filter((t) => Ft(t, v.displayTricksByPlayer, e.participantIds, e.phase))), ie = t.map((t) => {
+	}), ie = new Set(e.participantIds.filter((t) => Ft(t, v.displayTricksByPlayer, e.participantIds, e.phase))), ae = t.map((t) => {
 		let r = v.displayTricksByPlayer[t.playerId] ?? 0, i = v.trickWinnerSeatId === t.playerId, a = v.suppressTurnPlayerId || y.suppressTurnIndicator, o = v.phase === "collectTrick" && i, s = y.enrollmentPulse[t.playerId], c = y.animatingDrawPlayerId === t.playerId, l = Pn(t.playerId, d, e.trumpUpcard ?? null, t.holeCardCount ?? 0, t.isSelf);
 		return {
 			...t,
@@ -10301,23 +10310,23 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			winnerFlash: b.winnerFlashPlayerId === t.playerId,
 			bankrollTick: b.bankrollTicks[t.playerId] ?? null,
 			bourreAlert: t.isSelf ? b.bourreAlerts[t.playerId] ?? null : null,
-			bourrePressure: N.has(t.playerId)
+			bourrePressure: ie.has(t.playerId)
 		};
-	}), ae = t.find((e) => e.isSelf), oe = v.suppressTurnPlayerId || y.suppressTurnIndicator, se = !!(p && e.drawCompletedIds?.includes(p));
+	}), oe = t.find((e) => e.isSelf), se = v.suppressTurnPlayerId || y.suppressTurnIndicator, P = !!(p && e.drawCompletedIds?.includes(p));
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
-		ref: M,
-		className: `btable-mobile-wrap btable-mobile-wrap--stage-fit ${A}`,
+		ref: N,
+		className: `btable-mobile-wrap btable-mobile-wrap--stage-fit ${ne}`,
 		"data-testid": "table-root",
-		"data-layout": E,
+		"data-layout": D,
 		style: {
-			"--player-count": k,
-			"--table-aspect": ne,
+			"--player-count": A,
+			"--table-aspect": re,
 			"--trick-card-land-ms": "220ms",
 			"--trick-winner-highlight-ms": "400ms",
 			"--trick-sweep-ms": "300ms",
-			"--deal-card-stagger-ms": `${j.dealCardStaggerMs}ms`,
-			"--draw-discard-ms": `${j.drawDiscardMs}ms`,
-			"--draw-replace-ms": `${j.drawReplaceMs}ms`
+			"--deal-card-stagger-ms": `${M.dealCardStaggerMs}ms`,
+			"--draw-discard-ms": `${M.drawDiscardMs}ms`,
+			"--draw-replace-ms": `${M.drawReplaceMs}ms`
 		},
 		children: [/* @__PURE__ */ (0, g.jsx)("div", {
 			className: "btable-mobile-stage-fit",
@@ -10347,7 +10356,7 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						trickWinnerPlayerId: v.winnerPlayerId,
 						trickShowWinnerTag: v.showWinnerTag,
 						trickPresentationPhase: v.phase,
-						playerNames: re,
+						playerNames: j,
 						anteAnimActive: y.anteAnimActive,
 						trumpRevealActive: y.trumpRevealActive,
 						hideCenterTrump: l,
@@ -10363,17 +10372,18 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 					/* @__PURE__ */ (0, g.jsx)("div", {
 						className: "btable__seats btable-mobile__seats",
 						"aria-label": "Players at the table",
-						children: te.map((e, t) => {
-							let n = Rn(t, te.length, E);
+						children: k.map((e, t) => {
+							let n = Rn(t, k.length, D);
 							return /* @__PURE__ */ (0, g.jsx)(Qt, {
-								player: ie.find((t) => t.playerId === e.playerId) ?? e,
+								player: ae.find((t) => t.playerId === e.playerId) ?? e,
 								region: n.region,
 								style: {
 									left: `${n.x}%`,
 									top: `${n.y}%`
 								},
 								onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-								onTrickDelta: (t) => S(e.playerId, t),
+								onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+								onTrickDelta: (t) => C(e.playerId, t),
 								onReaction: void 0
 							}, e.playerId);
 						})
@@ -10387,25 +10397,25 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 				privateHandReady: f,
 				phase: e.phase,
 				enrollmentActive: i,
-				isInHand: !!ae?.inHand,
-				isDealer: !!ae?.isDealer,
+				isInHand: !!oe?.inHand,
+				isDealer: !!oe?.isDealer,
 				signedIn: !!p,
-				isMyTurn: !!(p && e.turnPlayerId === p) && !oe,
-				dealStaggerMs: j.dealCardStaggerMs,
+				isMyTurn: !!(p && e.turnPlayerId === p) && !se,
+				dealStaggerMs: M.dealCardStaggerMs,
 				drawAnimSubPhase: y.animatingDrawPlayerId === p ? y.drawAnimSubPhase : null,
-				drawCompleted: se,
+				drawCompleted: P,
 				maxDrawDiscards: e.maxDrawDiscards ?? 4,
 				legalPlayIndices: m ?? void 0,
 				handComplete: h,
 				actionFeedback: _,
-				onSubmitDraw: C,
-				onPassDraw: w,
-				onPlayCard: T,
+				onSubmitDraw: w,
+				onPassDraw: T,
+				onPlayCard: E,
 				currentUserId: p,
 				revealedTrumpIndex: o,
 				trumpMergeActive: s,
 				trumpDisabledIndex: c
-			}), i && !ae?.inHand && /* @__PURE__ */ (0, g.jsx)("p", {
+			}), i && !oe?.inHand && /* @__PURE__ */ (0, g.jsx)("p", {
 				className: "btable-mobile-hero-dock__hint muted small",
 				children: "Tap I'm in above to join this hand"
 			})]
@@ -11271,30 +11281,33 @@ var xr = 7e3, Sr = [
 	2e3
 ];
 function Cr(e) {
-	if (e <= 0) return xr;
-	let t = Sr;
-	return t[Math.min(e - 1, t.length - 1)];
-}
-function wr(e) {
-	let [t, n] = (0, l.useState)("hidden"), [r, i] = (0, l.useState)(0), a = (0, l.useRef)(null), o = (0, l.useRef)(null), s = (0, l.useRef)(null), c = (0, l.useRef)(0), u = (0, l.useRef)(e);
-	u.current = e;
-	let d = [
+	let [t, n] = (0, l.useState)("hidden"), [r, i] = (0, l.useState)(0), a = (0, l.useRef)(null), o = (0, l.useRef)(null), s = (0, l.useRef)(null), c = (0, l.useRef)(0), u = [
 		e.turnPlayerId ?? "",
 		e.trickNumber,
 		e.trickPlaysCount,
 		e.phase ?? ""
-	].join(":"), f = () => {
+	].join(":"), d = () => {
 		a.current != null && (window.clearTimeout(a.current), a.current = null), o.current != null && (window.clearTimeout(o.current), o.current = null), s.current != null && (window.clearTimeout(s.current), s.current = null);
-	}, p = () => {
-		let e = Cr(c.current);
-		c.current += 1, a.current = window.setTimeout(() => {
-			a.current = null, n("pop");
-		}, e);
+	}, f = () => {
+		let e = c.current, t = e === 0 ? xr : Sr[Math.min(e - 1, Sr.length - 1)];
+		a.current = window.setTimeout(() => {
+			a.current = null, i(e), n("pop"), c.current = e + 1;
+		}, t);
 	};
 	return (0, l.useEffect)(() => {
-		if (f(), n("hidden"), i(0), c.current = 0, e.isMyTurn && e.phase === "play" && !e.suppressTurn && e.turnPlayerId) return p(), f;
+		d(), c.current = 0;
+		let t = e.isMyTurn && e.phase === "play" && !e.suppressTurn && !!e.turnPlayerId, r = window.setTimeout(() => {
+			if (!t) {
+				n("hidden"), i(0);
+				return;
+			}
+			f();
+		}, 0);
+		return () => {
+			window.clearTimeout(r), d();
+		};
 	}, [
-		d,
+		u,
 		e.isMyTurn,
 		e.phase,
 		e.suppressTurn,
@@ -11307,37 +11320,74 @@ function wr(e) {
 		}, 380 + e), () => {
 			o.current != null && (window.clearTimeout(o.current), o.current = null);
 		};
-	}, [t]), (0, l.useEffect)(() => {
+	}, [t, r]), (0, l.useEffect)(() => {
 		if (t !== "exit") return;
-		let e = dn() ? 240 : 620;
+		let r = dn() ? 240 : 620;
 		return s.current = window.setTimeout(() => {
-			s.current = null, n("hidden"), i((e) => e + 1);
-			let e = u.current;
-			e.isMyTurn && e.phase === "play" && !e.suppressTurn && e.turnPlayerId && p();
-		}, e), () => {
+			s.current = null, n("hidden"), e.isMyTurn && e.phase === "play" && !e.suppressTurn && e.turnPlayerId && f();
+		}, r), () => {
 			s.current != null && (window.clearTimeout(s.current), s.current = null);
 		};
-	}, [t]), {
+	}, [
+		t,
+		e.isMyTurn,
+		e.phase,
+		e.suppressTurn,
+		e.turnPlayerId
+	]), {
 		phase: t,
-		cycleIndex: r
+		beat: r
 	};
 }
-function Tr() {
+function wr() {
 	return dn();
 }
 //#endregion
+//#region src/table/BourreResultSting.tsx
+function Tr({ active: e, displayName: t }) {
+	let [n, r] = (0, l.useState)(!1), i = dn();
+	return (0, l.useEffect)(() => {
+		if (!e) {
+			r(!1);
+			return;
+		}
+		r(!0);
+		let t = i ? 900 : 1400, n = window.setTimeout(() => r(!1), t);
+		return () => window.clearTimeout(n);
+	}, [e, i]), n ? /* @__PURE__ */ (0, g.jsxs)("div", {
+		className: ["bbourre-sting", i ? "bbourre-sting--reduced" : ""].filter(Boolean).join(" "),
+		"data-testid": "bourre-result-sting",
+		role: "status",
+		"aria-live": "polite",
+		"aria-label": t ? `${t} went bourré` : "Bourré",
+		children: [/* @__PURE__ */ (0, g.jsx)("div", {
+			className: "bbourre-sting__wash",
+			"aria-hidden": "true"
+		}), /* @__PURE__ */ (0, g.jsxs)("div", {
+			className: "bbourre-sting__badge",
+			children: [/* @__PURE__ */ (0, g.jsx)("span", {
+				className: "bbourre-sting__label",
+				children: "Bourré"
+			}), t ? /* @__PURE__ */ (0, g.jsx)("span", {
+				className: "bbourre-sting__name muted small",
+				children: t
+			}) : null]
+		})]
+	}) : null;
+}
+//#endregion
 //#region src/table/YourTurnAttention.tsx
-function Er({ phase: e, cycleIndex: t = 0 }) {
+function Er({ phase: e, beat: t = 0 }) {
 	if (e === "hidden") return null;
-	let n = Tr();
+	let n = wr(), r = Math.min(t, 5);
 	return /* @__PURE__ */ (0, g.jsx)("div", {
 		className: [
 			"byour-turn",
 			e === "exit" ? "byour-turn--exit" : "byour-turn--pop",
-			n ? "byour-turn--reduced" : ""
+			n ? "byour-turn--reduced" : "",
+			r > 0 ? `byour-turn--urgency-${r}` : ""
 		].filter(Boolean).join(" "),
 		"data-testid": "your-turn-attention",
-		"data-your-turn-cycle": String(t + 1),
 		role: "status",
 		"aria-live": "polite",
 		"aria-label": "Your turn to play",
@@ -11872,7 +11922,7 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		h,
 		j.indexMode,
 		j.trumpDisabledIndex
-	]), oe = k.suppressTurnPlayerId || A.suppressTurnIndicator, se = re(e.phase, c), P = oe ? null : N(e.turnPlayerId, t), F = M(e.phase), ce = !!(d && e.turnPlayerId === d) && !oe, le = wr({
+	]), oe = k.suppressTurnPlayerId || A.suppressTurnIndicator, se = re(e.phase, c), P = oe ? null : N(e.turnPlayerId, t), F = M(e.phase), ce = !!(d && e.turnPlayerId === d) && !oe, le = Cr({
 		isMyTurn: ce,
 		phase: e.phase,
 		suppressTurn: !!oe,
@@ -11892,23 +11942,26 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		actionFeedbackStatus: y?.status ?? "idle",
 		trickWinnerSeatId: k.trickWinnerSeatId,
 		trickPhase: k.phase
-	}), me = (0, l.useRef)(0), he = (0, l.useRef)(0);
+	}), me = t.find((e) => e.isSelf), he = !!me?.playerId && (_ ?? []).includes(me.playerId) && pe.bourreAlerts[me.playerId] === "pulse", ge = (0, l.useRef)(0), _e = (0, l.useRef)(0);
 	(0, l.useEffect)(() => {
-		pe.feedbackErrorPulse > me.current && gt(), me.current = pe.feedbackErrorPulse;
+		pe.feedbackErrorPulse > ge.current && gt(), ge.current = pe.feedbackErrorPulse;
 	}, [pe.feedbackErrorPulse]), (0, l.useEffect)(() => {
-		pe.feedbackSuccessPulse > he.current && _t(), he.current = pe.feedbackSuccessPulse;
+		pe.feedbackSuccessPulse > _e.current && _t(), _e.current = pe.feedbackSuccessPulse;
 	}, [pe.feedbackSuccessPulse]);
-	let ge = {
+	let ve = {
 		currentPot: n.currentPot,
 		maxWinThisHand: n.maxWinThisHand,
 		limEnabled: n.limEnabled,
 		overflow: n.overflow,
 		carryIn: e.carryOverPot ?? 0
-	}, _e = (0, l.useCallback)((e) => {
+	}, ye = (0, l.useCallback)((e) => {
 		O(e, d ?? void 0);
-	}, [O, d]), ve = (0, l.useMemo)(() => ({
+	}, [O, d]), be = (0, l.useMemo)(() => ({
 		onToggleInHand: (e, n) => {
 			t.find((t) => t.playerId === e)?.isSelf && b.onToggleInHand(n);
+		},
+		onPassEnrollment: (e) => {
+			t.find((t) => t.playerId === e)?.isSelf && b.onPassEnrollment && b.onPassEnrollment();
 		},
 		onTrickDelta: (e, n) => {
 			t.find((t) => t.playerId === e)?.isSelf && b.onTrickDelta(n);
@@ -11925,14 +11978,14 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			let t = Wr([e], j.trumpDisabledIndex)[0];
 			if (t != null) return b.onPlayCard(t);
 		},
-		onReaction: _e
+		onReaction: ye
 	}), [
 		b,
-		_e,
+		ye,
 		t,
 		j.indexMode,
 		j.trumpDisabledIndex
-	]), ye = {
+	]), xe = {
 		session: e,
 		players: t,
 		potMetrics: n,
@@ -11953,11 +12006,15 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		trickPresentation: k,
 		handPresentation: A,
 		microinteractions: pe,
-		...ve
-	}, be = /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [
+		...be
+	}, Se = /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [
 		/* @__PURE__ */ (0, g.jsx)(Er, {
 			phase: le.phase,
-			cycleIndex: le.cycleIndex
+			beat: le.beat
+		}),
+		/* @__PURE__ */ (0, g.jsx)(Tr, {
+			active: he,
+			displayName: me?.displayName
 		}),
 		/* @__PURE__ */ (0, g.jsx)(Xn, {
 			events: E,
@@ -11968,7 +12025,7 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			events: E,
 			onDismiss: D
 		}),
-		S ? /* @__PURE__ */ (0, g.jsx)(Gn, { ...ye }) : /* @__PURE__ */ (0, g.jsx)(Fn, { ...ye })
+		S ? /* @__PURE__ */ (0, g.jsx)(Gn, { ...xe }) : /* @__PURE__ */ (0, g.jsx)(Fn, { ...xe })
 	] });
 	return (0, l.useEffect)(() => {
 		let e = (e) => {
@@ -12075,11 +12132,11 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 								u,
 								"s"
 							]
-						}), /* @__PURE__ */ (0, g.jsx)("button", {
+						}), b.onPassEnrollment && /* @__PURE__ */ (0, g.jsx)("button", {
 							type: "button",
-							className: "btn btn--sm btable-session__enroll-btn btable-session__enroll-btn--pass",
-							"data-testid": "pass-enroll-button",
-							onClick: () => b.onToggleInHand(!1),
+							className: "btn btn--sm btn--ghost btable-session__pass-btn",
+							"data-testid": "pass-enrollment-button",
+							onClick: () => b.onPassEnrollment?.(),
 							children: "Pass"
 						})]
 					}),
@@ -12104,10 +12161,10 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			}),
 			S ? /* @__PURE__ */ (0, g.jsx)(Yn, { children: /* @__PURE__ */ (0, g.jsx)("div", {
 				className: "btable-stage",
-				children: be
+				children: Se
 			}) }) : /* @__PURE__ */ (0, g.jsx)(Jn, { children: /* @__PURE__ */ (0, g.jsx)("div", {
 				className: "btable-stage",
-				children: be
+				children: Se
 			}) }),
 			/* @__PURE__ */ (0, g.jsx)(Qn, {
 				open: C,
@@ -12116,7 +12173,7 @@ function Yr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			o && !e.isFinal && /* @__PURE__ */ (0, g.jsx)(Rr, {
 				session: e,
 				players: t,
-				potMetrics: ge,
+				potMetrics: ve,
 				splitSharePerWinner: s,
 				currentUserId: d,
 				isCoWinner: ee,

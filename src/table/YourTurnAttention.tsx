@@ -5,13 +5,16 @@ import {
 
 interface YourTurnAttentionProps {
   phase: YourTurnAttentionPhase;
-  cycleIndex?: number;
 }
 
-export function YourTurnAttention({ phase, cycleIndex = 0 }: YourTurnAttentionProps) {
+export function YourTurnAttention({
+  phase,
+  beat = 0,
+}: YourTurnAttentionProps & { beat?: number }) {
   if (phase === "hidden") return null;
 
   const reduced = yourTurnAttentionReducedMotion();
+  const urgency = Math.min(beat, 5);
 
   return (
     <div
@@ -19,11 +22,11 @@ export function YourTurnAttention({ phase, cycleIndex = 0 }: YourTurnAttentionPr
         "byour-turn",
         phase === "exit" ? "byour-turn--exit" : "byour-turn--pop",
         reduced ? "byour-turn--reduced" : "",
+        urgency > 0 ? `byour-turn--urgency-${urgency}` : "",
       ]
         .filter(Boolean)
         .join(" ")}
       data-testid="your-turn-attention"
-      data-your-turn-cycle={String(cycleIndex + 1)}
       role="status"
       aria-live="polite"
       aria-label="Your turn to play"

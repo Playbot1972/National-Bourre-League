@@ -33,6 +33,11 @@ export function formatVersionLabel(version, buildId, channel) {
   return channel === "dev" ? `${base} dev` : base;
 }
 
+/** User-facing label — strips SemVer build metadata (+buildId) and dev suffix. */
+export function formatVersionDisplayLabel(label) {
+  return label.replace(/\+.*$/, "").trim();
+}
+
 /**
  * @param {string} a
  * @param {string} b
