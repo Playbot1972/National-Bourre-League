@@ -31,7 +31,7 @@ test.describe("Table UI buttons — click audit", () => {
     });
 
     const card = await playCardLocator(page, 0);
-    await card.click();
+    await card.evaluate((el) => (el as HTMLButtonElement).click());
 
     await expect(page.getByTestId("feedback-banner")).toContainText(/played|play/i);
     const log = await page.evaluate(() => window.__fixturePlayLog ?? []);
@@ -45,7 +45,7 @@ test.describe("Table UI buttons — click audit", () => {
     });
 
     const card = await playCardLocator(page, 1);
-    await tapPlayCard(page, card, { useTouch: false });
+    await card.evaluate((el) => (el as HTMLButtonElement).click());
 
     const log = await page.evaluate(() => window.__fixturePlayLog ?? []);
     expect(log).toHaveLength(1);

@@ -2643,6 +2643,31 @@ export async function ensureHandEnrollment(roomId, sessionId) {
   }
 }
 
+function seedAutoOptInEnrollment(enrollment, sortedIds, scoreById, optInIds, buyIn) {
+  if (!enrollment?.active || !optInIds?.size) return enrollment;
+  const ordered = enrollment.orderedPlayerIds || sortedIds;
+  const enrolledIds = [...(enrollment.enrolledIds || [])];
+  for (const id of ordered) {
+    if (!optInIds.has(id)) continue;
+    if (enrolledIds.includes(id)) continue;
+    const row = scoreById[id];
+    if (row?.out === true) continue;
+    if (!canEnrollWithBankroll(scoreBankroll(row, buyIn))) continue;
+    enrolledIds.push(id);
+  }
+  if (enrolledIds.length === (enrollment.enrolledIds || []).length) return enrollment;
+  let currentIndex = enrollment.currentIndex ?? 0;
+  while (currentIndex < ordered.length && enrolledIds.includes(ordered[currentIndex])) {
+    currentIndex += 1;
+  }
+  return {
+    ...enrollment,
+    enrolledIds,
+    currentIndex: Math.min(currentIndex, Math.max(0, ordered.length - 1)),
+    turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+  };
+}
+
 async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sessionRef = sessionDoc(roomId, sessionId);
   let sessionSnap = await getDoc(sessionRef);
@@ -2692,7 +2717,23 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sortedIds = seatPlayerIds(data, scoreSnap);
   if (sortedIds.length < 2) return;
 
-  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings);
+  const membersSnap = await getDocs(
+    query(collection(db, "roomMembers"), where("roomId", "==", roomId)),
+  );
+  const optInIds = new Set(
+    membersSnap.docs.filter((d) => d.data().tableOptIn === true).map((d) => d.data().userId),
+  );
+
+  let enrollment = seedAutoOptInEnrollment(
+    buildHandEnrollment(sortedIds, data.dealerId),
+    sortedIds,
+    scoreById,
+    optInIds,
+    buyIn,
+  );
   try {
     await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
   } catch (err) {
@@ -2775,9 +2816,34 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
 
   const enrollment = getSessionEnrollment(sessionData);
   if (enrollment?.active) {
-    if (!inHand) throw new Error("Wait for your turn or let the timer run out");
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     if (playerId !== currentId) throw new Error("Not your turn to join yet");
+
+    if (!inHand) {
+      if ((enrollment.declinedIds || []).includes(playerId)) return;
+      await runEnrollmentStepTransaction(
+        roomId,
+        sessionId,
+        (data) => {
+          const activeEnrollment = getSessionEnrollment(data);
+          if (!activeEnrollment?.active) return null;
+          const turnId = activeEnrollment.orderedPlayerIds[activeEnrollment.currentIndex];
+          if (playerId !== turnId) return null;
+          if ((activeEnrollment.declinedIds || []).includes(playerId)) return null;
+          const enrolledIds = [...(activeEnrollment.enrolledIds || [])];
+          const declinedIds = [...(activeEnrollment.declinedIds || []), playerId];
+          return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
+            dealerId: data.dealerId,
+            sortedPlayerIds,
+            seed: Date.now(),
+            dealingRule,
+          });
+        },
+        { requirePatch: true },
+      );
+      return;
+    }
+
     if ((enrollment.enrolledIds || []).includes(playerId)) return;
 
     await runEnrollmentStepTransaction(
@@ -2800,6 +2866,14 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
       },
       { requirePatch: true },
     );
+
+    if (!isRobotPlayerId(playerId)) {
+      await setDoc(
+        doc(db, "roomMembers", memberId(roomId, playerId)),
+        { tableOptIn: true, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+    }
     return;
   }
 

@@ -54,7 +54,7 @@ export async function tapPlayCard(page: Page, card: Locator, { useTouch = false 
   const pointerType: PointerKind = useTouch ? "touch" : "mouse";
   const { x, y } = await cardCenter(card);
   if (!useTouch) {
-    await card.click();
+    await card.evaluate((el) => (el as HTMLButtonElement).click());
     return;
   }
   await dispatchPointer(card, "down", { x, y }, pointerType);

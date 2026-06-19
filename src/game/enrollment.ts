@@ -156,6 +156,29 @@ export function applyEnrollmentTimeout(
   );
 }
 
+export function applyEnrollmentPass(
+  enrollment: HandEnrollment,
+  playerId: string,
+  dealContext: DealCompletionContext | null,
+  nowMs = Date.now(),
+): EnrollmentStepResult {
+  const currentId = currentEnrollmentPlayer(enrollment);
+  if (currentId !== playerId) {
+    throw new Error("Not your turn to pass yet");
+  }
+  if ((enrollment.enrolledIds || []).includes(playerId)) {
+    throw new Error("Already joined this hand");
+  }
+  const declinedIds = [...enrollment.declinedIds, playerId];
+  return enrollmentPatchAfterStep(
+    enrollment,
+    enrollment.enrolledIds,
+    declinedIds,
+    dealContext,
+    nowMs,
+  );
+}
+
 /** Run enrollment until deal or restart; `shouldJoin(playerId)` returns true to tap I'm in. */
 export function runEnrollmentPhase(
   sortedPlayerIds: string[],

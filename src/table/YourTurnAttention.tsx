@@ -5,9 +5,10 @@ import {
 
 interface YourTurnAttentionProps {
   phase: YourTurnAttentionPhase;
+  cycleIndex?: number;
 }
 
-export function YourTurnAttention({ phase }: YourTurnAttentionProps) {
+export function YourTurnAttention({ phase, cycleIndex = 0 }: YourTurnAttentionProps) {
   if (phase === "hidden") return null;
 
   const reduced = yourTurnAttentionReducedMotion();
@@ -22,6 +23,7 @@ export function YourTurnAttention({ phase }: YourTurnAttentionProps) {
         .filter(Boolean)
         .join(" ")}
       data-testid="your-turn-attention"
+      data-your-turn-cycle={String(cycleIndex + 1)}
       role="status"
       aria-live="polite"
       aria-label="Your turn to play"

@@ -48,7 +48,7 @@ test.describe("Social UI buttons", () => {
   });
 
   test("protected nav opens sign-in when logged out", async ({ page }) => {
-    await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
+    await page.getByRole("link", { name: "Rooms", exact: true }).click();
     await expect(page.locator("#auth-modal")).toBeVisible();
     await expect(page.locator("#view-home")).toBeVisible();
 
@@ -65,7 +65,7 @@ test.describe("Social UI buttons", () => {
   });
 
   test("create room control stays hidden until signed in", async ({ page }) => {
-    await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
+    await page.getByRole("link", { name: "Rooms", exact: true }).click();
     await expect(page.locator("#auth-modal")).toBeVisible();
     await expect(page.locator("#view-rooms")).toBeHidden();
     await expect(page.locator("#create-room")).toBeHidden();

@@ -1,5 +1,12 @@
 import { test, expect } from "@playwright/test";
 
+async function expectedSeatCount(page: import("@playwright/test").Page, players: number): Promise<number> {
+  const usesMobileTable = await page.evaluate(() =>
+    Boolean(document.querySelector(".btable-mobile-wrap")),
+  );
+  return usesMobileTable ? Math.max(1, players - 1) : players;
+}
+
 async function horizontalOverflow(page: import("@playwright/test").Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 }
@@ -37,7 +44,7 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
         });
 
         const seats = page.locator(".bseat");
-        await expect(seats).toHaveCount(players);
+        await expect(seats).toHaveCount(await expectedSeatCount(page, players));
 
         if (bots > 0) {
           await expect(page.locator(".bseat__robot-tag")).toHaveCount(bots);
@@ -66,15 +73,20 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
         expect(avatarsInView).toBe(true);
 
         if (phase === "enrollment") {
-          await expect(page.locator(".bseat__timer-ring")).toBeVisible();
-          await expect(page.locator(".btable-session__enroll-btn")).toBeVisible();
-          await expect(page.locator(".btable-session__enroll-btn")).toContainText("I'm in");
+          const usesMobileTable = await page.evaluate(() =>
+            Boolean(document.querySelector(".btable-mobile-wrap")),
+          );
+          if (!usesMobileTable) {
+            await expect(page.locator(".bseat__timer-ring")).toBeVisible();
+          }
+          await expect(page.getByTestId("join-button")).toBeVisible();
+          await expect(page.getByTestId("join-button")).toContainText("I'm in");
         }
 
         if (phase === "draw" || phase === "play") {
-          await expect(page.locator(".btable-hero")).toBeVisible();
-          await expect(page.locator(".center-play")).toBeVisible();
-          await expect(page.locator(".deck-stack")).toBeVisible();
+          await expect(page.getByTestId("hero-hand")).toBeVisible();
+          await expect(page.getByTestId("pot-display")).toBeVisible();
+          await expect(page.getByTestId("table-felt")).toBeVisible();
         }
       });
     }
@@ -84,10 +96,11 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
 test.describe("Enrollment timer ticks", () => {
   test("countdown decreases over 2 seconds", async ({ page }) => {
     await page.goto("/e2e-fixtures/table-session?players=4&bots=2&phase=enrollment&tick=1");
-    await expect(page.locator(".bseat__enroll-timer")).toBeVisible();
-    const first = await page.locator(".bseat__enroll-timer").first().textContent();
+    const timerLocator = page.locator(".bseat__enroll-timer").or(page.getByTestId("join-button"));
+    await expect(timerLocator.first()).toBeVisible();
+    const first = await timerLocator.first().textContent();
     await page.waitForTimeout(2100);
-    const second = await page.locator(".bseat__enroll-timer").first().textContent();
+    const second = await timerLocator.first().textContent();
     expect(first).not.toEqual(second);
     const firstSec = parseInt(first?.match(/(\d+)s/)?.[1] ?? "99", 10);
     const secondSec = parseInt(second?.match(/(\d+)s/)?.[1] ?? "0", 10);

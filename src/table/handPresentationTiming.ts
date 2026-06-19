@@ -17,6 +17,9 @@ export const DEAL_FAN_MS = 520;
 /** Dealer upcard / trump reveal hold (500–700 ms). */
 export const TRUMP_REVEAL_HOLD_MS = 600;
 
+/** Trump card slides from reveal pose into the dealer fan. */
+export const TRUMP_MERGE_ANIM_MS = 650;
+
 /** Enrollment seat pulse when a player joins or passes. */
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
 
@@ -46,6 +49,7 @@ export type HandPresentationPhase =
   | "handReset"
   | "ante"
   | "trumpReveal"
+  | "trumpMerge"
   | "enrollment"
   | "drawPlayer"
   | "drawReady"
@@ -60,6 +64,7 @@ export interface HandTimingScale {
   dealCardStaggerMs: number;
   dealFanMs: number;
   trumpRevealHoldMs: number;
+  trumpMergeAnimMs: number;
   enrollmentSeatPulseMs: number;
   drawDiscardMs: number;
   drawReplaceMs: number;
@@ -77,6 +82,7 @@ export function handTimingScale(reducedMotion = prefersReducedMotion()): HandTim
     dealCardStaggerMs: round(DEAL_CARD_STAGGER_MS),
     dealFanMs: round(DEAL_FAN_MS),
     trumpRevealHoldMs: round(TRUMP_REVEAL_HOLD_MS),
+    trumpMergeAnimMs: round(TRUMP_MERGE_ANIM_MS),
     enrollmentSeatPulseMs: round(ENROLLMENT_SEAT_PULSE_MS),
     drawDiscardMs: round(DRAW_DISCARD_MS),
     drawReplaceMs: round(DRAW_REPLACE_MS),

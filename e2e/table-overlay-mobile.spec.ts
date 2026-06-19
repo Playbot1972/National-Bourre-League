@@ -52,7 +52,11 @@ test.describe("Mobile gameplay overlay layout", () => {
 
       await expectMobileOverlayGameplayFits(page, { portrait: true });
       expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
-      expect(await isOverlayControlInViewport(page, "hero-hand")).toBe(true);
+      if (phase === "enrollment") {
+        expect(await isOverlayControlInViewport(page, "join-button")).toBe(true);
+      } else {
+        expect(await isOverlayControlInViewport(page, "hero-hand")).toBe(true);
+      }
       expect(await isOverlayControlInViewport(page, "settings-button")).toBe(true);
     });
   }

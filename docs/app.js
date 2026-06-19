@@ -2515,6 +2515,9 @@ function buildTableSessionProps(s) {
       ? (lastHand.bourreIds || []).filter(Boolean)
       : [];
 
+  const memberRow = myUid ? currentMembers.find((m) => m.userId === myUid) : null;
+  const roomTableOptIn = memberRow?.tableOptIn === true;
+
   return {
     session: {
       sessionId: s.id,
@@ -2528,6 +2531,7 @@ function buildTableSessionProps(s) {
       pendingCoWinSettlement: s.pendingCoWinSettlement,
       handEnrollment: enrollmentActive ? enrollment : null,
       phase: handPhase,
+      trumpHolderId: currentHand?.trumpHolderId ?? dealerId,
       trumpSuit,
       trumpUpcard,
       turnPlayerId: currentHand?.turnPlayerId ?? null,
@@ -2598,7 +2602,8 @@ function buildTableSessionProps(s) {
           !isFinal &&
           sc.playerId === currentEnrollmentPlayerId &&
           scoreBankroll(sc, sessionBuyIn) > 0 &&
-          sc.out !== true,
+          sc.out !== true &&
+          !roomTableOptIn,
         canEditTricks:
           !cardsDealt &&
           !isFinal &&
@@ -2641,14 +2646,20 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
           return;
         }
-        setTableActionFeedback({ status: "loading", message: "Joining hand…" });
+        setTableActionFeedback({
+          status: "loading",
+          message: inHand ? "Joining hand…" : "Passing this hand…",
+        });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
           inHand,
           actorId: session.uid,
         })
           .then(() => {
-            setTableActionFeedback({ status: "success", message: "You're in this hand." });
+            setTableActionFeedback({
+              status: "success",
+              message: inHand ? "You're in this hand." : "You passed this hand.",
+            });
           })
           .catch((e) => {
             const message = e.message || "Could not update hand participation";

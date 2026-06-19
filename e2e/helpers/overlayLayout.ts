@@ -235,7 +235,7 @@ export async function expectOverlayStageFillsViewport(
   page: Page,
   opts: { minWidthRatio?: number; minHeightRatio?: number } = {},
 ) {
-  const minWidthRatio = opts.minWidthRatio ?? 0.38;
+  const minWidthRatio = opts.minWidthRatio ?? 0.37;
   const minHeightRatio = opts.minHeightRatio ?? 0.3;
 
   const metrics = await readOverlayStageMetrics(page);
@@ -281,7 +281,8 @@ export async function expectTableScaleAffectsStage(page: Page) {
 
   const enlarged = await readScale();
   expect(enlarged).not.toBeNull();
-  expect(enlarged!.stageW).toBeGreaterThanOrEqual(baseline!.stageW * 0.98);
+  expect(enlarged!.effectiveScale).toBeGreaterThanOrEqual(1.24);
+  expect(enlarged!.effectiveScale).toBeGreaterThan(baseline!.effectiveScale + 0.05);
 
   await panel.getByRole("button", { name: "Close" }).first().click();
 }

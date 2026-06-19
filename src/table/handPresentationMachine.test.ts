@@ -37,6 +37,8 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
     store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpMerge");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
   });
 
@@ -108,6 +110,7 @@ describe("handPresentationMachine", () => {
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 500 && t.trumpRevealHoldMs <= 700);
+    assert.ok(t.trumpMergeAnimMs >= 500 && t.trumpMergeAnimMs <= 700);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
 });
