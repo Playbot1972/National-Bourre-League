@@ -23,7 +23,7 @@ const baseSnap = snapshotFromSession({
 });
 
 describe("handPresentationMachine", () => {
-  it("runs ante then trump reveal when enrollment closes into draw", () => {
+  it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: null,
@@ -37,7 +37,12 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
     store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpMerge");
+    assert.equal(store.trumpMergeActive, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpMergeActive, false);
   });
 
   it("animates each draw completion before advancing display list", () => {
@@ -107,7 +112,8 @@ describe("handPresentationMachine", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
-    assert.ok(t.trumpRevealHoldMs >= 500 && t.trumpRevealHoldMs <= 700);
+    assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
+    assert.ok(t.trumpMergeAnimMs >= 500 && t.trumpMergeAnimMs <= 800);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
 });

@@ -31,6 +31,9 @@ interface HeroHandProps {
   dealStaggerMs?: number;
   drawAnimSubPhase?: "discard" | "receive" | "done" | null;
   currentUserId?: string | null;
+  revealedTrumpIndex?: number | null;
+  trumpMergeActive?: boolean;
+  trumpDisabledIndex?: number | null;
 }
 
 function heroShellClass(
@@ -79,6 +82,9 @@ export function HeroHand({
   dealStaggerMs = 120,
   drawAnimSubPhase = null,
   currentUserId = null,
+  revealedTrumpIndex = null,
+  trumpMergeActive = false,
+  trumpDisabledIndex = null,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -93,6 +99,14 @@ export function HeroHand({
   const playLockRef = useRef(false);
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
+
+  const slotClassFor = useCallback(
+    (_: Card, i: number) => {
+      if (revealedTrumpIndex !== i) return "";
+      return trumpMergeActive ? "hand__slot--trump-merge-target" : "hand__slot--trump-revealed";
+    },
+    [revealedTrumpIndex, trumpMergeActive],
+  );
 
   useEffect(() => {
     if (!dealtPhase || cards.length === 0) return;
@@ -127,7 +141,7 @@ export function HeroHand({
 
   const toggleDrawIndex = useCallback(
     (index: number) => {
-      if (busy) return;
+      if (busy || trumpDisabledIndex === index) return;
       setLocalError(null);
       setSelectedDraw((prev) => {
         const next = new Set(prev);
@@ -137,7 +151,7 @@ export function HeroHand({
         return next;
       });
     },
-    [busy, maxDrawDiscards],
+    [busy, maxDrawDiscards, trumpDisabledIndex],
   );
 
   const triggerPlay = useCallback(
@@ -260,6 +274,8 @@ export function HeroHand({
   }
 
   const stateFor = (_: Card, i: number): CardState => {
+    if (revealedTrumpIndex === i) return "trump";
+    if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
     if (playingIndex === i) return "selected";
     if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
     if (inPlayPhase && selectedPlay === i) return "selected";
@@ -281,6 +297,8 @@ export function HeroHand({
     <div
       className={heroShellClass(settings, className, [
         dealing ? "btable-hero--dealing" : "",
+        revealedTrumpIndex !== null ? "btable-hero--trump-reveal" : "",
+        trumpMergeActive ? "btable-hero--trump-merge" : "",
         inDrawPhase && isMyTurn && !drawCompleted ? "btable-hero--draw-select" : "",
         drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
         drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
@@ -301,6 +319,7 @@ export function HeroHand({
           size={cardSize}
           fan
           stateFor={stateFor}
+          slotClassFor={slotClassFor}
           peekIndex={peekIndex}
           onCardPeek={enablePeek ? setPeekIndex : undefined}
           cardTestId={inPlayPhase && isMyTurn ? "play-button" : undefined}
