@@ -878,6 +878,33 @@
   margin-left: -11px;
 }
 
+.bseat--trump-reveal .bseat__hole-card--trump-revealed {
+  z-index: 4;
+}
+
+.bseat--trump-reveal .bseat__hole-card--trump-revealed .pcard--trump {
+  box-shadow:
+    0 0 0 1px rgba(244, 213, 141, 0.75),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.bseat--trump-merge .bseat__hole-card--trump-merge {
+  z-index: 5;
+  animation: bseat-trump-merge 650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes bseat-trump-merge {
+  0% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(-14px) scale(1.1);
+  }
+  70% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(1px) scale(1.02);
+  }
+  100% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(0) scale(1);
+  }
+}
+
 .bseat__core {
   position: absolute;
   left: 0;

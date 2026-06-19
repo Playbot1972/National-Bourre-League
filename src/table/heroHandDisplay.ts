@@ -1,4 +1,5 @@
 import type { SerializedCard } from "./types";
+import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 
 export interface HeroHandDisplayInput {
   rawHeroCards: SerializedCard[];
@@ -107,6 +108,13 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
   }
 
   const { trumpRevealActive, trumpMergeActive, trumpMergedIntoHand } = input.handPresentation;
+  const holderPresentation = resolveTrumpHolderPresentation({
+    trumpHolderId: input.trumpHolderId,
+    trumpUpcard: input.trumpUpcard,
+    trumpSuit: input.trumpSuit,
+    phase: input.phase,
+    handPresentation: input.handPresentation,
+  });
   const rawCards =
     input.rawHeroCards.length > 0 ? input.rawHeroCards : input.effectiveHeroCards;
   const showRevealedTrump = trumpRevealActive || trumpMergeActive;
@@ -116,11 +124,8 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
     revealedTrumpIndex: showRevealedTrump ? trumpIndex : null,
     trumpMergeActive,
     trumpMergedIntoHand,
-    hideCenterTrumpForHolder: true,
-    showTrumpSuitReminder:
-      trumpMergedIntoHand &&
-      hasTrumpOnTable &&
-      (input.phase === "draw" || input.phase === "play"),
+    hideCenterTrumpForHolder: holderPresentation.hideCenterTrump,
+    showTrumpSuitReminder: holderPresentation.showTrumpSuitReminder,
     trumpDisabledIndex: trumpIndex,
     indexMode: "display",
   };

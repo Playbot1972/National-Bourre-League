@@ -2,6 +2,7 @@ import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
+import type { Rank, Suit } from "../types";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -70,6 +71,7 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
   const bourrePressure = Boolean(player.bourrePressure);
   const bourrePressureSelf = bourrePressure && player.isSelf;
+  const seatTrumpRevealed = player.revealedTrumpIndex != null && player.revealedTrumpUpcard;
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -110,6 +112,8 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
         bourrePressureSelf ? "bseat--bourre-pressure-self" : "",
         player.bankrollTick === "up" ? "bseat--bankroll-up" : "",
         player.bankrollTick === "down" ? "bseat--bankroll-down" : "",
+        seatTrumpRevealed ? "bseat--trump-reveal" : "",
+        player.seatTrumpMergeActive ? "bseat--trump-merge" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -122,11 +126,38 @@ export function Seat({ player, region, style, onToggleInHand, onTrickDelta, onRe
             aria-label={`${cardsHeld} cards in hand`}
             data-trick-play-origin={player.playerId}
           >
-            {Array.from({ length: cardsHeld }, (_, i) => (
-              <div key={i} className="bseat__hole-card" style={{ ["--hole-i" as string]: i }}>
-                <PlayingCard faceDown size="xs" />
-              </div>
-            ))}
+            {Array.from({ length: cardsHeld }, (_, i) => {
+              const isTrumpSlot =
+                player.revealedTrumpIndex === i && player.revealedTrumpUpcard;
+              return (
+                <div
+                  key={i}
+                  className={[
+                    "bseat__hole-card",
+                    isTrumpSlot ? "bseat__hole-card--trump-revealed" : "",
+                    isTrumpSlot && player.seatTrumpMergeActive
+                      ? "bseat__hole-card--trump-merge"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  style={{ ["--hole-i" as string]: i }}
+                >
+                  {isTrumpSlot ? (
+                    <PlayingCard
+                      card={{
+                        rank: player.revealedTrumpUpcard!.rank as Rank,
+                        suit: player.revealedTrumpUpcard!.suit as Suit,
+                      }}
+                      size="xs"
+                      state="trump"
+                    />
+                  ) : (
+                    <PlayingCard faceDown size="xs" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
