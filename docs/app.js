@@ -2544,6 +2544,7 @@ function buildTableSessionProps(s) {
       cinchEnabled: currentHand?.cinchEnabled === true,
     },
     heroCards: heroCardList,
+    rawHeroCards: privateHeroCards,
     privateHandReady: privateHandSnapSeen,
     handComplete,
     legalPlayIndices,

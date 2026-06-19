@@ -14,8 +14,8 @@ export const DEAL_CARD_STAGGER_MS = 120;
 /** Full deal fan duration (matches bdeal-in). */
 export const DEAL_FAN_MS = 520;
 
-/** Dealer upcard / trump reveal hold (500–700 ms). */
-export const TRUMP_REVEAL_HOLD_MS = 600;
+/** Dealer upcard / trump reveal hold (~5 s so the suit is readable). */
+export const TRUMP_REVEAL_HOLD_MS = 5000;
 
 /** Trump card slides from reveal pose into the dealer fan. */
 export const TRUMP_MERGE_ANIM_MS = 650;
