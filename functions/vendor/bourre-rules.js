@@ -94,13 +94,16 @@ export function settleHandDeltas({
   limEnabled = false,
   carryIn = 0,
   stakeForPlayer,
+  antePot: antePotOverride,
 }) {
   const limOn = limEnabled === true;
   const potState = computeHandPotState({
     anteAmount,
     limEnabled: limOn,
     carryIn,
-    antePot: participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0),
+    antePot:
+      antePotOverride ??
+      participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0),
   });
   const { currentPot, winnerTake, bourrePenalty, overflow } = potState;
   const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
@@ -192,6 +195,57 @@ export function applyBankrollDelta(bankroll, delta) {
 /** True when a player may opt into the next hand. */
 export function canEnrollWithBankroll(bankroll) {
   return Math.max(0, Number(bankroll) || 0) > 0;
+}
+
+/**
+ * Collect per-hand antes when a deal begins. Insufficient stacks contribute
+ * remaining chips, mark the player out, and exclude them from the deal.
+ * @returns {{ bankrolls: Record<string, number>, postedAntes: Record<string, number>, outIds: string[], activeParticipants: string[] }}
+ */
+export function collectHandAntes({
+  participants,
+  scoreById,
+  buyInFallback = 0,
+  stakeForPlayer,
+}) {
+  const bankrolls = {};
+  const postedAntes = {};
+  const outIds = [];
+  const activeParticipants = [];
+
+  for (const pid of participants) {
+    const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
+    const br = scoreBankroll(scoreById[pid], buyInFallback);
+
+    if (stake <= 0) {
+      bankrolls[pid] = br;
+      postedAntes[pid] = 0;
+      activeParticipants.push(pid);
+      continue;
+    }
+
+    const result = applyBankrollDelta(br, -stake);
+    bankrolls[pid] = result.newBankroll;
+    postedAntes[pid] = Math.abs(result.appliedDelta);
+
+    if (result.busted || result.newBankroll <= 0) {
+      outIds.push(pid);
+      continue;
+    }
+    activeParticipants.push(pid);
+  }
+
+  return {
+    bankrolls,
+    postedAntes,
+    outIds: [...new Set(outIds)],
+    activeParticipants,
+  };
+}
+
+/** Stake already posted at deal time — settlement must not deduct again. */
+export function anteAlreadyPosted(postedAntes, playerId) {
+  return postedAntes != null && Object.prototype.hasOwnProperty.call(postedAntes, playerId);
 }
 
 /** Amount not collected when a loss was clamped to remaining stack. */

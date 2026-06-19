@@ -84,6 +84,8 @@ import {
   applySolventSettlement,
   scoreBankroll,
   canEnrollWithBankroll,
+  collectHandAntes,
+  anteAlreadyPosted,
   resolveSessionBuyIn,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
@@ -438,6 +440,8 @@ export {
   scoreBankroll,
   applyBankrollDelta,
   canEnrollWithBankroll,
+  collectHandAntes,
+  anteAlreadyPosted,
   applySolventSettlement,
 } from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
@@ -812,6 +816,16 @@ export function seatPlayerIds(sessionData, scoreSnap) {
   return [...fromSession, ...extras];
 }
 
+/** Seats eligible for a new hand — excludes broke/out players. */
+export function eligibleSeatPlayerIds(sessionData, scoreSnap, buyIn) {
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  return seatPlayerIds(sessionData, scoreSnap).filter((id) => {
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+}
+
 /** Clockwise order starting with the first seat after the dealer. */
 export function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
@@ -879,7 +893,15 @@ function writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, 
   });
 }
 
-function applyEnrollmentDealInTransaction(tx, ref, patch) {
+function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
+  if (patch.scorePatches) {
+    for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
+      tx.update(scoreDoc(roomId, sessionId, playerId), {
+        ...scorePatch,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
   tx.update(ref, {
     [LIVE_ENROLLMENT_FIELD]: {
       active: false,
@@ -909,9 +931,9 @@ async function syncDealPublicHandBestEffort(roomId, sessionId, publicHand) {
   }
 }
 
-function applyEnrollmentStepLegacy(tx, ref, patch) {
+function applyEnrollmentStepLegacy(tx, ref, patch, roomId, sessionId) {
   if (patch.privateHandsByPlayer) {
-    applyEnrollmentDealInTransaction(tx, ref, patch);
+    applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId);
     return;
   }
   tx.update(ref, {
@@ -924,13 +946,11 @@ function applyEnrollmentStepLegacy(tx, ref, patch) {
 
 function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode = "live") {
   if (mode === "legacy") {
-    applyEnrollmentStepLegacy(tx, ref, patch);
+    applyEnrollmentStepLegacy(tx, ref, patch, roomId, sessionId);
     return;
   }
   if (patch.privateHandsByPlayer) {
-    // Embed private hands on the session (liveEnrollment is client-writable on prod rules).
-    // Subcollection privateHands requires a rules deploy; sync best-effort after commit.
-    applyEnrollmentDealInTransaction(tx, ref, patch);
+    applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId);
     return;
   }
   tx.update(ref, {
@@ -994,8 +1014,13 @@ function writePrivateHandsBestEffort(roomId, sessionId, privateHandsByPlayer) {
   });
 }
 
-function buildHandEnrollment(sortedPlayerIds, dealerId) {
-  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, buyIn = 1) {
+  const activeIds = sortedPlayerIds.filter((id) => {
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, activeIds);
   return {
     active: true,
     orderedPlayerIds,
@@ -1004,6 +1029,26 @@ function buildHandEnrollment(sortedPlayerIds, dealerId) {
     enrolledIds: [],
     declinedIds: [],
   };
+}
+
+function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, sessionStake, dealingRule) {
+  const optIn = sessionData?.tableOptInIds || [];
+  if (!optIn.length) return null;
+  const eligible = sortedIds.filter((id) => {
+    if (!optIn.includes(id)) return false;
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+  if (eligible.length < 2) return null;
+  return buildDealCompletionPatch(
+    sessionData.dealerId,
+    eligible,
+    sortedIds,
+    Date.now(),
+    dealingRule,
+    { scoreById, sessionStake, buyIn },
+  );
 }
 
 function enrollmentFieldsForCreate(_sortedIds, _dealerId) {
@@ -1113,24 +1158,68 @@ function logHandLifecycleTransition(transition) {
   }
 }
 
-function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, dealingRule) {
+function buildDealCompletionPatch(
+  dealerId,
+  enrolledIds,
+  sortedPlayerIds,
+  seed,
+  dealingRule,
+  dealContextExtras = {},
+) {
+  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContextExtras;
+  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
+  const collected = collectHandAntes({
+    participants: enrolledIds,
+    scoreById,
+    buyInFallback: buyIn,
+    stakeForPlayer: stakeFor,
+  });
+  const dealIds = collected.activeParticipants;
+  if (dealIds.length < 2) {
+    return {
+      handEnrollment: buildHandEnrollment(sortedPlayerIds, dealerId, scoreById, buyIn),
+      currentHand: emptyPreDealHand(),
+      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    };
+  }
+
   const deal = dealInitialHand({
     dealerId,
-    participantIds: enrolledIds,
+    participantIds: dealIds,
     sortedPlayerIds,
     seed: seed ?? Date.now(),
   });
   const { publicHand, privateHandsByPlayer } = serializeHandState(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
-    maxDrawDiscards: maxDrawDiscards(enrolledIds.length, dealingRule),
+    maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
     handEnrollment: deleteField(),
-    currentHand: publicHand,
+    currentHand: {
+      ...publicHand,
+      postedAntes: collected.postedAntes,
+    },
     privateHandsByPlayer,
     sortedPlayerIds,
+    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
   };
+}
+
+function buildScorePatchesFromAnteCollection(collected, dealIds) {
+  const patches = {};
+  const touched = new Set([...collected.outIds, ...dealIds]);
+  for (const pid of touched) {
+    if (collected.bankrolls[pid] == null) continue;
+    const patch = { bankroll: collected.bankrolls[pid] };
+    if (collected.outIds.includes(pid)) {
+      patch.out = true;
+    } else if (dealIds.includes(pid)) {
+      patch.out = deleteField();
+    }
+    patches[pid] = patch;
+  }
+  return patches;
 }
 
 function canActForPlayer(playerId, actorId) {
@@ -1531,6 +1620,11 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
     dealContext.sortedPlayerIds,
     dealContext.seed,
     dealContext.dealingRule,
+    {
+      scoreById: dealContext.scoreById ?? {},
+      sessionStake: dealContext.sessionStake ?? 1,
+      buyIn: dealContext.buyIn ?? 1,
+    },
   );
 }
 
@@ -1878,6 +1972,15 @@ async function recordHandClient(
     if (!scoreById[pid]) throw new Error("Unknown player in hand");
   }
 
+  const postedAntes = getSessionCurrentHand(sessionData)?.postedAntes ?? {};
+  const antePot = participants.reduce(
+    (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, stake)),
+    0,
+  );
+  const stakeForPot = (pid) => postedAntes[pid] ?? playerHandStake(scoreById, pid, stake);
+  const stakeForSettlement = (pid) =>
+    anteAlreadyPosted(postedAntes, pid) ? 0 : playerHandStake(scoreById, pid, stake);
+
   const handSettlement = settleHandDeltas({
     mode,
     winners,
@@ -1886,7 +1989,8 @@ async function recordHandClient(
     anteAmount: stake,
     limEnabled,
     carryIn,
-    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+    antePot,
+    stakeForPlayer: stakeForPot,
   });
 
   const {
@@ -1912,7 +2016,7 @@ async function recordHandClient(
     scoreById,
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
-    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+    stakeForPlayer: stakeForSettlement,
   });
 
   const deltas = solvent.appliedDeltas;
@@ -2692,7 +2796,31 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sortedIds = seatPlayerIds(data, scoreSnap);
   if (sortedIds.length < 2) return;
 
-  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+  const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings);
+  const sessionStake = data.handStake ?? 1;
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+
+  const autoPatch = tryAutoEnrollmentDeal(
+    data,
+    sortedIds,
+    scoreById,
+    buyIn,
+    sessionStake,
+    dealingRule,
+  );
+  if (autoPatch?.privateHandsByPlayer) {
+    await runEnrollmentStepTransaction(roomId, sessionId, () => autoPatch, { requirePatch: true });
+    logHandLifecycleTransition({
+      from: "handoffToNextDeal",
+      to: "deal",
+      reason: "auto-enrolled table members with confirmed session opt-in",
+    });
+    return;
+  }
+
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId, scoreById, buyIn);
   try {
     await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
   } catch (err) {
@@ -2718,12 +2846,16 @@ export async function timeoutHandEnrollmentTurn(roomId, sessionId) {
 async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const sortedPlayerIds = seatPlayerIds(sessionSnap.data(), scoreSnap);
+  const sessionData = sessionSnap.data();
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+  const sessionStake = sessionData.handStake ?? 1;
 
-  await runEnrollmentStepTransaction(roomId, sessionId, (sessionData) => {
-    const enrollment = getSessionEnrollment(sessionData);
+  await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
+    const enrollment = getSessionEnrollment(data);
     if (!enrollment?.active) return null;
     if (Date.now() < enrollmentDeadlineMs(enrollment)) return null;
 
@@ -2731,10 +2863,13 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
     return enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
-      dealerId: sessionData.dealerId,
+      dealerId: data.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
+      scoreById,
+      buyIn,
+      sessionStake,
     });
   });
 }
@@ -2772,11 +2907,39 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
   }
 
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+  const sessionStake = sessionData.handStake ?? 1;
 
   const enrollment = getSessionEnrollment(sessionData);
   if (enrollment?.active) {
-    if (!inHand) throw new Error("Wait for your turn or let the timer run out");
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
+    if (!inHand) {
+      if (playerId !== currentId) throw new Error("Not your turn to pass yet");
+      if ((enrollment.declinedIds || []).includes(playerId)) return;
+      await runEnrollmentStepTransaction(
+        roomId,
+        sessionId,
+        (data) => {
+          const activeEnrollment = getSessionEnrollment(data);
+          if (!activeEnrollment?.active) return null;
+          const turnId = activeEnrollment.orderedPlayerIds[activeEnrollment.currentIndex];
+          if (playerId !== turnId) return null;
+          if ((activeEnrollment.declinedIds || []).includes(playerId)) return null;
+          const enrolledIds = [...(activeEnrollment.enrolledIds || [])];
+          const declinedIds = [...(activeEnrollment.declinedIds || []), playerId];
+          return enrollmentPatchAfterStep(activeEnrollment, enrolledIds, declinedIds, {
+            dealerId: data.dealerId,
+            sortedPlayerIds,
+            seed: Date.now(),
+            dealingRule,
+            scoreById,
+            buyIn,
+            sessionStake,
+          });
+        },
+        { requirePatch: true },
+      );
+      return;
+    }
     if (playerId !== currentId) throw new Error("Not your turn to join yet");
     if ((enrollment.enrolledIds || []).includes(playerId)) return;
 
@@ -2796,10 +2959,17 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
           sortedPlayerIds,
           seed: Date.now(),
           dealingRule,
+          scoreById,
+          buyIn,
+          sessionStake,
         });
       },
       { requirePatch: true },
     );
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      tableOptInIds: arrayUnion(playerId),
+      updatedAt: serverTimestamp(),
+    });
     return;
   }
 

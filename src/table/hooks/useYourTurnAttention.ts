@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../trickTiming";
 
-/** Delay before the local "Your Turn" attention cue appears. */
-export const YOUR_TURN_ATTENTION_MS = 15_000;
+/** Delay before the first local "Your Turn" attention cue. */
+export const YOUR_TURN_FIRST_MS = 7_000;
+
+/** Escalating reminder intervals after the first cue (6s, 5s, 4s, 3s, 2s). */
+export const YOUR_TURN_REPEAT_MS = [6_000, 5_000, 4_000, 3_000, 2_000] as const;
 
 /** Pop-in scale animation. */
 export const YOUR_TURN_POP_MS = 380;
@@ -22,11 +25,13 @@ export function useYourTurnAttention(input: {
   turnPlayerId: string | null | undefined;
   trickNumber: number;
   trickPlaysCount: number;
-}): YourTurnAttentionPhase {
+}): { phase: YourTurnAttentionPhase; beat: number } {
   const [attentionPhase, setAttentionPhase] = useState<YourTurnAttentionPhase>("hidden");
+  const [beat, setBeat] = useState(0);
   const delayTimerRef = useRef<number | null>(null);
   const exitTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
+  const repeatIndexRef = useRef(0);
 
   const activityKey = [
     input.turnPlayerId ?? "",
@@ -50,9 +55,20 @@ export function useYourTurnAttention(input: {
     }
   };
 
+  const scheduleNextReminder = () => {
+    const idx = repeatIndexRef.current;
+    const delay = idx === 0 ? YOUR_TURN_FIRST_MS : YOUR_TURN_REPEAT_MS[Math.min(idx - 1, YOUR_TURN_REPEAT_MS.length - 1)];
+    delayTimerRef.current = window.setTimeout(() => {
+      delayTimerRef.current = null;
+      setBeat(idx);
+      setAttentionPhase("pop");
+      repeatIndexRef.current = idx + 1;
+    }, delay);
+  };
+
   useEffect(() => {
     clearTimers();
-    setAttentionPhase("hidden");
+    repeatIndexRef.current = 0;
 
     const active =
       input.isMyTurn &&
@@ -60,14 +76,19 @@ export function useYourTurnAttention(input: {
       !input.suppressTurn &&
       Boolean(input.turnPlayerId);
 
-    if (!active) return;
+    const bootTimer = window.setTimeout(() => {
+      if (!active) {
+        setAttentionPhase("hidden");
+        setBeat(0);
+        return;
+      }
+      scheduleNextReminder();
+    }, 0);
 
-    delayTimerRef.current = window.setTimeout(() => {
-      delayTimerRef.current = null;
-      setAttentionPhase("pop");
-    }, YOUR_TURN_ATTENTION_MS);
-
-    return clearTimers;
+    return () => {
+      window.clearTimeout(bootTimer);
+      clearTimers();
+    };
   }, [
     activityKey,
     input.isMyTurn,
@@ -91,7 +112,7 @@ export function useYourTurnAttention(input: {
         exitTimerRef.current = null;
       }
     };
-  }, [attentionPhase]);
+  }, [attentionPhase, beat]);
 
   useEffect(() => {
     if (attentionPhase !== "exit") return;
@@ -100,6 +121,14 @@ export function useYourTurnAttention(input: {
     hideTimerRef.current = window.setTimeout(() => {
       hideTimerRef.current = null;
       setAttentionPhase("hidden");
+      const stillActive =
+        input.isMyTurn &&
+        input.phase === "play" &&
+        !input.suppressTurn &&
+        Boolean(input.turnPlayerId);
+      if (stillActive) {
+        scheduleNextReminder();
+      }
     }, exitMs);
 
     return () => {
@@ -108,9 +137,9 @@ export function useYourTurnAttention(input: {
         hideTimerRef.current = null;
       }
     };
-  }, [attentionPhase]);
+  }, [attentionPhase, input.isMyTurn, input.phase, input.suppressTurn, input.turnPlayerId]);
 
-  return attentionPhase;
+  return { phase: attentionPhase, beat };
 }
 
 export function yourTurnAttentionReducedMotion(): boolean {

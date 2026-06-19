@@ -21,7 +21,7 @@ import {
   maxDrawDiscards,
   HAND_PHASE,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -223,8 +223,13 @@ function enrollmentOrderFromDealer(dealerId, sortedPlayerIds) {
   return playerOrderFromDealer(dealerId, sortedPlayerIds);
 }
 
-export function buildHandEnrollment(sortedPlayerIds, dealerId, nowMs = Date.now()) {
-  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, sortedPlayerIds);
+export function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, buyIn = 1, nowMs = Date.now()) {
+  const activeIds = sortedPlayerIds.filter((id) => {
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+  const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, activeIds);
   return {
     active: true,
     orderedPlayerIds,
@@ -235,23 +240,87 @@ export function buildHandEnrollment(sortedPlayerIds, dealerId, nowMs = Date.now(
   };
 }
 
-function buildDealCompletionPatch(dealerId, enrolledIds, sortedPlayerIds, seed, dealingRule) {
+function buildScorePatchesFromAnteCollection(collected, dealIds) {
+  const patches = {};
+  const touched = new Set([...collected.outIds, ...dealIds]);
+  for (const pid of touched) {
+    if (collected.bankrolls[pid] == null) continue;
+    const patch = { bankroll: collected.bankrolls[pid] };
+    if (collected.outIds.includes(pid)) {
+      patch.out = true;
+    } else if (dealIds.includes(pid)) {
+      patch.out = FieldValue.delete();
+    }
+    patches[pid] = patch;
+  }
+  return patches;
+}
+
+function buildDealCompletionPatch(
+  dealerId,
+  enrolledIds,
+  sortedPlayerIds,
+  seed,
+  dealingRule,
+  dealContextExtras = {},
+) {
+  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContextExtras;
+  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
+  const collected = collectHandAntes({
+    participants: enrolledIds,
+    scoreById,
+    buyInFallback: buyIn,
+    stakeForPlayer: stakeFor,
+  });
+  const dealIds = collected.activeParticipants;
+  if (dealIds.length < 2) {
+    return {
+      handEnrollment: buildHandEnrollment(sortedPlayerIds, dealerId, scoreById, buyIn),
+      currentHand: emptyPreDealHand(),
+      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    };
+  }
+
   const deal = dealInitialHand({
     dealerId,
-    participantIds: enrolledIds,
+    participantIds: dealIds,
     sortedPlayerIds,
     seed: seed ?? Date.now(),
   });
   const { publicHand, privateHandsByPlayer } = serializeHandState(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
-    maxDrawDiscards: maxDrawDiscards(enrolledIds.length, dealingRule),
+    maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
     handEnrollment: FieldValue.delete(),
-    currentHand: publicHand,
+    currentHand: {
+      ...publicHand,
+      postedAntes: collected.postedAntes,
+    },
     privateHandsByPlayer,
+    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
   };
+}
+
+function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, sessionStake, dealingRule) {
+  const optIn = sessionData?.tableOptInIds || [];
+  if (!optIn.length) return null;
+  const eligible = sortedIds.filter((id) => {
+    if (!optIn.includes(id)) return false;
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+  if (eligible.length < 2) return null;
+  return buildDealCompletionPatch(
+    sessionData.dealerId,
+    eligible,
+    sortedIds,
+    Date.now(),
+    dealingRule,
+    { scoreById, sessionStake, buyIn },
+  );
 }
 
 function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealContext = null) {
@@ -289,6 +358,11 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
     dealContext.sortedPlayerIds,
     dealContext.seed,
     dealContext.dealingRule,
+    {
+      scoreById: dealContext.scoreById ?? {},
+      sessionStake: dealContext.sessionStake ?? 1,
+      buyIn: dealContext.buyIn ?? 1,
+    },
   );
 }
 
@@ -329,7 +403,15 @@ function writePrivateHands(tx, db, roomId, sessionId, privateHandsByPlayer) {
 }
 
 /** Keep liveEnrollment in sync with enrollment steps (client reads liveEnrollment first). */
-function applyEnrollmentPatchInTransaction(tx, ref, patch) {
+function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch) {
+  if (patch.scorePatches) {
+    for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
+      tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
+        ...scorePatch,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
   if (patch.privateHandsByPlayer) {
     tx.update(ref, {
       liveEnrollment: {
@@ -644,9 +726,33 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     }
   }
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sortedIds = sortedScorePlayerIds(scoreSnap.docs);
+  const sortedIds = seatPlayerIds(data, scoreSnap.docs);
   if (sortedIds.length < 2) return { status: "noop" };
-  const enrollment = buildHandEnrollment(sortedIds, data.dealerId);
+
+  const roomSnap = await getRoomSnap(db, roomId);
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+  const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
+  const sessionStake = data.handStake ?? 1;
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+
+  const autoPatch = tryAutoEnrollmentDeal(
+    data,
+    sortedIds,
+    scoreById,
+    buyIn,
+    sessionStake,
+    dealingRule,
+  );
+  if (autoPatch?.privateHandsByPlayer) {
+    await db.runTransaction(async (tx) => {
+      writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);
+      applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
+    });
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    return { status: "auto_dealt" };
+  }
+
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId, scoreById, buyIn);
   await ref.update({
     handEnrollment: enrollment,
     liveEnrollment: enrollment,
@@ -662,26 +768,35 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
   const dealingRule = await getDealingRule(db, roomId);
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap.docs);
+  const sessionSnap = await ref.get();
+  const sessionData = sessionSnap.data() || {};
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap.docs);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  const roomSnap = await getRoomSnap(db, roomId);
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
+  const sessionStake = sessionData.handStake ?? 1;
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return { status: "noop" };
-    const sessionData = snap.data();
-    const enrollment = getSessionEnrollment(sessionData);
+    const data = snap.data();
+    const enrollment = getSessionEnrollment(data);
     if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return { status: "noop" };
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
     const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
-      dealerId: sessionData.dealerId,
+      dealerId: data.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
+      scoreById,
+      buyIn,
+      sessionStake,
     });
     writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
-    applyEnrollmentPatchInTransaction(tx, ref, patch);
+    applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
     return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
@@ -700,35 +815,65 @@ export async function handleSetHandParticipation(
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sortedPlayerIds = sortedScorePlayerIds(scoreSnap.docs);
+  const sessionSnap = await ref.get();
+  const sessionData = sessionSnap.data() || {};
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap.docs);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
   const dealingRule = await getDealingRule(db, roomId);
+  const roomSnap = await getRoomSnap(db, roomId);
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
+  const sessionStake = sessionData.handStake ?? 1;
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Session not found");
-    const sessionData = snap.data();
-    if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
+    const data = snap.data();
+    if (data.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
-    const enrollment = getSessionEnrollment(sessionData);
+    const enrollment = getSessionEnrollment(data);
     if (enrollment?.active) {
-      if (!inHand) throw new HttpsError("failed-precondition", "Wait for your turn or let the timer run out");
       const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
-      if (playerId !== currentId) throw new HttpsError("failed-precondition", "Not your turn to join yet");
+      if (!inHand) {
+        if (playerId !== currentId) {
+          throw new HttpsError("failed-precondition", "Not your turn to pass yet");
+        }
+        if ((enrollment.declinedIds || []).includes(playerId)) return { status: "noop" };
+        const enrolledIds = [...(enrollment.enrolledIds || [])];
+        const declinedIds = [...(enrollment.declinedIds || []), playerId];
+        const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
+          dealerId: data.dealerId,
+          sortedPlayerIds,
+          seed: Date.now(),
+          dealingRule,
+          scoreById,
+          buyIn,
+          sessionStake,
+        });
+        writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
+        applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
+        return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
+      }
+      if (playerId !== currentId) {
+        throw new HttpsError("failed-precondition", "Not your turn to join yet");
+      }
       if ((enrollment.enrolledIds || []).includes(playerId)) return { status: "noop" };
       const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
       const declinedIds = [...(enrollment.declinedIds || [])];
       const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
-        dealerId: sessionData.dealerId,
+        dealerId: data.dealerId,
         sortedPlayerIds,
         seed: Date.now(),
         dealingRule,
+        scoreById,
+        buyIn,
+        sessionStake,
       });
       writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
-      applyEnrollmentPatchInTransaction(tx, ref, patch);
-      return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
+      applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
+      return { status: patch.privateHandsByPlayer ? "dealt" : "advanced", joined: true };
     }
 
-    const currentHand = getSessionCurrentHand(sessionData);
+    const currentHand = getSessionCurrentHand(data);
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
     if (inHand) {
@@ -743,6 +888,13 @@ export async function handleSetHandParticipation(
     });
     return { status: "updated" };
   });
+
+  if (result.joined) {
+    await ref.update({
+      tableOptInIds: FieldValue.arrayUnion(playerId),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   return result;
 }
@@ -1033,6 +1185,15 @@ export async function handleRecordHand(
     if (!scoreById[pid]) throw new HttpsError("invalid-argument", "Unknown player in hand");
   }
 
+  const postedAntes = getSessionCurrentHand(sessionData)?.postedAntes ?? {};
+  const antePot = participants.reduce(
+    (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, stake)),
+    0,
+  );
+  const stakeForPot = (pid) => postedAntes[pid] ?? playerHandStake(scoreById, pid, stake);
+  const stakeForSettlement = (pid) =>
+    anteAlreadyPosted(postedAntes, pid) ? 0 : playerHandStake(scoreById, pid, stake);
+
   const handSettlement = settleHandDeltas({
     mode,
     winners,
@@ -1041,7 +1202,8 @@ export async function handleRecordHand(
     anteAmount: stake,
     limEnabled,
     carryIn,
-    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+    antePot,
+    stakeForPlayer: stakeForPot,
   });
 
   const {
@@ -1067,7 +1229,7 @@ export async function handleRecordHand(
     scoreById,
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
-    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, stake),
+    stakeForPlayer: stakeForSettlement,
   });
 
   const deltas = solvent.appliedDeltas;

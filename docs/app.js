@@ -101,6 +101,7 @@ import {
   effectivePlayerHand,
   serializeCards,
   cardsRemainingInHand,
+  displayHoleCardCount,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -870,6 +871,20 @@ function cancelNextHandOpenTimer() {
   nextHandOpenStartedAt = 0;
 }
 
+function sessionAutoDealtNextHand(sessionObj) {
+  if (getSessionEnrollment(sessionObj)?.active) return false;
+  const phase = getSessionCurrentHand(sessionObj)?.phase;
+  return phase === "draw" || phase === "play";
+}
+
+function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
+  const handNum = (sessionObj?.handCount ?? 0) + 1;
+  if (sessionAutoDealtNextHand(sessionObj)) {
+    return `Hand #${handNum} — dealing next hand…`;
+  }
+  return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
+}
+
 async function openNextHandEnrollment(sessionObj) {
   if (!currentRoomId || !openSessionId || !tablePlayOpen || nextHandOpenInFlight) return;
   if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
@@ -882,11 +897,12 @@ async function openNextHandEnrollment(sessionObj) {
   tableFeedbackSnapshot = null;
 
   try {
-    setTableActionFeedback({ status: "loading", message: "Shuffling — opening next join window…" });
+    setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
     await ensureHandEnrollment(currentRoomId, openSessionId);
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
+    const autoDealt = sessionAutoDealtNextHand(refreshed);
     if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
       startEnrollmentTimer();
     }
@@ -895,14 +911,16 @@ async function openNextHandEnrollment(sessionObj) {
     const dealerLabel = dealerSc?.displayName ?? "dealer";
     setTableActionFeedback({
       status: "success",
-      message: `Hand #${(refreshed.handCount ?? 0) + 1} — I'm in (clockwise from ${dealerLabel})`,
+      message: nextHandOpenFeedbackMessage(refreshed, dealerLabel),
     });
     const api = await ensureTableFeedbackApi();
     api?.playShuffleFeedback?.({ delayMs: 80 });
     logHandLifecycleTransition({
       from: "handoffToNextDeal",
-      to: "opening",
-      reason: "auto-opened join window after settlement (live table)",
+      to: autoDealt ? "deal" : "opening",
+      reason: autoDealt
+        ? "auto-dealt next hand for opted-in table members (live table)"
+        : "auto-opened join window after settlement (live table)",
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
@@ -2473,8 +2491,9 @@ function buildTableSessionProps(s) {
         : [];
 
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
+  const postedAntes = currentHand?.postedAntes ?? {};
   const antePot = handParticipantIds.reduce(
-    (sum, pid) => sum + playerHandStake(scoreById, pid, handStake),
+    (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, handStake)),
     0,
   );
   const limEnabled = s.limEnabled === true;
@@ -2591,7 +2610,7 @@ function buildTableSessionProps(s) {
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
         holeCardCount: cardsDealt
-          ? cardsRemainingInHand(currentHand || {}, sc.playerId)
+          ? displayHoleCardCount(currentHand || {}, sc.playerId, false)
           : 0,
         isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
         canToggleInHand:
@@ -2601,6 +2620,12 @@ function buildTableSessionProps(s) {
           sc.playerId === currentEnrollmentPlayerId &&
           scoreBankroll(sc, sessionBuyIn) > 0 &&
           sc.out !== true,
+        canPassEnrollment:
+          enrollmentActive &&
+          isSelf &&
+          !isFinal &&
+          sc.playerId === currentEnrollmentPlayerId &&
+          !declinedEnrollmentIds.includes(sc.playerId),
         canEditTricks:
           !cardsDealt &&
           !isFinal &&
@@ -2643,17 +2668,40 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
           return;
         }
-        setTableActionFeedback({ status: "loading", message: "Joining hand…" });
+        setTableActionFeedback({ status: "loading", message: inHand ? "Joining hand…" : "Passing hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
           inHand,
           actorId: session.uid,
         })
           .then(() => {
-            setTableActionFeedback({ status: "success", message: "You're in this hand." });
+            setTableActionFeedback({
+              status: "success",
+              message: inHand ? "You're in this hand." : "You passed this hand.",
+            });
           })
           .catch((e) => {
             const message = e.message || "Could not update hand participation";
+            setTableActionFeedback({ status: "error", message });
+            showRoomsError(message);
+          });
+      },
+      onPassEnrollment: () => {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          setTableActionFeedback({ status: "error", message: "Sign in to pass." });
+          return;
+        }
+        setTableActionFeedback({ status: "loading", message: "Passing hand…" });
+        setHandParticipation(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          inHand: false,
+          actorId: session.uid,
+        })
+          .then(() => {
+            setTableActionFeedback({ status: "success", message: "You passed this hand." });
+          })
+          .catch((e) => {
+            const message = e.message || "Could not pass this hand";
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
           });

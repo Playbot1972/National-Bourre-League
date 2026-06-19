@@ -36,7 +36,7 @@ describe("canActForPlayer", () => {
 describe("buildHandEnrollment", () => {
   it("orders players from dealer and sets enrollment window", () => {
     const now = 1_700_000_000_000;
-    const enrollment = buildHandEnrollment(["a", "b", "c", "d"], "b", now);
+    const enrollment = buildHandEnrollment(["a", "b", "c", "d"], "b", {}, 1, now);
     assert.equal(enrollment.active, true);
     assert.deepEqual(enrollment.orderedPlayerIds, ["c", "d", "a", "b"]);
     assert.equal(enrollment.currentIndex, 0);

@@ -44,6 +44,7 @@ interface MobileCardTableProps {
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
+  onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
@@ -72,6 +73,7 @@ export function MobileCardTable({
   handPresentation,
   microinteractions,
   onToggleInHand,
+  onPassEnrollment,
   onTrickDelta,
   onSubmitDraw,
   onPassDraw,
@@ -234,6 +236,11 @@ export function MobileCardTable({
                       player.playerId,
                       player.canToggleInHand ? true : !player.inHand,
                     )
+                  }
+                  onPassEnrollment={
+                    player.canPassEnrollment && onPassEnrollment
+                      ? () => onPassEnrollment(player.playerId)
+                      : undefined
                   }
                   onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
                   onReaction={undefined}

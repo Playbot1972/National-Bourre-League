@@ -50,6 +50,8 @@ export interface TablePlayer {
   enrollmentJoined?: boolean;
   isRobot?: boolean;
   canToggleInHand: boolean;
+  /** Explicit pass/fold during play-or-pass enrollment window. */
+  canPassEnrollment?: boolean;
   canEditTricks: boolean;
   /** Opponent hole cards — face-down count only, never actual cards. */
   showHoleCards?: boolean;
@@ -81,6 +83,8 @@ export interface TablePlayer {
   turnHandoff?: boolean;
   /** Dealer badge just moved to this seat. */
   dealerMoved?: boolean;
+  /** Trump reveal merging into dealer hand (presentation only). */
+  trumpMerging?: boolean;
   /** Incrementing key retriggers trick badge tick animation. */
   trickBadgeTick?: number;
   /** Brief winner flash during trick reveal. */
@@ -134,6 +138,7 @@ export interface TableSessionData {
 
 export interface TableSessionActions {
   onToggleInHand: (inHand: boolean) => void;
+  onPassEnrollment?: () => void | Promise<void>;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
