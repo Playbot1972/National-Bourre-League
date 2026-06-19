@@ -878,6 +878,33 @@
   margin-left: -11px;
 }
 
+.bseat--trump-reveal .bseat__hole-card--trump-revealed {
+  z-index: 4;
+}
+
+.bseat--trump-reveal .bseat__hole-card--trump-revealed .pcard--trump {
+  box-shadow:
+    0 0 0 1px rgba(244, 213, 141, 0.75),
+    0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.bseat--trump-merge .bseat__hole-card--trump-merge {
+  z-index: 5;
+  animation: bseat-trump-merge 650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes bseat-trump-merge {
+  0% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(-14px) scale(1.1);
+  }
+  70% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(1px) scale(1.02);
+  }
+  100% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(0) scale(1);
+  }
+}
+
 .bseat__core {
   position: absolute;
   left: 0;
@@ -2662,6 +2689,33 @@
 
 .bpot__trump--reveal {
   animation: btrump-reveal 600ms ease;
+}
+
+.btable-hero--trump-reveal .hand__slot--trump-revealed {
+  z-index: 6;
+}
+
+.btable-hero--trump-reveal .hand__slot--trump-revealed .pcard--trump {
+  box-shadow:
+    0 0 0 2px rgba(244, 213, 141, 0.85),
+    0 10px 22px rgba(0, 0, 0, 0.45);
+}
+
+.btable-hero--trump-merge .hand__slot--trump-merge-target {
+  z-index: 8;
+  animation: btrump-merge-into-hand 650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes btrump-merge-into-hand {
+  0% {
+    transform: translateY(-28px) scale(1.12);
+  }
+  70% {
+    transform: translateY(2px) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes btrump-reveal {

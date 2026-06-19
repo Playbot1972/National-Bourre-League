@@ -57,6 +57,10 @@ export interface TablePlayer {
   showHoleCards?: boolean;
   /** Remaining hole cards (from public play history via cardsRemainingInHand). */
   holeCardCount?: number;
+  /** Face-up trump on holder seat during reveal (opponent/bot dealer). */
+  revealedTrumpUpcard?: SerializedCard | null;
+  revealedTrumpIndex?: number | null;
+  seatTrumpMergeActive?: boolean;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
   /** Brief pulse when a captured trick is swept to this seat. */
@@ -168,6 +172,8 @@ export interface TableSessionViewProps {
   recentBourreIds?: string[];
   /** Viewing player's dealt cards (private — never other players' hands). */
   heroCards?: SerializedCard[];
+  /** Unadjusted private hand — presentation uses this for trump-holder fan. */
+  rawHeroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
   /** True when all five tricks are recorded for the current hand. */

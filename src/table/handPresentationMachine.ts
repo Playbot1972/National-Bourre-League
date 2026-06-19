@@ -33,7 +33,8 @@ export interface HandPresentationModel {
   drawDiscardCount: number;
   drawReplaceCount: number;
   trumpRevealActive: boolean;
-  trumpMerged: boolean;
+  trumpMergeActive: boolean;
+  trumpMergedIntoHand: boolean;
   anteAnimActive: boolean;
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
@@ -55,7 +56,8 @@ export interface HandPresentationStore {
   drawDiscardCount: number;
   drawReplaceCount: number;
   trumpRevealActive: boolean;
-  trumpMerged: boolean;
+  trumpMergeActive: boolean;
+  trumpMergedIntoHand: boolean;
   anteAnimActive: boolean;
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
@@ -78,6 +80,7 @@ export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
     phase === "handReset" ||
     phase === "ante" ||
     phase === "trumpReveal" ||
+    phase === "trumpMerge" ||
     phase === "drawPlayer" ||
     phase === "drawReady" ||
     phase === "settle" ||
@@ -141,7 +144,8 @@ export function createHandPresentationStore(
     drawDiscardCount: 0,
     drawReplaceCount: 0,
     trumpRevealActive: false,
-    trumpMerged: false,
+    trumpMergeActive: false,
+    trumpMergedIntoHand: false,
     anteAnimActive: false,
     dealStaggerCount: 0,
     enrollmentPulse: {},
@@ -270,7 +274,8 @@ export function reduceHandPresentation(
           animatingDrawPlayerId: null,
           drawAnimSubPhase: "done",
           trumpRevealActive: false,
-          trumpMerged: true,
+          trumpMergeActive: false,
+          trumpMergedIntoHand: true,
           anteAnimActive: false,
           prevSnapshot: snapshot,
           pendingSnapshot: null,
@@ -378,12 +383,23 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
 
     case "trumpReveal":
+      return withPhase(store, "trumpMerge", {
+        trumpRevealActive: false,
+        trumpMergeActive: true,
+        pendingSnapshot: null,
+      });
+
+    case "trumpMerge":
       if (snap?.phase === "draw") {
-        return beginDrawSequence(store, snap, 0, 0);
+        return {
+          ...beginDrawSequence(store, snap, 0, 0),
+          trumpMergeActive: false,
+          trumpMergedIntoHand: true,
+        };
       }
       return withPhase(store, "drawPlayer", {
-        trumpRevealActive: false,
-        trumpMerged: true,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
         pendingSnapshot: null,
       });
 
@@ -452,7 +468,8 @@ export function buildHandPresentationModel(
     drawDiscardCount: store.drawDiscardCount,
     drawReplaceCount: store.drawReplaceCount,
     trumpRevealActive: store.trumpRevealActive,
-    trumpMerged: store.trumpMerged,
+    trumpMergeActive: store.trumpMergeActive,
+    trumpMergedIntoHand: store.trumpMergedIntoHand,
     anteAnimActive: store.anteAnimActive,
     dealStaggerCount: store.dealStaggerCount,
     enrollmentPulse: store.enrollmentPulse,
@@ -461,6 +478,7 @@ export function buildHandPresentationModel(
     nextHandResetActive: store.nextHandResetActive,
     suppressTurnIndicator:
       store.phase === "trumpReveal" ||
+      store.phase === "trumpMerge" ||
       store.phase === "ante" ||
       store.phase === "drawReady" ||
       store.phase === "settle" ||
@@ -484,6 +502,8 @@ export function phaseScheduleMs(
       return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
     case "trumpReveal":
       return t.trumpRevealHoldMs;
+    case "trumpMerge":
+      return t.trumpMergeAnimMs;
     case "drawPlayer":
       return drawPlayerScheduleMs(
         store.drawAnimSubPhase === "receive" ? 0 : store.drawDiscardCount,

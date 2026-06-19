@@ -26,6 +26,7 @@ interface HandProps {
   size?: "sm" | "md" | "lg";
   stateFor?: (card: Card, index: number) => CardState;
   badgeFor?: (card: Card, index: number) => string | undefined;
+  slotClassFor?: (card: Card, index: number) => string;
   /** @deprecated Use cardInteraction — tutorial only. */
   onCardClick?: (card: Card, index: number) => void;
   onCardPeek?: (index: number | null) => void;
@@ -49,6 +50,7 @@ interface HandCardProps {
   onCardClick?: (card: Card, index: number) => void;
   onCardPeek?: (index: number | null) => void;
   peekActive: boolean;
+  slotClassFor?: (card: Card, index: number) => string;
   style?: CSSProperties;
 }
 
@@ -63,6 +65,7 @@ function HandCard({
   onCardClick,
   onCardPeek,
   peekActive,
+  slotClassFor,
   style,
 }: HandCardProps) {
   const [pressed, setPressed] = useState(false);
@@ -119,6 +122,7 @@ function HandCard({
         "hand__slot",
         peekActive ? "hand__slot--peek" : "",
         isDrawSelected ? "hand__slot--draw-selected" : "",
+        slotClassFor?.(card, index) ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -162,6 +166,7 @@ export function Hand({
   fan = false,
   cardTestId,
   cardInteraction,
+  slotClassFor,
 }: HandProps) {
   const handRef = useRef<HTMLDivElement>(null);
 
@@ -208,6 +213,7 @@ export function Hand({
           onCardClick={onCardClick}
           onCardPeek={onCardPeek}
           peekActive={peekIndex === i}
+          slotClassFor={slotClassFor}
         />
       ))}
     </div>

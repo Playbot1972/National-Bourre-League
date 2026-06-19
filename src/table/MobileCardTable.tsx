@@ -18,6 +18,8 @@ import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import { isPlayerAtBourreRisk } from "./logic";
+import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
+import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface MobileCardTableProps {
@@ -27,6 +29,12 @@ interface MobileCardTableProps {
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
+  revealedTrumpIndex?: number | null;
+  trumpMergeActive?: boolean;
+  trumpDisabledIndex?: number | null;
+  hideCenterTrump?: boolean;
+  showTrumpSuitReminder?: boolean;
+  trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -50,6 +58,12 @@ export function MobileCardTable({
   participantCount,
   enrollmentActive = false,
   heroCards = [],
+  revealedTrumpIndex = null,
+  trumpMergeActive = false,
+  trumpDisabledIndex = null,
+  hideCenterTrump = false,
+  showTrumpSuitReminder = false,
+  trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
@@ -88,7 +102,6 @@ export function MobileCardTable({
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
   const sessionKey = `${session.sessionId}:${session.handNumber}`;
-  const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -109,17 +122,16 @@ export function MobileCardTable({
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
-    let holeCardCount = player.holeCardCount ?? 0;
-    if (
-      handPresentation.trumpMerged &&
-      player.playerId === trumpHolderId &&
-      session.trumpUpcard
-    ) {
-      holeCardCount = Math.min(5, holeCardCount + 1);
-    }
+    const seatTrump = resolveSeatTrumpDisplay(
+      player.playerId,
+      trumpHolderPresentation,
+      session.trumpUpcard ?? null,
+      player.holeCardCount ?? 0,
+      player.isSelf,
+    );
     return {
       ...player,
-      holeCardCount,
+      ...seatTrump,
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
       isLeading:
@@ -141,10 +153,6 @@ export function MobileCardTable({
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
       bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
       bourrePressure: bourreRiskIds.has(player.playerId),
-      trumpMerging:
-        handPresentation.trumpMerged &&
-        player.playerId === trumpHolderId &&
-        session.phase === "draw",
     };
   });
 
@@ -199,7 +207,8 @@ export function MobileCardTable({
             playerNames={playerNames}
             anteAnimActive={handPresentation.anteAnimActive}
             trumpRevealActive={handPresentation.trumpRevealActive}
-            trumpMerged={handPresentation.trumpMerged}
+            hideCenterTrump={hideCenterTrump}
+            showTrumpSuitReminder={showTrumpSuitReminder}
             drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
             drawAnimSubPhase={handPresentation.drawAnimSubPhase}
             drawDiscardCount={handPresentation.drawDiscardCount}
@@ -270,6 +279,9 @@ export function MobileCardTable({
           onPassDraw={onPassDraw}
           onPlayCard={onPlayCard}
           currentUserId={currentUserId}
+          revealedTrumpIndex={revealedTrumpIndex}
+          trumpMergeActive={trumpMergeActive}
+          trumpDisabledIndex={trumpDisabledIndex}
         />
         {enrollmentActive && !selfPlayer?.inHand && (
           <p className="btable-mobile-hero-dock__hint muted small">

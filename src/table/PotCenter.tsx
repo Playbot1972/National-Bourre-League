@@ -22,7 +22,6 @@ interface PotCenterProps {
   playerNames?: Record<string, string>;
   anteAnimActive?: boolean;
   trumpRevealActive?: boolean;
-  trumpMerged?: boolean;
   drawAnimPlayerId?: string | null;
   drawAnimSubPhase?: DrawAnimSubPhase;
   drawDiscardCount?: number;
@@ -30,6 +29,10 @@ interface PotCenterProps {
   settleCarryOver?: boolean;
   potTick?: number;
   trumpReminderPulse?: number;
+  /** Hide center trump card when the holder already shows it in their fan. */
+  hideCenterTrump?: boolean;
+  /** Force suit badge when trump card is visually merged into holder hand. */
+  showTrumpSuitReminder?: boolean;
 }
 
 export function PotCenter({
@@ -47,7 +50,6 @@ export function PotCenter({
   playerNames = {},
   anteAnimActive = false,
   trumpRevealActive = false,
-  trumpMerged = false,
   drawAnimPlayerId = null,
   drawAnimSubPhase = "done",
   drawDiscardCount = 0,
@@ -55,11 +57,14 @@ export function PotCenter({
   settleCarryOver = false,
   potTick = 0,
   trumpReminderPulse = 0,
+  hideCenterTrump = false,
+  showTrumpSuitReminder: showTrumpSuitReminderProp = false,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrumpCard = Boolean(trumpUpcard) && !trumpMerged;
+  const hasTrumpCard = Boolean(trumpUpcard) && !hideCenterTrump;
   const showTrumpSuitReminder =
-    !hasTrumpCard && Boolean(trumpSuit) && (phase === "play" || trumpMerged);
+    showTrumpSuitReminderProp ||
+    (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
 
   return (
