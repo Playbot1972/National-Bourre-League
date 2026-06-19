@@ -1,0 +1,122 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
+import type { TablePlayer } from "./types";
+
+const self: TablePlayer = {
+  playerId: "me",
+  displayName: "Me",
+  handsWon: 0,
+  inHand: true,
+  tricksThisHand: 0,
+  isSelf: true,
+  isDealer: false,
+  isWinner: false,
+  canToggleInHand: false,
+  canEditTricks: false,
+};
+
+describe("isLocalActionRequiredNow", () => {
+  it("requires action during enrollment when local seat is on the clock", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: true,
+        selfPlayer: { ...self, canToggleInHand: true },
+        session: { phase: null },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
+  it("requires action during draw when it is the local draw turn", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "draw",
+          turnPlayerId: "me",
+          drawCompletedIds: [],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
+  it("does not require action after local draw is complete", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "draw",
+          turnPlayerId: "me",
+          drawCompletedIds: ["me"],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+
+  it("requires action during play on local trick turn", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: { phase: "play", turnPlayerId: "me" },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
+  it("ignores broke/out local players", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: true,
+        selfPlayer: { ...self, isOut: true, canToggleInHand: true },
+        session: { phase: null },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+});
+
+describe("localActionActivityKey", () => {
+  it("changes when enrollment index advances", () => {
+    const base = {
+      currentUserId: "me",
+      enrollmentActive: true,
+      selfPlayer: { ...self, canToggleInHand: true },
+      session: {
+        phase: null,
+        handEnrollment: { active: true, currentIndex: 0, turnDeadlineMs: 1000 },
+      },
+      suppressTurn: false,
+      handComplete: false,
+    };
+    const a = localActionActivityKey(base);
+    const b = localActionActivityKey({
+      ...base,
+      session: {
+        ...base.session,
+        handEnrollment: { active: true, currentIndex: 1, turnDeadlineMs: 2000 },
+      },
+    });
+    assert.notEqual(a, b);
+  });
+});

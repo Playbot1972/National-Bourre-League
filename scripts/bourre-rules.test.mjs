@@ -10,6 +10,7 @@ import {
   canEnrollWithBankroll,
   collectHandAntes,
   scoreBankroll,
+  settleSoloDefaultWin,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
 
@@ -229,5 +230,21 @@ describe("bankroll solvency", () => {
     assert.equal(result.postedAntes.p2, 1);
     assert.ok(result.outIds.includes("p2"));
     assert.deepEqual(result.activeParticipants, ["p1"]);
+  });
+});
+
+describe("solo default win (Pagat)", () => {
+  it("awards carry plus posted ante to the sole player", () => {
+    const result = settleSoloDefaultWin({
+      winnerId: "p1",
+      carryIn: 5,
+      scoreById: { p1: { bankroll: 10 } },
+      buyInFallback: 10,
+      stakeForPlayer: () => 2,
+    });
+    assert.equal(result.ready, true);
+    assert.equal(result.pot, 7);
+    assert.equal(result.bankrolls.p1, 15);
+    assert.equal(result.carryOverPot, 0);
   });
 });

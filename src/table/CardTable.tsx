@@ -125,6 +125,9 @@ export function CardTable({
       bankroll: displayLiveBankroll(player.bankroll, potMetrics.anteAmount, {
         inHand: player.inHand,
         anteAnimActive: handPresentation.anteAnimActive,
+        anteAlreadyPosted:
+          session.postedAntes != null &&
+          Object.prototype.hasOwnProperty.call(session.postedAntes, player.playerId),
       }),
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,

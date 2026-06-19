@@ -86,6 +86,7 @@ import {
   canEnrollWithBankroll,
   collectHandAntes,
   anteAlreadyPosted,
+  settleSoloDefaultWin,
   resolveSessionBuyIn,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
@@ -931,7 +932,32 @@ async function syncDealPublicHandBestEffort(roomId, sessionId, publicHand) {
   }
 }
 
+function applySoloWinInTransaction(tx, ref, patch, roomId, sessionId) {
+  if (patch.scorePatches) {
+    for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
+      tx.update(scoreDoc(roomId, sessionId, playerId), {
+        ...scorePatch,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
+  tx.update(ref, {
+    handCount: patch.handNumber,
+    handStakeLocked: true,
+    carryOverPot: patch.carryOverPot ?? 0,
+    handEnrollment: deleteField(),
+    [LIVE_ENROLLMENT_FIELD]: deleteField(),
+    currentHand: patch.currentHand ?? emptyPreDealHand(),
+    pendingCoWinSettlement: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
 function applyEnrollmentStepLegacy(tx, ref, patch, roomId, sessionId) {
+  if (patch.soloWin) {
+    applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
+    return;
+  }
   if (patch.privateHandsByPlayer) {
     applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId);
     return;
@@ -945,6 +971,10 @@ function applyEnrollmentStepLegacy(tx, ref, patch, roomId, sessionId) {
 }
 
 function applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode = "live") {
+  if (patch.soloWin) {
+    applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
+    return;
+  }
   if (mode === "legacy") {
     applyEnrollmentStepLegacy(tx, ref, patch, roomId, sessionId);
     return;
@@ -1012,6 +1042,62 @@ function writePrivateHandsBestEffort(roomId, sessionId, privateHandsByPlayer) {
   batch.commit().catch((err) => {
     if (err?.code !== "permission-denied") console.warn("privateHands sync:", err);
   });
+}
+
+function buildSoloWinPatch(winnerId, sessionData, dealContext) {
+  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContext;
+  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
+  const settled = settleSoloDefaultWin({
+    winnerId,
+    carryIn: sessionData.carryOverPot || 0,
+    scoreById,
+    buyInFallback: buyIn,
+    stakeForPlayer: stakeFor,
+  });
+  if (!settled.ready) {
+    return {
+      handEnrollment: buildHandEnrollment(
+        dealContext.sortedPlayerIds,
+        dealContext.dealerId,
+        scoreById,
+        buyIn,
+      ),
+      currentHand: emptyPreDealHand(),
+      scorePatches: buildScorePatchesFromAnteCollection(
+        {
+          bankrolls: settled.bankrolls ?? {},
+          outIds: settled.outIds ?? [winnerId],
+          postedAntes: settled.postedAntes ?? {},
+        },
+        [],
+      ),
+    };
+  }
+  const handNumber = (sessionData.handCount || 0) + 1;
+  const scorePatches = {};
+  const br = settled.bankrolls[winnerId];
+  scorePatches[winnerId] = {
+    bankroll: br,
+    net:
+      (scoreById[winnerId]?.net || 0) +
+      settled.pot -
+      (settled.postedAntes[winnerId] ?? 0),
+    handsWon: (scoreById[winnerId]?.handsWon || 0) + 1,
+    tricksWon: scoreById[winnerId]?.tricksWon || 0,
+    out: br <= 0 ? true : deleteField(),
+  };
+  return {
+    soloWin: true,
+    winnerId,
+    handNumber,
+    pot: settled.pot,
+    postedAntes: settled.postedAntes,
+    scorePatches,
+    carryOverPot: 0,
+    handEnrollment: deleteField(),
+    currentHand: emptyPreDealHand(),
+    sortedPlayerIds: dealContext.sortedPlayerIds,
+  };
 }
 
 function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, buyIn = 1) {
@@ -1166,7 +1252,8 @@ function buildDealCompletionPatch(
   dealingRule,
   dealContextExtras = {},
 ) {
-  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContextExtras;
+  const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
+    dealContextExtras;
   const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
   const collected = collectHandAntes({
     participants: enrolledIds,
@@ -1176,6 +1263,20 @@ function buildDealCompletionPatch(
   });
   const dealIds = collected.activeParticipants;
   if (dealIds.length < 2) {
+    if (dealIds.length === 1) {
+      return buildSoloWinPatch(
+        dealIds[0],
+        { carryOverPot: carryIn, handCount },
+        {
+          ...dealContextExtras,
+          dealerId,
+          sortedPlayerIds,
+          sessionStake,
+          buyIn,
+          scoreById,
+        },
+      );
+    }
     return {
       handEnrollment: buildHandEnrollment(sortedPlayerIds, dealerId, scoreById, buyIn),
       currentHand: emptyPreDealHand(),
@@ -1600,6 +1701,12 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
     };
   }
   if (enrolledIds.length < 2) {
+    if (enrolledIds.length === 1 && dealContext) {
+      return buildSoloWinPatch(enrolledIds[0], {
+        carryOverPot: dealContext.carryIn ?? 0,
+        handCount: dealContext.handCount ?? 0,
+      }, dealContext);
+    }
     return {
       handEnrollment: {
         ...enrollment,
@@ -2870,6 +2977,8 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
       scoreById,
       buyIn,
       sessionStake,
+      carryIn: data.carryOverPot || 0,
+      handCount: data.handCount || 0,
     });
   });
 }
@@ -2934,6 +3043,8 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
             scoreById,
             buyIn,
             sessionStake,
+            carryIn: data.carryOverPot || 0,
+            handCount: data.handCount || 0,
           });
         },
         { requirePatch: true },
@@ -2962,6 +3073,8 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
           scoreById,
           buyIn,
           sessionStake,
+          carryIn: data.carryOverPot || 0,
+          handCount: data.handCount || 0,
         });
       },
       { requirePatch: true },
