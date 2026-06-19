@@ -12,6 +12,8 @@ import { useStageFit } from "./hooks/useStageFit";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
+import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
+import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface CardTableProps {
@@ -21,6 +23,12 @@ interface CardTableProps {
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
+  revealedTrumpIndex?: number | null;
+  trumpMergeActive?: boolean;
+  trumpDisabledIndex?: number | null;
+  hideCenterTrump?: boolean;
+  showTrumpSuitReminder?: boolean;
+  trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -44,6 +52,12 @@ export function CardTable({
   participantCount,
   enrollmentActive = false,
   heroCards = [],
+  revealedTrumpIndex = null,
+  trumpMergeActive = false,
+  trumpDisabledIndex = null,
+  hideCenterTrump = false,
+  showTrumpSuitReminder = false,
+  trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
@@ -96,8 +110,16 @@ export function CardTable({
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
+    const seatTrump = resolveSeatTrumpDisplay(
+      player.playerId,
+      trumpHolderPresentation,
+      session.trumpUpcard ?? null,
+      player.holeCardCount ?? 0,
+      player.isSelf,
+    );
     return {
       ...player,
+      ...seatTrump,
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
       isLeading:
@@ -171,6 +193,8 @@ export function CardTable({
           playerNames={playerNames}
           anteAnimActive={handPresentation.anteAnimActive}
           trumpRevealActive={handPresentation.trumpRevealActive}
+          hideCenterTrump={hideCenterTrump}
+          showTrumpSuitReminder={showTrumpSuitReminder}
           drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
           drawAnimSubPhase={handPresentation.drawAnimSubPhase}
           drawDiscardCount={handPresentation.drawDiscardCount}
@@ -235,6 +259,9 @@ export function CardTable({
         onPassDraw={onPassDraw}
         onPlayCard={onPlayCard}
         currentUserId={currentUserId}
+        revealedTrumpIndex={revealedTrumpIndex}
+        trumpMergeActive={trumpMergeActive}
+        trumpDisabledIndex={trumpDisabledIndex}
       />
     </div>
   );
