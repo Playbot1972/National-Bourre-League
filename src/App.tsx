@@ -137,6 +137,7 @@ export default function App() {
         <span>National Bourré League · learn the Louisiana classic</span>
       </footer>
       <div
+        id="app-version"
         className="app-version"
         aria-label="App version"
         title={`National Bourré League ${VERSION_LABEL} · built ${BUILD_STAMPED_AT}`}
