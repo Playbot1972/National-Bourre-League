@@ -17,7 +17,7 @@ import { useMobileStageFit } from "./hooks/useMobileStageFit";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { isPlayerAtBourreRisk } from "./logic";
+import { displayLiveBankroll, isPlayerAtBourreRisk } from "./logic";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
@@ -132,6 +132,10 @@ export function MobileCardTable({
     return {
       ...player,
       ...seatTrump,
+      bankroll: displayLiveBankroll(player.bankroll, potMetrics.anteAmount, {
+        inHand: player.inHand,
+        anteAnimActive: handPresentation.anteAnimActive,
+      }),
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
       isLeading:
@@ -151,7 +155,9 @@ export function MobileCardTable({
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
-      bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
+      bourreAlert: player.isSelf
+        ? (microinteractions.bourreAlerts[player.playerId] ?? null)
+        : null,
       bourrePressure: bourreRiskIds.has(player.playerId),
     };
   });
@@ -251,7 +257,7 @@ export function MobileCardTable({
         </div>
       </div>
 
-      <div className="btable-mobile-hero-dock hand-panel" data-testid="hero-hand">
+      <div className="btable-mobile-hero-dock hand-panel">
         <HeroHand
           cards={heroCards}
           privateHandReady={privateHandReady}

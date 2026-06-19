@@ -83,6 +83,17 @@ export function formatBankroll(amount: number) {
   return formatRiskStake(Math.max(0, Number(amount) || 0));
 }
 
+/** Live stack shown during ante animation before settlement posts bankroll. */
+export function displayLiveBankroll(
+  bankroll: number | null | undefined,
+  anteAmount: number,
+  opts: { inHand: boolean; anteAnimActive: boolean },
+): number | null | undefined {
+  if (bankroll == null) return bankroll;
+  if (!opts.inHand || !opts.anteAnimActive) return bankroll;
+  return Math.max(0, bankroll - Math.max(0, anteAmount));
+}
+
 export function initials(name: string) {
   return (name || "?")
     .split(/\s+/)

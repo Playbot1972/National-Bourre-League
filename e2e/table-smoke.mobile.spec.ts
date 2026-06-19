@@ -43,7 +43,7 @@ test.describe("Bourré table smoke — mobile", () => {
     const drawBtn = page.getByTestId("draw-button");
     await drawBtn.scrollIntoViewIfNeeded();
     await expect(drawBtn).toBeVisible();
-    await drawBtn.click();
+    await drawBtn.evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
   });
 

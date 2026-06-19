@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   applyEnrollmentIn,
+  applyEnrollmentPass,
   applyEnrollmentTimeout,
   buildHandEnrollment,
   currentEnrollmentPlayer,
@@ -34,6 +35,20 @@ describe("C — in/out enrollment", () => {
       () => applyEnrollmentIn(enrollment, "p3", { dealerId: "p1", sortedPlayerIds: SORTED, ...DEAL_CTX }),
       /Not your turn/,
     );
+  });
+
+  it("pass marks current player declined and advances", () => {
+    const enrollment = buildHandEnrollment(SORTED, "p1", 1_000);
+    const step = applyEnrollmentPass(
+      enrollment,
+      "p2",
+      { dealerId: "p1", sortedPlayerIds: SORTED, ...DEAL_CTX },
+      2_000,
+    );
+    assert.equal(step.kind, "continue");
+    if (step.kind !== "continue") return;
+    assert.deepEqual(step.handEnrollment.declinedIds, ["p2"]);
+    assert.equal(step.handEnrollment.currentIndex, 1);
   });
 
   it("timeout marks current player declined and advances", () => {

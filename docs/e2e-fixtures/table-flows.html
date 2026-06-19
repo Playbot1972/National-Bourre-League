@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Table flows fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        width: 100%;
+        max-width: 100vw;
+        min-height: 100dvh;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        width: 100%;
+        padding: 8px;
+        box-sizing: border-box;
+        overflow-x: clip;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-flows-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const scenario = params.get("scenario") || "default";
+      const handNumber = Math.max(1, parseInt(params.get("handNumber") || "1", 10));
+      const roomOptedIn = params.get("roomOptedIn") === "1";
+      const leftRoom = params.get("leftRoom") === "1";
+      const phaseParam =
+        params.get("phase") ||
+        (scenario === "room-session" || scenario === "pass-draw" || scenario === "pass-fold"
+          ? "enrollment"
+          : "draw");
+
+      const ids = ["p0", "p1", "p2", "p3"];
+      const dealerId = "p3";
+      const botDealerId = "p3";
+
+      const state = {
+        scenario,
+        handNumber,
+        roomOptedIn,
+        leftRoom,
+        inRoom: !leftRoom,
+        phase: phaseParam,
+        actionFeedback: null,
+        bankrolls: { p0: 20, p1: 15, p2: 3, p3: 12 },
+        pot: 4,
+        enrolledIds: [],
+        declinedIds: [],
+        selfJoined: false,
+        passedDraw: false,
+        bourreTriggered: false,
+        playLog: [],
+      };
+
+      function isBot(id) {
+        return id !== "p0";
+      }
+
+      function displayName(id) {
+        return id === "p0" ? "You" : `Bot ${id.slice(1)}`;
+      }
+
+      function enrollmentActive() {
+        return state.phase === "enrollment" && state.inRoom;
+      }
+
+      function needsJoinPrompt() {
+        return enrollmentActive() && !state.roomOptedIn && !state.selfJoined;
+      }
+
+      function buildEnrollment() {
+        if (!enrollmentActive()) return null;
+        const ordered = ["p0", "p1", "p2", "p3"];
+        const autoEnrolled = state.roomOptedIn && state.inRoom ? ["p0"] : [];
+        const enrolled = [...new Set([...autoEnrolled, ...state.enrolledIds])];
+        const currentIndex = needsJoinPrompt() ? 0 : 1;
+        return {
+          active: true,
+          orderedPlayerIds: ordered,
+          currentIndex,
+          turnDeadlineMs: Date.now() + 12_000,
+          enrolledIds: enrolled,
+          declinedIds: [...state.declinedIds],
+        };
+      }
+
+      function buildPlayers() {
+        const enrollment = buildEnrollment();
+        const onClock = needsJoinPrompt();
+        return ids.map((id) => {
+          const isSelf = id === "p0";
+          const satOut = state.declinedIds.includes(id);
+          const joined = enrollment?.enrolledIds?.includes(id) ?? false;
+          const inHand =
+            state.phase !== "enrollment" &&
+            state.inRoom &&
+            !satOut &&
+            (joined || state.phase === "draw" || state.phase === "play");
+          const bankroll = state.bankrolls[id] ?? 0;
+          const isOut = !state.inRoom || bankroll <= 0;
+          return {
+            playerId: id,
+            displayName: displayName(id),
+            handsWon: 0,
+            inHand: inHand && !isOut,
+            tricksThisHand: state.phase === "play" && id === "p0" ? 0 : 0,
+            isSelf,
+            isDealer: id === dealerId,
+            isLeading: false,
+            isWinner: false,
+            isRobot: isBot(id),
+            bankroll,
+            isOut,
+            enrollmentOnClock: onClock && isSelf,
+            enrollmentTimeLeft: onClock && isSelf ? 0.65 : undefined,
+            enrollmentSecondsOnClock: onClock && isSelf ? 10 : undefined,
+            enrollmentSatOut: satOut && !isOut,
+            enrollmentJoined: joined && !inHand && !isOut,
+            canToggleInHand: onClock && isSelf && !state.roomOptedIn && bankroll > 0,
+            canEditTricks: false,
+            showHoleCards: (state.phase === "draw" || state.phase === "play") && !isSelf && inHand,
+            holeCardCount:
+              state.phase === "draw" || state.phase === "play"
+                ? id === botDealerId
+                  ? 5
+                  : 4
+                : 0,
+            isOnTurn: state.phase === "draw" && id === "p0",
+          };
+        });
+      }
+
+      const heroCards =
+        state.phase === "draw" || state.phase === "play"
+          ? [
+              { rank: "A", suit: "spades" },
+              { rank: "K", suit: "hearts" },
+              { rank: "Q", suit: "diamonds" },
+              { rank: "J", suit: "clubs" },
+              { rank: "10", suit: "spades" },
+            ]
+          : [];
+
+      function buildProps() {
+        const enrollment = buildEnrollment();
+        const participantIds =
+          state.phase === "enrollment"
+            ? []
+            : ids.filter((id) => !state.declinedIds.includes(id) && state.inRoom);
+
+        return {
+          session: {
+            sessionId: "fixture-flows",
+            handNumber: state.handNumber,
+            handStake: 1,
+            carryOverPot: 0,
+            isFinal: false,
+            dealerId,
+            trumpHolderId: botDealerId,
+            participantIds,
+            tricksByPlayer: {},
+            phase: state.phase === "enrollment" ? null : state.phase,
+            trumpSuit: state.phase !== "enrollment" ? "hearts" : null,
+            trumpUpcard:
+              state.phase !== "enrollment" ? { rank: "7", suit: "hearts" } : null,
+            turnPlayerId:
+              state.phase === "play"
+                ? state._turnEnded
+                  ? "p1"
+                  : "p0"
+                : state.phase === "draw"
+                  ? "p0"
+                  : null,
+            remainingDeckCount: state.phase === "draw" ? 28 : null,
+            maxDrawDiscards: 4,
+            handEnrollment: enrollment,
+            currentTrick:
+              state.phase === "play"
+                ? { trickNumber: 1, leadPlayerId: "p0", leadSuit: "spades", plays: [] }
+                : null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: state.pot,
+            maxWinThisHand: state.pot,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel:
+            scenario === "your-turn"
+              ? "Your turn — pick a card"
+              : enrollmentActive()
+                ? needsJoinPrompt()
+                  ? "Your turn — tap I'm in (10s)"
+                  : "Waiting for other players"
+                : "Trump Hearts · draw round",
+          showCoWinSettlement: false,
+          enrollmentActive: enrollmentActive(),
+          enrollmentSecondsLeft: 10,
+          currentUserId: "p0",
+          heroCards,
+          privateHandReady: state.phase === "draw" || state.phase === "play",
+          legalPlayIndices: state.phase === "play" ? [0, 1, 2] : null,
+          recentBourreIds: state.bourreTriggered ? ["p0"] : [],
+          actionFeedback: state.actionFeedback,
+          actions: {
+            onToggleInHand: (inHand) => {
+              if (!state.inRoom) {
+                state.actionFeedback = { status: "error", message: "You left the room." };
+                render();
+                return;
+              }
+              if (inHand) {
+                state.selfJoined = true;
+                state.roomOptedIn = true;
+                state.enrolledIds = [...new Set([...state.enrolledIds, "p0"])];
+                state.actionFeedback = { status: "success", message: "You're in this hand." };
+              } else {
+                state.declinedIds = [...new Set([...state.declinedIds, "p0"])];
+                state.actionFeedback = { status: "success", message: "You passed this hand." };
+              }
+              render();
+            },
+            onTrickDelta: () => {},
+            onSettle: () => {},
+            onSubmitDraw: async (indices) => {
+              state.passedDraw = false;
+              state.actionFeedback = {
+                status: "success",
+                message: indices.length
+                  ? `Drew ${indices.length} replacement card(s)`
+                  : "Standing pat",
+              };
+              render();
+            },
+            onPassDraw: async () => {
+              state.passedDraw = true;
+              state.actionFeedback = { status: "success", message: "Standing pat" };
+              render();
+            },
+            onPlayCard: async (cardIndex) => {
+              state.playLog.push({ cardIndex, at: Date.now() });
+              if (scenario === "your-turn") {
+                state._turnEnded = true;
+              }
+              state.actionFeedback = { status: "success", message: "Card played" };
+              render();
+            },
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+
+      function render() {
+        mountTableSession(root, buildProps());
+      }
+
+      window.__tableFlowsFixture = {
+        readState: () => ({ ...state }),
+        advance(action, payload) {
+          switch (action) {
+            case "dealFromEnrollment":
+              state.phase = "draw";
+              state.enrolledIds = ids.filter((id) => state.inRoom && !state.declinedIds.includes(id));
+              break;
+            case "nextHand":
+              state.handNumber += 1;
+              state.phase = "enrollment";
+              state.selfJoined = false;
+              state.declinedIds = [];
+              state.enrolledIds = state.roomOptedIn && state.inRoom ? ["p0"] : [];
+              break;
+            case "leaveRoom":
+              state.inRoom = false;
+              state.leftRoom = true;
+              state.enrolledIds = [];
+              break;
+            case "postAnte":
+              for (const id of ids) {
+                if (state.bankrolls[id] > 0) {
+                  state.bankrolls[id] -= 1;
+                  state.pot += 1;
+                }
+              }
+              break;
+            case "bourre":
+              state.bourreTriggered = true;
+              break;
+            case "setPhase":
+              state.phase = payload?.phase ?? state.phase;
+              break;
+            case "endMyTurn":
+              if (state.phase === "play") {
+                state._turnEnded = true;
+              }
+              break;
+            case "broke":
+              state.bankrolls[payload?.playerId ?? "p2"] = 0;
+              break;
+            default:
+              break;
+          }
+          render();
+        },
+      };
+
+      if (scenario === "dealer-trump") {
+        state.phase = "enrollment";
+        state.enrolledIds = [...ids];
+        render();
+        window.setTimeout(() => {
+          state.phase = "draw";
+          render();
+        }, 80);
+      } else {
+        render();
+      }
+    </script>
+  </body>
+</html>

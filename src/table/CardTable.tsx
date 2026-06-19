@@ -1,7 +1,7 @@
 import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
-import { seatPosition, tableAspectForPlayers, isPlayerAtBourreRisk } from "./logic";
+import { seatPosition, tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
 import {
   CARD_LAND_MS,
   TRICK_SWEEP_MS,
@@ -122,6 +122,10 @@ export function CardTable({
     return {
       ...player,
       ...seatTrump,
+      bankroll: displayLiveBankroll(player.bankroll, potMetrics.anteAmount, {
+        inHand: player.inHand,
+        anteAnimActive: handPresentation.anteAnimActive,
+      }),
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
       isLeading:
@@ -141,7 +145,9 @@ export function CardTable({
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
-      bourreAlert: microinteractions.bourreAlerts[player.playerId] ?? null,
+      bourreAlert: player.isSelf
+        ? (microinteractions.bourreAlerts[player.playerId] ?? null)
+        : null,
       bourrePressure: bourreRiskIds.has(player.playerId),
     };
   });

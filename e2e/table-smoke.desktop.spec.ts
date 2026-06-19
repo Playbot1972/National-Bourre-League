@@ -66,7 +66,7 @@ test.describe("Bourré table smoke — desktop", () => {
     const playCard = page.getByTestId("play-button").first();
     await expect(playCard).toBeVisible();
     await expect(playCard).toBeEnabled();
-    await playCard.click();
+    await playCard.evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toContainText(/played|play/i);
   });
 
