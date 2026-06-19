@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { nextAppVersion, formatVersionLabel } from "./lib/version-format.mjs";
+import { nextAppVersion, formatVersionLabel, formatVersionDisplayLabel } from "./lib/version-format.mjs";
 
 describe("nextAppVersion", () => {
   it("increments patch segment", () => {
@@ -24,5 +24,12 @@ describe("formatVersionLabel", () => {
 
   it("omits dev marker for production builds", () => {
     assert.equal(formatVersionLabel("1.01.30", "abc12345", "production"), "v1.01.30+abc12345");
+  });
+});
+
+describe("formatVersionDisplayLabel", () => {
+  it("strips build metadata for user-facing labels", () => {
+    assert.equal(formatVersionDisplayLabel("v1.01.49+b3636750"), "v1.01.49");
+    assert.equal(formatVersionDisplayLabel("v1.01.30+abc12345 dev"), "v1.01.30");
   });
 });

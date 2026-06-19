@@ -3,7 +3,7 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
-import { BUILD_ID, BUILD_STAMPED_AT, VERSION_LABEL } from "./version";
+import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
 import "./App.css";
 
@@ -141,7 +141,7 @@ export default function App() {
         aria-label="App version"
         title={`National Bourré League ${VERSION_LABEL} · built ${BUILD_STAMPED_AT}`}
       >
-        {VERSION_LABEL}
+        {VERSION_DISPLAY_LABEL}
       </div>
     </div>
   );

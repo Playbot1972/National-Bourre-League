@@ -1,5 +1,5 @@
 // Poll deployed build metadata and prompt when a newer build is available.
-import { BUILD_ID } from "./version.js";
+import { BUILD_ID, VERSION_LABEL } from "./version.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -24,7 +24,7 @@ export function mountVersionFooter(versionLabel, stampedAt) {
   const versionEl = $("#app-version");
   if (!versionEl) return;
   versionEl.textContent = versionLabel;
-  versionEl.title = `National Bourré League ${versionLabel} · built ${stampedAt}`;
+  versionEl.title = `National Bourré League ${VERSION_LABEL} · built ${stampedAt}`;
 }
 
 export async function checkForDeployedUpdate() {
