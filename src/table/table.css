@@ -158,6 +158,24 @@
   pointer-events: auto;
 }
 
+/* Seat slots — structural hooks for per-count CSS positioning (display: contents keeps JS coords) */
+.btable__seat-slot {
+  display: contents;
+}
+
+/* Play zone — never clip trick land / card flight animations */
+.btable__play-zone {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.btable__play-zone .table-center-cluster {
+  pointer-events: none;
+}
+
 /* Center cluster — trump + trick lane in 3D space */
 .table-center-cluster {
   position: absolute;
@@ -311,6 +329,41 @@
 .btable--p5 .table-oval,
 .btable--p6 .table-oval {
   inset: 4% 2.5% 5% 2.5%;
+}
+
+/* 6-player desktop — hexagonal rail spacing, hero bottom */
+.btable--p6 .btable__seat-slot--0 > .bseat {
+  left: 50% !important;
+  top: 92% !important;
+}
+
+.btable--p6 .btable__seat-slot--1 > .bseat {
+  left: 84% !important;
+  top: 72% !important;
+}
+
+.btable--p6 .btable__seat-slot--2 > .bseat {
+  left: 92% !important;
+  top: 44% !important;
+}
+
+.btable--p6 .btable__seat-slot--3 > .bseat {
+  left: 50% !important;
+  top: 10% !important;
+}
+
+.btable--p6 .btable__seat-slot--4 > .bseat {
+  left: 8% !important;
+  top: 44% !important;
+}
+
+.btable--p6 .btable__seat-slot--5 > .bseat {
+  left: 16% !important;
+  top: 72% !important;
+}
+
+.btable--p6 .table-center-cluster {
+  top: 46%;
 }
 
 .btable--p7,
@@ -467,6 +520,15 @@
   flex-shrink: 0;
   min-height: var(--hand-panel-min-height);
   box-sizing: border-box;
+  overflow: visible;
+  position: relative;
+  z-index: 6;
+  padding-top: clamp(8px, 2vmin, 16px);
+}
+
+.hand-panel .hand--fan {
+  overflow-y: visible;
+  padding-top: clamp(10px, 2.5vmin, 20px);
 }
 
 .btable-sr-only {
@@ -1840,7 +1902,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
+    padding-block: clamp(8px, 2vmin, 16px);
+    box-sizing: border-box;
   }
 
   .btable-wrap:not(.btable-mobile-wrap) .btable-wrap__stage-scaler .table-stage {
@@ -1849,6 +1913,7 @@
     max-width: 100%;
     max-height: 100%;
     aspect-ratio: var(--table-aspect) / 1;
+    overflow: visible;
   }
 
   .btable-wrap:not(.btable-mobile-wrap) .hand-panel {
@@ -1945,7 +2010,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden;
+    overflow: visible;
+    padding-block: clamp(6px, 1.5vmin, 12px);
+    box-sizing: border-box;
   }
 
   .btable-wrap--landscape-row:not(.btable-mobile-wrap) .btable-wrap__stage-scaler .table-stage {
@@ -1954,6 +2021,7 @@
     max-width: 100%;
     max-height: 100%;
     aspect-ratio: var(--table-aspect) / 1;
+    overflow: visible;
   }
 
   .btable-wrap--landscape-row:not(.btable-mobile-wrap) .table-stage-fit {

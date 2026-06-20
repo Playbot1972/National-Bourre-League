@@ -200,62 +200,68 @@ export function MobileCardTable({
             <div className="btable__felt" data-testid="table-felt" />
           </div>
 
-          <PotCenter
-            potMetrics={{
-              ...potMetrics,
-              currentPot: handPresentation.displayPotAmount,
-            }}
-            participantCount={participantCount}
-            trumpUpcard={session.trumpUpcard}
-            trumpSuit={session.trumpSuit}
-            phase={session.phase}
-            enrollmentActive={enrollmentActive}
-            remainingDeckCount={session.remainingDeckCount}
-            trickDisplayPlays={trickPresentation.displayPlays}
-            trickWinnerPlayerId={trickPresentation.winnerPlayerId}
-            trickShowWinnerTag={trickPresentation.showWinnerTag}
-            trickPresentationPhase={trickPresentation.phase}
-            playerNames={playerNames}
-            anteAnimActive={handPresentation.anteAnimActive}
-            trumpRevealActive={handPresentation.trumpRevealActive}
-            hideCenterTrump={hideCenterTrump}
-            showTrumpSuitReminder={showTrumpSuitReminder}
-            drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
-            drawAnimSubPhase={handPresentation.drawAnimSubPhase}
-            drawDiscardCount={handPresentation.drawDiscardCount}
-            settleAnimActive={handPresentation.settleAnimActive}
-            settleCarryOver={handPresentation.settleCarryOver}
-            potTick={microinteractions.potTick}
-            trumpReminderPulse={microinteractions.trumpReminderPulse}
-          />
+          <div className="btable__play-zone">
+            <PotCenter
+              potMetrics={{
+                ...potMetrics,
+                currentPot: handPresentation.displayPotAmount,
+              }}
+              participantCount={participantCount}
+              trumpUpcard={session.trumpUpcard}
+              trumpSuit={session.trumpSuit}
+              phase={session.phase}
+              enrollmentActive={enrollmentActive}
+              remainingDeckCount={session.remainingDeckCount}
+              trickDisplayPlays={trickPresentation.displayPlays}
+              trickWinnerPlayerId={trickPresentation.winnerPlayerId}
+              trickShowWinnerTag={trickPresentation.showWinnerTag}
+              trickPresentationPhase={trickPresentation.phase}
+              playerNames={playerNames}
+              anteAnimActive={handPresentation.anteAnimActive}
+              trumpRevealActive={handPresentation.trumpRevealActive}
+              hideCenterTrump={hideCenterTrump}
+              showTrumpSuitReminder={showTrumpSuitReminder}
+              drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
+              drawAnimSubPhase={handPresentation.drawAnimSubPhase}
+              drawDiscardCount={handPresentation.drawDiscardCount}
+              settleAnimActive={handPresentation.settleAnimActive}
+              settleCarryOver={handPresentation.settleCarryOver}
+              potTick={microinteractions.potTick}
+              trumpReminderPulse={microinteractions.trumpReminderPulse}
+            />
+          </div>
 
           <div className="btable__seats btable-mobile__seats" aria-label="Players at the table">
             {opponents.map((player, i) => {
               const pos = mobileOpponentSeatPosition(i, opponents.length, orientation);
               const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
               return (
-                <Seat
+                <div
                   key={player.playerId}
-                  player={seatPlayer}
-                  region={pos.region}
-                  style={{
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`,
-                  }}
-                  onToggleInHand={() =>
-                    onToggleInHand(
-                      player.playerId,
-                      player.canToggleInHand ? true : !player.inHand,
-                    )
-                  }
-                  onPassEnrollment={
-                    player.canPassEnrollment && onPassEnrollment
-                      ? () => onPassEnrollment(player.playerId)
-                      : undefined
-                  }
-                  onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
-                  onReaction={undefined}
-                />
+                  className={`btable__seat-slot btable__seat-slot--${i}`}
+                >
+                  <Seat
+                    player={seatPlayer}
+                    region={pos.region}
+                    style={{
+                      left: `${pos.x}%`,
+                      top: `${pos.y}%`,
+                    }}
+                    onToggleInHand={() =>
+                      onToggleInHand(
+                        player.playerId,
+                        player.canToggleInHand ? true : !player.inHand,
+                      )
+                    }
+                    onPassEnrollment={
+                      player.canPassEnrollment && onPassEnrollment
+                        ? () => onPassEnrollment(player.playerId)
+                        : undefined
+                    }
+                    onTrickDelta={(delta) => onTrickDelta(player.playerId, delta)}
+                    onReaction={undefined}
+                  />
+                </div>
               );
             })}
           </div>
