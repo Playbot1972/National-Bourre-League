@@ -91,6 +91,20 @@ function preferInProgressHand(
   return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic! : current;
 }
 
+/** True when any session mirror shows deal / draw / play has begun. */
+export function handPhaseStarted(hand: PublicHandView | null | undefined): boolean {
+  const phase = hand?.phase ?? null;
+  return phase === "reveal" || phase === "decision" || phase === "draw" || phase === "play";
+}
+
+/** Check raw session mirrors — avoids authoritative merge hiding a fresh deal. */
+export function sessionHandDealStarted(sessionData: SessionHandView | null | undefined): boolean {
+  if (!sessionData) return false;
+  if (handPhaseStarted(sessionData.currentHand)) return true;
+  if (handPhaseStarted(sessionData.liveEnrollment?.deal?.publicHand)) return true;
+  return handPhaseStarted(authoritativeCurrentHand(sessionData));
+}
+
 /** Ignore orphan liveEnrollment.deal snapshots between hands after deploy. */
 export function authoritativeCurrentHand(sessionData: SessionHandView | null | undefined): PublicHandView {
   const current = sessionData?.currentHand ?? emptyPreDealHand();
@@ -119,6 +133,8 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
       }
       return livePublic!;
     }
+    if (livePublic?.phase) return livePublic;
+    if (handPhaseStarted(current)) return current;
     if (isClearedPreDealHand(current)) return emptyPreDealHand();
     return current;
   }
