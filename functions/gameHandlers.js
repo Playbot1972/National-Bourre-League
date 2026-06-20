@@ -722,6 +722,9 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   }
 
   if (existing?.active) {
+    if (!isClearedPreDealHand(currentHand)) {
+      return { status: "noop" };
+    }
     const refreshedEnrollment = {
       ...existing,
       turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
@@ -909,14 +912,19 @@ export async function handleSetHandParticipation(
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sessionSnap = await ref.get();
-  const sessionData = sessionSnap.data() || {};
+  let sessionData = (await ref.get()).data() || {};
   const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap.docs);
   const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
   const dealingRule = await getDealingRule(db, roomId);
   const roomSnap = await getRoomSnap(db, roomId);
   const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = sessionData.handStake ?? 1;
+
+  const pagatHandBefore = getSessionCurrentHand(sessionData);
+  if (pagatHandBefore?.phase === HAND_PHASE.REVEAL && pagatHandBefore?.handDecision) {
+    await handleAdvanceHandReveal(db, { roomId, sessionId, actorId });
+    sessionData = (await ref.get()).data() || {};
+  }
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -997,6 +1005,18 @@ export async function handleSetHandParticipation(
     }
 
     const currentHand = getSessionCurrentHand(data);
+    const livePhase = currentHand?.phase ?? null;
+    if (
+      livePhase === HAND_PHASE.REVEAL ||
+      livePhase === HAND_PHASE.DECISION ||
+      livePhase === HAND_PHASE.DRAW ||
+      livePhase === HAND_PHASE.PLAY
+    ) {
+      throw new HttpsError(
+        "failed-precondition",
+        "This hand is already in progress — use Play, Pass, or Stay pat.",
+      );
+    }
     const tricksByPlayer = { ...(currentHand.tricksByPlayer || {}) };
     let participantIds = [...(currentHand.participantIds || [])];
     if (inHand) {

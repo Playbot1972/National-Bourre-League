@@ -2940,6 +2940,9 @@ export async function ensureHandEnrollment(roomId, sessionId) {
       if (serverResult?.status === "refreshed") {
         return serverResult;
       }
+      if (serverResult?.status === "noop") {
+        return serverResult;
+      }
       if (serverResult?.status === "auto_dealt") {
         const snap = await getDoc(sessionDoc(roomId, sessionId));
         const dealtHand = snap.exists() ? getSessionCurrentHand(snap.data()) : null;
@@ -3224,8 +3227,20 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (sessionSnap.exists()) {
     const hand = getSessionCurrentHand(sessionSnap.data());
+    if (hand?.phase === HAND_PHASE.REVEAL && hand?.handDecision) {
+      await advanceHandReveal(roomId, sessionId);
+      return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
+    }
     if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
       return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
+    }
+    const inProgress =
+      hand?.phase === HAND_PHASE.REVEAL ||
+      hand?.phase === HAND_PHASE.DECISION ||
+      hand?.phase === HAND_PHASE.DRAW ||
+      hand?.phase === HAND_PHASE.PLAY;
+    if (inProgress && !getSessionEnrollment(sessionSnap.data())?.active) {
+      throw new Error("This hand is already in progress — use Play, Pass, or Stay pat.");
     }
   }
   return callEnrollmentAction(
