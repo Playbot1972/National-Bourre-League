@@ -3,6 +3,7 @@ import { onCall } from "firebase-functions/v2/https";
 import { getFirestore } from "firebase-admin/firestore";
 import {
   handleAdvanceBots,
+  handleAdvanceHandReveal,
   handleEnsureHandEnrollment,
   handlePlayCard,
   handleRecordHand,
@@ -36,6 +37,9 @@ export const gameEnsureHandEnrollment = wrap(handleEnsureHandEnrollment);
 
 /** Enrollment timeout — auto sit-out for current seat. */
 export const gameTimeoutEnrollment = wrap(handleTimeoutEnrollment);
+
+/** Advance Pagat reveal → play/pass decision after trump/hand presentation. */
+export const gameAdvanceHandReveal = wrap(handleAdvanceHandReveal);
 
 /** I'm in / sit-out during enrollment (may deal when round completes). */
 export const gameSetHandParticipation = wrap(handleSetHandParticipation);

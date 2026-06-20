@@ -104,6 +104,7 @@ import {
   serializeCards,
   cardsRemainingInHand,
   displayHoleCardCount,
+  decisionAsEnrollmentView,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -857,6 +858,20 @@ function logHandLifecycleTransition(transition) {
   }
 }
 
+/** Pagat reveal/decision clock — bots and timers must run even without legacy enrollment. */
+function isPagatHandClock(sessionObj) {
+  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
+  return phase === "reveal" || phase === "decision";
+}
+
+function sessionNeedsEnrollmentDriver(sessionObj) {
+  return (
+    getSessionEnrollment(sessionObj)?.active === true ||
+    sessionHasRobots() ||
+    isPagatHandClock(sessionObj)
+  );
+}
+
 function sessionHandLifecycleContext(sessionObj) {
   const ch = getSessionCurrentHand(sessionObj);
   const enrollment = getSessionEnrollment(sessionObj);
@@ -925,7 +940,7 @@ async function openNextHandEnrollment(sessionObj) {
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
     const autoDealt = sessionAutoDealtNextHand(refreshed);
-    if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
+    if (sessionNeedsEnrollmentDriver(refreshed)) {
       startEnrollmentTimer();
     }
     processRobotActions(refreshed, openScores);
@@ -1177,8 +1192,9 @@ function startEnrollmentTimer() {
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
   const enrollmentActive = getSessionEnrollment(s)?.active === true;
+  const pagatClock = isPagatHandClock(s);
   const needsDriver = sessionNeedsBotDriver(s, openScores);
-  if (!enrollmentActive && !needsDriver) return;
+  if (!enrollmentActive && !pagatClock && !needsDriver) return;
 
   enrollmentTimer = setInterval(() => {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);
@@ -1196,7 +1212,7 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-    if (getSessionEnrollment(sessionObj)?.active) {
+    if (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj)) {
       syncTableSession(sessionObj);
     }
   }, 1000);
@@ -2130,7 +2146,7 @@ async function openTablePlay() {
     currentSessions.find((s) => s.id === openSessionId) ??
     openSessionObj;
   await syncTableSession(refreshed);
-  if (getSessionEnrollment(refreshed)?.active || sessionHasRobots()) {
+  if (sessionNeedsEnrollmentDriver(refreshed)) {
     startEnrollmentTimer();
   }
   processRobotActions(refreshed, openScores);
@@ -2552,10 +2568,13 @@ function buildTableSessionProps(s) {
     currentHand,
   });
   let enrollment = serverEnrollment;
+  if (!enrollment && handPhase === "decision" && currentHand?.handDecision?.active) {
+    enrollment = decisionAsEnrollmentView(currentHand.handDecision);
+  }
   if (localHandActionCommit && myUid) {
     enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
   }
-  const pagatDecision = handPhase === "decision";
+  const pagatDecision = handPhase === "decision" && currentHand?.handDecision?.active === true;
   const enrollmentActive = enrollment?.active === true || pagatDecision;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
@@ -2575,9 +2594,10 @@ function buildTableSessionProps(s) {
       myUid,
     );
   }
-  const currentEnrollmentPlayerId = enrollmentActive
-    ? enrollment.orderedPlayerIds?.[enrollment.currentIndex]
-    : null;
+  const currentEnrollmentPlayerId =
+    enrollmentActive && enrollment
+      ? enrollment.orderedPlayerIds?.[enrollment.currentIndex] ?? null
+      : null;
 
   const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
     tricksThisHand,
@@ -2860,6 +2880,9 @@ function buildTableSessionProps(s) {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
           console.warn("advanceHandReveal:", e);
+          const message = e?.message || "Could not open play/pass decision";
+          setTableActionFeedback({ status: "error", message });
+          showRoomsError(message);
         });
       },
       onTrickDelta: (delta) => {
@@ -3007,7 +3030,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     }
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
-    if (getSessionEnrollment(sessionObj)?.active || sessionHasRobots()) {
+    if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
       if (tablePlayOpen) startEnrollmentTimer();
       else stopEnrollmentTimer();
     } else {
@@ -3353,7 +3376,7 @@ function renderRoomDetail() {
   scheduleTableSessionSync(openSessionObj);
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
-    if (getSessionEnrollment(openSessionObj)?.active || sessionHasRobots()) {
+    if (sessionNeedsEnrollmentDriver(openSessionObj)) {
       if (tablePlayOpen) startEnrollmentTimer();
       else stopEnrollmentTimer();
     }

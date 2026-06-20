@@ -61,6 +61,10 @@ export function gameTimeoutEnrollment(roomId, sessionId) {
   return callGame("gameTimeoutEnrollment", { roomId, sessionId });
 }
 
+export function gameAdvanceHandReveal(roomId, sessionId) {
+  return callGame("gameAdvanceHandReveal", { roomId, sessionId });
+}
+
 export function gameSetHandParticipation(roomId, sessionId, payload) {
   return callGame("gameSetHandParticipation", { roomId, sessionId, ...payload });
 }

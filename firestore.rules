@@ -42,8 +42,14 @@ service cloud.firestore {
     }
 
     function sessionEnrollmentActive(data) {
-      return data.get('handEnrollment', {}).get('active', false) == true
+      return pagatHandDecisionActive(data)
+        || data.get('handEnrollment', {}).get('active', false) == true
         || data.get('liveEnrollment', {}).get('active', false) == true;
+    }
+
+    function pagatHandDecisionActive(data) {
+      return data.get('currentHand', {}).get('phase', '') == 'decision'
+        && data.get('currentHand', {}).get('handDecision', {}).get('active', false) == true;
     }
 
     // Room members may drive I'm-in / timeout while enrollment is active.

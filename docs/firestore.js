@@ -96,6 +96,7 @@ import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   gameEnsureHandEnrollment,
+  gameAdvanceHandReveal,
   gamePlayCard,
   gameRecordHand,
   gameSetHandParticipation,
@@ -2935,8 +2936,22 @@ export async function ensureHandEnrollment(roomId, sessionId) {
   if (SERVER_HAND_AUTHORITY) {
     try {
       const serverResult = await gameEnsureHandEnrollment(roomId, sessionId);
-      if (serverResult?.status === "started" || serverResult?.status === "refreshed") {
+      // Legacy "started" opens a pre-deal I'm-in window — Pagat deals via client below.
+      if (serverResult?.status === "refreshed") {
         return serverResult;
+      }
+      if (serverResult?.status === "auto_dealt") {
+        const snap = await getDoc(sessionDoc(roomId, sessionId));
+        const dealtHand = snap.exists() ? getSessionCurrentHand(snap.data()) : null;
+        const dealtPhase = dealtHand?.phase ?? null;
+        if (
+          dealtPhase === HAND_PHASE.REVEAL ||
+          dealtPhase === HAND_PHASE.DECISION ||
+          dealtPhase === HAND_PHASE.DRAW ||
+          dealtPhase === HAND_PHASE.PLAY
+        ) {
+          return serverResult;
+        }
       }
     } catch (serverErr) {
       console.warn(
@@ -2984,6 +2999,17 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     data = sessionSnap.data();
   }
 
+  const currentHand = getSessionCurrentHand(data);
+  const phase = currentHand?.phase;
+  if (
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY ||
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DECISION
+  ) {
+    return;
+  }
+
   const existing = getSessionEnrollment(data);
   if (existing?.active) {
     const refreshedEnrollment = {
@@ -2996,17 +3022,6 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       to: "opening",
       reason: "ensureHandEnrollment refreshed join window (Go to Table)",
     });
-    return;
-  }
-
-  const currentHand = getSessionCurrentHand(data);
-  const phase = currentHand?.phase;
-  if (
-    phase === HAND_PHASE.DRAW ||
-    phase === HAND_PHASE.PLAY ||
-    phase === HAND_PHASE.REVEAL ||
-    phase === HAND_PHASE.DECISION
-  ) {
     return;
   }
   const participantIds = currentHand?.participantIds || [];
@@ -3057,6 +3072,13 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
 /** Advance reveal → decision after trump/hand presentation completes. */
 export async function advanceHandReveal(roomId, sessionId) {
+  return callEnrollmentAction(
+    () => advanceHandRevealClient(roomId, sessionId),
+    () => gameAdvanceHandReveal(roomId, sessionId),
+  );
+}
+
+async function advanceHandRevealClient(roomId, sessionId) {
   await runDecisionStepTransaction(
     roomId,
     sessionId,
