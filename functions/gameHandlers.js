@@ -84,7 +84,14 @@ function getSessionEnrollment(sessionData) {
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
-  if (livePhase === "draw" || livePhase === "play") return null;
+  if (
+    livePhase === HAND_PHASE.DRAW ||
+    livePhase === HAND_PHASE.PLAY ||
+    livePhase === HAND_PHASE.REVEAL ||
+    livePhase === HAND_PHASE.DECISION
+  ) {
+    return null;
+  }
   if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
 }
@@ -326,7 +333,10 @@ function buildDealCompletionPatch(
 }
 
 function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, sessionStake, dealingRule) {
+  const optIn = sessionData?.tableOptInIds || [];
+  if (!optIn.length) return null;
   const eligible = sortedIds.filter((id) => {
+    if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));

@@ -3,13 +3,13 @@ import { openTableFixture } from "./helpers/tableSmoke";
 import { tapPlayCard, playCardLocator } from "./helpers/cardPlay";
 
 test.describe("Table UI buttons — click audit", () => {
-  test("decision: stay pat button responds", async ({ page }) => {
+  test("decision: I'm in button responds", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
-    const stayPat = page.getByTestId("stay-pat-button");
-    await expect(stayPat).toBeVisible();
-    await expect(stayPat).toBeEnabled();
-    await stayPat.evaluate((el) => (el as HTMLButtonElement).click());
-    await expect(page.getByTestId("feedback-banner")).toContainText(/in|pat/i);
+    const imIn = page.getByTestId("decision-im-in-button");
+    await expect(imIn).toBeVisible();
+    await expect(imIn).toBeEnabled();
+    await imIn.evaluate((el) => (el as HTMLButtonElement).click());
+    await expect(page.getByTestId("feedback-banner")).toContainText(/in|hand/i);
   });
 
   test("draw: draw and stand pat buttons respond", async ({ page }) => {

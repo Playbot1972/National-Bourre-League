@@ -29,13 +29,13 @@ test.describe("Bourré table smoke — mobile", () => {
     await expect(page.getByTestId("table-root")).toBeVisible();
     await expect(page.getByTestId("pot-display")).toBeVisible();
 
-    for (const id of ["stay-pat-button", "settings-button"] as const) {
+    for (const id of ["decision-im-in-button", "settings-button"] as const) {
       const el = page.getByTestId(id).first();
       await expect(el).toBeVisible();
       expect(await isElementInViewport(page, id)).toBe(true);
     }
 
-    await page.getByTestId("stay-pat-button").evaluate((el) => (el as HTMLButtonElement).click());
+    await page.getByTestId("decision-im-in-button").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
   });
 

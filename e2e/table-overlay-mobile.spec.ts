@@ -53,7 +53,7 @@ test.describe("Mobile gameplay overlay layout", () => {
       await expectMobileOverlayGameplayFits(page, { portrait: true });
       expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
       if (phase === "decision") {
-        expect(await isOverlayControlInViewport(page, "stay-pat-button")).toBe(true);
+        expect(await isOverlayControlInViewport(page, "decision-im-in-button")).toBe(true);
       } else {
         expect(await isOverlayControlInViewport(page, "hero-hand")).toBe(true);
       }

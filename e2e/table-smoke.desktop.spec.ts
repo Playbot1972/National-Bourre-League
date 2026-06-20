@@ -25,16 +25,16 @@ test.describe("Bourré table smoke — desktop", () => {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
   });
 
-  test("decision stay pat is clickable and shows feedback", async ({ page }) => {
+  test("decision I'm in is clickable and shows feedback", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
 
-    const stayPat = page.getByTestId("stay-pat-button");
-    await expect(stayPat).toBeVisible();
-    await expect(stayPat).toBeEnabled();
-    await stayPat.evaluate((el) => (el as HTMLButtonElement).click());
+    const imIn = page.getByTestId("decision-im-in-button");
+    await expect(imIn).toBeVisible();
+    await expect(imIn).toBeEnabled();
+    await imIn.evaluate((el) => (el as HTMLButtonElement).click());
 
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
-    await expect(page.getByTestId("feedback-banner")).toContainText(/in|pat/i);
+    await expect(page.getByTestId("feedback-banner")).toContainText(/in|hand/i);
   });
 
   test("settings gear opens and closes the panel", async ({ page }) => {

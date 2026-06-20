@@ -52,8 +52,8 @@ test.describe("2 — Room / session flow", () => {
       phase: "decision",
     });
     await expect(page.getByTestId("decision-panel")).toBeVisible();
-    await page.getByTestId("stay-pat-button").click();
-    await expect(page.getByTestId("feedback-banner")).toContainText(/in|pat/i);
+    await page.getByTestId("decision-im-in-button").click();
+    await expect(page.getByTestId("feedback-banner")).toContainText(/in|hand/i);
 
     await advanceFixture(page, "nextHand");
     await page.waitForTimeout(150);
