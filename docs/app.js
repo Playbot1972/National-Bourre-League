@@ -935,7 +935,9 @@ async function openNextHandEnrollment(sessionObj) {
 
   try {
     setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
-    await ensureHandEnrollment(currentRoomId, openSessionId);
+    await ensureHandEnrollment(currentRoomId, openSessionId, {
+      members: currentMembers,
+    });
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
@@ -1798,7 +1800,6 @@ if (createRoomForm) {
     const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");
     try {
       const roomId = await createRoom({ owner: session, name, houseRules });
-      await ensureInviteLookupForRoom(roomId);
       closeCreateRoomModal();
       openRoom(roomId);
     } catch (err) {
@@ -2092,7 +2093,11 @@ function abortTablePlayStartup() {
 function showTableStartupFailure(analysis, err) {
   abortTablePlayStartup();
   const kind =
-    err?.code === "enrollment-failed" ? "enrollment_failed" : analysis?.kind ?? "ready_enrollment";
+    err?.code === "enrollment-failed"
+      ? "enrollment_failed"
+      : err?.code === "insufficient-players"
+        ? "insufficient_players"
+        : analysis?.kind ?? "ready_enrollment";
   const message = tableStartupUserMessage({ ...analysis, kind }, err);
   setTableActionFeedback({ status: "error", message });
   showRoomsError(message);
@@ -2125,7 +2130,10 @@ async function openTablePlay() {
       return;
     }
     if (startupAnalysis.needsEnrollment) {
-      await ensureHandEnrollment(currentRoomId, openSessionId);
+      await syncSessionWithRoomMembers(currentRoomId, openSessionId, currentMembers);
+      await ensureHandEnrollment(currentRoomId, openSessionId, {
+        members: currentMembers,
+      });
     }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
@@ -3517,7 +3525,7 @@ function buildSessionLiveStatusHtml(s) {
     const phase = getSessionCurrentHand(s)?.phase;
     if (phase === "draw") status += " · draw phase";
     else if (phase === "play") status += " · live play";
-    else status += " · tap Go to Table to start I'm in";
+    else status += " · tap Go to Table to deal";
   }
   return `<div class="session-live-card">
       <p class="session-live-card__status">${escapeHtml(status)}</p>

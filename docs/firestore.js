@@ -158,6 +158,7 @@ const {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
   updateDoc,
@@ -522,7 +523,11 @@ export async function createRoom({ owner, name, houseRules }) {
     joinedAt: serverTimestamp(),
   });
   await batch.commit();
-  await ensureInviteLookupForRoom(roomRef.id);
+  try {
+    await ensureInviteLookupForRoom(roomRef.id);
+  } catch (err) {
+    console.warn("ensureInviteLookupForRoom after create:", err);
+  }
   return roomRef.id;
 }
 
@@ -3015,31 +3020,71 @@ export async function prepareSessionForTableOpen(roomId, sessionId) {
   return data;
 }
 
-/** Start enrollment when a session has an empty hand but no active enrollment. */
-export async function ensureHandEnrollment(roomId, sessionId) {
-  await prepareSessionForTableOpen(roomId, sessionId);
-
-  await callEnrollmentAction(
-    () => ensureHandEnrollmentClient(roomId, sessionId),
-    () => gameEnsureHandEnrollment(roomId, sessionId),
+/** True when the public hand has entered deal / draw / play (not pre-deal handoff). */
+function handPhaseStarted(hand) {
+  const phase = hand?.phase ?? null;
+  return (
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DECISION ||
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY
   );
+}
 
-  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  if (!sessionSnap.exists()) return;
-  const data = sessionSnap.data();
-  const hand = authoritativeCurrentHand(data);
-  const handStarted =
-    hand.phase === HAND_PHASE.REVEAL ||
-    hand.phase === HAND_PHASE.DECISION ||
-    hand.phase === HAND_PHASE.DRAW ||
-    hand.phase === HAND_PHASE.PLAY;
-  if (!handStarted) {
-    const analysis = analyzeTableStartup(data, 2);
-    const err = new Error(
-      tableStartupUserMessage({ ...analysis, kind: "enrollment_failed" }),
+async function readSessionDataForHandVerify(roomId, sessionId) {
+  const ref = sessionDoc(roomId, sessionId);
+  try {
+    const snap = await getDocFromServer(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    return snap.data();
+  } catch {
+    const snap = await getDoc(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    return snap.data();
+  }
+}
+
+function enrollmentStartFailure(sessionData, scoreSnap, kind = "enrollment_failed") {
+  const readyCount = Math.max(2, seatPlayerIds(sessionData, scoreSnap).length);
+  const analysis = analyzeTableStartup(sessionData, readyCount);
+  const err = new Error(tableStartupUserMessage({ ...analysis, kind }));
+  err.code = kind === "insufficient_players" ? "insufficient-players" : "enrollment-failed";
+  return err;
+}
+
+/** Start enrollment when a session has an empty hand but no active enrollment. */
+export async function ensureHandEnrollment(roomId, sessionId, { members } = {}) {
+  await prepareSessionForTableOpen(roomId, sessionId);
+  if (members?.length) {
+    await syncSessionWithRoomMembers(roomId, sessionId, members);
+  }
+
+  const attemptDeal = async () => {
+    await callEnrollmentAction(
+      () => ensureHandEnrollmentClient(roomId, sessionId),
+      () => gameEnsureHandEnrollment(roomId, sessionId),
     );
-    err.code = "enrollment-failed";
-    throw err;
+  };
+
+  await attemptDeal();
+
+  let data = await readSessionDataForHandVerify(roomId, sessionId);
+  if (!handPhaseStarted(authoritativeCurrentHand(data))) {
+    if (members?.length) {
+      await syncSessionWithRoomMembers(roomId, sessionId, members);
+    }
+    await attemptDeal();
+    data = await readSessionDataForHandVerify(roomId, sessionId);
+  }
+
+  if (!handPhaseStarted(authoritativeCurrentHand(data))) {
+    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+    const seated = seatPlayerIds(data, scoreSnap).length;
+    throw enrollmentStartFailure(
+      data,
+      scoreSnap,
+      seated < 2 ? "insufficient_players" : "enrollment_failed",
+    );
   }
 }
 
@@ -3059,12 +3104,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
   const currentHand = getSessionCurrentHand(data);
   const phase = currentHand?.phase;
-  if (
-    phase === HAND_PHASE.DRAW ||
-    phase === HAND_PHASE.PLAY ||
-    phase === HAND_PHASE.REVEAL ||
-    phase === HAND_PHASE.DECISION
-  ) {
+  if (handPhaseStarted(currentHand)) {
     return;
   }
 
@@ -3080,9 +3120,17 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   }
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
-  if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
-    if (isHandoffState(data)) {
+  const hasTrickProgress = Object.values(tricks).some((n) => (n || 0) > 0);
+  if (participantIds.length > 0 || hasTrickProgress) {
+    const staleRoster = participantIds.length > 0 && !phase && !hasTrickProgress;
+    if (isHandoffState(data) || staleRoster) {
       await clearStaleHandoffArtifacts(roomId, sessionId);
+      if (staleRoster) {
+        await updateDoc(sessionRef, {
+          currentHand: emptyPreDealHand(),
+          updatedAt: serverTimestamp(),
+        });
+      }
       sessionSnap = await getDoc(sessionRef);
       if (!sessionSnap.exists()) return;
       data = sessionSnap.data();
@@ -3093,7 +3141,9 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const sortedIds = seatPlayerIds(data, scoreSnap);
-  if (sortedIds.length < 2) return;
+  if (sortedIds.length < 2) {
+    throw enrollmentStartFailure(data, scoreSnap, "insufficient_players");
+  }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
@@ -3106,7 +3156,9 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     if (row?.out === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
-  if (eligibleIds.length < 1) return;
+  if (eligibleIds.length < 1) {
+    throw enrollmentStartFailure(data, scoreSnap, "enrollment_failed");
+  }
 
   const patch = buildDealCompletionPatch(
     data.dealerId,
