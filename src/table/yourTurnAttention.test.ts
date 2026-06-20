@@ -9,8 +9,8 @@ import {
 } from "./hooks/useYourTurnAttention";
 
 describe("your turn attention timing", () => {
-  it("first reminder appears after 7 seconds", () => {
-    assert.equal(YOUR_TURN_FIRST_MS, 7_000);
+  it("first reminder appears after 15 seconds", () => {
+    assert.equal(YOUR_TURN_FIRST_MS, 15_000);
   });
 
   it("repeats on escalating 6s, 5s, 4s, 3s, 2s cadence", () => {

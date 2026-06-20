@@ -11387,7 +11387,7 @@ function br({ active: e, displayName: t }) {
 }
 //#endregion
 //#region src/table/hooks/useYourTurnAttention.ts
-var xr = 7e3, Sr = [
+var xr = 15e3, Sr = [
 	6e3,
 	5e3,
 	4e3,
