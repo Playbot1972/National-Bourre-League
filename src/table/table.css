@@ -929,10 +929,50 @@
 .btable-hero .hand--fan {
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(6px, 1.2vmin, 12px);
+  perspective: 1100px;
+}
+
+/* Hero hand — straight row (no arc fan); premium lift on hover/play only */
+.btable-hero__hand-row {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.btable-hero__hand-row .hand--fan {
+  gap: clamp(6px, 1.2vmin, 12px);
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot {
+  --fan-offset: 0;
+  transform: none;
+  margin-left: 0 !important;
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
+  margin-left: 0 !important;
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot:hover,
+.btable-hero__hand-row .hand--fan .hand__slot:focus-within {
+  transform: translateY(-14px) scale(1.04) !important;
+  rotate: none;
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot--peek {
+  transform: translateY(-20px) rotateX(14deg) rotateY(-22deg) scale(1.1) !important;
 }
 
 .btable-hero .hand--fan .hand__slot:not(:first-child) {
-  margin-left: var(--hand-fan-overlap, -10px);
+  margin-left: 0;
 }
 
 .btable-hero .hand--fan .hand__slot:hover {
@@ -3360,17 +3400,43 @@
   gap: 4px;
 }
 
-/* Delayed local-player "Your Turn" attention cue */
-.byour-turn {
+/* Delayed local-player "Your Turn" attention cue — mounted in attention layer */
+.btable-session__attention-layer {
   position: fixed;
-  left: 50%;
-  bottom: max(18%, 120px);
-  transform: translateX(-50%);
+  inset: 0;
   z-index: 28;
+  pointer-events: none;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: max(120px, 22%);
+}
+
+.btable-session__attention-layer:empty {
+  display: none;
+  visibility: hidden;
+}
+
+.byour-turn {
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
+  z-index: 1;
   pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 120ms ease, visibility 0ms linear 120ms;
+}
+
+.byour-turn--exit {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 620ms ease, visibility 0ms linear 620ms;
 }
 
 .byour-turn__text {
@@ -3445,13 +3511,21 @@
   }
 }
 
+.table-play-overlay .btable-session__attention-layer {
+  padding-bottom: max(96px, 18%);
+}
+
 .table-play-overlay .byour-turn {
-  bottom: max(14%, 96px);
+  position: relative;
+  bottom: auto;
 }
 
 @media (max-width: 768px), (pointer: coarse) {
+  .btable-session__attention-layer {
+    padding-bottom: max(140px, 24%);
+  }
+
   .byour-turn {
-    bottom: max(22%, 140px);
     width: min(92vw, 360px);
   }
 

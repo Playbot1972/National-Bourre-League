@@ -314,6 +314,7 @@ export function HeroHand({
         {inPlayPhase && isMyTurn && " — select a legal card to play"}
       </p>
       <div className="btable-hero__hand-3d" data-trick-play-origin={currentUserId ?? undefined}>
+        <div className="btable-hero__hand-row">
         <Hand
           cards={typedCards}
           size={cardSize}
@@ -337,6 +338,7 @@ export function HeroHand({
             onPeek: setPeekIndex,
           }}
         />
+        </div>
       </div>
       {feedbackError && (
         <p className="btable-hero__error" role="alert">

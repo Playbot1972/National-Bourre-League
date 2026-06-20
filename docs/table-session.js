@@ -9019,28 +9019,31 @@ function jt({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 			/* @__PURE__ */ (0, g.jsx)("div", {
 				className: "btable-hero__hand-3d",
 				"data-trick-play-origin": x ?? void 0,
-				children: /* @__PURE__ */ (0, g.jsx)(A, {
-					cards: he,
-					size: ye,
-					fan: !0,
-					stateFor: Oe,
-					slotClassFor: ge,
-					peekIndex: j,
-					onCardPeek: ke ? N : void 0,
-					cardTestId: ve && o ? "play-button" : void 0,
-					cardInteraction: {
-						mode: Ae,
-						isMyTurn: o,
-						legalPlayIndices: u,
-						playingIndex: te,
-						illegalShakeIndex: ce,
-						busy: be,
-						trickPlayOriginPlayerId: x,
-						onPlayCard: we,
-						onSelectCard: Ce,
-						onIllegalPlay: De,
-						onPeek: N
-					}
+				children: /* @__PURE__ */ (0, g.jsx)("div", {
+					className: "btable-hero__hand-row",
+					children: /* @__PURE__ */ (0, g.jsx)(A, {
+						cards: he,
+						size: ye,
+						fan: !0,
+						stateFor: Oe,
+						slotClassFor: ge,
+						peekIndex: j,
+						onCardPeek: ke ? N : void 0,
+						cardTestId: ve && o ? "play-button" : void 0,
+						cardInteraction: {
+							mode: Ae,
+							isMyTurn: o,
+							legalPlayIndices: u,
+							playingIndex: te,
+							illegalShakeIndex: ce,
+							busy: be,
+							trickPlayOriginPlayerId: x,
+							onPlayCard: we,
+							onSelectCard: Ce,
+							onIllegalPlay: De,
+							onPeek: N
+						}
+					})
 				})
 			}),
 			xe && /* @__PURE__ */ (0, g.jsx)("p", {
@@ -11374,7 +11377,7 @@ function Cr(e) {
 		}, t);
 	};
 	return (0, l.useEffect)(() => {
-		if (d(), c.current = 0, !e.actionRequired) return d;
+		if (d(), c.current = 0, !e.actionRequired) return n("hidden"), i(0), d;
 		let t = window.setTimeout(() => {
 			u.current && f();
 		}, 0);
@@ -12074,9 +12077,13 @@ function Xr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		microinteractions: I,
 		...be
 	}, Se = /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [
-		/* @__PURE__ */ (0, g.jsx)(Tr, {
-			actionRequired: ue,
-			activityKey: de
+		/* @__PURE__ */ (0, g.jsx)("div", {
+			className: "btable-session__attention-layer",
+			"aria-live": "polite",
+			children: /* @__PURE__ */ (0, g.jsx)(Tr, {
+				actionRequired: ue,
+				activityKey: de
+			})
 		}),
 		/* @__PURE__ */ (0, g.jsx)(br, {
 			active: he,
