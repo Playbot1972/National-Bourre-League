@@ -41,8 +41,14 @@ service cloud.firestore {
       ]);
     }
 
+    function pagatHandRevealActive(data) {
+      return data.get('currentHand', {}).get('phase', '') == 'reveal'
+        && data.get('currentHand', {}).get('participantIds', []).size() > 0;
+    }
+
     function sessionEnrollmentActive(data) {
       return pagatHandDecisionActive(data)
+        || pagatHandRevealActive(data)
         || data.get('handEnrollment', {}).get('active', false) == true
         || data.get('liveEnrollment', {}).get('active', false) == true;
     }
