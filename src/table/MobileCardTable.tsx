@@ -192,6 +192,7 @@ export function MobileCardTable({
       }}
     >
       <div className="btable-mobile__table-area">
+        <div className="btable-mobile__stage-scaler">
         <div className="btable-mobile-stage-fit">
         <div className="btable-mobile-stage table-stage">
           <div className="table-oval btable-mobile-oval" aria-hidden="true">
@@ -258,6 +259,7 @@ export function MobileCardTable({
               );
             })}
           </div>
+        </div>
         </div>
         </div>
       </div>

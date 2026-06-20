@@ -1,10 +1,10 @@
 /* ================================================================== */
 /* Mobile-first gameplay layout — Flexbox + CSS Grid                   */
-/* Separate from desktop `.btable-desktop` path. Portrait prioritizes  */
-/* a tall central table; landscape splits table (major) + hero (minor). */
+/* Goal: dominant central table (~2× prior area) in portrait + landscape */
+/* Hero hand stays visible in a compact dock; seats ring the large felt. */
 /* ================================================================== */
 
-/* --- Responsive tokens (cards, spacing, touch targets) --- */
+/* --- Responsive tokens --- */
 .btable-mobile {
   flex: 1;
   min-height: 0;
@@ -16,21 +16,28 @@
   overflow: hidden;
   box-sizing: border-box;
   touch-action: manipulation;
-  --mobile-fit-pad-x: max(8px, env(safe-area-inset-left, 0px));
-  --mobile-fit-pad-y: max(6px, env(safe-area-inset-top, 0px));
-  --mobile-fit-gap: clamp(6px, 1.4vmin, 10px);
-  --stage-seat-inset-top: 4%;
-  --stage-seat-inset-x: 3%;
-  --stage-seat-inset-bottom: 6%;
-  /* Hero / trick card sizing — scales with viewport, never below touch min */
-  --hand-card-w: clamp(48px, 12vmin, 72px);
+  --mobile-fit-pad-x: max(6px, env(safe-area-inset-left, 0px));
+  --mobile-fit-pad-y: max(4px, env(safe-area-inset-top, 0px));
+  --mobile-fit-gap: clamp(4px, 1vmin, 8px);
+  /* Seat ring sits tighter on a larger felt so avatars stay on the rail */
+  --stage-seat-inset-top: 3%;
+  --stage-seat-inset-x: 2.5%;
+  --stage-seat-inset-bottom: 4%;
+  /* Grid share: table row/column vs hero dock (4:1 ≈ 2× table area vs old ~2:1) */
+  --table-grid-share: 4;
+  --hand-grid-share: 1;
+  /* Hero cards — touch floor 44px; dock height kept small to feed the table */
+  --hand-card-w: clamp(48px, 11vmin, 68px);
   --hand-card-h: calc(var(--hand-card-w) * 1.423);
-  --pcard-sm-w: clamp(40px, 9.5vmin, 52px);
+  /* In-table trick / deck cards scale with the enlarged felt */
+  --pcard-sm-w: clamp(48px, 11vmin, 76px);
   --pcard-sm-h: calc(var(--pcard-sm-w) * 1.423);
-  --pcard-xs-w: clamp(20px, 5vmin, 24px);
+  --pcard-xs-w: clamp(22px, 5.5vmin, 28px);
   --pcard-xs-h: calc(var(--pcard-xs-w) * 1.417);
-  --hand-panel-min-height: clamp(120px, 22vmin, 180px);
+  --hand-panel-min-height: clamp(88px, 15vmin, 128px);
   --touch-min: 44px;
+  --center-play-width: min(68%, clamp(200px, 48vw, 320px));
+  --deck-stack-width: clamp(56px, 13vmin, 80px);
 }
 
 /* Viewport shell — flex column, no page scroll */
@@ -45,13 +52,12 @@
   align-items: stretch;
   justify-content: stretch;
   overflow: hidden;
-  padding-inline: max(6px, env(safe-area-inset-left, 0px))
-    max(6px, env(safe-area-inset-right, 0px));
-  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
+  padding-inline: max(4px, env(safe-area-inset-left, 0px))
+    max(4px, env(safe-area-inset-right, 0px));
+  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
 }
 
-/* Inner layout grid — single cell that grows with the session */
 .btable-mobile__layout {
   flex: 1;
   min-height: 0;
@@ -72,7 +78,7 @@
   overflow: hidden;
 }
 
-/* --- Main play surface: CSS Grid (table dominant, hand dock below/right) --- */
+/* --- Main grid: table dominant, hero dock minimal but tappable --- */
 .btable-mobile-wrap {
   position: relative;
   width: 100%;
@@ -82,7 +88,7 @@
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, var(--table-grid-share, 4fr)) minmax(0, var(--hand-grid-share, 1fr));
   grid-template-areas:
     "table"
     "hand";
@@ -97,6 +103,7 @@
   flex-shrink: 1;
 }
 
+/* Table column/row — fills grid cell; stage scales to 100% of this box */
 .btable-mobile__table-area {
   grid-area: table;
   min-width: 0;
@@ -105,6 +112,19 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+}
+
+/* Scaler fills the table grid cell; stage inside grows to full cell (≈2× prior fit) */
+.btable-mobile__stage-scaler {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -112,30 +132,33 @@
 
 .btable-mobile-stage-fit {
   width: 100%;
+  height: 100%;
   max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
   display: flex;
   justify-content: center;
   align-items: center;
   overflow: hidden;
 }
 
-.btable-mobile-stage {
+/* Stage fills scaler — overrides JS pixel cap when cell is larger (CSS-only boost) */
+.btable-mobile__stage-scaler .btable-mobile-stage {
   position: relative;
-  width: min(100%, var(--stage-fit-width, 100%));
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  height: var(--stage-fit-height, auto);
-  max-height: var(--stage-fit-height, none);
+  max-height: 100%;
+  min-width: 0;
   min-height: 0;
-  flex-shrink: 1;
   margin: 0 auto;
   overflow: hidden;
+  aspect-ratio: var(--table-aspect) / 1;
 }
 
 .btable-mobile-oval {
-  inset: 4% 2.5% 5% 2.5%;
+  inset: 3.5% 2% 4% 2%;
 }
 
 .btable-mobile__seats {
@@ -143,7 +166,7 @@
     var(--stage-seat-inset-x);
 }
 
-/* Hero hand dock — portrait: bottom strip; landscape: right column */
+/* Hero dock — compact strip; cards remain ≥44px tap targets */
 .btable-mobile-hero-dock {
   grid-area: hand;
   flex: 0 0 auto;
@@ -151,6 +174,7 @@
   max-width: 100%;
   min-width: 0;
   min-height: var(--hand-panel-min-height);
+  max-height: 100%;
   box-sizing: border-box;
   padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
   display: flex;
@@ -176,12 +200,12 @@
 }
 
 .btable-mobile-hero-dock__hint {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   text-align: center;
-  font-size: clamp(11px, 2.8vmin, 13px);
+  font-size: clamp(10px, 2.5vmin, 12px);
 }
 
-/* --- Responsive card sizes (hero + table) --- */
+/* --- Hero + in-table card sizing --- */
 .btable-mobile .btable-hero .pcard--sm,
 .btable-mobile .btable-hero .pcard--md {
   width: var(--hand-card-w);
@@ -194,6 +218,30 @@
 .btable-mobile .center-play .btrick__play .pcard--sm {
   width: var(--pcard-sm-w);
   height: var(--pcard-sm-h);
+  transform: none;
+}
+
+.btable-mobile .deck-stack {
+  width: var(--deck-stack-width);
+}
+
+.btable-mobile .center-play {
+  width: var(--center-play-width);
+}
+
+.btable-mobile .center-play .btrick {
+  min-height: clamp(64px, 14vmin, 96px);
+}
+
+.btable-mobile .center-play .btrick--empty {
+  width: clamp(44px, 10vmin, 56px);
+  height: clamp(64px, 14vmin, 80px);
+}
+
+.btable-mobile .table-center-cluster {
+  top: 42%;
+  gap: clamp(6px, 1.6vmin, 14px);
+  max-width: calc(100% - 32px);
 }
 
 .btable-mobile .pcard--xs {
@@ -208,29 +256,13 @@
   );
 }
 
-/* --- Landscape: table left (~70%), hero dock right (~30%) --- */
+/* --- Landscape: wide table column + narrow hero rail --- */
 .btable-mobile-wrap--landscape-row {
-  grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--table-grid-share, 5fr)) minmax(0, var(--hand-grid-share, 1fr));
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "table hand";
-  gap: clamp(6px, 1.2dvh, 12px);
+  gap: clamp(4px, 1dvh, 8px);
   align-items: stretch;
-}
-
-.btable-mobile-wrap--landscape-row .btable-mobile__table-area {
-  justify-content: center;
-}
-
-.btable-mobile-wrap--landscape-row .btable-mobile-stage-fit {
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: center;
-}
-
-.btable-mobile-wrap--landscape-row .btable-mobile-stage {
-  width: min(100%, var(--stage-fit-width, 100%));
-  max-height: var(--stage-fit-height, none);
-  height: var(--stage-fit-height, auto);
 }
 
 .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
@@ -247,7 +279,7 @@
   justify-content: stretch;
 }
 
-/* --- Compact session chrome when mobile layout is active --- */
+/* --- Compact session chrome — more pixels for the felt --- */
 .btable-session--mobile-layout {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -255,12 +287,12 @@
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  gap: clamp(4px, 1vmin, 8px);
+  gap: clamp(2px, 0.6vmin, 6px);
 }
 
 .btable-session--mobile-layout .btable-session__head {
   flex-shrink: 0;
-  padding: 2px 0 4px;
+  padding: 0 0 2px;
 }
 
 .btable-session--mobile-layout .btable-session__status,
@@ -274,12 +306,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .btable-session--mobile-layout .btable-session__title {
-  font-size: clamp(0.85rem, 3.2vmin, 0.95rem);
+  font-size: clamp(0.8rem, 2.8vmin, 0.9rem);
   margin: 0;
 }
 
@@ -301,164 +333,127 @@
 }
 
 .btable-mobile .bseat__aux {
-  max-width: clamp(72px, 18vw, 88px);
+  max-width: clamp(68px, 16vw, 84px);
 }
 
 .btable-mobile .bhud {
-  max-width: clamp(72px, 18vw, 88px);
+  max-width: clamp(68px, 16vw, 84px);
 }
 
 .btable-mobile--portrait .bseat--top .bseat__name {
-  max-width: clamp(60px, 16vw, 72px);
-  font-size: clamp(10px, 2.6vmin, 11px);
+  max-width: clamp(56px, 14vw, 68px);
+  font-size: clamp(9px, 2.4vmin, 11px);
 }
 
 .btable-mobile--landscape .center-play__stats {
   gap: 2px 6px;
+  max-width: clamp(180px, 36vw, 240px);
 }
 
-/* --- 2–8 player mobile — seat insets + compact avatars --- */
+/* --- Player-count seat tuning (avatars stay visible on larger felt) --- */
 .btable-mobile-wrap.btable--p2 {
-  --stage-seat-inset-top: 4%;
-  --stage-seat-inset-x: 3.5%;
-  --stage-seat-inset-bottom: 5%;
-}
-
-.btable-mobile-wrap.btable--p3,
-.btable-mobile-wrap.btable--p4 {
-  --stage-seat-inset-top: 2.5%;
-  --stage-seat-inset-x: 2%;
-  --stage-seat-inset-bottom: 3.5%;
-}
-
-.btable-mobile-wrap.btable--p5,
-.btable-mobile-wrap.btable--p6 {
-  --stage-seat-inset-top: 3%;
-  --stage-seat-inset-x: 2.5%;
-  --stage-seat-inset-bottom: 4%;
-}
-
-.btable-mobile-wrap.btable--p7,
-.btable-mobile-wrap.btable--p8 {
   --stage-seat-inset-top: 3.5%;
   --stage-seat-inset-x: 3%;
   --stage-seat-inset-bottom: 4.5%;
 }
 
-.btable-mobile-wrap.btable--p3 .btable-mobile-oval,
-.btable-mobile-wrap.btable--p4 .btable-mobile-oval {
-  inset: 3.5% 2% 4.5% 2%;
+.btable-mobile-wrap.btable--p3,
+.btable-mobile-wrap.btable--p4 {
+  --stage-seat-inset-top: 2%;
+  --stage-seat-inset-x: 1.5%;
+  --stage-seat-inset-bottom: 2.5%;
+}
+
+.btable-mobile-wrap.btable--p5,
+.btable-mobile-wrap.btable--p6 {
+  --stage-seat-inset-top: 2.5%;
+  --stage-seat-inset-x: 2%;
+  --stage-seat-inset-bottom: 3%;
+}
+
+.btable-mobile-wrap.btable--p7,
+.btable-mobile-wrap.btable--p8 {
+  --stage-seat-inset-top: 3%;
+  --stage-seat-inset-x: 2.5%;
+  --stage-seat-inset-bottom: 3.5%;
 }
 
 .btable-mobile-wrap.btable--p3 .bseat__avatar,
 .btable-mobile-wrap.btable--p4 .bseat__avatar {
-  width: clamp(30px, 7.5vmin, 36px);
-  height: clamp(30px, 7.5vmin, 36px);
-}
-
-.btable-mobile-wrap.btable--p3 .bseat__avatar--initials,
-.btable-mobile-wrap.btable--p4 .bseat__avatar--initials {
-  font-size: clamp(10px, 2.6vmin, 12px);
-}
-
-.btable-mobile-wrap.btable--p3 .deck-stack,
-.btable-mobile-wrap.btable--p4 .deck-stack {
-  width: clamp(48px, 12vmin, 58px);
-}
-
-.btable-mobile-wrap.btable--p3 .center-play,
-.btable-mobile-wrap.btable--p4 .center-play {
-  width: min(54%, clamp(160px, 42vw, 200px));
+  width: clamp(28px, 6.5vmin, 34px);
+  height: clamp(28px, 6.5vmin, 34px);
 }
 
 .btable-mobile-wrap.btable--p3 .bseat__aux,
 .btable-mobile-wrap.btable--p4 .bseat__aux,
 .btable-mobile-wrap.btable--p3 .bhud,
 .btable-mobile-wrap.btable--p4 .bhud {
-  max-width: clamp(64px, 16vw, 76px);
+  max-width: clamp(60px, 14vw, 72px);
 }
 
-/* Landscape row — give table even more room for 3–4 players */
 .btable-mobile-wrap--landscape-row.btable--p3,
 .btable-mobile-wrap--landscape-row.btable--p4 {
-  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
-  gap: clamp(4px, 0.8dvh, 8px);
+  --table-grid-share: 5;
 }
 
-/* --- Orientation: portrait --- */
+/* ================================================================== */
+/* Orientation + screen-size breakpoints                              */
+/* ================================================================== */
+
+/* Portrait: tall table stack (~80% height), hero strip below */
 @media (orientation: portrait) {
   .btable-mobile {
-    --hand-card-w: clamp(50px, 13vw, 68px);
-    --mobile-fit-gap: clamp(8px, 2vw, 12px);
+    --table-grid-share: 4;
+    --hand-grid-share: 1;
+    --hand-card-w: clamp(48px, 12vw, 66px);
+    --pcard-sm-w: clamp(50px, 12vw, 72px);
+    --mobile-fit-gap: clamp(4px, 1.2vw, 8px);
   }
 
   .btable-mobile-wrap {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "table"
-      "hand";
+    grid-template-rows: minmax(0, 4fr) minmax(0, 1fr);
   }
 
   .btable-mobile-hero-dock {
-    max-height: min(42dvh, 320px);
-  }
-
-  .btable-mobile-stage {
-    max-height: var(--stage-fit-height, min(58dvh, 420px));
+    max-height: min(22dvh, 180px);
   }
 }
 
-/* --- Orientation: landscape --- */
+/* Landscape: table column ~83% width, hero rail on the right */
 @media (orientation: landscape) {
   .btable-mobile {
-    --hand-card-w: clamp(44px, 10vh, 62px);
-    --pcard-sm-w: clamp(36px, 8.5vh, 48px);
-    --mobile-fit-gap: clamp(4px, 1dvh, 8px);
+    --table-grid-share: 5;
+    --hand-grid-share: 1;
+    --hand-card-w: clamp(44px, 9vh, 58px);
+    --pcard-sm-w: clamp(46px, 10vh, 68px);
+    --mobile-fit-gap: clamp(3px, 0.8dvh, 6px);
   }
 
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-    grid-template-areas: "table hand";
+    grid-template-columns: minmax(0, 5fr) minmax(0, 1fr);
   }
 
   .btable-mobile-wrap--landscape-row.btable--p3,
   .btable-mobile-wrap--landscape-row.btable--p4 {
-    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr);
-  }
-
-  .btable-mobile-hero-dock {
-    max-height: 100%;
-  }
-
-  .btable-mobile-stage {
-    max-height: var(--stage-fit-height, min(92dvh, 520px));
+    grid-template-columns: minmax(0, 5.5fr) minmax(0, 1fr);
   }
 }
 
-/* --- Small phones (portrait) --- */
 @media (max-width: 390px) and (orientation: portrait) {
   .btable-mobile {
-    --hand-card-w: clamp(46px, 12.5vw, 58px);
-    --hand-panel-min-height: clamp(108px, 20vmin, 148px);
-  }
-
-  .btable-mobile .bseat__avatar {
-    width: clamp(36px, 9vw, 42px);
-    height: clamp(36px, 9vw, 42px);
+    --hand-card-w: clamp(46px, 12.5vw, 56px);
+    --hand-panel-min-height: clamp(84px, 14vmin, 120px);
   }
 }
 
-/* --- Short landscape (phones rotated) --- */
 @media (orientation: landscape) and (max-height: 500px) {
   .btable-mobile {
-    --hand-card-w: clamp(42px, 11vh, 56px);
-    --hand-panel-min-height: clamp(96px, 28vh, 140px);
+    --table-grid-share: 5.5;
+    --hand-panel-min-height: clamp(80px, 22vh, 120px);
   }
 
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 2.35fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 5.5fr) minmax(0, 1fr);
   }
 
   .btable-session--mobile-layout .btable-session__status,
@@ -468,16 +463,15 @@
   }
 }
 
-/* --- Very short landscape (iPhone SE etc.) --- */
 @media (orientation: landscape) and (max-height: 380px) {
   .btable-mobile {
-    --hand-card-w: clamp(40px, 12vh, 52px);
-    --pcard-sm-w: clamp(32px, 9vh, 42px);
+    --hand-card-w: clamp(42px, 11vh, 52px);
+    --pcard-sm-w: clamp(40px, 10vh, 56px);
   }
 
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 2.6fr) minmax(0, 1fr);
-    gap: 4px;
+    grid-template-columns: minmax(0, 6fr) minmax(0, 1fr);
+    gap: 3px;
   }
 
   .btable-mobile .bpot__cards {
@@ -485,27 +479,22 @@
   }
 }
 
-/* --- Tablet portrait --- */
 @media (min-width: 600px) and (orientation: portrait) {
   .btable-mobile {
-    --hand-card-w: clamp(56px, 8vw, 72px);
-  }
-
-  .btable-mobile-stage {
-    max-height: var(--stage-fit-height, min(62dvh, 480px));
+    --hand-card-w: clamp(52px, 7.5vw, 68px);
+    --pcard-sm-w: clamp(54px, 8vw, 76px);
   }
 }
 
-/* --- Tablet landscape --- */
 @media (min-width: 700px) and (orientation: landscape) {
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr);
-    max-width: 960px;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 1fr);
+    max-width: 1040px;
     margin-inline: auto;
   }
 }
 
-/* --- Full-screen play overlay integration --- */
+/* --- Full-screen play overlay --- */
 .table-play-overlay .btable-mobile,
 .table-play-overlay .btable-mobile__viewport,
 .table-play-overlay .btable-mobile__layout,
@@ -524,20 +513,16 @@
 }
 
 .table-play-overlay .btable-session--mobile-layout {
-  gap: 4px;
+  gap: 2px;
   height: 100%;
 }
 
 .table-play-overlay .btable-session--mobile-layout .btable-session__head {
-  padding: 0 0 2px;
-}
-
-.table-play-overlay .btable-mobile-stage {
-  overflow: hidden;
+  padding: 0;
 }
 
 .table-play-overlay .btable-mobile-hero-dock {
-  max-height: min(40dvh, 280px);
+  max-height: min(22dvh, 168px);
 }
 
 .table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
@@ -546,34 +531,10 @@
 }
 
 @media (orientation: portrait) {
-  .table-play-overlay .btable-mobile-stage {
-    max-height: min(
-      var(--stage-fit-height, 100%),
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 72px)
-    );
-  }
-
   .table-play-overlay .btable-mobile-hero-dock {
     max-height: min(
-      38dvh,
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 52dvh)
-    );
-  }
-}
-
-@media (orientation: landscape) {
-  .table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-stage {
-    max-height: min(
-      var(--stage-fit-height, 100%),
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 40px)
-    );
-  }
-
-  .table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage,
-  .table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage {
-    max-height: min(
-      var(--stage-fit-height, 100%),
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 36px)
+      20dvh,
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 72dvh)
     );
   }
 }
