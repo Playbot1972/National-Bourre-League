@@ -11,8 +11,12 @@ export function formatHandPhase(
   phase: string | null | undefined,
   enrollmentActive: boolean,
 ): string {
-  if (enrollmentActive) return "Join window";
+  if (enrollmentActive) return "Play or pass";
   switch (phase) {
+    case "reveal":
+      return "Dealing";
+    case "decision":
+      return "Play or pass";
     case "draw":
       return "Draw round";
     case "play":
@@ -33,7 +37,15 @@ export function formatTrumpSuit(suit: string | null | undefined): string {
 }
 
 export function isCardsDealtPhase(phase: string | null | undefined): boolean {
-  return phase === "draw" || phase === "play";
+  return phase === "reveal" || phase === "decision" || phase === "draw" || phase === "play";
+}
+
+export function isDecisionPhase(phase: string | null | undefined): boolean {
+  return phase === "decision";
+}
+
+export function isRevealPhase(phase: string | null | undefined): boolean {
+  return phase === "reveal";
 }
 
 export function turnIndicatorLabel(

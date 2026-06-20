@@ -261,7 +261,7 @@ export function HeroHand({
     );
   }
 
-  if (dealtPhase && !isInHand) {
+  if (dealtPhase && !isInHand && (phase === "draw" || phase === "play")) {
     return (
       <div className={heroShellClass(settings, className)} data-testid="hero-hand">
         <p className="btable-hero__fallback muted small">You sat out this hand.</p>

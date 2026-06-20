@@ -3617,6 +3617,45 @@
   align-items: center;
 }
 
+.btable-session__decision-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
+.btable-session__discard-pick {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.btable-session__discard-btn--active {
+  outline: 2px solid var(--gold, #c9a227);
+  outline-offset: 1px;
+}
+
+.btable-session--reveal-phase .btable-session__decision-cta,
+.btable-session--reveal-phase .btable-session__pass-btn,
+.btable-session--reveal-phase .btable-session__play-btn,
+.btable-session--reveal-phase .btable-session__stay-pat-btn {
+  display: none !important;
+}
+
+.btable-session--decision-phase .btable-session__enroll-cta {
+  display: none !important;
+}
+
+.btable-session__phase-tag--reveal {
+  color: var(--gold, #c9a227);
+}
+
+.btable-session__phase-tag--decision {
+  color: #7ec8ff;
+}
+
 /* Bourré result sting — single controlled wash, not theme toggle */
 .bbourre-sting {
   position: fixed;

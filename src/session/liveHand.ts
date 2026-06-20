@@ -1,5 +1,6 @@
 /** Session enrollment / public hand view — mirrors docs/firestore.js for tests. */
 
+import { decisionAsEnrollmentView } from "../game/decision";
 import { isHandComplete, totalTricksPlayed, MAX_TRICKS_PER_HAND } from "../table/logic";
 
 export interface HandEnrollmentView {
@@ -16,6 +17,15 @@ export interface PublicHandView {
   participantIds?: string[];
   tricksByPlayer?: Record<string, number>;
   drawCompletedIds?: string[];
+  handDecision?: {
+    active?: boolean;
+    orderedPlayerIds?: string[];
+    currentIndex?: number;
+    turnDeadlineMs?: number;
+    playingIds?: string[];
+    passedIds?: string[];
+    plannedDiscards?: Record<string, number>;
+  } | null;
 }
 
 export interface SessionHandView {
@@ -36,7 +46,14 @@ function emptyPreDealHand(): PublicHandView {
 
 export function isClearedPreDealHand(hand: PublicHandView | null | undefined): boolean {
   const h = hand ?? emptyPreDealHand();
-  if (h.phase === "draw" || h.phase === "play") return false;
+  if (
+    h.phase === "draw" ||
+    h.phase === "play" ||
+    h.phase === "reveal" ||
+    h.phase === "decision"
+  ) {
+    return false;
+  }
   if ((h.participantIds?.length ?? 0) > 0) return false;
   const tricks = h.tricksByPlayer ?? {};
   return !Object.values(tricks).some((n) => (n || 0) > 0);
@@ -45,7 +62,14 @@ export function isClearedPreDealHand(hand: PublicHandView | null | undefined): b
 function handInProgress(hand: PublicHandView | null | undefined): boolean {
   if (!hand) return false;
   const phase = hand.phase ?? null;
-  if (phase !== "draw" && phase !== "play") return false;
+  if (
+    phase !== "draw" &&
+    phase !== "play" &&
+    phase !== "reveal" &&
+    phase !== "decision"
+  ) {
+    return false;
+  }
   const participantIds = hand.participantIds ?? [];
   if (participantIds.length === 0) return false;
   const tricks = hand.tricksByPlayer ?? {};
@@ -58,7 +82,7 @@ function handInProgress(hand: PublicHandView | null | undefined): boolean {
 function handProgressScore(hand: PublicHandView | null | undefined): number {
   if (!hand) return 0;
   const phase = hand.phase ?? "";
-  let score = phase === "play" ? 1_000 : phase === "draw" ? 100 : 0;
+  let score = phase === "play" ? 1_000 : phase === "draw" ? 100 : phase === "decision" ? 50 : phase === "reveal" ? 25 : 0;
   score += (hand.drawCompletedIds?.length ?? 0) * 10;
   const participants = hand.participantIds ?? [];
   score += totalTricksPlayed(hand.tricksByPlayer ?? {}, participants);
@@ -86,7 +110,7 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
 
   if (handInProgress(current)) return current;
 
-  if (livePhase === "draw" || livePhase === "play") {
+  if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
     if (handInProgress(livePublic)) {
       const liveTricks = totalTricksPlayed(
         livePublic?.tricksByPlayer ?? {},
@@ -111,10 +135,22 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
 }
 
 export function getSessionEnrollment(sessionData: SessionHandView | null | undefined) {
+  const hand = authoritativeCurrentHand(sessionData);
+  if (hand?.phase === "decision") {
+    const view = decisionAsEnrollmentView(hand.handDecision ?? null);
+    if (view?.active) return view;
+  }
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
-  if (livePhase === "draw" || livePhase === "play") return null;
+  if (
+    livePhase === "draw" ||
+    livePhase === "play" ||
+    livePhase === "reveal" ||
+    livePhase === "decision"
+  ) {
+    return null;
+  }
   if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
 }

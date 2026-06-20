@@ -266,7 +266,11 @@ export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, 
             <span className="bseat__enroll-tag muted small">Sat out</span>
           )}
           {player.enrollmentJoined && !player.inHand && !player.isOut && (
-            <span className="bseat__enroll-tag muted small">Joined</span>
+            <span className="bseat__enroll-tag muted small">
+              {player.decisionPlannedDiscards != null
+                ? `Play · draw ${player.decisionPlannedDiscards}`
+                : "Joined"}
+            </span>
           )}
         </div>
 
@@ -287,7 +291,11 @@ export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, 
             data-testid="seat-opt-in"
             onClick={onToggleInHand}
           >
-            I&apos;m in
+            {player.decisionPlannedDiscards != null && player.enrollmentJoined
+              ? `Playing · ${player.decisionPlannedDiscards}`
+              : player.canPassEnrollment
+                ? "Play"
+                : "I\u2019m in"}
           </button>
         )}
 

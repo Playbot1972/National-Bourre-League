@@ -8,7 +8,7 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi";
+import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -69,6 +69,8 @@ export function TableSessionView({
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
   const selfEnroll = players.find((p) => p.isSelf && p.canToggleInHand);
+  const selfDecision = selfEnroll && isDecisionPhase(session.phase);
+  const [decisionDiscardCount, setDecisionDiscardCount] = useState(0);
   const trickPresentation = useTrickPresentation({
     phase: session.phase,
     currentTrick: session.currentTrick,
@@ -336,6 +338,16 @@ export function TableSessionView({
   );
 
   useEffect(() => {
+    if (
+      session.phase === "reveal" &&
+      handPresentation.phase === "decision" &&
+      actions.onAdvanceReveal
+    ) {
+      void actions.onAdvanceReveal();
+    }
+  }, [session.phase, handPresentation.phase, actions]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === settings.hotkeys.toggleSettings || (e.key === "," && e.metaKey)) {
         setSettingsOpen((o) => !o);
@@ -354,6 +366,8 @@ export function TableSessionView({
         "btable-session",
         nativeMobile ? "btable-session--native-mobile btable-session--mobile-layout" : "",
         settingsOpen ? "btable-session--settings-open" : "",
+        isRevealPhase(session.phase) ? "btable-session--reveal-phase" : "",
+        isDecisionPhase(session.phase) ? "btable-session--decision-phase" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -441,7 +455,58 @@ export function TableSessionView({
             Follow suit · trump when void · beat the trick when you can
           </p>
         )}
-        {selfEnroll && (
+        {isRevealPhase(session.phase) && (
+          <p className="btable-session__hint muted small" aria-live="polite">
+            Cards dealt — trump revealed. Review your hand…
+          </p>
+        )}
+        {selfDecision && (
+          <div className="btable-session__decision-cta" data-testid="decision-panel">
+            <button
+              type="button"
+              className="btn btn--sm btn--ghost btable-session__pass-btn"
+              data-testid="pass-decision-button"
+              onClick={() => actions.onPassEnrollment?.()}
+            >
+              Pass · {enrollmentSecondsLeft}s
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm btable-session__stay-pat-btn"
+              data-testid="stay-pat-button"
+              onClick={() => actions.onDecisionPlay?.(0)}
+            >
+              Stay pat
+            </button>
+            <div className="btable-session__discard-pick" role="group" aria-label="Cards to discard if you play">
+              {Array.from({ length: (session.maxDrawDiscards ?? 5) + 1 }, (_, n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={[
+                    "btn btn--sm btable-session__discard-btn",
+                    decisionDiscardCount === n ? "btable-session__discard-btn--active" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  data-testid={`discard-count-${n}`}
+                  onClick={() => setDecisionDiscardCount(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm btable-session__play-btn"
+              data-testid="play-decision-button"
+              onClick={() => actions.onDecisionPlay?.(decisionDiscardCount)}
+            >
+              Play · draw {decisionDiscardCount}
+            </button>
+          </div>
+        )}
+        {selfEnroll && !selfDecision && (
           <div className="btable-session__enroll-cta">
             <button
               type="button"
@@ -463,9 +528,9 @@ export function TableSessionView({
             )}
           </div>
         )}
-        {enrollmentActive && !selfEnroll && (
+        {enrollmentActive && !selfEnroll && !isRevealPhase(session.phase) && (
           <p className="btable-session__enroll muted small">
-            Join window: {enrollmentSecondsLeft}s each · clockwise from dealer
+            Play or pass: {enrollmentSecondsLeft}s each · clockwise from dealer
           </p>
         )}
       </header>

@@ -129,7 +129,12 @@ export function useHandPresentation({
   }, [store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
   useEffect(() => {
-    if (session.phase === "draw" || session.phase === "play") {
+    if (
+      session.phase === "reveal" ||
+      session.phase === "decision" ||
+      session.phase === "draw" ||
+      session.phase === "play"
+    ) {
       const count = heroCards.length;
       if (count > 0) {
         dispatch({ type: "dealCardRevealed", count });

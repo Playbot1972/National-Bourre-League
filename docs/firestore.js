@@ -109,6 +109,7 @@ import {
   dealInitialHand,
   playerOrderFromDealer,
   serializeHandState,
+  serializePagatRevealHand,
   deserializeCards,
   serializeCards,
   shuffledDeckFromSeed,
@@ -122,6 +123,12 @@ import {
   getLegalPlayIndices,
   effectivePlayerHand,
   HAND_PHASE,
+  activateHandDecision,
+  applyDecisionPlay,
+  applyDecisionPass,
+  applyDecisionTimeout,
+  currentDecisionPlayer,
+  decisionAsEnrollmentView,
 } from "./game-engine.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -837,12 +844,46 @@ export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
 
 /** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
 export function getSessionEnrollment(sessionData) {
+  const hand = getSessionCurrentHand(sessionData);
+  if (hand?.phase === HAND_PHASE.REVEAL || hand?.phase === HAND_PHASE.DECISION) {
+    const view = decisionAsEnrollmentView(hand.handDecision);
+    return view?.active ? view : null;
+  }
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
-  if (livePhase === "draw" || livePhase === "play") return null;
+  if (
+    livePhase === HAND_PHASE.DRAW ||
+    livePhase === HAND_PHASE.PLAY ||
+    livePhase === HAND_PHASE.REVEAL ||
+    livePhase === HAND_PHASE.DECISION
+  ) {
+    return null;
+  }
   if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
+}
+
+/** Active Pagat decision clock on currentHand (post-reveal). */
+export function getSessionHandDecision(sessionData) {
+  const hand = getSessionCurrentHand(sessionData);
+  if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
+    return hand.handDecision;
+  }
+  return null;
+}
+
+function decisionContextFromSession(data, sortedPlayerIds, scoreById, dealingRule, buyIn, sessionStake) {
+  return {
+    dealerId: data.dealerId,
+    sortedPlayerIds,
+    dealingRule,
+    scoreById,
+    buyIn,
+    sessionStake,
+    carryIn: data.carryOverPot || 0,
+    handCount: data.handCount || 0,
+  };
 }
 
 function emptyPreDealHand() {
@@ -1055,23 +1096,20 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     stakeForPlayer: stakeFor,
   });
   if (!settled.ready) {
-    return {
-      handEnrollment: buildHandEnrollment(
-        dealContext.sortedPlayerIds,
-        dealContext.dealerId,
+    return buildPagatHandStartPatch(
+      dealContext.dealerId,
+      dealContext.sortedPlayerIds,
+      dealContext.sortedPlayerIds,
+      Date.now(),
+      null,
+      {
         scoreById,
+        sessionStake,
         buyIn,
-      ),
-      currentHand: emptyPreDealHand(),
-      scorePatches: buildScorePatchesFromAnteCollection(
-        {
-          bankrolls: settled.bankrolls ?? {},
-          outIds: settled.outIds ?? [winnerId],
-          postedAntes: settled.postedAntes ?? {},
-        },
-        [],
-      ),
-    };
+        carryIn: sessionData.carryOverPot || 0,
+        handCount: sessionData.handCount || 0,
+      },
+    );
   }
   const handNumber = (sessionData.handCount || 0) + 1;
   const scorePatches = {};
@@ -1244,9 +1282,9 @@ function logHandLifecycleTransition(transition) {
   }
 }
 
-function buildDealCompletionPatch(
+function buildPagatHandStartPatch(
   dealerId,
-  enrolledIds,
+  seatedIds,
   sortedPlayerIds,
   seed,
   dealingRule,
@@ -1256,7 +1294,7 @@ function buildDealCompletionPatch(
     dealContextExtras;
   const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
   const collected = collectHandAntes({
-    participants: enrolledIds,
+    participants: seatedIds,
     scoreById,
     buyInFallback: buyIn,
     stakeForPlayer: stakeFor,
@@ -1278,7 +1316,8 @@ function buildDealCompletionPatch(
       );
     }
     return {
-      handEnrollment: buildHandEnrollment(sortedPlayerIds, dealerId, scoreById, buyIn),
+      handEnrollment: deleteField(),
+      [LIVE_ENROLLMENT_FIELD]: deleteField(),
       currentHand: emptyPreDealHand(),
       scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
     };
@@ -1290,21 +1329,40 @@ function buildDealCompletionPatch(
     sortedPlayerIds,
     seed: seed ?? Date.now(),
   });
-  const { publicHand, privateHandsByPlayer } = serializeHandState(deal, {
+  const bundle = serializePagatRevealHand(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
     maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
     handEnrollment: deleteField(),
+    [LIVE_ENROLLMENT_FIELD]: deleteField(),
     currentHand: {
-      ...publicHand,
+      ...bundle.publicHand,
       postedAntes: collected.postedAntes,
     },
-    privateHandsByPlayer,
+    privateHandsByPlayer: bundle.privateHandsByPlayer,
     sortedPlayerIds,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
   };
+}
+
+function buildDealCompletionPatch(
+  dealerId,
+  enrolledIds,
+  sortedPlayerIds,
+  seed,
+  dealingRule,
+  dealContextExtras = {},
+) {
+  return buildPagatHandStartPatch(
+    dealerId,
+    enrolledIds,
+    sortedPlayerIds,
+    seed,
+    dealingRule,
+    dealContextExtras,
+  );
 }
 
 function buildScorePatchesFromAnteCollection(collected, dealIds) {
@@ -1707,16 +1765,20 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
         handCount: dealContext.handCount ?? 0,
       }, dealContext);
     }
-    return {
-      handEnrollment: {
-        ...enrollment,
-        enrolledIds: [],
-        declinedIds: [],
-        currentIndex: 0,
-        turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
+    return buildPagatHandStartPatch(
+      dealContext?.dealerId ?? null,
+      dealContext?.sortedPlayerIds ?? [],
+      dealContext?.sortedPlayerIds ?? [],
+      Date.now(),
+      dealContext?.dealingRule ?? null,
+      {
+        scoreById: dealContext?.scoreById ?? {},
+        sessionStake: dealContext?.sessionStake ?? 1,
+        buyIn: dealContext?.buyIn ?? 1,
+        carryIn: dealContext?.carryIn ?? 0,
+        handCount: dealContext?.handCount ?? 0,
       },
-      currentHand: emptyPreDealHand(),
-    };
+    );
   }
   if (!dealContext?.sortedPlayerIds?.length) {
     throw new Error("Missing deal context for enrollment completion");
@@ -1733,6 +1795,56 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
       buyIn: dealContext.buyIn ?? 1,
     },
   );
+}
+
+function patchFromDecisionStep(sessionData, step, dealContext) {
+  if (step.kind === "continue") {
+    return { currentHand: step.publicHand };
+  }
+  if (step.kind === "draw") {
+    return { currentHand: step.publicHand };
+  }
+  if (step.kind === "restart") {
+    return { currentHand: step.publicHand };
+  }
+  if (step.kind === "soloWin") {
+    return buildSoloWinPatch(step.winnerId, sessionData, dealContext);
+  }
+  return null;
+}
+
+async function runDecisionStepTransaction(roomId, sessionId, buildPatch, { requirePatch = false } = {}) {
+  const ref = sessionDoc(roomId, sessionId);
+  let applied = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const patch = buildPatch(snap.data());
+    if (!patch) {
+      if (requirePatch) throw new Error("Decision step did not apply");
+      return;
+    }
+    applied = true;
+    if (patch.scorePatches) {
+      for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
+        tx.update(scoreDoc(roomId, sessionId, playerId), {
+          ...scorePatch,
+          updatedAt: serverTimestamp(),
+        });
+      }
+    }
+    if (patch.privateHandsByPlayer) {
+      applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId);
+      return;
+    }
+    if (patch.currentHand) {
+      tx.update(ref, publicHandSessionUpdate(snap.data(), patch.currentHand));
+    }
+    if (patch.handEnrollment === deleteField()) {
+      tx.update(ref, { handEnrollment: deleteField(), [LIVE_ENROLLMENT_FIELD]: deleteField() });
+    }
+  });
+  if (requirePatch && !applied) throw new Error("Decision step did not apply");
 }
 
 function nextDealerId(scoreSnap, currentDealerId, sessionData) {
@@ -2843,8 +2955,12 @@ export async function ensureHandEnrollment(roomId, sessionId) {
   if (!sessionSnap.exists()) return;
   const data = sessionSnap.data();
   const hand = authoritativeCurrentHand(data);
-  const needsJoinWindow = hand.phase !== "draw" && hand.phase !== "play";
-  if (needsJoinWindow && !getSessionEnrollment(data)?.active) {
+  const handStarted =
+    hand.phase === HAND_PHASE.REVEAL ||
+    hand.phase === HAND_PHASE.DECISION ||
+    hand.phase === HAND_PHASE.DRAW ||
+    hand.phase === HAND_PHASE.PLAY;
+  if (!handStarted) {
     const analysis = analyzeTableStartup(data, 2);
     const err = new Error(
       tableStartupUserMessage({ ...analysis, kind: "enrollment_failed" }),
@@ -2885,7 +3001,14 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
 
   const currentHand = getSessionCurrentHand(data);
   const phase = currentHand?.phase;
-  if (phase === "draw" || phase === "play") return;
+  if (
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY ||
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DECISION
+  ) {
+    return;
+  }
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
@@ -2909,37 +3032,41 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const sessionStake = data.handStake ?? 1;
   const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
 
-  const autoPatch = tryAutoEnrollmentDeal(
-    data,
-    sortedIds,
-    scoreById,
-    buyIn,
-    sessionStake,
-    dealingRule,
-  );
-  if (autoPatch?.privateHandsByPlayer) {
-    await runEnrollmentStepTransaction(roomId, sessionId, () => autoPatch, { requirePatch: true });
-    logHandLifecycleTransition({
-      from: "handoffToNextDeal",
-      to: "deal",
-      reason: "auto-enrolled table members with confirmed session opt-in",
-    });
-    return;
-  }
+  const eligibleIds = sortedIds.filter((id) => {
+    const row = scoreById[id];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
+  });
+  if (eligibleIds.length < 2) return;
 
-  const enrollment = buildHandEnrollment(sortedIds, data.dealerId, scoreById, buyIn);
-  try {
-    await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
-  } catch (err) {
-    if (!isEnrollmentPermissionError(err)) throw err;
-    await clearStaleHandoffArtifacts(roomId, sessionId);
-    await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
-  }
+  const patch = buildPagatHandStartPatch(
+    data.dealerId,
+    eligibleIds,
+    sortedIds,
+    Date.now(),
+    dealingRule,
+    { scoreById, sessionStake, buyIn, carryIn: data.carryOverPot || 0, handCount: data.handCount || 0 },
+  );
+  await runEnrollmentStepTransaction(roomId, sessionId, () => patch, { requirePatch: true });
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
-    to: "opening",
-    reason: "ensureHandEnrollment opened join window",
+    to: "reveal",
+    reason: "Pagat hand dealt — reveal then play/pass decision",
   });
+}
+
+/** Advance reveal → decision after trump/hand presentation completes. */
+export async function advanceHandReveal(roomId, sessionId) {
+  await runDecisionStepTransaction(
+    roomId,
+    sessionId,
+    (sessionData) => {
+      const hand = getSessionCurrentHand(sessionData);
+      if (hand?.phase !== HAND_PHASE.REVEAL) return null;
+      return { currentHand: activateHandDecision(hand) };
+    },
+    { requirePatch: true },
+  );
 }
 
 /** Auto sit-out when the current player's enrollment window expires. */
@@ -2960,6 +3087,29 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
   const sessionStake = sessionData.handStake ?? 1;
+  const dealContext = decisionContextFromSession(
+    sessionData,
+    sortedPlayerIds,
+    scoreById,
+    dealingRule,
+    buyIn,
+    sessionStake,
+  );
+
+  const hand = getSessionCurrentHand(sessionData);
+  const decision = hand?.handDecision;
+  if (hand?.phase === HAND_PHASE.DECISION && decision?.active) {
+    if (Date.now() < enrollmentDeadlineMs(decision)) return;
+    await runDecisionStepTransaction(roomId, sessionId, (data) => {
+      const activeHand = getSessionCurrentHand(data);
+      const activeDecision = activeHand?.handDecision;
+      if (activeHand?.phase !== HAND_PHASE.DECISION || !activeDecision?.active) return null;
+      if (Date.now() < enrollmentDeadlineMs(activeDecision)) return null;
+      const step = applyDecisionTimeout(activeHand, activeDecision, dealContext);
+      return patchFromDecisionStep(data, step, dealContext);
+    });
+    return;
+  }
 
   await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
     const enrollment = getSessionEnrollment(data);
@@ -2983,11 +3133,82 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
   });
 }
 
+/** Pagat play/pass during the post-reveal decision window. */
+export async function setHandDecision(
+  roomId,
+  sessionId,
+  { playerId, inHand, discardCount = 0, actorId },
+) {
+  return callEnrollmentAction(
+    () => setHandDecisionClient(roomId, sessionId, { playerId, inHand, discardCount, actorId }),
+    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId, discardCount }),
+  );
+}
+
+async function setHandDecisionClient(roomId, sessionId, { playerId, inHand, discardCount = 0, actorId }) {
+  if (!playerId || !actorId) throw new Error("Missing player");
+  if (playerId !== actorId && !isRobotPlayerId(playerId)) {
+    throw new Error("You can only change your own hand participation");
+  }
+
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+  const sessionStake = sessionData.handStake ?? 1;
+  const dealContext = decisionContextFromSession(
+    sessionData,
+    sortedPlayerIds,
+    scoreById,
+    dealingRule,
+    buyIn,
+    sessionStake,
+  );
+
+  const hand = getSessionCurrentHand(sessionData);
+  const decision = getSessionHandDecision(sessionData);
+  if (!hand || !decision) throw new Error("Not in play/pass decision phase");
+
+  const currentId = currentDecisionPlayer(decision);
+  if (playerId !== currentId) throw new Error(inHand ? "Not your turn to play yet" : "Not your turn to pass yet");
+
+  await runDecisionStepTransaction(
+    roomId,
+    sessionId,
+    (data) => {
+      const activeHand = getSessionCurrentHand(data);
+      const activeDecision = getSessionHandDecision(data);
+      if (!activeHand || !activeDecision) return null;
+      const turnId = currentDecisionPlayer(activeDecision);
+      if (playerId !== turnId) return null;
+      const step = inHand
+        ? applyDecisionPlay(activeHand, activeDecision, playerId, discardCount, dealContext)
+        : applyDecisionPass(activeHand, activeDecision, playerId, dealContext);
+      return patchFromDecisionStep(data, step, dealContext);
+    },
+    { requirePatch: true },
+  );
+}
+
 /** Each signed-in player toggles only their own participation in the current hand. */
-export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId }) {
+export async function setHandParticipation(roomId, sessionId, { playerId, inHand, actorId, discardCount = 0 }) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (sessionSnap.exists()) {
+    const hand = getSessionCurrentHand(sessionSnap.data());
+    if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
+      return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
+    }
+  }
   return callEnrollmentAction(
     () => setHandParticipationClient(roomId, sessionId, { playerId, inHand, actorId }),
-    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId }),
+    () => gameSetHandParticipation(roomId, sessionId, { playerId, inHand, actorId, discardCount }),
   );
 }
 

@@ -127,6 +127,8 @@ export function snapshotFromSession(input: {
 function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase {
   if (snapshot.phase === "play") return "play";
   if (snapshot.phase === "draw") return "drawPlayer";
+  if (snapshot.phase === "decision") return "decision";
+  if (snapshot.phase === "reveal") return "ante";
   if (snapshot.enrollmentActive) return "enrollment";
   return "idle";
 }
@@ -293,10 +295,10 @@ export function reduceHandPresentation(
       const pulse = enrollmentDiffPulse(prev, snapshot);
       const hasPulse = Object.keys(pulse).length > 0;
 
-      if (snapshot.enrollmentActive) {
+      if (snapshot.enrollmentActive || snapshot.phase === "decision") {
         return {
           ...store,
-          phase: "enrollment",
+          phase: snapshot.phase === "decision" ? "decision" : "enrollment",
           enrollmentPulse: hasPulse ? { ...store.enrollmentPulse, ...pulse } : store.enrollmentPulse,
           prevSnapshot: snapshot,
           displayPotAmount: snapshot.potAmount,
@@ -304,10 +306,25 @@ export function reduceHandPresentation(
       }
 
       if (
+        snapshot.phase === "reveal" &&
+        prev.phase !== "reveal" &&
+        (store.phase === "idle" || store.phase === "nextHandReset")
+      ) {
+        const hasTrump = Boolean(snapshot.trumpUpcard);
+        return withPhase(store, "ante", {
+          trumpRevealActive: hasTrump,
+          anteAnimActive: true,
+          dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
+          prevSnapshot: snapshot,
+          displayPotAmount: snapshot.potAmount,
+        });
+      }
+
+      if (
         snapshot.phase === "draw" &&
         prev.enrollmentActive &&
         !snapshot.enrollmentActive &&
-        store.phase === "enrollment"
+        (store.phase === "enrollment" || store.phase === "decision")
       ) {
         const hasTrump = Boolean(snapshot.trumpUpcard);
         return withPhase(store, hasTrump ? "trumpReveal" : "ante", {
@@ -390,6 +407,14 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       });
 
     case "trumpMerge":
+      if (snap?.phase === "reveal" || snap?.phase === "decision") {
+        return withPhase(store, "decision", {
+          trumpRevealActive: false,
+          trumpMergeActive: false,
+          trumpMergedIntoHand: true,
+          pendingSnapshot: null,
+        });
+      }
       if (snap?.phase === "draw") {
         return {
           ...beginDrawSequence(store, snap, 0, 0),
