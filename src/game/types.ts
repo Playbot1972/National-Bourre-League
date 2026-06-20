@@ -4,6 +4,8 @@ export type { Card, Rank, Suit };
 
 /** Public hand phases stored on the session doc (no hidden cards). */
 export const HAND_PHASE = {
+  REVEAL: "reveal",
+  DECISION: "decision",
   DRAW: "draw",
   PLAY: "play",
 } as const;
@@ -28,6 +30,17 @@ export interface CurrentTrickState {
   plays: Array<{ playerId: string; card: SerializedCard }>;
 }
 
+export interface HandDecision {
+  active: boolean;
+  orderedPlayerIds: string[];
+  currentIndex: number;
+  turnDeadlineMs: number;
+  playingIds: string[];
+  passedIds: string[];
+  /** Declared discard count when choosing to play (0 = stay pat). */
+  plannedDiscards: Record<string, number>;
+}
+
 /** Public session.currentHand — safe for all room members. */
 export interface PublicHandState {
   phase: HandPhase;
@@ -50,6 +63,10 @@ export interface PublicHandState {
   drawCompletedIds?: string[];
   maxDrawDiscards?: number;
   cinchEnabled?: boolean;
+  /** All seats dealt this hand (includes players who later pass). */
+  seatedIds?: string[];
+  /** Pagat-style post-reveal play / pass clock. */
+  handDecision?: HandDecision | null;
 }
 
 export interface PrivateHandState {

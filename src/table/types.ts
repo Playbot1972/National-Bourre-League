@@ -52,6 +52,8 @@ export interface TablePlayer {
   canToggleInHand: boolean;
   /** Explicit pass/fold during play-or-pass enrollment window. */
   canPassEnrollment?: boolean;
+  /** Declared draw count when player chose to stay in (decision phase). */
+  decisionPlannedDiscards?: number;
   canEditTricks: boolean;
   /** Opponent hole cards — face-down count only, never actual cards. */
   showHoleCards?: boolean;
@@ -134,12 +136,17 @@ export interface TableSessionData {
     turnDeadlineMs?: number;
     enrolledIds?: string[];
     declinedIds?: string[];
+    plannedDiscards?: Record<string, number>;
   } | null;
 }
 
 export interface TableSessionActions {
   onToggleInHand: (inHand: boolean) => void;
   onPassEnrollment?: () => void | Promise<void>;
+  /** Pagat post-reveal play/pass with optional declared discard count. */
+  onDecisionPlay?: (discardCount: number) => void | Promise<void>;
+  /** After trump reveal presentation, open the play/pass clock on the server. */
+  onAdvanceReveal?: () => void | Promise<void>;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;

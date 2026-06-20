@@ -38,12 +38,12 @@ export const STANDARD_RULES: RuleSection[] = [
   {
     id: "play-pass",
     title: "Play or Pass",
-    summary: "Each player decides whether to stay in for the pot or pass for that hand.",
+    summary: "After the deal and trump reveal, each player decides whether to stay in or pass.",
     points: [
+      "Cards are dealt and trump is revealed before anyone decides.",
       "Starting left of dealer, each player plays or passes.",
+      "If you play, declare how many cards you will discard (0 = stay pat).",
       "If you pass, you take no further part and cannot win or lose more on that hand.",
-      "If you play, you may stand pat or discard and draw replacements.",
-      "Standard rules allow discarding up to all 5 cards; some tables cap draws.",
       "If only one player chooses to play, that player wins the pot without playing out tricks.",
       "If the turned-up trump is an ace, the dealer must play.",
     ],

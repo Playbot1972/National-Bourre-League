@@ -50,6 +50,7 @@ import {
   syncSessionWithRoomMembers,
   setHandParticipation,
   ensureHandEnrollment,
+  advanceHandReveal,
   prepareSessionForTableOpen,
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
@@ -83,6 +84,7 @@ import {
   isHandComplete,
   isRobotPlayerId,
   getSessionEnrollment,
+  getSessionHandDecision,
   getSessionCurrentHand,
   HAND_ENROLLMENT_MS,
   enrollmentDeadlineMs,
@@ -2217,15 +2219,20 @@ function processRobotActionsInner(s, scores) {
       return;
     }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+    const committedIds = enrollment.enrolledIds || [];
+  const handPhase = getSessionCurrentHand(s)?.phase;
+  const isPagatDecision = handPhase === "decision";
     if (
       currentId &&
       isRobotPlayerId(currentId) &&
-      !(enrollment.enrolledIds || []).includes(currentId)
+      !committedIds.includes(currentId) &&
+      !(enrollment.declinedIds || []).includes(currentId)
     ) {
       robotActionInFlight = true;
       setHandParticipation(currentRoomId, openSessionId, {
         playerId: currentId,
         inHand: true,
+        discardCount: isPagatDecision ? 0 : 0,
         actorId,
       })
         .catch((e) => console.warn("robot enroll:", e))
@@ -2372,14 +2379,18 @@ function processRobotActionsInner(s, scores) {
     });
 }
 
-function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid) {
+function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid, pagatDecision = false) {
   const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
   const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
   const sec = enrollmentSecondsLeft(enrollment);
   if (currentId === myUid) {
-    return `Your turn — tap I'm in (${sec}s)`;
+    return pagatDecision
+      ? `Your turn — pass or play (${sec}s)`
+      : `Your turn — tap I'm in (${sec}s)`;
   }
-  return `Waiting for ${name} (${sec}s) — clockwise from dealer`;
+  return pagatDecision
+    ? `Waiting for ${name} (${sec}s) — pass or play clockwise from dealer`
+    : `Waiting for ${name} (${sec}s) — clockwise from dealer`;
 }
 
 function buildTableLeaderLabel(
@@ -2454,7 +2465,11 @@ function buildTableSessionProps(s) {
   const trumpSuit = currentHand?.trumpSuit ?? null;
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
   const tricksThisHand = currentHand?.tricksByPlayer || {};
-  const cardsDealt = handPhase === "draw" || handPhase === "play";
+  const cardsDealt =
+    handPhase === "reveal" ||
+    handPhase === "decision" ||
+    handPhase === "draw" ||
+    handPhase === "play";
   const myUid = session?.uid ?? null;
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
@@ -2469,9 +2484,11 @@ function buildTableSessionProps(s) {
   const isFinal = s.status === "final";
   const dealerId = s.dealerId ?? null;
   const enrollment = getSessionEnrollment(s);
-  const enrollmentActive = enrollment?.active === true;
+  const pagatDecision = handPhase === "decision";
+  const enrollmentActive = enrollment?.active === true || pagatDecision;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
+  const plannedDiscards = currentHand?.handDecision?.plannedDiscards ?? {};
   const currentEnrollmentPlayerId = enrollmentActive
     ? enrollment.orderedPlayerIds?.[enrollment.currentIndex]
     : null;
@@ -2545,7 +2562,12 @@ function buildTableSessionProps(s) {
       participantIds: handParticipantIds,
       tricksByPlayer: tricksThisHand,
       pendingCoWinSettlement: s.pendingCoWinSettlement,
-      handEnrollment: enrollmentActive ? enrollment : null,
+      handEnrollment: enrollmentActive
+        ? {
+            ...enrollment,
+            plannedDiscards,
+          }
+        : null,
       phase: handPhase,
       trumpHolderId: currentHand?.trumpHolderId ?? dealerId,
       trumpSuit,
@@ -2607,6 +2629,7 @@ function buildTableSessionProps(s) {
           : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
+        decisionPlannedDiscards: plannedDiscards[sc.playerId],
         isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
         showHoleCards:
           cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
@@ -2643,7 +2666,7 @@ function buildTableSessionProps(s) {
         : null,
     myHandContribution,
     leaderLabel: enrollmentActive
-      ? buildEnrollmentLeaderLabel(displayScores, enrollment, myUid)
+      ? buildEnrollmentLeaderLabel(displayScores, enrollment, myUid, pagatDecision)
       : buildTableLeaderLabel(
           displayScores,
           handParticipantIds,
@@ -2706,6 +2729,38 @@ function buildTableSessionProps(s) {
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
           });
+      },
+      onDecisionPlay: (discardCount) => {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          setTableActionFeedback({ status: "error", message: "Sign in to play." });
+          return;
+        }
+        const label =
+          discardCount > 0 ? `Playing — will draw ${discardCount}` : "Staying pat";
+        setTableActionFeedback({ status: "loading", message: `${label}…` });
+        setHandParticipation(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          inHand: true,
+          discardCount,
+          actorId: session.uid,
+        })
+          .then(() => {
+            setTableActionFeedback({
+              status: "success",
+              message: discardCount > 0 ? `You're in — draw ${discardCount}` : "You're in — standing pat",
+            });
+          })
+          .catch((e) => {
+            const message = e.message || "Could not play this hand";
+            setTableActionFeedback({ status: "error", message });
+            showRoomsError(message);
+          });
+      },
+      onAdvanceReveal: () => {
+        if (!currentRoomId || !openSessionId) return Promise.resolve();
+        return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
+          console.warn("advanceHandReveal:", e);
+        });
       },
       onTrickDelta: (delta) => {
         if (!session?.uid || !currentRoomId || !openSessionId) return;

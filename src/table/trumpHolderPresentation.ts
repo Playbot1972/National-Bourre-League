@@ -43,7 +43,10 @@ export function resolveTrumpHolderPresentation(
     (trumpRevealActive ||
       trumpMergeActive ||
       (trumpMergedIntoHand &&
-        (input.phase === "draw" || input.phase === "play")));
+        (input.phase === "reveal" ||
+          input.phase === "decision" ||
+          input.phase === "draw" ||
+          input.phase === "play")));
 
   return {
     trumpHolderId,
@@ -53,7 +56,9 @@ export function resolveTrumpHolderPresentation(
     showTrumpSuitReminder:
       trumpMergedIntoHand &&
       hasTrumpOnTable &&
-      (input.phase === "draw" || input.phase === "play"),
+      (input.phase === "decision" ||
+        input.phase === "draw" ||
+        input.phase === "play"),
     trumpMergeActive,
     trumpMergedIntoHand,
   };

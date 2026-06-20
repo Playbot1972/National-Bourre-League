@@ -23,8 +23,12 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   const self = input.selfPlayer;
   if (!self || self.isOut) return false;
 
-  if (input.enrollmentActive) {
+  if (input.enrollmentActive || input.session.phase === "decision") {
     return Boolean(self.canToggleInHand || self.canPassEnrollment);
+  }
+
+  if (input.session.phase === "reveal") {
+    return false;
   }
 
   if (input.session.phase === "draw") {

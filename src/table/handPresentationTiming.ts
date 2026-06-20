@@ -51,6 +51,7 @@ export type HandPresentationPhase =
   | "trumpReveal"
   | "trumpMerge"
   | "enrollment"
+  | "decision"
   | "drawPlayer"
   | "drawReady"
   | "play"
@@ -111,6 +112,7 @@ export function suppressesHandTurnIndicator(phase: HandPresentationPhase): boole
   return (
     phase !== "idle" &&
     phase !== "enrollment" &&
+    phase !== "decision" &&
     phase !== "play" &&
     phase !== "drawPlayer"
   );

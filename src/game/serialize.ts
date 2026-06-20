@@ -1,8 +1,10 @@
 import type { Card } from "../types";
 import { maxDrawDiscards } from "./drawLimit";
+import { buildHandDecision } from "./decision";
 import { HAND_PHASE } from "./types";
 import type {
   DealResult,
+  HandDecision,
   PrivateHandState,
   PublicHandState,
   SerializedHandBundle,
@@ -21,6 +23,9 @@ export interface SerializeHandOptions {
   actionOrder: string[];
   maxDrawDiscards?: number;
   cinchEnabled?: boolean;
+  /** Initial authoritative phase after deal (Pagat: reveal before decision). */
+  initialPhase?: (typeof HAND_PHASE)[keyof typeof HAND_PHASE];
+  handDecision?: HandDecision | null;
 }
 
 /** Split a deal into public session state + per-player private hand docs. */
@@ -39,10 +44,17 @@ export function serializeHandState(
       : maxDrawDiscards(deal.participantIds.length);
   const cinchEnabled =
     typeof options === "object" && options !== null ? options.cinchEnabled === true : false;
+  const initialPhase =
+    typeof options === "object" && options !== null && options.initialPhase
+      ? options.initialPhase
+      : HAND_PHASE.DRAW;
+  const handDecision =
+    typeof options === "object" && options !== null ? options.handDecision ?? null : null;
 
   const publicHand: PublicHandState = {
-    phase: HAND_PHASE.DRAW,
+    phase: initialPhase,
     participantIds: [...deal.participantIds],
+    seatedIds: [...deal.participantIds],
     dealerId,
     trumpHolderId: deal.trumpHolderId,
     trumpSuit: deal.trumpSuit,
@@ -59,6 +71,7 @@ export function serializeHandState(
     drawCompletedIds: [],
     maxDrawDiscards: maxDraw,
     cinchEnabled,
+    handDecision,
   };
 
   const privateHandsByPlayer: Record<string, PrivateHandState> = {};
@@ -67,6 +80,19 @@ export function serializeHandState(
   }
 
   return { publicHand, privateHandsByPlayer };
+}
+
+/** Deal bundle for Pagat flow: cards dealt, trump visible, decision clock pending reveal. */
+export function serializePagatRevealHand(
+  deal: DealResult,
+  options: Omit<SerializeHandOptions, "initialPhase" | "handDecision">,
+): SerializedHandBundle {
+  const handDecision = buildHandDecision(deal.participantIds, options.dealerId, false);
+  return serializeHandState(deal, {
+    ...options,
+    initialPhase: HAND_PHASE.REVEAL,
+    handDecision,
+  });
 }
 
 export function deserializeCards(

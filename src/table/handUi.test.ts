@@ -10,12 +10,16 @@ import {
 describe("G — hand UI labels", () => {
   it("formatHandPhase reflects session phase", () => {
     assert.equal(formatHandPhase(null, false), "Waiting to deal");
+    assert.equal(formatHandPhase("reveal", false), "Dealing");
+    assert.equal(formatHandPhase("decision", false), "Play or pass");
     assert.equal(formatHandPhase("draw", false), "Draw round");
     assert.equal(formatHandPhase("play", false), "Trick play");
-    assert.equal(formatHandPhase(null, true), "Join window");
+    assert.equal(formatHandPhase(null, true), "Play or pass");
   });
 
-  it("isCardsDealtPhase is true for draw and play", () => {
+  it("isCardsDealtPhase is true for reveal, decision, draw and play", () => {
+    assert.equal(isCardsDealtPhase("reveal"), true);
+    assert.equal(isCardsDealtPhase("decision"), true);
     assert.equal(isCardsDealtPhase("draw"), true);
     assert.equal(isCardsDealtPhase("play"), true);
     assert.equal(isCardsDealtPhase(null), false);

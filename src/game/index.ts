@@ -11,9 +11,24 @@ export {
   serializeCard,
   serializeCards,
   serializeHandState,
+  serializePagatRevealHand,
   deserializeCards,
 } from "./serialize";
 export type { SerializeHandOptions } from "./serialize";
+export {
+  buildHandDecision,
+  activateHandDecision,
+  applyDecisionPlay,
+  applyDecisionPass,
+  applyDecisionTimeout,
+  currentDecisionPlayer,
+  dealerMustPlayTrumpAce,
+  decisionAsEnrollmentView,
+  decisionPatchAfterStep,
+  HAND_DECISION_MS,
+  HAND_DECISION_SECONDS,
+} from "./decision";
+export type { DecisionCompletionContext, DecisionStepResult } from "./decision";
 export { maxDrawDiscards } from "./drawLimit";
 export { applyDraw, advanceAfterDraw, allDrawsComplete, nextPlayerInOrder, applyPlayerDraw } from "./draw";
 export type { ApplyDrawInput, ApplyDrawResult, ApplyPlayerDrawInput, ApplyPlayerDrawResult } from "./draw";
@@ -45,6 +60,7 @@ export {
   type CurrentTrickState,
   type DealResult,
   type HandPhase,
+  type HandDecision,
   type PlayedCardEntry,
   type PrivateHandState,
   type PublicHandState,
