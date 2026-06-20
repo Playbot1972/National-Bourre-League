@@ -31,6 +31,7 @@ export interface EmptyPreDealHand {
 export type EnrollmentStepResult =
   | { kind: "continue"; handEnrollment: HandEnrollment; currentHand: EmptyPreDealHand }
   | { kind: "restart"; handEnrollment: HandEnrollment; currentHand: EmptyPreDealHand }
+  | { kind: "soloWin"; winnerId: string; handEnrollment: null; currentHand: EmptyPreDealHand }
   | {
       kind: "deal";
       handEnrollment: null;
@@ -85,6 +86,14 @@ export function enrollmentPatchAfterStep(
     };
   }
   if (enrolledIds.length < 2) {
+    if (enrolledIds.length === 1) {
+      return {
+        kind: "soloWin",
+        winnerId: enrolledIds[0]!,
+        handEnrollment: null,
+        currentHand: emptyPreDealHand(),
+      };
+    }
     return {
       kind: "restart",
       handEnrollment: {
@@ -198,7 +207,7 @@ export function runEnrollmentPhase(
     const step = shouldJoin(currentId)
       ? applyEnrollmentIn(enrollment, currentId, ctx, nowMs + guard)
       : applyEnrollmentTimeout(enrollment, ctx, nowMs + guard);
-    if (step.kind === "deal" || step.kind === "restart") return step;
+    if (step.kind === "deal" || step.kind === "restart" || step.kind === "soloWin") return step;
     enrollment = step.handEnrollment;
   }
   throw new Error("Enrollment phase did not complete");

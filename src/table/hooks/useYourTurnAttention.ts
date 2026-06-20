@@ -19,12 +19,8 @@ export const YOUR_TURN_EXIT_MS = 620;
 export type YourTurnAttentionPhase = "hidden" | "pop" | "exit";
 
 export function useYourTurnAttention(input: {
-  isMyTurn: boolean;
-  phase: string | null | undefined;
-  suppressTurn: boolean;
-  turnPlayerId: string | null | undefined;
-  trickNumber: number;
-  trickPlaysCount: number;
+  actionRequired: boolean;
+  activityKey: string;
 }): { phase: YourTurnAttentionPhase; beat: number } {
   const [attentionPhase, setAttentionPhase] = useState<YourTurnAttentionPhase>("hidden");
   const [beat, setBeat] = useState(0);
@@ -32,13 +28,8 @@ export function useYourTurnAttention(input: {
   const exitTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const repeatIndexRef = useRef(0);
-
-  const activityKey = [
-    input.turnPlayerId ?? "",
-    input.trickNumber,
-    input.trickPlaysCount,
-    input.phase ?? "",
-  ].join(":");
+  const actionRequiredRef = useRef(input.actionRequired);
+  actionRequiredRef.current = input.actionRequired;
 
   const clearTimers = () => {
     if (delayTimerRef.current != null) {
@@ -57,9 +48,13 @@ export function useYourTurnAttention(input: {
 
   const scheduleNextReminder = () => {
     const idx = repeatIndexRef.current;
-    const delay = idx === 0 ? YOUR_TURN_FIRST_MS : YOUR_TURN_REPEAT_MS[Math.min(idx - 1, YOUR_TURN_REPEAT_MS.length - 1)];
+    const delay =
+      idx === 0
+        ? YOUR_TURN_FIRST_MS
+        : YOUR_TURN_REPEAT_MS[Math.min(idx - 1, YOUR_TURN_REPEAT_MS.length - 1)];
     delayTimerRef.current = window.setTimeout(() => {
       delayTimerRef.current = null;
+      if (!actionRequiredRef.current) return;
       setBeat(idx);
       setAttentionPhase("pop");
       repeatIndexRef.current = idx + 1;
@@ -70,18 +65,10 @@ export function useYourTurnAttention(input: {
     clearTimers();
     repeatIndexRef.current = 0;
 
-    const active =
-      input.isMyTurn &&
-      input.phase === "play" &&
-      !input.suppressTurn &&
-      Boolean(input.turnPlayerId);
+    if (!input.actionRequired) return clearTimers;
 
     const bootTimer = window.setTimeout(() => {
-      if (!active) {
-        setAttentionPhase("hidden");
-        setBeat(0);
-        return;
-      }
+      if (!actionRequiredRef.current) return;
       scheduleNextReminder();
     }, 0);
 
@@ -89,13 +76,7 @@ export function useYourTurnAttention(input: {
       window.clearTimeout(bootTimer);
       clearTimers();
     };
-  }, [
-    activityKey,
-    input.isMyTurn,
-    input.phase,
-    input.suppressTurn,
-    input.turnPlayerId,
-  ]);
+  }, [input.activityKey, input.actionRequired]);
 
   useEffect(() => {
     if (attentionPhase !== "pop") return;
@@ -121,12 +102,7 @@ export function useYourTurnAttention(input: {
     hideTimerRef.current = window.setTimeout(() => {
       hideTimerRef.current = null;
       setAttentionPhase("hidden");
-      const stillActive =
-        input.isMyTurn &&
-        input.phase === "play" &&
-        !input.suppressTurn &&
-        Boolean(input.turnPlayerId);
-      if (stillActive) {
+      if (actionRequiredRef.current) {
         scheduleNextReminder();
       }
     }, exitMs);
@@ -137,7 +113,7 @@ export function useYourTurnAttention(input: {
         hideTimerRef.current = null;
       }
     };
-  }, [attentionPhase, input.isMyTurn, input.phase, input.suppressTurn, input.turnPlayerId]);
+  }, [attentionPhase, input.actionRequired]);
 
   return { phase: attentionPhase, beat };
 }

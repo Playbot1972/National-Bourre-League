@@ -2558,6 +2558,7 @@ function buildTableSessionProps(s) {
       drawCompletedIds: currentHand?.drawCompletedIds ?? [],
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
+      postedAntes: currentHand?.postedAntes ?? {},
     },
     heroCards: heroCardList,
     rawHeroCards: privateHeroCards,

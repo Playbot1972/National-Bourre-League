@@ -1,16 +1,19 @@
 import {
+  useYourTurnAttention,
   yourTurnAttentionReducedMotion,
-  type YourTurnAttentionPhase,
 } from "./hooks/useYourTurnAttention";
 
 interface YourTurnAttentionProps {
-  phase: YourTurnAttentionPhase;
+  actionRequired: boolean;
+  activityKey: string;
 }
 
 export function YourTurnAttention({
-  phase,
-  beat = 0,
-}: YourTurnAttentionProps & { beat?: number }) {
+  actionRequired,
+  activityKey,
+}: YourTurnAttentionProps) {
+  const { phase, beat } = useYourTurnAttention({ actionRequired, activityKey });
+
   if (phase === "hidden") return null;
 
   const reduced = yourTurnAttentionReducedMotion();
@@ -29,7 +32,7 @@ export function YourTurnAttention({
       data-testid="your-turn-attention"
       role="status"
       aria-live="polite"
-      aria-label="Your turn to play"
+      aria-label="Your turn"
     >
       <span className="byour-turn__text">Your Turn!</span>
     </div>

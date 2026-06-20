@@ -90,7 +90,20 @@ describe("C — in/out enrollment", () => {
     assert.deepEqual(step3.handEnrollment.enrolledIds, []);
   });
 
-  it("restarts when fewer than two players enroll", () => {
+  it("solo win when only one player elects to play", () => {
+    const result = runEnrollmentPhase(
+      SORTED,
+      "p1",
+      (id) => id === "p2",
+      DEAL_CTX,
+      1_000,
+    );
+    assert.equal(result.kind, "soloWin");
+    if (result.kind !== "soloWin") return;
+    assert.equal(result.winnerId, "p2");
+  });
+
+  it("restarts when no players enroll", () => {
     const result = runEnrollmentPhase(
       SORTED,
       "p1",

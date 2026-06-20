@@ -7,8 +7,8 @@ import {
 } from "./helpers/overlayLayout";
 import { openTableFlowsFixture, advanceFixture, readFixtureState } from "./helpers/tableFlows";
 import {
-  YOUR_TURN_ATTENTION_MS,
-  YOUR_TURN_REPEAT_INTERVALS_MS,
+  YOUR_TURN_FIRST_MS,
+  YOUR_TURN_REPEAT_MS,
   YOUR_TURN_EXIT_MS,
   YOUR_TURN_HOLD_MS,
   YOUR_TURN_POP_MS,
@@ -132,7 +132,7 @@ test.describe("6 — Turn reminder cadence", () => {
 
     await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
-    await page.clock.runFor(YOUR_TURN_ATTENTION_MS);
+    await page.clock.runFor(YOUR_TURN_FIRST_MS);
     await expect(page.getByTestId("your-turn-attention")).toBeVisible();
     await expect(page.getByTestId("your-turn-attention")).toContainText("Your Turn");
 
@@ -140,7 +140,7 @@ test.describe("6 — Turn reminder cadence", () => {
     await page.clock.runFor(cueMs);
     await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
-    await page.clock.runFor(YOUR_TURN_REPEAT_INTERVALS_MS[0]!);
+    await page.clock.runFor(YOUR_TURN_REPEAT_MS[0]!);
     await expect(page.getByTestId("your-turn-attention")).toBeVisible();
 
     await page.getByTestId("play-button").first().evaluate((el) => (el as HTMLButtonElement).click());

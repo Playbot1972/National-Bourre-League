@@ -198,6 +198,46 @@ export function canEnrollWithBankroll(bankroll) {
 }
 
 /**
+ * Pagat: when only one player elects to play, they win the pot without trick play.
+ * Collects the solo player's ante, awards carry + antes into the pot to the winner.
+ */
+export function settleSoloDefaultWin({
+  winnerId,
+  carryIn = 0,
+  scoreById,
+  buyInFallback = 0,
+  stakeForPlayer,
+}) {
+  const collected = collectHandAntes({
+    participants: [winnerId],
+    scoreById,
+    buyInFallback,
+    stakeForPlayer,
+  });
+  if (!collected.activeParticipants.includes(winnerId)) {
+    return {
+      ready: false,
+      reason: "solo_player_busted",
+      bankrolls: collected.bankrolls,
+      postedAntes: collected.postedAntes,
+      outIds: collected.outIds,
+    };
+  }
+  const posted = collected.postedAntes[winnerId] ?? 0;
+  const pot = Math.max(0, Number(carryIn) || 0) + posted;
+  const bankrollAfterAnte = collected.bankrolls[winnerId] ?? 0;
+  return {
+    ready: true,
+    winnerId,
+    pot,
+    postedAntes: collected.postedAntes,
+    bankrolls: { [winnerId]: bankrollAfterAnte + pot },
+    outIds: collected.outIds,
+    carryOverPot: 0,
+  };
+}
+
+/**
  * Collect per-hand antes when a deal begins. Insufficient stacks contribute
  * remaining chips, mark the player out, and exclude them from the deal.
  * @returns {{ bankrolls: Record<string, number>, postedAntes: Record<string, number>, outIds: string[], activeParticipants: string[] }}

@@ -9,6 +9,7 @@ import {
   tableAspectForPlayers,
   totalTricksPlayed,
   tricksToWinHint,
+  displayLiveBankroll,
 } from "./logic";
 
 describe("table logic — tricks and winners", () => {
@@ -97,5 +98,29 @@ describe("G — seat layout helpers", () => {
     const two = seatPosition(0, 2);
     const eight = seatPosition(0, 8);
     assert.ok(Math.abs(two.x - 50) > Math.abs(eight.x - 50) - 2);
+  });
+});
+
+describe("displayLiveBankroll", () => {
+  it("does not subtract ante when server already posted it", () => {
+    assert.equal(
+      displayLiveBankroll(8, 2, {
+        inHand: true,
+        anteAnimActive: true,
+        anteAlreadyPosted: true,
+      }),
+      8,
+    );
+  });
+
+  it("previews ante during animation before postedAntes land", () => {
+    assert.equal(
+      displayLiveBankroll(10, 2, {
+        inHand: true,
+        anteAnimActive: true,
+        anteAlreadyPosted: false,
+      }),
+      8,
+    );
   });
 });

@@ -12,9 +12,9 @@ import { formatHandPhase, isCardsDealtPhase, turnIndicatorLabel } from "./handUi
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
-import { useYourTurnAttention } from "./hooks/useYourTurnAttention";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
+import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -162,17 +162,30 @@ export function TableSessionView({
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
   const cardsDealt = isCardsDealtPhase(session.phase);
+  const selfPlayer = players.find((p) => p.isSelf);
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
 
-  const yourTurnAttention = useYourTurnAttention({
-    isMyTurn,
-    phase: session.phase,
+  const drawCompleted =
+    Boolean(currentUserId && session.drawCompletedIds?.includes(currentUserId));
+
+  const localActionRequired = isLocalActionRequiredNow({
+    currentUserId,
+    enrollmentActive,
+    selfPlayer,
+    session,
     suppressTurn: Boolean(suppressTurn),
-    turnPlayerId: session.turnPlayerId,
-    trickNumber: session.currentTrick?.trickNumber ?? 0,
-    trickPlaysCount: session.currentTrick?.plays?.length ?? 0,
+    handComplete,
+  });
+
+  const turnReminderActivityKey = localActionActivityKey({
+    currentUserId,
+    enrollmentActive,
+    selfPlayer,
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
   });
 
   const showTrumpSuitReminder =
@@ -203,7 +216,6 @@ export function TableSessionView({
     trickWinnerSeatId: trickPresentation.trickWinnerSeatId,
     trickPhase: trickPresentation.phase,
   });
-  const selfPlayer = players.find((p) => p.isSelf);
   const selfBourreSting =
     Boolean(selfPlayer?.playerId) &&
     (recentBourreIds ?? []).includes(selfPlayer!.playerId) &&
@@ -309,7 +321,10 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      <YourTurnAttention phase={yourTurnAttention.phase} beat={yourTurnAttention.beat} />
+      <YourTurnAttention
+        actionRequired={localActionRequired}
+        activityKey={turnReminderActivityKey}
+      />
       <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
       <EventReactions events={events} players={players} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
