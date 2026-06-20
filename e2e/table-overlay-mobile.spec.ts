@@ -14,7 +14,7 @@ const MOBILE_LAYOUTS = [
   { name: "Android landscape", width: 915, height: 412 },
 ] as const;
 
-const PHASES = ["enrollment", "draw", "play"] as const;
+const PHASES = ["decision", "draw", "play"] as const;
 
 test.describe("Mobile gameplay overlay layout", () => {
   for (const layout of MOBILE_LAYOUTS) {
@@ -52,8 +52,8 @@ test.describe("Mobile gameplay overlay layout", () => {
 
       await expectMobileOverlayGameplayFits(page, { portrait: true });
       expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
-      if (phase === "enrollment") {
-        expect(await isOverlayControlInViewport(page, "join-button")).toBe(true);
+      if (phase === "decision") {
+        expect(await isOverlayControlInViewport(page, "stay-pat-button")).toBe(true);
       } else {
         expect(await isOverlayControlInViewport(page, "hero-hand")).toBe(true);
       }

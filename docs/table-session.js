@@ -10112,7 +10112,6 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						children: [
 							/* @__PURE__ */ (0, g.jsxs)("div", {
 								className: "table-oval",
-								"aria-hidden": "true",
 								children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
 									className: "btable__felt",
 									"data-testid": "table-felt"
@@ -10378,7 +10377,6 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 						children: [
 							/* @__PURE__ */ (0, g.jsxs)("div", {
 								className: "table-oval btable-mobile-oval",
-								"aria-hidden": "true",
 								children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
 									className: "btable__felt",
 									"data-testid": "table-felt"

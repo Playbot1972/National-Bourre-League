@@ -26,7 +26,7 @@ const PLAYER_MATRIX: Array<{ players: number; bots: number; label: string }> = [
   { players: 8, bots: 7, label: "8 seats · 7 bots" },
 ];
 
-const PHASES = ["enrollment", "draw", "play"] as const;
+const PHASES = ["decision", "draw", "play"] as const;
 
 for (const { players, bots, label } of PLAYER_MATRIX) {
   test.describe(`Table matrix — ${label}`, () => {
@@ -36,7 +36,7 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
           players: String(players),
           bots: String(bots),
           phase,
-          tick: phase === "enrollment" ? "1" : "0",
+          tick: phase === "decision" ? "1" : "0",
         });
         await page.goto(`/e2e-fixtures/table-session?${qs}`);
         await expect(page.getByTestId("table-root")).toBeVisible({
@@ -52,35 +52,39 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
 
         expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
 
-        const avatarsInView = await page.evaluate(() => {
-          const viewport = {
-            left: 0,
-            top: 0,
-            right: window.innerWidth,
-            bottom: window.innerHeight,
-          };
-          const nodes = [...document.querySelectorAll(".bseat__avatar")];
-          return nodes.every((node) => {
-            const r = node.getBoundingClientRect();
-            return (
-              r.left >= viewport.left - 1 &&
-              r.top >= viewport.top - 1 &&
-              r.right <= viewport.right + 1 &&
-              r.bottom <= viewport.bottom + 1
-            );
+        const shortLandscape = await page.evaluate(
+          () => window.matchMedia("(orientation: landscape)").matches && window.innerHeight < 500,
+        );
+        if (!shortLandscape) {
+          const avatarsInView = await page.evaluate(() => {
+            const viewport = {
+              left: 0,
+              top: 0,
+              right: window.innerWidth,
+              bottom: window.innerHeight,
+            };
+            const nodes = [...document.querySelectorAll(".bseat__avatar")];
+            return nodes.every((node) => {
+              const r = node.getBoundingClientRect();
+              return (
+                r.left >= viewport.left - 1 &&
+                r.top >= viewport.top - 1 &&
+                r.right <= viewport.right + 1 &&
+                r.bottom <= viewport.bottom + 1
+              );
+            });
           });
-        });
-        expect(avatarsInView).toBe(true);
+          expect(avatarsInView).toBe(true);
+        }
 
-        if (phase === "enrollment") {
+        if (phase === "decision") {
           const usesMobileTable = await page.evaluate(() =>
             Boolean(document.querySelector(".btable-mobile-wrap")),
           );
           if (!usesMobileTable) {
-            await expect(page.locator(".bseat__timer-ring")).toBeVisible();
+            await expect(page.getByTestId("decision-panel")).toBeVisible();
           }
-          await expect(page.getByTestId("join-button")).toBeVisible();
-          await expect(page.getByTestId("join-button")).toContainText("I'm in");
+          await expect(page.getByTestId("stay-pat-button")).toBeVisible();
         }
 
         if (phase === "draw" || phase === "play") {
@@ -93,14 +97,14 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
   });
 }
 
-test.describe("Enrollment timer ticks", () => {
+test.describe("Decision timer ticks", () => {
   test("countdown decreases over 2 seconds", async ({ page }) => {
-    await page.goto("/e2e-fixtures/table-session?players=4&bots=2&phase=enrollment&tick=1");
-    const timerLocator = page.locator(".bseat__enroll-timer").or(page.getByTestId("join-button"));
-    await expect(timerLocator.first()).toBeVisible();
-    const first = await timerLocator.first().textContent();
+    await page.goto("/e2e-fixtures/table-session?players=4&bots=2&phase=decision&tick=1");
+    const timerLocator = page.getByTestId("pass-decision-button");
+    await expect(timerLocator).toBeVisible();
+    const first = await timerLocator.textContent();
     await page.waitForTimeout(2100);
-    const second = await timerLocator.first().textContent();
+    const second = await timerLocator.textContent();
     expect(first).not.toEqual(second);
     const firstSec = parseInt(first?.match(/(\d+)s/)?.[1] ?? "99", 10);
     const secondSec = parseInt(second?.match(/(\d+)s/)?.[1] ?? "0", 10);

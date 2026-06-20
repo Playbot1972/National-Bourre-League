@@ -5,7 +5,7 @@ export interface TableFlowsFixtureOptions {
   handNumber?: number;
   roomOptedIn?: boolean;
   leftRoom?: boolean;
-  phase?: "enrollment" | "draw" | "play";
+  phase?: "decision" | "reveal" | "draw" | "play" | "enrollment";
 }
 
 export function tableFlowsFixtureUrl(options: TableFlowsFixtureOptions = {}): string {
