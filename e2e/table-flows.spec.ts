@@ -126,7 +126,7 @@ test.describe("5 — Dealer trump presentation", () => {
 });
 
 test.describe("6 — Turn reminder cadence", () => {
-  test("Your Turn appears only for local player on 7s + repeat cadence", async ({ page }) => {
+  test("Your Turn appears only for local player on 15s + repeat cadence", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-06-19T12:00:00Z") });
     await openTableFlowsFixture(page, { scenario: "your-turn", phase: "play" });
 

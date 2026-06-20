@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../trickTiming";
 
 /** Delay before the first local "Your Turn" attention cue. */
-export const YOUR_TURN_FIRST_MS = 7_000;
+export const YOUR_TURN_FIRST_MS = 15_000;
 
 /** Escalating reminder intervals after the first cue (6s, 5s, 4s, 3s, 2s). */
 export const YOUR_TURN_REPEAT_MS = [6_000, 5_000, 4_000, 3_000, 2_000] as const;
