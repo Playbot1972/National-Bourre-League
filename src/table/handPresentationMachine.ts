@@ -313,7 +313,9 @@ export function reduceHandPresentation(
       if (
         snapshot.phase === "reveal" &&
         prev.phase !== "reveal" &&
-        (store.phase === "idle" || store.phase === "nextHandReset")
+        (store.phase === "idle" ||
+          store.phase === "nextHandReset" ||
+          store.phase === "enrollment")
       ) {
         const hasTrump = Boolean(snapshot.trumpUpcard);
         return withPhase(store, "ante", {

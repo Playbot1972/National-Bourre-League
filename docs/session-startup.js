@@ -1,72 +1,87 @@
-function e(e, t) {
+function e(e) {
+	return e ? {
+		active: e.active,
+		orderedPlayerIds: e.orderedPlayerIds,
+		currentIndex: e.currentIndex,
+		turnDeadlineMs: e.turnDeadlineMs,
+		enrolledIds: e.playingIds,
+		declinedIds: e.passedIds
+	} : null;
+}
+function t(e, t) {
 	return t.reduce((t, n) => t + (e[n] || 0), 0);
 }
-function t(t, n) {
-	return e(t, n) >= 5;
+function n(e, n) {
+	return t(e, n) >= 5;
 }
 //#endregion
 //#region src/session/liveHand.ts
-function n() {
+function r() {
 	return {
 		tricksByPlayer: {},
 		participantIds: []
 	};
 }
-function r(e) {
-	let t = e ?? n();
-	if (t.phase === "draw" || t.phase === "play" || (t.participantIds?.length ?? 0) > 0) return !1;
-	let r = t.tricksByPlayer ?? {};
-	return !Object.values(r).some((e) => (e || 0) > 0);
+function i(e) {
+	let t = e ?? r();
+	if (t.phase === "draw" || t.phase === "play" || t.phase === "reveal" || t.phase === "decision" || (t.participantIds?.length ?? 0) > 0) return !1;
+	let n = t.tricksByPlayer ?? {};
+	return !Object.values(n).some((e) => (e || 0) > 0);
 }
-function i(n) {
-	if (!n) return !1;
-	let r = n.phase ?? null;
-	if (r !== "draw" && r !== "play") return !1;
-	let i = n.participantIds ?? [];
+function a(e) {
+	if (!e) return !1;
+	let r = e.phase ?? null;
+	if (r !== "draw" && r !== "play" && r !== "reveal" && r !== "decision") return !1;
+	let i = e.participantIds ?? [];
 	if (i.length === 0) return !1;
-	let a = n.tricksByPlayer ?? {};
-	return !(t(a, i) || e(a, i) >= 5);
+	let a = e.tricksByPlayer ?? {};
+	return !(n(a, i) || t(a, i) >= 5);
 }
-function a(t) {
-	if (!t) return 0;
-	let n = t.phase ?? "", r = n === "play" ? 1e3 : n === "draw" ? 100 : 0;
-	r += (t.drawCompletedIds?.length ?? 0) * 10;
-	let i = t.participantIds ?? [];
-	return r += e(t.tricksByPlayer ?? {}, i), r;
+function o(e) {
+	if (!e) return 0;
+	let n = e.phase ?? "", r = n === "play" ? 1e3 : n === "draw" ? 100 : n === "decision" ? 50 : n === "reveal" ? 25 : 0;
+	r += (e.drawCompletedIds?.length ?? 0) * 10;
+	let i = e.participantIds ?? [];
+	return r += t(e.tricksByPlayer ?? {}, i), r;
 }
-function o(e, t) {
-	return i(t) ? i(e) ? a(t) >= a(e) ? t : e : t : e;
-}
-function s(t) {
-	let a = t?.currentHand ?? n(), s = t?.liveEnrollment?.deal?.publicHand, c = s?.phase ?? null;
-	if (i(a) && i(s)) return o(a, s);
-	if (i(a)) return a;
-	if (c === "draw" || c === "play") {
-		if (i(s)) {
-			let i = e(s?.tricksByPlayer ?? {}, s?.participantIds ?? []);
-			return r(a) && i === 0 && c === "draw" && !t?.liveEnrollment?.active ? n() : s;
-		}
-		return r(a) ? n() : a;
-	}
-	return c && s ? s : a;
+function s(e, t) {
+	return a(t) ? a(e) ? o(t) >= o(e) ? t : e : t : e;
 }
 function c(e) {
-	let t = e?.liveEnrollment, n = t?.deal?.publicHand?.phase ?? null;
-	return t?.active ? t : n === "draw" || n === "play" ? null : e?.handEnrollment?.active ? e.handEnrollment : e?.handEnrollment ?? null;
+	let n = e?.currentHand ?? r(), o = e?.liveEnrollment?.deal?.publicHand, c = o?.phase ?? null;
+	if (a(n) && a(o)) return s(n, o);
+	if (a(n)) return n;
+	if (c === "draw" || c === "play" || c === "reveal" || c === "decision") {
+		if (a(o)) {
+			let a = t(o?.tricksByPlayer ?? {}, o?.participantIds ?? []);
+			return i(n) && a === 0 && c === "draw" && !e?.liveEnrollment?.active ? r() : o;
+		}
+		return i(n) ? r() : n;
+	}
+	return c && o ? o : n;
+}
+function l(t) {
+	let n = c(t);
+	if (n?.phase === "decision") {
+		let t = e(n.handDecision ?? null);
+		if (t?.active) return t;
+	}
+	let r = t?.liveEnrollment, i = r?.deal?.publicHand?.phase ?? null;
+	return r?.active ? r : i === "draw" || i === "play" || i === "reveal" || i === "decision" ? null : t?.handEnrollment?.active ? t.handEnrollment : t?.handEnrollment ?? null;
 }
 //#endregion
 //#region src/session/tableStartup.ts
-function l(e) {
-	let n = e?.liveEnrollment?.deal?.publicHand;
-	return !n?.phase || c(e)?.active || e?.pendingCoWinSettlement || !r(e?.currentHand) ? !1 : t(n.tricksByPlayer ?? {}, n.participantIds ?? []);
-}
 function u(e) {
-	if (!e?.liveEnrollment?.deal) return !1;
-	if (l(e)) return !0;
-	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
-	return (t === "draw" || t === "play") && !n ? r(e.currentHand) : t === "draw" || t === "play" ? !1 : r(e?.currentHand);
+	let t = e?.liveEnrollment?.deal?.publicHand;
+	return !t?.phase || l(e)?.active || e?.pendingCoWinSettlement || !i(e?.currentHand) ? !1 : n(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 }
-function d(e, t) {
+function d(e) {
+	if (!e?.liveEnrollment?.deal) return !1;
+	if (u(e)) return !0;
+	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
+	return (t === "draw" || t === "play") && !n ? i(e.currentHand) : t === "draw" || t === "play" ? !1 : i(e?.currentHand);
+}
+function f(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -91,15 +106,15 @@ function d(e, t) {
 		reason: "fewer_than_two_players",
 		recovery: "return_to_room"
 	};
-	let n = s(e).phase ?? null;
-	return n === "draw" || n === "play" ? {
+	let n = c(e).phase ?? null;
+	return n === "reveal" || n === "decision" || n === "draw" || n === "play" ? {
 		kind: "ready_mid_hand",
 		canOpenTable: !0,
 		needsEnrollment: !1,
-		shouldRepair: u(e),
+		shouldRepair: d(e),
 		reason: "hand_in_progress",
 		recovery: "refresh"
-	} : u(e) ? {
+	} : d(e) ? {
 		kind: "stale_live_deal",
 		canOpenTable: !0,
 		needsEnrollment: !0,
@@ -115,10 +130,10 @@ function d(e, t) {
 		recovery: "refresh"
 	};
 }
-function f(e) {
+function p(e) {
 	return e.needsEnrollment;
 }
-function p(e, t) {
+function m(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -133,4 +148,4 @@ function p(e, t) {
 	}
 }
 //#endregion
-export { d as analyzeTableStartup, s as authoritativeCurrentHand, r as isClearedPreDealHand, l as isStaleLiveDealSnapshot, u as shouldClearOrphanLiveEnrollment, f as tableStartupNeedsEnrollment, p as tableStartupUserMessage };
+export { f as analyzeTableStartup, c as authoritativeCurrentHand, i as isClearedPreDealHand, u as isStaleLiveDealSnapshot, d as shouldClearOrphanLiveEnrollment, p as tableStartupNeedsEnrollment, m as tableStartupUserMessage };

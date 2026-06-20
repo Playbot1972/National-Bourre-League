@@ -93,7 +93,12 @@ export function analyzeTableStartup(
   const hand = authoritativeCurrentHand(sessionData);
   const phase = hand.phase ?? null;
 
-  if (phase === "draw" || phase === "play") {
+  if (
+    phase === "reveal" ||
+    phase === "decision" ||
+    phase === "draw" ||
+    phase === "play"
+  ) {
     return {
       kind: "ready_mid_hand",
       canOpenTable: true,

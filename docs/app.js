@@ -2568,13 +2568,24 @@ function buildTableSessionProps(s) {
     currentHand,
   });
   let enrollment = serverEnrollment;
-  if (!enrollment && handPhase === "decision" && currentHand?.handDecision?.active) {
-    enrollment = decisionAsEnrollmentView(currentHand.handDecision);
+  const pagatHandDecision = currentHand?.handDecision;
+  const pagatDecisionActive =
+    handPhase === "decision" && pagatHandDecision?.active === true;
+  const pagatRevealAwaitingDecision =
+    handPhase === "reveal" && pagatHandDecision != null;
+  if (
+    !enrollment &&
+    (pagatDecisionActive || pagatRevealAwaitingDecision)
+  ) {
+    enrollment = decisionAsEnrollmentView({
+      ...pagatHandDecision,
+      active: true,
+    });
   }
   if (localHandActionCommit && myUid) {
     enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
   }
-  const pagatDecision = handPhase === "decision" && currentHand?.handDecision?.active === true;
+  const pagatDecision = pagatDecisionActive || pagatRevealAwaitingDecision;
   const enrollmentActive = enrollment?.active === true || pagatDecision;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
@@ -2799,6 +2810,38 @@ function buildTableSessionProps(s) {
       onToggleInHand: (inHand) => {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
+          return;
+        }
+        const liveHand = getSessionCurrentHand(
+          currentSessions.find((x) => x.id === openSessionId),
+        );
+        const livePhase = liveHand?.phase ?? null;
+        const cardsAlreadyDealt =
+          livePhase === "reveal" ||
+          livePhase === "decision" ||
+          livePhase === "draw" ||
+          livePhase === "play";
+        if (cardsAlreadyDealt && inHand) {
+          commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount: 0 });
+          setTableActionFeedback({ status: "loading", message: "Staying pat…" });
+          setHandParticipation(currentRoomId, openSessionId, {
+            playerId: session.uid,
+            inHand: true,
+            discardCount: 0,
+            actorId: session.uid,
+          })
+            .then(() => {
+              setTableActionFeedback({
+                status: "success",
+                message: "You're in — standing pat",
+              });
+            })
+            .catch((e) => {
+              clearLocalHandCommit();
+              const message = e.message || "Could not play this hand";
+              setTableActionFeedback({ status: "error", message });
+              showRoomsError(message);
+            });
           return;
         }
         commitLocalHandAction(

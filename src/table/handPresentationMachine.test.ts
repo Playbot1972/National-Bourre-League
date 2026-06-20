@@ -44,6 +44,27 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergeActive, false);
   });
 
+  it("starts ante when legacy enrollment deals into Pagat reveal", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: null,
+      enrollmentActive: true,
+      trumpUpcard: { rank: "A", suit: "hearts" },
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        enrollmentActive: false,
+        trumpUpcard: { rank: "A", suit: "hearts" },
+      },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, true);
+  });
+
   it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
     let store = createHandPresentationStore({
       ...baseSnap,

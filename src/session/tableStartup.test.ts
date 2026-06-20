@@ -44,6 +44,25 @@ describe("tableStartup", () => {
     assert.equal(analysis.needsEnrollment, false);
   });
 
+  it("does not reopen enrollment during Pagat reveal or decision", () => {
+    for (const phase of ["reveal", "decision"] as const) {
+      const analysis = analyzeTableStartup(
+        {
+          status: "in_progress",
+          currentHand: {
+            phase,
+            participantIds: ["a", "b"],
+            tricksByPlayer: {},
+            handDecision: { active: phase === "decision" },
+          },
+        },
+        2,
+      );
+      assert.equal(analysis.kind, "ready_mid_hand");
+      assert.equal(analysis.needsEnrollment, false);
+    }
+  });
+
   it("resumes in-progress live deal snapshot when participants remain", () => {
     const session = {
       status: "in_progress",

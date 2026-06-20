@@ -71,10 +71,6 @@ export function TableSessionView({
   const selfPendingHandChoice = players.find(
     (p) => p.isSelf && (p.canToggleInHand || p.canPassEnrollment),
   );
-  const selfDecision =
-    Boolean(selfPendingHandChoice) && isDecisionPhase(session.phase);
-  const selfEnroll =
-    Boolean(selfPendingHandChoice) && !isDecisionPhase(session.phase);
   const [decisionDiscardCount, setDecisionDiscardCount] = useState(0);
   const trickPresentation = useTrickPresentation({
     phase: session.phase,
@@ -94,6 +90,16 @@ export function TableSessionView({
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
     actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
   });
+
+  const cardsDealt = isCardsDealtPhase(session.phase);
+  const presentationDecisionReady =
+    handPresentation.phase === "decision" && cardsDealt;
+  const selfDecision =
+    Boolean(selfPendingHandChoice) &&
+    (isDecisionPhase(session.phase) ||
+      (isRevealPhase(session.phase) && presentationDecisionReady));
+  const selfEnroll =
+    Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -168,7 +174,6 @@ export function TableSessionView({
     suppressTurn
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
-  const cardsDealt = isCardsDealtPhase(session.phase);
   const selfPlayer = players.find((p) => p.isSelf);
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
