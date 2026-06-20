@@ -49,6 +49,24 @@ describe("isLocalActionRequiredNow", () => {
     );
   });
 
+  it("does not require action after local draw is declared", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: { ...self, actionDeclared: true },
+        session: {
+          phase: "draw",
+          turnPlayerId: "me",
+          drawCompletedIds: [],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+
   it("does not require action after local draw is complete", () => {
     assert.equal(
       isLocalActionRequiredNow({

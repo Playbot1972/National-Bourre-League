@@ -68,8 +68,13 @@ export function TableSessionView({
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
-  const selfEnroll = players.find((p) => p.isSelf && p.canToggleInHand);
-  const selfDecision = selfEnroll && isDecisionPhase(session.phase);
+  const selfPendingHandChoice = players.find(
+    (p) => p.isSelf && (p.canToggleInHand || p.canPassEnrollment),
+  );
+  const selfDecision =
+    Boolean(selfPendingHandChoice) && isDecisionPhase(session.phase);
+  const selfEnroll =
+    Boolean(selfPendingHandChoice) && !isDecisionPhase(session.phase);
   const [decisionDiscardCount, setDecisionDiscardCount] = useState(0);
   const trickPresentation = useTrickPresentation({
     phase: session.phase,

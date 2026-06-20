@@ -91,6 +91,7 @@ export function useTableEvents({ session, potMetrics, participantIds }: UseTable
   const prevRef = useRef<Snapshot | null>(null);
 
   const snapshotKey = JSON.stringify({
+    handNumber: session.handNumber,
     tricks: session.tricksByPlayer,
     pot: potMetrics.currentPot,
     trickPlays: session.currentTrick?.plays?.length ?? 0,
@@ -99,6 +100,10 @@ export function useTableEvents({ session, potMetrics, participantIds }: UseTable
     lim: potMetrics.limEnabled,
     participants: participantIds,
   });
+
+  useEffect(() => {
+    prevRef.current = null;
+  }, [session.handNumber]);
 
   useEffect(() => {
     const tricks = session.tricksByPlayer ?? {};

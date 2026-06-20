@@ -8,7 +8,7 @@ import {
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
-import { PRESENTATION_WATCHDOG_MS } from "../handPresentationTiming";
+import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -113,6 +113,17 @@ export function useHandPresentation({
       heroDrawReplaceCount: delta.replaceCount,
     });
   }, [snapshot, heroCards]);
+
+  const enrollmentPulseKey = JSON.stringify(store.enrollmentPulse);
+  useEffect(() => {
+    const hasPulse = Object.values(store.enrollmentPulse).some(Boolean);
+    if (!hasPulse) return;
+    const id = window.setTimeout(
+      () => dispatch({ type: "clearEnrollmentPulse" }),
+      ENROLLMENT_SEAT_PULSE_MS,
+    );
+    return () => window.clearTimeout(id);
+  }, [enrollmentPulseKey]);
 
   useEffect(() => {
     const reduced = prefersReducedMotion();

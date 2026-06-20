@@ -65,6 +65,8 @@ export interface TablePlayer {
   seatTrumpMergeActive?: boolean;
   /** True when this player holds the turn (public state). */
   isOnTurn?: boolean;
+  /** Local player declared an action; awaiting server confirmation. */
+  actionDeclared?: boolean;
   /** Brief pulse when a captured trick is swept to this seat. */
   isTrickCapture?: boolean;
   /** Enrollment join/pass pulse from presentation layer. */

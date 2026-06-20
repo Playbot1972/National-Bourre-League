@@ -116,6 +116,26 @@ describe("handPresentationMachine", () => {
     assert.ok(t.trumpMergeAnimMs >= 500 && t.trumpMergeAnimMs <= 800);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
+
+  it("clears enrollment pulse on demand", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: null,
+      enrollmentActive: true,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: null,
+        enrollmentActive: true,
+        enrolledIds: ["p1"],
+      },
+    });
+    assert.equal(store.enrollmentPulse.p1, "join");
+    store = reduceHandPresentation(store, { type: "clearEnrollmentPulse" });
+    assert.deepEqual(store.enrollmentPulse, {});
+  });
 });
 
 describe("trick timing with hand flow", () => {
