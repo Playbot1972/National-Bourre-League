@@ -22,6 +22,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
 
   const self = input.selfPlayer;
   if (!self || self.isOut) return false;
+  if (self.actionDeclared) return false;
 
   if (input.enrollmentActive || input.session.phase === "decision") {
     return Boolean(self.canToggleInHand || self.canPassEnrollment);
@@ -55,6 +56,7 @@ export function localActionActivityKey(input: LocalActionInput): string {
     input.session.phase ?? "",
     input.session.turnPlayerId ?? "",
     enrollmentKey,
+    input.selfPlayer?.actionDeclared ? "declared" : "open",
     input.session.drawCompletedIds?.join(",") ?? "",
     input.suppressTurn ? "1" : "0",
     isLocalActionRequiredNow(input) ? "act" : "wait",

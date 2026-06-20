@@ -125,6 +125,15 @@ import {
   formatNet,
 } from "./risk-stakes.js";
 import { analyzeTableStartup, tableStartupUserMessage } from "./session-startup.js";
+import {
+  LOCAL_HAND_ACTION,
+  applyLocalCommitDrawCompleted,
+  applyLocalCommitPlannedDiscards,
+  applyLocalCommitToEnrollment,
+  applyLocalCommitToPlayerFlags,
+  createLocalHandCommit,
+  reconcileLocalCommit,
+} from "./local-hand-commit.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -807,6 +816,8 @@ let openPlayerRatings = {};
 let tableActionFeedback = null;
 let tableFeedbackTimer = null;
 let tableFeedbackSnapshot = null;
+/** Local participation/action overlay until Firestore confirms (see local-hand-commit.js). */
+let localHandActionCommit = null;
 let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
@@ -2126,8 +2137,45 @@ async function openTablePlay() {
   }
 }
 
+function sessionHandNumber(sessionObj) {
+  return (sessionObj?.handCount ?? 0) + 1;
+}
+
+function resetLocalHandCommitForHand(sessionId, handNumber) {
+  if (
+    localHandActionCommit &&
+    (localHandActionCommit.sessionId !== sessionId ||
+      localHandActionCommit.handNumber !== handNumber)
+  ) {
+    localHandActionCommit = null;
+  }
+}
+
+function clearLocalHandCommit({ resync = true } = {}) {
+  if (!localHandActionCommit) return;
+  localHandActionCommit = null;
+  if (!resync) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (sessionObj) scheduleTableSessionSync(sessionObj);
+}
+
+function commitLocalHandAction(kind, { discardCount = 0 } = {}) {
+  if (!session?.uid || !openSessionId) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (!sessionObj) return;
+  localHandActionCommit = createLocalHandCommit({
+    sessionId: openSessionId,
+    handNumber: sessionHandNumber(sessionObj),
+    playerId: session.uid,
+    kind,
+    discardCount,
+  });
+  scheduleTableSessionSync(sessionObj);
+}
+
 function closeTablePlay() {
   tablePlayOpen = false;
+  localHandActionCommit = null;
   cancelNextHandOpenTimer();
   stopEnrollmentTimer();
   const overlay = $("#table-play-overlay");
@@ -2483,12 +2531,41 @@ function buildTableSessionProps(s) {
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
   const dealerId = s.dealerId ?? null;
-  const enrollment = getSessionEnrollment(s);
+  const handNumber = sessionHandNumber(s);
+  resetLocalHandCommitForHand(s.id, handNumber);
+  const serverEnrollment = getSessionEnrollment(s);
+  localHandActionCommit = reconcileLocalCommit(localHandActionCommit, {
+    sessionId: s.id,
+    handNumber,
+    myUid,
+    enrollment: serverEnrollment,
+    handPhase,
+    currentHand,
+  });
+  let enrollment = serverEnrollment;
+  if (localHandActionCommit && myUid) {
+    enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
+  }
   const pagatDecision = handPhase === "decision";
   const enrollmentActive = enrollment?.active === true || pagatDecision;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
-  const plannedDiscards = currentHand?.handDecision?.plannedDiscards ?? {};
+  let plannedDiscards = currentHand?.handDecision?.plannedDiscards ?? {};
+  if (localHandActionCommit && myUid) {
+    plannedDiscards = applyLocalCommitPlannedDiscards(
+      localHandActionCommit,
+      plannedDiscards,
+      myUid,
+    );
+  }
+  let drawCompletedIds = currentHand?.drawCompletedIds ?? [];
+  if (localHandActionCommit && myUid) {
+    drawCompletedIds = applyLocalCommitDrawCompleted(
+      localHandActionCommit,
+      drawCompletedIds,
+      myUid,
+    );
+  }
   const currentEnrollmentPlayerId = enrollmentActive
     ? enrollment.orderedPlayerIds?.[enrollment.currentIndex]
     : null;
@@ -2577,7 +2654,7 @@ function buildTableSessionProps(s) {
       leadSuit: currentHand?.leadSuit ?? null,
       currentTrick: currentHand?.currentTrick ?? null,
       playedCards: currentHand?.playedCards ?? [],
-      drawCompletedIds: currentHand?.drawCompletedIds ?? [],
+      drawCompletedIds,
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
@@ -2595,7 +2672,7 @@ function buildTableSessionProps(s) {
       const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
-      return {
+      const playerFlags = {
         playerId: sc.playerId,
         displayName: sc.displayName,
         photoURL: isSelf ? session?.photoURL : null,
@@ -2658,6 +2735,9 @@ function buildTableSessionProps(s) {
           !handComplete &&
           totalTricks < MAX_TRICKS_PER_HAND,
       };
+      return isSelf && localHandActionCommit
+        ? applyLocalCommitToPlayerFlags(localHandActionCommit, playerFlags, myUid)
+        : playerFlags;
     }),
     potMetrics,
     mySessionNet:
@@ -2692,6 +2772,9 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
           return;
         }
+        commitLocalHandAction(
+          inHand ? LOCAL_HAND_ACTION.ENROLL_PLAY : LOCAL_HAND_ACTION.ENROLL_PASS,
+        );
         setTableActionFeedback({ status: "loading", message: inHand ? "Joining hand…" : "Passing hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
@@ -2705,6 +2788,7 @@ function buildTableSessionProps(s) {
             });
           })
           .catch((e) => {
+            clearLocalHandCommit();
             const message = e.message || "Could not update hand participation";
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
@@ -2715,6 +2799,10 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: "Sign in to pass." });
           return;
         }
+        const kind = handPhase === "decision"
+          ? LOCAL_HAND_ACTION.DECISION_PASS
+          : LOCAL_HAND_ACTION.ENROLL_PASS;
+        commitLocalHandAction(kind);
         setTableActionFeedback({ status: "loading", message: "Passing hand…" });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
@@ -2725,6 +2813,7 @@ function buildTableSessionProps(s) {
             setTableActionFeedback({ status: "success", message: "You passed this hand." });
           })
           .catch((e) => {
+            clearLocalHandCommit();
             const message = e.message || "Could not pass this hand";
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
@@ -2737,6 +2826,7 @@ function buildTableSessionProps(s) {
         }
         const label =
           discardCount > 0 ? `Playing — will draw ${discardCount}` : "Staying pat";
+        commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount });
         setTableActionFeedback({ status: "loading", message: `${label}…` });
         setHandParticipation(currentRoomId, openSessionId, {
           playerId: session.uid,
@@ -2751,6 +2841,7 @@ function buildTableSessionProps(s) {
             });
           })
           .catch((e) => {
+            clearLocalHandCommit();
             const message = e.message || "Could not play this hand";
             setTableActionFeedback({ status: "error", message });
             showRoomsError(message);
@@ -2778,6 +2869,7 @@ function buildTableSessionProps(s) {
           setTableActionFeedback({ status: "error", message: err.message });
           return Promise.reject(err);
         }
+        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
         setTableActionFeedback({
           status: "loading",
           message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
@@ -2799,6 +2891,7 @@ function buildTableSessionProps(s) {
             });
           })
           .catch((e) => {
+            clearLocalHandCommit();
             setTableActionFeedback({
               status: "error",
               message: e.message || "Could not submit draw",
@@ -2810,6 +2903,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to draw"));
         }
+        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
         setTableActionFeedback({ status: "loading", message: "Standing pat…" });
         return submitHandDraw(currentRoomId, openSessionId, {
           playerId: session.uid,
@@ -2820,6 +2914,7 @@ function buildTableSessionProps(s) {
             setTableActionFeedback({ status: "success", message: "Standing pat" });
           })
           .catch((e) => {
+            clearLocalHandCommit();
             setTableActionFeedback({
               status: "error",
               message: e.message || "Could not stand pat",
@@ -2831,6 +2926,7 @@ function buildTableSessionProps(s) {
         if (!session?.uid || !currentRoomId || !openSessionId) {
           return Promise.reject(new Error("Sign in to play"));
         }
+        commitLocalHandAction(LOCAL_HAND_ACTION.PLAY_CARD);
         setTableActionFeedback({ status: "loading", message: "Playing card…" });
         return playHandCard(currentRoomId, openSessionId, {
           playerId: session.uid,
@@ -2846,6 +2942,7 @@ function buildTableSessionProps(s) {
             }
           })
           .catch((e) => {
+            clearLocalHandCommit();
             setTableActionFeedback({
               status: "error",
               message: e.message || "Could not play card",

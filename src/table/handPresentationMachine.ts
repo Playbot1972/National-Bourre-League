@@ -241,7 +241,8 @@ export type HandPresentationEvent =
     }
   | { type: "advancePhase" }
   | { type: "watchdog" }
-  | { type: "dealCardRevealed"; count: number };
+  | { type: "dealCardRevealed"; count: number }
+  | { type: "clearEnrollmentPulse" };
 
 export function reduceHandPresentation(
   store: HandPresentationStore,
@@ -253,6 +254,10 @@ export function reduceHandPresentation(
 
     case "dealCardRevealed":
       return { ...store, dealStaggerCount: Math.max(store.dealStaggerCount, event.count) };
+
+    case "clearEnrollmentPulse":
+      if (!Object.keys(store.enrollmentPulse).length) return store;
+      return { ...store, enrollmentPulse: {} };
 
     case "watchdog":
       if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
