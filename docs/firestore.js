@@ -3045,19 +3045,30 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   });
   if (eligibleIds.length < 2) return;
 
-  const patch = buildPagatHandStartPatch(
-    data.dealerId,
-    eligibleIds,
+  const autoPatch = tryAutoEnrollmentDeal(
+    data,
     sortedIds,
-    Date.now(),
+    scoreById,
+    buyIn,
+    sessionStake,
     dealingRule,
-    { scoreById, sessionStake, buyIn, carryIn: data.carryOverPot || 0, handCount: data.handCount || 0 },
   );
-  await runEnrollmentStepTransaction(roomId, sessionId, () => patch, { requirePatch: true });
+  if (autoPatch) {
+    await runEnrollmentStepTransaction(roomId, sessionId, () => autoPatch, { requirePatch: true });
+    logHandLifecycleTransition({
+      from: "handoffToNextDeal",
+      to: "reveal",
+      reason: "Auto-deal from table opt-in after Go to Table",
+    });
+    return;
+  }
+
+  const enrollment = buildHandEnrollment(sortedIds, data.dealerId, scoreById, buyIn);
+  await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
-    to: "reveal",
-    reason: "Pagat hand dealt — reveal then play/pass decision",
+    to: "opening",
+    reason: "ensureHandEnrollment opened join window (Go to Table)",
   });
 }
 

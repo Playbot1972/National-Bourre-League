@@ -104,7 +104,6 @@ import {
   serializeCards,
   cardsRemainingInHand,
   displayHoleCardCount,
-  decisionAsEnrollmentView,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -2571,21 +2570,10 @@ function buildTableSessionProps(s) {
   const pagatHandDecision = currentHand?.handDecision;
   const pagatDecisionActive =
     handPhase === "decision" && pagatHandDecision?.active === true;
-  const pagatRevealAwaitingDecision =
-    handPhase === "reveal" && pagatHandDecision != null;
-  if (
-    !enrollment &&
-    (pagatDecisionActive || pagatRevealAwaitingDecision)
-  ) {
-    enrollment = decisionAsEnrollmentView({
-      ...pagatHandDecision,
-      active: true,
-    });
-  }
   if (localHandActionCommit && myUid) {
     enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
   }
-  const pagatDecision = pagatDecisionActive || pagatRevealAwaitingDecision;
+  const pagatDecision = pagatDecisionActive;
   const enrollmentActive = enrollment?.active === true || pagatDecision;
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
@@ -2760,13 +2748,15 @@ function buildTableSessionProps(s) {
           !isFinal &&
           sc.playerId === currentEnrollmentPlayerId &&
           scoreBankroll(sc, sessionBuyIn) > 0 &&
-          sc.out !== true,
+          sc.out !== true &&
+          (!cardsDealt || pagatDecisionActive),
         canPassEnrollment:
           enrollmentActive &&
           isSelf &&
           !isFinal &&
           sc.playerId === currentEnrollmentPlayerId &&
-          !declinedEnrollmentIds.includes(sc.playerId),
+          !declinedEnrollmentIds.includes(sc.playerId) &&
+          (!cardsDealt || pagatDecisionActive),
         canEditTricks:
           !cardsDealt &&
           !isFinal &&
@@ -2823,7 +2813,7 @@ function buildTableSessionProps(s) {
           livePhase === "play";
         if (cardsAlreadyDealt && inHand) {
           commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount: 0 });
-          setTableActionFeedback({ status: "loading", message: "Staying pat…" });
+          setTableActionFeedback({ status: "loading", message: "Joining hand…" });
           setHandParticipation(currentRoomId, openSessionId, {
             playerId: session.uid,
             inHand: true,
@@ -2833,7 +2823,7 @@ function buildTableSessionProps(s) {
             .then(() => {
               setTableActionFeedback({
                 status: "success",
-                message: "You're in — standing pat",
+                message: "You're in this hand.",
               });
             })
             .catch((e) => {

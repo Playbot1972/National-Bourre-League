@@ -84,7 +84,7 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
           if (!usesMobileTable) {
             await expect(page.getByTestId("decision-panel")).toBeVisible();
           }
-          await expect(page.getByTestId("stay-pat-button")).toBeVisible();
+          await expect(page.getByTestId("decision-im-in-button")).toBeVisible();
         }
 
         if (phase === "draw" || phase === "play") {

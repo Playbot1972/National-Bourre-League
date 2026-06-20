@@ -71,7 +71,6 @@ export function TableSessionView({
   const selfPendingHandChoice = players.find(
     (p) => p.isSelf && (p.canToggleInHand || p.canPassEnrollment),
   );
-  const [decisionDiscardCount, setDecisionDiscardCount] = useState(0);
   const trickPresentation = useTrickPresentation({
     phase: session.phase,
     currentTrick: session.currentTrick,
@@ -482,37 +481,11 @@ export function TableSessionView({
             </button>
             <button
               type="button"
-              className="btn btn--primary btn--sm btable-session__stay-pat-btn"
-              data-testid="stay-pat-button"
-              onClick={() => actions.onDecisionPlay?.(0)}
+              className="btn btn--primary btn--sm btable-session__enroll-btn"
+              data-testid="decision-im-in-button"
+              onClick={() => actions.onToggleInHand?.(true)}
             >
-              Stay pat
-            </button>
-            <div className="btable-session__discard-pick" role="group" aria-label="Cards to discard if you play">
-              {Array.from({ length: (session.maxDrawDiscards ?? 5) + 1 }, (_, n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={[
-                    "btn btn--sm btable-session__discard-btn",
-                    decisionDiscardCount === n ? "btable-session__discard-btn--active" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  data-testid={`discard-count-${n}`}
-                  onClick={() => setDecisionDiscardCount(n)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="btn btn--primary btn--sm btable-session__play-btn"
-              data-testid="play-decision-button"
-              onClick={() => actions.onDecisionPlay?.(decisionDiscardCount)}
-            >
-              Play · draw {decisionDiscardCount}
+              I&apos;m in · {enrollmentSecondsLeft}s
             </button>
           </div>
         )}

@@ -127,22 +127,15 @@ export async function waitForDrawPhase(page: Page) {
   while (Date.now() < deadline) {
     if (await isDrawPhaseReady(overlay)) return;
 
-    const decisionStay = overlay.getByTestId("stay-pat-button");
-    const decisionPlay = overlay.getByTestId("play-decision-button");
+    const decisionImIn = overlay.getByTestId("decision-im-in-button");
     const join = overlay
       .getByTestId("join-button")
       .or(overlay.getByTestId("seat-opt-in"))
       .first();
     const now = Date.now();
 
-    if (await decisionStay.isVisible().catch(() => false) && now - lastActionClick > 2500) {
-      await decisionStay.click();
-      lastActionClick = now;
-      await page.waitForTimeout(800);
-      continue;
-    }
-    if (await decisionPlay.isVisible().catch(() => false) && now - lastActionClick > 2500) {
-      await decisionPlay.click();
+    if (await decisionImIn.isVisible().catch(() => false) && now - lastActionClick > 2500) {
+      await decisionImIn.click();
       lastActionClick = now;
       await page.waitForTimeout(800);
       continue;
