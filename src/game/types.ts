@@ -65,6 +65,8 @@ export interface PublicHandState {
   cinchEnabled?: boolean;
   /** All seats dealt this hand (includes players who later pass). */
   seatedIds?: string[];
+  /** Players who folded during draw (ante forfeited; excluded from play). */
+  foldedIds?: string[];
   /** Pagat-style post-reveal play / pass clock. */
   handDecision?: HandDecision | null;
 }

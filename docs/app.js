@@ -40,6 +40,7 @@ import {
   updateSessionLimEnabled,
   updateHandTrick,
   submitHandDraw,
+  foldHandDraw,
   playHandCard,
   robotSubmitDraw,
   robotPlayCard,
@@ -2983,6 +2984,31 @@ function buildTableSessionProps(s) {
             setTableActionFeedback({
               status: "error",
               message: e.message || "Could not stand pat",
+            });
+            throw e;
+          });
+      },
+      onFoldDraw: () => {
+        if (!session?.uid || !currentRoomId || !openSessionId) {
+          return Promise.reject(new Error("Sign in to fold"));
+        }
+        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+        setTableActionFeedback({ status: "loading", message: "Folding out…" });
+        return foldHandDraw(currentRoomId, openSessionId, {
+          playerId: session.uid,
+          actorId: session.uid,
+        })
+          .then(() => {
+            setTableActionFeedback({
+              status: "success",
+              message: "You're out this hand — ante forfeited",
+            });
+          })
+          .catch((e) => {
+            clearLocalHandCommit();
+            setTableActionFeedback({
+              status: "error",
+              message: e.message || "Could not fold out",
             });
             throw e;
           });

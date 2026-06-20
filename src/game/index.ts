@@ -30,8 +30,22 @@ export {
 } from "./decision";
 export type { DecisionCompletionContext, DecisionStepResult } from "./decision";
 export { maxDrawDiscards } from "./drawLimit";
-export { applyDraw, advanceAfterDraw, allDrawsComplete, nextPlayerInOrder, applyPlayerDraw } from "./draw";
-export type { ApplyDrawInput, ApplyDrawResult, ApplyPlayerDrawInput, ApplyPlayerDrawResult } from "./draw";
+export {
+  applyDraw,
+  advanceAfterDraw,
+  allDrawsComplete,
+  nextPlayerInOrder,
+  applyPlayerDraw,
+  revealToDraw,
+  applyDrawFold,
+} from "./draw";
+export type {
+  ApplyDrawInput,
+  ApplyDrawResult,
+  ApplyPlayerDrawInput,
+  ApplyPlayerDrawResult,
+  DrawFoldResult,
+} from "./draw";
 export {
   getLegalPlayIndices,
   validatePlayIndex,

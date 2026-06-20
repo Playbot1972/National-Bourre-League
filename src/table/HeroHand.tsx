@@ -25,6 +25,7 @@ interface HeroHandProps {
   actionFeedback?: TableActionFeedback | null;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
+  onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
   privateHandReady?: boolean;
   className?: string;
@@ -76,6 +77,7 @@ export function HeroHand({
   actionFeedback,
   onSubmitDraw,
   onPassDraw,
+  onFoldDraw,
   onPlayCard,
   privateHandReady = false,
   className = "",
@@ -227,6 +229,20 @@ export function HeroHand({
     }
   }, [onPassDraw, busy]);
 
+  const runFoldDraw = useCallback(async () => {
+    if (!onFoldDraw || busy) return;
+    setLocalBusy(true);
+    setLocalError(null);
+    try {
+      await onFoldDraw();
+      setSelectedDraw(new Set());
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Could not fold out");
+    } finally {
+      setLocalBusy(false);
+    }
+  }, [onFoldDraw, busy]);
+
   const handleIllegalPlay = useCallback((index: number) => {
     playIllegalActionFeedback();
     setIllegalShakeIndex(index);
@@ -350,7 +366,7 @@ export function HeroHand({
         aria-hidden={!showDrawActions}
       >
         {showDrawActions && (
-          <div className="btable-hero__actions">
+          <div className="btable-hero__actions btable-hero__actions--triple">
             <button
               type="button"
               className="btn btn--sm btn--primary"
@@ -369,6 +385,15 @@ export function HeroHand({
               onClick={() => runPassDraw()}
             >
               Stand pat
+            </button>
+            <button
+              type="button"
+              className="btn btn--sm"
+              data-testid="im-out-button"
+              disabled={busy}
+              onClick={() => runFoldDraw()}
+            >
+              I&apos;m Out
             </button>
           </div>
         )}

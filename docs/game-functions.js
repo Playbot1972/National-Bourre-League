@@ -73,6 +73,10 @@ export function gameSubmitDraw(roomId, sessionId, payload) {
   return callGame("gameSubmitDraw", { roomId, sessionId, ...payload });
 }
 
+export function gameFoldDraw(roomId, sessionId, payload) {
+  return callGame("gameFoldDraw", { roomId, sessionId, ...payload });
+}
+
 export function gamePlayCard(roomId, sessionId, payload) {
   return callGame("gamePlayCard", { roomId, sessionId, ...payload });
 }

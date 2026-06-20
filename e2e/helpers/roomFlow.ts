@@ -128,6 +128,7 @@ export async function waitForDrawPhase(page: Page) {
     if (await isDrawPhaseReady(overlay)) return;
 
     const decisionImIn = overlay.getByTestId("decision-im-in-button");
+    const imOut = overlay.getByTestId("im-out-button");
     const join = overlay
       .getByTestId("join-button")
       .or(overlay.getByTestId("seat-opt-in"))

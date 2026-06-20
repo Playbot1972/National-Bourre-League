@@ -42,6 +42,7 @@ interface CardTableProps {
   onTrickDelta: (playerId: string, delta: number) => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
+  onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
   onReaction?: (emoji: string) => void;
 }
@@ -72,6 +73,7 @@ export function CardTable({
   onTrickDelta,
   onSubmitDraw,
   onPassDraw,
+  onFoldDraw,
   onPlayCard,
   onReaction,
 }: CardTableProps) {
@@ -283,6 +285,7 @@ export function CardTable({
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
         onPassDraw={onPassDraw}
+        onFoldDraw={onFoldDraw}
         onPlayCard={onPlayCard}
         currentUserId={currentUserId}
         revealedTrumpIndex={revealedTrumpIndex}
