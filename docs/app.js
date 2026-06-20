@@ -2575,7 +2575,10 @@ function buildTableSessionProps(s) {
     enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
   }
   const pagatDecision = pagatDecisionActive;
-  const enrollmentActive = enrollment?.active === true || pagatDecision;
+  const enrollmentActive =
+    !cardsDealt &&
+    handParticipantIds.length === 0 &&
+    (enrollment?.active === true || pagatDecision);
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
   let plannedDiscards = currentHand?.handDecision?.plannedDiscards ?? {};

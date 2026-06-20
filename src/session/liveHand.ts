@@ -129,7 +129,11 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
 
 export function getSessionEnrollment(sessionData: SessionHandView | null | undefined) {
   const hand = authoritativeCurrentHand(sessionData);
-  if (hand?.phase === "decision") {
+  const phase = hand?.phase ?? null;
+  if (phase === "reveal" || phase === "draw" || phase === "play") {
+    return null;
+  }
+  if (phase === "decision") {
     const view = decisionAsEnrollmentView(hand.handDecision ?? null);
     if (view?.active) return view;
   }

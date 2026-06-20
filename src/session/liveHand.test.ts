@@ -37,7 +37,7 @@ describe("live enrollment hand view", () => {
     assert.equal(getSessionCurrentHand(session).phase, undefined);
   });
 
-  it("returns active enrollment even when a stale deal snapshot remains", () => {
+  it("ignores legacy enrollment when a dealt hand is in progress", () => {
     const enrollment = {
       active: true,
       orderedPlayerIds: ["a", "b"],
@@ -54,7 +54,7 @@ describe("live enrollment hand view", () => {
       },
       currentHand: { tricksByPlayer: {}, participantIds: [] },
     };
-    assert.equal(getSessionEnrollment(session)?.active, true);
+    assert.equal(getSessionEnrollment(session), null);
     assert.equal(getSessionCurrentHand(session).phase, "play");
   });
 

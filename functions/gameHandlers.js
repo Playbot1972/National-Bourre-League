@@ -79,7 +79,15 @@ function emptyPreDealHand() {
 
 function getSessionEnrollment(sessionData) {
   const hand = getSessionCurrentHand(sessionData);
-  if (hand?.phase === HAND_PHASE.REVEAL || hand?.phase === HAND_PHASE.DECISION) {
+  const phase = hand?.phase;
+  if (
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY
+  ) {
+    return null;
+  }
+  if (phase === HAND_PHASE.DECISION) {
     const view = decisionAsEnrollmentView(hand.handDecision);
     return view?.active ? view : null;
   }

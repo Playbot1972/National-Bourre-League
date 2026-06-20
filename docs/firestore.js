@@ -865,7 +865,15 @@ export const LIVE_ENROLLMENT_FIELD = "liveEnrollment";
 /** Prefer liveEnrollment (client-writable); fall back to handEnrollment (Cloud Functions / create). */
 export function getSessionEnrollment(sessionData) {
   const hand = getSessionCurrentHand(sessionData);
-  if (hand?.phase === HAND_PHASE.REVEAL || hand?.phase === HAND_PHASE.DECISION) {
+  const phase = hand?.phase;
+  if (
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY
+  ) {
+    return null;
+  }
+  if (phase === HAND_PHASE.DECISION) {
     const view = decisionAsEnrollmentView(hand.handDecision);
     return view?.active ? view : null;
   }
@@ -3026,9 +3034,6 @@ export async function ensureHandEnrollment(roomId, sessionId) {
     hand.phase === HAND_PHASE.DRAW ||
     hand.phase === HAND_PHASE.PLAY;
   if (!handStarted) {
-    if (getSessionEnrollment(data)?.active) {
-      return;
-    }
     const analysis = analyzeTableStartup(data, 2);
     const err = new Error(
       tableStartupUserMessage({ ...analysis, kind: "enrollment_failed" }),
@@ -3063,6 +3068,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     return;
   }
 
+  const existing = getSessionEnrollment(data);
   if (existing?.active) {
     await updateDoc(sessionRef, {
       handEnrollment: deleteField(),
