@@ -12155,12 +12155,12 @@ function Xr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 	] }), Ee = (0, l.useRef)(!1);
 	return (0, l.useEffect)(() => {
 		Ee.current = !1;
-	}, [e.handNumber, e.id]), (0, l.useEffect)(() => {
+	}, [e.handNumber, e.sessionId]), (0, l.useEffect)(() => {
 		e.phase === "reveal" && j.trumpMergedIntoHand && !Ee.current && b.onAdvanceReveal && (Ee.current = !0, b.onAdvanceReveal());
 	}, [
 		e.phase,
 		e.handNumber,
-		e.id,
+		e.sessionId,
 		j.trumpMergedIntoHand,
 		b
 	]), (0, l.useEffect)(() => {

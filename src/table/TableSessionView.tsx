@@ -350,7 +350,7 @@ export function TableSessionView({
   const revealAdvancedRef = useRef(false);
   useEffect(() => {
     revealAdvancedRef.current = false;
-  }, [session.handNumber, session.id]);
+  }, [session.handNumber, session.sessionId]);
 
   useEffect(() => {
     if (
@@ -362,7 +362,7 @@ export function TableSessionView({
       revealAdvancedRef.current = true;
       void actions.onAdvanceReveal();
     }
-  }, [session.phase, session.handNumber, session.id, handPresentation.trumpMergedIntoHand, actions]);
+  }, [session.phase, session.handNumber, session.sessionId, handPresentation.trumpMergedIntoHand, actions]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
