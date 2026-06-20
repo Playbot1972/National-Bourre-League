@@ -260,8 +260,25 @@
 
 .btable-mobile-hero-dock .btable-hero__hand-row .hand--fan .hand__slot,
 .btable-mobile-hero-dock .btable-hero .hand--fan .hand__slot {
-  transform: none;
+  --fan-offset: 0;
+  transform: none !important;
   margin-left: 0 !important;
+  align-self: flex-end;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard {
+  transform: none;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--selected,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--selected {
+  transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--draw-selected,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--draw-selected {
+  transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
 }
 
 .btable-mobile-hero-dock .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {

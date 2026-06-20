@@ -121,3 +121,31 @@
     transition-duration: 80ms;
   }
 }
+
+/* Hero table — straight row; neutralize fan arc from rules above */
+.btable-hero__hand-row .hand--fan .hand__slot {
+  --fan-offset: 0;
+  --fan-mid: 0;
+  transform: none !important;
+  margin-left: 0 !important;
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
+  margin-left: 0 !important;
+}
+
+.btable-hero--scale-lg .btable-hero__hand-row .hand--fan .hand__slot,
+.btable-hero--scale-sm .btable-hero__hand-row .hand--fan .hand__slot {
+  transform: none !important;
+}
+
+.btable-hero__hand-row .hand--fan .hand__slot:hover,
+.btable-hero__hand-row .hand--fan .hand__slot:focus-within {
+  transform: translateY(-14px) scale(1.04) !important;
+  rotate: none;
+}
+
+.btable-hero__hand-row .hand__slot--peek {
+  transform: translateY(-20px) rotateX(14deg) rotateY(-22deg) scale(1.1) !important;
+  rotate: none;
+}
