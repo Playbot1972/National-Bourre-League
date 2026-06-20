@@ -61,13 +61,14 @@ function c(e) {
 	return c && o ? o : n;
 }
 function l(t) {
-	let n = c(t);
-	if (n?.phase === "decision") {
+	let n = c(t), r = n?.phase ?? null;
+	if (r === "reveal" || r === "draw" || r === "play") return null;
+	if (r === "decision") {
 		let t = e(n.handDecision ?? null);
 		if (t?.active) return t;
 	}
-	let r = t?.liveEnrollment, i = r?.deal?.publicHand?.phase ?? null;
-	return r?.active ? r : i === "draw" || i === "play" || i === "reveal" || i === "decision" ? null : t?.handEnrollment?.active ? t.handEnrollment : t?.handEnrollment ?? null;
+	let i = t?.liveEnrollment, a = i?.deal?.publicHand?.phase ?? null;
+	return i?.active ? i : a === "draw" || a === "play" || a === "reveal" || a === "decision" ? null : t?.handEnrollment?.active ? t.handEnrollment : t?.handEnrollment ?? null;
 }
 //#endregion
 //#region src/session/tableStartup.ts
@@ -126,7 +127,7 @@ function f(e, t) {
 		canOpenTable: !0,
 		needsEnrollment: !0,
 		shouldRepair: !1,
-		reason: "handoff_needs_join_window",
+		reason: "handoff_needs_deal",
 		recovery: "refresh"
 	};
 }
@@ -141,9 +142,9 @@ function m(e, t) {
 		case "insufficient_players": return "Need at least two players at the table before opening the live view.";
 		case "session_missing": return "This session is no longer available. Return to the room and pick an active session.";
 		case "stale_live_deal": return "This table had leftover data from an older version. Refresh the page, then tap Go to Table again.";
-		case "enrollment_failed": return "The join window could not start for this table. Refresh the page, return to the room, and tap Go to Table again.";
+		case "enrollment_failed": return "Could not deal the first hand for this table. Wait a moment, then tap Go to Table again.";
 		case "ready_mid_hand": return "This hand is still in progress but the table could not load. Refresh and tap Go to Table again.";
-		case "ready_enrollment": return "Could not open this table. Refresh the page and tap Go to Table again.";
+		case "ready_enrollment": return "Could not open this table. Wait a moment, then tap Go to Table again.";
 		default: return "Could not open this table safely. Return to the room and try again.";
 	}
 }

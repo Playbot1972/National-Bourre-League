@@ -125,7 +125,7 @@ export function analyzeTableStartup(
     canOpenTable: true,
     needsEnrollment: true,
     shouldRepair: false,
-    reason: "handoff_needs_join_window",
+    reason: "handoff_needs_deal",
     recovery: "refresh",
   };
 }
@@ -160,11 +160,11 @@ export function tableStartupUserMessage(
     case "stale_live_deal":
       return "This table had leftover data from an older version. Refresh the page, then tap Go to Table again.";
     case "enrollment_failed":
-      return "The join window could not start for this table. Refresh the page, return to the room, and tap Go to Table again.";
+      return "Could not deal the first hand for this table. Wait a moment, then tap Go to Table again.";
     case "ready_mid_hand":
       return "This hand is still in progress but the table could not load. Refresh and tap Go to Table again.";
     case "ready_enrollment":
-      return "Could not open this table. Refresh the page and tap Go to Table again.";
+      return "Could not open this table. Wait a moment, then tap Go to Table again.";
     default:
       return "Could not open this table safely. Return to the room and try again.";
   }
