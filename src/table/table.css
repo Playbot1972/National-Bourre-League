@@ -1745,16 +1745,16 @@
     display: block;
   }
 
-  /* Desktop CardTable fallback — grid: table dominant, hand below */
+  /* Desktop CardTable fallback — 4:1 grid gives table ~2× prior vertical share */
   .btable-wrap:not(.btable-mobile-wrap) {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 4fr) minmax(0, 1fr);
     grid-template-areas:
       "table"
       "hand";
     width: min(100%, var(--stage-fit-width, 100%));
-    gap: clamp(12px, 3vw, 16px);
+    gap: clamp(6px, 1.5vw, 10px);
     overflow: hidden;
   }
 
@@ -1762,19 +1762,40 @@
     grid-area: table;
     min-height: 0;
     min-width: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
+  }
+
+  .btable-wrap:not(.btable-mobile-wrap) .btable-wrap__stage-scaler {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+  }
+
+  .btable-wrap:not(.btable-mobile-wrap) .btable-wrap__stage-scaler .table-stage {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: var(--table-aspect) / 1;
   }
 
   .btable-wrap:not(.btable-mobile-wrap) .hand-panel {
     grid-area: hand;
+    max-height: min(22dvh, 180px);
   }
 
   .btable-wrap {
     width: min(100%, var(--stage-fit-width, 100%));
-    gap: clamp(12px, 3vw, 16px);
+    gap: clamp(6px, 1.5vw, 10px);
   }
 
   .table-stage {
@@ -1783,19 +1804,26 @@
 
   .table-center-cluster {
     top: 42%;
-    gap: 6px;
+    gap: clamp(6px, 1.5vmin, 12px);
   }
 
   .deck-stack {
-    width: 46px;
+    width: clamp(52px, 12vmin, 72px);
   }
 
   .center-play {
-    width: min(50%, 164px);
+    width: min(68%, clamp(180px, 44vw, 280px));
+  }
+
+  .center-play .btrick__play .pcard--sm,
+  .deck-stack .pcard--sm {
+    transform: none;
+    width: clamp(48px, 11vmin, 72px);
+    height: calc(clamp(48px, 11vmin, 72px) * 1.423);
   }
 
   .hand-panel {
-    padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1816,36 +1844,61 @@
 
   .deck-stack .pcard--sm,
   .center-play .btrick__play .pcard--sm {
-    transform: scale(0.82);
+    transform: none;
+    width: clamp(42px, 10vw, 56px);
+    height: calc(clamp(42px, 10vw, 56px) * 1.423);
   }
 }
 
 @media (max-width: 900px) and (orientation: landscape), ((orientation: landscape) and (max-height: 500px)) {
-  /* Desktop CardTable fallback — grid: table left, hand right */
+  /* Desktop CardTable fallback — 5:1 grid, table column ~2× prior width share */
   .btable-wrap--landscape-row:not(.btable-mobile-wrap) {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 5fr) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "table hand";
     flex-direction: unset;
     align-items: stretch;
     justify-content: stretch;
-    gap: clamp(6px, 1.2vw, 10px);
+    gap: clamp(4px, 1vw, 8px);
   }
 
   .btable-wrap--landscape-row:not(.btable-mobile-wrap) .btable-wrap__table-area {
     grid-area: table;
     min-width: 0;
     min-height: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) .btable-wrap__stage-scaler {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) .btable-wrap__stage-scaler .table-stage {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: var(--table-aspect) / 1;
   }
 
   .btable-wrap--landscape-row:not(.btable-mobile-wrap) .table-stage-fit {
     flex: 1 1 auto;
     min-width: 0;
     max-width: none;
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1859,6 +1912,26 @@
     max-height: 100%;
     overflow-y: auto;
     align-self: stretch;
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p3,
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p4 {
+    grid-template-columns: minmax(0, 5.5fr) minmax(0, 1fr);
+  }
+
+  .deck-stack {
+    width: clamp(52px, 11vh, 72px);
+  }
+
+  .center-play {
+    width: min(68%, clamp(180px, 38vw, 280px));
+  }
+
+  .center-play .btrick__play .pcard--sm,
+  .deck-stack .pcard--sm {
+    transform: none;
+    width: clamp(44px, 10vh, 68px);
+    height: calc(clamp(44px, 10vh, 68px) * 1.423);
   }
 
   .btable-wrap {
@@ -1876,11 +1949,6 @@
     --stage-seat-inset-bottom: 6%;
   }
 
-  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p3,
-  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p4 {
-    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
-  }
-
   .btable--p7,
   .btable--p8 {
     --stage-seat-inset-top: 7%;
@@ -1888,16 +1956,15 @@
     --stage-seat-inset-bottom: 9%;
   }
 
-  .table-stage {
-    max-height: var(--stage-fit-height, min(48vh, 340px));
-    height: auto;
-    width: min(100%, var(--stage-fit-width, 100%));
-    max-width: 100%;
+  .btable-wrap:not(.btable-mobile-wrap) .table-stage {
+    max-height: none;
+    height: 100%;
+    width: 100%;
     aspect-ratio: var(--table-aspect) / 1;
   }
 
-  .hand-panel {
-    max-height: min(38vh, 280px);
+  .btable-wrap:not(.btable-mobile-wrap) .hand-panel {
+    max-height: min(24dvh, 200px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }

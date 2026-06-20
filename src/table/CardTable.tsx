@@ -180,6 +180,7 @@ export function CardTable({
       }}
     >
       <div className="btable-wrap__table-area">
+        <div className="btable-wrap__stage-scaler">
         <div className="table-stage-fit">
         <div className="table-stage">
         <div className="table-oval" aria-hidden="true">
@@ -246,6 +247,7 @@ export function CardTable({
             );
           })}
         </div>
+      </div>
       </div>
       </div>
       </div>
