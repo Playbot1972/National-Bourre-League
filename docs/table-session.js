@@ -10107,50 +10107,56 @@ function Pn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 									"data-testid": "table-felt"
 								})]
 							}),
-							/* @__PURE__ */ (0, g.jsx)(qt, {
-								potMetrics: {
-									...n,
-									currentPot: y.displayPotAmount
-								},
-								participantCount: r,
-								trumpUpcard: e.trumpUpcard,
-								trumpSuit: e.trumpSuit,
-								phase: e.phase,
-								enrollmentActive: i,
-								remainingDeckCount: e.remainingDeckCount,
-								trickDisplayPlays: v.displayPlays,
-								trickWinnerPlayerId: v.winnerPlayerId,
-								trickShowWinnerTag: v.showWinnerTag,
-								trickPresentationPhase: v.phase,
-								playerNames: re,
-								anteAnimActive: y.anteAnimActive,
-								trumpRevealActive: y.trumpRevealActive,
-								hideCenterTrump: l,
-								showTrumpSuitReminder: u,
-								drawAnimPlayerId: y.animatingDrawPlayerId,
-								drawAnimSubPhase: y.drawAnimSubPhase,
-								drawDiscardCount: y.drawDiscardCount,
-								settleAnimActive: y.settleAnimActive,
-								settleCarryOver: y.settleCarryOver,
-								potTick: b.potTick,
-								trumpReminderPulse: b.trumpReminderPulse
+							/* @__PURE__ */ (0, g.jsx)("div", {
+								className: "btable__play-zone",
+								children: /* @__PURE__ */ (0, g.jsx)(qt, {
+									potMetrics: {
+										...n,
+										currentPot: y.displayPotAmount
+									},
+									participantCount: r,
+									trumpUpcard: e.trumpUpcard,
+									trumpSuit: e.trumpSuit,
+									phase: e.phase,
+									enrollmentActive: i,
+									remainingDeckCount: e.remainingDeckCount,
+									trickDisplayPlays: v.displayPlays,
+									trickWinnerPlayerId: v.winnerPlayerId,
+									trickShowWinnerTag: v.showWinnerTag,
+									trickPresentationPhase: v.phase,
+									playerNames: re,
+									anteAnimActive: y.anteAnimActive,
+									trumpRevealActive: y.trumpRevealActive,
+									hideCenterTrump: l,
+									showTrumpSuitReminder: u,
+									drawAnimPlayerId: y.animatingDrawPlayerId,
+									drawAnimSubPhase: y.drawAnimSubPhase,
+									drawDiscardCount: y.drawDiscardCount,
+									settleAnimActive: y.settleAnimActive,
+									settleCarryOver: y.settleCarryOver,
+									potTick: b.potTick,
+									trumpReminderPulse: b.trumpReminderPulse
+								})
 							}),
 							/* @__PURE__ */ (0, g.jsx)("div", {
 								className: "btable__seats",
 								"aria-label": "Players at the table",
 								children: te.map((e, t) => {
-									let n = Ut(t, te.length);
-									return /* @__PURE__ */ (0, g.jsx)(Zt, {
-										player: ie.find((t) => t.playerId === e.playerId) ?? e,
-										region: n.region,
-										style: {
-											left: `${n.x}%`,
-											top: `${n.y}%`
-										},
-										onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-										onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
-										onTrickDelta: (t) => C(e.playerId, t),
-										onReaction: e.isSelf ? D : void 0
+									let n = Ut(t, te.length), r = ie.find((t) => t.playerId === e.playerId) ?? e;
+									return /* @__PURE__ */ (0, g.jsx)("div", {
+										className: `btable__seat-slot btable__seat-slot--${t}`,
+										children: /* @__PURE__ */ (0, g.jsx)(Zt, {
+											player: r,
+											region: n.region,
+											style: {
+												left: `${n.x}%`,
+												top: `${n.y}%`
+											},
+											onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
+											onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+											onTrickDelta: (t) => C(e.playerId, t),
+											onReaction: e.isSelf ? D : void 0
+										})
 									}, e.playerId);
 								})
 							})
@@ -10367,50 +10373,56 @@ function Wn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 									"data-testid": "table-felt"
 								})]
 							}),
-							/* @__PURE__ */ (0, g.jsx)(qt, {
-								potMetrics: {
-									...n,
-									currentPot: y.displayPotAmount
-								},
-								participantCount: r,
-								trumpUpcard: e.trumpUpcard,
-								trumpSuit: e.trumpSuit,
-								phase: e.phase,
-								enrollmentActive: i,
-								remainingDeckCount: e.remainingDeckCount,
-								trickDisplayPlays: v.displayPlays,
-								trickWinnerPlayerId: v.winnerPlayerId,
-								trickShowWinnerTag: v.showWinnerTag,
-								trickPresentationPhase: v.phase,
-								playerNames: j,
-								anteAnimActive: y.anteAnimActive,
-								trumpRevealActive: y.trumpRevealActive,
-								hideCenterTrump: l,
-								showTrumpSuitReminder: u,
-								drawAnimPlayerId: y.animatingDrawPlayerId,
-								drawAnimSubPhase: y.drawAnimSubPhase,
-								drawDiscardCount: y.drawDiscardCount,
-								settleAnimActive: y.settleAnimActive,
-								settleCarryOver: y.settleCarryOver,
-								potTick: b.potTick,
-								trumpReminderPulse: b.trumpReminderPulse
+							/* @__PURE__ */ (0, g.jsx)("div", {
+								className: "btable__play-zone",
+								children: /* @__PURE__ */ (0, g.jsx)(qt, {
+									potMetrics: {
+										...n,
+										currentPot: y.displayPotAmount
+									},
+									participantCount: r,
+									trumpUpcard: e.trumpUpcard,
+									trumpSuit: e.trumpSuit,
+									phase: e.phase,
+									enrollmentActive: i,
+									remainingDeckCount: e.remainingDeckCount,
+									trickDisplayPlays: v.displayPlays,
+									trickWinnerPlayerId: v.winnerPlayerId,
+									trickShowWinnerTag: v.showWinnerTag,
+									trickPresentationPhase: v.phase,
+									playerNames: j,
+									anteAnimActive: y.anteAnimActive,
+									trumpRevealActive: y.trumpRevealActive,
+									hideCenterTrump: l,
+									showTrumpSuitReminder: u,
+									drawAnimPlayerId: y.animatingDrawPlayerId,
+									drawAnimSubPhase: y.drawAnimSubPhase,
+									drawDiscardCount: y.drawDiscardCount,
+									settleAnimActive: y.settleAnimActive,
+									settleCarryOver: y.settleCarryOver,
+									potTick: b.potTick,
+									trumpReminderPulse: b.trumpReminderPulse
+								})
 							}),
 							/* @__PURE__ */ (0, g.jsx)("div", {
 								className: "btable__seats btable-mobile__seats",
 								"aria-label": "Players at the table",
 								children: k.map((e, t) => {
-									let n = Ln(t, k.length, D);
-									return /* @__PURE__ */ (0, g.jsx)(Zt, {
-										player: ae.find((t) => t.playerId === e.playerId) ?? e,
-										region: n.region,
-										style: {
-											left: `${n.x}%`,
-											top: `${n.y}%`
-										},
-										onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-										onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
-										onTrickDelta: (t) => C(e.playerId, t),
-										onReaction: void 0
+									let n = Ln(t, k.length, D), r = ae.find((t) => t.playerId === e.playerId) ?? e;
+									return /* @__PURE__ */ (0, g.jsx)("div", {
+										className: `btable__seat-slot btable__seat-slot--${t}`,
+										children: /* @__PURE__ */ (0, g.jsx)(Zt, {
+											player: r,
+											region: n.region,
+											style: {
+												left: `${n.x}%`,
+												top: `${n.y}%`
+											},
+											onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
+											onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+											onTrickDelta: (t) => C(e.playerId, t),
+											onReaction: void 0
+										})
 									}, e.playerId);
 								})
 							})
@@ -11963,9 +11975,7 @@ function Xr({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		h,
 		j.indexMode,
 		j.trumpDisabledIndex
-	]), oe = k.suppressTurnPlayerId || A.suppressTurnIndicator, se = re(e.phase, c), P = oe ? null : N(e.turnPlayerId, t), F = M(e.phase), ce = t.find((e) => e.isSelf), le = !!(d && e.turnPlayerId === d) && !oe;
-	d && e.drawCompletedIds?.includes(d);
-	let ue = Er({
+	]), oe = k.suppressTurnPlayerId || A.suppressTurnIndicator, se = re(e.phase, c), P = oe ? null : N(e.turnPlayerId, t), F = M(e.phase), ce = t.find((e) => e.isSelf), le = !!(d && e.turnPlayerId === d) && !oe, ue = Er({
 		currentUserId: d,
 		enrollmentActive: c,
 		selfPlayer: ce,
