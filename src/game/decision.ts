@@ -1,7 +1,7 @@
 import { maxDrawDiscards } from "./drawLimit";
 import { playerOrderFromDealer } from "./playerOrder";
 import { HAND_PHASE } from "./types";
-import type { HandDecision, PrivateHandState, PublicHandState, SerializedCard } from "./types";
+import type { HandDecision, PublicHandState, SerializedCard } from "./types";
 
 export type { HandDecision } from "./types";
 

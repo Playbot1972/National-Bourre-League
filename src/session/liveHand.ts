@@ -1,6 +1,7 @@
 /** Session enrollment / public hand view — mirrors docs/firestore.js for tests. */
 
 import { decisionAsEnrollmentView } from "../game/decision";
+import type { HandDecision } from "../game/types";
 import { isHandComplete, totalTricksPlayed, MAX_TRICKS_PER_HAND } from "../table/logic";
 
 export interface HandEnrollmentView {
@@ -17,15 +18,7 @@ export interface PublicHandView {
   participantIds?: string[];
   tricksByPlayer?: Record<string, number>;
   drawCompletedIds?: string[];
-  handDecision?: {
-    active?: boolean;
-    orderedPlayerIds?: string[];
-    currentIndex?: number;
-    turnDeadlineMs?: number;
-    playingIds?: string[];
-    passedIds?: string[];
-    plannedDiscards?: Record<string, number>;
-  } | null;
+  handDecision?: HandDecision | null;
 }
 
 export interface SessionHandView {
