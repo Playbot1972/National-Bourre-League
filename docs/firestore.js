@@ -234,18 +234,34 @@ export function enrollmentDeadlineMs(enrollment) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Enrollment uses client Firestore first — works when callables are missing or return noop. */
+/** Enrollment — server Cloud Functions first when SERVER_HAND_AUTHORITY is on. */
 async function callEnrollmentAction(clientFn, serverFn) {
-  try {
-    return await clientFn();
-  } catch (clientErr) {
-    if (!SERVER_HAND_AUTHORITY) throw describeEnrollmentStartError(clientErr);
-    console.warn("Client enrollment write failed, trying Cloud Function.", clientErr?.code || clientErr);
+  if (SERVER_HAND_AUTHORITY) {
     try {
       return await serverFn();
     } catch (serverErr) {
-      throw describeEnrollmentStartError(isEnrollmentPermissionError(serverErr) ? serverErr : clientErr);
+      if (isCloudFunctionUnavailable(serverErr)) {
+        console.warn(
+          "Enrollment Cloud Function unavailable, trying client write.",
+          serverErr?.code || serverErr?.message || serverErr,
+        );
+        try {
+          return await clientFn();
+        } catch (clientErr) {
+          throw describeEnrollmentStartError(
+            isEnrollmentPermissionError(clientErr) ? clientErr : serverErr,
+          );
+        }
+      }
+      throw describeEnrollmentStartError(
+        isEnrollmentPermissionError(serverErr) ? serverErr : serverErr,
+      );
     }
+  }
+  try {
+    return await clientFn();
+  } catch (clientErr) {
+    throw describeEnrollmentStartError(clientErr);
   }
 }
 
@@ -2933,37 +2949,6 @@ export async function prepareSessionForTableOpen(roomId, sessionId) {
 export async function ensureHandEnrollment(roomId, sessionId) {
   await prepareSessionForTableOpen(roomId, sessionId);
 
-  if (SERVER_HAND_AUTHORITY) {
-    try {
-      const serverResult = await gameEnsureHandEnrollment(roomId, sessionId);
-      // Legacy "started" opens a pre-deal I'm-in window — Pagat deals via client below.
-      if (serverResult?.status === "refreshed") {
-        return serverResult;
-      }
-      if (serverResult?.status === "noop") {
-        return serverResult;
-      }
-      if (serverResult?.status === "auto_dealt") {
-        const snap = await getDoc(sessionDoc(roomId, sessionId));
-        const dealtHand = snap.exists() ? getSessionCurrentHand(snap.data()) : null;
-        const dealtPhase = dealtHand?.phase ?? null;
-        if (
-          dealtPhase === HAND_PHASE.REVEAL ||
-          dealtPhase === HAND_PHASE.DECISION ||
-          dealtPhase === HAND_PHASE.DRAW ||
-          dealtPhase === HAND_PHASE.PLAY
-        ) {
-          return serverResult;
-        }
-      }
-    } catch (serverErr) {
-      console.warn(
-        "gameEnsureHandEnrollment failed, trying client enrollment write.",
-        serverErr?.code || serverErr?.message || serverErr,
-      );
-    }
-  }
-
   await callEnrollmentAction(
     () => ensureHandEnrollmentClient(roomId, sessionId),
     () => gameEnsureHandEnrollment(roomId, sessionId),
@@ -2979,6 +2964,9 @@ export async function ensureHandEnrollment(roomId, sessionId) {
     hand.phase === HAND_PHASE.DRAW ||
     hand.phase === HAND_PHASE.PLAY;
   if (!handStarted) {
+    if (getSessionEnrollment(data)?.active) {
+      return;
+    }
     const analysis = analyzeTableStartup(data, 2);
     const err = new Error(
       tableStartupUserMessage({ ...analysis, kind: "enrollment_failed" }),
