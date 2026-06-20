@@ -9,6 +9,7 @@ import {
   handleRecordHand,
   handleSetHandParticipation,
   handleSubmitDraw,
+  handleFoldDraw,
   handleTimeoutEnrollment,
   handleVoteCoWinSettlement,
 } from "./gameHandlers.js";
@@ -46,6 +47,9 @@ export const gameSetHandParticipation = wrap(handleSetHandParticipation);
 
 /** Draw / stand pat during draw phase. */
 export const gameSubmitDraw = wrap(handleSubmitDraw);
+
+/** Fold out during draw phase (forfeit ante, skip tricks). */
+export const gameFoldDraw = wrap(handleFoldDraw);
 
 /** Play one card during trick play (may auto-settle when hand completes). */
 export const gamePlayCard = wrap(handlePlayCard);

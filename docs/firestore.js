@@ -101,6 +101,7 @@ import {
   gameRecordHand,
   gameSetHandParticipation,
   gameSubmitDraw,
+  gameFoldDraw,
   gameTimeoutEnrollment,
   gameVoteCoWinSettlement,
   gameAdvanceBots,
@@ -117,6 +118,8 @@ import {
   remainingDeckCount,
   applyPlayerDraw,
   advanceAfterDraw,
+  applyDrawFold,
+  revealToDraw,
   applyPlayerPlayCard,
   maxDrawDiscards,
   botDrawDiscardIndices,
@@ -1530,6 +1533,65 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       serializeCards(drawResult.privateHand),
     );
     tx.update(ref, publicHandSessionUpdate(sessionData, nextPublic));
+  });
+}
+
+/** Fold out during draw — forfeit ante, skip trick play for this hand. */
+export async function foldHandDraw(roomId, sessionId, { playerId, actorId }) {
+  return callGameOrClient(
+    () => foldHandDrawClient(roomId, sessionId, { playerId, actorId }),
+    () => gameFoldDraw(roomId, sessionId, { playerId, actorId }),
+  );
+}
+
+async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
+  if (!canActForPlayer(playerId, actorId)) {
+    throw new Error("You can only fold for yourself (or drive a robot)");
+  }
+
+  const ref = sessionDoc(roomId, sessionId);
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Session not found");
+    const sessionData = snap.data();
+    if (sessionData.status === "final") throw new Error("Session is final");
+
+    const currentHand = getSessionCurrentHand(sessionData);
+    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
+    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
+    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
+      throw new Error("Draw already completed");
+    }
+
+    const foldResult = applyDrawFold(
+      currentHand,
+      actionOrderFromHand(currentHand),
+      playerId,
+    );
+    writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, []);
+
+    if (foldResult.kind === "soloWin") {
+      const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
+      const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+      const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+      const sessionStake = sessionData.handStake ?? 1;
+      const patch = buildSoloWinPatch(foldResult.winnerId, sessionData, {
+        dealerId: sessionData.dealerId,
+        sortedPlayerIds,
+        dealingRule,
+        scoreById,
+        sessionStake,
+        buyIn,
+      });
+      applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
+      return;
+    }
+
+    tx.update(ref, publicHandSessionUpdate(sessionData, foldResult.publicHand));
   });
 }
 
@@ -3001,19 +3063,14 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     return;
   }
 
-  const existing = getSessionEnrollment(data);
   if (existing?.active) {
-    const refreshedEnrollment = {
-      ...existing,
-      turnDeadlineMs: Date.now() + HAND_ENROLLMENT_MS,
-    };
-    await writeEnrollmentOpenWithFallback(sessionRef, refreshedEnrollment);
-    logHandLifecycleTransition({
-      from: "opening",
-      to: "opening",
-      reason: "ensureHandEnrollment refreshed join window (Go to Table)",
+    await updateDoc(sessionRef, {
+      handEnrollment: deleteField(),
+      [LIVE_ENROLLMENT_FIELD]: deleteField(),
     });
-    return;
+    sessionSnap = await getDoc(sessionRef);
+    if (!sessionSnap.exists()) return;
+    data = sessionSnap.data();
   }
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
@@ -3043,32 +3100,21 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     if (row?.out === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
-  if (eligibleIds.length < 2) return;
+  if (eligibleIds.length < 1) return;
 
-  const autoPatch = tryAutoEnrollmentDeal(
-    data,
+  const patch = buildDealCompletionPatch(
+    data.dealerId,
+    eligibleIds,
     sortedIds,
-    scoreById,
-    buyIn,
-    sessionStake,
+    Date.now(),
     dealingRule,
+    { scoreById, sessionStake, buyIn, carryIn: data.carryOverPot || 0, handCount: data.handCount || 0 },
   );
-  if (autoPatch) {
-    await runEnrollmentStepTransaction(roomId, sessionId, () => autoPatch, { requirePatch: true });
-    logHandLifecycleTransition({
-      from: "handoffToNextDeal",
-      to: "reveal",
-      reason: "Auto-deal from table opt-in after Go to Table",
-    });
-    return;
-  }
-
-  const enrollment = buildHandEnrollment(sortedIds, data.dealerId, scoreById, buyIn);
-  await writeEnrollmentOpenWithFallback(sessionRef, enrollment);
+  await runEnrollmentStepTransaction(roomId, sessionId, () => patch, { requirePatch: true });
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
-    to: "opening",
-    reason: "ensureHandEnrollment opened join window (Go to Table)",
+    to: "reveal",
+    reason: "Go to Table — deal all seated players, trump reveal, then draw",
   });
 }
 
@@ -3081,13 +3127,15 @@ export async function advanceHandReveal(roomId, sessionId) {
 }
 
 async function advanceHandRevealClient(roomId, sessionId) {
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   await runDecisionStepTransaction(
     roomId,
     sessionId,
     (sessionData) => {
       const hand = getSessionCurrentHand(sessionData);
       if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: activateHandDecision(hand) };
+      return { currentHand: revealToDraw(hand, dealingRule) };
     },
     { requirePatch: true },
   );

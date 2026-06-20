@@ -1,5 +1,6 @@
 import { removeCardsAtIndices } from "./cardUtils";
 import { drawCardsFromDeck } from "./deckState";
+import { maxDrawDiscards } from "./drawLimit";
 import {
   effectiveIndexDiscardsTrump,
   effectivePlayerHand,
@@ -126,6 +127,87 @@ export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawRes
     publicHand: nextPublic,
     deckNextIndex: drawResult.deckNextIndex,
     discarded: drawResult.discarded,
+  };
+}
+
+/** After trump reveal animations, open the draw round for all dealt players. */
+export function revealToDraw(
+  hand: PublicHandState,
+  dealingRule?: string | null,
+): PublicHandState {
+  const playingIds = [...hand.participantIds];
+  const actionOrder = (hand.actionOrder ?? hand.participantIds).filter((id) =>
+    playingIds.includes(id),
+  );
+  const tricksByPlayer = Object.fromEntries(
+    playingIds.map((id) => [id, hand.tricksByPlayer[id] ?? 0]),
+  );
+  return {
+    ...hand,
+    phase: HAND_PHASE.DRAW,
+    participantIds: playingIds,
+    actionOrder,
+    handDecision: null,
+    drawCompletedIds: [],
+    tricksByPlayer,
+    turnPlayerId: actionOrder[0] ?? null,
+    maxDrawDiscards: maxDrawDiscards(playingIds.length, dealingRule),
+  };
+}
+
+export type DrawFoldResult =
+  | { kind: "continue"; publicHand: PublicHandState }
+  | { kind: "soloWin"; winnerId: string; publicHand: PublicHandState };
+
+/** Fold during draw — forfeit ante, leave hand, advance turn (or solo-win if one player remains). */
+export function applyDrawFold(
+  publicHand: PublicHandState,
+  actionOrder: string[],
+  foldingPlayerId: string,
+): DrawFoldResult {
+  const participantIds = publicHand.participantIds.filter((id) => id !== foldingPlayerId);
+  const foldedIds = [...(publicHand.foldedIds ?? []), foldingPlayerId];
+  const newActionOrder = actionOrder.filter((id) => participantIds.includes(id));
+  const drawCompletedIds = [...new Set([...(publicHand.drawCompletedIds ?? []), foldingPlayerId])];
+
+  const baseHand: PublicHandState = {
+    ...publicHand,
+    participantIds,
+    actionOrder: newActionOrder,
+    drawCompletedIds,
+    foldedIds,
+    tricksByPlayer: Object.fromEntries(
+      participantIds.map((id) => [id, publicHand.tricksByPlayer[id] ?? 0]),
+    ),
+  };
+
+  if (participantIds.length === 1) {
+    return {
+      kind: "soloWin",
+      winnerId: participantIds[0]!,
+      publicHand: { ...baseHand, handDecision: null },
+    };
+  }
+  if (participantIds.length === 0) {
+    throw new Error("No players remain in hand");
+  }
+
+  if (allDrawsComplete(participantIds, drawCompletedIds)) {
+    const next = advanceAfterDraw(baseHand, newActionOrder, foldingPlayerId);
+    return { kind: "continue", publicHand: next };
+  }
+
+  let turnPlayerId = nextPlayerInOrder(newActionOrder, foldingPlayerId);
+  const done = new Set(drawCompletedIds);
+  let guard = 0;
+  while (turnPlayerId && done.has(turnPlayerId) && guard < newActionOrder.length + 1) {
+    turnPlayerId = nextPlayerInOrder(newActionOrder, turnPlayerId);
+    guard += 1;
+  }
+
+  return {
+    kind: "continue",
+    publicHand: { ...baseHand, turnPlayerId },
   };
 }
 

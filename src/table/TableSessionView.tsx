@@ -286,6 +286,7 @@ export function TableSessionView({
         return actions.onSubmitDraw(indices);
       },
       onPassDraw: actions.onPassDraw,
+      onFoldDraw: actions.onFoldDraw,
       onPlayCard: (cardIndex: number) => {
         if (!actions.onPlayCard) return;
         if (heroHandDisplay.indexMode !== "display") {
@@ -346,15 +347,22 @@ export function TableSessionView({
     </>
   );
 
+  const revealAdvancedRef = useRef(false);
+  useEffect(() => {
+    revealAdvancedRef.current = false;
+  }, [session.handNumber, session.id]);
+
   useEffect(() => {
     if (
       session.phase === "reveal" &&
-      handPresentation.phase === "decision" &&
+      handPresentation.trumpMergedIntoHand &&
+      !revealAdvancedRef.current &&
       actions.onAdvanceReveal
     ) {
+      revealAdvancedRef.current = true;
       void actions.onAdvanceReveal();
     }
-  }, [session.phase, handPresentation.phase, actions]);
+  }, [session.phase, session.handNumber, session.id, handPresentation.trumpMergedIntoHand, actions]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -456,7 +464,7 @@ export function TableSessionView({
         )}
         {session.phase === "draw" && isMyTurn && (
           <p className="btable-session__hint muted small">
-            Select cards to discard (up to 5), then Draw — or Stand pat
+            Select cards to discard (up to 5), then Draw — Stand pat — or I&apos;m Out
           </p>
         )}
         {session.phase === "play" && (

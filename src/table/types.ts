@@ -153,6 +153,7 @@ export interface TableSessionActions {
   onSettle: (choice: "push" | "split") => void;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
+  onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
 }
 
