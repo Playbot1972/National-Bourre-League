@@ -122,6 +122,7 @@ export interface TableSessionData {
   drawCompletedIds?: string[];
   maxDrawDiscards?: number | null;
   cinchEnabled?: boolean;
+  postedAntes?: Record<string, number>;
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;

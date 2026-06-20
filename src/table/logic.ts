@@ -83,13 +83,14 @@ export function formatBankroll(amount: number) {
   return formatRiskStake(Math.max(0, Number(amount) || 0));
 }
 
-/** Live stack shown during ante animation before settlement posts bankroll. */
+/** Live stack on seats — server bankroll is authoritative once ante is posted. */
 export function displayLiveBankroll(
   bankroll: number | null | undefined,
   anteAmount: number,
-  opts: { inHand: boolean; anteAnimActive: boolean },
+  opts: { inHand: boolean; anteAnimActive: boolean; anteAlreadyPosted?: boolean },
 ): number | null | undefined {
   if (bankroll == null) return bankroll;
+  if (opts.anteAlreadyPosted) return bankroll;
   if (!opts.inHand || !opts.anteAnimActive) return bankroll;
   return Math.max(0, bankroll - Math.max(0, anteAmount));
 }
