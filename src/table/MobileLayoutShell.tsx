@@ -19,7 +19,9 @@ export function MobileLayoutShell({ children }: MobileLayoutShellProps) {
       data-layout-mode={layoutMode}
     >
       <div className="btable-mobile__viewport">
-        <div className="btable-mobile__layout">{children}</div>
+        <div className="btable-mobile__frame">
+          <div className="btable-mobile__layout">{children}</div>
+        </div>
       </div>
     </div>
   );

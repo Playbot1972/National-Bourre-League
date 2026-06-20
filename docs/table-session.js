@@ -10432,29 +10432,32 @@ function Wn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			})
 		}), /* @__PURE__ */ (0, g.jsxs)("div", {
 			className: "btable-mobile-hero-dock hand-panel",
-			children: [/* @__PURE__ */ (0, g.jsx)(jt, {
-				cards: a,
-				privateHandReady: f,
-				phase: e.phase,
-				enrollmentActive: i,
-				isInHand: !!oe?.inHand,
-				isDealer: !!oe?.isDealer,
-				signedIn: !!p,
-				isMyTurn: !!(p && e.turnPlayerId === p) && !se,
-				dealStaggerMs: M.dealCardStaggerMs,
-				drawAnimSubPhase: y.animatingDrawPlayerId === p ? y.drawAnimSubPhase : null,
-				drawCompleted: P,
-				maxDrawDiscards: e.maxDrawDiscards ?? 4,
-				legalPlayIndices: m ?? void 0,
-				handComplete: h,
-				actionFeedback: _,
-				onSubmitDraw: w,
-				onPassDraw: T,
-				onPlayCard: E,
-				currentUserId: p,
-				revealedTrumpIndex: o,
-				trumpMergeActive: s,
-				trumpDisabledIndex: c
+			children: [/* @__PURE__ */ (0, g.jsx)("div", {
+				className: "btable-mobile-hero-dock__stack",
+				children: /* @__PURE__ */ (0, g.jsx)(jt, {
+					cards: a,
+					privateHandReady: f,
+					phase: e.phase,
+					enrollmentActive: i,
+					isInHand: !!oe?.inHand,
+					isDealer: !!oe?.isDealer,
+					signedIn: !!p,
+					isMyTurn: !!(p && e.turnPlayerId === p) && !se,
+					dealStaggerMs: M.dealCardStaggerMs,
+					drawAnimSubPhase: y.animatingDrawPlayerId === p ? y.drawAnimSubPhase : null,
+					drawCompleted: P,
+					maxDrawDiscards: e.maxDrawDiscards ?? 4,
+					legalPlayIndices: m ?? void 0,
+					handComplete: h,
+					actionFeedback: _,
+					onSubmitDraw: w,
+					onPassDraw: T,
+					onPlayCard: E,
+					currentUserId: p,
+					revealedTrumpIndex: o,
+					trumpMergeActive: s,
+					trumpDisabledIndex: c
+				})
 			}), i && !oe?.inHand && /* @__PURE__ */ (0, g.jsx)("p", {
 				className: "btable-mobile-hero-dock__hint muted small",
 				children: "Tap I'm in above to join this hand"
@@ -10534,8 +10537,11 @@ function Jn({ children: e }) {
 		children: /* @__PURE__ */ (0, g.jsx)("div", {
 			className: "btable-mobile__viewport",
 			children: /* @__PURE__ */ (0, g.jsx)("div", {
-				className: "btable-mobile__layout",
-				children: e
+				className: "btable-mobile__frame",
+				children: /* @__PURE__ */ (0, g.jsx)("div", {
+					className: "btable-mobile__layout",
+					children: e
+				})
 			})
 		})
 	});
