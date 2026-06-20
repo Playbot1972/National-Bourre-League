@@ -1,41 +1,141 @@
+/* ================================================================== */
+/* Premium physical playing cards — 3D depth, gloss, layered shadows   */
+/* ================================================================== */
+
 .pcard {
+  --pcard-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pcard-ease-snap: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --pcard-lift-y: -14px;
+  --pcard-tilt-x: 9deg;
+  --pcard-tilt-y: -6deg;
   position: relative;
   display: inline-flex;
   flex-direction: column;
-  justify-content: space-between;
-  background: linear-gradient(160deg, var(--paper) 0%, #efe7d6 100%);
-  border-radius: var(--radius-card);
-  border: 1px solid rgba(20, 17, 15, 0.18);
-  box-shadow:
-    0 8px 18px var(--paper-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  padding: 6px;
+  justify-content: stretch;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--black-suit);
   font-family: "Georgia", serif;
   user-select: none;
-  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+  transform-style: preserve-3d;
+  transform: translateZ(0);
+  transition:
+    transform 280ms var(--pcard-ease),
+    box-shadow 280ms var(--pcard-ease),
+    filter 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Card stock + edge thickness (pseudo-layers behind face) */
+.pcard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(165deg, #f8f2e4 0%, #e8dcc8 38%, #d4c8b4 100%);
+  box-shadow:
+    inset 0 -3px 6px rgba(20, 17, 15, 0.14),
+    inset 0 2px 0 rgba(255, 255, 255, 0.65);
+  transform: translateZ(-1px) translateY(2px);
+  pointer-events: none;
+}
+
+.pcard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 -1px 0 rgba(20, 17, 15, 0.12) inset,
+    0 10px 22px rgba(10, 8, 6, 0.38),
+    0 3px 8px rgba(10, 8, 6, 0.22);
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+/* Printable face layer */
+.pcard__surface {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: 6px;
+  border-radius: inherit;
+  border: 1px solid rgba(20, 17, 15, 0.16);
+  background:
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.52) 0%,
+      rgba(255, 255, 255, 0) 28%,
+      rgba(255, 255, 255, 0) 72%,
+      rgba(0, 0, 0, 0.04) 100%
+    ),
+    linear-gradient(160deg, var(--paper, #faf6ee) 0%, #efe7d6 48%, #e5dbc8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -2px 4px rgba(20, 17, 15, 0.06);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.pcard__surface::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  width: 42%;
+  height: 32%;
+  border-radius: 40% 60% 50% 40%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.55), transparent 70%);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pcard--xs {
   width: 24px;
   height: 34px;
+  border-radius: 4px;
+}
+.pcard--xs .pcard__surface {
   padding: 2px;
   border-radius: 4px;
 }
 .pcard--xs .pcard__back-pattern {
   border-radius: 3px;
 }
+
 .pcard--sm {
   width: 52px;
   height: 74px;
+  border-radius: 7px;
 }
+.pcard--sm .pcard__surface {
+  border-radius: 7px;
+}
+
 .pcard--md {
   width: 72px;
   height: 102px;
+  border-radius: 9px;
 }
+.pcard--md .pcard__surface {
+  border-radius: 9px;
+}
+
 .pcard--lg {
   width: 96px;
   height: 136px;
+  border-radius: 11px;
+}
+.pcard--lg .pcard__surface {
+  border-radius: 11px;
 }
 
 .pcard--red {
@@ -51,6 +151,7 @@
   align-items: center;
   line-height: 1;
   font-weight: 700;
+  z-index: 1;
 }
 .pcard__corner--tl {
   align-self: flex-start;
@@ -80,7 +181,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.92;
+  opacity: 0.94;
+  z-index: 0;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.35));
 }
 .pcard--sm .pcard__center {
   font-size: 26px;
@@ -92,59 +195,71 @@
   font-size: 52px;
 }
 
-/* States */
-.pcard--trump {
+/* --- Game states --- */
+.pcard--trump .pcard__surface {
   border-color: var(--gold-400);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 2px var(--gold-400),
-    0 10px 22px var(--paper-shadow);
+    0 12px 26px rgba(0, 0, 0, 0.35);
 }
+
 .pcard--winner {
+  transform: translateY(-12px) rotateX(6deg) scale(1.02);
+}
+.pcard--winner .pcard__surface {
   border-color: #2f9e6a;
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 0 0 2px #36b97c,
-    0 12px 26px rgba(8, 60, 38, 0.6);
-  transform: translateY(-10px);
+    0 16px 32px rgba(8, 60, 38, 0.55);
 }
+
 .pcard--selected {
+  transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+  animation: pcard-select-pulse 420ms var(--pcard-ease);
+}
+.pcard--selected .pcard__surface {
   border-color: var(--gold-300);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 2px var(--gold-300),
-    0 12px 26px var(--paper-shadow);
-  transform: translateY(-8px);
-  animation: pcard-select-pulse 380ms ease;
+    0 18px 36px rgba(0, 0, 0, 0.42);
 }
 
 .pcard--draw-selected {
+  transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
+  animation: pcard-draw-select-pop 340ms var(--pcard-ease-snap);
+}
+.pcard--draw-selected .pcard__surface {
   border-color: #f4d58d;
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 0 0 3px #f4d58d,
-    0 0 0 5px rgba(54, 185, 124, 0.55),
-    0 0 22px rgba(244, 213, 141, 0.45),
-    0 18px 32px rgba(0, 0, 0, 0.42);
-  transform: translateY(-18px) scale(1.06);
-  animation: pcard-draw-select-pop 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    0 0 0 5px rgba(54, 185, 124, 0.45),
+    0 0 24px rgba(244, 213, 141, 0.4),
+    0 22px 40px rgba(0, 0, 0, 0.48);
 }
 
 @keyframes pcard-draw-select-pop {
   0% {
-    transform: translateY(-4px) scale(1);
+    transform: translateY(-6px) rotateX(4deg) scale(1);
   }
   55% {
-    transform: translateY(-20px) scale(1.08);
+    transform: translateY(-24px) rotateX(14deg) rotateY(-10deg) scale(1.09);
   }
   100% {
-    transform: translateY(-18px) scale(1.06);
+    transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
   }
 }
 
 .pcard--muted {
   filter: grayscale(0.35) brightness(0.9);
-  opacity: 0.7;
+  opacity: 0.72;
 }
 .pcard--disabled {
   filter: grayscale(0.45) brightness(0.88);
-  opacity: 0.62;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -152,96 +267,108 @@
   cursor: pointer;
   appearance: none;
   font: inherit;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
 }
 .pcard--playable {
   touch-action: none;
-  animation: pcard-playable-hint 2.4s ease-in-out infinite;
+  animation: pcard-playable-hint 2.6s ease-in-out infinite;
 }
 
 .pcard--illegal-shake {
-  animation: pcard-illegal-shake 340ms ease;
+  animation: pcard-illegal-shake 380ms var(--pcard-ease);
 }
 
 @keyframes pcard-playable-hint {
   0%,
   100% {
-    box-shadow:
-      0 0 0 1px rgba(230, 180, 80, 0.35),
-      0 8px 18px var(--paper-shadow);
+    filter: drop-shadow(0 0 0 rgba(230, 180, 80, 0));
   }
   50% {
-    box-shadow:
-      0 0 0 2px rgba(230, 180, 80, 0.55),
-      0 12px 22px rgba(230, 180, 80, 0.18);
+    filter: drop-shadow(0 6px 12px rgba(230, 180, 80, 0.28));
   }
 }
 
 @keyframes pcard-illegal-shake {
   0%,
   100% {
-    transform: translateY(-4px) translateX(0);
+    transform: translateY(-6px) rotateY(-2deg) translateX(0);
   }
   20% {
-    transform: translateY(-4px) translateX(-4px);
+    transform: translateY(-6px) rotateY(-2deg) translateX(-5px);
   }
   40% {
-    transform: translateY(-4px) translateX(4px);
+    transform: translateY(-6px) rotateY(-2deg) translateX(5px);
   }
   60% {
-    transform: translateY(-4px) translateX(-3px);
+    transform: translateY(-6px) rotateY(-2deg) translateX(-4px);
   }
   80% {
-    transform: translateY(-4px) translateX(3px);
+    transform: translateY(-6px) rotateY(-2deg) translateX(4px);
   }
 }
 
 @keyframes pcard-select-pulse {
   0% {
-    transform: translateY(-2px) scale(0.98);
+    transform: translateY(-4px) rotateX(4deg) scale(0.98);
   }
   45% {
-    transform: translateY(-10px) scale(1.02);
+    transform: translateY(-14px) rotateX(10deg) rotateY(-6deg) scale(1.04);
   }
   100% {
-    transform: translateY(-8px) scale(1);
+    transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .pcard--playable {
-    animation: none;
+/* Pick-up hover (mouse) */
+@media (hover: hover) and (pointer: fine) {
+  .pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing):not(.pcard--draw-selected) {
+    transform: translateY(var(--pcard-lift-y)) rotateX(var(--pcard-tilt-x)) rotateY(var(--pcard-tilt-y))
+      scale(1.03);
+    z-index: 6;
   }
 
-  .pcard--illegal-shake,
-  .pcard--selected,
-  .pcard--draw-selected {
-    animation-duration: 80ms !important;
+  .pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing)::after {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.5) inset,
+      0 20px 40px rgba(10, 8, 6, 0.48),
+      0 8px 18px rgba(10, 8, 6, 0.28);
   }
 }
-.pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing):not(.pcard--draw-selected) {
-  transform: translateY(-8px);
-  box-shadow: 0 16px 30px var(--paper-shadow);
-}
+
+/* Touch press — lift on active */
 .pcard--pressed:not(.pcard--playing) {
-  transform: translateY(-4px) scale(0.97);
-  box-shadow: 0 6px 14px var(--paper-shadow);
+  transform: translateY(-8px) rotateX(6deg) rotateY(-3deg) scale(0.98);
+  transition-duration: 120ms;
 }
+
 .pcard--playing {
-  opacity: 0.55;
-  transform: translateY(-18px) scale(1.02);
+  opacity: 0.65;
+  transform: translateY(-24px) rotateX(14deg) rotateY(-12deg) scale(1.04);
   pointer-events: none;
+  animation: pcard-play-to-table 320ms var(--pcard-ease) forwards;
+}
+.pcard--playing .pcard__surface {
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 2px var(--gold-300),
-    0 18px 32px var(--paper-shadow);
+    0 24px 44px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes pcard-play-to-table {
+  0% {
+    transform: translateY(-8px) rotateX(6deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-24px) rotateX(14deg) rotateY(-12deg) scale(1.04);
+    opacity: 0.65;
+  }
 }
 
 .pcard__badge {
   position: absolute;
   top: -10px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateZ(8px);
   background: var(--gold-400);
   color: var(--ink-900);
   font-family: "Segoe UI", sans-serif;
@@ -252,20 +379,72 @@
   padding: 2px 8px;
   border-radius: 999px;
   white-space: nowrap;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+  z-index: 3;
 }
 
-/* Card back */
-.pcard--back {
-  background: linear-gradient(135deg, #7a1f2b, #4d1119);
-  border-color: rgba(244, 213, 141, 0.4);
+/* --- Card back — rich pattern + center emblem --- */
+.pcard--back::before {
+  background: linear-gradient(145deg, #8a2430 0%, #5c1520 55%, #3d0e16 100%);
 }
+
+.pcard__surface--back {
+  padding: 5px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 38%, rgba(255, 220, 160, 0.12), transparent 70%),
+    linear-gradient(145deg, #7a1f2b 0%, #4d1119 100%);
+  border-color: rgba(244, 213, 141, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.35);
+}
+
 .pcard__back-pattern {
   flex: 1;
-  margin: 4px;
+  margin: 3px;
   border-radius: 6px;
-  border: 1px solid rgba(244, 213, 141, 0.5);
+  border: 1px solid rgba(244, 213, 141, 0.45);
+  background-color: #5c1520;
   background-image:
-    repeating-linear-gradient(45deg, rgba(244, 213, 141, 0.18) 0 6px, transparent 6px 12px),
-    repeating-linear-gradient(-45deg, rgba(244, 213, 141, 0.18) 0 6px, transparent 6px 12px);
+    radial-gradient(circle at 50% 50%, rgba(244, 213, 141, 0.08) 0%, transparent 55%),
+    repeating-linear-gradient(45deg, rgba(244, 213, 141, 0.16) 0 5px, transparent 5px 10px),
+    repeating-linear-gradient(-45deg, rgba(244, 213, 141, 0.12) 0 5px, transparent 5px 10px);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
+}
+
+.pcard__back-emblem {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28%;
+  height: 28%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid rgba(244, 213, 141, 0.55);
+  box-shadow:
+    inset 0 0 8px rgba(244, 213, 141, 0.25),
+    0 0 0 3px rgba(77, 17, 25, 0.8);
+  pointer-events: none;
+}
+
+.pcard--xs .pcard__back-emblem {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pcard--playable {
+    animation: none;
+  }
+
+  .pcard--illegal-shake,
+  .pcard--selected,
+  .pcard--draw-selected,
+  .pcard--playing {
+    animation-duration: 80ms !important;
+  }
+
+  .pcard,
+  .pcard--interactive:hover {
+    transition-duration: 80ms;
+  }
 }

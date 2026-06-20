@@ -198,6 +198,7 @@ export function Hand({
           : undefined
       }
     >
+      <div className="hand__fan-stage">
       {cards.map((c, i) => (
         <HandCard
           key={keyFor(c)}
@@ -216,6 +217,7 @@ export function Hand({
           slotClassFor={slotClassFor}
         />
       ))}
+      </div>
     </div>
   );
 }

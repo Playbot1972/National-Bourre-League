@@ -8051,38 +8051,49 @@ function _({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 		className: `${C} pcard--back`,
 		"aria-label": "Face-down card",
 		role: "img",
-		children: /* @__PURE__ */ (0, g.jsx)("div", { className: "pcard__back-pattern" })
-	});
-	let w = m(e.suit), T = d[e.suit], E = _ ?? `${e.rank} of ${f[e.suit]}`, D = `pcard--suit-${e.suit}`, O = /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [
-		i && /* @__PURE__ */ (0, g.jsx)("span", {
-			className: "pcard__badge",
-			children: i
-		}),
-		/* @__PURE__ */ (0, g.jsxs)("span", {
-			className: "pcard__corner pcard__corner--tl",
-			children: [/* @__PURE__ */ (0, g.jsx)("span", {
-				className: "pcard__rank",
-				children: e.rank
-			}), /* @__PURE__ */ (0, g.jsx)("span", {
-				className: "pcard__suit",
-				children: T
-			})]
-		}),
-		/* @__PURE__ */ (0, g.jsx)("span", {
-			className: "pcard__center",
-			children: T
-		}),
-		/* @__PURE__ */ (0, g.jsxs)("span", {
-			className: "pcard__corner pcard__corner--br",
-			children: [/* @__PURE__ */ (0, g.jsx)("span", {
-				className: "pcard__rank",
-				children: e.rank
-			}), /* @__PURE__ */ (0, g.jsx)("span", {
-				className: "pcard__suit",
-				children: T
+		children: /* @__PURE__ */ (0, g.jsxs)("span", {
+			className: "pcard__surface pcard__surface--back",
+			"aria-hidden": "true",
+			children: [/* @__PURE__ */ (0, g.jsx)("span", { className: "pcard__back-pattern" }), /* @__PURE__ */ (0, g.jsx)("span", {
+				className: "pcard__back-emblem",
+				"aria-hidden": "true"
 			})]
 		})
-	] });
+	});
+	let w = m(e.suit), T = d[e.suit], E = _ ?? `${e.rank} of ${f[e.suit]}`, D = `pcard--suit-${e.suit}`, O = /* @__PURE__ */ (0, g.jsxs)("span", {
+		className: "pcard__surface",
+		"aria-hidden": "true",
+		children: [
+			i && /* @__PURE__ */ (0, g.jsx)("span", {
+				className: "pcard__badge",
+				children: i
+			}),
+			/* @__PURE__ */ (0, g.jsxs)("span", {
+				className: "pcard__corner pcard__corner--tl",
+				children: [/* @__PURE__ */ (0, g.jsx)("span", {
+					className: "pcard__rank",
+					children: e.rank
+				}), /* @__PURE__ */ (0, g.jsx)("span", {
+					className: "pcard__suit",
+					children: T
+				})]
+			}),
+			/* @__PURE__ */ (0, g.jsx)("span", {
+				className: "pcard__center",
+				children: T
+			}),
+			/* @__PURE__ */ (0, g.jsxs)("span", {
+				className: "pcard__corner pcard__corner--br",
+				children: [/* @__PURE__ */ (0, g.jsx)("span", {
+					className: "pcard__rank",
+					children: e.rank
+				}), /* @__PURE__ */ (0, g.jsx)("span", {
+					className: "pcard__suit",
+					children: T
+				})]
+			})
+		]
+	});
 	return S ? /* @__PURE__ */ (0, g.jsx)("button", {
 		type: "button",
 		className: `${C} ${w ? "pcard--red" : "pcard--black"} ${D}`,
@@ -8307,21 +8318,24 @@ function A({ cards: e, size: t = "md", stateFor: n, badgeFor: r, onCardClick: i,
 		ref: f,
 		className: `hand ${s ? "hand--fan" : ""} ${u ? "hand--pointer" : ""}`,
 		style: s ? { "--hand-count": e.length } : void 0,
-		children: e.map((e, l) => /* @__PURE__ */ (0, g.jsx)(k, {
-			card: e,
-			index: l,
-			style: s ? { "--card-i": l } : void 0,
-			size: t,
-			state: n?.(e, l) ?? "default",
-			badge: r?.(e, l),
-			fan: s,
-			cardTestId: c,
-			cardInteraction: u,
-			onCardClick: i,
-			onCardPeek: a,
-			peekActive: o === l,
-			slotClassFor: d
-		}, te(e)))
+		children: /* @__PURE__ */ (0, g.jsx)("div", {
+			className: "hand__fan-stage",
+			children: e.map((e, l) => /* @__PURE__ */ (0, g.jsx)(k, {
+				card: e,
+				index: l,
+				style: s ? { "--card-i": l } : void 0,
+				size: t,
+				state: n?.(e, l) ?? "default",
+				badge: r?.(e, l),
+				fan: s,
+				cardTestId: c,
+				cardInteraction: u,
+				onCardClick: i,
+				onCardPeek: a,
+				peekActive: o === l,
+				slotClassFor: d
+			}, te(e)))
+		})
 	});
 }
 //#endregion

@@ -193,6 +193,8 @@
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-inline: 2px;
+  perspective: 1100px;
+  transform-style: preserve-3d;
 }
 
 .btable-mobile-hero-dock .btable-hero .hand--fan::-webkit-scrollbar {
@@ -218,7 +220,8 @@
 .btable-mobile .center-play .btrick__play .pcard--sm {
   width: var(--pcard-sm-w);
   height: var(--pcard-sm-h);
-  transform: none;
+  transform: translateZ(6px);
+  transform-origin: center bottom;
 }
 
 .btable-mobile .deck-stack {

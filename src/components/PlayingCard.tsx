@@ -78,7 +78,10 @@ export function PlayingCard({
   if (faceDown || !card) {
     return (
       <div className={`${classes} pcard--back`} aria-label="Face-down card" role="img">
-        <div className="pcard__back-pattern" />
+        <span className="pcard__surface pcard__surface--back" aria-hidden="true">
+          <span className="pcard__back-pattern" />
+          <span className="pcard__back-emblem" aria-hidden="true" />
+        </span>
       </div>
     );
   }
@@ -89,7 +92,7 @@ export function PlayingCard({
   const suitClass = `pcard--suit-${card.suit}`;
 
   const content = (
-    <>
+    <span className="pcard__surface" aria-hidden="true">
       {badge && <span className="pcard__badge">{badge}</span>}
       <span className="pcard__corner pcard__corner--tl">
         <span className="pcard__rank">{card.rank}</span>
@@ -100,7 +103,7 @@ export function PlayingCard({
         <span className="pcard__rank">{card.rank}</span>
         <span className="pcard__suit">{symbol}</span>
       </span>
-    </>
+    </span>
   );
 
   if (interactive) {
