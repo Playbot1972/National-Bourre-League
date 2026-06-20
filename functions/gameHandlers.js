@@ -8,6 +8,7 @@ import {
   dealInitialHand,
   playerOrderFromDealer,
   serializeHandState,
+  serializePagatRevealHand,
   deserializeCards,
   serializeCards,
   shuffledDeckFromSeed,
@@ -20,6 +21,13 @@ import {
   effectivePlayerHand,
   maxDrawDiscards,
   HAND_PHASE,
+  activateHandDecision,
+  applyDecisionPlay,
+  applyDecisionPass,
+  applyDecisionTimeout,
+  currentDecisionPlayer,
+  decisionAsEnrollmentView,
+  buildHandDecision,
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
@@ -68,12 +76,25 @@ function emptyPreDealHand() {
 }
 
 function getSessionEnrollment(sessionData) {
+  const hand = getSessionCurrentHand(sessionData);
+  if (hand?.phase === HAND_PHASE.REVEAL || hand?.phase === HAND_PHASE.DECISION) {
+    const view = decisionAsEnrollmentView(hand.handDecision);
+    return view?.active ? view : null;
+  }
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
   if (live?.active) return live;
   if (livePhase === "draw" || livePhase === "play") return null;
   if (sessionData?.handEnrollment?.active) return sessionData.handEnrollment;
   return sessionData?.handEnrollment ?? null;
+}
+
+function getSessionHandDecision(sessionData) {
+  const hand = getSessionCurrentHand(sessionData);
+  if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
+    return hand.handDecision;
+  }
+  return null;
 }
 
 function isClearedPreDealHand(hand) {
@@ -287,27 +308,25 @@ function buildDealCompletionPatch(
     sortedPlayerIds,
     seed: seed ?? Date.now(),
   });
-  const { publicHand, privateHandsByPlayer } = serializeHandState(deal, {
+  const bundle = serializePagatRevealHand(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
     maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
     handEnrollment: FieldValue.delete(),
+    liveEnrollment: FieldValue.delete(),
     currentHand: {
-      ...publicHand,
+      ...bundle.publicHand,
       postedAntes: collected.postedAntes,
     },
-    privateHandsByPlayer,
+    privateHandsByPlayer: bundle.privateHandsByPlayer,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
   };
 }
 
 function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, sessionStake, dealingRule) {
-  const optIn = sessionData?.tableOptInIds || [];
-  if (!optIn.length) return null;
   const eligible = sortedIds.filter((id) => {
-    if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
@@ -691,6 +710,17 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   }
 
   const existing = getSessionEnrollment(data);
+  const currentHand = getSessionCurrentHand(data);
+  const phase = currentHand?.phase;
+  if (
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY ||
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DECISION
+  ) {
+    return { status: "noop" };
+  }
+
   if (existing?.active) {
     const refreshedEnrollment = {
       ...existing,
@@ -706,9 +736,16 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     return { status: "refreshed" };
   }
 
-  const currentHand = getSessionCurrentHand(data);
-  const phase = currentHand?.phase;
-  if (phase === "draw" || phase === "play") return { status: "noop" };
+  const phaseAfterRefresh = getSessionCurrentHand(data)?.phase;
+  if (
+    phaseAfterRefresh === HAND_PHASE.DRAW ||
+    phaseAfterRefresh === HAND_PHASE.PLAY ||
+    phaseAfterRefresh === HAND_PHASE.REVEAL ||
+    phaseAfterRefresh === HAND_PHASE.DECISION
+  ) {
+    return { status: "noop" };
+  }
+
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
   if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
@@ -775,6 +812,36 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
   const roomSnap = await getRoomSnap(db, roomId);
   const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = sessionData.handStake ?? 1;
+  const dealContext = {
+    dealerId: sessionData.dealerId,
+    sortedPlayerIds,
+    dealingRule,
+  };
+
+  const pagatHand = getSessionCurrentHand(sessionData);
+  const pagatDecision = getSessionHandDecision(sessionData);
+  if (pagatHand?.phase === HAND_PHASE.DECISION && pagatDecision?.active) {
+    if (Date.now() < pagatDecision.turnDeadlineMs) return { status: "noop" };
+    const pagatResult = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) return { status: "noop" };
+      const data = snap.data();
+      const hand = getSessionCurrentHand(data);
+      const decision = getSessionHandDecision(data);
+      if (hand?.phase !== HAND_PHASE.DECISION || !decision?.active) return { status: "noop" };
+      if (Date.now() < decision.turnDeadlineMs) return { status: "noop" };
+      const step = applyDecisionTimeout(hand, decision, dealContext);
+      const patch = decisionStepPatch(step);
+      if (!patch?.currentHand) return { status: "noop" };
+      tx.update(ref, {
+        currentHand: patch.currentHand,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return { status: step.kind === "draw" ? "draw" : "advanced" };
+    });
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    return pagatResult;
+  }
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -803,9 +870,36 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
   return result;
 }
 
+function decisionStepPatch(step) {
+  if (step.kind === "continue" || step.kind === "draw" || step.kind === "restart" || step.kind === "soloWin") {
+    return { currentHand: step.publicHand };
+  }
+  return null;
+}
+
+export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }) {
+  await assertRoomMember(db, roomId, actorId);
+  const ref = sessionRef(db, roomId, sessionId);
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Session not found");
+    const hand = getSessionCurrentHand(snap.data());
+    if (hand?.phase !== HAND_PHASE.REVEAL) {
+      throw new HttpsError("failed-precondition", "Not in reveal phase");
+    }
+    const nextHand = activateHandDecision(hand);
+    tx.update(ref, {
+      currentHand: nextHand,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  return { status: "decision" };
+}
+
 export async function handleSetHandParticipation(
   db,
-  { roomId, sessionId, playerId, inHand, actorId },
+  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0 },
 ) {
   if (!playerId || !actorId) throw new HttpsError("invalid-argument", "Missing player");
   if (!canActForPlayer(playerId, actorId)) {
@@ -829,6 +923,35 @@ export async function handleSetHandParticipation(
     if (!snap.exists) throw new HttpsError("not-found", "Session not found");
     const data = snap.data();
     if (data.status === "final") throw new HttpsError("failed-precondition", "Session is final");
+
+    const pagatHand = getSessionCurrentHand(data);
+    const pagatDecision = getSessionHandDecision(data);
+    if (pagatHand?.phase === HAND_PHASE.DECISION && pagatDecision) {
+      const turnId = currentDecisionPlayer(pagatDecision);
+      if (playerId !== turnId) {
+        throw new HttpsError(
+          "failed-precondition",
+          inHand ? "Not your turn to play yet" : "Not your turn to pass yet",
+        );
+      }
+      const dealContext = {
+        dealerId: data.dealerId,
+        sortedPlayerIds,
+        dealingRule,
+      };
+      const step = inHand
+        ? applyDecisionPlay(pagatHand, pagatDecision, playerId, discardCount, dealContext)
+        : applyDecisionPass(pagatHand, pagatDecision, playerId, dealContext);
+      const patch = decisionStepPatch(step);
+      if (!patch?.currentHand) {
+        throw new HttpsError("failed-precondition", "Decision step did not apply");
+      }
+      tx.update(ref, {
+        currentHand: patch.currentHand,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return { status: step.kind === "draw" ? "draw" : "advanced" };
+    }
 
     const enrollment = getSessionEnrollment(data);
     if (enrollment?.active) {

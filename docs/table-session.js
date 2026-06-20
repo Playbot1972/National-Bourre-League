@@ -11047,7 +11047,7 @@ function dr(e, t) {
 				prevSnapshot: n,
 				displayPotAmount: n.potAmount
 			});
-			if (n.phase === "draw" && a.enrollmentActive && !n.enrollmentActive && (e.phase === "enrollment" || e.phase === "decision")) {
+			if (n.phase === "draw" && a.enrollmentActive && !n.enrollmentActive && e.phase === "enrollment") {
 				let t = !!n.trumpUpcard;
 				return z(e, t ? "trumpReveal" : "ante", {
 					trumpRevealActive: t,
@@ -11057,6 +11057,7 @@ function dr(e, t) {
 					displayPotAmount: n.potAmount
 				});
 			}
+			if (n.phase === "draw" && (e.phase === "decision" || a.phase === "decision")) return ur(e, n, 0, 0);
 			if (n.phase === "draw") {
 				let t = cr(a, n);
 				if (t && e.phase !== "drawReady") {

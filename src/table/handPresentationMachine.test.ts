@@ -23,6 +23,27 @@ const baseSnap = snapshotFromSession({
 });
 
 describe("handPresentationMachine", () => {
+  it("skips trump replay when Pagat decision completes into draw", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "decision",
+      enrollmentActive: true,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        enrollmentActive: false,
+        drawCompletedIds: ["p1"],
+        turnPlayerId: "p2",
+      },
+    });
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpRevealActive, false);
+    assert.equal(store.trumpMergeActive, false);
+  });
+
   it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
     let store = createHandPresentationStore({
       ...baseSnap,

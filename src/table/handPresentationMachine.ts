@@ -329,7 +329,7 @@ export function reduceHandPresentation(
         snapshot.phase === "draw" &&
         prev.enrollmentActive &&
         !snapshot.enrollmentActive &&
-        (store.phase === "enrollment" || store.phase === "decision")
+        store.phase === "enrollment"
       ) {
         const hasTrump = Boolean(snapshot.trumpUpcard);
         return withPhase(store, hasTrump ? "trumpReveal" : "ante", {
@@ -339,6 +339,13 @@ export function reduceHandPresentation(
           prevSnapshot: snapshot,
           displayPotAmount: snapshot.potAmount,
         });
+      }
+
+      if (
+        snapshot.phase === "draw" &&
+        (store.phase === "decision" || prev.phase === "decision")
+      ) {
+        return beginDrawSequence(store, snapshot, 0, 0);
       }
 
       if (snapshot.phase === "draw") {
