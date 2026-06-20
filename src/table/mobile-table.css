@@ -1,16 +1,18 @@
 /* ================================================================== */
 /* Mobile-first gameplay layout — Flexbox + CSS Grid                   */
-/* Goal: dominant central table (~2× prior area) in portrait + landscape */
-/* Hero hand stays visible in a compact dock; seats ring the large felt. */
+/* Orientation media queries are the source of truth for portrait vs   */
+/* landscape; JS classes (btable-mobile--*, --landscape-row) reinforce */
+/* the same layout on rotation without waiting for React re-render.    */
 /* ================================================================== */
 
-/* --- Responsive tokens --- */
+/* --- Responsive tokens (vmin tracks rotation; dvh locks to viewport) --- */
 .btable-mobile {
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -19,34 +21,33 @@
   --mobile-fit-pad-x: max(6px, env(safe-area-inset-left, 0px));
   --mobile-fit-pad-y: max(4px, env(safe-area-inset-top, 0px));
   --mobile-fit-gap: clamp(4px, 1vmin, 8px);
-  /* Seat ring sits tighter on a larger felt so avatars stay on the rail */
   --stage-seat-inset-top: 3%;
   --stage-seat-inset-x: 2.5%;
   --stage-seat-inset-bottom: 4%;
-  /* Grid share: table row/column vs hero dock (4:1 ≈ 2× table area vs old ~2:1) */
-  --table-grid-share: 4;
-  --hand-grid-share: 1;
-  /* Hero cards — touch floor 44px; dock height kept small to feed the table */
+  /* Portrait default: table row grows, hand row sizes to content */
+  --table-grid-share: 1;
+  --hand-grid-share: auto;
   --hand-card-w: clamp(48px, 11vmin, 68px);
   --hand-card-h: calc(var(--hand-card-w) * 1.423);
-  /* In-table trick / deck cards scale with the enlarged felt */
   --pcard-sm-w: clamp(48px, 11vmin, 76px);
   --pcard-sm-h: calc(var(--pcard-sm-w) * 1.423);
   --pcard-xs-w: clamp(22px, 5.5vmin, 28px);
   --pcard-xs-h: calc(var(--pcard-xs-w) * 1.417);
-  --hand-panel-min-height: clamp(88px, 15vmin, 128px);
+  --hand-panel-min-height: clamp(96px, 16vmin, 140px);
+  --hand-actions-slot-height: clamp(48px, 12vmin, 56px);
   --touch-min: 44px;
   --center-play-width: min(68%, clamp(200px, 48vw, 320px));
   --deck-stack-width: clamp(56px, 13vmin, 80px);
 }
 
-/* Viewport shell — flex column, no page scroll */
+/* Viewport shell — flex column, fills overlay; no page scroll */
 .btable-mobile__viewport {
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -58,11 +59,24 @@
   box-sizing: border-box;
 }
 
+/* Frame — isolates rotation reflow inside the session grid cell */
+.btable-mobile__frame {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .btable-mobile__layout {
   flex: 1;
   min-height: 0;
   min-width: 0;
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -73,22 +87,24 @@
   min-height: 0;
   min-width: 0;
   width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* --- Main grid: table dominant, hero dock minimal but tappable --- */
+/* --- Main grid: portrait = stacked rows; landscape = table + hero rail --- */
 .btable-mobile-wrap {
   position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   flex: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, var(--table-grid-share, 4fr)) minmax(0, var(--hand-grid-share, 1fr));
+  grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     "table"
     "hand";
@@ -169,7 +185,7 @@
     var(--stage-seat-inset-x);
 }
 
-/* Hero dock — compact strip; cards remain ≥44px tap targets */
+/* Hero dock — flex stack; draw/pass buttons always above safe-area inset */
 .btable-mobile-hero-dock {
   grid-area: hand;
   flex: 0 0 auto;
@@ -179,19 +195,50 @@
   min-height: var(--hand-panel-min-height);
   max-height: 100%;
   box-sizing: border-box;
-  padding-top: clamp(10px, 2.5vmin, 18px);
-  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
-  margin-top: clamp(-16px, -3vmin, -8px);
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  overflow: visible;
+  overflow: hidden;
   z-index: 8;
   position: relative;
 }
 
+/* Inner stack — cards shrink; action row never clips */
+.btable-mobile-hero-dock__stack {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
 .btable-mobile-hero-dock .btable-hero {
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 0;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-3d {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-3d::-webkit-scrollbar {
+  display: none;
 }
 
 .btable-mobile-hero-dock .btable-hero .hand--fan {
@@ -200,13 +247,33 @@
   flex-wrap: nowrap;
   max-width: 100%;
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-inline: 2px;
-  padding-top: clamp(12px, 3vmin, 22px);
+  padding-top: clamp(8px, 2vmin, 16px);
   perspective: 1100px;
   transform-style: preserve-3d;
+}
+
+.btable-mobile-hero-dock .btable-hero__actions-slot {
+  flex: 0 0 auto;
+  min-height: var(--hand-actions-slot-height);
+  padding-top: 4px;
+  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+}
+
+/* Draw phase — reserve space for cards + both buttons */
+.btable-mobile-hero-dock:has(.btable-hero--draw-actions) {
+  min-height: max(
+    var(--hand-panel-min-height),
+    calc(var(--hand-card-h) + var(--hand-actions-slot-height) + 20px)
+  );
+}
+
+.btable-mobile-hero-dock:has(.btable-hero--draw-actions) .btable-hero__actions {
+  flex-wrap: nowrap;
+  gap: clamp(6px, 2vmin, 10px);
 }
 
 .btable-mobile-hero-dock .btable-hero .hand--fan::-webkit-scrollbar {
@@ -217,6 +284,7 @@
   margin: 2px 0 0;
   text-align: center;
   font-size: clamp(10px, 2.5vmin, 12px);
+  flex-shrink: 0;
 }
 
 /* --- Hero + in-table card sizing --- */
@@ -277,9 +345,9 @@
   );
 }
 
-/* --- Landscape: wide table column + narrow hero rail --- */
+/* --- Landscape: table column ~85% width, hero rail on the right --- */
 .btable-mobile-wrap--landscape-row {
-  grid-template-columns: minmax(0, var(--table-grid-share, 5fr)) minmax(0, var(--hand-grid-share, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 20%);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "table hand";
   gap: clamp(4px, 1dvh, 8px);
@@ -290,10 +358,14 @@
   max-width: none;
   min-width: 0;
   max-height: 100%;
-  overflow: visible;
+  min-height: 0;
+  overflow: hidden;
   margin-top: 0;
-  padding-top: clamp(8px, 2vh, 14px);
-  -webkit-overflow-scrolling: touch;
+  padding-top: clamp(4px, 1vh, 10px);
+  justify-content: flex-end;
+}
+
+.btable-mobile-wrap--landscape-row .btable-mobile-hero-dock__stack {
   justify-content: flex-end;
 }
 
@@ -301,7 +373,7 @@
   justify-content: stretch;
 }
 
-/* --- Compact session chrome — more pixels for the felt --- */
+/* --- Compact session chrome — collapse verbose lines; keep enroll CTA --- */
 .btable-session--mobile-layout {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -317,11 +389,12 @@
   padding: 0 0 2px;
 }
 
+/* Hide status / turn / hint — they steal height and push draw buttons off-screen */
 .btable-session--mobile-layout .btable-session__status,
 .btable-session--mobile-layout .btable-session__turn,
 .btable-session--mobile-layout .btable-session__hint,
 .btable-session--mobile-layout .btable-session__enroll {
-  display: none;
+  display: none !important;
 }
 
 .btable-session--mobile-layout .btable-session__head-row {
@@ -392,10 +465,6 @@
   --stage-seat-inset-x: 1.5%;
   --stage-seat-inset-bottom: 2%;
 }
-
-/* ================================================================== */
-/* Mobile seat ring — CSS overrides per player count (hero in dock)    */
-/* ================================================================== */
 
 /* 6 players (5 opponents): top-left, top, top-right, left, right */
 .btable-mobile-wrap.btable--p6 .btable__seat-slot--0 > .bseat {
@@ -639,45 +708,63 @@
 }
 
 /* ================================================================== */
-/* Orientation + screen-size breakpoints                              */
+/* Orientation breakpoints — CSS Grid reflow on rotate (no scroll)     */
 /* ================================================================== */
 
-/* Portrait: tall table stack (~80% height), hero strip below */
+/* Portrait: dominant table row (1fr) + auto-sized hero dock below */
 @media (orientation: portrait) {
   .btable-mobile {
-    --table-grid-share: 4;
-    --hand-grid-share: 1;
-    --hand-card-w: clamp(48px, 12vw, 66px);
-    --pcard-sm-w: clamp(50px, 12vw, 72px);
+    --hand-card-w: clamp(46px, 12vw, 64px);
+    --pcard-sm-w: clamp(48px, 12vw, 70px);
     --mobile-fit-gap: clamp(4px, 1.2vw, 8px);
+    --hand-panel-min-height: clamp(96px, 17vmin, 136px);
   }
 
   .btable-mobile-wrap {
-    grid-template-rows: minmax(0, 4fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "table" "hand";
   }
 
   .btable-mobile-hero-dock {
-    max-height: min(22dvh, 180px);
+    max-height: min(36dvh, 220px);
+  }
+
+  .btable-mobile-hero-dock:has(.btable-hero--draw-actions) {
+    max-height: min(42dvh, 260px);
   }
 }
 
-/* Landscape: table column ~83% width, hero rail on the right */
+/* Landscape: table fills ~80–88% width; hero rail stays fully visible */
 @media (orientation: landscape) {
   .btable-mobile {
-    --table-grid-share: 5;
-    --hand-grid-share: 1;
-    --hand-card-w: clamp(44px, 9vh, 58px);
-    --pcard-sm-w: clamp(46px, 10vh, 68px);
+    --hand-card-w: clamp(40px, 9vh, 54px);
+    --pcard-sm-w: clamp(42px, 10vh, 64px);
     --mobile-fit-gap: clamp(3px, 0.8dvh, 6px);
+    --hand-panel-min-height: clamp(88px, 20vh, 128px);
   }
 
-  .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 1fr);
+  /* Orientation query applies immediately on rotate — mirrors JS landscape-row */
+  .btable-mobile-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 20%);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "table hand";
+  }
+
+  .btable-mobile-wrap--landscape-row,
+  .btable-mobile-wrap {
+    grid-template-columns: minmax(0, 1fr) minmax(128px, 20%);
   }
 
   .btable-mobile-wrap--landscape-row.btable--p3,
-  .btable-mobile-wrap--landscape-row.btable--p4 {
-    grid-template-columns: minmax(0, 5.5fr) minmax(0, 1fr);
+  .btable-mobile-wrap--landscape-row.btable--p4,
+  .btable-mobile-wrap.btable--p3,
+  .btable-mobile-wrap.btable--p4 {
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 18%);
+  }
+
+  .btable-mobile-hero-dock {
+    max-height: 100%;
   }
 }
 
@@ -690,29 +777,25 @@
 
 @media (orientation: landscape) and (max-height: 500px) {
   .btable-mobile {
-    --table-grid-share: 5.5;
-    --hand-panel-min-height: clamp(80px, 22vh, 120px);
+    --hand-panel-min-height: clamp(84px, 22vh, 116px);
+    --hand-card-w: clamp(38px, 10vh, 50px);
   }
 
+  .btable-mobile-wrap,
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 5.5fr) minmax(0, 1fr);
-  }
-
-  .btable-session--mobile-layout .btable-session__status,
-  .btable-session--mobile-layout .btable-session__turn,
-  .btable-session--mobile-layout .btable-session__hint {
-    display: none !important;
+    grid-template-columns: minmax(0, 1fr) minmax(116px, 18%);
   }
 }
 
 @media (orientation: landscape) and (max-height: 380px) {
   .btable-mobile {
-    --hand-card-w: clamp(42px, 11vh, 52px);
-    --pcard-sm-w: clamp(40px, 10vh, 56px);
+    --hand-card-w: clamp(36px, 10vh, 48px);
+    --pcard-sm-w: clamp(38px, 9vh, 52px);
   }
 
+  .btable-mobile-wrap,
   .btable-mobile-wrap--landscape-row {
-    grid-template-columns: minmax(0, 6fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(108px, 16%);
     gap: 3px;
   }
 
@@ -736,22 +819,23 @@
   }
 }
 
-/* --- Full-screen play overlay --- */
+/* --- Full-screen play overlay — same grid rules, dvh containment --- */
 .table-play-overlay .btable-mobile,
 .table-play-overlay .btable-mobile__viewport,
+.table-play-overlay .btable-mobile__frame,
 .table-play-overlay .btable-mobile__layout,
 .table-play-overlay .btable-mobile-wrap {
   flex: 1;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
-  overflow-x: clip;
 }
 
 .table-play-overlay .btable-mobile__viewport {
   padding-inline: max(2px, env(safe-area-inset-left, 0px))
     max(2px, env(safe-area-inset-right, 0px));
   padding-top: max(2px, env(safe-area-inset-top, 0px));
-  padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
 }
 
 .table-play-overlay .btable-session--mobile-layout {
@@ -763,29 +847,29 @@
   padding: 0;
 }
 
-.table-play-overlay .btable-mobile-hero-dock {
-  max-height: min(22dvh, 168px);
-  overflow: visible;
+.table-play-overlay .btable-session--mobile-layout .btable-session__turn,
+.table-play-overlay .btable-session--mobile-layout .btable-session__hint,
+.table-play-overlay .btable-session--mobile-layout .btable-session__status {
+  display: none !important;
 }
 
-.table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
+.table-play-overlay .btable-mobile-hero-dock {
+  overflow: hidden;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+.table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock,
+.table-play-overlay .btable-mobile-wrap .btable-mobile-hero-dock {
   max-height: 100%;
   max-width: none;
 }
 
 @media (orientation: portrait) {
   .table-play-overlay .btable-mobile-hero-dock {
-    max-height: min(
-      20dvh,
-      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 72dvh)
-    );
+    max-height: min(40dvh, 240px);
   }
-}
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .table-play-overlay .btable-session--mobile-layout .btable-session__status,
-  .table-play-overlay .btable-session--mobile-layout .btable-session__turn,
-  .table-play-overlay .btable-session--mobile-layout .btable-session__hint {
-    display: none !important;
+  .table-play-overlay .btable-mobile-hero-dock:has(.btable-hero--draw-actions) {
+    max-height: min(46dvh, 280px);
   }
 }

@@ -271,6 +271,7 @@ export function MobileCardTable({
       </div>
 
       <div className="btable-mobile-hero-dock hand-panel">
+        <div className="btable-mobile-hero-dock__stack">
         <HeroHand
           cards={heroCards}
           privateHandReady={privateHandReady}
@@ -302,6 +303,7 @@ export function MobileCardTable({
           trumpMergeActive={trumpMergeActive}
           trumpDisabledIndex={trumpDisabledIndex}
         />
+        </div>
         {enrollmentActive && !selfPlayer?.inHand && (
           <p className="btable-mobile-hero-dock__hint muted small">
             Tap I&apos;m in above to join this hand

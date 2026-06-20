@@ -2070,9 +2070,9 @@ body.table-play-active .footer {
 
   .table-play-overlay .hand-panel {
     flex: 0 1 auto;
-    max-height: min(30vh, 200px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    max-height: min(32dvh, 200px);
+    overflow: hidden;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   }
 
   .table-play-overlay .btable-hero__actions {
@@ -2264,10 +2264,18 @@ body.table-play-active .footer {
   .table-play-overlay .hand-panel {
     flex: 0 0 auto;
     width: 100%;
-    max-height: min(38dvh, 280px);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    max-height: min(40dvh, 260px);
+    overflow: hidden;
     padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .table-play-overlay .hand-panel:has(.btable-hero--draw-actions) {
+    max-height: min(46dvh, 300px);
+  }
+
+  .table-play-overlay .btable-hero__actions-slot {
+    flex-shrink: 0;
+    padding-bottom: max(4px, env(safe-area-inset-bottom, 0px));
   }
 
   .table-play-overlay .table-stage {
@@ -2312,16 +2320,17 @@ body.table-play-active .footer {
   }
 
   .table-play-overlay .btable-wrap--landscape-row .hand-panel {
-    flex: 1 1 38%;
+    flex: 1 1 auto;
     min-width: 0;
-    max-width: 42%;
-    max-height: none;
-    overflow-y: auto;
-    align-self: center;
+    max-width: 22%;
+    max-height: 100%;
+    overflow: hidden;
+    align-self: stretch;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
   }
 
   .table-play-overlay .hand-panel {
-    max-height: min(34dvh, 220px);
+    max-height: 100%;
   }
 
   .table-play-overlay .table-stage {
