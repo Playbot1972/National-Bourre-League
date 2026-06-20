@@ -167,9 +167,6 @@ export function TableSessionView({
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
 
-  const drawCompleted =
-    Boolean(currentUserId && session.drawCompletedIds?.includes(currentUserId));
-
   const localActionRequired = isLocalActionRequiredNow({
     currentUserId,
     enrollmentActive,
