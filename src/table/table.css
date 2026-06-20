@@ -1745,6 +1745,33 @@
     display: block;
   }
 
+  /* Desktop CardTable fallback — grid: table dominant, hand below */
+  .btable-wrap:not(.btable-mobile-wrap) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "table"
+      "hand";
+    width: min(100%, var(--stage-fit-width, 100%));
+    gap: clamp(12px, 3vw, 16px);
+    overflow: hidden;
+  }
+
+  .btable-wrap:not(.btable-mobile-wrap) .btable-wrap__table-area {
+    grid-area: table;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btable-wrap:not(.btable-mobile-wrap) .hand-panel {
+    grid-area: hand;
+  }
+
   .btable-wrap {
     width: min(100%, var(--stage-fit-width, 100%));
     gap: clamp(12px, 3vw, 16px);
@@ -1794,6 +1821,46 @@
 }
 
 @media (max-width: 900px) and (orientation: landscape), ((orientation: landscape) and (max-height: 500px)) {
+  /* Desktop CardTable fallback — grid: table left, hand right */
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "table hand";
+    flex-direction: unset;
+    align-items: stretch;
+    justify-content: stretch;
+    gap: clamp(6px, 1.2vw, 10px);
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) .btable-wrap__table-area {
+    grid-area: table;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) .table-stage-fit {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap) .hand-panel {
+    grid-area: hand;
+    flex: unset;
+    min-width: 0;
+    max-width: none;
+    max-height: 100%;
+    overflow-y: auto;
+    align-self: stretch;
+  }
+
   .btable-wrap {
     width: min(100%, var(--stage-fit-width, 100%));
     gap: clamp(8px, 2vh, 14px);
@@ -1802,23 +1869,16 @@
     --stage-seat-inset-bottom: 8%;
   }
 
-  .btable--p3,
-  .btable--p4 {
+  .btable-wrap--landscape-row.btable--p3,
+  .btable-wrap--landscape-row.btable--p4 {
     --stage-seat-inset-top: 4%;
     --stage-seat-inset-x: 3.5%;
     --stage-seat-inset-bottom: 6%;
   }
 
-  .btable-wrap--landscape-row.btable--p3 .table-stage-fit,
-  .btable-wrap--landscape-row.btable--p4 .table-stage-fit {
-    flex: 1 1 68%;
-    max-width: 72%;
-  }
-
-  .btable-wrap--landscape-row.btable--p3 .hand-panel,
-  .btable-wrap--landscape-row.btable--p4 .hand-panel {
-    flex: 1 1 30%;
-    max-width: 32%;
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p3,
+  .btable-wrap--landscape-row:not(.btable-mobile-wrap).btable--p4 {
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
   }
 
   .btable--p7,
@@ -2058,6 +2118,20 @@
     box-sizing: border-box;
   }
 
+  /* Responsive hero cards on narrow / touch screens */
+  .btable-wrap:not(.btable-mobile-wrap) {
+    --hand-card-w: clamp(48px, 12vmin, 72px);
+    --hand-card-h: calc(var(--hand-card-w) * 1.423);
+  }
+
+  .btable-wrap:not(.btable-mobile-wrap) .btable-hero .pcard--sm,
+  .btable-wrap:not(.btable-mobile-wrap) .btable-hero .pcard--md {
+    width: var(--hand-card-w);
+    height: var(--hand-card-h);
+    min-width: 44px;
+    min-height: 62px;
+  }
+
   .btable-hero .hand--fan {
     display: flex;
     justify-content: center;
@@ -2083,14 +2157,14 @@
     --stage-fit-pad-x: max(10px, env(safe-area-inset-left, 0px));
   }
 
-  .btable-session--native-mobile .table-stage {
+  .btable-session--native-mobile .btable-wrap .table-stage {
     max-height: var(--stage-fit-height, min(44dvh, 300px));
     height: var(--stage-fit-height, auto);
     width: min(100%, var(--stage-fit-width, 100%));
     aspect-ratio: unset;
   }
 
-  .btable-session--native-mobile .hand-panel {
+  .btable-session--native-mobile .btable-wrap .hand-panel {
     flex: 0 1 auto;
     width: 100%;
     max-height: min(46dvh, 340px);
@@ -2100,43 +2174,18 @@
 }
 
 @media (max-width: 900px) and (orientation: landscape), ((orientation: landscape) and (max-height: 500px)) {
-  .btable-wrap--landscape-row {
-    flex-direction: row;
-    align-items: stretch;
-    justify-content: center;
-    gap: clamp(6px, 1.2vw, 10px);
-  }
-
-  .btable-wrap--landscape-row .table-stage-fit {
-    flex: 1 1 58%;
-    min-width: 0;
-    max-width: 62%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .btable-wrap--landscape-row .hand-panel {
-    flex: 1 1 38%;
-    min-width: 0;
-    max-width: 42%;
-    max-height: none;
-    overflow-y: auto;
-    align-self: center;
-  }
-
   .btable-session--native-mobile .btable-wrap {
     --stage-fit-pad-x: max(8px, env(safe-area-inset-left, 0px));
   }
 
-  .btable-session--native-mobile .table-stage {
+  .btable-session--native-mobile .btable-wrap .table-stage {
     max-height: var(--stage-fit-height, min(46dvh, 320px));
     height: var(--stage-fit-height, auto);
     width: min(100%, var(--stage-fit-width, 100%));
     aspect-ratio: unset;
   }
 
-  .btable-session--native-mobile .hand-panel {
+  .btable-session--native-mobile .btable-wrap .hand-panel {
     max-height: min(40dvh, 260px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;

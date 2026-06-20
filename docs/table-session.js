@@ -10076,66 +10076,69 @@ function Fn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			"--draw-replace-ms": `${j.drawReplaceMs}ms`
 		},
 		children: [/* @__PURE__ */ (0, g.jsx)("div", {
-			className: "table-stage-fit",
-			children: /* @__PURE__ */ (0, g.jsxs)("div", {
-				className: "table-stage",
-				children: [
-					/* @__PURE__ */ (0, g.jsxs)("div", {
-						className: "table-oval",
-						"aria-hidden": "true",
-						children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
-							className: "btable__felt",
-							"data-testid": "table-felt"
-						})]
-					}),
-					/* @__PURE__ */ (0, g.jsx)(Jt, {
-						potMetrics: {
-							...n,
-							currentPot: y.displayPotAmount
-						},
-						participantCount: r,
-						trumpUpcard: e.trumpUpcard,
-						trumpSuit: e.trumpSuit,
-						phase: e.phase,
-						enrollmentActive: i,
-						remainingDeckCount: e.remainingDeckCount,
-						trickDisplayPlays: v.displayPlays,
-						trickWinnerPlayerId: v.winnerPlayerId,
-						trickShowWinnerTag: v.showWinnerTag,
-						trickPresentationPhase: v.phase,
-						playerNames: re,
-						anteAnimActive: y.anteAnimActive,
-						trumpRevealActive: y.trumpRevealActive,
-						hideCenterTrump: l,
-						showTrumpSuitReminder: u,
-						drawAnimPlayerId: y.animatingDrawPlayerId,
-						drawAnimSubPhase: y.drawAnimSubPhase,
-						drawDiscardCount: y.drawDiscardCount,
-						settleAnimActive: y.settleAnimActive,
-						settleCarryOver: y.settleCarryOver,
-						potTick: b.potTick,
-						trumpReminderPulse: b.trumpReminderPulse
-					}),
-					/* @__PURE__ */ (0, g.jsx)("div", {
-						className: "btable__seats",
-						"aria-label": "Players at the table",
-						children: te.map((e, t) => {
-							let n = Wt(t, te.length);
-							return /* @__PURE__ */ (0, g.jsx)(Qt, {
-								player: ie.find((t) => t.playerId === e.playerId) ?? e,
-								region: n.region,
-								style: {
-									left: `${n.x}%`,
-									top: `${n.y}%`
-								},
-								onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-								onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
-								onTrickDelta: (t) => C(e.playerId, t),
-								onReaction: e.isSelf ? D : void 0
-							}, e.playerId);
+			className: "btable-wrap__table-area",
+			children: /* @__PURE__ */ (0, g.jsx)("div", {
+				className: "table-stage-fit",
+				children: /* @__PURE__ */ (0, g.jsxs)("div", {
+					className: "table-stage",
+					children: [
+						/* @__PURE__ */ (0, g.jsxs)("div", {
+							className: "table-oval",
+							"aria-hidden": "true",
+							children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
+								className: "btable__felt",
+								"data-testid": "table-felt"
+							})]
+						}),
+						/* @__PURE__ */ (0, g.jsx)(Jt, {
+							potMetrics: {
+								...n,
+								currentPot: y.displayPotAmount
+							},
+							participantCount: r,
+							trumpUpcard: e.trumpUpcard,
+							trumpSuit: e.trumpSuit,
+							phase: e.phase,
+							enrollmentActive: i,
+							remainingDeckCount: e.remainingDeckCount,
+							trickDisplayPlays: v.displayPlays,
+							trickWinnerPlayerId: v.winnerPlayerId,
+							trickShowWinnerTag: v.showWinnerTag,
+							trickPresentationPhase: v.phase,
+							playerNames: re,
+							anteAnimActive: y.anteAnimActive,
+							trumpRevealActive: y.trumpRevealActive,
+							hideCenterTrump: l,
+							showTrumpSuitReminder: u,
+							drawAnimPlayerId: y.animatingDrawPlayerId,
+							drawAnimSubPhase: y.drawAnimSubPhase,
+							drawDiscardCount: y.drawDiscardCount,
+							settleAnimActive: y.settleAnimActive,
+							settleCarryOver: y.settleCarryOver,
+							potTick: b.potTick,
+							trumpReminderPulse: b.trumpReminderPulse
+						}),
+						/* @__PURE__ */ (0, g.jsx)("div", {
+							className: "btable__seats",
+							"aria-label": "Players at the table",
+							children: te.map((e, t) => {
+								let n = Wt(t, te.length);
+								return /* @__PURE__ */ (0, g.jsx)(Qt, {
+									player: ie.find((t) => t.playerId === e.playerId) ?? e,
+									region: n.region,
+									style: {
+										left: `${n.x}%`,
+										top: `${n.y}%`
+									},
+									onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
+									onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+									onTrickDelta: (t) => C(e.playerId, t),
+									onReaction: e.isSelf ? D : void 0
+								}, e.playerId);
+							})
 						})
-					})
-				]
+					]
+				})
 			})
 		}), /* @__PURE__ */ (0, g.jsx)(Mt, {
 			className: "hand-panel",
@@ -10329,66 +10332,69 @@ function Gn({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			"--draw-replace-ms": `${M.drawReplaceMs}ms`
 		},
 		children: [/* @__PURE__ */ (0, g.jsx)("div", {
-			className: "btable-mobile-stage-fit",
-			children: /* @__PURE__ */ (0, g.jsxs)("div", {
-				className: "btable-mobile-stage table-stage",
-				children: [
-					/* @__PURE__ */ (0, g.jsxs)("div", {
-						className: "table-oval btable-mobile-oval",
-						"aria-hidden": "true",
-						children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
-							className: "btable__felt",
-							"data-testid": "table-felt"
-						})]
-					}),
-					/* @__PURE__ */ (0, g.jsx)(Jt, {
-						potMetrics: {
-							...n,
-							currentPot: y.displayPotAmount
-						},
-						participantCount: r,
-						trumpUpcard: e.trumpUpcard,
-						trumpSuit: e.trumpSuit,
-						phase: e.phase,
-						enrollmentActive: i,
-						remainingDeckCount: e.remainingDeckCount,
-						trickDisplayPlays: v.displayPlays,
-						trickWinnerPlayerId: v.winnerPlayerId,
-						trickShowWinnerTag: v.showWinnerTag,
-						trickPresentationPhase: v.phase,
-						playerNames: j,
-						anteAnimActive: y.anteAnimActive,
-						trumpRevealActive: y.trumpRevealActive,
-						hideCenterTrump: l,
-						showTrumpSuitReminder: u,
-						drawAnimPlayerId: y.animatingDrawPlayerId,
-						drawAnimSubPhase: y.drawAnimSubPhase,
-						drawDiscardCount: y.drawDiscardCount,
-						settleAnimActive: y.settleAnimActive,
-						settleCarryOver: y.settleCarryOver,
-						potTick: b.potTick,
-						trumpReminderPulse: b.trumpReminderPulse
-					}),
-					/* @__PURE__ */ (0, g.jsx)("div", {
-						className: "btable__seats btable-mobile__seats",
-						"aria-label": "Players at the table",
-						children: k.map((e, t) => {
-							let n = Rn(t, k.length, D);
-							return /* @__PURE__ */ (0, g.jsx)(Qt, {
-								player: ae.find((t) => t.playerId === e.playerId) ?? e,
-								region: n.region,
-								style: {
-									left: `${n.x}%`,
-									top: `${n.y}%`
-								},
-								onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
-								onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
-								onTrickDelta: (t) => C(e.playerId, t),
-								onReaction: void 0
-							}, e.playerId);
+			className: "btable-mobile__table-area",
+			children: /* @__PURE__ */ (0, g.jsx)("div", {
+				className: "btable-mobile-stage-fit",
+				children: /* @__PURE__ */ (0, g.jsxs)("div", {
+					className: "btable-mobile-stage table-stage",
+					children: [
+						/* @__PURE__ */ (0, g.jsxs)("div", {
+							className: "table-oval btable-mobile-oval",
+							"aria-hidden": "true",
+							children: [/* @__PURE__ */ (0, g.jsx)("div", { className: "btable__rail" }), /* @__PURE__ */ (0, g.jsx)("div", {
+								className: "btable__felt",
+								"data-testid": "table-felt"
+							})]
+						}),
+						/* @__PURE__ */ (0, g.jsx)(Jt, {
+							potMetrics: {
+								...n,
+								currentPot: y.displayPotAmount
+							},
+							participantCount: r,
+							trumpUpcard: e.trumpUpcard,
+							trumpSuit: e.trumpSuit,
+							phase: e.phase,
+							enrollmentActive: i,
+							remainingDeckCount: e.remainingDeckCount,
+							trickDisplayPlays: v.displayPlays,
+							trickWinnerPlayerId: v.winnerPlayerId,
+							trickShowWinnerTag: v.showWinnerTag,
+							trickPresentationPhase: v.phase,
+							playerNames: j,
+							anteAnimActive: y.anteAnimActive,
+							trumpRevealActive: y.trumpRevealActive,
+							hideCenterTrump: l,
+							showTrumpSuitReminder: u,
+							drawAnimPlayerId: y.animatingDrawPlayerId,
+							drawAnimSubPhase: y.drawAnimSubPhase,
+							drawDiscardCount: y.drawDiscardCount,
+							settleAnimActive: y.settleAnimActive,
+							settleCarryOver: y.settleCarryOver,
+							potTick: b.potTick,
+							trumpReminderPulse: b.trumpReminderPulse
+						}),
+						/* @__PURE__ */ (0, g.jsx)("div", {
+							className: "btable__seats btable-mobile__seats",
+							"aria-label": "Players at the table",
+							children: k.map((e, t) => {
+								let n = Rn(t, k.length, D);
+								return /* @__PURE__ */ (0, g.jsx)(Qt, {
+									player: ae.find((t) => t.playerId === e.playerId) ?? e,
+									region: n.region,
+									style: {
+										left: `${n.x}%`,
+										top: `${n.y}%`
+									},
+									onToggleInHand: () => x(e.playerId, e.canToggleInHand ? !0 : !e.inHand),
+									onPassEnrollment: e.canPassEnrollment && S ? () => S(e.playerId) : void 0,
+									onTrickDelta: (t) => C(e.playerId, t),
+									onReaction: void 0
+								}, e.playerId);
+							})
 						})
-					})
-				]
+					]
+				})
 			})
 		}), /* @__PURE__ */ (0, g.jsxs)("div", {
 			className: "btable-mobile-hero-dock hand-panel",
@@ -10493,7 +10499,10 @@ function Yn({ children: e }) {
 		"data-layout-mode": t,
 		children: /* @__PURE__ */ (0, g.jsx)("div", {
 			className: "btable-mobile__viewport",
-			children: e
+			children: /* @__PURE__ */ (0, g.jsx)("div", {
+				className: "btable-mobile__layout",
+				children: e
+			})
 		})
 	});
 }

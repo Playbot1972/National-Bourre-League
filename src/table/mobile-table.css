@@ -1,5 +1,10 @@
-/* Mobile-first gameplay layout — separate from desktop `.btable-desktop` path */
+/* ================================================================== */
+/* Mobile-first gameplay layout — Flexbox + CSS Grid                   */
+/* Separate from desktop `.btable-desktop` path. Portrait prioritizes  */
+/* a tall central table; landscape splits table (major) + hero (minor). */
+/* ================================================================== */
 
+/* --- Responsive tokens (cards, spacing, touch targets) --- */
 .btable-mobile {
   flex: 1;
   min-height: 0;
@@ -10,15 +15,25 @@
   flex-direction: column;
   overflow: hidden;
   box-sizing: border-box;
-  transition: padding 220ms ease, gap 220ms ease;
+  touch-action: manipulation;
   --mobile-fit-pad-x: max(8px, env(safe-area-inset-left, 0px));
   --mobile-fit-pad-y: max(6px, env(safe-area-inset-top, 0px));
-  --mobile-fit-gap: 8px;
+  --mobile-fit-gap: clamp(6px, 1.4vmin, 10px);
   --stage-seat-inset-top: 4%;
   --stage-seat-inset-x: 3%;
   --stage-seat-inset-bottom: 6%;
+  /* Hero / trick card sizing — scales with viewport, never below touch min */
+  --hand-card-w: clamp(48px, 12vmin, 72px);
+  --hand-card-h: calc(var(--hand-card-w) * 1.423);
+  --pcard-sm-w: clamp(40px, 9.5vmin, 52px);
+  --pcard-sm-h: calc(var(--pcard-sm-w) * 1.423);
+  --pcard-xs-w: clamp(20px, 5vmin, 24px);
+  --pcard-xs-h: calc(var(--pcard-xs-w) * 1.417);
+  --hand-panel-min-height: clamp(120px, 22vmin, 180px);
+  --touch-min: 44px;
 }
 
+/* Viewport shell — flex column, no page scroll */
 .btable-mobile__viewport {
   flex: 1;
   min-height: 0;
@@ -28,7 +43,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: flex-end;
+  justify-content: stretch;
   overflow: hidden;
   padding-inline: max(6px, env(safe-area-inset-left, 0px))
     max(6px, env(safe-area-inset-right, 0px));
@@ -36,6 +51,28 @@
   box-sizing: border-box;
 }
 
+/* Inner layout grid — single cell that grows with the session */
+.btable-mobile__layout {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.btable-mobile .btable-stage {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Main play surface: CSS Grid (table dominant, hand dock below/right) --- */
 .btable-mobile-wrap {
   position: relative;
   width: 100%;
@@ -43,10 +80,14 @@
   min-width: 0;
   min-height: 0;
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "table"
+    "hand";
+  align-items: stretch;
+  justify-items: stretch;
   gap: var(--mobile-fit-gap);
   overflow: hidden;
   box-sizing: border-box;
@@ -56,15 +97,29 @@
   flex-shrink: 1;
 }
 
+.btable-mobile__table-area {
+  grid-area: table;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 .btable-mobile-stage-fit {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
-  flex: 1 1 auto;
-  min-height: 0;
   align-items: center;
+  overflow: hidden;
 }
 
 .btable-mobile-stage {
@@ -88,14 +143,20 @@
     var(--stage-seat-inset-x);
 }
 
+/* Hero hand dock — portrait: bottom strip; landscape: right column */
 .btable-mobile-hero-dock {
+  grid-area: hand;
   flex: 0 0 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  min-height: var(--hand-panel-min-height, 152px);
+  min-height: var(--hand-panel-min-height);
   box-sizing: border-box;
   padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
 }
 
 .btable-mobile-hero-dock .btable-hero .hand--fan {
@@ -107,6 +168,7 @@
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  padding-inline: 2px;
 }
 
 .btable-mobile-hero-dock .btable-hero .hand--fan::-webkit-scrollbar {
@@ -116,19 +178,51 @@
 .btable-mobile-hero-dock__hint {
   margin: 4px 0 0;
   text-align: center;
-  font-size: 12px;
+  font-size: clamp(11px, 2.8vmin, 13px);
 }
 
-/* Landscape: stage left, hero dock right */
+/* --- Responsive card sizes (hero + table) --- */
+.btable-mobile .btable-hero .pcard--sm,
+.btable-mobile .btable-hero .pcard--md {
+  width: var(--hand-card-w);
+  height: var(--hand-card-h);
+  min-width: var(--touch-min);
+  min-height: calc(var(--touch-min) * 1.42);
+}
+
+.btable-mobile .deck-stack .pcard--sm,
+.btable-mobile .center-play .btrick__play .pcard--sm {
+  width: var(--pcard-sm-w);
+  height: var(--pcard-sm-h);
+}
+
+.btable-mobile .pcard--xs {
+  width: var(--pcard-xs-w);
+  height: var(--pcard-xs-h);
+}
+
+.btable-mobile .btable-hero .hand--fan .hand__slot:not(:first-child) {
+  margin-left: var(
+    --hand-fan-overlap,
+    clamp(-18px, calc((100% - var(--hand-card-w)) / max(1, var(--hand-count, 5) - 1) - var(--hand-card-w)), 2px)
+  );
+}
+
+/* --- Landscape: table left (~70%), hero dock right (~30%) --- */
 .btable-mobile-wrap--landscape-row {
-  flex-direction: row;
+  grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "table hand";
+  gap: clamp(6px, 1.2dvh, 12px);
   align-items: stretch;
+}
+
+.btable-mobile-wrap--landscape-row .btable-mobile__table-area {
   justify-content: center;
-  gap: clamp(6px, 1.2dvh, 10px);
 }
 
 .btable-mobile-wrap--landscape-row .btable-mobile-stage-fit {
-  flex: 1 1 56%;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
 }
@@ -140,21 +234,30 @@
 }
 
 .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
-  flex: 0 1 44%;
+  max-width: none;
   min-width: 0;
-  max-width: 44%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  max-height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  justify-content: flex-end;
 }
 
 .btable-mobile--landscape .btable-mobile__viewport {
-  justify-content: center;
+  justify-content: stretch;
 }
 
-/* Compact session chrome when mobile layout is active */
+/* --- Compact session chrome when mobile layout is active --- */
+.btable-session--mobile-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  gap: clamp(4px, 1vmin, 8px);
+}
+
 .btable-session--mobile-layout .btable-session__head {
   flex-shrink: 0;
   padding: 2px 0 4px;
@@ -176,7 +279,7 @@
 }
 
 .btable-session--mobile-layout .btable-session__title {
-  font-size: 0.95rem;
+  font-size: clamp(0.85rem, 3.2vmin, 0.95rem);
   margin: 0;
 }
 
@@ -198,23 +301,23 @@
 }
 
 .btable-mobile .bseat__aux {
-  max-width: 88px;
+  max-width: clamp(72px, 18vw, 88px);
 }
 
 .btable-mobile .bhud {
-  max-width: 88px;
+  max-width: clamp(72px, 18vw, 88px);
 }
 
 .btable-mobile--portrait .bseat--top .bseat__name {
-  max-width: 72px;
-  font-size: 11px;
+  max-width: clamp(60px, 16vw, 72px);
+  font-size: clamp(10px, 2.6vmin, 11px);
 }
 
 .btable-mobile--landscape .center-play__stats {
   gap: 2px 6px;
 }
 
-/* 2–8 player mobile — larger felt, compact avatars */
+/* --- 2–8 player mobile — seat insets + compact avatars --- */
 .btable-mobile-wrap.btable--p2 {
   --stage-seat-inset-top: 4%;
   --stage-seat-inset-x: 3.5%;
@@ -249,58 +352,163 @@
 
 .btable-mobile-wrap.btable--p3 .bseat__avatar,
 .btable-mobile-wrap.btable--p4 .bseat__avatar {
-  width: 34px;
-  height: 34px;
+  width: clamp(30px, 7.5vmin, 36px);
+  height: clamp(30px, 7.5vmin, 36px);
 }
 
 .btable-mobile-wrap.btable--p3 .bseat__avatar--initials,
 .btable-mobile-wrap.btable--p4 .bseat__avatar--initials {
-  font-size: 12px;
+  font-size: clamp(10px, 2.6vmin, 12px);
 }
 
 .btable-mobile-wrap.btable--p3 .deck-stack,
 .btable-mobile-wrap.btable--p4 .deck-stack {
-  width: 54px;
-}
-
-.btable-mobile-wrap.btable--p3 .deck-stack .pcard--sm,
-.btable-mobile-wrap.btable--p4 .deck-stack .pcard--sm {
-  transform: scale(1.02);
+  width: clamp(48px, 12vmin, 58px);
 }
 
 .btable-mobile-wrap.btable--p3 .center-play,
 .btable-mobile-wrap.btable--p4 .center-play {
-  width: min(54%, 190px);
+  width: min(54%, clamp(160px, 42vw, 200px));
 }
 
 .btable-mobile-wrap.btable--p3 .bseat__aux,
 .btable-mobile-wrap.btable--p4 .bseat__aux,
 .btable-mobile-wrap.btable--p3 .bhud,
 .btable-mobile-wrap.btable--p4 .bhud {
-  max-width: 76px;
+  max-width: clamp(64px, 16vw, 76px);
 }
 
-/* Landscape row — immersive full-screen for 3–4 players */
-.btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage-fit,
-.btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage-fit {
-  flex: 1 1 68%;
-  min-width: 0;
-}
-
-.btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-hero-dock,
-.btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-hero-dock {
-  flex: 0 1 30%;
-  max-width: 32%;
-}
-
+/* Landscape row — give table even more room for 3–4 players */
 .btable-mobile-wrap--landscape-row.btable--p3,
 .btable-mobile-wrap--landscape-row.btable--p4 {
+  grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
   gap: clamp(4px, 0.8dvh, 8px);
 }
 
-/* Overlay integration */
+/* --- Orientation: portrait --- */
+@media (orientation: portrait) {
+  .btable-mobile {
+    --hand-card-w: clamp(50px, 13vw, 68px);
+    --mobile-fit-gap: clamp(8px, 2vw, 12px);
+  }
+
+  .btable-mobile-wrap {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "table"
+      "hand";
+  }
+
+  .btable-mobile-hero-dock {
+    max-height: min(42dvh, 320px);
+  }
+
+  .btable-mobile-stage {
+    max-height: var(--stage-fit-height, min(58dvh, 420px));
+  }
+}
+
+/* --- Orientation: landscape --- */
+@media (orientation: landscape) {
+  .btable-mobile {
+    --hand-card-w: clamp(44px, 10vh, 62px);
+    --pcard-sm-w: clamp(36px, 8.5vh, 48px);
+    --mobile-fit-gap: clamp(4px, 1dvh, 8px);
+  }
+
+  .btable-mobile-wrap--landscape-row {
+    grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "table hand";
+  }
+
+  .btable-mobile-wrap--landscape-row.btable--p3,
+  .btable-mobile-wrap--landscape-row.btable--p4 {
+    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr);
+  }
+
+  .btable-mobile-hero-dock {
+    max-height: 100%;
+  }
+
+  .btable-mobile-stage {
+    max-height: var(--stage-fit-height, min(92dvh, 520px));
+  }
+}
+
+/* --- Small phones (portrait) --- */
+@media (max-width: 390px) and (orientation: portrait) {
+  .btable-mobile {
+    --hand-card-w: clamp(46px, 12.5vw, 58px);
+    --hand-panel-min-height: clamp(108px, 20vmin, 148px);
+  }
+
+  .btable-mobile .bseat__avatar {
+    width: clamp(36px, 9vw, 42px);
+    height: clamp(36px, 9vw, 42px);
+  }
+}
+
+/* --- Short landscape (phones rotated) --- */
+@media (orientation: landscape) and (max-height: 500px) {
+  .btable-mobile {
+    --hand-card-w: clamp(42px, 11vh, 56px);
+    --hand-panel-min-height: clamp(96px, 28vh, 140px);
+  }
+
+  .btable-mobile-wrap--landscape-row {
+    grid-template-columns: minmax(0, 2.35fr) minmax(0, 1fr);
+  }
+
+  .btable-session--mobile-layout .btable-session__status,
+  .btable-session--mobile-layout .btable-session__turn,
+  .btable-session--mobile-layout .btable-session__hint {
+    display: none !important;
+  }
+}
+
+/* --- Very short landscape (iPhone SE etc.) --- */
+@media (orientation: landscape) and (max-height: 380px) {
+  .btable-mobile {
+    --hand-card-w: clamp(40px, 12vh, 52px);
+    --pcard-sm-w: clamp(32px, 9vh, 42px);
+  }
+
+  .btable-mobile-wrap--landscape-row {
+    grid-template-columns: minmax(0, 2.6fr) minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .btable-mobile .bpot__cards {
+    display: none;
+  }
+}
+
+/* --- Tablet portrait --- */
+@media (min-width: 600px) and (orientation: portrait) {
+  .btable-mobile {
+    --hand-card-w: clamp(56px, 8vw, 72px);
+  }
+
+  .btable-mobile-stage {
+    max-height: var(--stage-fit-height, min(62dvh, 480px));
+  }
+}
+
+/* --- Tablet landscape --- */
+@media (min-width: 700px) and (orientation: landscape) {
+  .btable-mobile-wrap--landscape-row {
+    grid-template-columns: minmax(0, 2.5fr) minmax(0, 1fr);
+    max-width: 960px;
+    margin-inline: auto;
+  }
+}
+
+/* --- Full-screen play overlay integration --- */
 .table-play-overlay .btable-mobile,
 .table-play-overlay .btable-mobile__viewport,
+.table-play-overlay .btable-mobile__layout,
 .table-play-overlay .btable-mobile-wrap {
   flex: 1;
   min-height: 0;
@@ -315,19 +523,9 @@
   padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
 }
 
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3,
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 {
-  width: 100%;
-  max-width: 100%;
-}
-
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage,
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage {
-  max-height: min(var(--stage-fit-height, 100%), calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 48px));
-}
-
 .table-play-overlay .btable-session--mobile-layout {
   gap: 4px;
+  height: 100%;
 }
 
 .table-play-overlay .btable-session--mobile-layout .btable-session__head {
@@ -339,17 +537,45 @@
 }
 
 .table-play-overlay .btable-mobile-hero-dock {
-  max-height: min(44dvh, 300px);
+  max-height: min(40dvh, 280px);
 }
 
 .table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-hero-dock {
-  max-height: none;
-  max-width: min(44%, 280px);
+  max-height: 100%;
+  max-width: none;
 }
 
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-hero-dock,
-.table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-hero-dock {
-  max-width: min(32%, 220px);
+@media (orientation: portrait) {
+  .table-play-overlay .btable-mobile-stage {
+    max-height: min(
+      var(--stage-fit-height, 100%),
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 72px)
+    );
+  }
+
+  .table-play-overlay .btable-mobile-hero-dock {
+    max-height: min(
+      38dvh,
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 52dvh)
+    );
+  }
+}
+
+@media (orientation: landscape) {
+  .table-play-overlay .btable-mobile-wrap--landscape-row .btable-mobile-stage {
+    max-height: min(
+      var(--stage-fit-height, 100%),
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 40px)
+    );
+  }
+
+  .table-play-overlay .btable-mobile-wrap--landscape-row.btable--p3 .btable-mobile-stage,
+  .table-play-overlay .btable-mobile-wrap--landscape-row.btable--p4 .btable-mobile-stage {
+    max-height: min(
+      var(--stage-fit-height, 100%),
+      calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 36px)
+    );
+  }
 }
 
 @media (orientation: landscape) and (max-height: 500px) {

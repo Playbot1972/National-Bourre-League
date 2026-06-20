@@ -188,7 +188,8 @@ export function MobileCardTable({
         ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,
       }}
     >
-      <div className="btable-mobile-stage-fit">
+      <div className="btable-mobile__table-area">
+        <div className="btable-mobile-stage-fit">
         <div className="btable-mobile-stage table-stage">
           <div className="table-oval btable-mobile-oval" aria-hidden="true">
             <div className="btable__rail" />
@@ -254,6 +255,7 @@ export function MobileCardTable({
               );
             })}
           </div>
+        </div>
         </div>
       </div>
 
