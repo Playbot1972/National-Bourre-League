@@ -1969,10 +1969,9 @@ body.table-play-active .footer {
   display: flex;
   align-items: stretch;
   justify-content: center;
+  overflow: hidden;
   overflow-x: clip;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
 }
 
 .table-play-overlay .table-session-root {

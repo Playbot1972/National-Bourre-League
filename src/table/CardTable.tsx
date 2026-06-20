@@ -179,8 +179,9 @@ export function CardTable({
         ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,
       }}
     >
-      <div className="table-stage-fit">
-      <div className="table-stage">
+      <div className="btable-wrap__table-area">
+        <div className="table-stage-fit">
+        <div className="table-stage">
         <div className="table-oval" aria-hidden="true">
           <div className="btable__rail" />
           <div className="btable__felt" data-testid="table-felt" />
@@ -245,6 +246,7 @@ export function CardTable({
             );
           })}
         </div>
+      </div>
       </div>
       </div>
       <HeroHand
