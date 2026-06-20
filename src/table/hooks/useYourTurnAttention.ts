@@ -65,7 +65,11 @@ export function useYourTurnAttention(input: {
     clearTimers();
     repeatIndexRef.current = 0;
 
-    if (!input.actionRequired) return clearTimers;
+    if (!input.actionRequired) {
+      setAttentionPhase("hidden");
+      setBeat(0);
+      return clearTimers;
+    }
 
     const bootTimer = window.setTimeout(() => {
       if (!actionRequiredRef.current) return;

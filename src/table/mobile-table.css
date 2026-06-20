@@ -245,15 +245,27 @@
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: clamp(4px, 1vmin, 10px);
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-inline: 2px;
-  padding-top: clamp(8px, 2vmin, 16px);
+  padding-top: clamp(6px, 1.5vmin, 12px);
   perspective: 1100px;
   transform-style: preserve-3d;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand--fan .hand__slot,
+.btable-mobile-hero-dock .btable-hero .hand--fan .hand__slot {
+  transform: none;
+  margin-left: 0 !important;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
+  margin-left: 0 !important;
 }
 
 .btable-mobile-hero-dock .btable-hero__actions-slot {
@@ -338,11 +350,9 @@
   height: var(--pcard-xs-h);
 }
 
+.btable-mobile .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child),
 .btable-mobile .btable-hero .hand--fan .hand__slot:not(:first-child) {
-  margin-left: var(
-    --hand-fan-overlap,
-    clamp(-18px, calc((100% - var(--hand-card-w)) / max(1, var(--hand-count, 5) - 1) - var(--hand-card-w)), 2px)
-  );
+  margin-left: 0;
 }
 
 /* --- Landscape: table column ~85% width, hero rail on the right --- */
@@ -389,12 +399,16 @@
   padding: 0 0 2px;
 }
 
-/* Hide status / turn / hint — they steal height and push draw buttons off-screen */
+/* Collapse verbose header lines on mobile — turn cue uses byour-turn layer instead */
 .btable-session--mobile-layout .btable-session__status,
 .btable-session--mobile-layout .btable-session__turn,
 .btable-session--mobile-layout .btable-session__hint,
 .btable-session--mobile-layout .btable-session__enroll {
-  display: none !important;
+  display: none;
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .btable-session--mobile-layout .btable-session__head-row {
@@ -850,7 +864,11 @@
 .table-play-overlay .btable-session--mobile-layout .btable-session__turn,
 .table-play-overlay .btable-session--mobile-layout .btable-session__hint,
 .table-play-overlay .btable-session--mobile-layout .btable-session__status {
-  display: none !important;
+  display: none;
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .table-play-overlay .btable-mobile-hero-dock {

@@ -318,10 +318,12 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      <YourTurnAttention
-        actionRequired={localActionRequired}
-        activityKey={turnReminderActivityKey}
-      />
+      <div className="btable-session__attention-layer" aria-live="polite">
+        <YourTurnAttention
+          actionRequired={localActionRequired}
+          activityKey={turnReminderActivityKey}
+        />
+      </div>
       <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
       <EventReactions events={events} players={players} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
