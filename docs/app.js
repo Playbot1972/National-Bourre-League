@@ -691,7 +691,7 @@ function bindRoomDetailDelegatedControls() {
       });
     if (input) input.value = "";
     const robotCheckbox = $("#add-player-robot", roomDetailView);
-    if (robotCheckbox) robotCheckbox.checked = false;
+    if (robotCheckbox) robotCheckbox.checked = true;
   });
 
   roomDetailView.addEventListener("change", (e) => {
@@ -3397,7 +3397,7 @@ function buildAddPlayerFormHtml() {
   return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
          <input class="text-input" id="add-player-name" placeholder="Guest name (optional for robots)" aria-label="Add player name" data-testid="add-player-name" />
          <label class="add-player-robot">
-           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" />
+           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" checked />
            Robot — auto I&apos;m in &amp; play to win (name optional)
          </label>
          <button class="btn btn--sm" type="submit" data-testid="add-player-submit">Add player</button>
