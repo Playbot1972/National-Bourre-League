@@ -2980,6 +2980,87 @@ export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
   await ensureCurrentHandParticipants(roomId, sessionId);
 }
 
+/** Ensure every seated player on the score sheet (guests, robots) has a Firestore score row. */
+export async function syncSessionScoreRoster(roomId, sessionId, roster = []) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
+
+  await Promise.all(
+    roster
+      .filter((p) => p?.playerId)
+      .map((p) =>
+        ensureSessionPlayer(roomId, sessionId, p.playerId, p.displayName || "Player", {
+          joinCurrentHand: false,
+          isRobot: p.isRobot === true || isRobotPlayerId(p.playerId),
+        }),
+      ),
+  );
+  await ensureCurrentHandParticipants(roomId, sessionId);
+}
+
+async function waitForMinSeatedPlayers(
+  roomId,
+  sessionId,
+  minPlayers,
+  { members, roster } = {},
+  maxMs = 6000,
+) {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (members?.length) {
+      await syncSessionWithRoomMembers(roomId, sessionId, members);
+    }
+    if (roster?.length) {
+      await syncSessionScoreRoster(roomId, sessionId, roster);
+    }
+    const [sessionSnap, scoreSnap] = await Promise.all([
+      getDoc(sessionDoc(roomId, sessionId)),
+      getDocs(scoresCol(roomId, sessionId)),
+    ]);
+    if (!sessionSnap.exists()) return 0;
+    const seated = seatPlayerIds(sessionSnap.data(), scoreSnap).length;
+    if (seated >= minPlayers) return seated;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  const [sessionSnap, scoreSnap] = await Promise.all([
+    getDoc(sessionDoc(roomId, sessionId)),
+    getDocs(scoresCol(roomId, sessionId)),
+  ]);
+  if (!sessionSnap.exists()) return 0;
+  return seatPlayerIds(sessionSnap.data(), scoreSnap).length;
+}
+
+async function attemptAutoDeal(roomId, sessionId) {
+  let serverResult = null;
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      serverResult = await gameEnsureHandEnrollment(roomId, sessionId);
+    } catch (serverErr) {
+      if (!isCloudFunctionUnavailable(serverErr)) {
+        throw describeEnrollmentStartError(serverErr);
+      }
+      console.warn(
+        "Enrollment Cloud Function unavailable, trying client deal.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+    }
+  }
+
+  let data = await readSessionDataForHandVerify(roomId, sessionId);
+  if (handPhaseStarted(authoritativeCurrentHand(data))) return;
+
+  const serverNoop = serverResult?.status === "noop";
+  if (!SERVER_HAND_AUTHORITY || serverNoop || serverResult == null) {
+    await ensureHandEnrollmentClient(roomId, sessionId);
+    data = await readSessionDataForHandVerify(roomId, sessionId);
+    if (handPhaseStarted(authoritativeCurrentHand(data))) return;
+  }
+
+  if (serverNoop && SERVER_HAND_AUTHORITY) {
+    console.warn("Server auto-deal returned noop; retried client deal for", sessionId);
+  }
+}
+
 /** Backfill participantIds for sessions created before v1.00.08. */
 export async function ensureCurrentHandParticipants(roomId, sessionId) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
@@ -3053,37 +3134,40 @@ function enrollmentStartFailure(sessionData, scoreSnap, kind = "enrollment_faile
 }
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
-export async function ensureHandEnrollment(roomId, sessionId, { members } = {}) {
+export async function ensureHandEnrollment(roomId, sessionId, { members, roster } = {}) {
   await prepareSessionForTableOpen(roomId, sessionId);
-  if (members?.length) {
-    await syncSessionWithRoomMembers(roomId, sessionId, members);
+
+  const minPlayers = 2;
+  const seated = await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, {
+    members,
+    roster,
+  });
+  if (seated < minPlayers) {
+    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+    const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+    throw enrollmentStartFailure(
+      sessionSnap.exists() ? sessionSnap.data() : null,
+      scoreSnap,
+      "insufficient_players",
+    );
   }
 
-  const attemptDeal = async () => {
-    await callEnrollmentAction(
-      () => ensureHandEnrollmentClient(roomId, sessionId),
-      () => gameEnsureHandEnrollment(roomId, sessionId),
-    );
-  };
-
-  await attemptDeal();
+  await attemptAutoDeal(roomId, sessionId);
 
   let data = await readSessionDataForHandVerify(roomId, sessionId);
   if (!handPhaseStarted(authoritativeCurrentHand(data))) {
-    if (members?.length) {
-      await syncSessionWithRoomMembers(roomId, sessionId, members);
-    }
-    await attemptDeal();
+    await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, { members, roster }, 2000);
+    await attemptAutoDeal(roomId, sessionId);
     data = await readSessionDataForHandVerify(roomId, sessionId);
   }
 
   if (!handPhaseStarted(authoritativeCurrentHand(data))) {
     const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-    const seated = seatPlayerIds(data, scoreSnap).length;
+    const seatedNow = seatPlayerIds(data, scoreSnap).length;
     throw enrollmentStartFailure(
       data,
       scoreSnap,
-      seated < 2 ? "insufficient_players" : "enrollment_failed",
+      seatedNow < minPlayers ? "insufficient_players" : "enrollment_failed",
     );
   }
 }

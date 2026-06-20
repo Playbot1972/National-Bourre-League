@@ -302,7 +302,8 @@ function buildDealCompletionPatch(
   dealingRule,
   dealContextExtras = {},
 ) {
-  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContextExtras;
+  const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
+    dealContextExtras;
   const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
   const collected = collectHandAntes({
     participants: enrolledIds,
@@ -312,8 +313,23 @@ function buildDealCompletionPatch(
   });
   const dealIds = collected.activeParticipants;
   if (dealIds.length < 2) {
+    if (dealIds.length === 1) {
+      return buildSoloWinPatch(
+        dealIds[0],
+        { carryOverPot: carryIn, handCount },
+        {
+          ...dealContextExtras,
+          dealerId,
+          sortedPlayerIds,
+          sessionStake,
+          buyIn,
+          scoreById,
+        },
+      );
+    }
     return {
-      handEnrollment: buildHandEnrollment(sortedPlayerIds, dealerId, scoreById, buyIn),
+      handEnrollment: FieldValue.delete(),
+      liveEnrollment: FieldValue.delete(),
       currentHand: emptyPreDealHand(),
       scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
     };
@@ -821,8 +837,10 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
 
   const participantIds = currentHand?.participantIds || [];
   const tricks = currentHand?.tricksByPlayer || {};
-  if (participantIds.length > 0 || Object.values(tricks).some((n) => (n || 0) > 0)) {
-    if (isClearedPreDealHand(data.currentHand)) {
+  const hasTrickProgress = Object.values(tricks).some((n) => (n || 0) > 0);
+  if (participantIds.length > 0 || hasTrickProgress) {
+    const staleRoster = participantIds.length > 0 && !phase && !hasTrickProgress;
+    if (isClearedPreDealHand(data.currentHand) || staleRoster) {
       await ref.update({
         liveEnrollment: FieldValue.delete(),
         handEnrollment: FieldValue.delete(),
@@ -858,8 +876,22 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     sortedIds,
     Date.now(),
     dealingRule,
-    { scoreById, sessionStake, buyIn },
+    {
+      scoreById,
+      sessionStake,
+      buyIn,
+      carryIn: data.carryOverPot || 0,
+      handCount: data.handCount || 0,
+    },
   );
+  if (!autoPatch) return { status: "noop" };
+  if (autoPatch?.soloWin) {
+    await db.runTransaction(async (tx) => {
+      applySoloWinInTransaction(tx, ref, autoPatch, db, roomId, sessionId);
+    });
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    return { status: "solo_win" };
+  }
   if (autoPatch?.privateHandsByPlayer) {
     await db.runTransaction(async (tx) => {
       writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);

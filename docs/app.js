@@ -49,6 +49,7 @@ import {
   addSessionRobot,
   removeSessionPlayer,
   syncSessionWithRoomMembers,
+  syncSessionScoreRoster,
   setHandParticipation,
   ensureHandEnrollment,
   advanceHandReveal,
@@ -937,6 +938,7 @@ async function openNextHandEnrollment(sessionObj) {
     setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
     await ensureHandEnrollment(currentRoomId, openSessionId, {
       members: currentMembers,
+      roster: tableReadyRoster(sessionObj),
     });
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
@@ -1430,6 +1432,16 @@ async function refreshOpenSessionFromServer(roomId, sessionId) {
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
   return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+}
+
+function tableReadyRoster(sessionObj) {
+  return mergeScoresWithMembers(openScores, currentMembers, sessionObj?.players || []).map(
+    (sc) => ({
+      playerId: sc.playerId,
+      displayName: sc.displayName,
+      isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
+    }),
+  );
 }
 
 function bumpTableMountGeneration() {
@@ -2130,9 +2142,9 @@ async function openTablePlay() {
       return;
     }
     if (startupAnalysis.needsEnrollment) {
-      await syncSessionWithRoomMembers(currentRoomId, openSessionId, currentMembers);
       await ensureHandEnrollment(currentRoomId, openSessionId, {
         members: currentMembers,
+        roster: tableReadyRoster(mergedSession),
       });
     }
   } catch (err) {
