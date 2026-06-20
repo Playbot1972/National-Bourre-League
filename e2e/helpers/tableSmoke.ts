@@ -1,10 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 
-export type TableFixturePhase = "enrollment" | "draw" | "play";
+export type TableFixturePhase = "decision" | "reveal" | "draw" | "play" | "enrollment";
 
 export interface TableFixtureOptions {
   players?: number;
   bots?: number;
+  /** `enrollment` is accepted as an alias for Pagat `decision`. */
   phase?: TableFixturePhase;
   tick?: boolean;
 }
@@ -13,7 +14,7 @@ export function tableFixtureUrl(options: TableFixtureOptions = {}): string {
   const qs = new URLSearchParams({
     players: String(options.players ?? 4),
     bots: String(options.bots ?? 1),
-    phase: options.phase ?? "enrollment",
+    phase: options.phase ?? "decision",
     tick: options.tick === false ? "0" : "1",
   });
   return `/e2e-fixtures/table-session?${qs}`;

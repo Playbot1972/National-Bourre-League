@@ -9,12 +9,12 @@ test.describe("Bourré table smoke — desktop", () => {
   });
 
   test("table fixture renders felt, pot, and seats", async ({ page }) => {
-    await openTableFixture(page, { players: 4, bots: 1, phase: "enrollment" });
+    await openTableFixture(page, { players: 4, bots: 1, phase: "decision" });
 
     await expect(page.getByTestId("table-root")).toBeVisible();
     await expect(page.getByTestId("table-felt")).toBeVisible();
     await expect(page.getByTestId("pot-display")).toBeVisible();
-    await expect(page.getByTestId("deal-button")).toBeVisible();
+    await expect(page.getByTestId("decision-panel")).toBeVisible();
 
     await expect(page.locator(".bseat")).toHaveCount(4);
     await expect(page.locator(".bseat__avatar").first()).toBeVisible();
@@ -25,16 +25,16 @@ test.describe("Bourré table smoke — desktop", () => {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
   });
 
-  test("enrollment join button is clickable and shows feedback", async ({ page }) => {
-    await openTableFixture(page, { players: 4, bots: 0, phase: "enrollment", tick: false });
+  test("decision stay pat is clickable and shows feedback", async ({ page }) => {
+    await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
 
-    const join = page.getByTestId("join-button");
-    await expect(join).toBeVisible();
-    await expect(join).toBeEnabled();
-    await join.evaluate((el) => (el as HTMLButtonElement).click());
+    const stayPat = page.getByTestId("stay-pat-button");
+    await expect(stayPat).toBeVisible();
+    await expect(stayPat).toBeEnabled();
+    await stayPat.evaluate((el) => (el as HTMLButtonElement).click());
 
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
-    await expect(page.getByTestId("feedback-banner")).toContainText(/joined|in/i);
+    await expect(page.getByTestId("feedback-banner")).toContainText(/in|pat/i);
   });
 
   test("settings gear opens and closes the panel", async ({ page }) => {

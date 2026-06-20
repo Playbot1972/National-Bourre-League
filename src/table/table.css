@@ -60,6 +60,25 @@
   flex-shrink: 0;
 }
 
+/* Desktop CardTable — stage wrapper must not collapse outside mobile grid rules */
+.btable-wrap:not(.btable-mobile-wrap) .btable-wrap__table-area {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.btable-wrap:not(.btable-mobile-wrap) .btable-wrap__stage-scaler {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 .table-stage-fit {
   width: 100%;
   max-width: 100%;

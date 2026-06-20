@@ -183,7 +183,7 @@ export function CardTable({
         <div className="btable-wrap__stage-scaler">
         <div className="table-stage-fit">
         <div className="table-stage">
-        <div className="table-oval" aria-hidden="true">
+        <div className="table-oval">
           <div className="btable__rail" />
           <div className="btable__felt" data-testid="table-felt" />
         </div>

@@ -12,7 +12,7 @@ export interface OverlayStageMetrics {
 export interface OverlayFixtureOptions {
   players?: number;
   bots?: number;
-  phase?: "enrollment" | "draw" | "play";
+  phase?: "decision" | "reveal" | "draw" | "play" | "enrollment";
 }
 
 export function overlayFixtureUrl(options: OverlayFixtureOptions = {}): string {

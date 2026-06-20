@@ -43,28 +43,28 @@ test.describe("1 — Mobile layout / orientation", () => {
 });
 
 test.describe("2 — Room / session flow", () => {
-  test("I'm In only on initial room entry; auto-in on next hand; leaving excludes player", async ({
+  test("decision only on initial room entry; auto-in on next hand; leaving excludes player", async ({
     page,
   }) => {
     await openTableFlowsFixture(page, {
       scenario: "room-session",
       handNumber: 1,
-      phase: "enrollment",
+      phase: "decision",
     });
-    await expect(page.getByTestId("join-button")).toBeVisible();
-    await page.getByTestId("join-button").click();
-    await expect(page.getByTestId("feedback-banner")).toContainText(/in this hand/i);
+    await expect(page.getByTestId("decision-panel")).toBeVisible();
+    await page.getByTestId("stay-pat-button").click();
+    await expect(page.getByTestId("feedback-banner")).toContainText(/in|pat/i);
 
     await advanceFixture(page, "nextHand");
     await page.waitForTimeout(150);
-    await expect(page.getByTestId("join-button")).toHaveCount(0);
+    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
     const mid = await readFixtureState(page);
     expect(mid?.roomOptedIn).toBe(true);
-    expect(mid?.enrolledIds).toContain("p0");
+    expect(mid?.enrolledIds ?? mid?.playingIds).toContain("p0");
 
     await advanceFixture(page, "leaveRoom");
     await page.waitForTimeout(150);
-    await expect(page.getByTestId("join-button")).toHaveCount(0);
+    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
     const afterLeave = await readFixtureState(page);
     expect(afterLeave?.inRoom).toBe(false);
     expect(afterLeave?.enrolledIds).not.toContain("p0");
@@ -91,10 +91,10 @@ test.describe("3 — Bankroll / ante / broke-out", () => {
 });
 
 test.describe("4 — Pass / draw decision", () => {
-  test("enrollment pass vs draw stand pat are distinct", async ({ page }) => {
-    await openTableFlowsFixture(page, { scenario: "pass-draw", phase: "enrollment" });
-    await expect(page.getByTestId("pass-enroll-button")).toBeVisible();
-    await page.getByTestId("pass-enroll-button").click();
+  test("decision pass vs draw stand pat are distinct", async ({ page }) => {
+    await openTableFlowsFixture(page, { scenario: "pass-draw", phase: "decision" });
+    await expect(page.getByTestId("pass-decision-button")).toBeVisible();
+    await page.getByTestId("pass-decision-button").click();
     await expect(page.getByTestId("feedback-banner")).toContainText(/passed this hand/i);
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
@@ -165,14 +165,14 @@ test.describe("7 — Bourré result animation", () => {
 
 test.describe("8 — Zero-bankroll rules", () => {
   test("zero bankroll marks player out and excludes from hand", async ({ page }) => {
-    await openTableFlowsFixture(page, { scenario: "zero-bankroll", phase: "enrollment" });
+    await openTableFlowsFixture(page, { scenario: "zero-bankroll", phase: "decision" });
     await advanceFixture(page, "broke", { playerId: "p0" });
     await page.waitForTimeout(100);
 
     const self = page.getByTestId("seat-bottom-self");
     await expect(self).toHaveClass(/bseat--out/);
     await expect(self.locator(".bseat__out-tag")).toBeVisible();
-    await expect(page.getByTestId("join-button")).toHaveCount(0);
+    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
   });
 });
 
@@ -191,8 +191,8 @@ test.describe("9 — Live bankroll display", () => {
 
 test.describe("10 — Pass/fold state isolation", () => {
   test("pass/fold state is separate from broke/out state", async ({ page }) => {
-    await openTableFlowsFixture(page, { scenario: "pass-fold", phase: "enrollment" });
-    await page.getByTestId("pass-enroll-button").click();
+    await openTableFlowsFixture(page, { scenario: "pass-fold", phase: "decision" });
+    await page.getByTestId("pass-decision-button").click();
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
 

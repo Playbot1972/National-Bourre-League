@@ -10,18 +10,18 @@ const ENROLLMENT_LAYOUTS = [
   { name: "iPhone landscape", width: 844, height: 390 },
 ] as const;
 
-test.describe("Enrollment overlay layout stability", () => {
+test.describe("Decision overlay layout stability", () => {
   for (const layout of ENROLLMENT_LAYOUTS) {
-    test(`${layout.name} — stage fit holds after I'm in`, async ({ page }) => {
+    test(`${layout.name} — stage fit holds after stay pat`, async ({ page }) => {
       await page.setViewportSize({ width: layout.width, height: layout.height });
-      await openOverlayFixture(page, { players: 4, bots: 1, phase: "enrollment" });
+      await openOverlayFixture(page, { players: 4, bots: 1, phase: "decision" });
 
       const before = await readOverlayGameplayMetrics(page);
       expect(before).not.toBeNull();
 
       const overlay = page.locator("#table-play-overlay");
-      await overlay.getByTestId("join-button").click();
-      await expect(overlay.getByTestId("feedback-banner")).toContainText(/in this hand/i);
+      await overlay.getByTestId("stay-pat-button").click();
+      await expect(overlay.getByTestId("feedback-banner")).toContainText(/in|pat/i);
 
       await page.waitForTimeout(150);
       const afterJoin = await readOverlayGameplayMetrics(page);

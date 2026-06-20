@@ -887,12 +887,21 @@ function cancelNextHandOpenTimer() {
 function sessionAutoDealtNextHand(sessionObj) {
   if (getSessionEnrollment(sessionObj)?.active) return false;
   const phase = getSessionCurrentHand(sessionObj)?.phase;
-  return phase === "draw" || phase === "play";
+  return (
+    phase === "reveal" ||
+    phase === "decision" ||
+    phase === "draw" ||
+    phase === "play"
+  );
 }
 
 function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
   const handNum = (sessionObj?.handCount ?? 0) + 1;
+  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
   if (sessionAutoDealtNextHand(sessionObj)) {
+    if (phase === "reveal" || phase === "decision") {
+      return `Hand #${handNum} — see your cards, then play or pass`;
+    }
     return `Hand #${handNum} — dealing next hand…`;
   }
   return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;

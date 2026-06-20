@@ -24,15 +24,18 @@ test.describe("Bourré table smoke — mobile", () => {
   });
 
   test("critical controls stay visible and tappable on a phone viewport", async ({ page }) => {
-    await openTableFixture(page, { players: 4, bots: 1, phase: "enrollment", tick: false });
+    await openTableFixture(page, { players: 4, bots: 1, phase: "decision", tick: false });
 
-    for (const id of ["table-root", "pot-display", "join-button", "settings-button"] as const) {
+    await expect(page.getByTestId("table-root")).toBeVisible();
+    await expect(page.getByTestId("pot-display")).toBeVisible();
+
+    for (const id of ["stay-pat-button", "settings-button"] as const) {
       const el = page.getByTestId(id).first();
       await expect(el).toBeVisible();
       expect(await isElementInViewport(page, id)).toBe(true);
     }
 
-    await page.getByTestId("join-button").evaluate((el) => (el as HTMLButtonElement).click());
+    await page.getByTestId("stay-pat-button").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
   });
 

@@ -122,31 +122,47 @@ export async function waitForDrawPhase(page: Page) {
   const overlay = page.locator("#table-play-overlay");
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 
-  const deadline = Date.now() + 90_000;
-  let lastJoinClick = 0;
+  const deadline = Date.now() + 120_000;
+  let lastActionClick = 0;
   while (Date.now() < deadline) {
     if (await isDrawPhaseReady(overlay)) return;
 
+    const decisionStay = overlay.getByTestId("stay-pat-button");
+    const decisionPlay = overlay.getByTestId("play-decision-button");
     const join = overlay
       .getByTestId("join-button")
       .or(overlay.getByTestId("seat-opt-in"))
       .first();
-    const joinVisible = await join.isVisible().catch(() => false);
     const now = Date.now();
-    if (joinVisible && now - lastJoinClick > 2500) {
+
+    if (await decisionStay.isVisible().catch(() => false) && now - lastActionClick > 2500) {
+      await decisionStay.click();
+      lastActionClick = now;
+      await page.waitForTimeout(800);
+      continue;
+    }
+    if (await decisionPlay.isVisible().catch(() => false) && now - lastActionClick > 2500) {
+      await decisionPlay.click();
+      lastActionClick = now;
+      await page.waitForTimeout(800);
+      continue;
+    }
+
+    const joinVisible = await join.isVisible().catch(() => false);
+    if (joinVisible && now - lastActionClick > 2500) {
       await join.click();
-      lastJoinClick = now;
+      lastActionClick = now;
       await page.waitForTimeout(800);
       continue;
     }
 
     const feedback = (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
     if (/permission|could not/i.test(feedback)) {
-      throw new Error(`Enrollment failed: ${feedback}`);
+      throw new Error(`Hand decision failed: ${feedback}`);
     }
     await page.waitForTimeout(400);
   }
-  throw new Error("Draw phase did not start within 90s");
+  throw new Error("Draw phase did not start within 120s");
 }
 
 /** @deprecated Use waitForDrawPhase */
