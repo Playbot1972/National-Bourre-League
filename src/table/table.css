@@ -953,12 +953,32 @@
 
 .btable-hero__hand-row .hand--fan .hand__slot {
   --fan-offset: 0;
-  transform: none;
+  transform: none !important;
   margin-left: 0 !important;
+  align-self: flex-end;
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
   margin-left: 0 !important;
+}
+
+/* Shared flat baseline — per-card lifts only when selected / draw-picked */
+.btable-hero__hand-row .hand__slot .pcard {
+  transform: none;
+}
+
+.btable-hero__hand-row .hand__slot .pcard--muted,
+.btable-hero__hand-row .hand__slot .pcard--disabled,
+.btable-hero__hand-row .hand__slot .pcard--playable {
+  transform: none;
+}
+
+.btable-hero__hand-row .hand__slot .pcard--selected {
+  transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+}
+
+.btable-hero__hand-row .hand__slot .pcard--draw-selected {
+  transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
@@ -982,7 +1002,11 @@
 .btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
   filter: grayscale(0.15) brightness(0.9);
   opacity: 0.78;
-  transform: translateY(2px);
+  transform: none;
+}
+
+.btable-hero--draw-select .btable-hero__hand-row .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+  transform: none;
 }
 
 .btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard {
@@ -2964,11 +2988,11 @@
   }
   60% {
     opacity: 1;
-    transform: rotateZ(calc(var(--fan-offset, 0) * 5deg - 2deg)) translateY(4px) scale(1.03);
+    transform: translateY(4px) scale(1.03);
   }
   100% {
     opacity: 1;
-    transform: rotateZ(calc(var(--fan-offset, 0) * 5deg)) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -3016,11 +3040,11 @@
 @keyframes bdraw-slot-receive {
   from {
     opacity: 0;
-    transform: rotateZ(calc(var(--fan-offset, 0) * 5deg)) translateY(28px) scale(0.82);
+    transform: translateY(28px) scale(0.82);
   }
   to {
     opacity: 1;
-    transform: rotateZ(calc(var(--fan-offset, 0) * 5deg)) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
