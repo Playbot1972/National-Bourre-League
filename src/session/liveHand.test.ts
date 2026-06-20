@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getSessionCurrentHand, getSessionEnrollment } from "./liveHand";
+import { getSessionCurrentHand, getSessionEnrollment, sessionHandDealStarted, handPhaseStarted } from "./liveHand";
 
 describe("live enrollment hand view", () => {
   it("ignores orphan liveEnrollment deal when currentHand is cleared between hands", () => {
@@ -126,5 +126,18 @@ describe("live enrollment hand view", () => {
     const hand = getSessionCurrentHand(session);
     assert.deepEqual(hand.drawCompletedIds, ["a"]);
     assert.equal(hand.turnPlayerId, "b");
+  });
+
+  it("sessionHandDealStarted reads raw currentHand even when authoritative merge is empty", () => {
+    const session = {
+      currentHand: {
+        phase: "reveal",
+        participantIds: ["a", "b"],
+        tricksByPlayer: {},
+      },
+      liveEnrollment: { active: false, deal: { publicHand: { phase: "draw", participantIds: [] } } },
+    };
+    assert.equal(sessionHandDealStarted(session), true);
+    assert.equal(handPhaseStarted(getSessionCurrentHand(session)), true);
   });
 });

@@ -126,7 +126,7 @@ import {
   formatRiskStake,
   formatNet,
 } from "./risk-stakes.js";
-import { analyzeTableStartup, tableStartupUserMessage } from "./session-startup.js";
+import { analyzeTableStartup, sessionHandDealStarted, tableStartupUserMessage } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
   applyLocalCommitDrawCompleted,
@@ -2149,8 +2149,17 @@ async function openTablePlay() {
     }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
-    showTableStartupFailure(startupAnalysis, err);
-    return;
+    let recovered = false;
+    try {
+      const fresh = await getSession(currentRoomId, openSessionId);
+      recovered = sessionHandDealStarted(fresh);
+    } catch (recoverErr) {
+      console.warn("openTablePlay deal recovery check:", recoverErr);
+    }
+    if (!recovered) {
+      showTableStartupFailure(startupAnalysis, err);
+      return;
+    }
   }
 
   const overlay = $("#table-play-overlay");

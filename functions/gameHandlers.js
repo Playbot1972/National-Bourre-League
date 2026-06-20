@@ -77,6 +77,27 @@ function emptyPreDealHand() {
   return { tricksByPlayer: {}, participantIds: [] };
 }
 
+function handPhaseStarted(hand) {
+  const phase = hand?.phase ?? null;
+  return (
+    phase === HAND_PHASE.REVEAL ||
+    phase === HAND_PHASE.DECISION ||
+    phase === HAND_PHASE.DRAW ||
+    phase === HAND_PHASE.PLAY
+  );
+}
+
+function sessionHandDealStarted(sessionData) {
+  if (!sessionData) return false;
+  if (handPhaseStarted(sessionData.currentHand)) return true;
+  if (handPhaseStarted(sessionData.liveEnrollment?.deal?.publicHand)) return true;
+  return handPhaseStarted(getSessionCurrentHand(sessionData));
+}
+
+function rawCurrentHand(sessionData) {
+  return sessionData?.currentHand ?? emptyPreDealHand();
+}
+
 function getSessionEnrollment(sessionData) {
   const hand = getSessionCurrentHand(sessionData);
   const phase = hand?.phase;
@@ -803,14 +824,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   }
 
   const existing = getSessionEnrollment(data);
-  const currentHand = getSessionCurrentHand(data);
-  const phase = currentHand?.phase;
-  if (
-    phase === HAND_PHASE.DRAW ||
-    phase === HAND_PHASE.PLAY ||
-    phase === HAND_PHASE.REVEAL ||
-    phase === HAND_PHASE.DECISION
-  ) {
+  if (sessionHandDealStarted(data)) {
     return { status: "noop" };
   }
 
@@ -825,18 +839,14 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     data = sessionSnap.data();
   }
 
-  const phaseAfterRefresh = getSessionCurrentHand(data)?.phase;
-  if (
-    phaseAfterRefresh === HAND_PHASE.DRAW ||
-    phaseAfterRefresh === HAND_PHASE.PLAY ||
-    phaseAfterRefresh === HAND_PHASE.REVEAL ||
-    phaseAfterRefresh === HAND_PHASE.DECISION
-  ) {
+  if (sessionHandDealStarted(data)) {
     return { status: "noop" };
   }
 
-  const participantIds = currentHand?.participantIds || [];
-  const tricks = currentHand?.tricksByPlayer || {};
+  let hand = rawCurrentHand(data);
+  let phase = hand.phase ?? null;
+  const participantIds = hand.participantIds || [];
+  const tricks = hand.tricksByPlayer || {};
   const hasTrickProgress = Object.values(tricks).some((n) => (n || 0) > 0);
   if (participantIds.length > 0 || hasTrickProgress) {
     const staleRoster = participantIds.length > 0 && !phase && !hasTrickProgress;
@@ -849,6 +859,8 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       });
       sessionSnap = await ref.get();
       data = sessionSnap.data();
+      hand = rawCurrentHand(data);
+      phase = hand.phase ?? null;
     } else {
       return { status: "noop" };
     }
@@ -900,18 +912,18 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     await advanceBotsAfterAction(db, roomId, sessionId, actorId);
     return { status: "auto_dealt" };
   }
-  if (autoPatch?.scorePatches) {
-    await db.runTransaction(async (tx) => {
-      for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
-        tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
-          ...scorePatch,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }
-      applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
-    });
-    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-    return { status: "solo_dealt" };
+  if (autoPatch?.scorePatches && !autoPatch?.privateHandsByPlayer) {
+    if (Object.keys(autoPatch.scorePatches).length > 0) {
+      await db.runTransaction(async (tx) => {
+        for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
+          tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
+            ...scorePatch,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        }
+      });
+    }
+    return { status: "noop" };
   }
 
   return { status: "noop" };

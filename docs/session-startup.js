@@ -48,20 +48,27 @@ function s(e, t) {
 	return a(t) ? a(e) ? o(t) >= o(e) ? t : e : t : e;
 }
 function c(e) {
-	let n = e?.currentHand ?? r(), o = e?.liveEnrollment?.deal?.publicHand, c = o?.phase ?? null;
+	let t = e?.phase ?? null;
+	return t === "reveal" || t === "decision" || t === "draw" || t === "play";
+}
+function l(e) {
+	return e ? c(e.currentHand) || c(e.liveEnrollment?.deal?.publicHand) ? !0 : c(u(e)) : !1;
+}
+function u(e) {
+	let n = e?.currentHand ?? r(), o = e?.liveEnrollment?.deal?.publicHand, l = o?.phase ?? null;
 	if (a(n) && a(o)) return s(n, o);
 	if (a(n)) return n;
-	if (c === "draw" || c === "play" || c === "reveal" || c === "decision") {
+	if (l === "draw" || l === "play" || l === "reveal" || l === "decision") {
 		if (a(o)) {
 			let a = t(o?.tricksByPlayer ?? {}, o?.participantIds ?? []);
-			return i(n) && a === 0 && c === "draw" && !e?.liveEnrollment?.active ? r() : o;
+			return i(n) && a === 0 && l === "draw" && !e?.liveEnrollment?.active ? r() : o;
 		}
-		return i(n) ? r() : n;
+		return o?.phase ? o : c(n) ? n : i(n) ? r() : n;
 	}
-	return c && o ? o : n;
+	return l && o ? o : n;
 }
-function l(t) {
-	let n = c(t), r = n?.phase ?? null;
+function d(t) {
+	let n = u(t), r = n?.phase ?? null;
 	if (r === "reveal" || r === "draw" || r === "play") return null;
 	if (r === "decision") {
 		let t = e(n.handDecision ?? null);
@@ -72,17 +79,17 @@ function l(t) {
 }
 //#endregion
 //#region src/session/tableStartup.ts
-function u(e) {
+function f(e) {
 	let t = e?.liveEnrollment?.deal?.publicHand;
-	return !t?.phase || l(e)?.active || e?.pendingCoWinSettlement || !i(e?.currentHand) ? !1 : n(t.tricksByPlayer ?? {}, t.participantIds ?? []);
+	return !t?.phase || d(e)?.active || e?.pendingCoWinSettlement || !i(e?.currentHand) ? !1 : n(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 }
-function d(e) {
+function p(e) {
 	if (!e?.liveEnrollment?.deal) return !1;
-	if (u(e)) return !0;
+	if (f(e)) return !0;
 	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
 	return (t === "draw" || t === "play") && !n ? i(e.currentHand) : t === "draw" || t === "play" ? !1 : i(e?.currentHand);
 }
-function f(e, t) {
+function m(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -107,15 +114,15 @@ function f(e, t) {
 		reason: "fewer_than_two_players",
 		recovery: "return_to_room"
 	};
-	let n = c(e).phase ?? null;
+	let n = u(e).phase ?? null;
 	return n === "reveal" || n === "decision" || n === "draw" || n === "play" ? {
 		kind: "ready_mid_hand",
 		canOpenTable: !0,
 		needsEnrollment: !1,
-		shouldRepair: d(e),
+		shouldRepair: p(e),
 		reason: "hand_in_progress",
 		recovery: "refresh"
-	} : d(e) ? {
+	} : p(e) ? {
 		kind: "stale_live_deal",
 		canOpenTable: !0,
 		needsEnrollment: !0,
@@ -131,10 +138,10 @@ function f(e, t) {
 		recovery: "refresh"
 	};
 }
-function p(e) {
+function h(e) {
 	return e.needsEnrollment;
 }
-function m(e, t) {
+function g(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -149,4 +156,4 @@ function m(e, t) {
 	}
 }
 //#endregion
-export { f as analyzeTableStartup, c as authoritativeCurrentHand, i as isClearedPreDealHand, u as isStaleLiveDealSnapshot, d as shouldClearOrphanLiveEnrollment, p as tableStartupNeedsEnrollment, m as tableStartupUserMessage };
+export { m as analyzeTableStartup, u as authoritativeCurrentHand, c as handPhaseStarted, i as isClearedPreDealHand, f as isStaleLiveDealSnapshot, l as sessionHandDealStarted, p as shouldClearOrphanLiveEnrollment, h as tableStartupNeedsEnrollment, g as tableStartupUserMessage };
