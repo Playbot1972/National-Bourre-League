@@ -1344,9 +1344,13 @@ body.room-detail-open .room-actions {
   color: var(--text-dim);
 }
 
-.bourre-settings__lim {
-  cursor: pointer;
+.bourre-settings__amount {
+  width: 5.5rem;
+  min-width: 5.5rem;
+  padding: 7px 10px;
+  font-size: 14px;
 }
+
 
 .bourre-settings__lim input {
   margin: 0;

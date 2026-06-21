@@ -7,7 +7,7 @@ export const POT_CAP_MULTIPLIER = 20;
 export const DEFAULT_HAND_ANTE = 1;
 
 export const DEFAULT_BOURRE_SETTINGS = {
-  buyInAmount: 1,
+  buyInAmount: 100,
   anteAmount: DEFAULT_HAND_ANTE,
   limEnabled: false,
   /** Optional house rule — manual top-up when bankroll hits zero (off by default). */
@@ -29,7 +29,7 @@ export function normalizeBourreSettings(raw = {}) {
     Number(hasExplicitBuyIn ? raw.buyInAmount : raw.anteAmount ?? raw.handStake) || 1,
   );
   const anteAmount = hasExplicitBuyIn
-    ? Math.max(1, Number(raw.anteAmount ?? DEFAULT_HAND_ANTE) || DEFAULT_HAND_ANTE)
+    ? Math.max(0.01, Number(raw.anteAmount ?? DEFAULT_HAND_ANTE) || DEFAULT_HAND_ANTE)
     : DEFAULT_HAND_ANTE;
   return {
     buyInAmount,
@@ -55,7 +55,7 @@ export function resolveSessionBuyIn(sessionData, roomBourreSettings) {
  */
 export function computeHandPotState({ anteAmount, limEnabled = false, carryIn = 0, antePot }) {
   const limOn = limEnabled === true;
-  const resolvedAnte = Math.max(1, Number(anteAmount) || DEFAULT_HAND_ANTE);
+  const resolvedAnte = Math.max(0.01, Number(anteAmount) || DEFAULT_HAND_ANTE);
   const potCap = resolvedAnte * POT_CAP_MULTIPLIER;
   const currentPot = Math.max(0, Number(antePot) || 0) + Math.max(0, Number(carryIn) || 0);
   const maxWinThisHand = limOn ? Math.min(currentPot, potCap) : currentPot;

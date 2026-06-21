@@ -34,6 +34,16 @@ describe("buy-in settings normalization", () => {
     assert.equal(settings.potCap, 40);
   });
 
+  it("allows fractional per-hand ante amounts", () => {
+    const settings = normalizeBourreSettings({
+      buyInAmount: 100,
+      anteAmount: 0.25,
+    });
+    assert.equal(settings.buyInAmount, 100);
+    assert.equal(settings.anteAmount, 0.25);
+    assert.equal(settings.potCap, 5);
+  });
+
   it("resolveSessionBuyIn prefers session buy-in over room settings", () => {
     assert.equal(
       resolveSessionBuyIn({ buyInAmount: 50 }, { buyInAmount: 100 }),

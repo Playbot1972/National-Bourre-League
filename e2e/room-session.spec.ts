@@ -17,10 +17,11 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await createRoom(page);
   });
 
-  test("room buy-in dropdown keeps selected value after change", async ({ page }) => {
+  test("room buy-in input keeps selected value after change", async ({ page }) => {
     const roomBuyIn = page.locator("#room-buy-in-amount");
     await expect(roomBuyIn).toBeVisible();
-    await roomBuyIn.selectOption("5");
+    await expect(roomBuyIn).toHaveValue("100");
+    await roomBuyIn.fill("5");
     await expect(roomBuyIn).toHaveValue("5");
     await page.waitForTimeout(400);
     await expect(roomBuyIn).toHaveValue("5");
