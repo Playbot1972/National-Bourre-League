@@ -7,7 +7,6 @@ import {
   animateFoldOut,
   animatePlayLift,
   animateStandPat,
-  animateTrumpMerge,
   dealCardsFromDeck,
   killCardMotion,
   readDeckOrigin,
@@ -30,8 +29,6 @@ export interface HeroCardMotionOptions {
   pendingDiscardIndices: number[];
   standPatPulse: boolean;
   foldOutPulse: boolean;
-  trumpMergeActive: boolean;
-  revealedTrumpIndex: number | null;
   playingIndex: number | null;
   cards: SerializedCard[];
 }
@@ -45,8 +42,6 @@ export function useHeroCardMotion(
     pendingDiscardIndices,
     standPatPulse,
     foldOutPulse,
-    trumpMergeActive,
-    revealedTrumpIndex,
     playingIndex,
     cards,
   }: HeroCardMotionOptions,
@@ -119,14 +114,6 @@ export function useHeroCardMotion(
     const targets = handCards(handRootRef.current);
     if (targets.length) animateFoldOut(targets);
   }, [foldOutPulse, handRootRef]);
-
-  useLayoutEffect(() => {
-    if (!trumpMergeActive || revealedTrumpIndex === null) return;
-    const root = handRootRef.current;
-    const cardEls = handCards(root);
-    const target = cardEls[revealedTrumpIndex];
-    if (target) animateTrumpMerge(target);
-  }, [trumpMergeActive, revealedTrumpIndex, handRootRef]);
 
   useLayoutEffect(() => {
     const root = handRootRef.current;

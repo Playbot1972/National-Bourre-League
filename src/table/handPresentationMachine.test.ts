@@ -79,12 +79,10 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
     store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpMerge");
-    assert.equal(store.trumpMergeActive, true);
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
     assert.equal(store.trumpMergedIntoHand, true);
     assert.equal(store.trumpMergeActive, false);
+    assert.equal(store.trumpRevealActive, false);
   });
 
   it("animates each draw completion before advancing display list", () => {
@@ -155,7 +153,7 @@ describe("handPresentationMachine", () => {
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
-    assert.ok(t.trumpMergeAnimMs >= 500 && t.trumpMergeAnimMs <= 800);
+    assert.ok(t.trumpMergeAnimMs <= 80);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
 

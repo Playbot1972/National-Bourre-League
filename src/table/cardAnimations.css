@@ -375,8 +375,12 @@
   }
 }
 
-.btable-hero--trump-merge .hand__slot--trump-merge-target {
-  animation: btrump-merge-into-hand var(--anim-trump-merge-ms) var(--premium-ease-bounce) forwards;
+.btable-hero--trump-merge .hand__slot--trump-merge-target,
+.btable-hero--trump-reveal .hand__slot--trump-revealed,
+.bseat--trump-merge .bseat__hole-card--trump-merge,
+.bseat--trump-merge .bseat__hole-cards {
+  animation: none !important;
+  transform: none !important;
 }
 
 @keyframes btrump-merge-into-hand {
@@ -395,7 +399,7 @@
 }
 
 .bseat--trump-merge .bseat__hole-card--trump-merge {
-  animation: bseat-trump-merge var(--anim-trump-merge-ms) var(--premium-ease-bounce) forwards;
+  animation: none !important;
 }
 
 @keyframes bseat-trump-merge {
@@ -482,8 +486,7 @@
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot,
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard,
 [data-gsap-motion="true"] .btable-hero--stand-pat .hand__slot .pcard,
-[data-gsap-motion="true"] .btable-hero--fold-out .hand__slot .pcard,
-[data-gsap-motion="true"] .btable-hero--trump-merge .hand__slot--trump-merge-target {
+[data-gsap-motion="true"] .btable-hero--fold-out .hand__slot .pcard {
   animation: none !important;
 }
 
