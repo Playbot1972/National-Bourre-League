@@ -30,6 +30,20 @@ async function signUpUser(page: Page, label: string) {
   await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
 }
 
+/** Open the protected Rooms view (nav renamed from legacy "Private Rooms" link). */
+export async function goToPrivateRooms(page: Page) {
+  const roomsView = page.locator("#view-rooms");
+  if (await roomsView.isVisible().catch(() => false)) return;
+
+  const navRooms = page.locator('a.nav__link[href="#rooms"]');
+  if (await navRooms.isVisible().catch(() => false)) {
+    await navRooms.click();
+  } else {
+    await page.getByRole("link", { name: /go to your rooms/i }).click();
+  }
+  await expect(roomsView).toBeVisible({ timeout: 15_000 });
+}
+
 export async function readRoomInviteCode(page: Page) {
   const codeEl = page.getByTestId("room-invite-code");
   await expect(codeEl).toBeVisible({ timeout: 15_000 });
@@ -39,15 +53,13 @@ export async function readRoomInviteCode(page: Page) {
 }
 
 export async function joinRoomWithCode(page: Page, code: string) {
-  await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
-  await expect(page.locator("#view-rooms")).toBeVisible();
+  await goToPrivateRooms(page);
   await page.getByTestId("join-code-input").fill(code.replace(/\s+/g, ""));
   await page.getByTestId("join-code-submit").click();
 }
 
 export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
-  await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
-  await expect(page.locator("#view-rooms")).toBeVisible();
+  await goToPrivateRooms(page);
 
   const title = page.locator(".room-detail__title");
   const modal = page.locator("#create-room-modal");

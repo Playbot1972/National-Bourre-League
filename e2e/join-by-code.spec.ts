@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   createRoom,
   emulatorReady,
+  goToPrivateRooms,
   joinRoomWithCode,
   readRoomInviteCode,
   signUpGuest,
@@ -60,7 +61,7 @@ test.describe("Join room by invite code", () => {
       await page.goto("/");
       await expect(page.locator("#app-version")).toBeVisible({ timeout: 15_000 });
       await signUpHost(page, "Invalid Code Host");
-      await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
+      await goToPrivateRooms(page);
       await page.getByTestId("join-code-input").fill("BAD");
       await page.getByTestId("join-code-submit").click();
       await expect(page.locator("#rooms-error")).toContainText(/invalid invite code/i, {
