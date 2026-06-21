@@ -2131,6 +2131,18 @@ async function openTablePlay() {
     return;
   }
 
+  const overlay = $("#table-play-overlay");
+  if (!overlay) return;
+  tablePlayOpen = true;
+  overlay.hidden = false;
+  document.body.classList.add("table-play-active");
+  updateTablePlayTitle(openSessionObj);
+
+  const needsDeal = startupAnalysis.needsEnrollment;
+  if (needsDeal) {
+    setTableActionFeedback({ status: "loading", message: "Dealing first hand…" });
+  }
+
   try {
     const repaired = await prepareSessionForTableOpen(currentRoomId, openSessionId);
     const mergedSession = repaired
@@ -2147,6 +2159,9 @@ async function openTablePlay() {
         roster: tableReadyRoster(mergedSession),
       });
     }
+    if (needsDeal) {
+      setTableActionFeedback({ status: "success", message: "" });
+    }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
     let recovered = false;
@@ -2160,14 +2175,11 @@ async function openTablePlay() {
       showTableStartupFailure(startupAnalysis, err);
       return;
     }
+    if (needsDeal) {
+      setTableActionFeedback({ status: "success", message: "" });
+    }
   }
 
-  const overlay = $("#table-play-overlay");
-  if (!overlay) return;
-  tablePlayOpen = true;
-  overlay.hidden = false;
-  document.body.classList.add("table-play-active");
-  updateTablePlayTitle(openSessionObj);
   await refreshTablePlayerRatings(openScores);
 
   const refreshed =

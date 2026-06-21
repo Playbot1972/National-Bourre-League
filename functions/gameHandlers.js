@@ -861,6 +861,17 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       data = sessionSnap.data();
       hand = rawCurrentHand(data);
       phase = hand.phase ?? null;
+    } else if (!handPhaseStarted(hand)) {
+      await ref.update({
+        liveEnrollment: FieldValue.delete(),
+        handEnrollment: FieldValue.delete(),
+        currentHand: emptyPreDealHand(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      sessionSnap = await ref.get();
+      data = sessionSnap.data();
+      hand = rawCurrentHand(data);
+      phase = hand.phase ?? null;
     } else {
       return { status: "noop" };
     }
