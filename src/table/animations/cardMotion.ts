@@ -57,7 +57,7 @@ export function animateFlipFromRect(
     arc?: boolean;
     onComplete?: () => void;
   } = {},
-): gsap.core.Tween {
+): gsap.core.Animation {
   ensureMotion();
   const reduced = prefersReducedMotion();
   const last = rectFromElement(element);
@@ -118,7 +118,7 @@ export function animateCardToTable(
   cardElement: HTMLElement,
   origin: MotionRect,
   options: { onComplete?: () => void } = {},
-): gsap.core.Tween {
+): gsap.core.Animation {
   return animateFlipFromRect(cardElement, origin, {
     arc: true,
     onComplete: options.onComplete,
@@ -129,7 +129,7 @@ export function animateCardToTable(
 export function dealCardsFromDeck(
   cardElements: HTMLElement[],
   deckOrigin: MotionRect,
-  staggerSec = GSAP_DURATIONS.dealStagger,
+  staggerSec: number = GSAP_DURATIONS.dealStagger,
 ): gsap.core.Timeline {
   ensureMotion();
   const reduced = prefersReducedMotion();
@@ -149,31 +149,49 @@ export function dealCardsFromDeck(
       scale: 0.58,
       opacity: reduced ? 1 : 0,
     });
-    tl.to(
-      el,
-      {
-        motionPath: reduced
-          ? undefined
-          : {
-              path: [
-                { x, y },
-                { x: midX, y: midY },
-                { x: 0, y: 0 },
-              ],
-              curviness: 1.2,
-            },
-        x: reduced ? 0 : undefined,
-        y: reduced ? 0 : undefined,
-        rotation: 0,
-        rotationY: 0,
-        scale: 1,
-        opacity: 1,
-        duration,
-        ease: PREMIUM_EASE,
-        onComplete: () => gsap.set(el, { clearProps: "transform,opacity,willChange" }),
-      },
-      i * (reduced ? 0.04 : staggerSec),
-    );
+    const position = i * (reduced ? 0.04 : staggerSec);
+    const onComplete = () => {
+      gsap.set(el, { clearProps: "transform,opacity,willChange" });
+    };
+    if (reduced) {
+      tl.to(
+        el,
+        {
+          x: 0,
+          y: 0,
+          rotation: 0,
+          rotationY: 0,
+          scale: 1,
+          opacity: 1,
+          duration,
+          ease: PREMIUM_EASE,
+          onComplete,
+        },
+        position,
+      );
+    } else {
+      tl.to(
+        el,
+        {
+          motionPath: {
+            path: [
+              { x, y },
+              { x: midX, y: midY },
+              { x: 0, y: 0 },
+            ],
+            curviness: 1.2,
+          },
+          rotation: 0,
+          rotationY: 0,
+          scale: 1,
+          opacity: 1,
+          duration,
+          ease: PREMIUM_EASE,
+          onComplete,
+        },
+        position,
+      );
+    }
   });
   return tl;
 }
@@ -229,7 +247,9 @@ export function animateDrawReceive(
         opacity: 1,
         duration,
         ease: PREMIUM_EASE_BOUNCE,
-        onComplete: () => gsap.set(el, { clearProps: "transform,opacity,willChange" }),
+        onComplete: () => {
+          gsap.set(el, { clearProps: "transform,opacity,willChange" });
+        },
       },
       i * stagger,
     );
@@ -244,16 +264,17 @@ export function animateStandPat(cards: HTMLElement[]): gsap.core.Timeline {
   cards.forEach((el) => {
     tl.fromTo(
       el,
-      { filter: "drop-shadow(0 0 0 rgba(244,213,141,0))" },
+      { y: 0, scale: 1 },
       {
         y: -5,
         scale: 1.02,
-        filter: "drop-shadow(0 10px 18px rgba(244,213,141,0.45))",
         duration: duration * 0.45,
         ease: PREMIUM_EASE,
         yoyo: true,
         repeat: 1,
-        onComplete: () => gsap.set(el, { clearProps: "transform,filter,willChange" }),
+        onComplete: () => {
+          gsap.set(el, { clearProps: "transform,willChange" });
+        },
       },
       0,
     );
@@ -287,7 +308,7 @@ export function animateFoldOut(cards: HTMLElement[]): gsap.core.Timeline {
   return tl;
 }
 
-export function animateTrumpMerge(card: HTMLElement): gsap.core.Tween {
+export function animateTrumpMerge(card: HTMLElement): gsap.core.Animation {
   ensureMotion();
   const duration = scaledDuration(GSAP_DURATIONS.trumpMerge);
   gsap.set(card, { transformOrigin: "50% 80%", willChange: "transform" });
@@ -303,14 +324,16 @@ export function animateTrumpMerge(card: HTMLElement): gsap.core.Tween {
         opacity: 1,
         duration,
         ease: PREMIUM_EASE_BOUNCE,
-        onComplete: () => gsap.set(card, { clearProps: "transform,opacity,willChange" }),
+        onComplete: () => {
+          gsap.set(card, { clearProps: "transform,opacity,willChange" });
+        },
       },
     ),
   );
 }
 
 /** Lift card in hand before play (physical pick-up). */
-export function animatePlayLift(card: HTMLElement): gsap.core.Tween {
+export function animatePlayLift(card: HTMLElement): gsap.core.Animation {
   ensureMotion();
   const duration = scaledDuration(0.32);
   gsap.set(card, { transformOrigin: "50% 90%", willChange: "transform" });
@@ -329,7 +352,7 @@ export function animatePlayLift(card: HTMLElement): gsap.core.Tween {
 
 export function flyOffsetToSlot(
   origin: MotionRect,
-  slotRect: DOMRect,
+  _slotRect: DOMRect,
   cardRect: DOMRect,
 ): { dx: number; dy: number } {
   const o = {
@@ -338,17 +361,12 @@ export function flyOffsetToSlot(
     width: origin.width,
     height: origin.height,
   };
-  const slot = {
-    left: slotRect.left,
-    top: slotRect.top,
-    width: slotRect.width,
-    height: slotRect.height,
-  };
   const card = {
     left: cardRect.left,
     top: cardRect.top,
     width: cardRect.width,
     height: cardRect.height,
   };
-  return flipDelta(o, card);
+  const { x, y } = flipDelta(o, card);
+  return { dx: x, dy: y };
 }

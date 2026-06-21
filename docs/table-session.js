@@ -10732,8 +10732,22 @@ function Qo(e, t, n = P.dealStagger) {
 			rotationY: r ? 0 : -72,
 			scale: .58,
 			opacity: +!!r
-		}), i.to(e, {
-			motionPath: r ? void 0 : {
+		});
+		let d = o * (r ? .04 : n), f = () => {
+			Qi.set(e, { clearProps: "transform,opacity,willChange" });
+		};
+		r ? i.to(e, {
+			x: 0,
+			y: 0,
+			rotation: 0,
+			rotationY: 0,
+			scale: 1,
+			opacity: 1,
+			duration: a,
+			ease: N,
+			onComplete: f
+		}, d) : i.to(e, {
+			motionPath: {
 				path: [
 					{
 						x: s,
@@ -10750,16 +10764,14 @@ function Qo(e, t, n = P.dealStagger) {
 				],
 				curviness: 1.2
 			},
-			x: r ? 0 : void 0,
-			y: r ? 0 : void 0,
 			rotation: 0,
 			rotationY: 0,
 			scale: 1,
 			opacity: 1,
 			duration: a,
 			ease: N,
-			onComplete: () => Qi.set(e, { clearProps: "transform,opacity,willChange" })
-		}, o * (r ? .04 : n));
+			onComplete: f
+		}, d);
 	}), i;
 }
 function $o(e) {
@@ -10805,7 +10817,9 @@ function es(e, t) {
 			opacity: 1,
 			duration: i,
 			ease: te,
-			onComplete: () => Qi.set(e, { clearProps: "transform,opacity,willChange" })
+			onComplete: () => {
+				Qi.set(e, { clearProps: "transform,opacity,willChange" });
+			}
 		}, n * a);
 	}), r;
 }
@@ -10813,15 +10827,19 @@ function ts(e) {
 	Wo();
 	let t = Qi.timeline(), n = I(P.standPat);
 	return e.forEach((e) => {
-		t.fromTo(e, { filter: "drop-shadow(0 0 0 rgba(244,213,141,0))" }, {
+		t.fromTo(e, {
+			y: 0,
+			scale: 1
+		}, {
 			y: -5,
 			scale: 1.02,
-			filter: "drop-shadow(0 10px 18px rgba(244,213,141,0.45))",
 			duration: n * .45,
 			ease: N,
 			yoyo: !0,
 			repeat: 1,
-			onComplete: () => Qi.set(e, { clearProps: "transform,filter,willChange" })
+			onComplete: () => {
+				Qi.set(e, { clearProps: "transform,willChange" });
+			}
 		}, 0);
 	}), t;
 }
@@ -10864,7 +10882,9 @@ function rs(e) {
 		opacity: 1,
 		duration: t,
 		ease: te,
-		onComplete: () => Qi.set(e, { clearProps: "transform,opacity,willChange" })
+		onComplete: () => {
+			Qi.set(e, { clearProps: "transform,opacity,willChange" });
+		}
 	}));
 }
 function is(e) {
