@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { PlayingCard } from "../components/PlayingCard";
+import { animateCardToTable } from "./animations/cardMotion";
+import { initCardMotion } from "./animations/initMotion";
 import { serializedToCard } from "./handUi";
 import {
-  flyOffsetToSlot,
   playFlyKey,
   readCachedPlayOrigin,
   readLivePlayOrigin,
@@ -27,8 +28,8 @@ export function TrickPlaySlot({
   winnerPlayerId = null,
 }: TrickPlaySlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
-  const [flyStyle, setFlyStyle] = useState<CSSProperties | null>(null);
   const [flyReady, setFlyReady] = useState(false);
+  const [gsapFlying, setGsapFlying] = useState(false);
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   const isLanding = index === displayCount - 1 && presentationPhase === "live";
   const showWinnerCard =
@@ -37,34 +38,34 @@ export function TrickPlaySlot({
   useLayoutEffect(() => {
     if (!isLanding || typeof document === "undefined") {
       setFlyReady(true);
-      setFlyStyle(null);
+      setGsapFlying(false);
       return;
     }
     const slot = slotRef.current;
     if (!slot) return;
 
-    const cardEl = slot.querySelector(".pcard");
+    const cardEl = slot.querySelector(".pcard") as HTMLElement | null;
     if (!cardEl) return;
 
     const playKey = playFlyKey(play);
     const origin =
       readCachedPlayOrigin(playKey) ?? readLivePlayOrigin(play.playerId);
-    setFlyReady(true);
+
+    initCardMotion(slot.closest(".btable-wrap") ?? document);
+
     if (!origin) {
-      setFlyStyle(null);
+      setFlyReady(true);
+      setGsapFlying(false);
       return;
     }
 
-    const cardRect = cardEl.getBoundingClientRect();
-    const slotRect = slot.getBoundingClientRect();
-    const { dx, dy } = flyOffsetToSlot(origin, slotRect, cardRect);
-    setFlyStyle({
-      ["--fly-dx" as string]: `${dx}px`,
-      ["--fly-dy" as string]: `${dy}px`,
+    setGsapFlying(true);
+    setFlyReady(true);
+    animateCardToTable(cardEl, origin, {
+      onComplete: () => setGsapFlying(false),
     });
   }, [isLanding, play]);
 
-  const isFlying = isLanding && flyReady && flyStyle != null;
   const isPending = isLanding && !flyReady;
 
   return (
@@ -72,13 +73,12 @@ export function TrickPlaySlot({
       ref={slotRef}
       className={[
         "btrick__play",
-        isFlying ? "btrick__play--fly-from-hand" : "",
+        gsapFlying ? "btrick__play--gsap-fly" : "",
         isPending ? "btrick__play--fly-pending" : "",
         isWinner && showWinnerCard ? "btrick__play--winner" : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      style={isFlying ? flyStyle ?? undefined : undefined}
     >
       <PlayingCard
         card={serializedToCard(play.card)}

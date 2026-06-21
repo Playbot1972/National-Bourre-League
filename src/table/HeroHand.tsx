@@ -3,6 +3,7 @@ import { Hand } from "../components/Hand";
 import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
+import { dealMotionWindowMs, useHeroCardMotion } from "./animations/useHeroCardMotion";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
@@ -99,7 +100,9 @@ export function HeroHand({
   const [dealing, setDealing] = useState(false);
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
+  const [pendingDiscardIndices, setPendingDiscardIndices] = useState<number[]>([]);
   const prevCardIdsRef = useRef<Set<string>>(new Set());
+  const handRootRef = useRef<HTMLDivElement>(null);
   const playLockRef = useRef(false);
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
@@ -123,11 +126,29 @@ export function HeroHand({
     setDealing(true);
     setPlayingIndex(null);
     setSelectedPlay(null);
-    const dealMs =
-      dealStaggerMs * Math.max(cards.length - 1, 0) + 620;
+    const dealMs = dealMotionWindowMs(cards.length, dealStaggerMs);
     const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
   }, [cards, dealtPhase, dealStaggerMs]);
+
+  useEffect(() => {
+    if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
+      setPendingDiscardIndices([]);
+    }
+  }, [drawAnimSubPhase]);
+
+  useHeroCardMotion(handRootRef, {
+    dealing,
+    dealStaggerMs,
+    drawAnimSubPhase,
+    pendingDiscardIndices,
+    standPatPulse,
+    foldOutPulse,
+    trumpMergeActive,
+    revealedTrumpIndex,
+    playingIndex,
+    cards,
+  });
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -207,6 +228,7 @@ export function HeroHand({
       }
       setLocalBusy(true);
       setLocalError(null);
+      setPendingDiscardIndices([...indices]);
       try {
         await onSubmitDraw(indices);
         setSelectedDraw(new Set());
@@ -339,7 +361,11 @@ export function HeroHand({
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
         {inPlayPhase && isMyTurn && " — select a legal card to play"}
       </p>
-      <div className="btable-hero__hand-3d" data-trick-play-origin={currentUserId ?? undefined}>
+      <div
+        ref={handRootRef}
+        className="btable-hero__hand-3d"
+        data-trick-play-origin={currentUserId ?? undefined}
+      >
         <div className="btable-hero__hand-row">
         <Hand
           cards={typedCards}

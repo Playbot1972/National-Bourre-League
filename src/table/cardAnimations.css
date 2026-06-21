@@ -472,3 +472,25 @@
     animation-duration: 120ms !important;
   }
 }
+
+/* --- GSAP motion: disable conflicting CSS keyframes (FLIP handles transform) --- */
+[data-gsap-motion="true"] .btable-hero--dealing .hand__slot,
+[data-gsap-motion="true"] .btable-hero--dealing .hand__slot .pcard,
+[data-gsap-motion="true"] .btrick__play--gsap-fly .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot,
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard,
+[data-gsap-motion="true"] .btable-hero--stand-pat .hand__slot .pcard,
+[data-gsap-motion="true"] .btable-hero--fold-out .hand__slot .pcard,
+[data-gsap-motion="true"] .btable-hero--trump-merge .hand__slot--trump-merge-target {
+  animation: none !important;
+}
+
+[data-gsap-motion="true"] .btrick__play--gsap-fly .pcard {
+  will-change: transform, opacity;
+}
+
+[data-gsap-motion="true"] .btable-hero__hand-row .hand--fan .hand__slot {
+  animation: none !important;
+}
