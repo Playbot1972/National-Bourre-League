@@ -297,3 +297,115 @@ describe("hand settlement Firestore rules", () => {
     await assertFails(batch.commit());
   });
 });
+
+describe("draw phase Firestore rules", () => {
+  const DRAW_SESSION_ID = "session_draw_fold_test";
+
+  function sessionInDrawPhase() {
+    const publicHand = {
+      phase: "draw",
+      participantIds: [HOST_UID, GUEST_UID],
+      tricksByPlayer: { [HOST_UID]: 0, [GUEST_UID]: 0 },
+      trumpSuit: "hearts",
+      turnPlayerId: HOST_UID,
+      drawCompletedIds: [],
+      actionOrder: [HOST_UID, GUEST_UID],
+    };
+    return {
+      roomId: ROOM_ID,
+      sessionName: "Draw test",
+      status: "in_progress",
+      handCount: 0,
+      handStake: 1,
+      dealerId: GUEST_UID,
+      players: [
+        { playerId: HOST_UID, displayName: "Host" },
+        { playerId: GUEST_UID, displayName: "Guest" },
+      ],
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand,
+          sortedPlayerIds: [HOST_UID, GUEST_UID],
+        },
+      },
+      currentHand: publicHand,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+
+  before(async () => {
+    if (!emulatorAvailable) return;
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const admin = ctx.firestore();
+      await admin.doc(`rooms/${ROOM_ID}/sessions/${DRAW_SESSION_ID}`).set(sessionInDrawPhase());
+      await admin
+        .doc(`rooms/${ROOM_ID}/sessions/${DRAW_SESSION_ID}/scores/${HOST_UID}`)
+        .set(scoreRow(HOST_UID, "Host"));
+      await admin
+        .doc(`rooms/${ROOM_ID}/sessions/${DRAW_SESSION_ID}/scores/${GUEST_UID}`)
+        .set(scoreRow(GUEST_UID, "Guest"));
+      await admin
+        .doc(`rooms/${ROOM_ID}/sessions/${DRAW_SESSION_ID}/privateHands/${HOST_UID}`)
+        .set({ cards: [{ rank: "A", suit: "hearts" }], updatedAt: new Date() });
+    });
+  });
+
+  it("member can fold out during draw (session + embedded private hand mirror)", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running — use npm run test:rules:firestore");
+      return;
+    }
+    const hostDb = testEnv.authenticatedContext(HOST_UID).firestore();
+    const { runTransaction, doc, serverTimestamp } = await import("firebase/firestore");
+    const sessionRef = doc(hostDb, "rooms", ROOM_ID, "sessions", DRAW_SESSION_ID);
+
+    await assertSucceeds(
+      runTransaction(hostDb, async (tx) => {
+        const snap = await tx.get(sessionRef);
+        const data = snap.data();
+        const hand = data.currentHand;
+        tx.update(sessionRef, {
+          "liveEnrollment.deal.privateHandsByPlayer.host_uid_settle.cards": [],
+          "liveEnrollment.deal.publicHand": {
+            ...hand,
+            foldedIds: [HOST_UID],
+            drawCompletedIds: [HOST_UID],
+            participantIds: [GUEST_UID],
+            turnPlayerId: GUEST_UID,
+          },
+          currentHand: {
+            ...hand,
+            foldedIds: [HOST_UID],
+            drawCompletedIds: [HOST_UID],
+            participantIds: [GUEST_UID],
+            turnPlayerId: GUEST_UID,
+          },
+          updatedAt: serverTimestamp(),
+        });
+      }),
+    );
+  });
+
+  it("member can write privateHands subcollection during draw phase", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running — use npm run test:rules:firestore");
+      return;
+    }
+    const hostDb = testEnv.authenticatedContext(HOST_UID).firestore();
+    const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+    const privateRef = doc(
+      hostDb,
+      "rooms",
+      ROOM_ID,
+      "sessions",
+      DRAW_SESSION_ID,
+      "privateHands",
+      HOST_UID,
+    );
+    await assertSucceeds(
+      setDoc(privateRef, { cards: [], updatedAt: serverTimestamp() }),
+    );
+  });
+});

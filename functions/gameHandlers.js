@@ -265,7 +265,10 @@ async function readPrivateHandInTransaction(tx, db, roomId, sessionId, sessionDa
 }
 
 function writePrivateHandInTransaction(tx, db, ref, sessionData, roomId, sessionId, playerId, serializedCards) {
-  if (sessionData?.liveEnrollment?.deal?.privateHandsByPlayer) {
+  const phase = getSessionCurrentHand(sessionData)?.phase ?? null;
+  const hasDealMirror = Boolean(sessionData?.liveEnrollment?.deal);
+  const inDrawOrPlay = phase === HAND_PHASE.DRAW || phase === HAND_PHASE.PLAY;
+  if (hasDealMirror || sessionData?.liveEnrollment?.deal?.privateHandsByPlayer || inDrawOrPlay) {
     tx.update(ref, {
       [`liveEnrollment.deal.privateHandsByPlayer.${playerId}.cards`]: serializedCards,
       updatedAt: FieldValue.serverTimestamp(),
