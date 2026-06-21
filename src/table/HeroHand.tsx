@@ -144,8 +144,6 @@ export function HeroHand({
     pendingDiscardIndices,
     standPatPulse,
     foldOutPulse,
-    trumpMergeActive,
-    revealedTrumpIndex,
     playingIndex,
     cards,
   });

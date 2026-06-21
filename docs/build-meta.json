@@ -1,7 +1,7 @@
 {
-  "version": "1.01.60",
-  "buildId": "1e1c8e6e",
-  "channel": "production",
-  "label": "v1.01.60+1e1c8e6e",
-  "stampedAt": "2026-06-20T13:59:10.387Z"
+  "version": "1.01.79",
+  "buildId": "373ff06a",
+  "channel": "dev",
+  "label": "v1.01.79+373ff06a dev",
+  "stampedAt": "2026-06-21T13:39:49.331Z"
 }

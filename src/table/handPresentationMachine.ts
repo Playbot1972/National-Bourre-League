@@ -413,12 +413,23 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       }
       return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
 
-    case "trumpReveal":
-      return withPhase(store, "trumpMerge", {
+    case "trumpReveal": {
+      if (snap?.phase === "draw") {
+        return {
+          ...beginDrawSequence(store, snap, 0, 0),
+          trumpRevealActive: false,
+          trumpMergeActive: false,
+          trumpMergedIntoHand: true,
+          pendingSnapshot: null,
+        };
+      }
+      return withPhase(store, "drawPlayer", {
         trumpRevealActive: false,
-        trumpMergeActive: true,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
         pendingSnapshot: null,
       });
+    }
 
     case "trumpMerge":
       if (snap?.phase === "draw") {

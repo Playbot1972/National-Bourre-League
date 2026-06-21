@@ -17,8 +17,8 @@ export const DEAL_FAN_MS = 600;
 /** Dealer upcard / trump reveal hold (~5 s so the suit is readable). */
 export const TRUMP_REVEAL_HOLD_MS = 5000;
 
-/** Trump card slides from reveal pose into the dealer fan. */
-export const TRUMP_MERGE_ANIM_MS = 620;
+/** Trump merge animation removed — card appears in hand instantly after reveal hold. */
+export const TRUMP_MERGE_ANIM_MS = 0;
 
 /** Enrollment seat pulse when a player joins or passes. */
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
