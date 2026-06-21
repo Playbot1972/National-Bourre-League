@@ -84,7 +84,7 @@ export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPla
 }
 
 export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
-  const { publicHand, playerId, cardIndex, actionOrder, cinchEnabled } = input;
+  const { publicHand, playerId, cardIndex, actionOrder } = input;
   if (publicHand.phase !== HAND_PHASE.PLAY) {
     throw new Error("Not in trick-play phase");
   }

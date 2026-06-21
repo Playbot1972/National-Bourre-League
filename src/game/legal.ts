@@ -1,7 +1,6 @@
 import { cardsOfSuit, isTrump, rankValue } from "./cardUtils";
 import type { Card, Suit } from "../types";
 import {
-  buildPlayValidationState,
   canPlayCard,
   logPlayValidation,
   type PlayValidationMeta,
