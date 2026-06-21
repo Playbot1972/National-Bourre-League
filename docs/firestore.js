@@ -956,7 +956,12 @@ async function readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, 
 }
 
 function writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, serializedCards) {
-  if (sessionData?.liveEnrollment?.deal?.privateHandsByPlayer) {
+  const phase = getSessionCurrentHand(sessionData)?.phase ?? null;
+  const hasDealMirror = Boolean(sessionData?.liveEnrollment?.deal);
+  const inDrawOrPlay = phase === HAND_PHASE.DRAW || phase === HAND_PHASE.PLAY;
+  // Keep draw/play card writes on the session doc — privateHands subcollection rules
+  // only allow writes while enrollment is active (draw/play were excluded until v1.01.76).
+  if (hasDealMirror || sessionData?.liveEnrollment?.deal?.privateHandsByPlayer || inDrawOrPlay) {
     tx.update(ref, {
       [`liveEnrollment.deal.privateHandsByPlayer.${playerId}.cards`]: serializedCards,
       updatedAt: serverTimestamp(),
