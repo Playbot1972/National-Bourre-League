@@ -5,6 +5,7 @@ import {
   privateHandFromEffective,
 } from "./invariants";
 import { getLegalPlayIndices, validatePlayIndex, type PlayContext } from "./legal";
+import { buildPlayValidationState, normalizeTrickForPlay } from "./playContext";
 import { resolveTrickWinner } from "./trick";
 import { HAND_PHASE } from "./types";
 import type { Card, Suit } from "../types";
@@ -94,23 +95,21 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
   const trick = publicHand.currentTrick;
   if (!trick) throw new Error("No active trick");
 
-  const trickPlays = trick.plays.map((p) => ({
-    rank: p.card.rank,
-    suit: p.card.suit,
-  })) as Card[];
-  const isLeading = trick.plays.length === 0;
-  const leadSuit = (trick.leadSuit ?? (isLeading ? null : trickPlays[0]?.suit)) as Suit | null;
+  const { isLeading, leadSuit, trickIndex } = normalizeTrickForPlay(publicHand);
 
-  const ctx: PlayContext = {
+  const ctx = buildPlayValidationState({
     hand: input.playerHand,
-    trumpSuit: publicHand.trumpSuit,
-    leadSuit: isLeading ? null : leadSuit,
-    trickPlays,
-    isLeading,
-    cinchEnabled,
+    publicHand,
+  });
+
+  const validationMeta = {
+    dealerSeat: publicHand.dealerId ?? null,
+    leaderSeat: trick.leadPlayerId ?? null,
+    currentTurnSeat: playerId,
+    trickIndex,
   };
 
-  const legality = validatePlayIndex(ctx, cardIndex);
+  const legality = validatePlayIndex(ctx, cardIndex, validationMeta);
   if (!legality.ok) throw new Error(legality.message);
 
   const card = input.playerHand[cardIndex];

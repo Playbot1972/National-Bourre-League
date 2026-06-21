@@ -88,6 +88,7 @@ import {
   getSessionEnrollment,
   getSessionHandDecision,
   getSessionCurrentHand,
+  resolveHandDealerId,
   HAND_ENROLLMENT_MS,
   enrollmentDeadlineMs,
   tricksForPlayer,
@@ -106,6 +107,7 @@ import {
   serializeCards,
   cardsRemainingInHand,
   displayHoleCardCount,
+  buildPlayValidationState,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -1122,16 +1124,12 @@ function computeLegalPlayIndices(currentHand, heroCards, playerId) {
   }
   const privateHand = deserializeCards(heroCards);
   const hand = effectivePlayerHand(playerId, privateHand, currentHand);
-  const trick = currentHand.currentTrick;
-  const trickPlays = (trick?.plays || []).map((p) => p.card);
-  const isLeading = trickPlays.length === 0;
-  return getLegalPlayIndices({
-    hand,
-    trumpSuit: currentHand.trumpSuit,
-    leadSuit: isLeading ? null : currentHand.leadSuit || trickPlays[0]?.suit,
-    trickPlays,
-    isLeading,
-    cinchEnabled: currentHand.cinchEnabled === true,
+  const ctx = buildPlayValidationState({ hand, publicHand: currentHand });
+  return getLegalPlayIndices(ctx, {
+    dealerSeat: currentHand.dealerId ?? null,
+    leaderSeat: currentHand.currentTrick?.leadPlayerId ?? null,
+    currentTurnSeat: currentHand.turnPlayerId ?? null,
+    trickIndex: currentHand.currentTrick?.trickNumber ?? 0,
   });
 }
 
@@ -2612,7 +2610,7 @@ function buildTableSessionProps(s) {
       : null;
   const handStake = s.handStake ?? 1;
   const isFinal = s.status === "final";
-  const dealerId = s.dealerId ?? null;
+  const dealerId = resolveHandDealerId(s.dealerId ?? null, currentHand);
   const handNumber = sessionHandNumber(s);
   resetLocalHandCommitForHand(s.id, handNumber);
   const serverEnrollment = getSessionEnrollment(s);

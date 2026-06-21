@@ -20,6 +20,7 @@ import {
   applyPlayerPlayCard,
   botDrawDiscardIndices,
   botPlayCardIndex,
+  buildPlayValidationState,
   effectivePlayerHand,
   maxDrawDiscards,
   HAND_PHASE,
@@ -395,6 +396,7 @@ function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
     handCount: patch.handNumber,
     handStakeLocked: true,
     carryOverPot: patch.carryOverPot ?? 0,
+    ...(patch.newDealerId ? { dealerId: patch.newDealerId } : {}),
     handEnrollment: FieldValue.delete(),
     liveEnrollment: FieldValue.delete(),
     currentHand: patch.currentHand ?? emptyPreDealHand(),
@@ -415,6 +417,8 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   });
   if (!settled.ready) return null;
   const handNumber = (sessionData.handCount || 0) + 1;
+  const currentDealer = dealContext.dealerId ?? sessionData.dealerId ?? null;
+  const newDealerId = rotateDealerSeat(dealContext.sortedPlayerIds ?? [], currentDealer);
   const br = settled.bankrolls[winnerId];
   const scorePatches = {
     [winnerId]: {
@@ -436,6 +440,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     carryOverPot: 0,
     scorePatches,
     currentHand: emptyPreDealHand(),
+    newDealerId,
   };
 }
 
@@ -626,10 +631,14 @@ function playerHandStake(scoreById, playerId, sessionStake) {
 
 function nextDealerId(scoreDocs, currentDealerId, sessionData) {
   const ids = seatPlayerIds(sessionData, scoreDocs);
-  if (ids.length === 0) return null;
-  const idx = ids.indexOf(currentDealerId);
+  return rotateDealerSeat(ids, currentDealerId);
+}
+
+function rotateDealerSeat(sortedIds, currentDealerId) {
+  if (!sortedIds?.length) return null;
+  const idx = sortedIds.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
-  return ids[(base + 1) % ids.length];
+  return sortedIds[(base + 1) % sortedIds.length];
 }
 
 async function recomputeSessionTotals(db, roomId, sessionId) {
@@ -692,17 +701,8 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
   }
   const privateHand = deserializeCards(privateSnap.data().cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
-  const trick = ch.currentTrick;
-  const trickPlays = (trick?.plays || []).map((p) => p.card);
-  const isLeading = trickPlays.length === 0;
-  const cardIndex = botPlayCardIndex(hand, {
-    hand,
-    trumpSuit: ch.trumpSuit,
-    leadSuit: isLeading ? null : ch.leadSuit || trickPlays[0]?.suit,
-    trickPlays,
-    isLeading,
-    cinchEnabled: ch.cinchEnabled === true,
-  });
+  const ctx = buildPlayValidationState({ hand, publicHand: ch });
+  const cardIndex = botPlayCardIndex(hand, ctx);
   const { handComplete } = await runPlayCardTransaction(db, {
     roomId,
     sessionId,
