@@ -1417,6 +1417,15 @@ body.room-detail-open .room-actions {
   font-size: 14px;
 }
 
+.create-room-form__section {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .create-room-form__actions {
   display: flex;
   justify-content: flex-end;

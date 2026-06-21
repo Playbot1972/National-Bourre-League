@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { activePlayerOrder } from "../game/playerOrder";
+import { activePlayerOrder, openingLeaderId } from "../game/playerOrder";
 import { dealInitialHand } from "../game/deal";
 import { advanceAfterDraw } from "../game/draw";
 import { serializeHandState } from "../game/serialize";
@@ -33,6 +33,10 @@ describe("dealer flow", () => {
     );
   });
 
+  it("does not let the dealer open when dealer leads the unrotated roster", () => {
+    assert.equal(openingLeaderId("p1", ["p1", "p2", "p3"], ["p1", "p2", "p3"]), "p2");
+  });
+
   it("opens first trick with seat left of dealer, skipping inactive players", () => {
     const dealerId = "p1";
     const participantIds = ["p2", "p3"];
@@ -58,5 +62,16 @@ describe("dealer flow", () => {
     assert.equal(afterDraw.turnPlayerId, leftActive);
     assert.equal(afterDraw.currentTrick?.plays.length, 0);
     assert.equal(afterDraw.leadSuit, null);
+  });
+
+  it("deal does not assign the opening turn to the dealer", () => {
+    const deal = dealInitialHand({
+      dealerId: "p1",
+      participantIds: SORTED,
+      sortedPlayerIds: SORTED,
+      seed: 1,
+    });
+    assert.notEqual(deal.turnPlayerId, "p1");
+    assert.equal(deal.turnPlayerId, "p2");
   });
 });

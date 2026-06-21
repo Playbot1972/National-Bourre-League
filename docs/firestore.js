@@ -508,7 +508,7 @@ export async function ensureUserDoc(user) {
 // ---------------------------------------------------------------------------
 // Rooms + membership
 // ---------------------------------------------------------------------------
-export async function createRoom({ owner, name, houseRules }) {
+export async function createRoom({ owner, name, houseRules, bourreSettings }) {
   const roomRef = doc(collection(db, "rooms"));
   const inviteCode = generateInviteCode();
   const batch = writeBatch(db);
@@ -517,7 +517,7 @@ export async function createRoom({ owner, name, houseRules }) {
     ownerId: owner.uid,
     name: name || `${owner.displayName.split(" ")[0]}'s Room`,
     houseRules: normalizeHouseRules(houseRules),
-    bourreSettings: { ...DEFAULT_BOURRE_SETTINGS },
+    bourreSettings: normalizeBourreSettings(bourreSettings ?? DEFAULT_BOURRE_SETTINGS),
     sessionNamePool: randomizePresetOrder(),
     claimedSessionNames: [],
     status: "open",

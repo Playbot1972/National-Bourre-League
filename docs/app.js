@@ -1792,11 +1792,38 @@ async function onDeleteRoom(roomId) {
 const createRoomModal = $("#create-room-modal");
 const createRoomForm = $("#create-room-form");
 
+function populateCreateRoomAnteSelect(selectEl, current) {
+  if (!selectEl) return;
+  selectEl.innerHTML = anteStakeOptionsFor(current)
+    .map(
+      (opt) =>
+        `<option value="${opt.value}" ${anteValueSelected(opt.value, current) ? "selected" : ""}>${escapeHtml(opt.label)}</option>`,
+    )
+    .join("");
+}
+
+function readBourreSettingsFromCreateForm(form) {
+  return normalizeBourreSettings({
+    buyInAmount: parseBuyInAmount($("#create-room-buy-in", form)?.value),
+    anteAmount: parseAnteAmount($("#create-room-ante", form)?.value),
+    limEnabled: $("#create-room-lim-enabled", form)?.checked === true,
+    rebuyEnabled: $("#create-room-rebuy-enabled", form)?.checked === true,
+  });
+}
+
 function openCreateRoomModal() {
   if (!createRoomModal || !createRoomForm) return;
   showRoomsError("");
+  const defaults = normalizeBourreSettings(DEFAULT_BOURRE_SETTINGS);
   const nameEl = $("#create-room-name");
   if (nameEl) nameEl.value = "";
+  const buyInEl = $("#create-room-buy-in", createRoomForm);
+  if (buyInEl) buyInEl.value = String(defaults.buyInAmount);
+  populateCreateRoomAnteSelect($("#create-room-ante", createRoomForm), defaults.anteAmount);
+  const limEl = $("#create-room-lim-enabled", createRoomForm);
+  if (limEl) limEl.checked = defaults.limEnabled;
+  const rebuyEl = $("#create-room-rebuy-enabled", createRoomForm);
+  if (rebuyEl) rebuyEl.checked = defaults.rebuyEnabled;
   for (const { id } of HOUSE_RULE_FIELDS) {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
@@ -1824,8 +1851,9 @@ if (createRoomForm) {
     showRoomsError("");
     const name = $("#create-room-name")?.value.trim() || "";
     const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");
+    const bourreSettings = readBourreSettingsFromCreateForm(createRoomForm);
     try {
-      const roomId = await createRoom({ owner: session, name, houseRules });
+      const roomId = await createRoom({ owner: session, name, houseRules, bourreSettings });
       closeCreateRoomModal();
       openRoom(roomId);
     } catch (err) {

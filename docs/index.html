@@ -256,6 +256,8 @@
         <h2 class="modal__title" id="create-room-title">Create a room</h2>
         <p class="muted small">Set house rules for your table. You can edit these anytime in the room.</p>
         <form class="create-room-form" id="create-room-form">
+          <fieldset class="create-room-form__section">
+            <legend class="house-rules-form__legend">Room basics</legend>
           <label class="create-room-form__field">
             <span>Room name <span class="muted">(optional)</span></span>
             <input class="text-input" type="text" id="create-room-name" placeholder="Friday night Bourré" autocomplete="off" />
@@ -279,6 +281,46 @@
               <textarea class="text-input house-rules__input" id="create-house-rule-dealing" rows="2" maxlength="400" aria-label="Dealing house rule"></textarea>
             </label>
           </fieldset>
+          </fieldset>
+
+          <fieldset class="create-room-form__section">
+            <legend class="house-rules-form__legend">Bourré settings</legend>
+            <div class="bourre-settings-form">
+              <label class="bourre-settings__row">
+                <span class="bourre-settings__label">Buy-in</span>
+                <input
+                  type="number"
+                  class="text-input bourre-settings__amount"
+                  id="create-room-buy-in"
+                  min="1"
+                  step="1"
+                  value="100"
+                  aria-label="Room buy-in amount"
+                />
+              </label>
+              <label class="bourre-settings__row">
+                <span class="bourre-settings__label">Ante</span>
+                <select class="num-select" id="create-room-ante" aria-label="Per-hand ante amount"></select>
+              </label>
+              <label class="bourre-settings__row bourre-settings__lim">
+                <input type="checkbox" id="create-room-lim-enabled" />
+                <span>LmT</span>
+                <span class="muted small">Pot cap 20× ante · overflow → next hand</span>
+              </label>
+              <label class="bourre-settings__row bourre-settings__lim">
+                <input type="checkbox" id="create-room-rebuy-enabled" />
+                <span>Rebuy</span>
+                <span class="muted small">Allow manual top-up when bankroll hits zero</span>
+              </label>
+              <p class="muted small">Applies to new sessions. Buy-in is each player&apos;s starting stack; ante is the per-hand contribution to the pot.</p>
+            </div>
+          </fieldset>
+
+          <fieldset class="create-room-form__section">
+            <legend class="house-rules-form__legend">Regional tables</legend>
+            <p class="muted small session-preset-note">Each room can open up to 4 regional tables. The next table name is assigned when you tap <strong>+ New session</strong> after the room is created.</p>
+          </fieldset>
+
           <div class="create-room-form__actions">
             <button type="button" class="btn" data-close-create-room>Cancel</button>
             <button type="submit" class="btn btn--primary">Create room</button>
