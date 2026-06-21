@@ -1,0 +1,57 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  activePlayerOrder,
+  openingLeaderId,
+  resolveActionOrder,
+  resolveSeatRing,
+} from "./playerOrder";
+import { advanceAfterDraw } from "./draw";
+import { HAND_PHASE } from "./types";
+
+const SORTED = ["host", "bot_a", "bot_b"];
+
+describe("resolveActionOrder", () => {
+  it("does not use join-order participantIds when actionOrder is missing", () => {
+    const hand = {
+      dealerId: "host",
+      participantIds: ["host", "bot_a", "bot_b"],
+      seatedIds: SORTED,
+    };
+    const order = resolveActionOrder(hand);
+    assert.deepEqual(order, ["bot_a", "bot_b", "host"]);
+    assert.notEqual(order[0], "host");
+  });
+
+  it("opens trick play left of dealer when actionOrder was stripped", () => {
+    const dealerId = "host";
+    const participantIds = ["host", "bot_a", "bot_b"];
+    const leftActive = activePlayerOrder(dealerId, participantIds, SORTED)[0];
+    const publicHand = {
+      phase: HAND_PHASE.DRAW,
+      participantIds,
+      seatedIds: SORTED,
+      dealerId,
+      drawCompletedIds: participantIds,
+      tricksByPlayer: Object.fromEntries(participantIds.map((id) => [id, 0])),
+    };
+    const afterDraw = advanceAfterDraw(
+      publicHand as never,
+      resolveActionOrder(publicHand as never),
+      "bot_b",
+    );
+    assert.equal(afterDraw.phase, HAND_PHASE.PLAY);
+    assert.equal(afterDraw.turnPlayerId, leftActive);
+    assert.notEqual(afterDraw.turnPlayerId, dealerId);
+    assert.equal(afterDraw.currentTrick?.leadPlayerId, leftActive);
+  });
+
+  it("resolveSeatRing prefers seatedIds over participant join order", () => {
+    const ring = resolveSeatRing({
+      participantIds: ["host", "bot_a"],
+      seatedIds: SORTED,
+    });
+    assert.deepEqual(ring, SORTED);
+    assert.equal(openingLeaderId("host", ["host", "bot_a"], ring), "bot_a");
+  });
+});

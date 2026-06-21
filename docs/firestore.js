@@ -134,6 +134,7 @@ import {
   applyDecisionTimeout,
   currentDecisionPlayer,
   decisionAsEnrollmentView,
+  resolveActionOrder,
 } from "./game-engine.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -1387,6 +1388,7 @@ function buildPagatHandStartPatch(
   const bundle = serializePagatRevealHand(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
+    seatedIds: sortedPlayerIds,
     maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
@@ -1442,9 +1444,12 @@ function canActForPlayer(playerId, actorId) {
   return isRobotPlayerId(playerId);
 }
 
-function actionOrderFromHand(currentHand) {
-  if (currentHand?.actionOrder?.length) return currentHand.actionOrder;
-  return currentHand?.participantIds || [];
+function actionOrderFromHand(currentHand, sortedPlayerIds) {
+  return resolveActionOrder(currentHand ?? {}, sortedPlayerIds);
+}
+
+function sortedPlayerIdsFromSession(sessionData) {
+  return sessionData?.liveEnrollment?.deal?.sortedPlayerIds ?? null;
 }
 
 async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
@@ -1552,7 +1557,11 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       maxDiscards: maxDraw,
     });
 
-    let nextPublic = advanceAfterDraw(drawResult.publicHand, actionOrderFromHand(currentHand), playerId);
+    let nextPublic = advanceAfterDraw(
+      drawResult.publicHand,
+      actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
+      playerId,
+    );
     nextPublic = {
       ...nextPublic,
       remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
@@ -1604,7 +1613,7 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
 
     const foldResult = applyDrawFold(
       currentHand,
-      actionOrderFromHand(currentHand),
+      actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
     writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, []);
@@ -1664,7 +1673,7 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
       privateHand: hand,
       playerId,
       cardIndex,
-      actionOrder: actionOrderFromHand(currentHand),
+      actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       cinchEnabled: currentHand.cinchEnabled === true,
     });
 

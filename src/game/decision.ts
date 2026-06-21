@@ -1,4 +1,5 @@
 import { maxDrawDiscards } from "./drawLimit";
+import { firstUnresolvedDrawTurn } from "./draw";
 import { playerOrderFromDealer } from "./playerOrder";
 import { HAND_PHASE } from "./types";
 import type { HandDecision, PublicHandState, SerializedCard } from "./types";
@@ -54,16 +55,6 @@ export function dealerMustPlayTrumpAce(
   );
 }
 
-function firstDrawTurn(
-  actionOrder: string[],
-  drawCompletedIds: string[],
-): string | null {
-  for (const id of actionOrder) {
-    if (!drawCompletedIds.includes(id)) return id;
-  }
-  return actionOrder[0] ?? null;
-}
-
 function completeDecisionToDraw(
   hand: PublicHandState,
   playingIds: string[],
@@ -89,7 +80,7 @@ function completeDecisionToDraw(
     maxDrawDiscards: maxDraw,
     tricksByPlayer,
     drawCompletedIds,
-    turnPlayerId: firstDrawTurn(actionOrder, drawCompletedIds),
+    turnPlayerId: firstUnresolvedDrawTurn(hand, playingIds, drawCompletedIds),
     handDecision: null,
     seatedIds: hand.seatedIds,
   };
