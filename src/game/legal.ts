@@ -1,5 +1,11 @@
 import { cardsOfSuit, isTrump, rankValue } from "./cardUtils";
 import type { Card, Suit } from "../types";
+import {
+  buildPlayValidationState,
+  canPlayCard,
+  logPlayValidation,
+  type PlayValidationMeta,
+} from "./playContext";
 
 export type LegalityCode =
   | "NOT_YOUR_TURN"
@@ -47,27 +53,40 @@ function beatsCard(candidate: Card, target: Card): boolean {
   return rankValue(candidate) > rankValue(target);
 }
 
-/** Indices in hand that satisfy Bourré follow / trump / overtrump rules. */
-export function getLegalPlayIndices(ctx: PlayContext): number[] {
-  const { hand, trumpSuit, leadSuit, trickPlays, isLeading } = ctx;
-  if (!hand.length) return [];
+function toValidationState(ctx: PlayContext) {
+  return {
+    hand: ctx.hand,
+    trumpSuit: ctx.trumpSuit,
+    leadSuit: ctx.leadSuit,
+    trickPlays: ctx.trickPlays,
+    isLeading: ctx.isLeading,
+    cinchEnabled: ctx.cinchEnabled,
+  };
+}
 
-  if (isLeading || !leadSuit || trickPlays.length === 0) {
-    if (ctx.cinchEnabled && countSureTricks(hand, trumpSuit) >= 3) {
-      const trumpCards = cardsOfSuit(hand, trumpSuit);
-      if (trumpCards.length) {
-        const highest = trumpCards.reduce((a, b) => (rankValue(a) >= rankValue(b) ? a : b));
-        const idx = hand.findIndex((c) => c.rank === highest.rank && c.suit === highest.suit);
-        return idx >= 0 ? [idx] : [];
-      }
+/** Indices in hand that satisfy Bourré follow / trump / overtrump rules. */
+export function getLegalPlayIndices(
+  ctx: PlayContext,
+  meta: PlayValidationMeta = {},
+): number[] {
+  const state = toValidationState(ctx);
+  if (!state.hand.length) return [];
+
+  if (state.isLeading || state.trickPlays.length === 0) {
+    const indices: number[] = [];
+    for (let i = 0; i < state.hand.length; i += 1) {
+      const result = canPlayCard(state, i);
+      if (result.allowed) indices.push(i);
+      else logPlayValidation(meta, state, i, result);
     }
-    return hand.map((_, i) => i);
+    return indices;
   }
 
-  const ledInHand = cardsOfSuit(hand, leadSuit);
-  const trumpInHand = cardsOfSuit(hand, trumpSuit);
-  const highLed = highestLedSuitPlay(trickPlays, leadSuit, trumpSuit);
-  const highTrump = highestTrumpPlay(trickPlays, trumpSuit);
+  const leadSuit = state.leadSuit ?? state.trickPlays[0]?.suit;
+  const ledInHand = leadSuit ? cardsOfSuit(state.hand, leadSuit) : [];
+  const trumpInHand = cardsOfSuit(state.hand, state.trumpSuit);
+  const highLed = leadSuit ? highestLedSuitPlay(state.trickPlays, leadSuit, state.trumpSuit) : null;
+  const highTrump = highestTrumpPlay(state.trickPlays, state.trumpSuit);
 
   let candidates: Card[];
 
@@ -86,25 +105,39 @@ export function getLegalPlayIndices(ctx: PlayContext): number[] {
       if (over.length) candidates = over;
     }
   } else {
-    candidates = [...hand];
+    candidates = [...state.hand];
   }
 
   const indices: number[] = [];
-  for (let i = 0; i < hand.length; i += 1) {
-    if (candidates.some((c) => c.rank === hand[i].rank && c.suit === hand[i].suit)) {
+  for (let i = 0; i < state.hand.length; i += 1) {
+    if (candidates.some((c) => c.rank === state.hand[i]!.rank && c.suit === state.hand[i]!.suit)) {
       indices.push(i);
     }
   }
   return indices;
 }
 
-export function validatePlayIndex(ctx: PlayContext, index: number): LegalityResult {
-  if (index < 0 || index >= ctx.hand.length) {
-    return { ok: false, code: "INVALID_INDEX", message: "Invalid card selection" };
+export function validatePlayIndex(
+  ctx: PlayContext,
+  index: number,
+  meta: PlayValidationMeta = {},
+): LegalityResult {
+  const state = toValidationState(ctx);
+  const leadResult = canPlayCard(state, index);
+  logPlayValidation(meta, state, index, leadResult);
+
+  if (!leadResult.allowed) {
+    const code = (leadResult.code ?? "MUST_BEAT_LED_SUIT") as LegalityCode;
+    return { ok: false, code, message: leadResult.reason ?? "Illegal play" };
   }
-  const legal = getLegalPlayIndices(ctx);
+
+  if (state.isLeading || state.trickPlays.length === 0) {
+    return { ok: true };
+  }
+
+  const legal = getLegalPlayIndices(ctx, meta);
   if (!legal.includes(index)) {
-    const card = ctx.hand[index];
+    const card = ctx.hand[index]!;
     const leadSuit = ctx.leadSuit;
     const ledInHand = leadSuit ? cardsOfSuit(ctx.hand, leadSuit) : [];
     const trumpInHand = cardsOfSuit(ctx.hand, ctx.trumpSuit);
@@ -127,8 +160,5 @@ export function validatePlayIndex(ctx: PlayContext, index: number): LegalityResu
   return { ok: true };
 }
 
-/** Simplified cinch detector: three trump including ace or king. */
-function countSureTricks(hand: Card[], trumpSuit: Suit): number {
-  const trumps = cardsOfSuit(hand, trumpSuit).sort((a, b) => rankValue(b) - rankValue(a));
-  return trumps.filter((c) => rankValue(c) >= 13).length;
-}
+export { buildPlayValidationState, canPlayCard, logPlayValidation, normalizeTrickForPlay } from "./playContext";
+export type { PlayValidationMeta, CanPlayCardResult } from "./playContext";

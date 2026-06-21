@@ -125,6 +125,7 @@ import {
   botDrawDiscardIndices,
   botPlayCardIndex,
   getLegalPlayIndices,
+  buildPlayValidationState,
   effectivePlayerHand,
   HAND_PHASE,
   activateHandDecision,
@@ -391,7 +392,6 @@ function bourrePlayerIds(tricksByPlayer, participants) {
   return participants.filter((pid) => tricksForPlayer(tricksByPlayer, pid) === 0);
 }
 
-/** Who leads or wins from trick counts — most tricks wins (ties share top). */
 export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   const participants = [...new Set((participantIds || []).filter(Boolean))];
   if (participants.length < 2) {
@@ -406,6 +406,18 @@ export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   }
   const winnerIds = participants.filter((pid) => (tricksByPlayer?.[pid] || 0) === maxTricks);
   return { ready: true, winnerIds, maxTricks };
+}
+
+/** Prefer per-hand dealer while cards are live; otherwise session dealer (rotates between hands). */
+export function resolveHandDealerId(sessionDealerId, currentHand) {
+  const phase = currentHand?.phase ?? null;
+  if (
+    currentHand?.dealerId &&
+    (phase === "reveal" || phase === "decision" || phase === "draw" || phase === "play")
+  ) {
+    return currentHand.dealerId;
+  }
+  return sessionDealerId ?? currentHand?.dealerId ?? null;
 }
 
 function sameCoWinProposal(a, b) {
@@ -1025,6 +1037,7 @@ function applySoloWinInTransaction(tx, ref, patch, roomId, sessionId) {
     handCount: patch.handNumber,
     handStakeLocked: true,
     carryOverPot: patch.carryOverPot ?? 0,
+    ...(patch.newDealerId ? { dealerId: patch.newDealerId } : {}),
     handEnrollment: deleteField(),
     [LIVE_ENROLLMENT_FIELD]: deleteField(),
     currentHand: patch.currentHand ?? emptyPreDealHand(),
@@ -1151,6 +1164,8 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     );
   }
   const handNumber = (sessionData.handCount || 0) + 1;
+  const currentDealer = dealContext.dealerId ?? sessionData.dealerId ?? null;
+  const newDealerId = rotateDealerSeat(dealContext.sortedPlayerIds ?? [], currentDealer);
   const scorePatches = {};
   const br = settled.bankrolls[winnerId];
   scorePatches[winnerId] = {
@@ -1174,6 +1189,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     handEnrollment: deleteField(),
     currentHand: emptyPreDealHand(),
     sortedPlayerIds: dealContext.sortedPlayerIds,
+    newDealerId,
   };
 }
 
@@ -1699,17 +1715,7 @@ export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
   const privateHand = deserializeCards(handData?.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
-  const trick = ch.currentTrick;
-  const trickPlays = (trick?.plays || []).map((p) => p.card);
-  const isLeading = trickPlays.length === 0;
-  const ctx = {
-    hand,
-    trumpSuit: ch.trumpSuit,
-    leadSuit: isLeading ? null : ch.leadSuit || trickPlays[0]?.suit,
-    trickPlays,
-    isLeading,
-    cinchEnabled: ch.cinchEnabled === true,
-  };
+  const ctx = buildPlayValidationState({ hand, publicHand: ch });
   const idx = botPlayCardIndex(hand, ctx);
   await playHandCard(roomId, sessionId, { playerId, cardIndex: idx, actorId });
 }
@@ -1947,10 +1953,14 @@ async function runDecisionStepTransaction(roomId, sessionId, buildPatch, { requi
 
 function nextDealerId(scoreSnap, currentDealerId, sessionData) {
   const ids = seatPlayerIds(sessionData, scoreSnap);
-  if (ids.length === 0) return null;
-  const idx = ids.indexOf(currentDealerId);
+  return rotateDealerSeat(ids, currentDealerId);
+}
+
+function rotateDealerSeat(sortedIds, currentDealerId) {
+  if (!sortedIds?.length) return null;
+  const idx = sortedIds.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
-  return ids[(base + 1) % ids.length];
+  return sortedIds[(base + 1) % sortedIds.length];
 }
 
 export async function ensureRoomSessionNamePool(roomId) {

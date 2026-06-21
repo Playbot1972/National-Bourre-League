@@ -49,8 +49,12 @@ export type {
 export {
   getLegalPlayIndices,
   validatePlayIndex,
+  buildPlayValidationState,
+  canPlayCard,
+  normalizeTrickForPlay,
+  logPlayValidation,
 } from "./legal";
-export type { PlayContext, LegalityResult, LegalityCode } from "./legal";
+export type { PlayContext, LegalityResult, LegalityCode, PlayValidationMeta } from "./legal";
 export { resolveTrickWinner } from "./trick";
 export { applyPlayCard, applyPlayerPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
 export type { ApplyPlayInput, ApplyPlayResult, ApplyPlayerPlayInput, ApplyPlayerPlayResult } from "./play";

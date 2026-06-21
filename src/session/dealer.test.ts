@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { activePlayerOrder } from "../game/playerOrder";
+import { dealInitialHand } from "../game/deal";
+import { advanceAfterDraw } from "../game/draw";
+import { serializeHandState } from "../game/serialize";
+import { nextDealerId } from "./logic";
+import { resolveHandDealerId } from "./dealer";
+import { HAND_PHASE } from "../game/types";
+
+const SORTED = ["p1", "p2", "p3", "p4"];
+
+describe("dealer flow", () => {
+  it("rotates dealer clockwise between hands", () => {
+    assert.equal(nextDealerId(SORTED, "p1"), "p2");
+    assert.equal(nextDealerId(SORTED, "p4"), "p1");
+  });
+
+  it("keeps per-hand dealer stable while hand is live", () => {
+    const sessionDealer = "p2";
+    const currentHand = {
+      dealerId: "p1",
+      phase: HAND_PHASE.PLAY,
+      participantIds: SORTED,
+    };
+    assert.equal(resolveHandDealerId(sessionDealer, currentHand), "p1");
+  });
+
+  it("uses session dealer between hands", () => {
+    assert.equal(
+      resolveHandDealerId("p3", { dealerId: "p1", phase: null, participantIds: [] }),
+      "p3",
+    );
+  });
+
+  it("opens first trick with seat left of dealer, skipping inactive players", () => {
+    const dealerId = "p1";
+    const participantIds = ["p2", "p3"];
+    const deal = dealInitialHand({
+      dealerId,
+      participantIds,
+      sortedPlayerIds: SORTED,
+      seed: 7,
+    });
+    const leftActive = activePlayerOrder(dealerId, participantIds, SORTED)[0];
+    assert.equal(deal.turnPlayerId, leftActive);
+    assert.equal(deal.dealOrder[0], leftActive);
+
+    const bundle = serializeHandState(deal, {
+      dealerId,
+      actionOrder: deal.dealOrder,
+    });
+    const afterDraw = advanceAfterDraw(
+      { ...bundle.publicHand, drawCompletedIds: participantIds },
+      deal.dealOrder,
+      participantIds[participantIds.length - 1]!,
+    );
+    assert.equal(afterDraw.turnPlayerId, leftActive);
+    assert.equal(afterDraw.currentTrick?.plays.length, 0);
+    assert.equal(afterDraw.leadSuit, null);
+  });
+});

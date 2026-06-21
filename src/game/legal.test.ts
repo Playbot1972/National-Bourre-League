@@ -19,6 +19,18 @@ describe("D — play legality", () => {
     assert.deepEqual(legal, [0, 1, 2]);
   });
 
+  it("allows trump lead on empty trick with stale leadSuit", () => {
+    const hand = [c("K", "hearts"), c("3", "clubs")];
+    const legal = getLegalPlayIndices({
+      hand,
+      trumpSuit: "hearts",
+      leadSuit: "clubs",
+      trickPlays: [],
+      isLeading: true,
+    });
+    assert.deepEqual(legal, [0, 1]);
+  });
+
   it("must follow suit when able", () => {
     const hand = [c("2", "clubs"), c("A", "hearts")];
     const legal = getLegalPlayIndices({

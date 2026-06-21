@@ -15,6 +15,7 @@ import {
   botPlayCardIndex,
 } from "./play";
 import { getLegalPlayIndices, type PlayContext } from "./legal";
+import { buildPlayValidationState } from "./playContext";
 import { shuffledDeckFromSeed } from "./deckState";
 import { serializeHandState } from "./serialize";
 import { HAND_PHASE } from "./types";
@@ -88,22 +89,15 @@ function playContextForTurn(
   state: SimulatedHandState,
   playerId: string,
 ): PlayContext {
-  const trick = state.publicHand.currentTrick!;
-  const trickPlays = trick.plays.map((p) => deserializeCards([p.card])[0]);
-  const isLeading = trickPlays.length === 0;
   const hand = effectivePlayerHand(
     playerId,
     state.privateHands[playerId],
     state.publicHand,
   );
-  return {
+  return buildPlayValidationState({
     hand,
-    trumpSuit: state.publicHand.trumpSuit,
-    leadSuit: isLeading ? null : (state.publicHand.leadSuit ?? trickPlays[0]?.suit),
-    trickPlays,
-    isLeading,
-    cinchEnabled: state.publicHand.cinchEnabled === true,
-  };
+    publicHand: state.publicHand,
+  });
 }
 
 export function botDiscardFor(state: SimulatedHandState, playerId: string): number[] {
