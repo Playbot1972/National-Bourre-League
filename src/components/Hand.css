@@ -123,11 +123,19 @@
 }
 
 /* Hero table — straight row; neutralize fan arc from rules above */
+.btable-hero__hand-row .hand--fan {
+  gap: clamp(6px, 1.1vw, 10px);
+  justify-content: center;
+}
+
 .btable-hero__hand-row .hand--fan .hand__slot {
   --fan-offset: 0;
   --fan-mid: 0;
   transform: none !important;
   margin-left: 0 !important;
+  transition:
+    transform 420ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    filter 320ms ease;
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
@@ -141,8 +149,9 @@
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
 .btable-hero__hand-row .hand--fan .hand__slot:focus-within {
-  transform: translateY(-14px) scale(1.04) !important;
+  transform: translate3d(0, -16px, 8px) rotateX(12deg) rotateY(-8deg) scale(1.045) !important;
   rotate: none;
+  z-index: 20;
 }
 
 .btable-hero__hand-row .hand__slot--peek {
