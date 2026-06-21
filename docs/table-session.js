@@ -13211,28 +13211,22 @@ function ru({ children: e }) {
 }
 //#endregion
 //#region src/table/EventReactions.tsx
-function iu({ events: e, players: t, onDismiss: n }) {
-	let r = e.filter((e) => e.emoji && (e.kind === "reaction" || e.kind === "trick-win"));
+function iu({ events: e, onDismiss: t }) {
+	let n = e.filter((e) => e.emoji && e.kind === "reaction");
 	return (0, l.useEffect)(() => {
-		let e = r.map((e) => window.setTimeout(() => n(e.id), e.durationMs ?? 1600));
+		let e = n.map((e) => window.setTimeout(() => t(e.id), e.durationMs ?? 1600));
 		return () => e.forEach((e) => window.clearTimeout(e));
-	}, [r, n]), r.length ? /* @__PURE__ */ (0, g.jsx)("div", {
+	}, [n, t]), n.length ? /* @__PURE__ */ (0, g.jsx)("div", {
 		className: "breactions",
 		"aria-hidden": "true",
-		children: r.map((e, n) => {
-			let r = t.find((t) => t.playerId === e.playerId)?.displayName;
-			return /* @__PURE__ */ (0, g.jsxs)("div", {
-				className: "breactions__burst",
-				style: { "--burst-i": n },
-				children: [/* @__PURE__ */ (0, g.jsx)("span", {
-					className: "breactions__emoji",
-					children: e.emoji
-				}), r && e.kind === "trick-win" && /* @__PURE__ */ (0, g.jsx)("span", {
-					className: "breactions__name",
-					children: r.split(" ")[0]
-				})]
-			}, e.id);
-		})
+		children: n.map((e, t) => /* @__PURE__ */ (0, g.jsx)("div", {
+			className: "breactions__burst",
+			style: { "--burst-i": t },
+			children: /* @__PURE__ */ (0, g.jsx)("span", {
+				className: "breactions__emoji",
+				children: e.emoji
+			})
+		}, e.id))
 	}) : null;
 }
 //#endregion
@@ -13483,41 +13477,27 @@ var su = 0;
 function cu() {
 	return su += 1, `evt-${su}-${Date.now()}`;
 }
-function lu(e, t, n, r) {
-	let i = t.tricksByPlayer ?? {}, a = n.currentPot, o = [];
-	for (let t of r) {
-		let n = e.tricks[t] ?? 0;
-		(i[t] ?? 0) > n && o.push({
-			id: cu(),
-			kind: "trick-win",
-			title: "Trick captured",
-			emoji: "🃏",
-			playerId: t,
-			durationMs: fl
-		});
-	}
-	return a >= n.potCap && n.limEnabled && a > e.pot ? o.push({
+function lu(e, t, n) {
+	let r = t.currentPot, i = [];
+	return r >= t.potCap && t.limEnabled && r > e.pot ? i.push({
 		id: cu(),
 		kind: "pot-cap",
 		title: "Pot cap reached",
 		subtitle: "LmT engaged",
 		emoji: "🔒",
 		durationMs: 2200
-	}) : a >= n.anteAmount * Math.max(r.length, 2) * 2 && a > e.pot && o.push({
+	}) : r >= t.anteAmount * Math.max(n.length, 2) * 2 && r > e.pot && i.push({
 		id: cu(),
 		kind: "big-pot",
 		title: "Big pot brewing",
 		emoji: "💰",
 		durationMs: 2e3
-	}), o;
+	}), i;
 }
 function uu({ session: e, potMetrics: t, participantIds: n }) {
 	let [r, i] = (0, l.useState)([]), a = (0, l.useRef)(null), o = JSON.stringify({
 		handNumber: e.handNumber,
-		tricks: e.tricksByPlayer,
 		pot: t.currentPot,
-		trickPlays: e.currentTrick?.plays?.length ?? 0,
-		phase: e.phase,
 		cap: t.potCap,
 		lim: t.limEnabled,
 		participants: n
@@ -13525,22 +13505,16 @@ function uu({ session: e, potMetrics: t, participantIds: n }) {
 	return (0, l.useEffect)(() => {
 		a.current = null;
 	}, [e.handNumber]), (0, l.useEffect)(() => {
-		let r = e.tricksByPlayer ?? {}, o = e.currentTrick?.plays?.length ?? 0, s = e.phase, c = t.currentPot, l = a.current;
-		if (a.current = {
-			tricks: { ...r },
-			pot: c,
-			trickPlays: o,
-			phase: s
-		}, !l) return;
-		let u = lu(l, e, t, n);
-		if (!u.length) return;
-		let d = requestAnimationFrame(() => {
-			i((e) => [...e, ...u]);
+		let e = t.currentPot, r = a.current;
+		if (a.current = { pot: e }, !r) return;
+		let o = lu(r, t, n);
+		if (!o.length) return;
+		let s = requestAnimationFrame(() => {
+			i((e) => [...e, ...o]);
 		});
-		return () => cancelAnimationFrame(d);
+		return () => cancelAnimationFrame(s);
 	}, [
 		o,
-		e,
 		t,
 		n
 	]), {
@@ -14781,7 +14755,6 @@ function ad({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 		}),
 		/* @__PURE__ */ (0, g.jsx)(iu, {
 			events: E,
-			players: t,
 			onDismiss: D
 		}),
 		/* @__PURE__ */ (0, g.jsx)(tu, {
