@@ -6,6 +6,7 @@ import {
   effectivePlayerHand,
   privateHandFromEffective,
 } from "./invariants";
+import { openingLeaderId } from "./playerOrder";
 import { HAND_PHASE } from "./types";
 import type { Card } from "../types";
 import type { PublicHandState } from "./types";
@@ -142,6 +143,9 @@ export function revealToDraw(
   const tricksByPlayer = Object.fromEntries(
     playingIds.map((id) => [id, hand.tricksByPlayer[id] ?? 0]),
   );
+  const seatRing = hand.seatedIds ?? hand.actionOrder ?? playingIds;
+  const firstTurn =
+    openingLeaderId(hand.dealerId, playingIds, seatRing) ?? actionOrder[0] ?? null;
   return {
     ...hand,
     phase: HAND_PHASE.DRAW,
@@ -150,7 +154,7 @@ export function revealToDraw(
     handDecision: null,
     drawCompletedIds: [],
     tricksByPlayer,
-    turnPlayerId: actionOrder[0] ?? null,
+    turnPlayerId: firstTurn,
     maxDrawDiscards: maxDrawDiscards(playingIds.length, dealingRule),
   };
 }
@@ -228,7 +232,11 @@ export function advanceAfterDraw(
     };
   }
 
-  const leadPlayerId = actionOrder[0] ?? completingPlayerId;
+  const seatRing = publicHand.seatedIds ?? actionOrder ?? participantIds;
+  const leadPlayerId =
+    openingLeaderId(publicHand.dealerId, participantIds, seatRing) ??
+    actionOrder[0] ??
+    completingPlayerId;
   return {
     ...publicHand,
     phase: HAND_PHASE.PLAY,

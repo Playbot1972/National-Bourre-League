@@ -5,6 +5,7 @@ export type { DealInitialHandInput } from "./deal";
 export {
   playerOrderFromDealer,
   activePlayerOrder,
+  openingLeaderId,
   CARDS_PER_PLAYER,
 } from "./playerOrder";
 export {

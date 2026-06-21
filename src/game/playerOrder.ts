@@ -20,5 +20,22 @@ export function activePlayerOrder(
   return order.filter((id) => active.has(id));
 }
 
+/**
+ * First active seat to lead trick 1 / start the draw clock — left of dealer,
+ * skipping inactive players. Never returns the dealer when another active seat exists.
+ */
+export function openingLeaderId(
+  dealerId: string | null | undefined,
+  participantIds: string[],
+  sortedPlayerIds: string[],
+): string | null {
+  const order = activePlayerOrder(dealerId, participantIds, sortedPlayerIds);
+  if (!order.length) return null;
+  if (dealerId && order[0] === dealerId) {
+    return order.find((id) => id !== dealerId) ?? order[0]!;
+  }
+  return order[0]!;
+}
+
 /** Five cards per player in a standard Bourré deal. */
 export const CARDS_PER_PLAYER = 5;

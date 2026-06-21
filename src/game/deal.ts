@@ -1,6 +1,6 @@
 import type { Card } from "../types";
 import { createDeck, shuffleDeck } from "./deck";
-import { activePlayerOrder, CARDS_PER_PLAYER } from "./playerOrder";
+import { activePlayerOrder, CARDS_PER_PLAYER, openingLeaderId } from "./playerOrder";
 import type { DealResult } from "./types";
 
 export interface DealInitialHandInput {
@@ -30,6 +30,12 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
     throw new Error("Need at least two seated participants in deal order");
   }
 
+  const openingLeader = openingLeaderId(
+    input.dealerId,
+    participantIds,
+    input.sortedPlayerIds,
+  );
+
   const seed = input.seed ?? Date.now();
   const deck = shuffleDeck(createDeck(), seed);
   const privateHands: Record<string, Card[]> = Object.fromEntries(
@@ -58,7 +64,7 @@ export function dealInitialHand(input: DealInitialHandInput): DealResult {
     trumpSuit: trumpUpcard.suit,
     remainingDeck: deck.slice(deckIndex),
     // Draw and first trick both start with the first active seat left of dealer.
-    turnPlayerId: dealOrder[0],
+    turnPlayerId: openingLeader ?? dealOrder[0],
     tricksByPlayer,
     deckSeed: seed,
     deckNextIndex: deckIndex,
