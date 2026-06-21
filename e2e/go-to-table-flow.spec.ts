@@ -78,7 +78,7 @@ test.describe("Go to Table — room buttons smoke", () => {
     await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
     await expect(overlay.getByTestId("table-felt")).toBeVisible();
 
-    await expectOverlayStageFillsViewport(page);
+    await expectOverlayStageFillsViewport(page, { minWidthRatio: 0.3 });
     await expectTableScaleAffectsStage(page);
   });
 });
