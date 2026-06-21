@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { POST_TRICK_READ_MS } from "../trickTiming";
 import type { PotMetrics, TableSessionData } from "../types";
 
 export type TableEventKind =
-  | "trick-win"
   | "big-pot"
   | "pot-cap"
   | "hand-win"
@@ -33,36 +31,16 @@ function nextId() {
 }
 
 type Snapshot = {
-  tricks: Record<string, number>;
   pot: number;
-  trickPlays: number;
-  phase: string | null | undefined;
 };
 
 function detectEvents(
   prev: Snapshot,
-  session: TableSessionData,
   potMetrics: PotMetrics,
   participantIds: string[],
 ): TableEvent[] {
-  const tricks = session.tricksByPlayer ?? {};
   const pot = potMetrics.currentPot;
   const newEvents: TableEvent[] = [];
-
-  for (const pid of participantIds) {
-    const before = prev.tricks[pid] ?? 0;
-    const after = tricks[pid] ?? 0;
-    if (after > before) {
-      newEvents.push({
-        id: nextId(),
-        kind: "trick-win",
-        title: "Trick captured",
-        emoji: "🃏",
-        playerId: pid,
-        durationMs: POST_TRICK_READ_MS,
-      });
-    }
-  }
 
   if (pot >= potMetrics.potCap && potMetrics.limEnabled && pot > prev.pot) {
     newEvents.push({
@@ -92,10 +70,7 @@ export function useTableEvents({ session, potMetrics, participantIds }: UseTable
 
   const snapshotKey = JSON.stringify({
     handNumber: session.handNumber,
-    tricks: session.tricksByPlayer,
     pot: potMetrics.currentPot,
-    trickPlays: session.currentTrick?.plays?.length ?? 0,
-    phase: session.phase,
     cap: potMetrics.potCap,
     lim: potMetrics.limEnabled,
     participants: participantIds,
@@ -106,22 +81,19 @@ export function useTableEvents({ session, potMetrics, participantIds }: UseTable
   }, [session.handNumber]);
 
   useEffect(() => {
-    const tricks = session.tricksByPlayer ?? {};
-    const trickPlays = session.currentTrick?.plays?.length ?? 0;
-    const phase = session.phase;
     const pot = potMetrics.currentPot;
     const prev = prevRef.current;
-    prevRef.current = { tricks: { ...tricks }, pot, trickPlays, phase };
+    prevRef.current = { pot };
     if (!prev) return;
 
-    const newEvents = detectEvents(prev, session, potMetrics, participantIds);
+    const newEvents = detectEvents(prev, potMetrics, participantIds);
     if (!newEvents.length) return;
 
     const frame = requestAnimationFrame(() => {
       setEvents((e) => [...e, ...newEvents]);
     });
     return () => cancelAnimationFrame(frame);
-  }, [snapshotKey, session, potMetrics, participantIds]);
+  }, [snapshotKey, potMetrics, participantIds]);
 
   const dismissEvent = (id: string) => {
     setEvents((e) => e.filter((x) => x.id !== id));

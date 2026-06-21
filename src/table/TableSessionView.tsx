@@ -337,7 +337,7 @@ export function TableSessionView({
         />
       </div>
       <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
-      <EventReactions events={events} players={players} onDismiss={dismissEvent} />
+      <EventReactions events={events} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
       {nativeMobile ? (
         <MobileCardTable {...sharedTableProps} />
