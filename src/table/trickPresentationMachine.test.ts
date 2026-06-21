@@ -221,6 +221,6 @@ describe("trickPresentationMachine", () => {
     const schedule = trickResolutionScheduleMs({});
     assert.ok(schedule.pipelineMs >= 2100);
     assert.equal(schedule.readTotalMs, 1600);
-    assert.equal(schedule.sweepMs, 300);
+    assert.equal(schedule.sweepMs, 520);
   });
 });

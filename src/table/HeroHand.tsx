@@ -97,6 +97,8 @@ export function HeroHand({
   const [localError, setLocalError] = useState<string | null>(null);
   const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
   const [dealing, setDealing] = useState(false);
+  const [standPatPulse, setStandPatPulse] = useState(false);
+  const [foldOutPulse, setFoldOutPulse] = useState(false);
   const prevCardIdsRef = useRef<Set<string>>(new Set());
   const playLockRef = useRef(false);
   const dealtPhase = isCardsDealtPhase(phase);
@@ -121,9 +123,11 @@ export function HeroHand({
     setDealing(true);
     setPlayingIndex(null);
     setSelectedPlay(null);
-    const timer = window.setTimeout(() => setDealing(false), 520);
+    const dealMs =
+      dealStaggerMs * Math.max(cards.length - 1, 0) + 620;
+    const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
-  }, [cards, dealtPhase]);
+  }, [cards, dealtPhase, dealStaggerMs]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -222,6 +226,8 @@ export function HeroHand({
     try {
       await onPassDraw();
       setSelectedDraw(new Set());
+      setStandPatPulse(true);
+      window.setTimeout(() => setStandPatPulse(false), 700);
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "Could not stand pat");
     } finally {
@@ -231,12 +237,14 @@ export function HeroHand({
 
   const runFoldDraw = useCallback(async () => {
     if (!onFoldDraw || busy) return;
+    setFoldOutPulse(true);
     setLocalBusy(true);
     setLocalError(null);
     try {
       await onFoldDraw();
       setSelectedDraw(new Set());
     } catch (err) {
+      setFoldOutPulse(false);
       setLocalError(err instanceof Error ? err.message : "Could not fold out");
     } finally {
       setLocalBusy(false);
@@ -319,6 +327,8 @@ export function HeroHand({
         drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
         drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
         showDrawActions ? "btable-hero--draw-actions" : "",
+        standPatPulse ? "btable-hero--stand-pat" : "",
+        foldOutPulse ? "btable-hero--fold-out" : "",
       ])}
       style={{ ["--deal-card-stagger-ms" as string]: `${dealStaggerMs}ms` }}
       data-testid="hero-hand"

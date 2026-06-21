@@ -4,8 +4,8 @@ import type { Rank, Suit } from "../types";
 import { totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
-/** Card travel to center (180–260 ms). */
-export const CARD_LAND_MS = 220;
+/** Card travel to center (400–700 ms). */
+export const CARD_LAND_MS = 560;
 
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 350;
@@ -20,7 +20,7 @@ export const WINNER_REVEAL_MS = 400;
 export const TRUMP_BEAT_READ_MS = 1800;
 
 /** Directional collection toward winner seat (250–400 ms). */
-export const TRICK_SWEEP_MS = 300;
+export const TRICK_SWEEP_MS = 520;
 
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 200;

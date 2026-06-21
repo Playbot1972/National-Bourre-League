@@ -9,25 +9,25 @@ import { prefersReducedMotion } from "./trickTiming";
 export const ANTE_CHIP_TRAVEL_MS = 220;
 
 /** Per-card deal stagger (90–140 ms). */
-export const DEAL_CARD_STAGGER_MS = 120;
+export const DEAL_CARD_STAGGER_MS = 110;
 
-/** Full deal fan duration (matches bdeal-in). */
-export const DEAL_FAN_MS = 520;
+/** Full deal fan duration (matches bdeal-to-hand). */
+export const DEAL_FAN_MS = 600;
 
 /** Dealer upcard / trump reveal hold (~5 s so the suit is readable). */
 export const TRUMP_REVEAL_HOLD_MS = 5000;
 
 /** Trump card slides from reveal pose into the dealer fan. */
-export const TRUMP_MERGE_ANIM_MS = 650;
+export const TRUMP_MERGE_ANIM_MS = 620;
 
 /** Enrollment seat pulse when a player joins or passes. */
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
 
 /** Draw discard slide per card (140–220 ms). */
-export const DRAW_DISCARD_MS = 180;
+export const DRAW_DISCARD_MS = 580;
 
 /** Draw replacement per card (100–160 ms). */
-export const DRAW_REPLACE_MS = 130;
+export const DRAW_REPLACE_MS = 620;
 
 /** Pause after all draws before first lead (400–600 ms). */
 export const DRAW_READY_BEAT_MS = 500;

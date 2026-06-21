@@ -16,6 +16,7 @@ import "./mobile-table.css";
 import "./theme/table-themes.css";
 import "../components/PlayingCard.css";
 import "../components/Hand.css";
+import "./cardAnimations.css";
 
 let root: Root | null = null;
 let rootEl: HTMLElement | null = null;

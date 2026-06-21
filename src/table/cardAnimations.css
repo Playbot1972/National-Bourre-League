@@ -1,0 +1,474 @@
+/* ================================================================== */
+/* Premium card motion — Hold'em-style arcs, lift, settle (v2)         */
+/* Loaded after table.css; reuses existing class names / keyframe ids  */
+/* ================================================================== */
+
+.btable-wrap,
+.btable-session {
+  --premium-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --premium-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --premium-ease-bounce: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --anim-deal-ms: 600ms;
+  --anim-deal-stagger-ms: 110ms;
+  --anim-play-lift-ms: 480ms;
+  --anim-trick-fly-ms: 560ms;
+  --anim-trick-land-ms: 560ms;
+  --anim-draw-discard-ms: 580ms;
+  --anim-draw-receive-ms: 620ms;
+  --anim-trump-reveal-ms: 640ms;
+  --anim-trump-merge-ms: 620ms;
+  --anim-fold-ms: 560ms;
+  --trick-card-land-ms: 560ms;
+  --trick-sweep-ms: 520ms;
+  --trick-winner-highlight-ms: 1600ms;
+}
+
+/* --- Deal: deck → seats / hero hand (arc + flip + soft land) --- */
+.bpot__trump--deal,
+.bpot__ante-chip {
+  animation-duration: var(--anim-deal-ms) !important;
+  animation-timing-function: var(--premium-ease-out) !important;
+}
+
+.btable-hero--dealing .hand__slot {
+  animation: bdeal-to-hand var(--anim-deal-ms) var(--premium-ease-out) backwards;
+  animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
+  will-change: transform, opacity;
+}
+
+.btable-hero--dealing .hand__slot .pcard {
+  animation: bdeal-card-flip var(--anim-deal-ms) var(--premium-ease-out) backwards;
+  animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
+  will-change: transform, opacity;
+}
+
+@keyframes bdeal-in-premium {
+  0% {
+    opacity: 0;
+    transform: translate3d(
+        calc(-50% + 56px),
+        min(-38vh, -220px),
+        48px
+      )
+      rotateZ(18deg)
+      rotateY(-82deg)
+      scale(0.58);
+  }
+  42% {
+    opacity: 0.92;
+    transform: translate3d(
+        calc(-50% + (var(--pot-i, 0) - 2) * 10px),
+        -18px,
+        28px
+      )
+      rotateZ(calc((var(--pot-i, 0) - 2) * 5deg + 6deg))
+      rotateY(-24deg)
+      scale(0.94);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(
+        calc(-50% + (var(--pot-i, 0) - 2) * 8px),
+        5px,
+        8px
+      )
+      rotateZ(calc((var(--pot-i, 0) - 2) * 4deg))
+      rotateY(6deg)
+      scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(
+        calc(-50% + (var(--pot-i, 0) - 2) * 8px),
+        0,
+        0
+      )
+      rotateZ(calc((var(--pot-i, 0) - 2) * 4deg))
+      rotateY(0deg)
+      scale(1);
+  }
+}
+
+@keyframes bdeal-to-hand {
+  0% {
+    opacity: 0;
+    transform: translate3d(
+        calc((var(--card-i, 0) - 2) * -18px),
+        min(-36vh, -200px),
+        52px
+      )
+      rotateZ(calc((var(--card-i, 0) - 2) * -10deg + 14deg))
+      rotateY(-72deg)
+      scale(0.56);
+  }
+  48% {
+    opacity: 1;
+    transform: translate3d(
+        calc((var(--card-i, 0) - 2) * -6px),
+        10px,
+        18px
+      )
+      rotateZ(calc((var(--card-i, 0) - 2) * -3deg))
+      rotateY(-16deg)
+      scale(1.04);
+  }
+  76% {
+    transform: translate3d(0, -4px, 2px) rotateZ(0deg) rotateY(0deg) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateY(0deg) scale(1);
+  }
+}
+
+@keyframes bdeal-card-flip {
+  0% {
+    transform: rotateY(-92deg) rotateX(8deg) rotateZ(6deg) translateZ(-24px);
+    opacity: 0.15;
+  }
+  40% {
+    transform: rotateY(-38deg) rotateX(4deg) rotateZ(2deg) translateZ(10px);
+    opacity: 0.88;
+  }
+  68% {
+    transform: rotateY(8deg) rotateX(-2deg) translateZ(4px);
+    opacity: 1;
+  }
+  100% {
+    transform: rotateY(0deg) rotateX(0deg) rotateZ(0deg) translateZ(0);
+    opacity: 1;
+  }
+}
+
+/* Opponent hole cards — deal-in synced when hero hand is dealing */
+.btable-wrap:has(.btable-hero--dealing) .bseat__hole-card {
+  animation: bseat-hole-deal-in var(--anim-deal-ms) var(--premium-ease-out) backwards;
+  animation-delay: calc(var(--hole-i, 0) * 90ms + 80ms);
+}
+
+@keyframes bseat-hole-deal-in {
+  0% {
+    opacity: 0;
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg))
+      translate3d(0, -48px, 24px)
+      scale(0.7);
+  }
+  65% {
+    opacity: 1;
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translate3d(0, 3px, 0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* --- Play: lift from hand → arc to table → settle --- */
+.btrick__play--fly-from-hand .pcard {
+  animation: btrick-fly-from-hand var(--anim-trick-fly-ms) var(--premium-ease-out) forwards;
+}
+
+@keyframes btrick-fly-from-hand {
+  0% {
+    transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 32px) rotateZ(-14deg) rotateY(-32deg)
+      rotateX(12deg) scale(0.86);
+    opacity: 0.9;
+    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.45));
+  }
+  38% {
+    transform: translate3d(
+        calc(var(--fly-dx, 0) * 0.62),
+        calc(var(--fly-dy, 0) * 0.62 - 18px),
+        22px
+      )
+      rotateZ(-6deg)
+      rotateY(-14deg)
+      rotateX(8deg)
+      scale(0.96);
+    opacity: 1;
+  }
+  72% {
+    transform: translate3d(
+        calc(var(--fly-dx, 0) * 0.12),
+        calc(var(--fly-dy, 0) * 0.12 + 6px),
+        6px
+      )
+      rotateZ(2deg)
+      rotateY(4deg)
+      rotateX(-2deg)
+      scale(1.02);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateY(0deg) rotateX(0deg) scale(1);
+    opacity: 1;
+    filter: none;
+  }
+}
+
+.btrick__play--land .pcard {
+  animation: btrick-card-land var(--anim-trick-land-ms) var(--premium-ease-bounce);
+}
+
+@keyframes btrick-card-land {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -28px, 22px) rotateX(22deg) rotateZ(-10deg) scale(0.84);
+  }
+  58% {
+    opacity: 1;
+    transform: translate3d(0, 4px, 2px) rotateX(-6deg) rotateZ(2deg) scale(1.04);
+  }
+  82% {
+    transform: translate3d(0, -2px, 0) rotateX(2deg) rotateZ(0deg) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateX(0deg) rotateZ(0deg) scale(1);
+  }
+}
+
+.btrick__play--winner .pcard {
+  animation: btrick-winner-glow var(--trick-winner-highlight-ms) var(--premium-ease) ease;
+}
+
+@keyframes btrick-winner-glow {
+  0% {
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+    filter: drop-shadow(0 0 0 rgba(54, 185, 124, 0));
+  }
+  40% {
+    transform: translate3d(0, -16px, 12px) rotateX(8deg) scale(1.04);
+    filter: drop-shadow(0 10px 20px rgba(54, 185, 124, 0.5));
+  }
+  100% {
+    transform: translate3d(0, -10px, 4px) rotateX(4deg) scale(1.02);
+    filter: drop-shadow(0 6px 14px rgba(54, 185, 124, 0.32));
+  }
+}
+
+.btrick--sweep {
+  animation: btrick-sweep var(--trick-sweep-ms) var(--premium-ease-out) forwards;
+}
+
+@keyframes btrick-sweep {
+  0% {
+    opacity: 1;
+    transform: scale(1) translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.78) translate3d(0, -14px, -8px);
+  }
+}
+
+/* --- Draw: discard throw + receive from deck --- */
+.btable-hero--draw-discard .hand__slot--draw-selected .pcard,
+.btable-hero--draw-discard .hand__slot .pcard--draw-selected {
+  animation: bdraw-fold-away var(--anim-draw-discard-ms) var(--premium-ease-out) forwards;
+}
+
+@keyframes bdraw-fold-away {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, -16px, 8px) rotateX(10deg) rotateY(-6deg) scale(1.05);
+  }
+  55% {
+    opacity: 0.85;
+    transform: translate3d(28px, -8px, 4px) rotateX(38deg) rotateY(18deg) rotateZ(12deg) scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(72px, 48px, -12px) rotateX(72deg) rotateY(32deg) rotateZ(22deg) scale(0.68);
+  }
+}
+
+.btable-hero--draw-receive .hand__slot {
+  animation: bdraw-slot-receive var(--anim-draw-receive-ms) var(--premium-ease-out) backwards;
+  animation-delay: calc(var(--card-i, 0) * 85ms);
+}
+
+.btable-hero--draw-receive .hand__slot .pcard {
+  animation: bdraw-card-in var(--anim-draw-receive-ms) var(--premium-ease-out) backwards;
+  animation-delay: calc(var(--card-i, 0) * 85ms + 50ms);
+}
+
+@keyframes bdraw-slot-receive {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 36px, -8px) scale(0.78);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -3px, 0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes bdraw-card-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -min(28vh, 160px), 36px) rotateY(-88deg) rotateZ(-8deg) scale(0.72);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(0, 6px, 10px) rotateY(-12deg) rotateZ(2deg) scale(1.05);
+  }
+  78% {
+    transform: translate3d(0, -2px, 0) rotateY(4deg) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateY(0deg) rotateZ(0deg) scale(1);
+  }
+}
+
+.bseat--draw-discard .bseat__hole-cards {
+  animation: bdraw-discard var(--anim-draw-discard-ms) var(--premium-ease-out);
+}
+
+.bseat--draw-receive .bseat__hole-cards {
+  animation: bdraw-receive var(--anim-draw-receive-ms) var(--premium-ease-out);
+}
+
+@keyframes bdraw-discard {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    opacity: 0.5;
+    transform: translate3d(12px, -18px, 0) rotateZ(8deg) scale(0.94);
+  }
+}
+
+@keyframes bdraw-receive {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 22px, 0) scale(0.88);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* --- Trump reveal / merge --- */
+.bpot__trump--reveal {
+  animation: btrump-reveal var(--anim-trump-reveal-ms) var(--premium-ease-out);
+}
+
+@keyframes btrump-reveal {
+  0% {
+    transform: scale(0.72) rotateY(96deg) translateZ(-20px);
+    opacity: 0.25;
+  }
+  55% {
+    transform: scale(1.08) rotateY(-8deg) translateZ(12px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotateY(0deg) translateZ(0);
+    opacity: 1;
+  }
+}
+
+.btable-hero--trump-merge .hand__slot--trump-merge-target {
+  animation: btrump-merge-into-hand var(--anim-trump-merge-ms) var(--premium-ease-bounce) forwards;
+}
+
+@keyframes btrump-merge-into-hand {
+  0% {
+    transform: translate3d(0, -36px, 24px) rotateX(18deg) scale(1.14);
+    opacity: 0.85;
+  }
+  68% {
+    transform: translate3d(0, 3px, 2px) rotateX(-4deg) scale(1.02);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotateX(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+.bseat--trump-merge .bseat__hole-card--trump-merge {
+  animation: bseat-trump-merge var(--anim-trump-merge-ms) var(--premium-ease-bounce) forwards;
+}
+
+@keyframes bseat-trump-merge {
+  0% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translate3d(0, -18px, 12px) scale(1.12);
+  }
+  70% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translate3d(0, 2px, 0) scale(1.02);
+  }
+  100% {
+    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* --- Stand pat / fold-out (I'm Out) --- */
+.btable-hero--stand-pat .hand__slot .pcard:not(.pcard--draw-selected):not(.pcard--muted) {
+  animation: bstand-pat-glow 680ms var(--premium-ease) ease;
+}
+
+@keyframes bstand-pat-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(244, 213, 141, 0));
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  45% {
+    filter: drop-shadow(0 8px 16px rgba(244, 213, 141, 0.35));
+    transform: translate3d(0, -4px, 2px) scale(1.02);
+  }
+}
+
+.btable-hero--fold-out .hand__slot .pcard {
+  animation: bhero-fold-out var(--anim-fold-ms) var(--premium-ease-out) forwards;
+}
+
+@keyframes bhero-fold-out {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotateX(0deg);
+  }
+  100% {
+    opacity: 0.35;
+    transform: translate3d(-24px, 42px, -8px) rotateX(24deg) rotateZ(-8deg) scale(0.9);
+    filter: grayscale(0.4) brightness(0.85);
+  }
+}
+
+/* --- Winning hand highlight --- */
+.pcard--winner {
+  animation: pcard-winner-lift 720ms var(--premium-ease-bounce);
+}
+
+@keyframes pcard-winner-lift {
+  0% {
+    transform: translate3d(0, 0, 0) rotateX(0deg) scale(1);
+  }
+  45% {
+    transform: translate3d(0, -18px, 10px) rotateX(10deg) scale(1.05);
+  }
+  100% {
+    transform: translate3d(0, -12px, 6px) rotateX(6deg) scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btable-hero--dealing .hand__slot,
+  .btable-hero--dealing .hand__slot .pcard,
+  .btrick__play--fly-from-hand .pcard,
+  .btrick__play--land .pcard,
+  .btable-hero--draw-discard .pcard--draw-selected,
+  .btable-hero--draw-receive .hand__slot,
+  .btable-hero--draw-receive .hand__slot .pcard,
+  .bseat__hole-card {
+    animation-duration: 120ms !important;
+  }
+}

@@ -3,11 +3,12 @@
 /* ================================================================== */
 
 .pcard {
-  --pcard-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pcard-ease: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --pcard-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --pcard-ease-snap: cubic-bezier(0.34, 1.45, 0.64, 1);
-  --pcard-lift-y: -14px;
-  --pcard-tilt-x: 9deg;
-  --pcard-tilt-y: -6deg;
+  --pcard-lift-y: -18px;
+  --pcard-tilt-x: 14deg;
+  --pcard-tilt-y: -10deg;
   position: relative;
   display: inline-flex;
   flex-direction: column;
@@ -21,9 +22,9 @@
   transform-style: preserve-3d;
   transform: translateZ(0);
   transition:
-    transform 280ms var(--pcard-ease),
-    box-shadow 280ms var(--pcard-ease),
-    filter 200ms ease;
+    transform 420ms var(--pcard-ease),
+    box-shadow 420ms var(--pcard-ease),
+    filter 280ms ease;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -341,10 +342,11 @@
 }
 
 .pcard--playing {
-  opacity: 0.65;
-  transform: translateY(-24px) rotateX(14deg) rotateY(-12deg) scale(1.04);
+  opacity: 0.72;
+  transform: translate3d(0, -28px, 16px) rotateX(16deg) rotateY(-14deg) scale(1.05);
   pointer-events: none;
-  animation: pcard-play-to-table 320ms var(--pcard-ease) forwards;
+  animation: pcard-play-to-table 520ms var(--pcard-ease-out) forwards;
+  will-change: transform, opacity;
 }
 .pcard--playing .pcard__surface {
   box-shadow:
@@ -355,12 +357,17 @@
 
 @keyframes pcard-play-to-table {
   0% {
-    transform: translateY(-8px) rotateX(6deg) scale(1);
+    transform: translate3d(0, -10px, 4px) rotateX(8deg) rotateY(-4deg) scale(1);
     opacity: 1;
+    filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35));
+  }
+  35% {
+    transform: translate3d(0, -32px, 20px) rotateX(18deg) rotateY(-12deg) scale(1.06);
+    opacity: 0.95;
   }
   100% {
-    transform: translateY(-24px) rotateX(14deg) rotateY(-12deg) scale(1.04);
-    opacity: 0.65;
+    transform: translate3d(0, -28px, 16px) rotateX(16deg) rotateY(-14deg) scale(1.05);
+    opacity: 0.72;
   }
 }
 
