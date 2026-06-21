@@ -54,9 +54,9 @@
           : "draw");
       const phase = phaseParam === "enrollment" ? "decision" : phaseParam;
 
-      const ids = ["p0", "p1", "p2", "p3"];
-      const dealerId = "p3";
-      const botDealerId = "p3";
+      const ids = scenario === "opening-lead" ? ["p0", "p1"] : ["p0", "p1", "p2", "p3"];
+      const dealerId = scenario === "opening-lead" ? "p0" : "p3";
+      const botDealerId = scenario === "opening-lead" ? "p0" : "p3";
 
       const state = {
         scenario,
@@ -118,9 +118,20 @@
         };
       }
 
+      function turnPlayerForPhase() {
+        if (scenario === "opening-lead") {
+          if (state.phase === "play" || state.phase === "draw") return "p1";
+          return null;
+        }
+        if (state.phase === "play") return state._turnEnded ? "p1" : "p0";
+        if (state.phase === "draw") return "p0";
+        return null;
+      }
+
       function buildPlayers() {
         const enrollment = buildEnrollment();
         const onClock = selfNeedsDecision();
+        const turnId = turnPlayerForPhase();
         return ids.map((id) => {
           const isSelf = id === "p0";
           const satOut = state.declinedIds.includes(id);
@@ -160,7 +171,7 @@
                   ? 5
                   : 4
                 : 0,
-            isOnTurn: state.phase === "draw" && id === "p0",
+            isOnTurn: turnId != null && id === turnId,
           };
         });
       }
@@ -195,20 +206,18 @@
             phase: cardsDealt ? state.phase : null,
             trumpSuit: cardsDealt ? "hearts" : null,
             trumpUpcard: cardsDealt ? { rank: "7", suit: "hearts" } : null,
-            turnPlayerId:
-              state.phase === "play"
-                ? state._turnEnded
-                  ? "p1"
-                  : "p0"
-                : state.phase === "draw"
-                  ? "p0"
-                  : null,
+            turnPlayerId: turnPlayerForPhase(),
             remainingDeckCount: state.phase === "draw" ? 28 : null,
             maxDrawDiscards: 4,
             handEnrollment: enrollment,
             currentTrick:
               state.phase === "play"
-                ? { trickNumber: 1, leadPlayerId: "p0", leadSuit: "spades", plays: [] }
+                ? {
+                    trickNumber: 1,
+                    leadPlayerId: turnPlayerForPhase() ?? "p0",
+                    leadSuit: "spades",
+                    plays: [],
+                  }
                 : null,
           },
           players: buildPlayers(),

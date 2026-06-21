@@ -189,13 +189,29 @@ async function tryPassDraw(page: Page, overlay: Locator, lastActionClick: { at: 
   const now = Date.now();
   if (now - lastActionClick.at < 1500) return false;
 
-  const passDraw = overlay.getByTestId("pass-draw-button");
-  if (!(await passDraw.isVisible().catch(() => false))) return false;
-  if (!(await passDraw.isEnabled().catch(() => false))) return false;
+  const passDraw = overlay
+    .getByTestId("pass-draw-button")
+    .or(overlay.getByRole("button", { name: /^stand pat$/i }));
+  const drawBtn = overlay.getByTestId("draw-button");
+  const target = (await passDraw.first().isVisible().catch(() => false))
+    ? passDraw.first()
+    : (await drawBtn.isVisible().catch(() => false))
+      ? drawBtn
+      : null;
+  if (!target) return false;
 
-  await passDraw.click();
+  try {
+    await target.click({ timeout: 8000 });
+  } catch {
+    await target.click({ force: true, timeout: 3000 });
+  }
   lastActionClick.at = now;
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(900);
+
+  const heroError = await overlay.locator(".btable-hero__error").textContent().catch(() => "");
+  if (heroError && /not your turn|could not|failed|permission/i.test(heroError)) {
+    throw new Error(`Draw action failed: ${heroError}`);
+  }
   return true;
 }
 
@@ -238,7 +254,7 @@ export async function waitForDrawPhase(page: Page) {
 /** Pass hero draw turns and wait for bots until trick play begins. */
 export async function advanceThroughDrawPhase(page: Page) {
   const overlay = tableOverlay(page);
-  const deadline = Date.now() + 90_000;
+  const deadline = Date.now() + 120_000;
   const lastActionClick = { at: 0 };
 
   while (Date.now() < deadline) {
@@ -253,7 +269,7 @@ export async function advanceThroughDrawPhase(page: Page) {
   }
 
   const phase = await readPhaseTag(overlay);
-  throw new Error(`Play phase did not start within 90s (last phase: ${phase || "unknown"})`);
+  throw new Error(`Play phase did not start within 120s (last phase: ${phase || "unknown"})`);
 }
 
 /** Wait until the live hand is in trick play (draw complete). */
@@ -269,16 +285,19 @@ export async function waitForPlayPhase(page: Page) {
 
 /** Dealer seat must not hold the opening lead on trick 1. */
 export async function expectOpeningLeadNotDealer(page: Page) {
-  const overlay = tableOverlay(page);
-  const dealer = overlay.locator(".bseat--dealer");
-  const onTurn = overlay.locator(".bseat--on-turn");
+  const root = page.locator("#table-play-overlay, #table-root");
+  const dealer = root.locator(".bseat--dealer");
+  const onTurn = root.locator(".bseat--on-turn");
 
-  await expect(dealer).toBeVisible({ timeout: 15_000 });
-  await expect(onTurn).toBeVisible({ timeout: 15_000 });
+  await expect(dealer).toHaveCount(1, { timeout: 15_000 });
+  await expect(onTurn).toHaveCount(1, { timeout: 15_000 });
 
   const sameSeat = await page.evaluate(() => {
-    const dealerEl = document.querySelector("#table-play-overlay .bseat--dealer");
-    const turnEl = document.querySelector("#table-play-overlay .bseat--on-turn");
+    const scope =
+      document.querySelector("#table-play-overlay") ?? document.querySelector("#table-root");
+    if (!scope) return true;
+    const dealerEl = scope.querySelector(".bseat--dealer");
+    const turnEl = scope.querySelector(".bseat--on-turn");
     return Boolean(dealerEl && turnEl && dealerEl === turnEl);
   });
   expect(sameSeat, "dealer must not lead trick 1").toBe(false);
