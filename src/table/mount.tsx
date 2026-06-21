@@ -2,6 +2,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { TableSessionView } from "./TableSessionView";
 import { TableThemeProvider } from "./theme/TableThemeContext.tsx";
 import type { TableSessionViewProps } from "./types";
+import { initCardMotion } from "./animations/initMotion";
 import {
   initGameFeedback,
   playBigWinFeedback,
@@ -23,6 +24,7 @@ let rootEl: HTMLElement | null = null;
 
 export function mountTableSession(el: HTMLElement, props: TableSessionViewProps) {
   initGameFeedback();
+  initCardMotion(el);
   if (rootEl !== el) {
     root?.unmount();
     root = createRoot(el);
