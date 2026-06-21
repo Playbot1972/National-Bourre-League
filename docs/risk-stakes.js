@@ -1,6 +1,17 @@
 // US bill denominations — thematic stake labels only, no money movement.
 export const RISK_STAKE_OPTIONS = [1, 2, 5, 10, 20, 50, 100, 500, 1000, 5000, 10000];
 
+/** Per-hand ante choices (fractional dollars). Default room ante is $1. */
+export const ANTE_STAKE_OPTIONS = [
+  { value: 0.01, label: "1 cent ($0.01)" },
+  { value: 0.05, label: "5 cents ($0.05)" },
+  { value: 0.1, label: "10 cents ($0.10)" },
+  { value: 0.25, label: "25 cents ($0.25)" },
+  { value: 0.5, label: "50 cents ($0.50)" },
+];
+
+export const DEFAULT_ANTE_AMOUNT = 1;
+
 export function riskStakeOptionsFor(current) {
   const options = [...RISK_STAKE_OPTIONS];
   if (typeof current === "number" && !options.includes(current)) {
@@ -8,6 +19,33 @@ export function riskStakeOptionsFor(current) {
     options.sort((a, b) => a - b);
   }
   return options;
+}
+
+function anteValuesMatch(a, b) {
+  return Math.abs(Number(a) - Number(b)) < 0.0001;
+}
+
+/** Ante dropdown options — includes current value when not in the preset list (e.g. default $1). */
+export function anteStakeOptionsFor(current) {
+  const options = [...ANTE_STAKE_OPTIONS];
+  const cur = Number(current);
+  if (Number.isFinite(cur) && !options.some((o) => anteValuesMatch(o.value, cur))) {
+    options.push({
+      value: cur,
+      label: cur < 1 ? `$${cur.toFixed(2)}` : formatRiskStake(cur),
+    });
+    options.sort((a, b) => a.value - b.value);
+  }
+  return options;
+}
+
+export function formatAnteStake(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return formatRiskStake(0);
+  const preset = ANTE_STAKE_OPTIONS.find((o) => anteValuesMatch(o.value, n));
+  if (preset) return preset.label;
+  if (n < 1) return `$${n.toFixed(2)}`;
+  return formatRiskStake(n);
 }
 
 export function formatRiskStake(amount) {

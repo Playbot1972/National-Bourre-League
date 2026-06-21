@@ -123,6 +123,8 @@ import { initTheme, wireThemeToggle } from "./theme.js";
 import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
 import {
   RISK_STAKE_OPTIONS,
+  anteStakeOptionsFor,
+  formatAnteStake,
   formatRiskStake,
   formatNet,
 } from "./risk-stakes.js";
@@ -139,6 +141,20 @@ import {
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function parseBuyInAmount(raw) {
+  return Math.max(1, parseInt(String(raw), 10) || 100);
+}
+
+function parseAnteAmount(raw) {
+  const n = parseFloat(String(raw));
+  if (!Number.isFinite(n) || n <= 0) return 1;
+  return n;
+}
+
+function anteValueSelected(optionValue, current) {
+  return Math.abs(Number(optionValue) - Number(current)) < 0.0001;
+}
 
 // ---------------------------------------------------------------------------
 // Session state
@@ -722,8 +738,8 @@ function bindRoomDetailDelegatedControls() {
       const limEl = $("#room-lim-enabled", roomDetailView);
       const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
       if (!buyInEl || !anteEl || !limEl || !currentRoomId) return;
-      pendingRoomBuyInOverride = parseInt(buyInEl.value, 10) || 1;
-      pendingRoomAnteOverride = parseInt(anteEl.value, 10) || 1;
+      pendingRoomBuyInOverride = parseBuyInAmount(buyInEl.value);
+      pendingRoomAnteOverride = parseAnteAmount(anteEl.value);
       const limEnabled = limEl.checked;
       const rebuyEnabled = rebuyEl?.checked === true;
       updateRoomBourreSettings(currentRoomId, {
@@ -735,7 +751,7 @@ function bindRoomDetailDelegatedControls() {
         .then(() => {
           pendingRoomBuyInOverride = null;
           pendingRoomAnteOverride = null;
-          pendingHandStake = parseInt(anteEl.value, 10) || 1;
+          pendingHandStake = parseAnteAmount(anteEl.value);
           userPickedNewSessionStake = false;
           return syncOpenSessionLimEnabled(limEnabled);
         })
@@ -3328,20 +3344,25 @@ function renderRoomDetail() {
             ? `<div class="bourre-settings-form">
                  <label class="bourre-settings__row">
                    <span class="bourre-settings__label">Buy-in</span>
-                   <select class="num-select" id="room-buy-in-amount" aria-label="Room buy-in amount">
-                     ${RISK_STAKE_OPTIONS.map(
-                       (n) =>
-                         `<option value="${n}" ${n === roomBuyInAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
-                     ).join("")}
-                   </select>
+                   <input
+                     type="number"
+                     class="text-input bourre-settings__amount"
+                     id="room-buy-in-amount"
+                     min="1"
+                     step="1"
+                     value="${roomBuyInAmount}"
+                     aria-label="Room buy-in amount"
+                   />
                  </label>
                  <label class="bourre-settings__row">
                    <span class="bourre-settings__label">Ante</span>
                    <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
-                     ${RISK_STAKE_OPTIONS.map(
-                       (n) =>
-                         `<option value="${n}" ${n === roomAnteAmount ? "selected" : ""}>${formatRiskStake(n)}</option>`,
-                     ).join("")}
+                     ${anteStakeOptionsFor(roomAnteAmount)
+                       .map(
+                         (opt) =>
+                           `<option value="${opt.value}" ${anteValueSelected(opt.value, roomAnteAmount) ? "selected" : ""}>${escapeHtml(opt.label)}</option>`,
+                       )
+                       .join("")}
                    </select>
                  </label>
                  <label class="bourre-settings__row bourre-settings__lim">
@@ -3358,7 +3379,7 @@ function renderRoomDetail() {
                </div>`
             : `<ul class="kv">
                  <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
-                 <li><span>Ante</span><span>${escapeHtml(formatRiskStake(bourreSettings.anteAmount))}</span></li>
+                 <li><span>Ante</span><span>${escapeHtml(formatAnteStake(bourreSettings.anteAmount))}</span></li>
                  ${
                    bourreSettings.limEnabled
                      ? `<li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>`
@@ -3887,7 +3908,7 @@ async function onNewSession() {
     );
     const buyInAmount = pendingRoomBuyInOverride ?? roomBs.buyInAmount;
     const stakeEl = $("#new-session-stake", roomDetailView);
-    const handStake = stakeEl ? parseInt(stakeEl.value, 10) : pendingHandStake;
+    const handStake = stakeEl ? parseAnteAmount(stakeEl.value) : pendingHandStake;
 
     const created = await createSession(currentRoomId, players, buyInAmount, {
       handStake,
