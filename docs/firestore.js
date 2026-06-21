@@ -3032,33 +3032,45 @@ async function waitForMinSeatedPlayers(
 }
 
 async function attemptAutoDeal(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) {
-    try {
-      await gameEnsureHandEnrollment(roomId, sessionId);
-    } catch (serverErr) {
-      if (!isCloudFunctionUnavailable(serverErr)) {
-        throw describeEnrollmentStartError(serverErr);
-      }
-      console.warn(
-        "Enrollment Cloud Function unavailable, trying client deal.",
-        serverErr?.code || serverErr?.message || serverErr,
-      );
-    }
+  let clientErr = null;
+  try {
+    await ensureHandEnrollmentClient(roomId, sessionId);
+  } catch (err) {
+    clientErr = err;
+    const data = await readSessionDataForHandVerify(roomId, sessionId);
+    if (sessionHandDealStarted(data)) return;
+    if (!SERVER_HAND_AUTHORITY) throw err;
+    console.warn(
+      "Client deal did not complete, trying Cloud Function.",
+      err?.code || err?.message || err,
+    );
   }
 
   let data = await readSessionDataForHandVerify(roomId, sessionId);
   if (sessionHandDealStarted(data)) return;
 
-  try {
-    await ensureHandEnrollmentClient(roomId, sessionId);
-  } catch (clientErr) {
-    data = await readSessionDataForHandVerify(roomId, sessionId);
-    if (sessionHandDealStarted(data)) return;
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      await gameEnsureHandEnrollment(roomId, sessionId);
+    } catch (serverErr) {
+      data = await readSessionDataForHandVerify(roomId, sessionId);
+      if (sessionHandDealStarted(data)) return;
+      if (!isCloudFunctionUnavailable(serverErr)) {
+        throw describeEnrollmentStartError(serverErr);
+      }
+      console.warn(
+        "Enrollment Cloud Function unavailable.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+      if (clientErr) throw clientErr;
+      throw describeEnrollmentStartError(serverErr);
+    }
+  } else if (clientErr) {
     throw clientErr;
   }
 }
 
-async function waitForSessionHandDeal(roomId, sessionId, maxMs = 10000) {
+async function waitForSessionHandDeal(roomId, sessionId, maxMs = 15000) {
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
     const data = await readSessionDataForHandVerify(roomId, sessionId);
@@ -3085,6 +3097,46 @@ export async function ensureCurrentHandParticipants(roomId, sessionId) {
   });
 }
 
+/** Reset stale participantIds / enrollment that block auto-deal on Go to Table. */
+async function clearPreDealBlockingState(roomId, sessionId, data) {
+  const hand = data.currentHand || emptyPreDealHand();
+  const phase = hand.phase ?? null;
+  const participantIds = hand.participantIds || [];
+  const tricks = hand.tricksByPlayer || {};
+  const hasTrickProgress = Object.values(tricks).some((n) => (n || 0) > 0);
+  const enrollmentActive = Boolean(
+    getSessionEnrollment(data)?.active ||
+      data.handEnrollment?.active ||
+      data.liveEnrollment?.active,
+  );
+  const staleRoster = participantIds.length > 0 && !phase && !hasTrickProgress;
+  const needsClear =
+    shouldClearOrphanLiveEnrollment(data) ||
+    shouldClearStaleLiveEnrollment(data) ||
+    enrollmentActive ||
+    staleRoster ||
+    (participantIds.length > 0 && !handPhaseStarted(hand) && !hasTrickProgress);
+
+  if (!needsClear) return data;
+
+  await clearStaleHandoffArtifacts(roomId, sessionId);
+  const patch = {
+    currentHand: emptyPreDealHand(),
+    updatedAt: serverTimestamp(),
+  };
+  if (enrollmentActive || data.handEnrollment || data.liveEnrollment) {
+    patch.handEnrollment = deleteField();
+    patch[LIVE_ENROLLMENT_FIELD] = deleteField();
+  }
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), patch);
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+  }
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  return snap.exists() ? snap.data() : data;
+}
+
 /** Repair stale handoff artifacts before opening the live table overlay. */
 export async function prepareSessionForTableOpen(roomId, sessionId) {
   const sessionRef = sessionDoc(roomId, sessionId);
@@ -3097,12 +3149,7 @@ export async function prepareSessionForTableOpen(roomId, sessionId) {
   let data = sessionSnap.data();
   if (data.status === "final") return data;
 
-  if (shouldClearOrphanLiveEnrollment(data)) {
-    await clearStaleHandoffArtifacts(roomId, sessionId);
-    sessionSnap = await getDoc(sessionRef);
-    if (!sessionSnap.exists()) return null;
-    data = sessionSnap.data();
-  }
+  data = await clearPreDealBlockingState(roomId, sessionId, data);
 
   await ensureCurrentHandParticipants(roomId, sessionId);
   return data;
@@ -3159,13 +3206,16 @@ export async function ensureHandEnrollment(roomId, sessionId, { members, roster 
     );
   }
 
-  await attemptAutoDeal(roomId, sessionId);
-
-  let data = await waitForSessionHandDeal(roomId, sessionId);
-  if (!sessionHandDealStarted(data)) {
-    await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, { members, roster }, 2000);
+  const retryDelaysMs = [0, 1500, 3500];
+  let data = null;
+  for (const delayMs of retryDelaysMs) {
+    if (delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, { members, roster }, 2000);
+    }
     await attemptAutoDeal(roomId, sessionId);
     data = await waitForSessionHandDeal(roomId, sessionId);
+    if (sessionHandDealStarted(data)) return;
   }
 
   if (!sessionHandDealStarted(data)) {
@@ -3193,7 +3243,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     data = sessionSnap.data();
   }
 
-  const hand = data.currentHand || emptyPreDealHand();
+  let hand = data.currentHand || emptyPreDealHand();
   let phase = hand.phase;
   if (sessionHandDealStarted(data)) {
     return;
@@ -3227,6 +3277,16 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       sessionSnap = await getDoc(sessionRef);
       if (!sessionSnap.exists()) return;
       data = sessionSnap.data();
+    } else if (!handPhaseStarted(hand)) {
+      await updateDoc(sessionRef, {
+        currentHand: emptyPreDealHand(),
+        handEnrollment: deleteField(),
+        [LIVE_ENROLLMENT_FIELD]: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+      sessionSnap = await getDoc(sessionRef);
+      if (!sessionSnap.exists()) return;
+      data = sessionSnap.data();
     } else {
       return;
     }
@@ -3253,15 +3313,40 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     throw enrollmentStartFailure(data, scoreSnap, "enrollment_failed");
   }
 
-  const patch = buildDealCompletionPatch(
-    data.dealerId,
-    eligibleIds,
-    sortedIds,
-    Date.now(),
-    dealingRule,
-    { scoreById, sessionStake, buyIn, carryIn: data.carryOverPot || 0, handCount: data.handCount || 0 },
+  const dealContextBase = {
+    scoreById,
+    sessionStake,
+    buyIn,
+    carryIn: data.carryOverPot || 0,
+    handCount: data.handCount || 0,
+  };
+  await runEnrollmentStepTransaction(
+    roomId,
+    sessionId,
+    (freshData) => {
+      if (sessionHandDealStarted(freshData)) return null;
+      const freshHand = freshData.currentHand || emptyPreDealHand();
+      const freshPhase = freshHand.phase ?? null;
+      const freshPids = freshHand.participantIds || [];
+      const freshTricks = freshHand.tricksByPlayer || {};
+      const freshTrickProgress = Object.values(freshTricks).some((n) => (n || 0) > 0);
+      if (freshPids.length > 0 && !freshPhase && !freshTrickProgress) return null;
+      if (freshPids.length > 0 && handPhaseStarted(freshHand)) return null;
+      return buildDealCompletionPatch(
+        freshData.dealerId,
+        eligibleIds,
+        sortedIds,
+        Date.now(),
+        dealingRule,
+        {
+          ...dealContextBase,
+          carryIn: freshData.carryOverPot || 0,
+          handCount: freshData.handCount || 0,
+        },
+      );
+    },
+    { requirePatch: true },
   );
-  await runEnrollmentStepTransaction(roomId, sessionId, () => patch, { requirePatch: true });
   logHandLifecycleTransition({
     from: "handoffToNextDeal",
     to: "reveal",

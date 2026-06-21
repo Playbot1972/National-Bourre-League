@@ -116,10 +116,8 @@ jobs:
 
       - name: Deploy Firestore rules
         if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
         run: npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
         run: npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}"
