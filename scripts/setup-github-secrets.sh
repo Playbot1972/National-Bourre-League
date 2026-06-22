@@ -46,8 +46,12 @@ fi
 
 if [[ ! -f "${KEY_FILE}" ]]; then
   echo "==> Missing service account key: ${KEY_FILE}"
+  echo "    Create it: npm run setup:service-account -- ${PROJECT_ID}"
   exit 1
 fi
+
+echo "==> Validating service account key…"
+node scripts/validate-service-account-key.mjs "${KEY_FILE}" --project "${PROJECT_ID}"
 
 FIREBASE_API_KEY="$(node --input-type=module -e "
 import { readFileSync } from 'node:fs';

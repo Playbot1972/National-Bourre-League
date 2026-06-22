@@ -35,6 +35,7 @@ _gcloud_try_known_locations() {
     "/usr/local/Caskroom/google-cloud-sdk/latest/google-cloud-sdk"
     "/usr/local/share/google-cloud-sdk"
     "${HOME}/google-cloud-sdk"
+    "${HOME}/google-cloud-sdk/google-cloud-sdk"
   )
 
   for dir in "${dirs[@]}"; do
@@ -71,6 +72,10 @@ ensure_gcloud() {
       return 1
     fi
     _gcloud_try_known_locations && return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    echo "    Install gcloud: https://cloud.google.com/sdk/docs/install#linux"
   else
     echo "    Homebrew not found."
   fi

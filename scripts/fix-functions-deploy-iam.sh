@@ -2,7 +2,8 @@
 # Grant missing IAM for GitHub Actions Cloud Functions deploy.
 # Run once as a project Owner after setup-service-account.sh created github-firebase-deploy.
 #
-# Usage: ./scripts/fix-functions-deploy-iam.sh [project-id]
+# Usage (from repo root):
+#   ./scripts/fix-functions-deploy-iam.sh [project-id]
 
 set -euo pipefail
 
@@ -13,11 +14,29 @@ APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 cd "$ROOT"
+
 # shellcheck disable=SC1091
 source "${ROOT}/scripts/lib/gcloud-path.sh"
-ensure_gcloud
+if ! ensure_gcloud; then
+  echo "==> gcloud CLI required. Install, then:"
+  echo "  gcloud auth login"
+  echo "  gcloud config set project ${PROJECT_ID}"
+  echo "  ./scripts/fix-functions-deploy-iam.sh ${PROJECT_ID}"
+  exit 1
+fi
+
+if ! gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | grep -q .; then
+  echo "==> Not logged in to gcloud. Run:"
+  echo "  gcloud auth login"
+  exit 1
+fi
 
 gcloud config set project "${PROJECT_ID}"
+
+echo "==> Deploy service account: ${SA_EMAIL}"
+if [[ -f "${ROOT}/.firebase-sa-key.json" ]]; then
+  node scripts/validate-service-account-key.mjs "${ROOT}/.firebase-sa-key.json" --project "${PROJECT_ID}" || true
+fi
 
 echo "==> Project roles for ${SA_EMAIL}"
 for ROLE in \
@@ -37,4 +56,6 @@ gcloud iam service-accounts add-iam-policy-binding "${APP_ENGINE_SA}" \
   --quiet >/dev/null
 
 echo ""
-echo "Done. Re-run Deploy to Firebase in GitHub Actions (workflow_dispatch on main)."
+echo "Done. Re-run deploy:"
+echo "  gh workflow run deploy.yml --ref main"
+echo "  or: npm run fix:deploy"
