@@ -197,7 +197,8 @@ describe("settlement copy — vote feedback and history", () => {
     assert.match(line, /3 players$/);
   });
 
-  it("bourrePlayerIds finds zero-trick participants", () => {
+  it("bourrePlayerIds finds zero-trick participants only after hand completes", () => {
+    assert.deepEqual(bourrePlayerIds({ p1: 0, p2: 0 }, ["p1", "p2"]), []);
     assert.deepEqual(
       bourrePlayerIds({ p1: 3, p2: 2, p3: 0 }, ["p1", "p2", "p3"]),
       ["p3"],

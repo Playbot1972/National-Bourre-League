@@ -75,8 +75,26 @@ export function computeHandPotState({ anteAmount, limEnabled = false, carryIn = 
   };
 }
 
-function bourrePlayerIds(tricksByPlayer, participants) {
-  if (!tricksByPlayer) return [];
+export const MAX_TRICKS_PER_HAND = 5;
+
+export function totalTricksPlayed(tricksByPlayer, participantIds) {
+  return (participantIds || []).reduce(
+    (sum, pid) => sum + (tricksByPlayer?.[pid] ?? 0),
+    0,
+  );
+}
+
+export function isHandComplete(tricksByPlayer, participantIds) {
+  return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
+
+/**
+ * Players who stayed in and took zero tricks — only after the hand is complete.
+ * Zero tricks at deal start is not bourré.
+ */
+export function bourrePlayerIds(tricksByPlayer, participants) {
+  if (!tricksByPlayer || !participants?.length) return [];
+  if (!isHandComplete(tricksByPlayer, participants)) return [];
   return participants.filter((pid) => (tricksByPlayer[pid] ?? 0) === 0);
 }
 

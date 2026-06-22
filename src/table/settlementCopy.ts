@@ -1,5 +1,4 @@
-import { deriveWinnersFromTricks } from "./logic";
-import { formatRiskStake } from "./logic";
+import { deriveWinnersFromTricks, formatRiskStake, isHandComplete } from "./logic";
 
 export interface SettlementNameLookup {
   playerId: string;
@@ -43,11 +42,12 @@ function namesFor(ids: string[], players: SettlementNameLookup[]): string {
   return ids.map((id) => nameFor(id, players)).join(" & ");
 }
 
-/** Players who stayed in and took zero tricks. */
+/** Players who stayed in and took zero tricks — only after the hand is complete. */
 export function bourrePlayerIds(
   tricksByPlayer: Record<string, number>,
   participantIds: string[],
 ): string[] {
+  if (!isHandComplete(tricksByPlayer, participantIds)) return [];
   return participantIds.filter((pid) => (tricksByPlayer[pid] ?? 0) === 0);
 }
 
