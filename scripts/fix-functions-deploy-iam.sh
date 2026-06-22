@@ -33,6 +33,9 @@ fi
 
 gcloud config set project "${PROJECT_ID}"
 
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
 echo "==> Deploy service account: ${SA_EMAIL}"
 if [[ -f "${ROOT}/.firebase-sa-key.json" ]]; then
   node scripts/validate-service-account-key.mjs "${ROOT}/.firebase-sa-key.json" --project "${PROJECT_ID}"
@@ -49,11 +52,17 @@ for ROLE in \
   echo "    ${ROLE}"
 done
 
-echo "==> Service Account User on ${APP_ENGINE_SA}"
-gcloud iam service-accounts add-iam-policy-binding "${APP_ENGINE_SA}" \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role "roles/iam.serviceAccountUser" \
-  --quiet >/dev/null
+grant_service_account_user() {
+  local target_sa="$1"
+  echo "==> Service Account User on ${target_sa}"
+  gcloud iam service-accounts add-iam-policy-binding "${target_sa}" \
+    --member "serviceAccount:${SA_EMAIL}" \
+    --role "roles/iam.serviceAccountUser" \
+    --quiet >/dev/null
+}
+
+grant_service_account_user "${APP_ENGINE_SA}"
+grant_service_account_user "${COMPUTE_SA}"
 
 echo ""
 echo "Done. Re-run deploy:"
