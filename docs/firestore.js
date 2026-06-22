@@ -467,11 +467,9 @@ function stakeForPlayer(scoreById, playerId, sessionStake) {
   return Math.max(1, Number(n) || sessionStake);
 }
 
-/** Ante for the current hand (0 when bourré carry-over waived the next ante). */
+/** Ante for the current hand (0 when waived; bourré replacement when due). */
 export function playerHandStake(scoreById, playerId, sessionStake) {
-  const row = scoreById[playerId];
-  if (row?.skipNextAnte) return 0;
-  return stakeForPlayer(scoreById, playerId, sessionStake);
+  return handAnteContribution(scoreById[playerId], sessionStake);
 }
 
 export {
@@ -486,6 +484,7 @@ export {
   collectHandAntes,
   anteAlreadyPosted,
   applySolventSettlement,
+  handAnteContribution,
 } from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
@@ -1432,6 +1431,10 @@ function buildScorePatchesFromAnteCollection(collected, dealIds) {
       patch.out = true;
     } else if (dealIds.includes(pid)) {
       patch.out = deleteField();
+    }
+    if (collected.postedAntes[pid] != null) {
+      patch.bourreReplacementDue = deleteField();
+      patch.skipNextAnte = deleteField();
     }
     patches[pid] = patch;
   }
@@ -2397,8 +2400,11 @@ async function recordHandClient(
     if (current.skipNextAnte) {
       patch.skipNextAnte = deleteField();
     }
+    if (current.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = deleteField();
+    }
     if (bourreIds.includes(pid)) {
-      patch.skipNextAnte = true;
+      patch.bourreReplacementDue = potState.maxWinThisHand;
     }
     if (
       winners.includes(pid) &&

@@ -33,7 +33,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -314,6 +314,10 @@ function buildScorePatchesFromAnteCollection(collected, dealIds) {
       patch.out = true;
     } else if (dealIds.includes(pid)) {
       patch.out = FieldValue.delete();
+    }
+    if (collected.postedAntes[pid] != null) {
+      patch.bourreReplacementDue = FieldValue.delete();
+      patch.skipNextAnte = FieldValue.delete();
     }
     patches[pid] = patch;
   }
@@ -629,9 +633,7 @@ function stakeForPlayer(scoreById, playerId, sessionStake) {
 }
 
 function playerHandStake(scoreById, playerId, sessionStake) {
-  const row = scoreById[playerId];
-  if (row?.skipNextAnte) return 0;
-  return stakeForPlayer(scoreById, playerId, sessionStake);
+  return handAnteContribution(scoreById[playerId], sessionStake);
 }
 
 function nextDealerId(scoreDocs, currentDealerId, sessionData) {
@@ -1632,8 +1634,11 @@ export async function handleRecordHand(
       patch.out = FieldValue.delete();
     }
     if (current.skipNextAnte) patch.skipNextAnte = FieldValue.delete();
+    if (current.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = FieldValue.delete();
+    }
     if (bourreIds.includes(pid)) {
-      patch.skipNextAnte = true;
+      patch.bourreReplacementDue = potState.maxWinThisHand;
     }
     if (
       winners.includes(pid) &&

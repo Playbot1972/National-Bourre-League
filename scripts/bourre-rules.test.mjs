@@ -11,6 +11,7 @@ import {
   collectHandAntes,
   scoreBankroll,
   settleSoloDefaultWin,
+  handAnteContribution,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
 
@@ -94,7 +95,9 @@ describe("E — pot and bourré settlement", () => {
     assert.ok(result.deltas.p1 > 0);
     assert.ok(result.deltas.p2 < 0);
     assert.ok(result.bourreIds.includes("p3"));
-    assert.ok(result.deltas.p3 < result.deltas.p2);
+    assert.equal(result.deltas.p3, -1);
+    assert.equal(result.deltas.p2, -1);
+    assert.equal(result.carryOverPot, 0);
   });
 
   it("split settlement divides max win among co-winners", () => {
@@ -176,7 +179,7 @@ describe("bankroll solvency", () => {
     assert.equal(result.busted, true);
   });
 
-  it("applySolventSettlement marks insolvent bourré player out", () => {
+  it("applySolventSettlement defers bourré pot match to the next deal", () => {
     const participants = ["p1", "p2", "p3"];
     const nominal = settleHandDeltas({
       mode: "win",
@@ -203,10 +206,21 @@ describe("bankroll solvency", () => {
       buyInFallback: 10,
       stakeForPlayer: () => 1,
     });
-    assert.equal(solvent.bankrolls.p3, 0);
-    assert.ok(solvent.outIds.includes("p3"));
-    assert.ok(solvent.bustedIds.includes("p3"));
-    assert.ok(solvent.appliedDeltas.p3 > nominal.deltas.p3);
+    assert.equal(solvent.bankrolls.p3, 1);
+    assert.equal(solvent.appliedDeltas.p3, -1);
+    assert.ok(!solvent.bustedIds.includes("p3"));
+  });
+
+  it("bourré replacement can bust a short bankroll on the next deal", () => {
+    const collected = collectHandAntes({
+      participants: ["p3"],
+      scoreById: { p3: { bankroll: 2, bourreReplacementDue: 5 } },
+      buyInFallback: 10,
+      stakeForPlayer: (pid) => handAnteContribution({ bourreReplacementDue: 5 }, 1),
+    });
+    assert.equal(collected.bankrolls.p3, 0);
+    assert.ok(collected.outIds.includes("p3"));
+    assert.equal(collected.postedAntes.p3, 2);
   });
 
   it("canEnrollWithBankroll blocks zero stack", () => {
@@ -220,6 +234,32 @@ describe("bankroll solvency", () => {
     assert.equal(scoreBankroll({ bankroll: 20, net: -8 }, buyIn), 12);
     assert.equal(scoreBankroll({ bankroll: 25, net: 5 }, buyIn), 25);
     assert.equal(scoreBankroll({ bankroll: 0, net: -20 }, buyIn), 0);
+  });
+
+  it("handAnteContribution charges bourré replacement without normal ante", () => {
+    assert.equal(handAnteContribution({ bourreReplacementDue: 5 }, 1), 5);
+    assert.equal(handAnteContribution({ bourreReplacementDue: 5, skipNextAnte: true }, 1), 5);
+    assert.equal(handAnteContribution({ skipNextAnte: true }, 1), 0);
+    assert.equal(handAnteContribution({}, 1), 1);
+  });
+
+  it("bourré player posts replacement only on the next deal", () => {
+    const scoreById = {
+      p1: { bankroll: 20, net: 0 },
+      p2: { bankroll: 20, net: 0 },
+      p3: { bankroll: 20, net: 0, bourreReplacementDue: 5 },
+    };
+    const result = collectHandAntes({
+      participants: ["p1", "p2", "p3"],
+      scoreById,
+      buyInFallback: 10,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], 1),
+    });
+    assert.equal(result.postedAntes.p1, 1);
+    assert.equal(result.postedAntes.p2, 1);
+    assert.equal(result.postedAntes.p3, 5);
+    const antePot = Object.values(result.postedAntes).reduce((sum, n) => sum + n, 0);
+    assert.equal(antePot, 7);
   });
 
   it("collectHandAntes deducts ante at deal and marks busted players out", () => {

@@ -43,38 +43,30 @@ export function findTrumpDisplayIndex(
 
 export function effectiveIndexToDisplayIndex(
   effectiveIndex: number,
-  trumpDisplayIndex: number | null,
+  _trumpDisplayIndex: number | null,
 ): number {
-  if (trumpDisplayIndex === null) return effectiveIndex;
-  return effectiveIndex >= trumpDisplayIndex ? effectiveIndex + 1 : effectiveIndex;
+  return effectiveIndex;
 }
 
 export function displayIndexToEffectiveIndex(
   displayIndex: number,
-  trumpDisplayIndex: number | null,
-): number | null {
-  if (trumpDisplayIndex === null) return displayIndex;
-  if (displayIndex === trumpDisplayIndex) return null;
-  return displayIndex > trumpDisplayIndex ? displayIndex - 1 : displayIndex;
+  _trumpDisplayIndex: number | null,
+): number {
+  return displayIndex;
 }
 
 export function mapEffectiveIndicesToDisplay(
   effectiveIndices: number[],
-  trumpDisplayIndex: number | null,
+  _trumpDisplayIndex: number | null,
 ): number[] {
-  if (trumpDisplayIndex === null) return [...effectiveIndices];
-  return effectiveIndices.map((i) => effectiveIndexToDisplayIndex(i, trumpDisplayIndex));
+  return [...effectiveIndices];
 }
 
 export function mapDisplayIndicesToEffective(
   displayIndices: number[],
-  trumpDisplayIndex: number | null,
+  _trumpDisplayIndex: number | null,
 ): number[] {
-  if (trumpDisplayIndex === null) return [...displayIndices].sort((a, b) => a - b);
-  return displayIndices
-    .map((i) => displayIndexToEffectiveIndex(i, trumpDisplayIndex))
-    .filter((i): i is number => i !== null)
-    .sort((a, b) => a - b);
+  return [...displayIndices].sort((a, b) => a - b);
 }
 
 /**
@@ -126,7 +118,12 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
     trumpMergedIntoHand,
     hideCenterTrumpForHolder: holderPresentation.hideCenterTrump,
     showTrumpSuitReminder: holderPresentation.showTrumpSuitReminder,
-    trumpDisabledIndex: trumpIndex,
+    trumpDisabledIndex:
+      input.phase === "draw" &&
+      !trumpRevealActive &&
+      !trumpMergeActive
+        ? null
+        : trumpIndex,
     indexMode: "display",
   };
 }

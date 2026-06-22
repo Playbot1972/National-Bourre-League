@@ -89,7 +89,7 @@ describe("C — draw / discard phase", () => {
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
     const effective = effectivePlayerHand("p1", deal.privateHands.p1, pub);
-    assert.equal(effective.length, 4);
+    assert.equal(effective.length, 5);
     const result = applyPlayerDraw({
       playerId: "p1",
       privateHand: deal.privateHands.p1,
@@ -100,6 +100,30 @@ describe("C — draw / discard phase", () => {
       maxDiscards: 4,
     });
     assert.ok(result.publicHand.trumpUpcard);
+  });
+
+  it("dealer can discard the revealed trump card during draw", () => {
+    const deal = dealForTest();
+    const pub = publicHandFromDeal(deal);
+    const deck = shuffledDeckFromSeed(deal.deckSeed);
+    const effective = effectivePlayerHand("p1", deal.privateHands.p1, pub);
+    const trumpIdx = effective.findIndex(
+      (c) => c.rank === pub.trumpUpcard?.rank && c.suit === pub.trumpUpcard?.suit,
+    );
+    assert.ok(trumpIdx >= 0);
+    const result = applyPlayerDraw({
+      playerId: "p1",
+      privateHand: deal.privateHands.p1,
+      publicHand: pub,
+      discardIndices: [trumpIdx],
+      deck,
+      deckNextIndex: deal.deckNextIndex,
+      maxDiscards: 4,
+    });
+    assert.equal(result.publicHand.trumpUpcard, null);
+    assert.equal(result.publicHand.trumpSuit, pub.trumpSuit);
+    assert.equal(result.privateHand.length, 5);
+    assert.equal(result.discarded, 1);
   });
 
   it("advanceAfterDraw transitions to play with correct lead", () => {

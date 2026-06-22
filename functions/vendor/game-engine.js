@@ -205,7 +205,7 @@ function k(e) {
 }
 function A(e, t, n) {
 	let r = [...t], i = O(n), a = n.trumpUpcard;
-	return !i || e !== i || !a ? r : r.some((e) => S(e, a)) ? r.filter((e) => !S(e, a)) : (r.push(a), r);
+	return !i || e !== i || !a || r.some((e) => S(e, a)) || r.push(a), r;
 }
 function j(e, t, n) {
 	let r = O(n), i = n.trumpUpcard;
@@ -517,7 +517,7 @@ function ve(e, t) {
 	let n = typeof t == "object" && t ? t.dealerId : t, r = typeof t == "object" && t ? t.actionOrder : e.dealOrder, i = typeof t == "object" && t && t.maxDrawDiscards != null ? t.maxDrawDiscards : b(e.participantIds.length), a = typeof t == "object" && t ? t.cinchEnabled === !0 : !1, o = typeof t == "object" && t && t.initialPhase ? t.initialPhase : N.DRAW, s = typeof t == "object" && t ? t.handDecision ?? null : null, c = {
 		phase: o,
 		participantIds: [...e.participantIds],
-		seatedIds: typeof t == "object" && t.seatedIds?.length ? [...t.seatedIds] : [...e.participantIds],
+		seatedIds: typeof t == "object" && t && t.seatedIds?.length ? [...t.seatedIds] : [...e.participantIds],
 		dealerId: n,
 		trumpHolderId: e.trumpHolderId,
 		trumpSuit: e.trumpSuit,
