@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase-admin/app";
 import { onCall } from "firebase-functions/v2/https";
+import { setGlobalOptions } from "firebase-functions/v2/options";
 import { getFirestore } from "firebase-admin/firestore";
 import {
   handleAdvanceBots,
@@ -15,6 +16,17 @@ import {
 } from "./gameHandlers.js";
 
 initializeApp();
+
+const projectId =
+  process.env.GCLOUD_PROJECT ||
+  process.env.GOOGLE_CLOUD_PROJECT ||
+  process.env.GCP_PROJECT ||
+  "national-bourre-league";
+
+// Gen2 defaults to the Compute Engine SA; our deploy SA already has actAs on App Engine default.
+setGlobalOptions({
+  serviceAccount: `${projectId}@appspot.gserviceaccount.com`,
+});
 
 const db = getFirestore();
 

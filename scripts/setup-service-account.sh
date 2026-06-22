@@ -76,12 +76,21 @@ done
 echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer + Service Usage Viewer"
 
 APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
-echo "==> Granting Service Account User on ${APP_ENGINE_SA} (required for functions deploy)…"
-gcloud iam service-accounts add-iam-policy-binding "${APP_ENGINE_SA}" \
-  --member "serviceAccount:${SA_EMAIL}" \
-  --role "roles/iam.serviceAccountUser" \
-  --quiet >/dev/null
-echo "    Service Account User on App Engine default service account"
+PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+
+grant_service_account_user() {
+  local target_sa="$1"
+  echo "==> Granting Service Account User on ${target_sa}…"
+  gcloud iam service-accounts add-iam-policy-binding "${target_sa}" \
+    --member "serviceAccount:${SA_EMAIL}" \
+    --role "roles/iam.serviceAccountUser" \
+    --quiet >/dev/null
+}
+
+grant_service_account_user "${APP_ENGINE_SA}"
+grant_service_account_user "${COMPUTE_SA}"
+echo "    Service Account User on App Engine + Compute default service accounts"
 
 if [[ -f "${KEY_FILE}" ]]; then
   if [[ "${FORCE}" == "1" ]]; then
