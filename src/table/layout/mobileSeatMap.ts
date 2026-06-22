@@ -1,4 +1,5 @@
 import type { SeatPlacement, SeatRegion } from "../logic";
+import { seatPosition } from "../logic";
 
 export type MobileOrientation = "portrait" | "landscape";
 
@@ -19,6 +20,16 @@ export function mobileTableAspect(opponentCount: number, orientation: MobileOrie
   return 1.26;
 }
 
+/** Local player on the bottom rail — cap Y so avatar/stack stay inside the mobile felt. */
+export function mobileSelfSeatPosition(total: number): SeatPlacement {
+  const base = seatPosition(0, Math.max(2, total));
+  return {
+    x: base.x,
+    y: Math.min(base.y, 88),
+    region: "bottom",
+  };
+}
+
 function regionFromAngle(deg: number): SeatRegion {
   const d = ((deg % 360) + 360) % 360;
   if (d >= 30 && d <= 150) return "top";
@@ -28,7 +39,7 @@ function regionFromAngle(deg: number): SeatRegion {
 }
 
 /**
- * Opponent-only seat map for mobile — hero sits in the bottom dock, not on the felt.
+ * Opponent arc for mobile — local player is rendered separately on the bottom rail.
  * Index 0 = leftmost opponent (portrait) or first clockwise from top-left (landscape).
  */
 export function mobileOpponentSeatPosition(

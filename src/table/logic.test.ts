@@ -11,6 +11,7 @@ import {
   tricksToWinHint,
   displayLiveBankroll,
 } from "./logic";
+import { mobileSelfSeatPosition } from "./layout/mobileSeatMap";
 
 describe("table logic — tricks and winners", () => {
   it("totalTricksPlayed sums participant tricks", () => {
@@ -98,6 +99,15 @@ describe("G — seat layout helpers", () => {
     const two = seatPosition(0, 2);
     const eight = seatPosition(0, 8);
     assert.ok(Math.abs(two.x - 50) > Math.abs(eight.x - 50) - 2);
+  });
+});
+
+describe("mobileSelfSeatPosition", () => {
+  it("keeps the local seat inside the mobile felt", () => {
+    const pos = mobileSelfSeatPosition(4);
+    assert.equal(pos.region, "bottom");
+    assert.ok(pos.y <= 88);
+    assert.ok(pos.y >= 70);
   });
 });
 

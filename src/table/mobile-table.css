@@ -176,6 +176,10 @@
   aspect-ratio: var(--table-aspect) / 1;
 }
 
+.btable-mobile-wrap .bseat--self {
+  z-index: 9;
+}
+
 .btable-mobile-oval {
   inset: 3.5% 2% 4% 2%;
 }

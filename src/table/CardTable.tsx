@@ -79,7 +79,14 @@ export function CardTable({
   onPlayCard,
   onReaction,
 }: CardTableProps) {
-  const ordered = [...players].sort((a, b) => {
+  const feltPlayers = players.map((player) => ({
+    ...player,
+    isSelf:
+      player.isSelf ||
+      (currentUserId != null && player.playerId === currentUserId),
+  }));
+
+  const ordered = [...feltPlayers].sort((a, b) => {
     if (a.isSelf) return -1;
     if (b.isSelf) return 1;
     return a.displayName.localeCompare(b.displayName);
@@ -94,7 +101,7 @@ export function CardTable({
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = tableAspectForPlayers(playerCount);
-  const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
+  const playerNames = Object.fromEntries(feltPlayers.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
   const sessionKey = `${session.sessionId}:${session.handNumber}`;
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
@@ -108,7 +115,7 @@ export function CardTable({
       ),
     ),
   );
-  const displayPlayers = players.map((player) => {
+  const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
     const suppressTurn =
@@ -158,7 +165,7 @@ export function CardTable({
       bourrePressure: bourreRiskIds.has(player.playerId),
     };
   });
-  const selfPlayer = players.find((p) => p.isSelf);
+  const selfPlayer = feltPlayers.find((p) => p.isSelf);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const drawCompleted =
