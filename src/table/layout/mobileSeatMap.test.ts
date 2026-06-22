@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mobileOpponentSeatPosition, mobileSelfSeatPosition, mobileTableAspect } from "./mobileSeatMap";
+import { mobileOpponentSeatPosition, mobileSelfSeatPosition, mobileTableAspect, buildSevenPlayerMobileSeatMap } from "./mobileSeatMap";
 import { resolveMobileOpponentLayout } from "./seatLayout";
 
 describe("mobile seat map", () => {
@@ -25,10 +25,21 @@ describe("mobile seat map", () => {
     }
   });
 
-  it("uses the same clockwise ring as desktop seatPosition", () => {
+  it("uses the same clockwise ring as desktop seatPosition for non-preset tables", () => {
     const mobile = resolveMobileOpponentLayout(0, 4, "portrait");
     const desktop = mobileOpponentSeatPosition(0, 3, "portrait");
     assert.equal(mobile.region, desktop.region);
+  });
+
+  it("7-player portrait uses explicit bottom corners below hero", () => {
+    const map = buildSevenPlayerMobileSeatMap("portrait");
+    const hero = map[0]!;
+    const bot1 = map[1]!;
+    const bot6 = map[6]!;
+    assert.ok(bot1.y > hero.y);
+    assert.ok(bot6.y > hero.y);
+    assert.ok(bot1.y > 85);
+    assert.ok(bot6.y > 85);
   });
 
   it("keeps local seat inside the mobile felt", () => {

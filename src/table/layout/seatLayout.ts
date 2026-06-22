@@ -1,6 +1,10 @@
 import type { SeatPlacement, SeatRegion } from "../logic";
 import { seatPosition } from "../logic";
 import type { MobileOrientation } from "./mobileSeatMap";
+import {
+  isSevenPlayerMobile,
+  resolveSevenPlayerMobileSeat,
+} from "./sevenPlayerMobileSeatMap";
 
 export type HandLane = "below" | "side";
 
@@ -53,6 +57,17 @@ export function resolveSeatLayout(
   total: number,
   opts: { isMobile: boolean; isSelf: boolean; orientation?: MobileOrientation },
 ): ResolvedSeatLayout {
+  if (
+    opts.isMobile &&
+    opts.orientation &&
+    isSevenPlayerMobile(total)
+  ) {
+    const preset = resolveSevenPlayerMobileSeat(seatIndex, opts.orientation, {
+      isSelf: opts.isSelf,
+    });
+    if (preset) return preset;
+  }
+
   const placement = seatPosition(seatIndex, total);
   const bounded =
     opts.isMobile && opts.orientation
@@ -84,7 +99,15 @@ export function resolveMobileOpponentLayout(
 }
 
 /** Mobile hero rail — always bottom center. */
-export function resolveMobileSelfLayout(totalPlayers: number): ResolvedSeatLayout {
+export function resolveMobileSelfLayout(
+  totalPlayers: number,
+  orientation: MobileOrientation = "portrait",
+): ResolvedSeatLayout {
+  if (isSevenPlayerMobile(totalPlayers)) {
+    const preset = resolveSevenPlayerMobileSeat(0, orientation, { isSelf: true });
+    if (preset) return preset;
+  }
+
   const base = seatPosition(0, Math.max(2, totalPlayers));
   const placement: SeatPlacement = {
     x: base.x,
