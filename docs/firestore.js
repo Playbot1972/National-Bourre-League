@@ -368,6 +368,31 @@ function isRoomMembershipError(err) {
 /** Five tricks per hand; winner is whoever takes the most (plurality). */
 export const MAX_TRICKS_PER_HAND = 5;
 
+/** Full table — host + guests + robots (matches table UI and deck layout). */
+export const MAX_TABLE_PLAYERS = 8;
+
+/** Map Firebase / callable errors to player-friendly copy. */
+export function formatClientGameError(err, fallback = "Something went wrong — try again.") {
+  const code = String(err?.code ?? "");
+  const msg = String(err?.message ?? err ?? "").trim();
+  const lower = msg.toLowerCase();
+  if (
+    code === "functions/internal" ||
+    code === "functions/unknown" ||
+    lower === "internal" ||
+    lower.includes("internal error")
+  ) {
+    return "The server could not finish that table action. Refresh the page and try again.";
+  }
+  if (isCloudFunctionUnavailable(err)) {
+    return "The game server is temporarily unavailable. Refresh and try again.";
+  }
+  if (isEnrollmentPermissionError(err) || isPermissionDenied(err)) {
+    return "Permission denied — refresh the page and try again.";
+  }
+  return msg || fallback;
+}
+
 /** Smallest count that can still win with n players in a full hand (plurality hint). */
 export function tricksToWinHint(playerCount, totalTricks = MAX_TRICKS_PER_HAND) {
   const n = Math.max(2, playerCount || 2);
@@ -2947,6 +2972,9 @@ export async function ensureSessionPlayer(
 
   const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
   const rosterIds = seatPlayerIds(sessionData, allScoresSnap);
+  if (!rosterIds.includes(playerId) && rosterIds.length >= MAX_TABLE_PLAYERS) {
+    throw new Error(`This table is full (${MAX_TABLE_PLAYERS} players max). Remove a guest or robot first.`);
+  }
   const sortedIds = rosterIds.includes(playerId) ? rosterIds : [...rosterIds, playerId];
 
   const sessionPatch = {
