@@ -11852,8 +11852,8 @@ var al = {
 		region: "bottom"
 	},
 	1: {
-		x: 8,
-		y: 91,
+		x: 4,
+		y: 94,
 		region: "bottom"
 	},
 	2: {
@@ -11882,9 +11882,9 @@ var al = {
 		region: "right"
 	},
 	7: {
-		x: 92,
-		y: 91,
-		region: "right"
+		x: 96,
+		y: 94,
+		region: "bottom"
 	}
 }, ol = {
 	0: {
@@ -11893,8 +11893,8 @@ var al = {
 		region: "bottom"
 	},
 	1: {
-		x: 8,
-		y: 91,
+		x: 4,
+		y: 94,
 		region: "bottom"
 	},
 	2: {
@@ -11918,9 +11918,9 @@ var al = {
 		region: "top"
 	},
 	6: {
-		x: 92,
-		y: 91,
-		region: "right"
+		x: 96,
+		y: 94,
+		region: "bottom"
 	}
 };
 function sl(e, t) {
