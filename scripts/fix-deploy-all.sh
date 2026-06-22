@@ -42,15 +42,15 @@ node scripts/validate-service-account-key.mjs "${KEY_FILE}" --project "${PROJECT
 
 echo ""
 echo "==> [2/5] Enable Cloud Functions APIs"
-"${ROOT}/scripts/enable-functions-apis.sh" "${PROJECT_ID}"
+bash "${ROOT}/scripts/enable-functions-apis.sh" "${PROJECT_ID}"
 
 echo ""
 echo "==> [3/5] Fix Cloud Functions deploy IAM"
-"${ROOT}/scripts/fix-functions-deploy-iam.sh" "${PROJECT_ID}"
+bash "${ROOT}/scripts/fix-functions-deploy-iam.sh" "${PROJECT_ID}"
 
 echo ""
 echo "==> [4/5] Sync GitHub secret FIREBASE_SERVICE_ACCOUNT"
-KEY_FILE="${KEY_FILE}" "${ROOT}/scripts/sync-github-sa-secret.sh" "${PROJECT_ID}"
+KEY_FILE="${KEY_FILE}" bash "${ROOT}/scripts/sync-github-sa-secret.sh" "${PROJECT_ID}"
 
 echo ""
 echo "==> [5/5] Trigger GitHub Actions deploy"
