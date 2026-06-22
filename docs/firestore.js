@@ -121,7 +121,6 @@ import {
   applyPlayerDraw,
   advanceAfterDraw,
   applyDrawFold,
-  revealToDraw,
   applyPlayerPlayCard,
   maxDrawDiscards,
   botDrawDiscardIndices,
@@ -3404,7 +3403,7 @@ async function advanceHandRevealClient(roomId, sessionId) {
     (sessionData) => {
       const hand = getSessionCurrentHand(sessionData);
       if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: revealToDraw(hand, dealingRule) };
+      return { currentHand: activateHandDecision(hand) };
     },
     { requirePatch: true },
   );

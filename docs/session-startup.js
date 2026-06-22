@@ -56,7 +56,10 @@ function l(e) {
 }
 function u(e) {
 	let n = e?.currentHand ?? r(), o = e?.liveEnrollment?.deal?.publicHand, l = o?.phase ?? null;
-	if (a(n) && a(o)) return s(n, o);
+	if (a(n) && a(o)) {
+		let e = n.phase === "reveal" || n.phase === "decision", r = o?.drawCompletedIds?.length ?? 0, i = n.drawCompletedIds?.length ?? 0, a = t(o?.tricksByPlayer ?? {}, o?.participantIds ?? []), c = t(n.tricksByPlayer ?? {}, n.participantIds ?? []);
+		return e && o?.phase === "draw" && c === 0 && a === 0 && r > 0 && i === 0 ? n : s(n, o);
+	}
 	if (a(n)) return n;
 	if (l === "draw" || l === "play" || l === "reveal" || l === "decision") {
 		if (a(o)) {
@@ -77,19 +80,34 @@ function d(t) {
 	let i = t?.liveEnrollment, a = i?.deal?.publicHand?.phase ?? null;
 	return i?.active ? i : a === "draw" || a === "play" || a === "reveal" || a === "decision" ? null : t?.handEnrollment?.active ? t.handEnrollment : t?.handEnrollment ?? null;
 }
+function f(e) {
+	return !e.cardsDealt && e.handParticipantCount === 0 && e.enrollmentActive;
+}
+function p(e, t) {
+	return e === "decision" && t?.active === !0;
+}
+function m(e) {
+	return e.legacyEnrollmentActive || e.pagatDecisionActive;
+}
+function h(e) {
+	return e.pagatDecisionActive && e.handDecision ? (e.handDecision.orderedPlayerIds ?? [])[e.handDecision.currentIndex ?? 0] ?? null : e.legacyEnrollmentActive && e.enrollment?.active ? (e.enrollment.orderedPlayerIds ?? [])[e.enrollment.currentIndex ?? 0] ?? null : null;
+}
+function g(e) {
+	return e.enrollmentGateActive && e.isSelf && !e.isFinal && e.playerId === e.currentChoicePlayerId && e.bankroll > 0 && !e.isOut;
+}
 //#endregion
 //#region src/session/tableStartup.ts
-function f(e) {
+function _(e) {
 	let t = e?.liveEnrollment?.deal?.publicHand;
 	return !t?.phase || d(e)?.active || e?.pendingCoWinSettlement || !i(e?.currentHand) ? !1 : n(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 }
-function p(e) {
+function v(e) {
 	if (!e?.liveEnrollment?.deal) return !1;
-	if (f(e)) return !0;
+	if (_(e)) return !0;
 	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
 	return (t === "draw" || t === "play") && !n ? i(e.currentHand) : t === "draw" || t === "play" ? !1 : i(e?.currentHand);
 }
-function m(e, t) {
+function y(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -119,10 +137,10 @@ function m(e, t) {
 		kind: "ready_mid_hand",
 		canOpenTable: !0,
 		needsEnrollment: !1,
-		shouldRepair: p(e),
+		shouldRepair: v(e),
 		reason: "hand_in_progress",
 		recovery: "refresh"
-	} : p(e) ? {
+	} : v(e) ? {
 		kind: "stale_live_deal",
 		canOpenTable: !0,
 		needsEnrollment: !0,
@@ -138,10 +156,10 @@ function m(e, t) {
 		recovery: "refresh"
 	};
 }
-function h(e) {
+function b(e) {
 	return e.needsEnrollment;
 }
-function g(e, t) {
+function x(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -156,4 +174,4 @@ function g(e, t) {
 	}
 }
 //#endregion
-export { m as analyzeTableStartup, u as authoritativeCurrentHand, c as handPhaseStarted, i as isClearedPreDealHand, f as isStaleLiveDealSnapshot, l as sessionHandDealStarted, p as shouldClearOrphanLiveEnrollment, h as tableStartupNeedsEnrollment, g as tableStartupUserMessage };
+export { y as analyzeTableStartup, u as authoritativeCurrentHand, g as canPlayerShowHandChoice, c as handPhaseStarted, i as isClearedPreDealHand, f as isLegacyEnrollmentActive, p as isPagatDecisionActive, _ as isStaleLiveDealSnapshot, h as resolveCurrentHandChoicePlayerId, m as resolveTableEnrollmentActive, l as sessionHandDealStarted, v as shouldClearOrphanLiveEnrollment, b as tableStartupNeedsEnrollment, x as tableStartupUserMessage };
