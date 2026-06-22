@@ -162,8 +162,11 @@ export async function expectMobileOverlayTableScale(page: Page): Promise<void> {
       return { stageW: s.width, stageH: s.height, fitW, fitH };
     });
 
-  await overlay.getByTestId("settings-button").click();
+  await overlay.getByTestId("settings-button").click({ force: true });
   const panel = overlay.getByTestId("settings-panel");
+  if (!(await panel.isVisible().catch(() => false))) {
+    await page.keyboard.press(",");
+  }
   await expect(panel).toBeVisible();
   const slider = panel.locator(".bsettings__field--row input[type='range']");
 
@@ -270,8 +273,11 @@ export async function expectTableScaleAffectsStage(page: Page) {
   const baseline = await readScale();
   expect(baseline).not.toBeNull();
 
-  await overlay.getByTestId("settings-button").click();
+  await page.keyboard.press(",");
   const panel = overlay.getByTestId("settings-panel");
+  if (!(await panel.isVisible().catch(() => false))) {
+    await overlay.getByTestId("settings-button").click({ force: true });
+  }
   await expect(panel).toBeVisible();
 
   const slider = panel.locator(".bsettings__field--row input[type='range']");

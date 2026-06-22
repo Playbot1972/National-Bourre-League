@@ -37,5 +37,41 @@ export function openingLeaderId(
   return order[0]!;
 }
 
+/** Full clockwise seat ring for a hand (prefer over participant join order). */
+export function resolveSeatRing(
+  hand: {
+    seatedIds?: string[];
+    actionOrder?: string[];
+    participantIds?: string[];
+  },
+  fallbackSortedPlayerIds?: string[],
+): string[] {
+  if (hand.seatedIds?.length) return hand.seatedIds;
+  if (fallbackSortedPlayerIds?.length) return fallbackSortedPlayerIds;
+  if (hand.actionOrder?.length) return hand.actionOrder;
+  return hand.participantIds ?? [];
+}
+
+/**
+ * Clockwise action order for draw/play — never fall back to raw participantIds
+ * (join order often lists the dealer first).
+ */
+export function resolveActionOrder(
+  hand: {
+    actionOrder?: string[];
+    participantIds?: string[];
+    dealerId?: string | null;
+    seatedIds?: string[];
+  },
+  fallbackSortedPlayerIds?: string[],
+): string[] {
+  const participantIds = hand.participantIds ?? [];
+  if (hand.actionOrder?.length) {
+    return hand.actionOrder.filter((id) => participantIds.includes(id));
+  }
+  const seatRing = resolveSeatRing(hand, fallbackSortedPlayerIds);
+  return activePlayerOrder(hand.dealerId, participantIds, seatRing);
+}
+
 /** Five cards per player in a standard Bourré deal. */
 export const CARDS_PER_PLAYER = 5;

@@ -31,6 +31,7 @@ import {
   currentDecisionPlayer,
   decisionAsEnrollmentView,
   buildHandDecision,
+  resolveActionOrder,
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
@@ -369,6 +370,7 @@ function buildDealCompletionPatch(
   const bundle = serializePagatRevealHand(deal, {
     dealerId,
     actionOrder: deal.dealOrder,
+    seatedIds: sortedPlayerIds,
     maxDrawDiscards: maxDrawDiscards(dealIds.length, dealingRule),
   });
   return {
@@ -528,9 +530,12 @@ function seatPlayerIds(sessionData, scoreDocs) {
   return [...fromSession, ...extras];
 }
 
-function actionOrderFromHand(currentHand) {
-  if (currentHand?.actionOrder?.length) return currentHand.actionOrder;
-  return currentHand?.participantIds || [];
+function actionOrderFromHand(currentHand, sortedPlayerIds) {
+  return resolveActionOrder(currentHand ?? {}, sortedPlayerIds);
+}
+
+function sortedPlayerIdsFromSession(sessionData) {
+  return sessionData?.liveEnrollment?.deal?.sortedPlayerIds ?? null;
 }
 
 function writePrivateHands(tx, db, roomId, sessionId, privateHandsByPlayer) {
@@ -1233,7 +1238,7 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
 
     let nextPublic = advanceAfterDraw(
       drawResult.publicHand,
-      actionOrderFromHand(currentHand),
+      actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
     nextPublic = {
@@ -1303,7 +1308,7 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
 
     const foldResult = applyDrawFold(
       currentHand,
-      actionOrderFromHand(currentHand),
+      actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
 
@@ -1375,7 +1380,7 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
       privateHand: hand,
       playerId,
       cardIndex,
-      actionOrder: actionOrderFromHand(currentHand),
+      actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       cinchEnabled: currentHand.cinchEnabled === true,
     });
 

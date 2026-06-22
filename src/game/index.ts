@@ -6,6 +6,8 @@ export {
   playerOrderFromDealer,
   activePlayerOrder,
   openingLeaderId,
+  resolveActionOrder,
+  resolveSeatRing,
   CARDS_PER_PLAYER,
 } from "./playerOrder";
 export {
@@ -34,6 +36,7 @@ export { maxDrawDiscards } from "./drawLimit";
 export {
   applyDraw,
   advanceAfterDraw,
+  firstUnresolvedDrawTurn,
   allDrawsComplete,
   nextPlayerInOrder,
   applyPlayerDraw,

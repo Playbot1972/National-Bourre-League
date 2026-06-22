@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 export async function emulatorReady(): Promise<boolean> {
   try {
@@ -30,6 +30,20 @@ async function signUpUser(page: Page, label: string) {
   await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
 }
 
+/** Open the protected Rooms view (nav renamed from legacy "Private Rooms" link). */
+export async function goToPrivateRooms(page: Page) {
+  const roomsView = page.locator("#view-rooms");
+  if (await roomsView.isVisible().catch(() => false)) return;
+
+  const navRooms = page.locator('a.nav__link[href="#rooms"]');
+  if (await navRooms.isVisible().catch(() => false)) {
+    await navRooms.click();
+  } else {
+    await page.getByRole("link", { name: /go to your rooms/i }).click();
+  }
+  await expect(roomsView).toBeVisible({ timeout: 15_000 });
+}
+
 export async function readRoomInviteCode(page: Page) {
   const codeEl = page.getByTestId("room-invite-code");
   await expect(codeEl).toBeVisible({ timeout: 15_000 });
@@ -39,15 +53,13 @@ export async function readRoomInviteCode(page: Page) {
 }
 
 export async function joinRoomWithCode(page: Page, code: string) {
-  await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
-  await expect(page.locator("#view-rooms")).toBeVisible();
+  await goToPrivateRooms(page);
   await page.getByTestId("join-code-input").fill(code.replace(/\s+/g, ""));
   await page.getByTestId("join-code-submit").click();
 }
 
 export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
-  await page.getByRole("link", { name: "Private Rooms", exact: true }).click();
-  await expect(page.locator("#view-rooms")).toBeVisible();
+  await goToPrivateRooms(page);
 
   const title = page.locator(".room-detail__title");
   const modal = page.locator("#create-room-modal");
@@ -106,10 +118,22 @@ export async function goToTable(page: Page) {
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 }
 
-async function isDrawPhaseReady(overlay: ReturnType<Page["locator"]>) {
-  const phaseTag =
-    (await overlay.locator(".btable-session__phase-tag").textContent().catch(() => "")) ?? "";
-  if (/draw/i.test(phaseTag)) return true;
+function tableOverlay(page: Page) {
+  return page.locator("#table-play-overlay");
+}
+
+async function readPhaseTag(overlay: Locator) {
+  return (
+    (await overlay.locator(".btable-session__phase-tag").textContent().catch(() => "")) ?? ""
+  ).trim();
+}
+
+async function isDrawPhaseReady(overlay: Locator) {
+  const phaseTag = await readPhaseTag(overlay);
+  if (/draw round/i.test(phaseTag)) return true;
+  if (await overlay.locator(".btable-session__phase-tag--draw").isVisible().catch(() => false)) {
+    return true;
+  }
   if (await overlay.getByTestId("trump-button").isVisible().catch(() => false)) return true;
   if (await overlay.getByTestId("draw-button").isVisible().catch(() => false)) return true;
   if (await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false)) return true;
@@ -117,46 +141,166 @@ async function isDrawPhaseReady(overlay: ReturnType<Page["locator"]>) {
   return /draw round|stand pat|discard/i.test(hero) && !/join window/i.test(hero);
 }
 
-/** Click I'm in when shown; wait until draw phase is active (not necessarily hero's draw turn). */
+async function isPlayPhaseReady(overlay: Locator) {
+  const phaseTag = await readPhaseTag(overlay);
+  if (/trick play/i.test(phaseTag)) return true;
+  return overlay.locator(".btable-session__phase-tag--play").isVisible().catch(() => false);
+}
+
+async function isRevealPhaseActive(overlay: Locator) {
+  const phaseTag = await readPhaseTag(overlay);
+  if (/dealing/i.test(phaseTag)) return true;
+  return overlay.locator(".btable-session__phase-tag--reveal").isVisible().catch(() => false);
+}
+
+/** Click enrollment / decision CTAs when shown. */
+async function tryHandEnrollmentActions(
+  page: Page,
+  overlay: Locator,
+  lastActionClick: { at: number },
+) {
+  const now = Date.now();
+  if (now - lastActionClick.at < 2500) return false;
+
+  const decisionImIn = overlay.getByTestId("decision-im-in-button");
+  if (await decisionImIn.isVisible().catch(() => false)) {
+    await decisionImIn.click();
+    lastActionClick.at = now;
+    await page.waitForTimeout(800);
+    return true;
+  }
+
+  const join = overlay
+    .getByTestId("join-button")
+    .or(overlay.getByTestId("seat-opt-in"))
+    .first();
+  if (await join.isVisible().catch(() => false)) {
+    await join.click();
+    lastActionClick.at = now;
+    await page.waitForTimeout(800);
+    return true;
+  }
+
+  return false;
+}
+
+/** Stand pat when the hero has the draw clock. */
+async function tryPassDraw(page: Page, overlay: Locator, lastActionClick: { at: number }) {
+  const now = Date.now();
+  if (now - lastActionClick.at < 1500) return false;
+
+  const passDraw = overlay
+    .getByTestId("pass-draw-button")
+    .or(overlay.getByRole("button", { name: /^stand pat$/i }));
+  const drawBtn = overlay.getByTestId("draw-button");
+  const target = (await passDraw.first().isVisible().catch(() => false))
+    ? passDraw.first()
+    : (await drawBtn.isVisible().catch(() => false))
+      ? drawBtn
+      : null;
+  if (!target) return false;
+
+  try {
+    await target.click({ timeout: 8000 });
+  } catch {
+    await target.click({ force: true, timeout: 3000 });
+  }
+  lastActionClick.at = now;
+  await page.waitForTimeout(900);
+
+  const heroError = await overlay.locator(".btable-hero__error").textContent().catch(() => "");
+  if (heroError && /not your turn|could not|failed|permission/i.test(heroError)) {
+    throw new Error(`Draw action failed: ${heroError}`);
+  }
+  return true;
+}
+
+function assertNoHandFailure(overlay: Locator, feedback: string) {
+  if (/permission|could not|failed/i.test(feedback)) {
+    throw new Error(`Hand action failed: ${feedback}`);
+  }
+}
+
+/**
+ * Wait through reveal (~5s trump hold), enrollment/decision, and draw opening.
+ * Does not complete every player's draw — use `advanceThroughDrawPhase` after this.
+ */
 export async function waitForDrawPhase(page: Page) {
-  const overlay = page.locator("#table-play-overlay");
+  const overlay = tableOverlay(page);
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 
   const deadline = Date.now() + 120_000;
-  let lastActionClick = 0;
+  const lastActionClick = { at: 0 };
   while (Date.now() < deadline) {
     if (await isDrawPhaseReady(overlay)) return;
 
-    const decisionImIn = overlay.getByTestId("decision-im-in-button");
-    const imOut = overlay.getByTestId("im-out-button");
-    const join = overlay
-      .getByTestId("join-button")
-      .or(overlay.getByTestId("seat-opt-in"))
-      .first();
-    const now = Date.now();
-
-    if (await decisionImIn.isVisible().catch(() => false) && now - lastActionClick > 2500) {
-      await decisionImIn.click();
-      lastActionClick = now;
-      await page.waitForTimeout(800);
+    if (await isRevealPhaseActive(overlay)) {
+      await page.waitForTimeout(600);
       continue;
     }
 
-    const joinVisible = await join.isVisible().catch(() => false);
-    if (joinVisible && now - lastActionClick > 2500) {
-      await join.click();
-      lastActionClick = now;
-      await page.waitForTimeout(800);
-      continue;
-    }
+    if (await tryHandEnrollmentActions(page, overlay, lastActionClick)) continue;
 
-    const feedback = (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
-    if (/permission|could not/i.test(feedback)) {
-      throw new Error(`Hand decision failed: ${feedback}`);
-    }
+    const feedback =
+      (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
+    assertNoHandFailure(overlay, feedback);
     await page.waitForTimeout(400);
   }
-  throw new Error("Draw phase did not start within 120s");
+
+  const phase = await readPhaseTag(overlay);
+  throw new Error(`Draw phase did not start within 120s (last phase: ${phase || "unknown"})`);
+}
+
+/** Pass hero draw turns and wait for bots until trick play begins. */
+export async function advanceThroughDrawPhase(page: Page) {
+  const overlay = tableOverlay(page);
+  const deadline = Date.now() + 120_000;
+  const lastActionClick = { at: 0 };
+
+  while (Date.now() < deadline) {
+    if (await isPlayPhaseReady(overlay)) return;
+
+    if (await tryPassDraw(page, overlay, lastActionClick)) continue;
+
+    const feedback =
+      (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
+    assertNoHandFailure(overlay, feedback);
+    await page.waitForTimeout(400);
+  }
+
+  const phase = await readPhaseTag(overlay);
+  throw new Error(`Play phase did not start within 120s (last phase: ${phase || "unknown"})`);
+}
+
+/** Wait until the live hand is in trick play (draw complete). */
+export async function waitForPlayPhase(page: Page) {
+  await waitForDrawPhase(page);
+  await advanceThroughDrawPhase(page);
+
+  const overlay = tableOverlay(page);
+  await expect(overlay.locator(".btable-session__phase-tag")).toContainText(/trick play/i, {
+    timeout: 15_000,
+  });
+}
+
+/** Dealer seat must not hold the opening lead on trick 1. */
+export async function expectOpeningLeadNotDealer(page: Page) {
+  const root = page.locator("#table-play-overlay, #table-root");
+  const dealer = root.locator(".bseat--dealer");
+  const onTurn = root.locator(".bseat--on-turn");
+
+  await expect(dealer).toHaveCount(1, { timeout: 15_000 });
+  await expect(onTurn).toHaveCount(1, { timeout: 15_000 });
+
+  const sameSeat = await page.evaluate(() => {
+    const scope =
+      document.querySelector("#table-play-overlay") ?? document.querySelector("#table-root");
+    if (!scope) return true;
+    const dealerEl = scope.querySelector(".bseat--dealer");
+    const turnEl = scope.querySelector(".bseat--on-turn");
+    return Boolean(dealerEl && turnEl && dealerEl === turnEl);
+  });
+  expect(sameSeat, "dealer must not lead trick 1").toBe(false);
 }
 
 /** @deprecated Use waitForDrawPhase */

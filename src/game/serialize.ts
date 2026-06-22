@@ -21,6 +21,8 @@ export function serializeCards(cards: Card[]) {
 export interface SerializeHandOptions {
   dealerId: string | null;
   actionOrder: string[];
+  /** Full clockwise table ring — used for left-of-dealer turns (not join order). */
+  seatedIds?: string[];
   maxDrawDiscards?: number;
   cinchEnabled?: boolean;
   /** Initial authoritative phase after deal (Pagat: reveal before decision). */
@@ -54,7 +56,10 @@ export function serializeHandState(
   const publicHand: PublicHandState = {
     phase: initialPhase,
     participantIds: [...deal.participantIds],
-    seatedIds: [...deal.participantIds],
+    seatedIds:
+      typeof options === "object" && options.seatedIds?.length
+        ? [...options.seatedIds]
+        : [...deal.participantIds],
     dealerId,
     trumpHolderId: deal.trumpHolderId,
     trumpSuit: deal.trumpSuit,

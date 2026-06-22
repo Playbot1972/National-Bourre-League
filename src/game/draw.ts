@@ -6,7 +6,7 @@ import {
   effectivePlayerHand,
   privateHandFromEffective,
 } from "./invariants";
-import { openingLeaderId } from "./playerOrder";
+import { openingLeaderId, resolveActionOrder, resolveSeatRing } from "./playerOrder";
 import { HAND_PHASE } from "./types";
 import type { Card } from "../types";
 import type { PublicHandState } from "./types";
@@ -66,6 +66,31 @@ export function nextPlayerInOrder(
   const idx = order.indexOf(currentPlayerId);
   if (idx < 0) return order[0] ?? null;
   return order[(idx + 1) % order.length] ?? null;
+}
+
+/** First draw turn — opens left of dealer, skipping seats already pat. */
+export function firstUnresolvedDrawTurn(
+  publicHand: PublicHandState,
+  playingIds: string[],
+  drawCompletedIds: string[],
+  fallbackSortedPlayerIds?: string[],
+): string | null {
+  const actionOrder = resolveActionOrder(publicHand, fallbackSortedPlayerIds).filter((id) =>
+    playingIds.includes(id),
+  );
+  const seatRing = resolveSeatRing(publicHand, fallbackSortedPlayerIds);
+  const start =
+    openingLeaderId(publicHand.dealerId, playingIds, seatRing) ?? actionOrder[0] ?? null;
+  if (!start) return null;
+  const startIdx = actionOrder.indexOf(start);
+  const ring =
+    startIdx >= 0
+      ? [...actionOrder.slice(startIdx), ...actionOrder.slice(0, startIdx)]
+      : actionOrder;
+  for (const id of ring) {
+    if (!drawCompletedIds.includes(id)) return id;
+  }
+  return start;
 }
 
 export function allDrawsComplete(
@@ -137,15 +162,11 @@ export function revealToDraw(
   dealingRule?: string | null,
 ): PublicHandState {
   const playingIds = [...hand.participantIds];
-  const actionOrder = (hand.actionOrder ?? hand.participantIds).filter((id) =>
-    playingIds.includes(id),
-  );
+  const actionOrder = resolveActionOrder(hand).filter((id) => playingIds.includes(id));
   const tricksByPlayer = Object.fromEntries(
     playingIds.map((id) => [id, hand.tricksByPlayer[id] ?? 0]),
   );
-  const seatRing = hand.seatedIds ?? hand.actionOrder ?? playingIds;
-  const firstTurn =
-    openingLeaderId(hand.dealerId, playingIds, seatRing) ?? actionOrder[0] ?? null;
+  const firstTurn = firstUnresolvedDrawTurn(hand, playingIds, []);
   return {
     ...hand,
     phase: HAND_PHASE.DRAW,
@@ -232,10 +253,10 @@ export function advanceAfterDraw(
     };
   }
 
-  const seatRing = publicHand.seatedIds ?? actionOrder ?? participantIds;
+  const seatRing = resolveSeatRing(publicHand);
   const leadPlayerId =
     openingLeaderId(publicHand.dealerId, participantIds, seatRing) ??
-    actionOrder[0] ??
+    resolveActionOrder(publicHand)[0] ??
     completingPlayerId;
   return {
     ...publicHand,
