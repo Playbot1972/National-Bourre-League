@@ -2473,11 +2473,12 @@ function processRobotActionsInner(s, scores) {
     const total = totalTricksPlayed(tricks, participants);
     if (total >= MAX_TRICKS_PER_HAND) return;
 
-    // Premium table: winner of trick 4 auto-leads trick 5 (final trick opener).
+    // Bots only: auto-lead trick 5 so the final trick does not stall on a robot seat.
     if (
       trickNum === 5 &&
       trickPlays === 0 &&
       turnId &&
+      isRobotPlayerId(turnId) &&
       participants.includes(turnId)
     ) {
       lastRobotTrickAt = now;
