@@ -124,7 +124,7 @@ jobs:
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         run: |
-          npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
+          npx firebase deploy --only functions --force --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
             echo "::error::Cloud Functions deploy failed."
             echo "IAM: npm run fix:deploy-iam (project Owner)"
             echo "Billing API: npm run enable:functions-apis (project Owner)"
