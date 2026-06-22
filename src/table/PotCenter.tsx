@@ -1,7 +1,7 @@
 import { PlayingCard } from "../components/PlayingCard";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
-import { formatRiskStake } from "./logic";
+import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
@@ -199,7 +199,7 @@ export function PotCenter({
           </div>
           <div className="bpot__stat" data-testid="ante-display">
             <dt>Ante</dt>
-            <dd>{formatRiskStake(potMetrics.anteAmount)}</dd>
+            <dd>{formatAnteStake(potMetrics.anteAmount)}</dd>
           </div>
           {potMetrics.limEnabled && (
             <>

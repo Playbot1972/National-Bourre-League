@@ -72,6 +72,17 @@ export function formatRiskStake(amount: number) {
   return `$${amount.toLocaleString("en-US")}`;
 }
 
+/** Read-only ante/stake label — concise dollars or cents, no parenthetical duplicate. */
+export function formatAnteStake(amount: number) {
+  const n = Math.round(Number(amount) * 100) / 100;
+  if (!Number.isFinite(n) || n <= 0) return "$0";
+  if (n < 1) return `${Math.round(n * 100)}¢`;
+  if (Math.round(n * 100) % 100 === 0) {
+    return `$${Math.round(n).toLocaleString("en-US")}`;
+  }
+  return `$${n.toFixed(2)}`;
+}
+
 export function formatNet(amount: number) {
   const n = Number(amount) || 0;
   if (n > 0) return `+${formatRiskStake(n)}`;
