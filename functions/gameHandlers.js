@@ -607,6 +607,22 @@ function writePrivateHands(tx, db, roomId, sessionId, privateHandsByPlayer) {
   }
 }
 
+/** Firestore transactions require every read before any write on touched docs. */
+async function primePatchScoreReads(tx, db, roomId, sessionId, patch) {
+  if (!patch?.scorePatches) return;
+  for (const playerId of Object.keys(patch.scorePatches)) {
+    await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
+  }
+}
+
+async function primeDealPatchReads(tx, db, roomId, sessionId, patch) {
+  await primePatchScoreReads(tx, db, roomId, sessionId, patch);
+  if (!patch?.privateHandsByPlayer) return;
+  for (const playerId of Object.keys(patch.privateHandsByPlayer)) {
+    await tx.get(privateHandRef(db, roomId, sessionId, playerId));
+  }
+}
+
 /** Keep liveEnrollment in sync with enrollment steps (client reads liveEnrollment first). */
 function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch) {
   if (patch.scorePatches) {
@@ -737,7 +753,7 @@ function tiesHouseRuleAllowsSplit(houseRules) {
   return text.includes("split evenly") || /\bsplit\b/.test(text);
 }
 
-const BOT_ADVANCE_MAX_STEPS = 48;
+const BOT_ADVANCE_MAX_STEPS = 64;
 
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
@@ -978,28 +994,17 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     await db.runTransaction(async (tx) => {
       const sessionSnap = await tx.get(ref);
       if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
-      if (autoPatch.scorePatches) {
-        for (const playerId of Object.keys(autoPatch.scorePatches)) {
-          await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
-        }
-      }
+      await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
       applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
     });
     await advanceBotsAfterAction(db, roomId, sessionId, actorId);
     return { status: "solo_win" };
   }
   if (autoPatch?.privateHandsByPlayer) {
-    const privatePlayerIds = Object.keys(autoPatch.privateHandsByPlayer);
-    const scorePatchIds = autoPatch.scorePatches ? Object.keys(autoPatch.scorePatches) : [];
     await db.runTransaction(async (tx) => {
       const sessionSnap = await tx.get(ref);
       if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
-      for (const playerId of [...new Set([...privatePlayerIds, ...scorePatchIds])]) {
-        await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
-      }
-      for (const playerId of privatePlayerIds) {
-        await tx.get(privateHandRef(db, roomId, sessionId, playerId));
-      }
+      await primeDealPatchReads(tx, db, roomId, sessionId, autoPatch);
       writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);
       applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
     });
@@ -1011,9 +1016,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       await db.runTransaction(async (tx) => {
         const sessionSnap = await tx.get(ref);
         if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
-        for (const playerId of Object.keys(autoPatch.scorePatches)) {
-          await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
-        }
+        await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
         for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
           tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
             ...scorePatch,
@@ -1087,6 +1090,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       buyIn,
       sessionStake,
     });
+    await primeDealPatchReads(tx, db, roomId, sessionId, patch);
     writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
     applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
     return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
@@ -1197,6 +1201,7 @@ export async function handleSetHandParticipation(
           buyIn,
           sessionStake,
         });
+        await primeDealPatchReads(tx, db, roomId, sessionId, patch);
         writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
         applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
         return { status: patch.privateHandsByPlayer ? "dealt" : "advanced" };
@@ -1216,6 +1221,7 @@ export async function handleSetHandParticipation(
         buyIn,
         sessionStake,
       });
+      await primeDealPatchReads(tx, db, roomId, sessionId, patch);
       writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
       applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch);
       return { status: patch.privateHandsByPlayer ? "dealt" : "advanced", joined: true };
@@ -1408,6 +1414,7 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
         buyIn,
       });
       if (!patch) throw new HttpsError("failed-precondition", "Could not settle solo win");
+      await primePatchScoreReads(tx, db, roomId, sessionId, patch);
       applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
       return { status: "solo_win", winnerId: foldResult.winnerId };
     }

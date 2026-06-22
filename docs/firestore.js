@@ -1040,6 +1040,20 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
   });
 }
 
+/** Firestore transactions require every read before any write on touched docs. */
+async function primeClientPatchReads(tx, roomId, sessionId, patch) {
+  if (patch?.scorePatches) {
+    for (const playerId of Object.keys(patch.scorePatches)) {
+      await tx.get(scoreDoc(roomId, sessionId, playerId));
+    }
+  }
+  if (patch?.privateHandsByPlayer) {
+    for (const playerId of Object.keys(patch.privateHandsByPlayer)) {
+      await tx.get(privateHandDoc(roomId, sessionId, playerId));
+    }
+  }
+}
+
 /** After client deal, mirror publicHand to currentHand when rules allow (trump UI on prod). */
 async function syncDealPublicHandBestEffort(roomId, sessionId, publicHand) {
   if (!publicHand?.phase) return;
@@ -1133,6 +1147,7 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
         dealPrivateHands = patch.privateHandsByPlayer;
         dealPublicHand = patch.currentHand ?? null;
       }
+      await primeClientPatchReads(tx, roomId, sessionId, patch);
       applyEnrollmentStepInTransaction(tx, ref, roomId, sessionId, patch, mode);
     });
   }
@@ -1664,6 +1679,7 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
         sessionStake,
         buyIn,
       });
+      await primeClientPatchReads(tx, roomId, sessionId, patch);
       applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
       return;
     }
@@ -1971,6 +1987,7 @@ async function runDecisionStepTransaction(roomId, sessionId, buildPatch, { requi
       return;
     }
     applied = true;
+    await primeClientPatchReads(tx, roomId, sessionId, patch);
     if (patch.scorePatches) {
       for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
         tx.update(scoreDoc(roomId, sessionId, playerId), {
