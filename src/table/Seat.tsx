@@ -2,12 +2,14 @@ import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
+import type { HandLane } from "./layout/seatLayout";
 import type { Rank, Suit } from "../types";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
   player: TablePlayer;
   region: SeatRegion;
+  handLane?: HandLane;
   style: CSSProperties;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
@@ -55,7 +57,7 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
   );
 }
 
-export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
+export function Seat({ player, region, handLane = "below", style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
   const [avatarPeek, setAvatarPeek] = useState(false);
   const toggleAvatarPeek = useCallback(() => {
     setAvatarPeek((open) => !open);
@@ -87,6 +89,7 @@ export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, 
       className={[
         "bseat",
         `bseat--${region}`,
+        handLane === "side" ? "bseat--hand-side" : "bseat--hand-below",
         `player-${region}`,
         player.inHand ? "bseat--in-hand" : "",
         player.isSelf ? "bseat--self" : "",

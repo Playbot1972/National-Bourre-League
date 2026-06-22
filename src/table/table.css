@@ -1275,27 +1275,61 @@
   transform: translate(-50%, -50%);
 }
 
-.bseat--bottom .bseat__hole-cards {
-  right: calc(100% + 6px);
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.bseat--top .bseat__hole-cards {
-  left: calc(100% + 6px);
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.bseat--left .bseat__hole-cards {
+/* Opponent default — hole cards below buy-in / seat info toward the felt */
+.bseat--hand-below:not(.bseat--self) .bseat__hole-cards {
   left: 50%;
-  bottom: calc(100% + 4px);
+  right: auto;
+  top: auto;
+  bottom: auto;
   transform: translateX(-50%);
 }
 
-.bseat--right .bseat__hole-cards {
+.bseat--hand-below.bseat--top:not(.bseat--self) .bseat__hole-cards {
+  top: calc(100% + 8px);
+}
+
+.bseat--hand-below.bseat--bottom:not(.bseat--self) .bseat__hole-cards {
+  top: calc(100% + 8px);
+}
+
+.bseat--hand-below.bseat--left:not(.bseat--self) .bseat__hole-cards {
+  top: calc(100% + 6px);
+}
+
+.bseat--hand-below.bseat--right:not(.bseat--self) .bseat__hole-cards {
+  top: calc(100% + 6px);
+}
+
+/* Side lane — only when the layout resolver opts in (tight side rails) */
+.bseat--hand-side.bseat--bottom .bseat__hole-cards {
+  right: calc(100% + 6px);
+  top: 50%;
+  left: auto;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+.bseat--hand-side.bseat--top .bseat__hole-cards {
+  left: calc(100% + 6px);
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  transform: translateY(-50%);
+}
+
+.bseat--hand-side.bseat--left .bseat__hole-cards {
+  left: 50%;
+  bottom: calc(100% + 4px);
+  top: auto;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.bseat--hand-side.bseat--right .bseat__hole-cards {
   left: 50%;
   top: calc(100% + 4px);
+  bottom: auto;
+  right: auto;
   transform: translateX(-50%);
 }
 
