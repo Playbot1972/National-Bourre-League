@@ -1198,7 +1198,7 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
-    if (!SERVER_HAND_AUTHORITY && enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
+    if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
         console.warn("enrollment timeout:", e);
         setTableActionFeedback({

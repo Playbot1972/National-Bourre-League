@@ -147,7 +147,14 @@ function isClearedPreDealHand(hand) {
 function handInProgress(hand) {
   if (!hand) return false;
   const phase = hand.phase ?? null;
-  if (phase !== "draw" && phase !== "play") return false;
+  if (
+    phase !== HAND_PHASE.DRAW &&
+    phase !== HAND_PHASE.PLAY &&
+    phase !== HAND_PHASE.REVEAL &&
+    phase !== HAND_PHASE.DECISION
+  ) {
+    return false;
+  }
   const participantIds = hand.participantIds ?? [];
   if (participantIds.length === 0) return false;
   const tricks = hand.tricksByPlayer ?? {};
@@ -159,10 +166,25 @@ function handInProgress(hand) {
 function handProgressScore(hand) {
   if (!hand) return 0;
   const phase = hand.phase ?? "";
-  let score = phase === "play" ? 1000 : phase === "draw" ? 100 : 0;
+  let score =
+    phase === HAND_PHASE.PLAY
+      ? 1000
+      : phase === HAND_PHASE.DRAW
+        ? 100
+        : phase === HAND_PHASE.DECISION
+          ? 50
+          : phase === HAND_PHASE.REVEAL
+            ? 25
+            : 0;
   score += (hand.drawCompletedIds?.length ?? 0) * 10;
   const participants = hand.participantIds ?? [];
   score += totalTricksPlayed(hand.tricksByPlayer ?? {}, participants);
+  const decision = hand.handDecision;
+  if (phase === HAND_PHASE.DECISION && decision) {
+    score += (decision.currentIndex ?? 0) * 5;
+    score += (decision.playingIds?.length ?? 0) * 2;
+    score += (decision.passedIds?.length ?? 0) * 2;
+  }
   return score;
 }
 
@@ -219,7 +241,7 @@ function authoritativeCurrentHand(sessionData) {
 
   if (handInProgress(current)) return current;
 
-  if (livePhase === "draw" || livePhase === "play") {
+  if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
     if (handInProgress(livePublic)) {
       const liveTricks = totalTricksPlayed(
         livePublic?.tricksByPlayer ?? {},
@@ -1016,10 +1038,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       const step = applyDecisionTimeout(hand, decision, dealContext);
       const patch = decisionStepPatch(step);
       if (!patch?.currentHand) return { status: "noop" };
-      tx.update(ref, {
-        currentHand: patch.currentHand,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      tx.update(ref, publicHandSessionUpdate(data, patch.currentHand));
       return { status: step.kind === "draw" ? "draw" : "advanced" };
     });
     await advanceBotsAfterAction(db, roomId, sessionId, actorId);
@@ -1072,10 +1091,7 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
     const nextHand = activateHandDecision(hand);
-    tx.update(ref, {
-      currentHand: nextHand,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
+    tx.update(ref, publicHandSessionUpdate(snap.data(), nextHand));
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   return { status: "decision" };
@@ -1135,10 +1151,7 @@ export async function handleSetHandParticipation(
       if (!patch?.currentHand) {
         throw new HttpsError("failed-precondition", "Decision step did not apply");
       }
-      tx.update(ref, {
-        currentHand: patch.currentHand,
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      tx.update(ref, publicHandSessionUpdate(data, patch.currentHand));
       return { status: step.kind === "draw" ? "draw" : "advanced" };
     }
 

@@ -42,7 +42,9 @@ function o(e) {
 	let n = e.phase ?? "", r = n === "play" ? 1e3 : n === "draw" ? 100 : n === "decision" ? 50 : n === "reveal" ? 25 : 0;
 	r += (e.drawCompletedIds?.length ?? 0) * 10;
 	let i = e.participantIds ?? [];
-	return r += t(e.tricksByPlayer ?? {}, i), r;
+	r += t(e.tricksByPlayer ?? {}, i);
+	let a = e.handDecision;
+	return n === "decision" && a && (r += (a.currentIndex ?? 0) * 5, r += (a.playingIds?.length ?? 0) * 2, r += (a.passedIds?.length ?? 0) * 2), r;
 }
 function s(e, t) {
 	return a(t) ? a(e) ? o(t) >= o(e) ? t : e : t : e;

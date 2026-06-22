@@ -79,6 +79,12 @@ function handProgressScore(hand: PublicHandView | null | undefined): number {
   score += (hand.drawCompletedIds?.length ?? 0) * 10;
   const participants = hand.participantIds ?? [];
   score += totalTricksPlayed(hand.tricksByPlayer ?? {}, participants);
+  const decision = hand.handDecision;
+  if (phase === "decision" && decision) {
+    score += (decision.currentIndex ?? 0) * 5;
+    score += (decision.playingIds?.length ?? 0) * 2;
+    score += (decision.passedIds?.length ?? 0) * 2;
+  }
   return score;
 }
 
