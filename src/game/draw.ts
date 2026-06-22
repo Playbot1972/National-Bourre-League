@@ -47,6 +47,13 @@ export function applyDraw(input: ApplyDrawInput): ApplyDrawResult {
     };
   }
 
+  const deckRemaining = Math.max(0, input.deck.length - input.deckNextIndex);
+  if (deckRemaining < drawCount) {
+    throw new Error(
+      `Not enough cards left in deck (${deckRemaining} remaining, tried to draw ${drawCount})`,
+    );
+  }
+
   const { cards: replacements, deckNextIndex } = drawCardsFromDeck(
     input.deck,
     input.deckNextIndex,

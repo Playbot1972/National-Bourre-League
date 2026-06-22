@@ -256,10 +256,12 @@ function ce(e) {
 		deckNextIndex: e.deckNextIndex,
 		discarded: 0
 	};
-	let { cards: i, deckNextIndex: a } = l(e.deck, e.deckNextIndex, r);
+	let i = Math.max(0, e.deck.length - e.deckNextIndex);
+	if (i < r) throw Error(`Not enough cards left in deck (${i} remaining, tried to draw ${r})`);
+	let { cards: a, deckNextIndex: o } = l(e.deck, e.deckNextIndex, r);
 	return {
-		hand: [...n, ...i],
-		deckNextIndex: a,
+		hand: [...n, ...a],
+		deckNextIndex: o,
 		discarded: r
 	};
 }
@@ -838,13 +840,14 @@ function $(e) {
 		handComplete: !1
 	};
 }
-function Me(e, t, n) {
-	return n <= 0 ? [] : e.map((e, n) => ({
+function Me(e, t, n, r = Infinity) {
+	let i = Math.min(n, Math.max(0, r));
+	return i <= 0 ? [] : e.map((e, n) => ({
 		card: e,
 		index: n,
 		value: C(e),
 		trump: w(e, t)
-	})).sort((e, t) => e.trump === t.trump ? e.value - t.value : e.trump ? 1 : -1).slice(0, n).map((e) => e.index);
+	})).sort((e, t) => e.trump === t.trump ? e.value - t.value : e.trump ? 1 : -1).slice(0, i).map((e) => e.index);
 }
 function Ne(e, t) {
 	let n = Z(t);

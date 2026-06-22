@@ -757,16 +757,29 @@ const BOT_ADVANCE_MAX_STEPS = 64;
 
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
-  const ch = sessionSnap.data()?.currentHand || {};
-  const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
-  if (!privateSnap.exists) {
-    throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
+  const sessionData = sessionSnap.data() || {};
+  const ch = getSessionCurrentHand(sessionData) || {};
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  let privateHand;
+  if (embedded?.cards) {
+    privateHand = deserializeCards(embedded.cards);
+  } else {
+    const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
+    if (!privateSnap.exists) {
+      throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
+    }
+    privateHand = deserializeCards(privateSnap.data().cards || []);
   }
-  const privateHand = deserializeCards(privateSnap.data().cards || []);
   const effective = effectivePlayerHand(playerId, privateHand, ch);
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
-  const discardIndices = botDrawDiscardIndices(effective, ch.trumpSuit, maxDraw);
+  const deckSeed = ch.deckSeed;
+  const deckNextIndex = ch.deckNextIndex ?? 0;
+  const deckRemaining =
+    deckSeed != null
+      ? remainingDeckCount(shuffledDeckFromSeed(deckSeed), deckNextIndex)
+      : ch.remainingDeckCount ?? 0;
+  const discardIndices = botDrawDiscardIndices(effective, ch.trumpSuit, maxDraw, deckRemaining);
   return runSubmitDrawTransaction(db, { roomId, sessionId, playerId, discardIndices });
 }
 
@@ -851,6 +864,36 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     const currentHand = getSessionCurrentHand(sessionData);
     const participants = currentHand.participantIds || [];
     if (!participants.length) return;
+
+    if (currentHand.phase === HAND_PHASE.DECISION) {
+      const decision = getSessionHandDecision(sessionData);
+      if (decision?.active) {
+        if (Date.now() >= enrollmentDeadlineMs(decision)) {
+          await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
+          continue;
+        }
+        const turnId = currentDecisionPlayer(decision);
+        const playingIds = decision.playingIds || [];
+        const passedIds = decision.passedIds || [];
+        if (
+          turnId &&
+          isRobotPlayerId(turnId) &&
+          !playingIds.includes(turnId) &&
+          !passedIds.includes(turnId)
+        ) {
+          await handleSetHandParticipation(db, {
+            roomId,
+            sessionId,
+            playerId: turnId,
+            inHand: true,
+            actorId,
+            discardCount: 0,
+          });
+          continue;
+        }
+      }
+      return;
+    }
 
     if (currentHand.phase === HAND_PHASE.DRAW) {
       const turnId = currentHand.turnPlayerId;
@@ -1047,6 +1090,9 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
     dealerId: sessionData.dealerId,
     sortedPlayerIds,
     dealingRule,
+    scoreById,
+    buyIn,
+    sessionStake,
   };
 
   const pagatHand = getSessionCurrentHand(sessionData);
@@ -1062,6 +1108,13 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       if (hand?.phase !== HAND_PHASE.DECISION || !decision?.active) return { status: "noop" };
       if (Date.now() < enrollmentDeadlineMs(decision)) return { status: "noop" };
       const step = applyDecisionTimeout(hand, decision, dealContext);
+      if (step.kind === "soloWin") {
+        const patch = buildSoloWinPatch(step.winnerId, data, dealContext);
+        if (!patch) return { status: "noop" };
+        await primePatchScoreReads(tx, db, roomId, sessionId, patch);
+        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
+        return { status: "solo_win", winnerId: step.winnerId };
+      }
       const patch = decisionStepPatch(step);
       if (!patch?.currentHand) return { status: "noop" };
       tx.update(ref, publicHandSessionUpdate(data, patch.currentHand));
@@ -1174,6 +1227,20 @@ export async function handleSetHandParticipation(
       const step = inHand
         ? applyDecisionPlay(pagatHand, pagatDecision, playerId, discardCount, dealContext)
         : applyDecisionPass(pagatHand, pagatDecision, playerId, dealContext);
+      if (step.kind === "soloWin") {
+        const patch = buildSoloWinPatch(step.winnerId, data, {
+          dealerId: data.dealerId,
+          sortedPlayerIds,
+          dealingRule,
+          scoreById,
+          sessionStake,
+          buyIn,
+        });
+        if (!patch) throw new HttpsError("failed-precondition", "Could not settle solo win");
+        await primePatchScoreReads(tx, db, roomId, sessionId, patch);
+        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
+        return { status: "solo_win", winnerId: step.winnerId };
+      }
       const patch = decisionStepPatch(step);
       if (!patch?.currentHand) {
         throw new HttpsError("failed-precondition", "Decision step did not apply");
@@ -1346,12 +1413,18 @@ export async function handleSubmitDraw(
     throw new HttpsError("permission-denied", "You can only draw for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
-  const result = await runSubmitDrawTransaction(db, {
-    roomId,
-    sessionId,
-    playerId,
-    discardIndices,
-  });
+  let result;
+  try {
+    result = await runSubmitDrawTransaction(db, {
+      roomId,
+      sessionId,
+      playerId,
+      discardIndices,
+    });
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    throw new HttpsError("failed-precondition", err?.message || "Draw failed");
+  }
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   return result;
 }
