@@ -12132,12 +12132,12 @@ function sl({ player: e, compact: t = !1 }) {
 				accent: !0,
 				title: "Ape Score"
 			}),
-			e.apeClass && !t && /* @__PURE__ */ (0, g.jsx)(ol, {
+			e.apeClass && /* @__PURE__ */ (0, g.jsx)(ol, {
 				label: "Class",
 				value: e.apeClass,
 				title: "Ape Class"
 			}),
-			e.apeStatus && !t && /* @__PURE__ */ (0, g.jsx)(ol, {
+			e.apeStatus && /* @__PURE__ */ (0, g.jsx)(ol, {
 				label: "Status",
 				value: e.apeStatus,
 				title: "Ape Status"
@@ -12181,7 +12181,7 @@ function cl({ fraction: e }) {
 }
 function ll({ player: e, region: t, style: n, onToggleInHand: r, onPassEnrollment: i, onTrickDelta: a, onReaction: o }) {
 	let [s, c] = (0, l.useState)(!1), u = (0, l.useCallback)(() => {
-		typeof window > "u" || window.matchMedia("(hover: none), (pointer: coarse)").matches && c((e) => !e);
+		c((e) => !e);
 	}, []), d = e.tricksThisHand, f = Math.max(0, e.holeCardCount ?? 0), p = !!(e.showHoleCards && !e.isSelf && e.inHand && f > 0), m = e.bankroll != null, h = e.bourreAlert === "pulse", v = e.bourreAlert === "marker" || e.bourreAlert === "pulse", y = !!e.bourrePressure, b = y && e.isSelf, x = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
 		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
@@ -12213,7 +12213,8 @@ function ll({ player: e, region: t, style: n, onToggleInHand: r, onPassEnrollmen
 			e.bankrollTick === "up" ? "bseat--bankroll-up" : "",
 			e.bankrollTick === "down" ? "bseat--bankroll-down" : "",
 			x ? "bseat--trump-reveal" : "",
-			e.seatTrumpMergeActive ? "bseat--trump-merge" : ""
+			e.seatTrumpMergeActive ? "bseat--trump-merge" : "",
+			s ? "bseat--meta-open" : ""
 		].filter(Boolean).join(" "),
 		style: n,
 		children: [/* @__PURE__ */ (0, g.jsxs)("div", {
@@ -12333,33 +12334,37 @@ function ll({ player: e, region: t, style: n, onToggleInHand: r, onPassEnrollmen
 			className: "bseat__aux",
 			children: [
 				/* @__PURE__ */ (0, g.jsxs)("div", {
-					className: "bseat__info",
-					children: [
-						/* @__PURE__ */ (0, g.jsx)("span", {
-							className: "bseat__name",
-							children: e.displayName
-						}),
-						e.isRobot && /* @__PURE__ */ (0, g.jsx)("span", {
-							className: "bseat__robot-tag muted small",
-							children: "Bot"
-						}),
-						e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
-							className: "bseat__out-tag muted small",
-							children: "Out"
-						}),
-						e.enrollmentSatOut && !e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
-							className: "bseat__enroll-tag muted small",
-							children: "Sat out"
-						}),
-						e.enrollmentJoined && !e.inHand && !e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
-							className: "bseat__enroll-tag muted small",
-							children: e.decisionPlannedDiscards == null ? "Joined" : `Play · draw ${e.decisionPlannedDiscards}`
-						})
-					]
-				}),
-				/* @__PURE__ */ (0, g.jsx)(sl, {
-					player: e,
-					compact: t === "left" || t === "right"
+					className: "bseat__meta",
+					"data-testid": "seat-meta-panel",
+					"aria-hidden": !s,
+					children: [/* @__PURE__ */ (0, g.jsxs)("div", {
+						className: "bseat__info",
+						children: [
+							/* @__PURE__ */ (0, g.jsx)("span", {
+								className: "bseat__name",
+								children: e.displayName
+							}),
+							e.isRobot && /* @__PURE__ */ (0, g.jsx)("span", {
+								className: "bseat__robot-tag muted small",
+								children: "Bot"
+							}),
+							e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
+								className: "bseat__out-tag muted small",
+								children: "Out"
+							}),
+							e.enrollmentSatOut && !e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
+								className: "bseat__enroll-tag muted small",
+								children: "Sat out"
+							}),
+							e.enrollmentJoined && !e.inHand && !e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
+								className: "bseat__enroll-tag muted small",
+								children: e.decisionPlannedDiscards == null ? "Joined" : `Play · draw ${e.decisionPlannedDiscards}`
+							})
+						]
+					}), /* @__PURE__ */ (0, g.jsx)(sl, {
+						player: e,
+						compact: t === "left" || t === "right"
+					})]
 				}),
 				e.enrollmentOnClock && /* @__PURE__ */ (0, g.jsx)("span", {
 					className: "bseat__enroll-timer",
@@ -15060,14 +15065,7 @@ function sd({ session: e, players: t, potMetrics: n, mySessionNet: r, myHandCont
 			}),
 			/* @__PURE__ */ (0, g.jsxs)("footer", {
 				className: "btable-session__foot muted small",
-				children: [/* @__PURE__ */ (0, g.jsx)(ou, { compact: !0 }), r == null ? /* @__PURE__ */ (0, g.jsx)(g.Fragment, { children: "Shared pot and game state only · sign in to track your ledger" }) : /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [
-					"Your contribution this hand",
-					" ",
-					Yc(i ?? 0),
-					" · ",
-					"Your session net ",
-					Yc(r)
-				] })]
+				children: [/* @__PURE__ */ (0, g.jsx)(ou, { compact: !0 }), r == null ? /* @__PURE__ */ (0, g.jsx)(g.Fragment, { children: "Shared pot and game state only · sign in to track your ledger" }) : /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: ["Your session net ", Yc(r)] })]
 			})
 		]
 	});

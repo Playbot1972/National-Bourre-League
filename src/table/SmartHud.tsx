@@ -35,10 +35,10 @@ export function SmartHud({ player, compact = false }: SmartHudProps) {
       {showRating && (
         <>
           <HudPill label="Ape" value={player.apeScore ?? 0} accent title="Ape Score" />
-          {player.apeClass && !compact && (
+          {player.apeClass && (
             <HudPill label="Class" value={player.apeClass} title="Ape Class" />
           )}
-          {player.apeStatus && !compact && (
+          {player.apeStatus && (
             <HudPill label="Status" value={player.apeStatus} title="Ape Status" />
           )}
         </>
