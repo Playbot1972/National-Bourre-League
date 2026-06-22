@@ -11842,8 +11842,8 @@ function nl(e) {
 	}
 }
 function rl(e) {
-	let t = (e * 180 / Math.PI % 360 + 360) % 360;
-	return t >= 55 && t <= 125 ? "bottom" : t >= 235 && t <= 305 ? "left" : t >= 145 && t <= 215 ? "top" : "right";
+	let t = Math.cos(e), n = Math.sin(e);
+	return Math.abs(n) >= Math.abs(t) ? n > 0 ? "bottom" : "top" : t > 0 ? "right" : "left";
 }
 function il(e, t) {
 	let n = Math.max(2, Math.min(8, t || 2));
@@ -11852,7 +11852,7 @@ function il(e, t) {
 		y: 50,
 		region: "bottom"
 	};
-	let { rx: r, ry: i, outset: a } = nl(n), o = -(e / n * Math.PI * 2) + Math.PI / 2, s = Math.cos(o), c = Math.sin(o);
+	let { rx: r, ry: i, outset: a } = nl(n), o = e / n * Math.PI * 2 + Math.PI / 2, s = Math.cos(o), c = Math.sin(o);
 	return {
 		x: 50 + r * s + s * a,
 		y: 50 + i * c + c * a,

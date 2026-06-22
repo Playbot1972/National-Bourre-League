@@ -113,7 +113,7 @@ export function buildSeatLayoutMap(
   );
 }
 
-/** True when seat indices increase clockwise on screen (bottom → right → top → left). */
+/** True when seat indices increase clockwise around the felt (bottom → left → top → right). */
 export function isClockwiseOnScreen(layouts: ResolvedSeatLayout[]): boolean {
   if (layouts.length < 3) return true;
 
@@ -131,8 +131,7 @@ export function isClockwiseOnScreen(layouts: ResolvedSeatLayout[]): boolean {
     sweep += delta;
   }
 
-  // Screen coords: clockwise ring yields negative total sweep.
-  return sweep < -0.5;
+  return sweep > 0.5;
 }
 
 export function regionAtIndex(seatIndex: number, total: number): SeatRegion {

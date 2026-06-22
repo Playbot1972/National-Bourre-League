@@ -150,11 +150,14 @@ export function seatRailAxes(total: number): { rx: number; ry: number; outset: n
 export type SeatRegion = "bottom" | "top" | "left" | "right";
 
 export function seatRegion(theta: number): SeatRegion {
-  const deg = (((theta * 180) / Math.PI) % 360 + 360) % 360;
-  if (deg >= 55 && deg <= 125) return "bottom";
-  if (deg >= 235 && deg <= 305) return "left";
-  if (deg >= 145 && deg <= 215) return "top";
-  return "right";
+  const nx = Math.cos(theta);
+  const ny = Math.sin(theta);
+  const absNx = Math.abs(nx);
+  const absNy = Math.abs(ny);
+  if (absNy >= absNx) {
+    return ny > 0 ? "bottom" : "top";
+  }
+  return nx > 0 ? "right" : "left";
 }
 
 export interface SeatPlacement {
@@ -172,8 +175,8 @@ export function seatPosition(index: number, total: number): SeatPlacement {
   if (n <= 0) return { x: 50, y: 50, region: "bottom" };
 
   const { rx, ry, outset } = seatRailAxes(n);
-  // Negative angle step: bottom → right → top → left (clockwise on screen).
-  const theta = -((index / n) * Math.PI * 2) + Math.PI / 2;
+  // Positive angle step: bottom → left → top → right (clockwise around the felt).
+  const theta = ((index / n) * Math.PI * 2) + Math.PI / 2;
   const nx = Math.cos(theta);
   const ny = Math.sin(theta);
 
