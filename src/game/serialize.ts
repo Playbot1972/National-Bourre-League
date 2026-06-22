@@ -57,7 +57,7 @@ export function serializeHandState(
     phase: initialPhase,
     participantIds: [...deal.participantIds],
     seatedIds:
-      typeof options === "object" && options.seatedIds?.length
+      typeof options === "object" && options !== null && options.seatedIds?.length
         ? [...options.seatedIds]
         : [...deal.participantIds],
     dealerId,
