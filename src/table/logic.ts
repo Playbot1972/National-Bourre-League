@@ -166,14 +166,13 @@ export interface SeatPlacement {
   region: SeatRegion;
 }
 
-/**
- * Evenly spaced seats on the outer rail oval (index 0 = bottom / hero, clockwise).
- * Equal angle steps; ellipse matches the visible table edge in all orientations.
- */
-export function seatPosition(index: number, total: number): SeatPlacement {
-  const n = Math.max(2, Math.min(8, total || 2));
-  if (n <= 0) return { x: 50, y: 50, region: "bottom" };
+/** Bottom-rail flank slots for the first/last clockwise neighbors on full 8-seat tables. */
+const EIGHT_SEAT_BOTTOM_FLANK: Record<1 | 7, SeatPlacement> = {
+  1: { x: 32, y: 88, region: "bottom" },
+  7: { x: 68, y: 88, region: "bottom" },
+};
 
+function ellipseSeatPosition(index: number, n: number): SeatPlacement {
   const { rx, ry, outset } = seatRailAxes(n);
   // Positive angle step: bottom → left → top → right (clockwise around the felt).
   const theta = ((index / n) * Math.PI * 2) + Math.PI / 2;
@@ -185,6 +184,25 @@ export function seatPosition(index: number, total: number): SeatPlacement {
     y: 50 + ry * ny + ny * outset,
     region: seatRegion(theta),
   };
+}
+
+/**
+ * Evenly spaced seats on the outer rail oval (index 0 = bottom / hero, clockwise).
+ * Equal angle steps; ellipse matches the visible table edge in all orientations.
+ * On 8-seat tables, index 1 and 7 flank the hero on the bottom rail; indices 2–6
+ * keep the standard ellipse positions unchanged.
+ */
+export function seatPosition(index: number, total: number): SeatPlacement {
+  const n = Math.max(2, Math.min(8, total || 2));
+  if (n <= 0) return { x: 50, y: 50, region: "bottom" };
+
+  if (n >= 8) {
+    if (index === 1 || index === 7) {
+      return EIGHT_SEAT_BOTTOM_FLANK[index];
+    }
+  }
+
+  return ellipseSeatPosition(index, n);
 }
 
 /**

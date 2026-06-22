@@ -55,4 +55,38 @@ describe("seat order", () => {
     const layouts = ordered.map((_, i) => seatPosition(i, ordered.length));
     assert.ok(layouts[1]!.x < layouts[0]!.x, "Bot 1 should sit left of dealer");
   });
+
+  it("orders 7 bots with Bot 1 at index 1 and Bot 7 at index 7", () => {
+    const players: TablePlayer[] = [
+      { playerId: "human", displayName: "You", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: true, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      ...Array.from({ length: 7 }, (_, i) => ({
+        playerId: `bot_${i + 1}`,
+        displayName: `Bot ${i + 1}`,
+        handsWon: 0,
+        inHand: true,
+        tricksThisHand: 0,
+        isSelf: false,
+        isDealer: i === 0,
+        isWinner: false,
+        canToggleInHand: false,
+        canEditTricks: false,
+      })),
+    ];
+    const ordered = orderPlayersForTable(
+      players,
+      {
+        dealerId: "bot_1",
+        participantIds: players.map((p) => p.playerId),
+        handEnrollment: null,
+      },
+      "human",
+    );
+    assert.equal(ordered.length, 8);
+    assert.equal(ordered[0]?.playerId, "human");
+    assert.equal(ordered[1]?.playerId, "bot_1");
+    assert.equal(ordered[7]?.playerId, "bot_7");
+    const layouts = ordered.map((_, i) => seatPosition(i, ordered.length));
+    assert.ok(layouts[1]!.x < layouts[0]!.x, "Bot 1 bottom-left of hero");
+    assert.ok(layouts[7]!.x > layouts[0]!.x, "Bot 7 bottom-right of hero");
+  });
 });
