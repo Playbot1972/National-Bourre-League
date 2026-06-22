@@ -7,6 +7,8 @@ import {
   buildHandEnrollment,
   deriveWinnersFromTricks,
 } from "./gameHandlers.js";
+import { dealInitialHand } from "./vendor/game-engine.js";
+import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
 
 describe("isRobotPlayerId", () => {
   it("recognizes bot_ prefix", () => {
@@ -43,6 +45,30 @@ describe("buildHandEnrollment", () => {
     assert.equal(enrollment.turnDeadlineMs, now + HAND_ENROLLMENT_MS);
     assert.deepEqual(enrollment.enrolledIds, []);
     assert.deepEqual(enrollment.declinedIds, []);
+  });
+});
+
+describe("8-player full table deal prep", () => {
+  it("collects antes and deals five cards each for eight seated players", () => {
+    const ids = Array.from({ length: 8 }, (_, i) => `bot_${i + 1}`);
+    const scoreById = Object.fromEntries(ids.map((id) => [id, { bankroll: 20, net: 0 }]));
+    const collected = collectHandAntes({
+      participants: ids,
+      scoreById,
+      buyInFallback: 20,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], 1),
+    });
+    assert.equal(collected.activeParticipants.length, 8);
+    const deal = dealInitialHand({
+      dealerId: ids[0],
+      participantIds: collected.activeParticipants,
+      sortedPlayerIds: ids,
+      seed: 42,
+    });
+    assert.equal(deal.participantIds.length, 8);
+    for (const pid of ids) {
+      assert.equal(deal.privateHands[pid].length, 5);
+    }
   });
 });
 
