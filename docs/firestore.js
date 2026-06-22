@@ -89,6 +89,7 @@ import {
   settleSoloDefaultWin,
   resolveSessionBuyIn,
   handAnteContribution,
+  bourrePlayerIds,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
 } from "./bourre-rules.js";
@@ -389,11 +390,6 @@ export function tricksForPlayer(tricksByPlayer, playerId) {
   return tricksByPlayer?.[playerId] ?? 0;
 }
 
-function bourrePlayerIds(tricksByPlayer, participants) {
-  if (!tricksByPlayer) return [];
-  return participants.filter((pid) => tricksForPlayer(tricksByPlayer, pid) === 0);
-}
-
 export function deriveWinnersFromTricks(tricksByPlayer, participantIds) {
   const participants = [...new Set((participantIds || []).filter(Boolean))];
   if (participants.length < 2) {
@@ -486,6 +482,7 @@ export {
   anteAlreadyPosted,
   applySolventSettlement,
   handAnteContribution,
+  bourrePlayerIds,
 } from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
@@ -2595,8 +2592,13 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   }
 
   const currentHand = sessionData.currentHand || { tricksByPlayer: {}, participantIds: [] };
-  if (currentHand.phase === HAND_PHASE.DRAW || currentHand.phase === HAND_PHASE.PLAY) {
-    throw new Error("Tricks are tracked automatically during card play");
+  if (
+    currentHand.phase === HAND_PHASE.DRAW ||
+    currentHand.phase === HAND_PHASE.PLAY ||
+    currentHand.phase === HAND_PHASE.REVEAL ||
+    currentHand.phase === HAND_PHASE.DECISION
+  ) {
+    throw new Error("Tricks are tracked automatically during live card play");
   }
   const participantIds = [...(currentHand.participantIds || [])];
   if (!participantIds.includes(playerId)) {

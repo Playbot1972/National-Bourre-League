@@ -12,6 +12,8 @@ import {
   scoreBankroll,
   settleSoloDefaultWin,
   handAnteContribution,
+  bourrePlayerIds,
+  isHandComplete,
   DEFAULT_HAND_ANTE,
 } from "../docs/bourre-rules.js";
 
@@ -116,7 +118,7 @@ describe("E — pot and bourré settlement", () => {
     assert.equal(result.deltas.p2, 0);
   });
 
-  it("push carries pot forward and applies bourré penalties when all took zero tricks", () => {
+  it("push carries pot forward without bourré when tricks are not complete", () => {
     const participants = ["p1", "p2"];
     const result = settleHandDeltas({
       mode: "push",
@@ -128,10 +130,45 @@ describe("E — pot and bourré settlement", () => {
       carryIn: 0,
       stakeForPlayer: stake(1),
     });
-    assert.equal(result.carryOverPot, 6);
-    assert.equal(result.deltas.p1, -3);
-    assert.equal(result.deltas.p2, -3);
-    assert.deepEqual(result.bourreIds.sort(), ["p1", "p2"]);
+    assert.equal(result.carryOverPot, 2);
+    assert.equal(result.deltas.p1, -1);
+    assert.equal(result.deltas.p2, -1);
+    assert.deepEqual(result.bourreIds, []);
+  });
+
+  it("bourrePlayerIds is empty before five tricks are played", () => {
+    assert.deepEqual(bourrePlayerIds({ p1: 0, p2: 0 }, ["p1", "p2"]), []);
+    assert.equal(isHandComplete({ p1: 0, p2: 0 }, ["p1", "p2"]), false);
+  });
+
+  it("bourrePlayerIds marks stayed-in zero-trick losers after hand completes", () => {
+    assert.deepEqual(
+      bourrePlayerIds({ p1: 5, p2: 0 }, ["p1", "p2"]),
+      ["p2"],
+    );
+    assert.deepEqual(
+      bourrePlayerIds({ p1: 3, p2: 2, p3: 0 }, ["p1", "p2", "p3"]),
+      ["p3"],
+    );
+  });
+
+  it("push applies bourré penalties only after a completed all-zero-trick hand", () => {
+    const participants = ["p1", "p2", "p3", "p4", "p5"];
+    const tricksByPlayer = Object.fromEntries(participants.map((pid) => [pid, 0]));
+    tricksByPlayer.p1 = 5;
+    assert.deepEqual(bourrePlayerIds(tricksByPlayer, participants), ["p2", "p3", "p4", "p5"]);
+    const result = settleHandDeltas({
+      mode: "push",
+      winners: [],
+      participants,
+      tricksByPlayer,
+      anteAmount: 1,
+      limEnabled: false,
+      carryIn: 0,
+      stakeForPlayer: stake(1),
+    });
+    assert.ok(result.bourreIds.length === 4);
+    assert.ok(result.carryOverPot > 5);
   });
 
   it("co_win_carry carries pot on tied most tricks (e.g. 2-1-2)", () => {

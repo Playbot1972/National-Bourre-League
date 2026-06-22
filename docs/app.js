@@ -2486,7 +2486,16 @@ function processRobotActionsInner(s, scores) {
     return;
   }
 
-  // Legacy manual trick tracking when cards have not been dealt (no draw/play phase).
+  // Legacy manual trick tracking only when the card engine is not active.
+  if (
+    handPhase === "reveal" ||
+    handPhase === "decision" ||
+    currentHand.trumpSuit ||
+    currentHand.deckSeed != null
+  ) {
+    return;
+  }
+
   const tricks = currentHand.tricksByPlayer || {};
   const total = totalTricksPlayed(tricks, participants);
   if (total >= MAX_TRICKS_PER_HAND) return;
