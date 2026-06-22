@@ -46,6 +46,31 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
       timeout: 30_000,
     });
   });
+
+  test("8 players: full table rejects a 9th robot", async ({ page }) => {
+    await setupRoomWithBots(page, 8);
+    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(7);
+
+    await page.getByTestId("add-player-robot").check();
+    await page.getByTestId("add-player-submit").click();
+
+    await expect(page.locator("#rooms-error")).toContainText(/full.*8 players max/i, {
+      timeout: 10_000,
+    });
+    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(7);
+  });
+
+  test("8 players: Go to Table deals without internal error", async ({ page }) => {
+    test.setTimeout(180_000);
+    await setupRoomWithBots(page, 8);
+    await goToTable(page);
+
+    const overlay = page.locator("#table-play-overlay");
+    await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#rooms-error")).not.toContainText(/internal/i);
+    await waitForDrawPhase(page);
+    await expect(overlay.getByTestId("hero-hand")).toBeVisible({ timeout: 30_000 });
+  });
 });
 
 test.describe("Go to Table — room buttons smoke", () => {

@@ -209,6 +209,13 @@ function describeEnrollmentStartError(err) {
       "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.",
     );
   }
+  const friendly = formatClientGameError(
+    err,
+    "This table could not be opened. Refresh the page and try Go to Table again.",
+  );
+  if (friendly && friendly !== String(err?.message ?? "")) {
+    return new Error(friendly);
+  }
   return err instanceof Error ? err : new Error(String(err));
 }
 
