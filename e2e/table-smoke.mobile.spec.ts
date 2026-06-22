@@ -33,6 +33,9 @@ test.describe("Bourré table smoke — mobile", () => {
     await expect(selfSeat).toBeAttached();
     await expect(selfSeat.locator(".bseat__avatar")).toBeVisible();
     await expect(selfSeat.locator(".bseat__stack")).toBeVisible();
+    await expect(selfSeat.getByTestId("seat-meta-panel")).toBeHidden();
+    await selfSeat.locator(".bseat__avatar").click();
+    await expect(selfSeat.getByTestId("seat-meta-panel")).toBeVisible();
     await expect(page.locator(".bseat")).toHaveCount(4);
     await expect(page.locator(".bseat__avatar")).toHaveCount(4);
 

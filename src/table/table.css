@@ -1765,6 +1765,73 @@
   gap: 2px 4px;
 }
 
+/* Secondary seat metadata — hidden until hover/focus (desktop) or avatar tap (touch). */
+.bseat__meta {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 72px;
+  max-width: 148px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(8, 12, 20, 0.94);
+  border: 1px solid rgba(244, 213, 141, 0.14);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 14;
+  transition:
+    opacity 140ms ease,
+    visibility 140ms ease;
+}
+
+.bseat--left .bseat__meta,
+.bseat--right .bseat__meta {
+  left: auto;
+  right: auto;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.bseat--left .bseat__meta {
+  left: calc(100% + 6px);
+}
+
+.bseat--right .bseat__meta {
+  right: calc(100% + 6px);
+}
+
+.bseat--top .bseat__meta {
+  bottom: auto;
+  top: calc(100% + 4px);
+}
+
+.bseat--meta-open .bseat__meta,
+.bseat:focus-within .bseat__meta {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bseat:hover .bseat__meta {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
+.bseat__meta .bhud {
+  margin-top: 0;
+}
+
 .bseat__name {
   display: block;
   font-size: 12px;

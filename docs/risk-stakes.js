@@ -43,11 +43,10 @@ export function anteStakeOptionsFor(current) {
   return options;
 }
 
+/** Read-only ante label — single dollar amount, no parenthetical duplicate. */
 export function formatAnteStake(amount) {
   const n = Number(amount);
   if (!Number.isFinite(n)) return formatRiskStake(0);
-  const preset = ANTE_STAKE_OPTIONS.find((o) => anteValuesMatch(o.value, n));
-  if (preset) return preset.label;
   if (n < 1) return `$${n.toFixed(2)}`;
   return formatRiskStake(n);
 }

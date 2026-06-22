@@ -58,10 +58,7 @@ function EnrollmentTimerRing({ fraction }: { fraction: number }) {
 export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
   const [avatarPeek, setAvatarPeek] = useState(false);
   const toggleAvatarPeek = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (window.matchMedia("(hover: none), (pointer: coarse)").matches) {
-      setAvatarPeek((open) => !open);
-    }
+    setAvatarPeek((open) => !open);
   }, []);
 
   const trickCount = player.tricksThisHand;
@@ -116,6 +113,7 @@ export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, 
         player.bankrollTick === "down" ? "bseat--bankroll-down" : "",
         seatTrumpRevealed ? "bseat--trump-reveal" : "",
         player.seatTrumpMergeActive ? "bseat--trump-merge" : "",
+        avatarPeek ? "bseat--meta-open" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -256,25 +254,31 @@ export function Seat({ player, region, style, onToggleInHand, onPassEnrollment, 
       </div>
 
       <div className="bseat__aux">
-        <div className="bseat__info">
-          <span className="bseat__name">{player.displayName}</span>
-          {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
-          {player.isOut && (
-            <span className="bseat__out-tag muted small">Out</span>
-          )}
-          {player.enrollmentSatOut && !player.isOut && (
-            <span className="bseat__enroll-tag muted small">Sat out</span>
-          )}
-          {player.enrollmentJoined && !player.inHand && !player.isOut && (
-            <span className="bseat__enroll-tag muted small">
-              {player.decisionPlannedDiscards != null
-                ? `Play · draw ${player.decisionPlannedDiscards}`
-                : "Joined"}
-            </span>
-          )}
-        </div>
+        <div
+          className="bseat__meta"
+          data-testid="seat-meta-panel"
+          aria-hidden={!avatarPeek}
+        >
+          <div className="bseat__info">
+            <span className="bseat__name">{player.displayName}</span>
+            {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
+            {player.isOut && (
+              <span className="bseat__out-tag muted small">Out</span>
+            )}
+            {player.enrollmentSatOut && !player.isOut && (
+              <span className="bseat__enroll-tag muted small">Sat out</span>
+            )}
+            {player.enrollmentJoined && !player.inHand && !player.isOut && (
+              <span className="bseat__enroll-tag muted small">
+                {player.decisionPlannedDiscards != null
+                  ? `Play · draw ${player.decisionPlannedDiscards}`
+                  : "Joined"}
+              </span>
+            )}
+          </div>
 
-        <SmartHud player={player} compact={region === "left" || region === "right"} />
+          <SmartHud player={player} compact={region === "left" || region === "right"} />
+        </div>
 
         {player.enrollmentOnClock && (
           <span className="bseat__enroll-timer" aria-live="polite">

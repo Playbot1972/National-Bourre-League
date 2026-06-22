@@ -25,6 +25,31 @@ test.describe("Bourré table smoke — desktop", () => {
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(2);
   });
 
+  test("seat metadata hidden by default and reveals on hover", async ({ page }) => {
+    await openTableFixture(page, { players: 4, bots: 1, phase: "decision", tick: false });
+
+    const selfSeat = page.getByTestId("seat-bottom-self");
+    const selfMeta = selfSeat.getByTestId("seat-meta-panel");
+    await expect(selfMeta).toBeHidden();
+    await selfSeat.locator(".bseat__avatar").hover();
+    await expect(selfMeta).toBeVisible();
+    await expect(selfMeta.locator(".bhud__pill-label", { hasText: "Ape" })).toBeVisible();
+
+    const opponent = page.getByTestId("seat-left");
+    const opponentMeta = opponent.getByTestId("seat-meta-panel");
+    await expect(opponentMeta).toBeHidden();
+    await opponent.locator(".bseat__avatar").hover();
+    await expect(opponentMeta).toBeVisible();
+  });
+
+  test("ante value appears once on the felt", async ({ page }) => {
+    await openTableFixture(page, { players: 4, bots: 1, phase: "decision", tick: false });
+
+    await expect(page.getByTestId("ante-display")).toBeVisible();
+    await expect(page.getByTestId("ante-display")).toContainText("$1");
+    await expect(page.getByTestId("table-root").getByText(/\(\$/)).toHaveCount(0);
+  });
+
   test("decision I'm in is clickable and shows feedback", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
 
