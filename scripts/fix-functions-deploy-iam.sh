@@ -35,7 +35,7 @@ gcloud config set project "${PROJECT_ID}"
 
 echo "==> Deploy service account: ${SA_EMAIL}"
 if [[ -f "${ROOT}/.firebase-sa-key.json" ]]; then
-  node scripts/validate-service-account-key.mjs "${ROOT}/.firebase-sa-key.json" --project "${PROJECT_ID}" || true
+  node scripts/validate-service-account-key.mjs "${ROOT}/.firebase-sa-key.json" --project "${PROJECT_ID}"
 fi
 
 echo "==> Project roles for ${SA_EMAIL}"

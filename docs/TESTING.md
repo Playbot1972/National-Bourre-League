@@ -162,6 +162,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
 | GitHub Actions: hosting OK, functions fail `iam.serviceAccounts.ActAs` | Deploy SA missing **Service Account User** on `{projectId}@appspot.gserviceaccount.com` | `./scripts/fix-functions-deploy-iam.sh national-bourre-league` then re-run **Deploy to Firebase** |
 | GitHub Actions: `failed to parse service account key JSON` / `unexpected token` | `FIREBASE_SERVICE_ACCOUNT` secret corrupted (not raw JSON) | From repo root: `npm run sync:github-sa-secret` or `npm run fix:deploy` |
+| GitHub Actions: functions fail `Cloud Billing API` / `cloudbilling.googleapis.com` disabled | Billing API not enabled on GCP project | `npm run enable:functions-apis` or `npm run fix:deploy` (as project Owner) |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
 
