@@ -51,6 +51,24 @@ describe("Pagat decision phase", () => {
     assert.equal(currentDecisionPlayer(activated.handDecision!), "p2");
   });
 
+  it("does not reset the decision clock when already active", () => {
+    const deal = dealInitialHand({
+      dealerId: "p1",
+      participantIds: SORTED,
+      sortedPlayerIds: SORTED,
+      seed: 2,
+    });
+    const bundle = serializePagatRevealHand(deal, {
+      dealerId: "p1",
+      actionOrder: deal.dealOrder,
+    });
+    const first = activateHandDecision(bundle.publicHand, 1_000);
+    const deadline = first.handDecision?.turnDeadlineMs;
+    const again = activateHandDecision(first, 9_500);
+    assert.equal(again.handDecision?.turnDeadlineMs, deadline);
+    assert.equal(again.handDecision?.currentIndex, first.handDecision?.currentIndex);
+  });
+
   it("play records planned discard count and advances", () => {
     const decision = buildHandDecision(SORTED, "p1", true, 1_000);
     const hand = {
