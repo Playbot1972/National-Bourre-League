@@ -158,10 +158,20 @@ describe("resolveHandLane", () => {
 });
 
 describe("regionAtIndex", () => {
-  it("maps the 4-player ring consistently with seatPosition", () => {
+  it("maps the 4-player ring to bottom/left/top/right", () => {
     assert.equal(regionAtIndex(0, 4), "bottom");
-    assert.equal(regionAtIndex(1, 4), "right");
-    assert.equal(regionAtIndex(2, 4), "left");
-    assert.equal(regionAtIndex(3, 4), "top");
+    assert.equal(regionAtIndex(1, 4), "left");
+    assert.equal(regionAtIndex(2, 4), "top");
+    assert.equal(regionAtIndex(3, 4), "right");
+  });
+});
+
+describe("dealer-relative seating", () => {
+  it("places the seat clockwise from hero on the left (not right)", () => {
+    const map = buildSeatLayoutMap(4, { isMobile: false });
+    const hero = map[0]!;
+    const next = map[1]!;
+    assert.ok(next.x < hero.x, "next seat should be left of hero");
+    assert.equal(next.region, "left");
   });
 });

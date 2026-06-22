@@ -350,37 +350,6 @@
   inset: 4% 2.5% 5% 2.5%;
 }
 
-/* 6-player desktop — hexagonal rail spacing, hero bottom */
-.btable--p6 .btable__seat-slot--0 > .bseat {
-  left: 50% !important;
-  top: 92% !important;
-}
-
-.btable--p6 .btable__seat-slot--1 > .bseat {
-  left: 84% !important;
-  top: 72% !important;
-}
-
-.btable--p6 .btable__seat-slot--2 > .bseat {
-  left: 92% !important;
-  top: 44% !important;
-}
-
-.btable--p6 .btable__seat-slot--3 > .bseat {
-  left: 50% !important;
-  top: 10% !important;
-}
-
-.btable--p6 .btable__seat-slot--4 > .bseat {
-  left: 8% !important;
-  top: 44% !important;
-}
-
-.btable--p6 .btable__seat-slot--5 > .bseat {
-  left: 16% !important;
-  top: 72% !important;
-}
-
 .btable--p6 .table-center-cluster {
   top: 46%;
 }
