@@ -819,6 +819,7 @@ let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
+let botAdvanceInFlight = false;
 let lastRobotTrickAt = 0;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
@@ -1197,7 +1198,7 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
-    if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
+    if (!SERVER_HAND_AUTHORITY && enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
         console.warn("enrollment timeout:", e);
         setTableActionFeedback({
@@ -2364,9 +2365,15 @@ function processRobotActionsInner(s, scores) {
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
     if (SERVER_HAND_AUTHORITY && tablePlayOpen) {
-      advanceSessionBots(currentRoomId, openSessionId).catch((e) =>
-        console.warn("advanceSessionBots:", e),
-      );
+      if (!botAdvanceInFlight) {
+        botAdvanceInFlight = true;
+        advanceSessionBots(currentRoomId, openSessionId)
+          .catch((e) => console.warn("advanceSessionBots:", e))
+          .finally(() => {
+            botAdvanceInFlight = false;
+          });
+      }
+      return;
     }
     if (!tablePlayOpen) return;
     if (enrollmentHasExpired(enrollment)) {

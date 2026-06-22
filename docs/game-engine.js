@@ -407,6 +407,7 @@ function pe(e, t, n, r) {
 	};
 }
 function me(e, t = Date.now()) {
+	if (e.phase === N.DECISION && e.handDecision?.active === !0) return e;
 	let n = e.handDecision ?? z(e.seatedIds ?? e.participantIds, e.dealerId, !0, t);
 	return {
 		...e,

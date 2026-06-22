@@ -172,6 +172,17 @@ function preferInProgressHand(current, livePublic) {
   return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic : current;
 }
 
+function enrollmentDeadlineMs(enrollment) {
+  const raw = enrollment?.turnDeadlineMs;
+  if (raw == null) return 0;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw.toMillis === "function") return raw.toMillis();
+  if (typeof raw === "object" && typeof raw.seconds === "number") {
+    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
+  }
+  return 0;
+}
+
 function authoritativeCurrentHand(sessionData) {
   const current = sessionData?.currentHand ?? emptyPreDealHand();
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
@@ -181,6 +192,28 @@ function authoritativeCurrentHand(sessionData) {
   );
 
   if (handInProgress(current) && handInProgress(livePublic)) {
+    const currentEarly =
+      current.phase === HAND_PHASE.REVEAL || current.phase === HAND_PHASE.DECISION;
+    const liveDrawDone = livePublic?.drawCompletedIds?.length ?? 0;
+    const currentDrawDone = current.drawCompletedIds?.length ?? 0;
+    const liveTricks = totalTricksPlayed(
+      livePublic?.tricksByPlayer ?? {},
+      livePublic?.participantIds ?? [],
+    );
+    const currentTricks = totalTricksPlayed(
+      current.tricksByPlayer ?? {},
+      current.participantIds ?? [],
+    );
+    if (
+      currentEarly &&
+      livePublic?.phase === HAND_PHASE.DRAW &&
+      currentTricks === 0 &&
+      liveTricks === 0 &&
+      liveDrawDone > 0 &&
+      currentDrawDone === 0
+    ) {
+      return current;
+    }
     return preferInProgressHand(current, livePublic);
   }
 
@@ -753,7 +786,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
 
     const enrollment = getSessionEnrollment(sessionData);
     if (enrollment?.active) {
-      if (Date.now() >= enrollment.turnDeadlineMs) {
+      if (Date.now() >= enrollmentDeadlineMs(enrollment)) {
         await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
         continue;
       }
@@ -761,7 +794,8 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       if (
         currentId &&
         isRobotPlayerId(currentId) &&
-        !(enrollment.enrolledIds || []).includes(currentId)
+        !(enrollment.enrolledIds || []).includes(currentId) &&
+        !(enrollment.declinedIds || []).includes(currentId)
       ) {
         await handleSetHandParticipation(db, {
           roomId,
@@ -970,7 +1004,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
   const pagatHand = getSessionCurrentHand(sessionData);
   const pagatDecision = getSessionHandDecision(sessionData);
   if (pagatHand?.phase === HAND_PHASE.DECISION && pagatDecision?.active) {
-    if (Date.now() < pagatDecision.turnDeadlineMs) return { status: "noop" };
+    if (Date.now() < enrollmentDeadlineMs(pagatDecision)) return { status: "noop" };
     const pagatResult = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) return { status: "noop" };
@@ -978,7 +1012,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       const hand = getSessionCurrentHand(data);
       const decision = getSessionHandDecision(data);
       if (hand?.phase !== HAND_PHASE.DECISION || !decision?.active) return { status: "noop" };
-      if (Date.now() < decision.turnDeadlineMs) return { status: "noop" };
+      if (Date.now() < enrollmentDeadlineMs(decision)) return { status: "noop" };
       const step = applyDecisionTimeout(hand, decision, dealContext);
       const patch = decisionStepPatch(step);
       if (!patch?.currentHand) return { status: "noop" };
@@ -997,7 +1031,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
     if (!snap.exists) return { status: "noop" };
     const data = snap.data();
     const enrollment = getSessionEnrollment(data);
-    if (!enrollment?.active || Date.now() < enrollment.turnDeadlineMs) return { status: "noop" };
+    if (!enrollment?.active || Date.now() < enrollmentDeadlineMs(enrollment)) return { status: "noop" };
 
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];

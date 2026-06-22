@@ -90,6 +90,9 @@ export function activateHandDecision(
   hand: PublicHandState,
   nowMs = Date.now(),
 ): PublicHandState {
+  if (hand.phase === HAND_PHASE.DECISION && hand.handDecision?.active === true) {
+    return hand;
+  }
   const decision = hand.handDecision ?? buildHandDecision(hand.seatedIds ?? hand.participantIds, hand.dealerId, true, nowMs);
   return {
     ...hand,
