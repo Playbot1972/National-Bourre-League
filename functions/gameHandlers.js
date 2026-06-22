@@ -16,7 +16,6 @@ import {
   applyPlayerDraw,
   advanceAfterDraw,
   applyDrawFold,
-  revealToDraw,
   applyPlayerPlayCard,
   botDrawDiscardIndices,
   botPlayCardIndex,
@@ -1038,14 +1037,14 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
     if (hand?.phase !== HAND_PHASE.REVEAL) {
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
-    const nextHand = revealToDraw(hand, dealingRule);
+    const nextHand = activateHandDecision(hand);
     tx.update(ref, {
       currentHand: nextHand,
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  return { status: "draw" };
+  return { status: "decision" };
 }
 
 export async function handleSetHandParticipation(

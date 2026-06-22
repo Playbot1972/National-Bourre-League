@@ -27,7 +27,17 @@ export interface TableStartupAnalysis {
   recovery: TableStartupRecovery;
 }
 
-export { authoritativeCurrentHand, isClearedPreDealHand, sessionHandDealStarted, handPhaseStarted } from "./liveHand";
+export {
+  authoritativeCurrentHand,
+  isClearedPreDealHand,
+  sessionHandDealStarted,
+  handPhaseStarted,
+  isLegacyEnrollmentActive,
+  isPagatDecisionActive,
+  resolveTableEnrollmentActive,
+  resolveCurrentHandChoicePlayerId,
+  canPlayerShowHandChoice,
+} from "./liveHand";
 
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;

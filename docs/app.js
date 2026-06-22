@@ -134,7 +134,16 @@ import {
   resolveRoomAnteAmount,
   syncAnteSelectToAmount,
 } from "./room-ante-state.js";
-import { analyzeTableStartup, sessionHandDealStarted, tableStartupUserMessage } from "./session-startup.js";
+import {
+  analyzeTableStartup,
+  sessionHandDealStarted,
+  tableStartupUserMessage,
+  isLegacyEnrollmentActive,
+  isPagatDecisionActive,
+  resolveTableEnrollmentActive,
+  resolveCurrentHandChoicePlayerId,
+  canPlayerShowHandChoice,
+} from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
   applyLocalCommitDrawCompleted,
@@ -2666,16 +2675,22 @@ function buildTableSessionProps(s) {
   });
   let enrollment = serverEnrollment;
   const pagatHandDecision = currentHand?.handDecision;
-  const pagatDecisionActive =
-    handPhase === "decision" && pagatHandDecision?.active === true;
+  const pagatDecisionActive = isPagatDecisionActive(handPhase, pagatHandDecision);
   if (localHandActionCommit && myUid) {
     enrollment = applyLocalCommitToEnrollment(localHandActionCommit, enrollment, myUid);
   }
   const pagatDecision = pagatDecisionActive;
-  const enrollmentActive =
-    !cardsDealt &&
-    handParticipantIds.length === 0 &&
-    (enrollment?.active === true || pagatDecision);
+  const legacyEnrollmentActive = isLegacyEnrollmentActive({
+    cardsDealt,
+    handParticipantCount: handParticipantIds.length,
+    enrollmentActive: enrollment?.active === true,
+  });
+  const enrollmentActive = resolveTableEnrollmentActive({
+    cardsDealt,
+    handParticipantCount: handParticipantIds.length,
+    legacyEnrollmentActive,
+    pagatDecisionActive,
+  });
   const enrolledDuringSignup = enrollment?.enrolledIds || [];
   const declinedEnrollmentIds = enrollment?.declinedIds || [];
   let plannedDiscards = currentHand?.handDecision?.plannedDiscards ?? {};
@@ -2694,10 +2709,12 @@ function buildTableSessionProps(s) {
       myUid,
     );
   }
-  const currentEnrollmentPlayerId =
-    enrollmentActive && enrollment
-      ? enrollment.orderedPlayerIds?.[enrollment.currentIndex] ?? null
-      : null;
+  const currentEnrollmentPlayerId = resolveCurrentHandChoicePlayerId({
+    pagatDecisionActive,
+    handDecision: pagatHandDecision,
+    legacyEnrollmentActive,
+    enrollment,
+  });
 
   const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
     tricksThisHand,
@@ -2843,21 +2860,25 @@ function buildTableSessionProps(s) {
           ? displayHoleCardCount(currentHand || {}, sc.playerId, false)
           : 0,
         isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
-        canToggleInHand:
-          enrollmentActive &&
-          isSelf &&
-          !isFinal &&
-          sc.playerId === currentEnrollmentPlayerId &&
-          scoreBankroll(sc, sessionBuyIn) > 0 &&
-          sc.out !== true &&
-          (!cardsDealt || pagatDecisionActive),
+        canToggleInHand: canPlayerShowHandChoice({
+          enrollmentGateActive: enrollmentActive,
+          isSelf,
+          playerId: sc.playerId,
+          currentChoicePlayerId: currentEnrollmentPlayerId,
+          isFinal,
+          bankroll: scoreBankroll(sc, sessionBuyIn),
+          isOut: sc.out === true,
+        }),
         canPassEnrollment:
-          enrollmentActive &&
-          isSelf &&
-          !isFinal &&
-          sc.playerId === currentEnrollmentPlayerId &&
-          !declinedEnrollmentIds.includes(sc.playerId) &&
-          (!cardsDealt || pagatDecisionActive),
+          canPlayerShowHandChoice({
+            enrollmentGateActive: enrollmentActive,
+            isSelf,
+            playerId: sc.playerId,
+            currentChoicePlayerId: currentEnrollmentPlayerId,
+            isFinal,
+            bankroll: scoreBankroll(sc, sessionBuyIn),
+            isOut: sc.out === true,
+          }) && !declinedEnrollmentIds.includes(sc.playerId),
         canEditTricks:
           !cardsDealt &&
           !isFinal &&

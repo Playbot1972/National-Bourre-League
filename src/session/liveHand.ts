@@ -112,6 +112,28 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   const livePhase = livePublic?.phase ?? null;
 
   if (handInProgress(current) && handInProgress(livePublic)) {
+    const currentEarly = current.phase === "reveal" || current.phase === "decision";
+    const liveDrawDone = livePublic?.drawCompletedIds?.length ?? 0;
+    const currentDrawDone = current.drawCompletedIds?.length ?? 0;
+    const liveTricks = totalTricksPlayed(
+      livePublic?.tricksByPlayer ?? {},
+      livePublic?.participantIds ?? [],
+    );
+    const currentTricks = totalTricksPlayed(
+      current.tricksByPlayer ?? {},
+      current.participantIds ?? [],
+    );
+    // Fresh reveal/decision on currentHand beats a stale draw mirror from a prior hand.
+    if (
+      currentEarly &&
+      livePublic?.phase === "draw" &&
+      currentTricks === 0 &&
+      liveTricks === 0 &&
+      liveDrawDone > 0 &&
+      currentDrawDone === 0
+    ) {
+      return current;
+    }
     return preferInProgressHand(current, livePublic);
   }
 
@@ -171,4 +193,71 @@ export function getSessionEnrollment(sessionData: SessionHandView | null | undef
 /** Public hand from session.currentHand or legacy liveEnrollment.deal. */
 export function getSessionCurrentHand(sessionData: SessionHandView | null | undefined): PublicHandView {
   return authoritativeCurrentHand(sessionData);
+}
+
+export function isLegacyEnrollmentActive(input: {
+  cardsDealt: boolean;
+  handParticipantCount: number;
+  enrollmentActive: boolean;
+}): boolean {
+  return (
+    !input.cardsDealt &&
+    input.handParticipantCount === 0 &&
+    input.enrollmentActive
+  );
+}
+
+export function isPagatDecisionActive(
+  handPhase: string | null | undefined,
+  handDecision: HandDecision | null | undefined,
+): boolean {
+  return handPhase === "decision" && handDecision?.active === true;
+}
+
+/** Table UI gate for play/pass (legacy enrollment or Pagat decision). */
+export function resolveTableEnrollmentActive(input: {
+  cardsDealt: boolean;
+  handParticipantCount: number;
+  legacyEnrollmentActive: boolean;
+  pagatDecisionActive: boolean;
+}): boolean {
+  return input.legacyEnrollmentActive || input.pagatDecisionActive;
+}
+
+export function resolveCurrentHandChoicePlayerId(input: {
+  pagatDecisionActive: boolean;
+  handDecision: HandDecision | null | undefined;
+  legacyEnrollmentActive: boolean;
+  enrollment: HandEnrollmentView | null | undefined;
+}): string | null {
+  if (input.pagatDecisionActive && input.handDecision) {
+    const ids = input.handDecision.orderedPlayerIds ?? [];
+    const idx = input.handDecision.currentIndex ?? 0;
+    return ids[idx] ?? null;
+  }
+  if (input.legacyEnrollmentActive && input.enrollment?.active) {
+    const ids = input.enrollment.orderedPlayerIds ?? [];
+    const idx = input.enrollment.currentIndex ?? 0;
+    return ids[idx] ?? null;
+  }
+  return null;
+}
+
+export function canPlayerShowHandChoice(input: {
+  enrollmentGateActive: boolean;
+  isSelf: boolean;
+  playerId: string;
+  currentChoicePlayerId: string | null;
+  isFinal: boolean;
+  bankroll: number;
+  isOut: boolean;
+}): boolean {
+  return (
+    input.enrollmentGateActive &&
+    input.isSelf &&
+    !input.isFinal &&
+    input.playerId === input.currentChoicePlayerId &&
+    input.bankroll > 0 &&
+    !input.isOut
+  );
 }
