@@ -1,6 +1,6 @@
-import type { SeatPlacement, SeatRegion } from "../logic";
+import type { SeatPlacement } from "../logic";
 import type { MobileOrientation } from "./mobileSeatMap";
-import type { HandLane, ResolvedSeatLayout } from "./seatLayout";
+import type { ResolvedSeatLayout } from "./seatLayout";
 import { resolveHandLane } from "./seatLayout";
 
 type SeatIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
