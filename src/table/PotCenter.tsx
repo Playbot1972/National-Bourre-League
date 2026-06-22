@@ -66,6 +66,8 @@ export function PotCenter({
     showTrumpSuitReminderProp ||
     (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
+  const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
+  const liveTrickCardCount = trickDisplayPlays.length;
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
@@ -133,9 +135,13 @@ export function PotCenter({
           anteAnimActive ? "center-play--ante-in" : "",
           settleAnimActive ? "center-play--settle" : "",
           settleCarryOver ? "center-play--carry" : "",
+          trickResolving ? "center-play--trick-resolving" : "",
         ]
           .filter(Boolean)
           .join(" ")}
+        data-trick-phase={trickPresentationPhase}
+        data-trick-cards={liveTrickCardCount}
+        data-hand-settling={settleAnimActive ? "true" : "false"}
       >
         {anteAnimActive && (
           <div className="bpot__ante-chips" aria-hidden="true">
@@ -172,7 +178,7 @@ export function PotCenter({
           )}
         </div>
 
-        <div className="center-play__trick">
+        <div className="center-play__trick-stage">
           <TrickRow
             displayPlays={trickDisplayPlays}
             winnerPlayerId={trickWinnerPlayerId}

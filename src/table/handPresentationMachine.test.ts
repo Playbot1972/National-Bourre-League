@@ -134,7 +134,7 @@ describe("handPresentationMachine", () => {
     assert.equal(buildHandPresentationModel(store).suppressTurnIndicator, false);
   });
 
-  it("enters settle when hand completes", () => {
+  it("latches hand settle until the final trick presentation completes", () => {
     let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
@@ -144,7 +144,26 @@ describe("handPresentationMachine", () => {
         handComplete: true,
       },
     });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: null,
+        enrollmentActive: true,
+        handComplete: false,
+      },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+    assert.ok(store.pendingSnapshot?.enrollmentActive);
+
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
     assert.equal(store.phase, "settle");
+    assert.equal(store.pendingHandSettle, false);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
   });
 

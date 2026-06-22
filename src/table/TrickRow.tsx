@@ -7,6 +7,8 @@ interface TrickRowProps {
   showWinnerTag?: boolean;
   presentationPhase?: TrickPresentationPhase;
   playerNames?: Record<string, string>;
+  /** Presentation-only: CSS-driven final-trick echo when the live row clears early. */
+  variant?: "live" | "echo";
 }
 
 /** Public trick cards only — never hole cards. */
@@ -16,6 +18,7 @@ export function TrickRow({
   showWinnerTag = false,
   presentationPhase = "live",
   playerNames = {},
+  variant = "live",
 }: TrickRowProps) {
   if (displayPlays.length === 0) {
     return (
@@ -25,8 +28,11 @@ export function TrickRow({
         data-testid="trick-row"
         data-trick-phase={presentationPhase}
         data-trick-card-count="0"
+        data-trick-variant={variant}
       >
-        Trick
+        <div className="btrick__surface">
+          <span className="btrick__placeholder">Trick</span>
+        </div>
       </div>
     );
   }
@@ -38,37 +44,46 @@ export function TrickRow({
     presentationPhase === "winnerReveal";
   const isSweep = presentationPhase === "collectTrick";
 
+  const isEcho = variant === "echo";
+
   return (
     <div
       className={[
         "btrick",
+        isEcho ? "btrick--echo-pipeline" : "",
         isHold ? "btrick--hold" : "",
         isSweep ? "btrick--sweep" : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      aria-label="Current trick"
-      aria-live="polite"
-      data-testid="trick-row"
+      aria-label={isEcho ? undefined : "Current trick"}
+      aria-hidden={isEcho ? true : undefined}
+      aria-live={isEcho ? undefined : "polite"}
+      data-testid={isEcho ? "trick-row-echo" : "trick-row"}
       data-trick-phase={presentationPhase}
       data-trick-card-count={displayPlays.length}
+      data-trick-variant={variant}
     >
-      {showWinnerTag && winnerName && (
-        <div className="btrick__winner-tag" data-testid="trick-winner-tag">
-          {winnerName} takes it
+      <div className="btrick__surface">
+        {showWinnerTag && winnerName && (
+          <div className="btrick__winner-tag" data-testid="trick-winner-tag">
+            {winnerName} takes it
+          </div>
+        )}
+        <div className="btrick__cards" role="list" aria-label="Cards in trick">
+          {displayPlays.map((play, i) => (
+            <TrickPlaySlot
+              key={`${play.playerId}-${play.card.rank}-${play.card.suit}-${i}`}
+              play={play}
+              index={i}
+              presentationPhase={isEcho ? "winnerReveal" : presentationPhase}
+              displayCount={displayPlays.length}
+              playerName={playerNames[play.playerId] ?? "Player"}
+              winnerPlayerId={winnerPlayerId}
+            />
+          ))}
         </div>
-      )}
-      {displayPlays.map((play, i) => (
-        <TrickPlaySlot
-          key={`${play.playerId}-${play.card.rank}-${play.card.suit}-${i}`}
-          play={play}
-          index={i}
-          presentationPhase={presentationPhase}
-          displayCount={displayPlays.length}
-          playerName={playerNames[play.playerId] ?? "Player"}
-          winnerPlayerId={winnerPlayerId}
-        />
-      ))}
+      </div>
     </div>
   );
 }

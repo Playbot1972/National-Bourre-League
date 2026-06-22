@@ -421,6 +421,8 @@
   max-width: none;
 }
 
+.btable--p3 .center-play__trick-stage,
+.btable--p4 .center-play__trick-stage,
 .btable--p3 .center-play__trick,
 .btable--p4 .center-play__trick {
   min-height: 68px;
@@ -477,12 +479,39 @@
   font-size: 9px;
 }
 
+.center-play__trick-stage,
 .center-play__trick {
   width: 100%;
   min-height: 62px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  position: relative;
+}
+
+.center-play__trick-live {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.center-play__trick-echo {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.center-play--final-trick-echo .center-play__trick-echo {
+  display: flex;
+}
+
+.center-play--final-trick-echo .center-play__trick-live .btrick--empty {
+  visibility: hidden;
 }
 
 .center-play__stats {
@@ -612,6 +641,22 @@
   min-height: 74px;
 }
 
+.btrick__surface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.btrick__cards {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: inherit;
+  width: 100%;
+}
+
 .btrick--empty {
   display: flex;
   align-items: center;
@@ -622,6 +667,12 @@
   border-radius: 8px;
   font-size: 9px;
   text-transform: uppercase;
+}
+
+.btrick--empty .btrick__surface {
+  width: 100%;
+  height: 100%;
+  justify-content: center;
 }
 
 .btrick__play {
@@ -750,6 +801,126 @@
   100% {
     opacity: 0;
     transform: scale(0.82) translateY(-8px);
+  }
+}
+
+/* Final-hand trick echo — mirrors tricks 1–4 when settlement clears the live row early */
+.btrick--echo-pipeline .btrick__play:not(.btrick__play--winner) .pcard {
+  animation: btrick-echo-dim var(--trick-post-read-ms, 1600ms) ease forwards;
+}
+
+.btrick--echo-pipeline .btrick__play--winner .pcard {
+  animation: btrick-winner-glow var(--trick-winner-highlight-ms, 400ms) ease forwards;
+  animation-delay: var(--trick-post-read-ms, 1600ms);
+}
+
+.btrick--echo-pipeline .btrick__winner-tag {
+  opacity: 0;
+  animation: btrick-winner-tag var(--trick-winner-highlight-ms, 400ms) ease forwards;
+  animation-delay: var(--trick-post-read-ms, 1600ms);
+}
+
+.btrick--echo-pipeline .btrick__surface {
+  animation: btrick-sweep var(--trick-sweep-ms, 520ms) ease forwards;
+  animation-delay: calc(var(--trick-post-read-ms, 1600ms) + var(--trick-winner-highlight-ms, 400ms));
+}
+
+@keyframes btrick-echo-dim {
+  0%,
+  88% {
+    filter: grayscale(0) brightness(1);
+  }
+  100% {
+    filter: grayscale(0.2) brightness(0.92);
+  }
+}
+
+/* Hand settle must wait for trick collection on the final trick */
+.center-play--settle.center-play--trick-resolving .bpot__stat--pot dd,
+.center-play--settle.center-play--trick-resolving .center-play__carry,
+.center-play--settle.center-play--final-trick-echo .bpot__stat--pot dd,
+.center-play--settle.center-play--final-trick-echo .center-play__carry {
+  animation: none;
+}
+
+.center-play--settle.center-play--trick-resolving .bpot__stat--pot dd,
+.center-play--settle.center-play--final-trick-echo .bpot__stat--pot dd {
+  animation: bsettle-pot 900ms ease;
+  animation-delay: calc(
+    var(--trick-post-read-ms, 1600ms) + var(--trick-winner-highlight-ms, 400ms) +
+      var(--trick-sweep-ms, 520ms) + var(--trick-next-lead-gap-ms, 200ms)
+  );
+}
+
+.center-play--settle.center-play--trick-resolving .center-play__carry,
+.center-play--settle.center-play--final-trick-echo .center-play__carry {
+  animation: bsettle-carry 900ms ease;
+  animation-delay: calc(
+    var(--trick-post-read-ms, 1600ms) + var(--trick-winner-highlight-ms, 400ms) +
+      var(--trick-sweep-ms, 520ms) + var(--trick-next-lead-gap-ms, 200ms)
+  );
+}
+
+.center-play--settle[data-trick-phase="collectTrick"] .bpot__stat--pot dd {
+  animation-delay: calc(var(--trick-sweep-ms, 520ms) + var(--trick-next-lead-gap-ms, 200ms));
+}
+
+.btable-session__turn-stack {
+  display: grid;
+  gap: 0;
+}
+
+.btable-session__turn-stack .btable-session__turn {
+  margin: 0;
+}
+
+.btable-session__turn--trick-resolve,
+.btable-session__turn--final-trick {
+  display: none;
+}
+
+.btable-session[data-trick-resolving="true"] .btable-session__turn--trick-resolve {
+  display: block;
+}
+
+.btable-session[data-trick-resolving="true"] .btable-session__turn--settle,
+.btable-session[data-trick-resolving="true"] .btable-session__turn--final-trick {
+  display: none;
+}
+
+.btable-session[data-hand-settling="true"][data-trick-resolving="false"] .btable-session__turn--settle {
+  opacity: 0;
+  animation: bfinal-trick-status-settle 1ms linear forwards;
+  animation-delay: var(--trick-final-pipeline-ms, 2720ms);
+}
+
+.btable-session[data-hand-settling="true"][data-trick-resolving="false"] .btable-session__turn--final-trick {
+  display: block;
+  animation:
+    bfinal-trick-status-hold calc(var(--trick-final-pipeline-ms, 2720ms) - 1ms) ease forwards,
+    bfinal-trick-status-fade 1ms linear forwards;
+  animation-delay: 0s, var(--trick-final-pipeline-ms, 2720ms);
+}
+
+@keyframes bfinal-trick-status-hold {
+  from,
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bfinal-trick-status-fade {
+  to {
+    opacity: 0;
+    height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+@keyframes bfinal-trick-status-settle {
+  to {
+    opacity: 1;
   }
 }
 

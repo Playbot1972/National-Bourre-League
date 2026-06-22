@@ -41,6 +41,8 @@ export interface HandPresentationModel {
   settleAnimActive: boolean;
   settleCarryOver: boolean;
   nextHandResetActive: boolean;
+  /** Latched when the server reports handComplete; cleared when settle begins. */
+  pendingHandSettle: boolean;
   suppressTurnIndicator: boolean;
   displayPotAmount: number;
   isPresenting: boolean;
@@ -64,6 +66,8 @@ export interface HandPresentationStore {
   settleAnimActive: boolean;
   settleCarryOver: boolean;
   nextHandResetActive: boolean;
+  pendingHandSettle: boolean;
+  handSettleSnapshot: HandServerSnapshot | null;
   displayPotAmount: number;
   prevSnapshot: HandServerSnapshot | null;
   pendingSnapshot: HandServerSnapshot | null;
@@ -154,6 +158,8 @@ export function createHandPresentationStore(
     settleAnimActive: false,
     settleCarryOver: false,
     nextHandResetActive: false,
+    pendingHandSettle: false,
+    handSettleSnapshot: null,
     displayPotAmount: snapshot.potAmount,
     prevSnapshot: snapshot,
     pendingSnapshot: null,
@@ -214,6 +220,20 @@ function beginDrawPlayerAnim(
   });
 }
 
+function beginHandSettleFromPending(store: HandPresentationStore): HandPresentationStore {
+  if (!store.pendingHandSettle || store.phase !== "play") return store;
+  const snap = store.handSettleSnapshot ?? store.prevSnapshot;
+  if (!snap) return store;
+  return withPhase(store, "settle", {
+    pendingHandSettle: false,
+    handSettleSnapshot: null,
+    settleAnimActive: true,
+    settleCarryOver: snap.carryOverPot > 0,
+    prevSnapshot: snap,
+    displayPotAmount: snap.potAmount,
+  });
+}
+
 function beginDrawSequence(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -241,6 +261,7 @@ export type HandPresentationEvent =
     }
   | { type: "advancePhase" }
   | { type: "watchdog" }
+  | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
   | { type: "clearEnrollmentPulse" };
 
@@ -261,7 +282,13 @@ export function reduceHandPresentation(
 
     case "watchdog":
       if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
+      if (store.pendingHandSettle && store.phase === "play") {
+        return beginHandSettleFromPending(store);
+      }
       return advanceHandPhase({ ...store, pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot });
+
+    case "tryBeginHandSettle":
+      return beginHandSettleFromPending(store);
 
     case "advancePhase":
       return advanceHandPhase(store);
@@ -294,6 +321,21 @@ export function reduceHandPresentation(
       }
 
       if (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done") {
+        return { ...store, pendingSnapshot: snapshot };
+      }
+
+      if (snapshot.handComplete && snapshot.phase === "play" && store.phase === "play") {
+        return {
+          ...store,
+          pendingHandSettle: true,
+          handSettleSnapshot: snapshot,
+          pendingSnapshot: snapshot,
+          prevSnapshot: snapshot,
+          displayPotAmount: snapshot.potAmount,
+        };
+      }
+
+      if (store.pendingHandSettle && store.phase === "play") {
         return { ...store, pendingSnapshot: snapshot };
       }
 
@@ -367,15 +409,6 @@ export function reduceHandPresentation(
         ) {
           return withPhase(store, "drawReady", { prevSnapshot: snapshot });
         }
-      }
-
-      if (snapshot.handComplete && snapshot.phase === "play" && store.phase === "play") {
-        return withPhase(store, "settle", {
-          settleAnimActive: true,
-          settleCarryOver: snapshot.carryOverPot > 0,
-          prevSnapshot: snapshot,
-          displayPotAmount: snapshot.potAmount,
-        });
       }
 
       return {
@@ -519,7 +552,9 @@ export function buildHandPresentationModel(
     settleAnimActive: store.settleAnimActive,
     settleCarryOver: store.settleCarryOver,
     nextHandResetActive: store.nextHandResetActive,
+    pendingHandSettle: store.pendingHandSettle,
     suppressTurnIndicator:
+      store.pendingHandSettle ||
       store.phase === "trumpReveal" ||
       store.phase === "trumpMerge" ||
       store.phase === "ante" ||

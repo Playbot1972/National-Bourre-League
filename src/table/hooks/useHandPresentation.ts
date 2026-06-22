@@ -31,6 +31,7 @@ export interface UseHandPresentationInput {
   enrollmentActive: boolean;
   potAmount: number;
   handComplete: boolean;
+  trickPipelineActive?: boolean;
   heroCards?: SerializedCard[];
   enrolledIds?: string[];
   declinedIds?: string[];
@@ -44,6 +45,7 @@ export function useHandPresentation({
   enrollmentActive,
   potAmount,
   handComplete,
+  trickPipelineActive = false,
   heroCards = EMPTY_HERO_CARDS,
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
@@ -152,6 +154,11 @@ export function useHandPresentation({
       }
     }
   }, [heroCards.length, session.phase]);
+
+  useEffect(() => {
+    if (trickPipelineActive) return;
+    dispatch({ type: "tryBeginHandSettle" });
+  }, [trickPipelineActive]);
 
   return buildHandPresentationModel(store);
 }
