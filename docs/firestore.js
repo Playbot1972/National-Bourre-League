@@ -1759,7 +1759,13 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
   const privateHand = deserializeCards(handData.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
-  const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw);
+  const deckSeed = ch.deckSeed;
+  const deckNextIndex = ch.deckNextIndex ?? 0;
+  const deckRemaining =
+    deckSeed != null
+      ? remainingDeckCount(shuffledDeckFromSeed(deckSeed), deckNextIndex)
+      : ch.remainingDeckCount ?? 0;
+  const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw, deckRemaining);
   await submitHandDraw(roomId, sessionId, { playerId, discardIndices: indices, actorId });
 }
 
@@ -3597,6 +3603,11 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
     const hand = getSessionCurrentHand(sessionSnap.data());
     if (hand?.phase === HAND_PHASE.REVEAL && hand?.handDecision) {
       await advanceHandReveal(roomId, sessionId);
+      const refreshed = await getDoc(sessionDoc(roomId, sessionId));
+      const nextPhase = getSessionCurrentHand(refreshed.data())?.phase ?? null;
+      if (nextPhase === HAND_PHASE.DRAW || nextPhase === HAND_PHASE.PLAY) {
+        return;
+      }
       return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
     }
     if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {

@@ -22,6 +22,12 @@ describe("F — bot helpers", () => {
     assert.ok(indices.includes(1));
   });
 
+  it("botDrawDiscardIndices respects remaining deck replacements", () => {
+    const hand = [c("A", "hearts"), c("2", "clubs"), c("3", "diamonds")];
+    assert.deepEqual(botDrawDiscardIndices(hand, "hearts", 2, 0), []);
+    assert.equal(botDrawDiscardIndices(hand, "hearts", 2, 1).length, 1);
+  });
+
   it("botPlayCardIndex picks a legal card and leads high when opening a trick", () => {
     const hand = [c("A", "clubs"), c("2", "clubs")];
     const leadCtx = {
