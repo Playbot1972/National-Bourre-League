@@ -11,14 +11,12 @@ import {
 } from "./testHelpers";
 
 describe("A/B — deal and trump upcard", () => {
-  it("deals five cards in storage; trump holder shows four while reveal is on table", () => {
+  it("deals five cards in storage and for draw while trump reveal is on table", () => {
     const deal = dealForTest({ seed: 7 });
     for (const pid of deal.participantIds) {
       const pub = publicHandFromDeal(deal);
       const effective = effectivePlayerHand(pid, deal.privateHands[pid], pub);
-      const expected =
-        pid === deal.trumpHolderId ? CARDS_PER_PLAYER - 1 : CARDS_PER_PLAYER;
-      assert.equal(effective.length, expected);
+      assert.equal(effective.length, CARDS_PER_PLAYER);
     }
   });
 
@@ -31,7 +29,7 @@ describe("A/B — deal and trump upcard", () => {
       ),
     );
     const pub = publicHandFromDeal(deal);
-    assert.equal(effectivePlayerHand("p1", deal.privateHands.p1, pub).length, 4);
+    assert.equal(effectivePlayerHand("p1", deal.privateHands.p1, pub).length, 5);
   });
 
   it("does not auto-lead trump — play starts with empty trick", () => {

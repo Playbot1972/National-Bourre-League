@@ -131,12 +131,13 @@ export function settleHandDeltas({
       if (pid === winner) {
         deltas[pid] = winnerTake - playerStake;
       } else if (bourreIds.includes(pid)) {
-        deltas[pid] = -playerStake - bourrePenalty;
+        // Bourré pot match is collected on the next deal, not at settlement.
+        deltas[pid] = -playerStake;
       } else {
         deltas[pid] = -playerStake;
       }
     });
-    carryOverPot = bourreMatch + (limOn ? overflow : 0);
+    carryOverPot = limOn ? overflow : 0;
   }
 
   if (bourreMatch > 0 && mode !== "win" && mode !== "split") {
@@ -174,6 +175,21 @@ export function scoreBankroll(score, buyInFallback = 0) {
     return stored;
   }
   return fromLedger;
+}
+
+/**
+ * Per-player contribution at deal time — normal ante, waived ante, or bourré replacement only.
+ * @param {object | null | undefined} scoreRow
+ * @param {number} sessionStake
+ */
+export function handAnteContribution(scoreRow, sessionStake) {
+  const replacement = Number(scoreRow?.bourreReplacementDue);
+  if (Number.isFinite(replacement) && replacement > 0) {
+    return replacement;
+  }
+  if (scoreRow?.skipNextAnte) return 0;
+  const n = scoreRow?.perHandStake ?? sessionStake;
+  return Math.max(0.01, Number(n) || sessionStake);
 }
 
 /** Apply a settlement delta against a bankroll; negative deltas clamp at zero. */

@@ -44,7 +44,7 @@ describe("heroHandDisplay", () => {
     assert.equal(findTrumpDisplayIndex(raw, trumpUpcard), 4);
     assert.deepEqual(mapEffectiveIndicesToDisplay([0, 2], 4), [0, 2]);
     assert.deepEqual(mapDisplayIndicesToEffective([0, 2], 4), [0, 2]);
-    assert.deepEqual(mapDisplayIndicesToEffective([4], 4), []);
+    assert.deepEqual(mapDisplayIndicesToEffective([4], 4), [4]);
   });
 
   it("shows suit reminder after trump merges into holder hand", () => {
@@ -64,7 +64,7 @@ describe("heroHandDisplay", () => {
     });
     assert.equal(state.revealedTrumpIndex, null);
     assert.equal(state.showTrumpSuitReminder, true);
-    assert.equal(state.trumpDisabledIndex, 4);
+    assert.equal(state.trumpDisabledIndex, null);
   });
 
   it("keeps effective hand for non-holders", () => {

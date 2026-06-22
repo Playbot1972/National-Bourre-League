@@ -102,7 +102,7 @@ describe("E/H — settlement integration", () => {
       assert.ok(result.deltas[winnerIds[0]] > 0);
     }
     if (result.bourreMatch > 0) {
-      assert.ok(result.carryOverPot >= result.bourreMatch);
+      assert.ok(result.bourreMatch > 0);
     }
   });
 

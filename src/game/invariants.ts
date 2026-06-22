@@ -99,7 +99,8 @@ export function effectivePlayerHand(
   }
   const trumpInPrivate = hand.some((c) => cardsEqual(c, trump));
   if (trumpInPrivate) {
-    return hand.filter((c) => !cardsEqual(c, trump));
+    // Full private hand — dealer may discard the revealed trump during draw.
+    return hand;
   }
   hand.push(trump);
   return hand;
