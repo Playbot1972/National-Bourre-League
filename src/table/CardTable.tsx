@@ -4,6 +4,8 @@ import { Seat } from "./Seat";
 import { seatPosition, tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
 import {
   CARD_LAND_MS,
+  NEXT_LEAD_GAP_MS,
+  POST_TRICK_READ_MS,
   TRICK_SWEEP_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
@@ -176,6 +178,9 @@ export function CardTable({
         ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
         ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
         ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
+        ["--trick-post-read-ms" as string]: `${POST_TRICK_READ_MS}ms`,
+        ["--trick-next-lead-gap-ms" as string]: `${NEXT_LEAD_GAP_MS}ms`,
+        ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,
         ["--deal-card-stagger-ms" as string]: `${handTiming.dealCardStaggerMs}ms`,
         ["--draw-discard-ms" as string]: `${handTiming.drawDiscardMs}ms`,
         ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,
@@ -216,6 +221,8 @@ export function CardTable({
             drawDiscardCount={handPresentation.drawDiscardCount}
             settleAnimActive={handPresentation.settleAnimActive}
             settleCarryOver={handPresentation.settleCarryOver}
+            playedCards={session.playedCards}
+            handComplete={handComplete}
             potTick={microinteractions.potTick}
             trumpReminderPulse={microinteractions.trumpReminderPulse}
           />

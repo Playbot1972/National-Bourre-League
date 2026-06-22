@@ -388,6 +388,9 @@ export function TableSessionView({
       ]
         .filter(Boolean)
         .join(" ")}
+      data-trick-resolving={trickPresentation.isResolving ? "true" : "false"}
+      data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
+      data-hand-complete={handComplete ? "true" : "false"}
     >
       {actionFeedback && actionFeedback.status !== "idle" && (
         <div
@@ -447,16 +450,21 @@ export function TableSessionView({
             Draw complete — first lead coming up
           </p>
         )}
-        {handPresentation.settleAnimActive && (
-          <p className="btable-session__turn muted small" aria-live="polite">
-            Settling the pot…
-          </p>
-        )}
-        {trickPresentation.isResolving && session.phase === "play" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
+        <div className="btable-session__turn-stack" aria-live="polite">
+          {handPresentation.settleAnimActive && (
+            <p className="btable-session__turn btable-session__turn--settle muted small">
+              Settling the pot…
+            </p>
+          )}
+          <p className="btable-session__turn btable-session__turn--trick-resolve muted small">
             Trick won — cards collecting before the next lead
           </p>
-        )}
+          {handPresentation.settleAnimActive && (
+            <p className="btable-session__turn btable-session__turn--final-trick muted small">
+              Final trick — cards collecting before the pot settles
+            </p>
+          )}
+        </div>
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
           <p className="btable-session__turn muted small" aria-live="polite">
             {turnLabel}

@@ -1,11 +1,12 @@
 import { PlayingCard } from "../components/PlayingCard";
+import { resolveTrickWinner } from "../game/trick";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
-import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
-import type { PotMetrics, SerializedCard } from "./types";
+import { completedTrickPlays, type TrickPlay, type TrickPresentationPhase } from "./trickTiming";
+import type { PlayedCardEntry, PotMetrics, SerializedCard } from "./types";
 
 interface PotCenterProps {
   potMetrics: PotMetrics;
@@ -27,6 +28,8 @@ interface PotCenterProps {
   drawDiscardCount?: number;
   settleAnimActive?: boolean;
   settleCarryOver?: boolean;
+  playedCards?: PlayedCardEntry[];
+  handComplete?: boolean;
   potTick?: number;
   trumpReminderPulse?: number;
   /** Hide center trump card when the holder already shows it in their fan. */
@@ -55,6 +58,8 @@ export function PotCenter({
   drawDiscardCount = 0,
   settleAnimActive = false,
   settleCarryOver = false,
+  playedCards = [],
+  handComplete = false,
   potTick = 0,
   trumpReminderPulse = 0,
   hideCenterTrump = false,
@@ -66,6 +71,32 @@ export function PotCenter({
     showTrumpSuitReminderProp ||
     (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
+  const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
+  const liveTrickCardCount = trickDisplayPlays.length;
+  const finalTrickNumber =
+    playedCards.length > 0 ? Math.max(...playedCards.map((entry) => entry.trickNumber)) : 0;
+  const echoPlays: TrickPlay[] =
+    finalTrickNumber > 0
+      ? completedTrickPlays({
+          prevTrick: null,
+          playedCards,
+          trickNumber: finalTrickNumber,
+        })
+      : [];
+  const echoLeadSuit = echoPlays[0]?.card.suit ?? null;
+  const echoWinnerId =
+    echoPlays.length > 0 && echoLeadSuit && trumpSuit
+      ? resolveTrickWinner(
+          echoPlays.map((play) => ({
+            playerId: play.playerId,
+            card: { rank: play.card.rank as Rank, suit: play.card.suit as Suit },
+          })),
+          echoLeadSuit as Suit,
+          trumpSuit as Suit,
+        )
+      : null;
+  const showFinalTrickEcho =
+    settleAnimActive && liveTrickCardCount === 0 && echoPlays.length > 0;
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
@@ -133,9 +164,15 @@ export function PotCenter({
           anteAnimActive ? "center-play--ante-in" : "",
           settleAnimActive ? "center-play--settle" : "",
           settleCarryOver ? "center-play--carry" : "",
+          trickResolving ? "center-play--trick-resolving" : "",
+          showFinalTrickEcho ? "center-play--final-trick-echo" : "",
         ]
           .filter(Boolean)
           .join(" ")}
+        data-trick-phase={trickPresentationPhase}
+        data-trick-cards={liveTrickCardCount}
+        data-hand-settling={settleAnimActive ? "true" : "false"}
+        data-hand-complete={handComplete ? "true" : "false"}
       >
         {anteAnimActive && (
           <div className="bpot__ante-chips" aria-hidden="true">
@@ -172,14 +209,28 @@ export function PotCenter({
           )}
         </div>
 
-        <div className="center-play__trick">
-          <TrickRow
-            displayPlays={trickDisplayPlays}
-            winnerPlayerId={trickWinnerPlayerId}
-            showWinnerTag={trickShowWinnerTag}
-            presentationPhase={trickPresentationPhase}
-            playerNames={playerNames}
-          />
+        <div className="center-play__trick-stage">
+          <div className="center-play__trick-live">
+            <TrickRow
+              displayPlays={trickDisplayPlays}
+              winnerPlayerId={trickWinnerPlayerId}
+              showWinnerTag={trickShowWinnerTag}
+              presentationPhase={trickPresentationPhase}
+              playerNames={playerNames}
+            />
+          </div>
+          {showFinalTrickEcho && (
+            <div className="center-play__trick-echo" aria-hidden="true">
+              <TrickRow
+                variant="echo"
+                displayPlays={echoPlays}
+                winnerPlayerId={echoWinnerId}
+                showWinnerTag
+                presentationPhase="winnerReveal"
+                playerNames={playerNames}
+              />
+            </div>
+          )}
         </div>
 
         <dl className="center-play__stats">
