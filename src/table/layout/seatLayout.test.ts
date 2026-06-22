@@ -116,10 +116,11 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
         resolveMobileOpponentLayout(i, total, "portrait"),
       );
       assert.equal(layouts.length, opponents);
+      const yMax = total === 7 ? 92 : 56;
       for (const layout of layouts) {
         assert.equal(layout.handLane, "below");
         assert.ok(layout.x >= 8 && layout.x <= 92);
-        assert.ok(layout.y >= 8 && layout.y <= 56);
+        assert.ok(layout.y >= 8 && layout.y <= yMax);
       }
       const xs = layouts.map((l) => l.x);
       if (opponents >= 3) {

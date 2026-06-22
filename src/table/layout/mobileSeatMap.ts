@@ -6,6 +6,11 @@ import {
 
 export type MobileOrientation = "portrait" | "landscape";
 
+export {
+  buildSevenPlayerMobileSeatMap,
+  sevenPlayerMobileAnchor,
+} from "./sevenPlayerMobileSeatMap";
+
 /** Intentional mobile felt shape — taller in portrait for 3–4 player games. */
 export function mobileTableAspect(
   opponentCount: number,
@@ -26,9 +31,12 @@ export function mobileTableAspect(
   return 1.26;
 }
 
-/** Local player on the bottom rail — cap Y so avatar/stack stay inside the mobile felt. */
-export function mobileSelfSeatPosition(total: number): SeatPlacement {
-  const layout = resolveMobileSelfLayout(total);
+/** Local player on the bottom rail. */
+export function mobileSelfSeatPosition(
+  total: number,
+  orientation: MobileOrientation = "portrait",
+): SeatPlacement {
+  const layout = resolveMobileSelfLayout(total, orientation);
   return { x: layout.x, y: layout.y, region: layout.region };
 }
 

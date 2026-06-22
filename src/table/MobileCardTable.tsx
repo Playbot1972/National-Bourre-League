@@ -105,7 +105,7 @@ export function MobileCardTable({
   const opponents = rotated.filter((p) => !p.isSelf);
   const feltSelfPlayer = rotated.find((p) => p.isSelf);
   const feltSelfLayout = feltSelfPlayer
-    ? resolveMobileSelfLayout(rotated.length)
+    ? resolveMobileSelfLayout(rotated.length, orientation)
     : null;
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
