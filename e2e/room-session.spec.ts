@@ -29,6 +29,28 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await expect(page.locator("#new-session-stake")).not.toHaveValue("5");
   });
 
+  test("bourré settings and regional tables ante controls mirror sub-dollar values", async ({ page }) => {
+    const bourreAnte = page.locator("#room-ante-amount");
+    const regionalAnte = page.locator("#new-session-stake");
+    await expect(bourreAnte).toBeVisible();
+    await expect(regionalAnte).toBeVisible();
+
+    await bourreAnte.selectOption("0.25");
+    await page.waitForTimeout(400);
+    await expect(bourreAnte).toHaveValue("0.25");
+    await expect(regionalAnte).toHaveValue("0.25");
+
+    await regionalAnte.selectOption("0.01");
+    await page.waitForTimeout(400);
+    await expect(regionalAnte).toHaveValue("0.01");
+    await expect(bourreAnte).toHaveValue("0.01");
+
+    await regionalAnte.selectOption("1");
+    await page.waitForTimeout(400);
+    await expect(regionalAnte).toHaveValue("1");
+    await expect(bourreAnte).toHaveValue("1");
+  });
+
   test("new session ante dropdown keeps selected value after change", async ({ page }) => {
     const sessionAnte = page.locator("#new-session-stake");
     await expect(sessionAnte).toBeVisible();
