@@ -131,12 +131,6 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
 });
 
 describe("7-seat preset", () => {
-  const lockedBefore = {
-    2: { x: 6.1, y: 40.4, region: "left" },
-    4: { x: 69.5, y: 11.3, region: "top" },
-    6: { x: 85.2, y: 76.8, region: "right" },
-  };
-
   it("desktop 7 seats stay clockwise on screen", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });
     assert.equal(map.length, 7);
@@ -145,17 +139,25 @@ describe("7-seat preset", () => {
     assert.equal(unique.size, 7);
   });
 
-  it("locks Bot 2, Bot 4, and Bot 6 at their prior ellipse positions", () => {
+  it("keeps Bot 4 locked at top-center brown edge", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });
-    for (const [idx, want] of Object.entries(lockedBefore)) {
-      const seat = map[Number(idx)]!;
-      assert.equal(seat.region, want.region);
-      assert.ok(Math.abs(seat.x - want.x) < 0.05, `seat ${idx} x unchanged`);
-      assert.ok(Math.abs(seat.y - want.y) < 0.05, `seat ${idx} y unchanged`);
-    }
+    const bot4 = map[4]!;
+    assert.equal(bot4.region, "top");
+    assert.ok(Math.abs(bot4.x - 69.5) < 0.05);
+    assert.ok(Math.abs(bot4.y - 11.3) < 0.05);
   });
 
-  it("anchors hero bottom center and corner seats", () => {
+  it("centers Bot 2 on the left brown mid-rail", () => {
+    const map = buildSeatLayoutMap(7, { isMobile: false });
+    const bot2 = map[2]!;
+
+    assert.equal(bot2.region, "left");
+    assert.ok(bot2.x < 6.1, "Bot 2 moves outward onto left brown edge");
+    assert.ok(Math.abs(bot2.y - 40.4) < 0.05, "Bot 2 vertical rail position preserved");
+    assert.equal(bot2.handLane, "side");
+  });
+
+  it("places kiddie-corner seats at diagonal rails", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });
     const hero = map[0]!;
     const bot1 = map[1]!;
@@ -163,29 +165,21 @@ describe("7-seat preset", () => {
     const bot5 = map[5]!;
     const bot6 = map[6]!;
 
-    assert.equal(hero.region, "bottom");
-    assert.ok(hero.y >= 90, "hero stays on bottom edge");
-    assert.ok(Math.abs(hero.x - 50) < 1, "hero bottom center");
+    assert.ok(bot1.x < 12 && bot1.y > 88, "Bot 1 lower-left kiddie corner");
+    assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
 
-    assert.equal(bot1.region, "bottom");
-    assert.ok(bot1.x < hero.x && bot1.y >= 85, "Bot 1 lower-left");
-
-    assert.equal(bot3.region, "top");
-    assert.ok(bot3.x < 20 && bot3.y < 20, "Bot 3 upper-left corner");
-
-    assert.equal(bot5.region, "top");
-    assert.ok(bot5.x > 80 && bot5.y < 20, "Bot 5 upper-right corner");
-
-    assert.equal(bot6.region, "right");
-    assert.ok(bot6.x > 80 && bot6.y > 70, "Bot 6 lower-right anchor");
+    assert.ok(bot3.x < 12 && bot3.y < 12, "Bot 3 upper-left kiddie corner");
+    assert.ok(bot5.x > 88 && bot5.y < 12, "Bot 5 upper-right kiddie corner");
+    assert.ok(bot6.x > 88 && bot6.y > 88, "Bot 6 lower-right kiddie corner");
+    assert.ok(bot6.x > hero.x, "Bot 6 right of hero");
   });
 
   it("keeps inward hand lanes on desktop", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });
+    assert.equal(map[2]?.handLane, "side");
+    assert.equal(map[6]?.handLane, "side");
     for (const seat of map) {
       assert.ok(["below", "side"].includes(seat.handLane));
-      if (seat.seatIndex === 2) assert.equal(seat.handLane, "side");
-      else assert.equal(seat.handLane, "below");
     }
   });
 });
