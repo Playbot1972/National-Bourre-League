@@ -180,6 +180,24 @@
   z-index: 9;
 }
 
+/* Mobile opponents — info above avatar, hole cards below toward felt */
+.btable-mobile-wrap .bseat--hand-below:not(.bseat--self) .bseat__aux {
+  left: 0;
+  right: auto;
+  top: auto;
+  bottom: 100%;
+  transform: translate(-50%, -6px);
+  min-width: 72px;
+}
+
+.btable-mobile-wrap .bseat--hand-below:not(.bseat--self) .bseat__hole-cards {
+  top: calc(100% + 10px);
+}
+
+.btable-mobile-wrap .bseat--hand-below:not(.bseat--self) .bseat__hole-card:not(:first-child) {
+  margin-left: -9px;
+}
+
 .btable-mobile-oval {
   inset: 3.5% 2% 4% 2%;
 }

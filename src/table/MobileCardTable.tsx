@@ -2,11 +2,14 @@ import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import {
-  mobileOpponentSeatPosition,
-  mobileSelfSeatPosition,
   mobileTableAspect,
   type MobileOrientation,
 } from "./layout/mobileSeatMap";
+import { orderPlayersForTable } from "./layout/seatOrder";
+import {
+  resolveMobileOpponentLayout,
+  resolveMobileSelfLayout,
+} from "./layout/seatLayout";
 import { useTableLayoutMode } from "./layout/useTableLayoutMode";
 import {
   CARD_LAND_MS,
@@ -98,22 +101,11 @@ export function MobileCardTable({
       (currentUserId != null && player.playerId === currentUserId),
   }));
 
-  const ordered = [...feltPlayers].sort((a, b) => {
-    if (a.isSelf) return -1;
-    if (b.isSelf) return 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
-
-  const selfIdx = ordered.findIndex((p) => p.isSelf);
-  const rotated =
-    selfIdx > 0
-      ? [...ordered.slice(selfIdx), ...ordered.slice(0, selfIdx)]
-      : ordered;
-
+  const rotated = orderPlayersForTable(feltPlayers, session, currentUserId);
   const opponents = rotated.filter((p) => !p.isSelf);
   const feltSelfPlayer = rotated.find((p) => p.isSelf);
-  const feltSelfPos = feltSelfPlayer
-    ? mobileSelfSeatPosition(rotated.length)
+  const feltSelfLayout = feltSelfPlayer
+    ? resolveMobileSelfLayout(rotated.length)
     : null;
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
@@ -255,7 +247,11 @@ export function MobileCardTable({
 
           <div className="btable__seats btable-mobile__seats" aria-label="Players at the table">
             {opponents.map((player, i) => {
-              const pos = mobileOpponentSeatPosition(i, opponents.length, orientation);
+              const layout = resolveMobileOpponentLayout(
+                i,
+                rotated.length,
+                orientation,
+              );
               const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
               return (
                 <div
@@ -264,10 +260,11 @@ export function MobileCardTable({
                 >
                   <Seat
                     player={seatPlayer}
-                    region={pos.region}
+                    region={layout.region}
+                    handLane={layout.handLane}
                     style={{
-                      left: `${pos.x}%`,
-                      top: `${pos.y}%`,
+                      left: `${layout.x}%`,
+                      top: `${layout.y}%`,
                     }}
                     onToggleInHand={() =>
                       onToggleInHand(
@@ -286,7 +283,7 @@ export function MobileCardTable({
                 </div>
               );
             })}
-            {feltSelfPlayer && feltSelfPos && (
+            {feltSelfPlayer && feltSelfLayout && (
               <div
                 key={feltSelfPlayer.playerId}
                 className="btable__seat-slot btable__seat-slot--self"
@@ -296,10 +293,11 @@ export function MobileCardTable({
                     displayPlayers.find((p) => p.playerId === feltSelfPlayer.playerId) ??
                     feltSelfPlayer
                   }
-                  region={feltSelfPos.region}
+                  region={feltSelfLayout.region}
+                  handLane={feltSelfLayout.handLane}
                   style={{
-                    left: `${feltSelfPos.x}%`,
-                    top: `${feltSelfPos.y}%`,
+                    left: `${feltSelfLayout.x}%`,
+                    top: `${feltSelfLayout.y}%`,
                   }}
                   onToggleInHand={() =>
                     onToggleInHand(

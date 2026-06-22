@@ -1,7 +1,9 @@
 import { HeroHand } from "./HeroHand";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
-import { seatPosition, tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
+import { tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
+import { orderPlayersForTable } from "./layout/seatOrder";
+import { resolveSeatLayout } from "./layout/seatLayout";
 import {
   CARD_LAND_MS,
   NEXT_LEAD_GAP_MS,
@@ -86,18 +88,7 @@ export function CardTable({
       (currentUserId != null && player.playerId === currentUserId),
   }));
 
-  const ordered = [...feltPlayers].sort((a, b) => {
-    if (a.isSelf) return -1;
-    if (b.isSelf) return 1;
-    return a.displayName.localeCompare(b.displayName);
-  });
-
-  const selfIdx = ordered.findIndex((p) => p.isSelf);
-  const rotated =
-    selfIdx > 0
-      ? [...ordered.slice(selfIdx), ...ordered.slice(0, selfIdx)]
-      : ordered;
-
+  const rotated = orderPlayersForTable(feltPlayers, session, currentUserId);
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = tableAspectForPlayers(playerCount);
@@ -235,7 +226,10 @@ export function CardTable({
 
         <div className="btable__seats" aria-label="Players at the table">
           {rotated.map((player, i) => {
-            const pos = seatPosition(i, rotated.length);
+            const layout = resolveSeatLayout(i, rotated.length, {
+              isMobile: false,
+              isSelf: player.isSelf,
+            });
             const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
             return (
               <div
@@ -244,10 +238,11 @@ export function CardTable({
               >
                 <Seat
                   player={seatPlayer}
-                  region={pos.region}
+                  region={layout.region}
+                  handLane={layout.handLane}
                   style={{
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`,
+                    left: `${layout.x}%`,
+                    top: `${layout.y}%`,
                   }}
                   onToggleInHand={() =>
                     onToggleInHand(

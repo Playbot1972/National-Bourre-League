@@ -1,10 +1,16 @@
-import type { SeatPlacement, SeatRegion } from "../logic";
-import { seatPosition } from "../logic";
+import type { SeatPlacement } from "../logic";
+import {
+  resolveMobileOpponentLayout,
+  resolveMobileSelfLayout,
+} from "./seatLayout";
 
 export type MobileOrientation = "portrait" | "landscape";
 
 /** Intentional mobile felt shape — taller in portrait for 3–4 player games. */
-export function mobileTableAspect(opponentCount: number, orientation: MobileOrientation): number {
+export function mobileTableAspect(
+  opponentCount: number,
+  orientation: MobileOrientation,
+): number {
   const n = Math.max(1, Math.min(7, opponentCount || 1));
   if (orientation === "portrait") {
     if (n <= 1) return 0.8;
@@ -22,63 +28,24 @@ export function mobileTableAspect(opponentCount: number, orientation: MobileOrie
 
 /** Local player on the bottom rail — cap Y so avatar/stack stay inside the mobile felt. */
 export function mobileSelfSeatPosition(total: number): SeatPlacement {
-  const base = seatPosition(0, Math.max(2, total));
-  return {
-    x: base.x,
-    y: Math.min(base.y, 88),
-    region: "bottom",
-  };
-}
-
-function regionFromAngle(deg: number): SeatRegion {
-  const d = ((deg % 360) + 360) % 360;
-  if (d >= 30 && d <= 150) return "top";
-  if (d >= 210 && d <= 330) return "bottom";
-  if (d >= 150 && d < 210) return "left";
-  return "right";
+  const layout = resolveMobileSelfLayout(total);
+  return { x: layout.x, y: layout.y, region: layout.region };
 }
 
 /**
  * Opponent arc for mobile — local player is rendered separately on the bottom rail.
- * Index 0 = leftmost opponent (portrait) or first clockwise from top-left (landscape).
+ * Uses the same clockwise seat ring as desktop (hero = index 0).
  */
 export function mobileOpponentSeatPosition(
   opponentIndex: number,
   opponentCount: number,
   orientation: MobileOrientation,
 ): SeatPlacement {
-  const n = Math.max(1, Math.min(7, opponentCount || 1));
-  const i = Math.max(0, Math.min(n - 1, opponentIndex));
-
-  if (orientation === "portrait") {
-    const startDeg = 205;
-    const endDeg = 335;
-    const t = n === 1 ? 0.5 : i / (n - 1);
-    const deg = startDeg + (endDeg - startDeg) * t;
-    const rad = (deg * Math.PI) / 180;
-    const rx = n <= 2 ? 40 : 38;
-    const ry = n <= 2 ? 26 : 28;
-    const nx = Math.cos(rad);
-    const ny = Math.sin(rad);
-    return {
-      x: 50 + rx * nx,
-      y: 50 + ry * ny,
-      region: regionFromAngle(deg),
-    };
-  }
-
-  const startDeg = 160;
-  const endDeg = 380;
-  const t = n === 1 ? 0.5 : i / (n - 1);
-  const deg = startDeg + (endDeg - startDeg) * t;
-  const rad = (deg * Math.PI) / 180;
-  const rx = 40;
-  const ry = 36;
-  const nx = Math.cos(rad);
-  const ny = Math.sin(rad);
-  return {
-    x: 50 + rx * nx,
-    y: 50 + ry * ny,
-    region: regionFromAngle(deg),
-  };
+  const totalPlayers = Math.max(2, opponentCount + 1);
+  const layout = resolveMobileOpponentLayout(
+    opponentIndex,
+    totalPlayers,
+    orientation,
+  );
+  return { x: layout.x, y: layout.y, region: layout.region };
 }
