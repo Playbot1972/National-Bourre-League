@@ -3,6 +3,7 @@ import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import {
   mobileOpponentSeatPosition,
+  mobileSelfSeatPosition,
   mobileTableAspect,
   type MobileOrientation,
 } from "./layout/mobileSeatMap";
@@ -19,7 +20,10 @@ import { useMobileStageFit } from "./hooks/useMobileStageFit";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { displayLiveBankroll, isPlayerAtBourreRisk } from "./logic";
+import {
+  displayLiveBankroll,
+  isPlayerAtBourreRisk,
+} from "./logic";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
@@ -87,7 +91,14 @@ export function MobileCardTable({
   const orientation: MobileOrientation =
     layoutMode === "mobile-landscape" ? "landscape" : "portrait";
 
-  const ordered = [...players].sort((a, b) => {
+  const feltPlayers = players.map((player) => ({
+    ...player,
+    isSelf:
+      player.isSelf ||
+      (currentUserId != null && player.playerId === currentUserId),
+  }));
+
+  const ordered = [...feltPlayers].sort((a, b) => {
     if (a.isSelf) return -1;
     if (b.isSelf) return 1;
     return a.displayName.localeCompare(b.displayName);
@@ -100,6 +111,10 @@ export function MobileCardTable({
       : ordered;
 
   const opponents = rotated.filter((p) => !p.isSelf);
+  const feltSelfPlayer = rotated.find((p) => p.isSelf);
+  const feltSelfPos = feltSelfPlayer
+    ? mobileSelfSeatPosition(rotated.length)
+    : null;
   const playerCount = rotated.length;
   const countClass = `btable--p${Math.min(8, Math.max(2, playerCount))}`;
   const tableAspect = mobileTableAspect(opponents.length, orientation);
@@ -118,7 +133,7 @@ export function MobileCardTable({
     ),
   );
 
-  const displayPlayers = players.map((player) => {
+  const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
     const suppressTurn =
@@ -169,7 +184,7 @@ export function MobileCardTable({
     };
   });
 
-  const selfPlayer = players.find((p) => p.isSelf);
+  const selfPlayer = feltPlayers.find((p) => p.isSelf);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const drawCompleted =
@@ -271,6 +286,37 @@ export function MobileCardTable({
                 </div>
               );
             })}
+            {feltSelfPlayer && feltSelfPos && (
+              <div
+                key={feltSelfPlayer.playerId}
+                className="btable__seat-slot btable__seat-slot--self"
+              >
+                <Seat
+                  player={
+                    displayPlayers.find((p) => p.playerId === feltSelfPlayer.playerId) ??
+                    feltSelfPlayer
+                  }
+                  region={feltSelfPos.region}
+                  style={{
+                    left: `${feltSelfPos.x}%`,
+                    top: `${feltSelfPos.y}%`,
+                  }}
+                  onToggleInHand={() =>
+                    onToggleInHand(
+                      feltSelfPlayer.playerId,
+                      feltSelfPlayer.canToggleInHand ? true : !feltSelfPlayer.inHand,
+                    )
+                  }
+                  onPassEnrollment={
+                    feltSelfPlayer.canPassEnrollment && onPassEnrollment
+                      ? () => onPassEnrollment(feltSelfPlayer.playerId)
+                      : undefined
+                  }
+                  onTrickDelta={(delta) => onTrickDelta(feltSelfPlayer.playerId, delta)}
+                  onReaction={undefined}
+                />
+              </div>
+            )}
           </div>
         </div>
         </div>

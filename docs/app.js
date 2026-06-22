@@ -2614,7 +2614,21 @@ function buildTableSessionProps(s) {
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
   const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
-  const displayScores = sortScoresForDisplay(mergedScores, playerOrder);
+  const myUid = session?.uid ?? null;
+  let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
+  if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
+    displayScores = [
+      ...displayScores,
+      {
+        playerId: myUid,
+        displayName: session?.displayName || "You",
+        tricksWon: 0,
+        handsWon: 0,
+        net: 0,
+        total: 0,
+      },
+    ];
+  }
   const currentHand = getSessionCurrentHand(s);
   const handParticipantIds = currentHand?.participantIds || [];
   const handPhase = currentHand?.phase ?? null;
@@ -2626,7 +2640,6 @@ function buildTableSessionProps(s) {
     handPhase === "decision" ||
     handPhase === "draw" ||
     handPhase === "play";
-  const myUid = session?.uid ?? null;
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
     myUid && cardsDealt
