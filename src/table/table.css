@@ -1193,22 +1193,37 @@
 }
 
 .bseat__hole-cards {
+  --hole-crown-scale: 0.67;
   position: absolute;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
+  justify-content: center;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
+}
+
+/* Opponent resting hand — compact fanned crown behind the avatar */
+.bseat:not(.bseat--self) .bseat__hole-cards--crown {
+  left: 50%;
+  top: 2px;
+  right: auto;
+  bottom: auto;
+  width: max-content;
+  transform: translate(-50%, -62%) scale(var(--hole-crown-scale));
+  transform-origin: 50% 100%;
 }
 
 .bseat__hole-card {
   flex-shrink: 0;
-  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
-  transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+  --hole-fan-rot: calc((var(--hole-i, 0) - 2) * 12deg);
+  transform: rotate(var(--hole-fan-rot));
+  transform-origin: 50% 130%;
   transition: transform 200ms ease, opacity 200ms ease;
 }
 
-.bseat__hole-card:not(:first-child) {
-  margin-left: -11px;
+.bseat:not(.bseat--self) .bseat__hole-card:not(:first-child) {
+  margin-left: -7px;
 }
 
 .bseat--trump-reveal .bseat__hole-card--trump-revealed {
@@ -1227,13 +1242,13 @@
 
 @keyframes bseat-trump-merge {
   0% {
-    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(-14px) scale(1.1);
+    transform: rotate(var(--hole-fan-rot)) translateY(-14px) scale(1.1);
   }
   70% {
-    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(1px) scale(1.02);
+    transform: rotate(var(--hole-fan-rot)) translateY(1px) scale(1.02);
   }
   100% {
-    transform: rotate(calc((var(--hole-i, 0) - 2) * 5deg)) translateY(0) scale(1);
+    transform: rotate(var(--hole-fan-rot)) translateY(0) scale(1);
   }
 }
 
@@ -1259,64 +1274,6 @@
 
 .bseat--right .bseat__core {
   transform: translate(calc(-50% - 4px), -50%);
-}
-
-/* Opponent default — hole cards below buy-in / seat info toward the felt */
-.bseat--hand-below:not(.bseat--self) .bseat__hole-cards {
-  left: 50%;
-  right: auto;
-  top: auto;
-  bottom: auto;
-  transform: translateX(-50%);
-}
-
-.bseat--hand-below.bseat--top:not(.bseat--self) .bseat__hole-cards {
-  top: calc(100% + 8px);
-}
-
-.bseat--hand-below.bseat--bottom:not(.bseat--self) .bseat__hole-cards {
-  top: calc(100% + 8px);
-}
-
-.bseat--hand-below.bseat--left:not(.bseat--self) .bseat__hole-cards {
-  top: calc(100% + 6px);
-}
-
-.bseat--hand-below.bseat--right:not(.bseat--self) .bseat__hole-cards {
-  top: calc(100% + 6px);
-}
-
-/* Side lane — only when the layout resolver opts in (tight side rails) */
-.bseat--hand-side.bseat--bottom .bseat__hole-cards {
-  right: calc(100% + 6px);
-  top: 50%;
-  left: auto;
-  bottom: auto;
-  transform: translateY(-50%);
-}
-
-.bseat--hand-side.bseat--top .bseat__hole-cards {
-  left: calc(100% + 6px);
-  top: 50%;
-  right: auto;
-  bottom: auto;
-  transform: translateY(-50%);
-}
-
-.bseat--hand-side.bseat--left .bseat__hole-cards {
-  left: 50%;
-  bottom: calc(100% + 4px);
-  top: auto;
-  right: auto;
-  transform: translateX(-50%);
-}
-
-.bseat--hand-side.bseat--right .bseat__hole-cards {
-  left: 50%;
-  top: calc(100% + 4px);
-  bottom: auto;
-  right: auto;
-  transform: translateX(-50%);
 }
 
 .btable-session__hero-cards {
@@ -2482,8 +2439,8 @@
     height: 28px;
   }
 
-  .bseat__hole-card:not(:first-child) {
-    margin-left: -8px;
+  .bseat:not(.bseat--self) .bseat__hole-card:not(:first-child) {
+    margin-left: -6px;
   }
 
   .bseat__avatar--initials {
@@ -2500,10 +2457,6 @@
     height: 26px;
     font-size: 14px;
     padding: 0 6px;
-  }
-
-  .bseat__hole-card:not(:first-child) {
-    margin-left: -9px;
   }
 
   .bseat__trick-btn {
