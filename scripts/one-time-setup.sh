@@ -134,6 +134,8 @@ if [[ ! -f "${KEY_FILE}" ]]; then
   exit 1
 fi
 
+node scripts/validate-service-account-key.mjs "${KEY_FILE}" --project "${PROJECT_ID}"
+
 echo "==> GitHub Actions secrets…"
 if $HAS_GH; then
   gh secret set FIREBASE_API_KEY --body "${FIREBASE_API_KEY}"

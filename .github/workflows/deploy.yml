@@ -19,7 +19,13 @@ jobs:
       !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: ubuntu-latest
     steps:
-      - name: Check Firebase secrets are configured
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Firebase secrets and validate service account JSON
         id: cfg
         env:
           PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -38,17 +44,13 @@ jobs:
           if [ -n "$missing" ]; then
             echo "::error::Firebase deploy blocked — missing GitHub Actions secrets:$missing"
             echo "Add them at Settings → Secrets and variables → Actions, then re-run this workflow."
-            echo "Or deploy locally: copy .env.firebase.example → .env.firebase, then npm run deploy"
+            echo "Or from repo root: npm run setup:github-secrets"
             exit 1
           fi
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          node scripts/validate-service-account-key.mjs "$RUNNER_TEMP/firebase-sa.json" --project "$PROJECT_ID"
+          rm -f "$RUNNER_TEMP/firebase-sa.json"
           echo "ready=true" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout
-        if: steps.cfg.outputs.ready == 'true'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         if: steps.cfg.outputs.ready == 'true'
@@ -123,6 +125,8 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
         run: |
           npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
-            echo "::error::Cloud Functions deploy failed — grant Service Account User on {projectId}@appspot.gserviceaccount.com (see scripts/fix-functions-deploy-iam.sh), then re-run this workflow."
+            echo "::error::Cloud Functions deploy failed."
+            echo "If IAM: run ./scripts/fix-functions-deploy-iam.sh national-bourre-league as project Owner."
+            echo "If auth JSON: run npm run sync:github-sa-secret from repo root with .firebase-sa-key.json"
             exit 1
           }
