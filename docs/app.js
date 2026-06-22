@@ -3611,7 +3611,7 @@ function buildSessionLiveStatusHtml(s) {
   if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
   const enrollment = getSessionEnrollment(s);
   const handNum = (s.handCount ?? 0) + 1;
-  let status = `Hand #${handNum} · ante ${formatRiskStake(s.handStake ?? 1)}`;
+  let status = `Hand #${handNum} · ante ${formatAnteStake(s.handStake ?? 1)}`;
   if (enrollment?.active) {
     status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
   } else {
