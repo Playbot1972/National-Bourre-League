@@ -11846,15 +11846,45 @@ function il(e) {
 	return Math.abs(n) >= Math.abs(t) ? n > 0 ? "bottom" : "top" : t > 0 ? "right" : "left";
 }
 var al = {
-	1: {
-		x: 32,
-		y: 88,
+	0: {
+		x: 50,
+		y: 91,
 		region: "bottom"
 	},
-	7: {
-		x: 68,
-		y: 88,
+	1: {
+		x: 8,
+		y: 91,
 		region: "bottom"
+	},
+	2: {
+		x: 2,
+		y: 40.4,
+		region: "left"
+	},
+	3: {
+		x: 8,
+		y: 9,
+		region: "top"
+	},
+	4: {
+		x: 50,
+		y: 9,
+		region: "top"
+	},
+	5: {
+		x: 92,
+		y: 9,
+		region: "top"
+	},
+	6: {
+		x: 98,
+		y: 40.4,
+		region: "right"
+	},
+	7: {
+		x: 92,
+		y: 91,
+		region: "right"
 	}
 }, ol = {
 	0: {
@@ -11912,7 +11942,11 @@ function cl(e, t) {
 		let t = ol[e];
 		if (t) return t;
 	}
-	return n >= 8 && (e === 1 || e === 7) ? al[e] : sl(e, n);
+	if (n >= 8) {
+		let t = al[e];
+		if (t) return t;
+	}
+	return sl(e, n);
 }
 function ll(e) {
 	let t = Math.max(2, Math.min(8, e || 2));

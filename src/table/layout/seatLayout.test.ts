@@ -193,37 +193,20 @@ describe("8-seat full table", () => {
     assert.equal(unique.size, 8);
   });
 
-  it("flanks Bot 1 and Bot 7 on the bottom rail beside the hero", () => {
+  it("uses kiddie-corner preset for host + 7 bots", () => {
     const map = buildSeatLayoutMap(8, { isMobile: false });
     const hero = map[0]!;
     const bot1 = map[1]!;
+    const bot2 = map[2]!;
+    const bot4 = map[4]!;
     const bot7 = map[7]!;
 
-    assert.equal(hero.region, "bottom");
-    assert.equal(bot1.region, "bottom");
-    assert.equal(bot7.region, "bottom");
-    assert.ok(bot1.x < hero.x, "Bot 1 should sit left of hero");
-    assert.ok(bot7.x > hero.x, "Bot 7 should sit right of hero");
-    assert.ok(bot1.y >= 85 && bot7.y >= 85, "flank bots stay on the bottom rail");
-  });
-
-  it("keeps Bots 2–6 on the standard ellipse arc", () => {
-    const arcIndices = [2, 3, 4, 5, 6] as const;
-    const expected = {
-      2: { x: 7, y: 50, region: "left" },
-      3: { x: 19.6, y: 21, region: "left" },
-      4: { x: 50, y: 9, region: "top" },
-      5: { x: 80.4, y: 21, region: "top" },
-      6: { x: 93, y: 50, region: "right" },
-    };
-    const map = buildSeatLayoutMap(8, { isMobile: false });
-    for (const i of arcIndices) {
-      const seat = map[i]!;
-      const want = expected[i];
-      assert.equal(seat.region, want.region);
-      assert.ok(Math.abs(seat.x - want.x) < 0.1, `seat ${i} x unchanged`);
-      assert.ok(Math.abs(seat.y - want.y) < 0.1, `seat ${i} y unchanged`);
-    }
+    assert.ok(Math.abs(hero.x - 50) < 0.1 && hero.y >= 90, "hero bottom center");
+    assert.ok(bot1.x < 12 && bot1.y > 88, "Bot 1 lower-left kiddie corner");
+    assert.ok(bot2.x < 6.1, "Bot 2 on left brown mid-rail");
+    assert.ok(Math.abs(bot4.x - 50) < 0.1 && bot4.y < 12, "Bot 4 top center");
+    assert.ok(bot7.x > 88 && bot7.y > 88, "Bot 7 lower-right kiddie corner");
+    assert.ok(bot7.x > hero.x, "Bot 7 right of hero");
   });
 });
 
