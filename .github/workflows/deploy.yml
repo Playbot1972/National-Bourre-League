@@ -123,11 +123,15 @@ jobs:
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
+        env:
+          GCLOUD_PROJECT: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           npx firebase deploy --only functions --force --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
             echo "::error::Cloud Functions deploy failed."
-            echo "IAM: npm run fix:deploy-iam (project Owner)"
-            echo "Billing API: npm run enable:functions-apis (project Owner)"
+            echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
+            echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
+            echo "Then: gh workflow run deploy.yml --ref main"
+            echo "Billing API: npm run enable:functions-apis"
             echo "Bad secret JSON: npm run sync:github-sa-secret"
             exit 1
           }

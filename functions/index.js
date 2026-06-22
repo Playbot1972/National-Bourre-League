@@ -23,15 +23,17 @@ const projectId =
   process.env.GCP_PROJECT ||
   "national-bourre-league";
 
+const runtimeServiceAccount = `${projectId}@appspot.gserviceaccount.com`;
+
 // Gen2 defaults to the Compute Engine SA; our deploy SA already has actAs on App Engine default.
 setGlobalOptions({
-  serviceAccount: `${projectId}@appspot.gserviceaccount.com`,
+  serviceAccount: runtimeServiceAccount,
 });
 
 const db = getFirestore();
 
 function wrap(handler) {
-  return onCall({ cors: true }, async (request) => {
+  return onCall({ cors: true, serviceAccount: runtimeServiceAccount }, async (request) => {
     if (!request.auth?.uid) {
       const { HttpsError } = await import("firebase-functions/v2/https");
       throw new HttpsError("unauthenticated", "Sign in required");
