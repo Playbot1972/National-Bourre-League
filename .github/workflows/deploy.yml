@@ -126,7 +126,8 @@ jobs:
         run: |
           npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
             echo "::error::Cloud Functions deploy failed."
-            echo "If IAM: run ./scripts/fix-functions-deploy-iam.sh national-bourre-league as project Owner."
-            echo "If auth JSON: run npm run sync:github-sa-secret from repo root with .firebase-sa-key.json"
+            echo "IAM: npm run fix:deploy-iam (project Owner)"
+            echo "Billing API: npm run enable:functions-apis (project Owner)"
+            echo "Bad secret JSON: npm run sync:github-sa-secret"
             exit 1
           }

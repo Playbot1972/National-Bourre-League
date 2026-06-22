@@ -37,6 +37,7 @@
     "sync:github-sa-secret": "./scripts/sync-github-sa-secret.sh",
     "fix:deploy-iam": "./scripts/fix-functions-deploy-iam.sh",
     "fix:deploy": "./scripts/fix-deploy-all.sh",
+    "enable:functions-apis": "./scripts/enable-functions-apis.sh",
     "verify:sa-key": "node scripts/validate-service-account-key.mjs",
     "setup:domain": "./scripts/setup-custom-domain.sh",
     "domain:finish": "./scripts/finish-domain-setup.sh",

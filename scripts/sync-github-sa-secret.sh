@@ -3,14 +3,13 @@
 #
 # Usage (from repo root):
 #   ./scripts/sync-github-sa-secret.sh [project-id]
-#
-# Prerequisites: gh auth login, .firebase-sa-key.json in repo root
+#   KEY_FILE=~/Downloads/key.json ./scripts/sync-github-sa-secret.sh
 
 set -euo pipefail
 
 PROJECT_ID="${1:-national-bourre-league}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-KEY_FILE="${ROOT}/.firebase-sa-key.json"
+KEY_FILE="${KEY_FILE:-${ROOT}/.firebase-sa-key.json}"
 REPO="${GITHUB_REPOSITORY:-Playbot1972/National-Bourre-League}"
 
 cd "$ROOT"
@@ -18,6 +17,7 @@ cd "$ROOT"
 if [[ ! -f "${KEY_FILE}" ]]; then
   echo "==> Missing ${KEY_FILE}"
   echo "    Create it: npm run setup:service-account -- ${PROJECT_ID}"
+  echo "    Or: KEY_FILE=/path/to/key.json $0"
   exit 1
 fi
 
