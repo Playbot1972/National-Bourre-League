@@ -160,6 +160,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running | Terminal 1: `npm run emulators` |
 | Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
+| GitHub Actions: hosting OK, functions fail `iam.serviceAccounts.ActAs` | Deploy SA missing **Service Account User** on `{projectId}@appspot.gserviceaccount.com` | `./scripts/fix-functions-deploy-iam.sh national-bourre-league` then re-run **Deploy to Firebase** |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
 

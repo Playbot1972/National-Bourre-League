@@ -38,7 +38,8 @@ if ! command -v gcloud >/dev/null; then
   echo ""
   echo "Or create the key manually:"
   echo "  https://console.cloud.google.com/iam-admin/serviceaccounts?project=${PROJECT_ID}"
-  echo "  Roles: Firebase Hosting Admin + Firebase Rules Admin"
+  echo "  Roles: Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer"
+  echo "  Plus Service Account User on ${PROJECT_ID}@appspot.gserviceaccount.com"
   echo "  Save JSON as: ${KEY_FILE}"
   exit 1
 fi
@@ -62,13 +63,24 @@ else
 fi
 
 echo "==> Granting deploy roles…"
-for ROLE in roles/firebasehosting.admin roles/firebaserules.admin; do
+for ROLE in \
+  roles/firebasehosting.admin \
+  roles/firebaserules.admin \
+  roles/cloudfunctions.developer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \
     --role "${ROLE}" \
     --quiet >/dev/null
 done
-echo "    Firebase Hosting Admin + Firebase Rules Admin"
+echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer"
+
+APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
+echo "==> Granting Service Account User on ${APP_ENGINE_SA} (required for functions deploy)…"
+gcloud iam service-accounts add-iam-policy-binding "${APP_ENGINE_SA}" \
+  --member "serviceAccount:${SA_EMAIL}" \
+  --role "roles/iam.serviceAccountUser" \
+  --quiet >/dev/null
+echo "    Service Account User on App Engine default service account"
 
 if [[ -f "${KEY_FILE}" ]]; then
   if [[ "${FORCE}" == "1" ]]; then
