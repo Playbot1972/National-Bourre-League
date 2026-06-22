@@ -1244,6 +1244,23 @@
   transform: translate(-50%, -50%);
 }
 
+/* Rail lip nudge — avatar center sits on the brown band (mirrors top/bottom symmetry). */
+.bseat--top .bseat__core {
+  transform: translate(-50%, calc(-50% + 5px));
+}
+
+.bseat--bottom .bseat__core {
+  transform: translate(-50%, calc(-50% + 5px));
+}
+
+.bseat--left .bseat__core {
+  transform: translate(calc(-50% + 4px), -50%);
+}
+
+.bseat--right .bseat__core {
+  transform: translate(calc(-50% - 4px), -50%);
+}
+
 /* Opponent default — hole cards below buy-in / seat info toward the felt */
 .bseat--hand-below:not(.bseat--self) .bseat__hole-cards {
   left: 50%;
@@ -2180,7 +2197,7 @@
   }
 
   .bseat--bottom .bseat__core {
-    transform: translate(-50%, calc(-50% - 3px));
+    transform: translate(-50%, calc(-50% + 5px));
   }
 
   .table-center-cluster {
