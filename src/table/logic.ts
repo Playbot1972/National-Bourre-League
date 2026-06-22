@@ -169,13 +169,13 @@ export interface SeatPlacement {
 /** 8-player preset (host + 7 bots): same kiddie-corner geometry as 7-seat, plus Bot 7. */
 const EIGHT_SEAT_PRESET: Record<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, SeatPlacement> = {
   0: { x: 50, y: 91, region: "bottom" },
-  1: { x: 8, y: 91, region: "bottom" },
+  1: { x: 4, y: 94, region: "bottom" },
   2: { x: 2, y: 40.4, region: "left" },
   3: { x: 8, y: 9, region: "top" },
   4: { x: 50, y: 9, region: "top" },
   5: { x: 92, y: 9, region: "top" },
   6: { x: 98, y: 40.4, region: "right" },
-  7: { x: 92, y: 91, region: "right" },
+  7: { x: 96, y: 94, region: "bottom" },
 };
 
 /**
@@ -185,12 +185,12 @@ const EIGHT_SEAT_PRESET: Record<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, SeatPlacement> = 
  */
 const SEVEN_SEAT_PRESET: Record<0 | 1 | 2 | 3 | 4 | 5 | 6, SeatPlacement> = {
   0: { x: 50, y: 93, region: "bottom" },
-  1: { x: 8, y: 91, region: "bottom" },
+  1: { x: 4, y: 94, region: "bottom" },
   2: { x: 2, y: 40.4, region: "left" },
   3: { x: 8, y: 9, region: "top" },
   4: { x: 69.5, y: 11.3, region: "top" },
   5: { x: 92, y: 9, region: "top" },
-  6: { x: 92, y: 91, region: "right" },
+  6: { x: 96, y: 94, region: "bottom" },
 };
 
 function ellipseSeatPosition(index: number, n: number): SeatPlacement {
