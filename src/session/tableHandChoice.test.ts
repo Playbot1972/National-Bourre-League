@@ -1,32 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { activateHandDecision } from "../game/decision";
 import { dealInitialHand } from "../game/deal";
+import { revealToDraw } from "../game/draw";
 import { serializePagatRevealHand } from "../game/serialize";
 import { HAND_PHASE } from "../game/types";
 import {
   authoritativeCurrentHand,
-  canPlayerShowHandChoice,
   isLegacyEnrollmentActive,
   isPagatDecisionActive,
-  resolveCurrentHandChoicePlayerId,
   resolveTableEnrollmentActive,
 } from "./liveHand";
 
 const SORTED = ["p1", "p2", "p3", "p4"];
 const MY_UID = "p2";
 
-function buggyEnrollmentActive(
-  cardsDealt: boolean,
-  participantCount: number,
-  legacyActive: boolean,
-  pagatDecision: boolean,
-): boolean {
-  return !cardsDealt && participantCount === 0 && (legacyActive || pagatDecision);
-}
-
 describe("table hand choice gate (hands 1–4 regression)", () => {
-  it("reveal advance opens decision, not draw", () => {
+  it("reveal advance opens draw (not I'm-in decision)", () => {
     const deal = dealInitialHand({
       dealerId: "p1",
       participantIds: SORTED,
@@ -38,9 +27,11 @@ describe("table hand choice gate (hands 1–4 regression)", () => {
       actionOrder: deal.dealOrder,
       seatedIds: SORTED,
     });
-    const next = activateHandDecision(bundle.publicHand, 1_000);
-    assert.equal(next.phase, HAND_PHASE.DECISION);
-    assert.equal(next.handDecision?.active, true);
+    const next = revealToDraw(bundle.publicHand, null);
+    assert.equal(next.phase, HAND_PHASE.DRAW);
+    assert.equal(next.handDecision, null);
+    assert.deepEqual(next.drawCompletedIds, []);
+    assert.ok(next.turnPlayerId);
   });
 
   it("legacy enrollment gate works on hand 1 before deal", () => {
@@ -63,7 +54,7 @@ describe("table hand choice gate (hands 1–4 regression)", () => {
     );
   });
 
-  it("keeps play/pass controls on hands 2–4 after auto-deal + reveal", () => {
+  it("does not show I'm-in enrollment during draw on hands 2–4 after auto-deal", () => {
     for (let hand = 2; hand <= 4; hand += 1) {
       const dealerId = "p1";
       const deal = dealInitialHand({
@@ -77,51 +68,27 @@ describe("table hand choice gate (hands 1–4 regression)", () => {
         actionOrder: deal.dealOrder,
         seatedIds: SORTED,
       });
-      const decisionHand = activateHandDecision(bundle.publicHand, hand * 1_000);
+      const drawHand = revealToDraw(bundle.publicHand, null);
       const cardsDealt = true;
-      const participantCount = decisionHand.participantIds?.length ?? 0;
+      const participantCount = drawHand.participantIds?.length ?? 0;
 
+      assert.equal(drawHand.phase, HAND_PHASE.DRAW, `hand ${hand}`);
       assert.equal(
-        buggyEnrollmentActive(cardsDealt, participantCount, false, true),
+        isPagatDecisionActive(drawHand.phase, drawHand.handDecision),
         false,
-        `hand ${hand}: old gate hid decision controls`,
+        `hand ${hand}`,
       );
-
-      const pagatDecisionActive = isPagatDecisionActive(
-        decisionHand.phase,
-        decisionHand.handDecision,
-      );
-      assert.equal(pagatDecisionActive, true, `hand ${hand}`);
 
       const enrollmentActive = resolveTableEnrollmentActive({
         cardsDealt,
         handParticipantCount: participantCount,
         legacyEnrollmentActive: false,
-        pagatDecisionActive,
+        pagatDecisionActive: false,
       });
-      assert.equal(enrollmentActive, true, `hand ${hand}`);
+      assert.equal(enrollmentActive, false, `hand ${hand} must not show I'm-in UI`);
 
-      const currentChoicePlayerId = resolveCurrentHandChoicePlayerId({
-        pagatDecisionActive,
-        handDecision: decisionHand.handDecision,
-        legacyEnrollmentActive: false,
-        enrollment: null,
-      });
-      assert.equal(currentChoicePlayerId, MY_UID, `hand ${hand} opens left of dealer`);
-
-      assert.equal(
-        canPlayerShowHandChoice({
-          enrollmentGateActive: enrollmentActive,
-          isSelf: true,
-          playerId: MY_UID,
-          currentChoicePlayerId,
-          isFinal: false,
-          bankroll: 10,
-          isOut: false,
-        }),
-        true,
-        `hand ${hand}`,
-      );
+      assert.deepEqual(drawHand.drawCompletedIds, [], `hand ${hand} fresh draw state`);
+      assert.ok(drawHand.turnPlayerId, `hand ${hand} has draw turn`);
     }
   });
 
