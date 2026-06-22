@@ -66,13 +66,14 @@ echo "==> Granting deploy roles…"
 for ROLE in \
   roles/firebasehosting.admin \
   roles/firebaserules.admin \
-  roles/cloudfunctions.developer; do
+  roles/cloudfunctions.developer \
+  roles/serviceusage.serviceUsageViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \
     --role "${ROLE}" \
     --quiet >/dev/null
 done
-echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer"
+echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer + Service Usage Viewer"
 
 APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
 echo "==> Granting Service Account User on ${APP_ENGINE_SA} (required for functions deploy)…"

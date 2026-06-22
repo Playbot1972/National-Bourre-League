@@ -20,7 +20,9 @@ ensure_gcloud
 gcloud config set project "${PROJECT_ID}"
 
 echo "==> Project roles for ${SA_EMAIL}"
-for ROLE in roles/cloudfunctions.developer; do
+for ROLE in \
+  roles/cloudfunctions.developer \
+  roles/serviceusage.serviceUsageViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \
     --role "${ROLE}" \
