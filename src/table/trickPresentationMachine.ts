@@ -24,6 +24,8 @@ export interface TrickPresentationModel {
   trickWinnerSeatId: string | null;
   revealedCount: number;
   isResolving: boolean;
+  /** True while a trick is landing or running the hold/reveal/sweep pipeline. */
+  isPipelineActive: boolean;
 }
 
 export interface PendingTrickResolution {
@@ -269,5 +271,6 @@ export function buildTrickPresentationModel(
         : store.frozenTrick?.winnerId ?? null,
     revealedCount: store.revealedCount,
     isResolving: store.phase !== "live",
+    isPipelineActive: store.phase !== "live" || Boolean(store.pendingResolution),
   };
 }

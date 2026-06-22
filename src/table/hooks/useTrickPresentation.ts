@@ -50,6 +50,10 @@ export function useTrickPresentation({
   const resolutionKeyRef = useRef<string | null>(null);
   const snapshottedPlaysRef = useRef<Set<string>>(new Set());
 
+  const pipelineActive =
+    store.phase !== "live" || Boolean(store.pendingResolution);
+  const sessionPlayActive = phase === "play";
+
   const snapshotTrickPlayOrigins = (plays: { playerId: string; card: { rank: string; suit: string } }[]) => {
     for (const play of plays) {
       const key = playFlyKey(play);
@@ -72,7 +76,7 @@ export function useTrickPresentation({
   useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
-    if (phase !== "play") {
+    if (!sessionPlayActive && !pipelineActive) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -91,18 +95,34 @@ export function useTrickPresentation({
       trumpSuit,
       reducedMotion: prefersReducedMotion(),
     });
-  }, [phase, currentTrick, tricksByPlayer, participantIds, trumpSuit, playedCards]);
+  }, [
+    phase,
+    currentTrick,
+    tricksByPlayer,
+    participantIds,
+    trumpSuit,
+    playedCards,
+    sessionPlayActive,
+    pipelineActive,
+  ]);
 
   useLayoutEffect(() => {
-    if (phase !== "play") return;
+    if (!sessionPlayActive && !pipelineActive) return;
     const livePlays = currentTrick?.plays ?? [];
     if (livePlays.length > 0) snapshotTrickPlayOrigins(livePlays);
     const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
     if (pendingPlays.length > 0) snapshotTrickPlayOrigins(pendingPlays);
-  }, [phase, currentTrick?.plays, store.pendingResolution?.frozen.plays]);
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    currentTrick?.plays,
+    store.pendingResolution?.frozen.plays,
+  ]);
 
   useEffect(() => {
-    if (phase !== "play" || store.phase !== "trickComplete" || !store.frozenTrick) return;
+    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "trickComplete" || !store.frozenTrick) {
+      return;
+    }
 
     const key = `${store.frozenTrick.trickNumber}:${store.frozenTrick.winnerId}:${store.frozenTrick.plays.length}`;
     if (resolutionKeyRef.current === key) return;
@@ -125,10 +145,12 @@ export function useTrickPresentation({
       () => dispatch({ type: "advancePhase" }),
       scheduleMs.pipelineMs,
     );
-  }, [phase, store.phase, store.frozenTrick, trumpSuit]);
+  }, [sessionPlayActive, pipelineActive, store.phase, store.frozenTrick, trumpSuit]);
 
   useEffect(() => {
-    if (phase !== "play" || store.phase !== "live" || !store.pendingResolution) return;
+    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live" || !store.pendingResolution) {
+      return;
+    }
 
     const playCount = store.pendingResolution.frozen.plays.length;
     if (store.revealedCount < playCount) return;
@@ -136,7 +158,13 @@ export function useTrickPresentation({
     const landMs = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
     const id = window.setTimeout(() => dispatch({ type: "commitTrickResolution" }), landMs);
     return () => window.clearTimeout(id);
-  }, [phase, store.phase, store.pendingResolution, store.revealedCount]);
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.pendingResolution,
+    store.revealedCount,
+  ]);
 
   useEffect(() => {
     if (store.phase === "live") resolutionKeyRef.current = null;
@@ -149,19 +177,34 @@ export function useTrickPresentation({
       : store.revealedCount;
 
   useEffect(() => {
-    if (phase !== "play" || store.phase !== "live") return;
+    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live") return;
     if (store.revealedCount >= targetReveal) return;
 
     const timing = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
     const id = window.setTimeout(() => dispatch({ type: "revealNextCard" }), timing);
     return () => window.clearTimeout(id);
-  }, [phase, store.phase, store.revealedCount, targetReveal]);
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.revealedCount,
+    targetReveal,
+  ]);
 
   useEffect(() => {
-    if (phase !== "play" || store.phase !== "live" || store.pendingResolution) return;
+    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live" || store.pendingResolution) {
+      return;
+    }
     if (store.revealedCount <= targetReveal) return;
     dispatch({ type: "clampRevealedCount", target: targetReveal });
-  }, [phase, store.phase, store.pendingResolution, targetReveal, store.revealedCount]);
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.pendingResolution,
+    targetReveal,
+    store.revealedCount,
+  ]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
   return model;

@@ -151,7 +151,20 @@ describe("trickPresentationMachine", () => {
     assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
-  it("buffers fast backend updates until collection finishes", () => {
+  it("marks pipeline active while pending resolution is landing", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1, p2: 0 } },
+      participantIds: ["p1", "p2"],
+    });
+    const model = buildTrickPresentationModel(store, null);
+    assert.equal(model.isPipelineActive, true);
+    assert.equal(model.isResolving, false);
+    assert.equal(model.displayPlays.length, 0);
+  });
+
+  it("buffers server snapshots while the trick pipeline is running", () => {
     let store = createTrickPresentationStore({}, completedTrick);
     for (let i = 0; i < 4; i++) {
       store = reduceTrickPresentation(store, { type: "revealNextCard" });

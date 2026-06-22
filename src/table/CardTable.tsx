@@ -221,8 +221,6 @@ export function CardTable({
             drawDiscardCount={handPresentation.drawDiscardCount}
             settleAnimActive={handPresentation.settleAnimActive}
             settleCarryOver={handPresentation.settleCarryOver}
-            playedCards={session.playedCards}
-            handComplete={handComplete}
             potTick={microinteractions.potTick}
             trumpReminderPulse={microinteractions.trumpReminderPulse}
           />

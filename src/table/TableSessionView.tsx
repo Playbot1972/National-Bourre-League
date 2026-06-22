@@ -84,6 +84,7 @@ export function TableSessionView({
     enrollmentActive,
     potAmount: potMetrics.currentPot,
     handComplete,
+    trickPipelineActive: trickPresentation.isPipelineActive,
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
@@ -388,7 +389,7 @@ export function TableSessionView({
       ]
         .filter(Boolean)
         .join(" ")}
-      data-trick-resolving={trickPresentation.isResolving ? "true" : "false"}
+      data-trick-resolving={trickPresentation.isPipelineActive ? "true" : "false"}
       data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
       data-hand-complete={handComplete ? "true" : "false"}
     >
