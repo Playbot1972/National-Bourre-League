@@ -172,6 +172,24 @@ const EIGHT_SEAT_BOTTOM_FLANK: Record<1 | 7, SeatPlacement> = {
   7: { x: 68, y: 88, region: "bottom" },
 };
 
+/**
+ * 7-player preset: corner anchors + locked arc seats (indices 2, 4, 6 unchanged).
+ * Index 0 = hero bottom center; 1 = lower-left; 3 = upper-left; 5 = upper-right;
+ * 6 = lower-right (Bot 6).
+ */
+const SEVEN_SEAT_LOCKED: Record<2 | 4 | 6, SeatPlacement> = {
+  2: { x: 6.1, y: 40.4, region: "left" },
+  4: { x: 69.5, y: 11.3, region: "top" },
+  6: { x: 85.2, y: 76.8, region: "right" },
+};
+
+const SEVEN_SEAT_ANCHORS: Record<0 | 1 | 3 | 5, SeatPlacement> = {
+  0: { x: 50, y: 93, region: "bottom" },
+  1: { x: 12, y: 88, region: "bottom" },
+  3: { x: 12, y: 12, region: "top" },
+  5: { x: 88, y: 12, region: "top" },
+};
+
 function ellipseSeatPosition(index: number, n: number): SeatPlacement {
   const { rx, ry, outset } = seatRailAxes(n);
   // Positive angle step: bottom → left → top → right (clockwise around the felt).
@@ -189,12 +207,22 @@ function ellipseSeatPosition(index: number, n: number): SeatPlacement {
 /**
  * Evenly spaced seats on the outer rail oval (index 0 = bottom / hero, clockwise).
  * Equal angle steps; ellipse matches the visible table edge in all orientations.
+ * On 7-seat tables, corner anchors and locked arc seats (2, 4, 6) use a fixed preset.
  * On 8-seat tables, index 1 and 7 flank the hero on the bottom rail; indices 2–6
  * keep the standard ellipse positions unchanged.
  */
 export function seatPosition(index: number, total: number): SeatPlacement {
   const n = Math.max(2, Math.min(8, total || 2));
   if (n <= 0) return { x: 50, y: 50, region: "bottom" };
+
+  if (n === 7) {
+    if (index === 2 || index === 4 || index === 6) {
+      return SEVEN_SEAT_LOCKED[index];
+    }
+    if (index === 0 || index === 1 || index === 3 || index === 5) {
+      return SEVEN_SEAT_ANCHORS[index];
+    }
+  }
 
   if (n >= 8) {
     if (index === 1 || index === 7) {
