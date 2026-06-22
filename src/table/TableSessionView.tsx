@@ -39,7 +39,6 @@ export function TableSessionView({
   players,
   potMetrics,
   mySessionNet,
-  myHandContribution,
   leaderLabel,
   showCoWinSettlement,
   splitSharePerWinner = 0,

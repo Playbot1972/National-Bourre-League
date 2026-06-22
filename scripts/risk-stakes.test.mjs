@@ -16,9 +16,10 @@ describe("risk-stakes ante options", () => {
     assert.equal(ANTE_STAKE_OPTIONS.at(-1)?.label, "$10,000 ($10000.00)");
   });
 
-  it("formats preset ante labels", () => {
-    assert.equal(formatAnteStake(0.25), "25 cents ($0.25)");
-    assert.equal(formatAnteStake(100), "$100 ($100.00)");
+  it("formats read-only ante labels without parenthetical duplicate", () => {
+    assert.equal(formatAnteStake(0.25), "$0.25");
+    assert.equal(formatAnteStake(1), "$1");
+    assert.equal(formatAnteStake(100), "$100");
   });
 
   it("keeps unknown ante values selectable", () => {
