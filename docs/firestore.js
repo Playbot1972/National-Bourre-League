@@ -121,6 +121,7 @@ import {
   applyPlayerDraw,
   advanceAfterDraw,
   applyDrawFold,
+  revealToDraw,
   applyPlayerPlayCard,
   maxDrawDiscards,
   botDrawDiscardIndices,
@@ -3386,7 +3387,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   });
 }
 
-/** Advance reveal → decision after trump/hand presentation completes. */
+/** Advance reveal → draw after trump/hand presentation completes. */
 export async function advanceHandReveal(roomId, sessionId) {
   return callEnrollmentAction(
     () => advanceHandRevealClient(roomId, sessionId),
@@ -3403,7 +3404,7 @@ async function advanceHandRevealClient(roomId, sessionId) {
     (sessionData) => {
       const hand = getSessionCurrentHand(sessionData);
       if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: activateHandDecision(hand) };
+      return { currentHand: revealToDraw(hand, dealingRule) };
     },
     { requirePatch: true },
   );
