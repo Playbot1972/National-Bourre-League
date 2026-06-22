@@ -165,13 +165,13 @@ describe("7-seat preset", () => {
     const bot5 = map[5]!;
     const bot6 = map[6]!;
 
-    assert.ok(bot1.x < 8 && bot1.y >= 93, "Bot 1 lower-left bottom corner");
+    assert.ok(bot1.x < 8 && bot1.y > hero.y, "Bot 1 lower-left below hero");
     assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
 
     assert.ok(bot3.x < 12 && bot3.y < 12, "Bot 3 upper-left kiddie corner");
     assert.ok(bot5.x > 88 && bot5.y < 12, "Bot 5 upper-right kiddie corner");
     assert.equal(bot6.region, "bottom");
-    assert.ok(bot6.x > 92 && bot6.y >= 93, "Bot 6 lower-right bottom corner");
+    assert.ok(bot6.x > 92 && bot6.y > hero.y, "Bot 6 lower-right below hero");
     assert.ok(bot6.x > hero.x, "Bot 6 right of hero");
   });
 
@@ -202,13 +202,13 @@ describe("8-seat full table", () => {
     const bot4 = map[4]!;
     const bot7 = map[7]!;
 
-    assert.ok(Math.abs(hero.x - 50) < 0.1 && hero.y >= 90, "hero bottom center");
+    assert.ok(Math.abs(hero.x - 50) < 0.1 && hero.y >= 95, "hero bottom center on brown rim");
     assert.equal(bot1.region, "bottom");
-    assert.ok(bot1.x < 8 && bot1.y >= 93, "Bot 1 lower-left bottom corner");
+    assert.ok(bot1.x < 8 && bot1.y > hero.y, "Bot 1 lower-left below hero");
     assert.ok(bot2.x < 6.1, "Bot 2 on left brown mid-rail");
     assert.ok(Math.abs(bot4.x - 50) < 0.1 && bot4.y < 12, "Bot 4 top center");
     assert.equal(bot7.region, "bottom");
-    assert.ok(bot7.x > 92 && bot7.y >= 93, "Bot 7 lower-right bottom corner");
+    assert.ok(bot7.x > 92 && bot7.y > hero.y, "Bot 7 lower-right below hero");
     assert.ok(bot7.x > hero.x, "Bot 7 right of hero");
   });
 });
