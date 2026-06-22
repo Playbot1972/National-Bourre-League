@@ -346,9 +346,11 @@ Add these repository secrets (Settings → Secrets and variables → Actions):
 | `FIREBASE_APP_ID` | Web app `appId` |
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON key for a deploy service account |
 
-Create the service account in Google Cloud → IAM → Service accounts → Create.
-Grant **Firebase Hosting Admin** and **Firebase Rules Admin** (or **Firebase Admin**).
-Generate a JSON key and paste the entire file into `FIREBASE_SERVICE_ACCOUNT`.
+Create the service account with `./scripts/setup-service-account.sh` (grants Hosting Admin,
+Rules Admin, Cloud Functions Developer, and **Service Account User** on
+`{projectId}@appspot.gserviceaccount.com`). Paste the JSON key into `FIREBASE_SERVICE_ACCOUNT`.
+If functions deploy fails with `iam.serviceAccounts.ActAs`, run
+`./scripts/fix-functions-deploy-iam.sh {projectId}` as a project Owner, then re-run the workflow.
 You can also trigger a manual deploy from the Actions tab via **workflow_dispatch**.
 
 **Automated one-time setup:** on your machine (no global npm installs needed):

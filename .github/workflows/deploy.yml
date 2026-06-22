@@ -114,11 +114,14 @@ jobs:
           git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
           git push
 
-      - name: Deploy Cloud Functions
-        if: steps.cfg.outputs.ready == 'true'
-        run: npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}"
-
       - name: Deploy Firestore rules
         if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
         run: npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+
+      - name: Deploy Cloud Functions
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          npx firebase deploy --only functions --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
+            echo "::error::Cloud Functions deploy failed — grant Service Account User on {projectId}@appspot.gserviceaccount.com (see scripts/fix-functions-deploy-iam.sh), then re-run this workflow."
+            exit 1
+          }
