@@ -11,6 +11,11 @@ export {
   sevenPlayerMobileAnchor,
 } from "./sevenPlayerMobileSeatMap";
 
+export {
+  buildEightPlayerMobileSeatMap,
+  eightPlayerMobileAnchor,
+} from "./eightPlayerMobileSeatMap";
+
 /** Intentional mobile felt shape — taller in portrait for 3–4 player games. */
 export function mobileTableAspect(
   opponentCount: number,

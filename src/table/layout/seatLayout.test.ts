@@ -100,7 +100,7 @@ describe("orderPlayersForTable", () => {
 });
 
 describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
-  for (const total of [4, 5, 6, 7]) {
+  for (const total of [4, 5, 6, 7, 8]) {
     it(`desktop ${total} seats stay clockwise on screen`, () => {
       const map = buildSeatLayoutMap(total, { isMobile: false });
       assert.equal(map.length, total);
@@ -116,7 +116,7 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
         resolveMobileOpponentLayout(i, total, "portrait"),
       );
       assert.equal(layouts.length, opponents);
-      const yMax = total === 7 ? 92 : 56;
+      const yMax = total === 7 || total === 8 ? 92 : 56;
       for (const layout of layouts) {
         assert.equal(layout.handLane, "below");
         assert.ok(layout.x >= 8 && layout.x <= 92);
@@ -140,12 +140,12 @@ describe("7-seat preset", () => {
     assert.equal(unique.size, 7);
   });
 
-  it("keeps Bot 4 locked at top-center brown edge", () => {
+  it("keeps Bot 4 centered on the top rail", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });
     const bot4 = map[4]!;
     assert.equal(bot4.region, "top");
-    assert.ok(Math.abs(bot4.x - 69.5) < 0.05);
-    assert.ok(Math.abs(bot4.y - 11.3) < 0.05);
+    assert.ok(Math.abs(bot4.x - 50) < 0.05);
+    assert.ok(Math.abs(bot4.y - 9) < 0.05);
   });
 
   it("centers Bot 2 on the left brown mid-rail", () => {
@@ -202,14 +202,22 @@ describe("8-seat full table", () => {
     const bot2 = map[2]!;
     const bot4 = map[4]!;
     const bot7 = map[7]!;
+    const sixBot = buildSeatLayoutMap(7, { isMobile: false });
 
-    assert.ok(Math.abs(hero.x - 50) < 0.1 && hero.y >= 95, "hero bottom center on brown rim");
-    assert.equal(bot1.region, "bottom");
-    assert.ok(bot1.x < 8 && bot1.y > hero.y, "Bot 1 lower-left below hero");
+    assert.ok(Math.abs(hero.x - 50) < 0.1 && hero.y >= 99, "hero bottom center on brown rim");
+    assert.deepEqual(
+      { x: bot1.x, y: bot1.y, region: bot1.region },
+      { x: sixBot[1]!.x, y: sixBot[1]!.y, region: sixBot[1]!.region },
+      "Bot 1 matches 6-bot anchor exactly",
+    );
+    assert.deepEqual(
+      { x: bot7.x, y: bot7.y, region: bot7.region },
+      { x: sixBot[6]!.x, y: sixBot[6]!.y, region: sixBot[6]!.region },
+      "Bot 7 matches 6-bot Bot 6 anchor exactly",
+    );
     assert.ok(bot2.x < 6.1, "Bot 2 on left brown mid-rail");
     assert.ok(Math.abs(bot4.x - 50) < 0.1 && bot4.y < 12, "Bot 4 top center");
     assert.equal(bot7.region, "bottom");
-    assert.ok(bot7.x > 92 && bot7.y > hero.y, "Bot 7 lower-right below hero");
     assert.ok(bot7.x > hero.x, "Bot 7 right of hero");
   });
 });

@@ -5,6 +5,10 @@ import {
   isSevenPlayerMobile,
   resolveSevenPlayerMobileSeat,
 } from "./sevenPlayerMobileSeatMap";
+import {
+  isEightPlayerMobile,
+  resolveEightPlayerMobileSeat,
+} from "./eightPlayerMobileSeatMap";
 
 export type HandLane = "below" | "side";
 
@@ -68,6 +72,17 @@ export function resolveSeatLayout(
     if (preset) return preset;
   }
 
+  if (
+    opts.isMobile &&
+    opts.orientation &&
+    isEightPlayerMobile(total)
+  ) {
+    const preset = resolveEightPlayerMobileSeat(seatIndex, opts.orientation, {
+      isSelf: opts.isSelf,
+    });
+    if (preset) return preset;
+  }
+
   const placement = seatPosition(seatIndex, total);
   const bounded =
     opts.isMobile && opts.orientation
@@ -105,6 +120,11 @@ export function resolveMobileSelfLayout(
 ): ResolvedSeatLayout {
   if (isSevenPlayerMobile(totalPlayers)) {
     const preset = resolveSevenPlayerMobileSeat(0, orientation, { isSelf: true });
+    if (preset) return preset;
+  }
+
+  if (isEightPlayerMobile(totalPlayers)) {
+    const preset = resolveEightPlayerMobileSeat(0, orientation, { isSelf: true });
     if (preset) return preset;
   }
 
