@@ -976,13 +976,30 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   if (!autoPatch) return { status: "noop" };
   if (autoPatch?.soloWin) {
     await db.runTransaction(async (tx) => {
-      applySoloWinInTransaction(tx, ref, autoPatch, db, roomId, sessionId);
+      const sessionSnap = await tx.get(ref);
+      if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+      if (autoPatch.scorePatches) {
+        for (const playerId of Object.keys(autoPatch.scorePatches)) {
+          await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
+        }
+      }
+      applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
     });
     await advanceBotsAfterAction(db, roomId, sessionId, actorId);
     return { status: "solo_win" };
   }
   if (autoPatch?.privateHandsByPlayer) {
+    const privatePlayerIds = Object.keys(autoPatch.privateHandsByPlayer);
+    const scorePatchIds = autoPatch.scorePatches ? Object.keys(autoPatch.scorePatches) : [];
     await db.runTransaction(async (tx) => {
+      const sessionSnap = await tx.get(ref);
+      if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+      for (const playerId of [...new Set([...privatePlayerIds, ...scorePatchIds])]) {
+        await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
+      }
+      for (const playerId of privatePlayerIds) {
+        await tx.get(privateHandRef(db, roomId, sessionId, playerId));
+      }
       writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);
       applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
     });
@@ -992,6 +1009,11 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   if (autoPatch?.scorePatches && !autoPatch?.privateHandsByPlayer) {
     if (Object.keys(autoPatch.scorePatches).length > 0) {
       await db.runTransaction(async (tx) => {
+        const sessionSnap = await tx.get(ref);
+        if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+        for (const playerId of Object.keys(autoPatch.scorePatches)) {
+          await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
+        }
         for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
           tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
             ...scorePatch,

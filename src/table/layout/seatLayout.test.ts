@@ -130,6 +130,16 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
   }
 });
 
+describe("8-seat full table", () => {
+  it("desktop 8 seats stay clockwise on screen", () => {
+    const map = buildSeatLayoutMap(8, { isMobile: false });
+    assert.equal(map.length, 8);
+    assert.equal(isClockwiseOnScreen(map), true);
+    const unique = new Set(map.map((s) => `${s.x.toFixed(1)},${s.y.toFixed(1)}`));
+    assert.equal(unique.size, 8);
+  });
+});
+
 describe("resolveHandLane", () => {
   it("defaults mobile opponents to below", () => {
     const lane = resolveHandLane(

@@ -302,7 +302,7 @@ export function collectHandAntes({
     bankrolls[pid] = result.newBankroll;
     postedAntes[pid] = Math.abs(result.appliedDelta);
 
-    if (result.busted || result.newBankroll <= 0) {
+    if (result.busted) {
       outIds.push(pid);
       continue;
     }

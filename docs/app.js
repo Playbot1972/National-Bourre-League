@@ -82,6 +82,8 @@ import {
   scoreBankroll,
   rebuySessionPlayer,
   MAX_TRICKS_PER_HAND,
+  MAX_TABLE_PLAYERS,
+  formatClientGameError,
   totalTricksPlayed,
   isHandComplete,
   isRobotPlayerId,
@@ -702,7 +704,9 @@ function bindRoomDetailDelegatedControls() {
     addPromise
       .catch((err) => {
         console.error(isRobot ? "addSessionRobot:" : "addSessionPlayer:", err);
-        showRoomsError(err.message || `Could not add ${isRobot ? "robot" : "player"}`);
+        showRoomsError(
+          formatClientGameError(err, `Could not add ${isRobot ? "robot" : "player"}`),
+        );
       })
       .then((added) => {
         if (added === false) {
@@ -2155,8 +2159,10 @@ function showTableStartupFailure(analysis, err) {
         ? "insufficient_players"
         : analysis?.kind ?? "ready_enrollment";
   const message = tableStartupUserMessage({ ...analysis, kind }, err);
-  setTableActionFeedback({ status: "error", message });
-  showRoomsError(message);
+  const friendly = err ? formatClientGameError(err, message) : message;
+  const displayMessage = friendly && friendly !== "internal" ? friendly : message;
+  setTableActionFeedback({ status: "error", message: displayMessage });
+  showRoomsError(displayMessage);
   roomDetailView?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
@@ -3616,7 +3622,7 @@ function buildSessionPlayerBarHtml(s) {
   if (!s || s.status === "final") return "";
   return `<div class="session-add-players" data-testid="session-add-players">
       <h5 class="session-add-players__title">Add guest or robot</h5>
-      <p class="muted small session-add-players__hint">Need at least two players, then tap <strong>Go to Table</strong>.</p>
+      <p class="muted small session-add-players__hint">Need at least two players (up to ${MAX_TABLE_PLAYERS}), then tap <strong>Go to Table</strong>.</p>
       ${buildAddPlayerFormHtml()}
     </div>`;
 }

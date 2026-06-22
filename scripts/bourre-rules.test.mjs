@@ -318,6 +318,23 @@ describe("bankroll solvency", () => {
     assert.ok(result.outIds.includes("p2"));
     assert.deepEqual(result.activeParticipants, ["p1"]);
   });
+
+  it("keeps players who posted a full ante even when bankroll hits zero", () => {
+    const scoreById = {
+      p1: { bankroll: 1, net: 0 },
+      p2: { bankroll: 1, net: 0 },
+    };
+    const result = collectHandAntes({
+      participants: ["p1", "p2"],
+      scoreById,
+      buyInFallback: 1,
+      stakeForPlayer: () => 1,
+    });
+    assert.deepEqual(result.activeParticipants, ["p1", "p2"]);
+    assert.equal(result.bankrolls.p1, 0);
+    assert.equal(result.bankrolls.p2, 0);
+    assert.deepEqual(result.outIds, []);
+  });
 });
 
 describe("solo default win (Pagat)", () => {
