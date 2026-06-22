@@ -123,47 +123,6 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
       style={style}
     >
       <div className="bseat__core">
-        {showHoleCards && (
-          <div
-            className="bseat__hole-cards"
-            aria-label={`${cardsHeld} cards in hand`}
-            data-trick-play-origin={player.playerId}
-          >
-            {Array.from({ length: cardsHeld }, (_, i) => {
-              const isTrumpSlot =
-                player.revealedTrumpIndex === i && player.revealedTrumpUpcard;
-              return (
-                <div
-                  key={i}
-                  className={[
-                    "bseat__hole-card",
-                    isTrumpSlot ? "bseat__hole-card--trump-revealed" : "",
-                    isTrumpSlot && player.seatTrumpMergeActive
-                      ? "bseat__hole-card--trump-merge"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  style={{ ["--hole-i" as string]: i }}
-                >
-                  {isTrumpSlot ? (
-                    <PlayingCard
-                      card={{
-                        rank: player.revealedTrumpUpcard!.rank as Rank,
-                        suit: player.revealedTrumpUpcard!.suit as Suit,
-                      }}
-                      size="xs"
-                      state="trump"
-                    />
-                  ) : (
-                    <PlayingCard faceDown size="xs" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         <div className="bseat__avatar-stage">
           <div
             className="bseat__avatar-stack"
@@ -171,6 +130,46 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               !player.isSelf && player.inHand && !showHoleCards ? player.playerId : undefined
             }
           >
+            {showHoleCards && (
+              <div
+                className="bseat__hole-cards bseat__hole-cards--crown"
+                aria-label={`${cardsHeld} cards in hand`}
+                data-trick-play-origin={player.playerId}
+              >
+                {Array.from({ length: cardsHeld }, (_, i) => {
+                  const isTrumpSlot =
+                    player.revealedTrumpIndex === i && player.revealedTrumpUpcard;
+                  return (
+                    <div
+                      key={i}
+                      className={[
+                        "bseat__hole-card",
+                        isTrumpSlot ? "bseat__hole-card--trump-revealed" : "",
+                        isTrumpSlot && player.seatTrumpMergeActive
+                          ? "bseat__hole-card--trump-merge"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{ ["--hole-i" as string]: i }}
+                    >
+                      {isTrumpSlot ? (
+                        <PlayingCard
+                          card={{
+                            rank: player.revealedTrumpUpcard!.rank as Rank,
+                            suit: player.revealedTrumpUpcard!.suit as Suit,
+                          }}
+                          size="xs"
+                          state="trump"
+                        />
+                      ) : (
+                        <PlayingCard faceDown size="xs" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
               <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
             )}

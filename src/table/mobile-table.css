@@ -190,12 +190,8 @@
   min-width: 72px;
 }
 
-.btable-mobile-wrap .bseat--hand-below:not(.bseat--self) .bseat__hole-cards {
-  top: calc(100% + 10px);
-}
-
-.btable-mobile-wrap .bseat--hand-below:not(.bseat--self) .bseat__hole-card:not(:first-child) {
-  margin-left: -9px;
+.btable-mobile-wrap .bseat:not(.bseat--self) .bseat__hole-cards--crown {
+  transform: translate(-50%, -58%) scale(var(--hole-crown-scale, 0.67));
 }
 
 .btable-mobile-oval {

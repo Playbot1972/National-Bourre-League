@@ -12408,41 +12408,42 @@ function Cl({ player: e, region: t, handLane: n = "below", style: r, onToggleInH
 			c ? "bseat--meta-open" : ""
 		].filter(Boolean).join(" "),
 		style: r,
-		children: [/* @__PURE__ */ (0, g.jsxs)("div", {
+		children: [/* @__PURE__ */ (0, g.jsx)("div", {
 			className: "bseat__core",
-			children: [m && /* @__PURE__ */ (0, g.jsx)("div", {
-				className: "bseat__hole-cards",
-				"aria-label": `${p} cards in hand`,
-				"data-trick-play-origin": e.playerId,
-				children: Array.from({ length: p }, (t, n) => {
-					let r = e.revealedTrumpIndex === n && e.revealedTrumpUpcard;
-					return /* @__PURE__ */ (0, g.jsx)("div", {
-						className: [
-							"bseat__hole-card",
-							r ? "bseat__hole-card--trump-revealed" : "",
-							r && e.seatTrumpMergeActive ? "bseat__hole-card--trump-merge" : ""
-						].filter(Boolean).join(" "),
-						style: { "--hole-i": n },
-						children: r ? /* @__PURE__ */ (0, g.jsx)(_, {
-							card: {
-								rank: e.revealedTrumpUpcard.rank,
-								suit: e.revealedTrumpUpcard.suit
-							},
-							size: "xs",
-							state: "trump"
-						}) : /* @__PURE__ */ (0, g.jsx)(_, {
-							faceDown: !0,
-							size: "xs"
-						})
-					}, n);
-				})
-			}), /* @__PURE__ */ (0, g.jsxs)("div", {
+			children: /* @__PURE__ */ (0, g.jsxs)("div", {
 				className: "bseat__avatar-stage",
 				children: [
 					/* @__PURE__ */ (0, g.jsxs)("div", {
 						className: "bseat__avatar-stack",
 						"data-trick-play-origin": !e.isSelf && e.inHand && !m ? e.playerId : void 0,
 						children: [
+							m && /* @__PURE__ */ (0, g.jsx)("div", {
+								className: "bseat__hole-cards bseat__hole-cards--crown",
+								"aria-label": `${p} cards in hand`,
+								"data-trick-play-origin": e.playerId,
+								children: Array.from({ length: p }, (t, n) => {
+									let r = e.revealedTrumpIndex === n && e.revealedTrumpUpcard;
+									return /* @__PURE__ */ (0, g.jsx)("div", {
+										className: [
+											"bseat__hole-card",
+											r ? "bseat__hole-card--trump-revealed" : "",
+											r && e.seatTrumpMergeActive ? "bseat__hole-card--trump-merge" : ""
+										].filter(Boolean).join(" "),
+										style: { "--hole-i": n },
+										children: r ? /* @__PURE__ */ (0, g.jsx)(_, {
+											card: {
+												rank: e.revealedTrumpUpcard.rank,
+												suit: e.revealedTrumpUpcard.suit
+											},
+											size: "xs",
+											state: "trump"
+										}) : /* @__PURE__ */ (0, g.jsx)(_, {
+											faceDown: !0,
+											size: "xs"
+										})
+									}, n);
+								})
+							}),
 							e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, g.jsx)(Sl, { fraction: e.enrollmentTimeLeft }),
 							b && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__bourre-pressure-badge",
@@ -12520,7 +12521,7 @@ function Cl({ player: e, region: t, handLane: n = "below", style: r, onToggleInH
 						}, e))
 					})
 				]
-			})]
+			})
 		}), /* @__PURE__ */ (0, g.jsxs)("div", {
 			className: "bseat__aux",
 			children: [
