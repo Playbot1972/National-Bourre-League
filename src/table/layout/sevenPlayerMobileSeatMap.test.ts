@@ -5,6 +5,7 @@ import {
   sevenPlayerMobileAnchor,
   SEVEN_PLAYER_MOBILE_LOCKED_SEATS,
 } from "./sevenPlayerMobileSeatMap";
+import { SHARED_MOBILE_ANCHORS, placementMatches } from "./seatPresetAnchors";
 import { isClockwiseOnScreen } from "./seatLayout";
 
 const LOCKED_BEFORE = SEVEN_PLAYER_MOBILE_LOCKED_SEATS;
@@ -18,7 +19,7 @@ describe("sevenPlayerMobileSeatMap", () => {
     assert.equal(unique.size, 7);
   });
 
-  it("locks Bot 2 and Bot 4 at prior mobile arc coordinates", () => {
+  it("locks bottom corners and left mid-rail", () => {
     const map = buildSevenPlayerMobileSeatMap("portrait");
     for (const [idx, want] of Object.entries(LOCKED_BEFORE)) {
       const seat = map[Number(idx)]!;
@@ -44,13 +45,21 @@ describe("sevenPlayerMobileSeatMap", () => {
     assert.ok(bot6.y > hero.y, "Bot 6 below hero");
   });
 
+  it("centers Bot 4 on the top rail at x=50", () => {
+    const bot4 = sevenPlayerMobileAnchor(4, "portrait")!;
+    assert.equal(bot4.x, 50);
+    assert.equal(bot4.region, "top");
+    assert.ok(
+      placementMatches(bot4, SHARED_MOBILE_ANCHORS.sixBotTopCenterPortrait),
+      "Bot 4 uses shared top-rail center anchor",
+    );
+  });
+
   it("centers hero on bottom rail at x=50", () => {
     const hero = sevenPlayerMobileAnchor(0, "portrait")!;
-    const bot4 = sevenPlayerMobileAnchor(4, "portrait")!;
     assert.equal(hero.x, 50);
     assert.equal(hero.region, "bottom");
     assert.ok(hero.y > 85);
-    assert.ok(bot4.y < 15, "Bot 4 remains top-rail anchor");
   });
 
   it("keeps anchors inside horizontal bounds", () => {

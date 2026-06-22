@@ -2,6 +2,7 @@ import type { SeatPlacement } from "../logic";
 import type { MobileOrientation } from "./mobileSeatMap";
 import type { ResolvedSeatLayout } from "./seatLayout";
 import { resolveHandLane } from "./seatLayout";
+import { mobileSixBotSeatMap } from "./seatPresetAnchors";
 
 type SeatIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -9,38 +10,17 @@ export interface SevenPlayerMobileAnchor extends SeatPlacement {
   seatIndex: SeatIndex;
 }
 
-/**
- * Explicit 7-player mobile seat anchors (portrait + landscape).
- * Single source of truth — no desktop ellipse, clamp fallback, or CSS nudge.
- *
- * Top corners (3, 5) define the mirror for bottom corners (1, 6).
- * Hero (0) is bottom-rail center; Bot 4 is top-rail center (unchanged).
- * Bot 2 left mid-rail unchanged.
- */
-const SEVEN_PLAYER_MOBILE_PORTRAIT: Record<SeatIndex, SevenPlayerMobileAnchor> = {
-  0: { seatIndex: 0, x: 50, y: 88, region: "bottom" },
-  1: { seatIndex: 1, x: 8, y: 91, region: "bottom" },
-  2: { seatIndex: 2, x: 8, y: 40.4, region: "left" },
-  3: { seatIndex: 3, x: 8, y: 9, region: "top" },
-  4: { seatIndex: 4, x: 69.5, y: 11.3, region: "top" },
-  5: { seatIndex: 5, x: 92, y: 9, region: "top" },
-  6: { seatIndex: 6, x: 92, y: 91, region: "bottom" },
-};
-
-const SEVEN_PLAYER_MOBILE_LANDSCAPE: Record<SeatIndex, SevenPlayerMobileAnchor> = {
-  0: { seatIndex: 0, x: 50, y: 86, region: "bottom" },
-  1: { seatIndex: 1, x: 8, y: 89, region: "bottom" },
-  2: { seatIndex: 2, x: 8, y: 40.4, region: "left" },
-  3: { seatIndex: 3, x: 8, y: 9, region: "top" },
-  4: { seatIndex: 4, x: 69.5, y: 11.3, region: "top" },
-  5: { seatIndex: 5, x: 92, y: 9, region: "top" },
-  6: { seatIndex: 6, x: 92, y: 89, region: "bottom" },
-};
-
 function mapForOrientation(orientation: MobileOrientation): Record<SeatIndex, SevenPlayerMobileAnchor> {
-  return orientation === "landscape"
-    ? SEVEN_PLAYER_MOBILE_LANDSCAPE
-    : SEVEN_PLAYER_MOBILE_PORTRAIT;
+  const preset = mobileSixBotSeatMap(orientation);
+  return {
+    0: { seatIndex: 0, ...preset[0] },
+    1: { seatIndex: 1, ...preset[1] },
+    2: { seatIndex: 2, ...preset[2] },
+    3: { seatIndex: 3, ...preset[3] },
+    4: { seatIndex: 4, ...preset[4] },
+    5: { seatIndex: 5, ...preset[5] },
+    6: { seatIndex: 6, ...preset[6] },
+  };
 }
 
 export function isSevenPlayerMobile(totalPlayers: number): boolean {
@@ -75,7 +55,7 @@ export function resolveSevenPlayerMobileSeat(
   };
 }
 
-/** Full 7-player mobile ring for tests and debugging. */
+/** Full 6-bot mobile ring for tests and debugging. */
 export function buildSevenPlayerMobileSeatMap(
   orientation: MobileOrientation,
 ): ResolvedSeatLayout[] {
@@ -84,8 +64,9 @@ export function buildSevenPlayerMobileSeatMap(
   );
 }
 
-/** Locked mid-arc seats — must match prior mobile map exactly. */
+/** Locked anchors — bottom corners and left mid-rail. */
 export const SEVEN_PLAYER_MOBILE_LOCKED_SEATS = {
+  1: { x: 8, y: 91, region: "bottom" as const },
   2: { x: 8, y: 40.4, region: "left" as const },
-  4: { x: 69.5, y: 11.3, region: "top" as const },
+  6: { x: 92, y: 91, region: "bottom" as const },
 } as const;

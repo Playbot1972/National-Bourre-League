@@ -166,32 +166,19 @@ export interface SeatPlacement {
   region: SeatRegion;
 }
 
-/** 8-player preset (host + 7 bots): same kiddie-corner geometry as 7-seat, plus Bot 7. */
-const EIGHT_SEAT_PRESET: Record<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7, SeatPlacement> = {
-  0: { x: 50, y: 96, region: "bottom" },
-  1: { x: 4, y: 99, region: "bottom" },
-  2: { x: 2, y: 40.4, region: "left" },
-  3: { x: 8, y: 9, region: "top" },
-  4: { x: 50, y: 9, region: "top" },
-  5: { x: 92, y: 9, region: "top" },
-  6: { x: 98, y: 40.4, region: "right" },
-  7: { x: 96, y: 99, region: "bottom" },
-};
+import {
+  DESKTOP_SEVEN_BOT_SEAT_MAP,
+  DESKTOP_SIX_BOT_SEAT_MAP,
+} from "./layout/seatPresetAnchors";
+
+/** 8-player preset (host + 7 bots): reuses 6-bot corners + top center; hero on bottom rail. */
+const EIGHT_SEAT_PRESET = DESKTOP_SEVEN_BOT_SEAT_MAP;
 
 /**
- * 7-player preset: corner "kiddie" seats + mid-rail anchors on the brown edge.
- * Index 0 = hero bottom center; 1/6 = lower corners; 3/5 = upper corners;
- * 2/6 = left/right mid-rail (avatar centered on brown); 4 = top center (fixed).
+ * 7-player preset (hero + 6 bots): corner kiddie seats + mid-rail anchors.
+ * Bot 4 is top-rail center; Bot 1 / Bot 6 bottom corners are locked.
  */
-const SEVEN_SEAT_PRESET: Record<0 | 1 | 2 | 3 | 4 | 5 | 6, SeatPlacement> = {
-  0: { x: 50, y: 96, region: "bottom" },
-  1: { x: 4, y: 99, region: "bottom" },
-  2: { x: 2, y: 40.4, region: "left" },
-  3: { x: 8, y: 9, region: "top" },
-  4: { x: 69.5, y: 11.3, region: "top" },
-  5: { x: 92, y: 9, region: "top" },
-  6: { x: 96, y: 99, region: "bottom" },
-};
+const SEVEN_SEAT_PRESET = DESKTOP_SIX_BOT_SEAT_MAP;
 
 function ellipseSeatPosition(index: number, n: number): SeatPlacement {
   const { rx, ry, outset } = seatRailAxes(n);
