@@ -128,6 +128,76 @@ describe("live enrollment hand view", () => {
     assert.equal(hand.turnPlayerId, "b");
   });
 
+  it("prefers currentHand decision over stale live reveal mirror", () => {
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "reveal",
+            participantIds: ["dealer", "bot_1", "bot_2"],
+            tricksByPlayer: {},
+            handDecision: { active: false, currentIndex: 0, orderedPlayerIds: ["bot_1", "bot_2", "dealer"] },
+          },
+        },
+      },
+      currentHand: {
+        phase: "decision",
+        participantIds: ["dealer", "bot_1", "bot_2"],
+        tricksByPlayer: {},
+        handDecision: {
+          active: true,
+          currentIndex: 0,
+          orderedPlayerIds: ["bot_1", "bot_2", "dealer"],
+          playingIds: [],
+          passedIds: [],
+          turnDeadlineMs: Date.now() - 1,
+        },
+      },
+    };
+    const hand = getSessionCurrentHand(session);
+    assert.equal(hand.phase, "decision");
+    assert.equal(getSessionEnrollment(session)?.active, true);
+    assert.equal(getSessionEnrollment(session)?.orderedPlayerIds?.[0], "bot_1");
+  });
+
+  it("prefers advanced decision on currentHand over stale live decision mirror", () => {
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "decision",
+            participantIds: ["dealer", "bot_1", "bot_2"],
+            tricksByPlayer: {},
+            handDecision: {
+              active: true,
+              currentIndex: 0,
+              orderedPlayerIds: ["bot_1", "bot_2", "dealer"],
+              playingIds: [],
+              passedIds: [],
+            },
+          },
+        },
+      },
+      currentHand: {
+        phase: "decision",
+        participantIds: ["dealer", "bot_1", "bot_2"],
+        tricksByPlayer: {},
+        handDecision: {
+          active: true,
+          currentIndex: 1,
+          orderedPlayerIds: ["bot_1", "bot_2", "dealer"],
+          playingIds: ["bot_1"],
+          passedIds: [],
+        },
+      },
+    };
+    const hand = getSessionCurrentHand(session);
+    assert.equal(hand.handDecision?.currentIndex, 1);
+    assert.deepEqual(hand.handDecision?.playingIds, ["bot_1"]);
+  });
+
   it("sessionHandDealStarted reads raw currentHand even when authoritative merge is empty", () => {
     const session = {
       currentHand: {
