@@ -3829,7 +3829,7 @@ function buildSessionSidebarHtml(s) {
     myScore && (privateHandLines.length > 0 || myScore.net != null)
       ? `<div class="hand-history hand-history--private">
            <h5>Your ledger</h5>
-           <p class="session-ledger-net">Session net: <strong>${escapeHtml(formatNet(myScore.net ?? 0))}</strong></p>
+           <p class="session-ledger-net">Your session profit/loss: <strong>${escapeHtml(formatNet(myScore.net ?? 0))}</strong></p>
            ${
              privateHandLines.length
                ? `<ul>${privateHandLines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`

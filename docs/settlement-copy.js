@@ -1,10 +1,123 @@
-function e(e, t) {
+//#region src/table/layout/seatPresetAnchors.ts
+var e = {
+	0: {
+		x: 50,
+		y: 96,
+		region: "bottom"
+	},
+	1: {
+		x: 4,
+		y: 99,
+		region: "bottom"
+	},
+	2: {
+		x: 2,
+		y: 40.4,
+		region: "left"
+	},
+	3: {
+		x: 8,
+		y: 9,
+		region: "top"
+	},
+	4: {
+		x: 50,
+		y: 9,
+		region: "top"
+	},
+	5: {
+		x: 92,
+		y: 9,
+		region: "top"
+	},
+	6: {
+		x: 96,
+		y: 99,
+		region: "bottom"
+	}
+};
+e[1], e[2], e[3], e[4], e[5], e[6], e[1], e[6], e[4];
+var t = {
+	0: {
+		x: 50,
+		y: 88,
+		region: "bottom"
+	},
+	1: {
+		x: 8,
+		y: 91,
+		region: "bottom"
+	},
+	2: {
+		x: 8,
+		y: 40.4,
+		region: "left"
+	},
+	3: {
+		x: 8,
+		y: 9,
+		region: "top"
+	},
+	4: {
+		x: 50,
+		y: 9,
+		region: "top"
+	},
+	5: {
+		x: 92,
+		y: 9,
+		region: "top"
+	},
+	6: {
+		x: 92,
+		y: 91,
+		region: "bottom"
+	}
+}, n = {
+	0: {
+		x: 50,
+		y: 86,
+		region: "bottom"
+	},
+	1: {
+		x: 8,
+		y: 89,
+		region: "bottom"
+	},
+	2: {
+		x: 8,
+		y: 40.4,
+		region: "left"
+	},
+	3: {
+		x: 8,
+		y: 9,
+		region: "top"
+	},
+	4: {
+		x: 50,
+		y: 9,
+		region: "top"
+	},
+	5: {
+		x: 92,
+		y: 9,
+		region: "top"
+	},
+	6: {
+		x: 92,
+		y: 89,
+		region: "bottom"
+	}
+};
+t[1], t[2], t[3], t[4], t[5], t[6], n[1], n[2], n[3], n[4], n[5], n[6], t[1], t[6], t[4];
+function r(e, t) {
 	return t.reduce((t, n) => t + (e[n] || 0), 0);
 }
-function t(t, n) {
-	return e(t, n) >= 5;
+function i(e, t) {
+	return r(e, t) >= 5;
 }
-function n(e, t) {
+function a(e, t) {
 	let n = [...new Set(t.filter(Boolean))];
 	if (n.length < 2) return {
 		ready: !1,
@@ -23,28 +136,28 @@ function n(e, t) {
 		maxTricks: r
 	};
 }
-function r(e) {
+function o(e) {
 	return `$${e.toLocaleString("en-US")}`;
 }
 //#endregion
 //#region src/table/settlementCopy.ts
-function i(e, t) {
+function s(e, t) {
 	return t.find((t) => t.playerId === e)?.displayName || e;
 }
-function a(e, t) {
-	return e.map((e) => i(e, t)).join(" & ");
+function c(e, t) {
+	return e.map((e) => s(e, t)).join(" & ");
 }
-function o(e, n) {
-	return t(e, n) ? n.filter((t) => (e[t] ?? 0) === 0) : [];
+function l(e, t) {
+	return i(e, t) ? t.filter((t) => (e[t] ?? 0) === 0) : [];
 }
-function s(e) {
-	let { tricksByPlayer: t, participantIds: s, players: c, pot: l, pendingVotes: u = {} } = e, d = n(t, s), f = e.winnerIds?.length ? e.winnerIds : d.winnerIds, p = e.maxTricks ?? d.maxTricks, m = a(f, c), h = o(t, s), g = a(h, c), _ = r(l.maxWinThisHand), v = r(l.currentPot), y = l.carryIn > 0 ? r(l.carryIn) : null, b = `Pot this hand: ${v} (max win ${_})`;
-	y && (b += ` — includes ${y} carried in`), l.limEnabled && l.overflow > 0 && (b += ` · LIM overflow ${r(l.overflow)} stays out of play`);
+function u(e) {
+	let { tricksByPlayer: t, participantIds: n, players: r, pot: i, pendingVotes: u = {} } = e, d = a(t, n), f = e.winnerIds?.length ? e.winnerIds : d.winnerIds, p = e.maxTricks ?? d.maxTricks, m = c(f, r), h = l(t, n), g = c(h, r), _ = o(i.maxWinThisHand), v = o(i.currentPot), y = i.carryIn > 0 ? o(i.carryIn) : null, b = `Pot this hand: ${v} (max win ${_})`;
+	y && (b += ` — includes ${y} carried in`), i.limEnabled && i.overflow > 0 && (b += ` · LIM overflow ${o(i.overflow)} stays out of play`);
 	let x = f.map((e) => {
 		let n = t[e] ?? 0;
-		return `${i(e, c)} — ${n} trick${n === 1 ? "" : "s"}`;
-	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks (extra penalty applies on settlement)` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${r(l.maxWinThisHand)} → ${r(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
-		let t = u[e], n = i(e, c);
+		return `${s(e, r)} — ${n} trick${n === 1 ? "" : "s"}`;
+	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks — each pays ${_} into the next hand's pot` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${o(i.maxWinThisHand)} → ${o(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
+		let t = u[e], n = s(e, r);
 		return t === "split" ? `${n}: Agreed to split ✓` : t === "push" ? `${n}: Declined split ✓` : `${n}: Waiting to vote…`;
 	}), O = e.currentUserId != null && f.includes(e.currentUserId);
 	return {
@@ -62,19 +175,19 @@ function s(e) {
 		voterHint: O ? "You tied for the lead — cast your vote below." : null
 	};
 }
-function c(e) {
-	let { settlement: t, winnerIds: n, participantIds: s, tricksByPlayer: c, players: l, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? o(c, s), p = a(f, l), m = r(u), h = r(d), g = [];
+function d(e) {
+	let { settlement: t, winnerIds: n, participantIds: r, tricksByPlayer: i, players: a, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? l(i, r), p = c(f, a), m = o(u), h = o(d), g = [];
 	if (t === "win" && n.length === 1) {
-		let e = i(n[0], l), t = c[n[0]] ?? 0;
-		return g.push(`${e} wins the pot (${t} tricks).`), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
-			headline: `${e} wins ${m}`,
+		let e = s(n[0], a), t = i[n[0]] ?? 0;
+		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — each owes ${m} into the next hand's pot.`), {
+			headline: `${e} wins ${m} this hand`,
 			detailLines: g,
-			carryoverLine: d > 0 ? `Next hand starts with ${h} in the pot.` : null
+			carryoverLine: d > 0 ? `${h} already in the table pot for the next deal.` : null
 		};
 	}
 	if (t === "split") {
-		let e = a(n, l), t = n.length ? u / n.length : 0;
-		return g.push(`${e} agreed to split — ${r(t)} each from max win ${m}.`), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+		let e = c(n, a), t = n.length ? u / n.length : 0;
+		return g.push(`${e} agreed to split — ${o(t)} each from max win ${m}.`), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
 			headline: `Pot split — ${e}`,
 			detailLines: g,
 			carryoverLine: null
@@ -91,7 +204,7 @@ function c(e) {
 		carryoverLine: `Next hand starts with ${h} in the pot.`
 	};
 	if (t === "co_win_carry") {
-		let e = a(n, l);
+		let e = c(n, a);
 		return g.push(`Tie for most tricks — ${e} (${n.length} co-winners).`), g.push(`No outright winner; full pot ${m} carries to the next deal.`), g.push("Hand ends; enrollment opens for the next deal. Seats may change between deals."), g.push("Tied leaders skip the ante for that deal; other seated players ante as usual."), g.push("New players seated in time for enrollment may join that deal."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
 			headline: "Tie — pot carries",
 			detailLines: g,
@@ -104,11 +217,11 @@ function c(e) {
 		carryoverLine: d > 0 ? `Carryover: ${h}` : null
 	};
 }
-function l(e, t) {
+function f(e, t) {
 	return t.status === "pending" ? e === "split" ? "You agreed to split — waiting for other co-winner(s)." : "Vote recorded — waiting for other co-winner(s)." : t.settlement === "split" ? "All co-winners agreed — pot split evenly. Next hand enrollment is open." : t.settlement === "non_winner_ante_up" ? "Split declined — full pot carries to the next hand. Non-winners ante up." : "Settlement recorded.";
 }
-function u(e) {
-	let t = c({
+function p(e) {
+	let t = d({
 		settlement: e.settlement,
 		winnerIds: e.winnerIds,
 		participantIds: e.participantIds,
@@ -121,4 +234,4 @@ function u(e) {
 	return `#${e.handNumber} ${t.headline}${r} · ${n} players`;
 }
 //#endregion
-export { o as bourrePlayerIds, s as buildCoWinSettlementView, c as buildHandOutcomeView, u as formatHandHistoryPublicLine, l as formatVoteRecordedMessage };
+export { l as bourrePlayerIds, u as buildCoWinSettlementView, d as buildHandOutcomeView, p as formatHandHistoryPublicLine, f as formatVoteRecordedMessage };

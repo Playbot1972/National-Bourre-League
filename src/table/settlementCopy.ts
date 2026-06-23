@@ -91,7 +91,7 @@ export function buildCoWinSettlementView(input: {
 
   const bourreLine =
     bourreIds.length > 0
-      ? `Bourré: ${bourreNames} took 0 tricks (extra penalty applies on settlement)`
+      ? `Bourré: ${bourreNames} took 0 tricks — each pays ${potLabel} into the next hand's pot`
       : null;
 
   const splitShare = input.splitSharePerWinner;
@@ -175,15 +175,20 @@ export function buildHandOutcomeView(input: {
   if (settlement === "win" && winnerIds.length === 1) {
     const name = nameFor(winnerIds[0], players);
     const tricks = tricksByPlayer[winnerIds[0]] ?? 0;
-    detailLines.push(`${name} wins the pot (${tricks} tricks).`);
+    detailLines.push(`${name} wins the table pot this hand (${tricks} tricks).`);
+    detailLines.push(`Pot won this hand: ${potLabel} (added to ${name}'s chips).`);
     if (bourreIds.length) {
-      detailLines.push(`Bourré: ${bourreNames} took 0 tricks.`);
+      detailLines.push(
+        `Bourré: ${bourreNames} took 0 tricks — each owes ${potLabel} into the next hand's pot.`,
+      );
     }
     return {
-      headline: `${name} wins ${potLabel}`,
+      headline: `${name} wins ${potLabel} this hand`,
       detailLines,
       carryoverLine:
-        carryOverPot > 0 ? `Next hand starts with ${carryLabel} in the pot.` : null,
+        carryOverPot > 0
+          ? `${carryLabel} already in the table pot for the next deal.`
+          : null,
     };
   }
 

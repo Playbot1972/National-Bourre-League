@@ -177,6 +177,7 @@ const {
   arrayUnion,
   arrayRemove,
   deleteField,
+  increment,
   runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
 
@@ -1026,7 +1027,7 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
       });
     }
   }
-  tx.update(ref, {
+  const sessionUpdate = {
     [LIVE_ENROLLMENT_FIELD]: {
       active: false,
       deal: {
@@ -1038,7 +1039,11 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
     currentHand: patch.currentHand,
     handEnrollment: deleteField(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (patch.carryOverPotAdjust > 0) {
+    sessionUpdate.carryOverPot = increment(patch.carryOverPotAdjust);
+  }
+  tx.update(ref, sessionUpdate);
 }
 
 /** Firestore transactions require every read before any write on touched docs. */
@@ -1446,6 +1451,7 @@ function buildPagatHandStartPatch(
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     sortedPlayerIds,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -2380,7 +2386,7 @@ async function recordHandClient(
     limEnabled,
     carryIn,
     antePot,
-    stakeForPlayer: stakeForPot,
+    stakeForPlayer: stakeForSettlement,
   });
 
   const {

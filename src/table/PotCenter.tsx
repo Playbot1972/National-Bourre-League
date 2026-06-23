@@ -198,11 +198,11 @@ export function PotCenter({
             data-testid="pot-display"
             key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
           >
-            <dt>Pot</dt>
+            <dt>Table pot</dt>
             <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
           </div>
           <div className="bpot__stat" data-testid="ante-display">
-            <dt>Ante</dt>
+            <dt>Ante / hand</dt>
             <dd>{formatAnteStake(potMetrics.anteAmount)}</dd>
           </div>
           {potMetrics.limEnabled && (

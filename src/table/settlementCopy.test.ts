@@ -107,8 +107,9 @@ describe("settlement copy — hand outcomes", () => {
     });
 
     assert.match(view.headline, /Alice wins \$9/);
-    assert.match(view.detailLines[0], /Alice wins the pot/);
-    assert.match(view.detailLines[1], /Bourré: Carol/);
+    assert.match(view.detailLines[0], /table pot this hand/);
+    assert.match(view.detailLines[1], /Pot won this hand: \$9/);
+    assert.match(view.detailLines[2], /Bourré: Carol/);
   });
 
   it("buildHandOutcomeView for split agreement", () => {
