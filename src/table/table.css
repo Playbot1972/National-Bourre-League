@@ -1701,10 +1701,6 @@
   font-size: 14px;
 }
 
-.bseat--enroll-clock .bseat__avatar-wrap {
-  box-shadow: 0 0 12px rgba(230, 180, 80, 0.35);
-}
-
 .bseat__avatar-stack {
   position: relative;
   width: fit-content;
@@ -1783,50 +1779,6 @@
   top: 56%;
 }
 
-.bseat__timer-ring {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 3;
-}
-
-.bseat__timer-ring__track {
-  stroke: rgba(244, 213, 141, 0.22);
-}
-
-.bseat__timer-ring__progress {
-  stroke: var(--gold-400, #e6b450);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear, stroke 300ms ease;
-}
-
-.bseat__timer-ring--urgent .bseat__timer-ring__progress {
-  stroke: #f0a030;
-}
-
-.bseat__timer-ring--urgent .bseat__timer-ring__track {
-  stroke: rgba(240, 160, 48, 0.2);
-}
-
-.btable-session__enroll-cta {
-  flex: 1 1 100%;
-  display: flex;
-  justify-content: center;
-  margin: 4px 0 2px;
-  position: relative;
-  z-index: 20;
-}
-
-.btable-session__enroll-btn {
-  min-height: 44px;
-  min-width: 140px;
-  font-size: 15px;
-  font-weight: 700;
-  padding: 10px 20px;
-}
-
 .bseat--sat-out {
   opacity: 0.55;
 }
@@ -1840,12 +1792,6 @@
   font-size: 10px;
   margin-left: 2px;
   opacity: 0.85;
-}
-
-.bseat__enroll-timer {
-  font-size: 11px;
-  color: var(--gold-300, #f4d58d);
-  font-weight: 600;
 }
 
 .bseat--leading .bseat__avatar-wrap {
@@ -3011,10 +2957,6 @@
   transform-style: preserve-3d;
 }
 
-.bseat--enroll-clock .bseat__avatar-wrap {
-  transform: none;
-}
-
 .bseat--on-turn .bseat__avatar-wrap {
   transform: rotateX(4deg) translateZ(18px) scale(1.06);
   filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
@@ -3705,8 +3647,7 @@
   animation: bmicro-feedback-shake 420ms ease;
 }
 
-.btable-hero__actions .btn:disabled,
-.btable-session__enroll-btn:disabled {
+.btable-hero__actions .btn:disabled {
   opacity: 0.42;
   cursor: not-allowed;
   filter: grayscale(0.25);
@@ -4023,21 +3964,6 @@
   margin-top: 4px;
 }
 
-.btable-session__enroll-cta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.btable-session__decision-cta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-}
-
 .btable-session__discard-pick {
   display: inline-flex;
   flex-wrap: wrap;
@@ -4048,17 +3974,6 @@
 .btable-session__discard-btn--active {
   outline: 2px solid var(--gold, #c9a227);
   outline-offset: 1px;
-}
-
-.btable-session--reveal-phase .btable-session__decision-cta,
-.btable-session--reveal-phase .btable-session__pass-btn,
-.btable-session--reveal-phase .btable-session__play-btn,
-.btable-session--reveal-phase .btable-session__stay-pat-btn {
-  display: none !important;
-}
-
-.btable-session--decision-phase .btable-session__enroll-cta {
-  display: none !important;
 }
 
 .btable-session__phase-tag--reveal {

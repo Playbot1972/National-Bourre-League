@@ -51,20 +51,20 @@ test.describe("2 — Room / session flow", () => {
       handNumber: 1,
       phase: "decision",
     });
-    await expect(page.getByTestId("decision-panel")).toBeVisible();
-    await page.getByTestId("decision-im-in-button").click();
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").click();
     await expect(page.getByTestId("feedback-banner")).toContainText(/in|hand/i);
 
     await advanceFixture(page, "nextHand");
     await page.waitForTimeout(150);
-    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toHaveCount(0);
     const mid = await readFixtureState(page);
     expect(mid?.roomOptedIn).toBe(true);
     expect(mid?.enrolledIds ?? mid?.playingIds).toContain("p0");
 
     await advanceFixture(page, "leaveRoom");
     await page.waitForTimeout(150);
-    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toHaveCount(0);
     const afterLeave = await readFixtureState(page);
     expect(afterLeave?.inRoom).toBe(false);
     expect(afterLeave?.enrolledIds).not.toContain("p0");
@@ -93,8 +93,8 @@ test.describe("3 — Bankroll / ante / broke-out", () => {
 test.describe("4 — Pass / draw decision", () => {
   test("decision pass vs draw stand pat are distinct", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "pass-draw", phase: "decision" });
-    await expect(page.getByTestId("pass-decision-button")).toBeVisible();
-    await page.getByTestId("pass-decision-button").click();
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment")).toBeVisible();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").click();
     await expect(page.getByTestId("feedback-banner")).toContainText(/passed this hand/i);
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
@@ -172,7 +172,7 @@ test.describe("8 — Zero-bankroll rules", () => {
     const self = page.getByTestId("seat-bottom-self");
     await expect(self).toHaveClass(/bseat--out/);
     await expect(self.locator(".bseat__out-tag")).toBeVisible();
-    await expect(page.getByTestId("decision-panel")).toHaveCount(0);
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toHaveCount(0);
   });
 });
 
@@ -192,7 +192,7 @@ test.describe("9 — Live bankroll display", () => {
 test.describe("10 — Pass/fold state isolation", () => {
   test("pass/fold state is separate from broke/out state", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "pass-fold", phase: "decision" });
-    await page.getByTestId("pass-decision-button").click();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").click();
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
 

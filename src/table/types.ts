@@ -41,11 +41,6 @@ export interface TablePlayer {
   isDealer: boolean;
   isLeading?: boolean;
   isWinner: boolean;
-  enrollmentOnClock?: boolean;
-  /** Fraction of enrollment window remaining (1 = full, 0 = expired). */
-  enrollmentTimeLeft?: number;
-  /** Seconds left when this player is on the enrollment clock. */
-  enrollmentSecondsOnClock?: number;
   enrollmentSatOut?: boolean;
   enrollmentJoined?: boolean;
   isRobot?: boolean;
@@ -175,7 +170,6 @@ export interface TableSessionViewProps {
   splitSharePerWinner?: number;
   voteStatus: string;
   enrollmentActive?: boolean;
-  enrollmentSecondsLeft?: number;
   currentUserId: string | null;
   /** Indices of legal plays for the viewing player (computed from private hand). */
   legalPlayIndices?: number[] | null;

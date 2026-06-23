@@ -20,7 +20,7 @@ test.describe("Decision overlay layout stability", () => {
       expect(before).not.toBeNull();
 
       const overlay = page.locator("#table-play-overlay");
-      await overlay.getByTestId("decision-im-in-button").click();
+      await overlay.getByTestId("seat-opt-in").first().click();
       await expect(overlay.getByTestId("feedback-banner")).toContainText(/in|hand/i);
 
       await page.waitForTimeout(150);

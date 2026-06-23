@@ -471,11 +471,6 @@
   margin: 0;
 }
 
-.btable-session--mobile-layout .btable-session__enroll-cta {
-  display: flex;
-  justify-content: center;
-}
-
 .btable-session--mobile-layout .btable-session__foot {
   display: none;
 }

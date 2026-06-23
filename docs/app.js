@@ -97,7 +97,6 @@ import {
   getSessionHandDecision,
   getSessionCurrentHand,
   resolveHandDealerId,
-  HAND_ENROLLMENT_MS,
   enrollmentDeadlineMs,
   tricksForPlayer,
 } from "./firestore.js";
@@ -1255,14 +1254,6 @@ async function refreshTablePlayerRatings(scores = openScores) {
   }
 }
 
-function enrollmentMsLeft(enrollment) {
-  return Math.max(0, enrollmentDeadlineMs(enrollment) - Date.now());
-}
-
-function enrollmentSecondsLeft(enrollment) {
-  return Math.max(0, Math.ceil(enrollmentMsLeft(enrollment) / 1000));
-}
-
 function enrollmentHasExpired(enrollment) {
   return enrollment?.active === true && Date.now() >= enrollmentDeadlineMs(enrollment);
 }
@@ -1300,9 +1291,6 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-    if (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj)) {
-      syncTableSession(sessionObj);
-    }
   }, 1000);
 }
 let tablePlayOpen = false;
@@ -2820,15 +2808,14 @@ function processRobotActionsInner(s, scores) {
 function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid, pagatDecision = false) {
   const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
   const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
-  const sec = enrollmentSecondsLeft(enrollment);
   if (currentId === myUid) {
     return pagatDecision
-      ? `Your turn — pass or play (${sec}s)`
-      : `Your turn — tap I'm in (${sec}s)`;
+      ? "Your turn — pass or play"
+      : "Your turn — tap I'm in";
   }
   return pagatDecision
-    ? `Waiting for ${name} (${sec}s) — pass or play clockwise from dealer`
-    : `Waiting for ${name} (${sec}s) — clockwise from dealer`;
+    ? `Waiting for ${name} — pass or play clockwise from dealer`
+    : `Waiting for ${name} — clockwise from dealer`;
 }
 
 function buildTableLeaderLabel(
@@ -3085,9 +3072,6 @@ function buildTableSessionProps(s) {
     actionFeedback: tableActionFeedback,
     players: displayScores.map((sc) => {
       const isSelf = sc.playerId === myUid;
-      const onEnrollmentClock =
-        enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
-      const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
       const playerFlags = {
@@ -3115,13 +3099,6 @@ function buildTableSessionProps(s) {
         isDealer: sc.playerId === dealerId,
         isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        enrollmentOnClock: onEnrollmentClock,
-        enrollmentTimeLeft: onEnrollmentClock
-          ? enrollmentMsLeftVal / HAND_ENROLLMENT_MS
-          : undefined,
-        enrollmentSecondsOnClock: onEnrollmentClock
-          ? enrollmentSecondsLeft(enrollment)
-          : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
         decisionPlannedDiscards: plannedDiscards[sc.playerId],
@@ -3184,7 +3161,6 @@ function buildTableSessionProps(s) {
           trumpSuit,
         ),
     enrollmentActive,
-    enrollmentSecondsLeft: enrollmentActive ? enrollmentSecondsLeft(enrollment) : 0,
     showCoWinSettlement,
     splitSharePerWinner,
     recentBourreIds,

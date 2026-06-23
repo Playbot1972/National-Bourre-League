@@ -144,9 +144,9 @@ test.describe("Rules regression — fixture (deterministic)", () => {
 
       await advanceRulesFixture(page, "setPhase", { phase: "decision" });
       await expectPhaseTag(page, /play or pass/i);
-      await expect(page.getByTestId("decision-panel")).toBeVisible();
+      await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
 
-      await page.getByTestId("decision-im-in-button").click();
+      await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").click();
       await expect(page.getByTestId("feedback-banner")).toContainText(/in/i);
 
       await advanceRulesFixture(page, "imIn");

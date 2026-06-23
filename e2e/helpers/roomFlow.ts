@@ -165,20 +165,9 @@ export async function tryHandEnrollmentActions(
   const now = Date.now();
   if (now - lastActionClick.at < 2500) return false;
 
-  const decisionImIn = overlay.getByTestId("decision-im-in-button");
-  if (await decisionImIn.isVisible().catch(() => false)) {
-    await decisionImIn.click();
-    lastActionClick.at = now;
-    await page.waitForTimeout(800);
-    return true;
-  }
-
-  const join = overlay
-    .getByTestId("join-button")
-    .or(overlay.getByTestId("seat-opt-in"))
-    .first();
-  if (await join.isVisible().catch(() => false)) {
-    await join.click();
+  const seatOptIn = overlay.getByTestId("seat-opt-in").first();
+  if (await seatOptIn.isVisible().catch(() => false)) {
+    await seatOptIn.click();
     lastActionClick.at = now;
     await page.waitForTimeout(800);
     return true;
