@@ -1407,17 +1407,6 @@ body.room-detail-open .room-actions {
   display: none;
 }
 
-.create-room-form[data-step="name"] .create-room-form__actions [type="submit"],
-.create-room-form[data-step="bourre"] .create-room-form__actions [type="submit"] {
-  display: none;
-}
-
-.create-room-form__step-hint {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-muted, #9aa3b2);
-}
-
 .subpanel--setup-focus {
   box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35);
   border-radius: 12px;
@@ -1519,9 +1508,17 @@ body.room-detail-open .room-actions {
 
 .create-room-form__actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
+  justify-content: flex-end;
   margin-top: 4px;
+}
+
+.create-room-form__new-session {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
 }
 
 @media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
@@ -1571,7 +1568,7 @@ body.room-detail-open .room-actions {
     min-height: 44px;
   }
 
-  .create-room-form__actions .btn--primary {
+  .create-room-form__actions .create-room-form__new-session {
     flex: 1.4 1 auto;
   }
 

@@ -70,10 +70,7 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
     await page.locator("#create-room").click();
     await expect(modal).toBeVisible();
     await page.locator("#create-room-name").fill(name);
-    await page.locator("#create-room-name").press("Enter");
-    await expect(page.locator("#create-room-ante")).toBeVisible({ timeout: 5_000 });
     await page.locator("#create-room-ante").selectOption({ index: 1 });
-    await expect(page.locator('[data-create-step="regional"]')).toBeVisible({ timeout: 5_000 });
     await page.locator("#create-room-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
 
     try {
