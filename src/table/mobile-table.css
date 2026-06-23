@@ -563,6 +563,28 @@
   max-width: clamp(60px, 14vw, 72px);
 }
 
+/* 4 / 6 / 7 player mobile — trick counter right of avatar (matches desktop rule) */
+.btable-mobile-wrap.btable--p4 .bseat__trick-badge,
+.btable-mobile-wrap.btable--p6 .bseat__trick-badge,
+.btable-mobile-wrap.btable--p7 .bseat__trick-badge {
+  left: 100%;
+  right: auto;
+  --trick-badge-x: clamp(3px, 0.9vmin, 5px);
+}
+
+.btable-mobile-wrap.btable--p4 .bseat--right .bseat__trick-badge,
+.btable-mobile-wrap.btable--p6 .bseat--right .bseat__trick-badge,
+.btable-mobile-wrap.btable--p7 .bseat--right .bseat__trick-badge {
+  --trick-badge-x: -2px;
+}
+
+.btable-mobile-wrap.btable--p6 .bseat--top .bseat__trick-badge,
+.btable-mobile-wrap.btable--p6 .bseat--bottom .bseat__trick-badge,
+.btable-mobile-wrap.btable--p7 .bseat--top .bseat__trick-badge,
+.btable-mobile-wrap.btable--p7 .bseat--bottom .bseat__trick-badge {
+  --trick-badge-x: clamp(4px, 1vmin, 6px);
+}
+
 .btable-mobile-wrap--landscape-row.btable--p3,
 .btable-mobile-wrap--landscape-row.btable--p4 {
   --table-grid-share: 5;
@@ -626,6 +648,12 @@
 
   .btable-mobile-hero-dock {
     max-height: 100%;
+  }
+
+  /* Landscape: tighter right-rail tuck on dense rings */
+  .btable-mobile-wrap.btable--p6 .bseat--right .bseat__trick-badge,
+  .btable-mobile-wrap.btable--p7 .bseat--right .bseat__trick-badge {
+    --trick-badge-x: -3px;
   }
 }
 
