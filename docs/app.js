@@ -132,6 +132,14 @@ import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
 import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
 import {
+  PLAY_NOW_BUY_IN,
+  PLAY_NOW_ANTE,
+  pickPlayNowRobotCount,
+  pickVacationRoomName,
+  pickUniqueRobotNames,
+  playNowBourreSettings,
+} from "./play-now.js";
+import {
   formatAnteStake,
   formatRiskStake,
   formatNet,
@@ -778,6 +786,8 @@ let currentSessions = [];
 let creatingSession = false;
 /** One-shot scroll/focus target after room create or new session. */
 let roomSetupFocus = null;
+/** Prevents duplicate Play Now fast-start while in flight. */
+let playNowInFlight = false;
 /** Debounced auto-play after Add Player. */
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
@@ -1929,6 +1939,184 @@ $("#create-room").addEventListener("click", () => {
   if (!session) return;
   openCreateRoomModal();
 });
+
+const playNowBtn = $("#play-now");
+if (playNowBtn) {
+  playNowBtn.addEventListener("click", () => {
+    void runPlayNowFlow();
+  });
+}
+
+function setPlayNowBusy(busy) {
+  const btn = $("#play-now");
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.setAttribute("aria-busy", busy ? "true" : "false");
+  btn.textContent = busy ? "Setting up…" : "Play Now";
+}
+
+function waitUntil(predicate, { timeoutMs = 20000, intervalMs = 80, label = "operation" } = {}) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const tick = () => {
+      try {
+        if (predicate()) return resolve();
+      } catch (err) {
+        reject(err);
+        return;
+      }
+      if (Date.now() - started > timeoutMs) {
+        reject(new Error(`${label} timed out`));
+        return;
+      }
+      setTimeout(tick, intervalMs);
+    };
+    tick();
+  });
+}
+
+/**
+ * Create and open a regional session using the same Firestore path as + Open table.
+ */
+async function bootstrapNewSession({ buyInAmount, handStake, limEnabled = false }) {
+  if (!currentRoomId) throw new Error("Open a room first.");
+  const players = currentMembers.map((m) => ({
+    playerId: m.userId,
+    displayName: m.displayName,
+  }));
+  if (players.length === 0 && session) {
+    players.push({ playerId: session.uid, displayName: session.displayName });
+  }
+  const created = await createSession(currentRoomId, players, buyInAmount, {
+    handStake,
+    limEnabled,
+  });
+  if (!created?.id || !created.sessionName) {
+    throw new Error("Could not create session — please try again.");
+  }
+  try {
+    await updateRoomBourreSettings(currentRoomId, {
+      buyInAmount,
+      anteAmount: handStake,
+      limEnabled,
+    });
+    pendingRoomBuyInOverride = null;
+    pendingRoomAnteOverride = null;
+  } catch (err) {
+    console.warn("updateRoomBourreSettings after create:", err);
+  }
+  const optimisticSession = {
+    id: created.id,
+    sessionName: created.sessionName,
+    status: "in_progress",
+    handCount: 0,
+    buyInAmount,
+    handStake,
+    limEnabled,
+    createdAt: { seconds: Math.floor(Date.now() / 1000) },
+  };
+  rememberPendingSession(optimisticSession);
+  currentSessions = mergeSessionsWithPending(currentSessions);
+  roomSetupFocus = "game-setup";
+  openSession(created.id);
+  return created;
+}
+
+async function runPlayNowFlow() {
+  if (!session) {
+    showRoomsError("Sign in to use Play Now.");
+    openAuth("signin");
+    return;
+  }
+  if (playNowInFlight || playNowBtn?.disabled) return;
+
+  playNowInFlight = true;
+  setPlayNowBusy(true);
+  showRoomsError("Setting up your table…", "info");
+
+  let createdRoomId = null;
+
+  try {
+    goToPrivateRooms();
+
+    const roomName = pickVacationRoomName(myRooms.map((r) => r.name).filter(Boolean));
+    createdRoomId = await createRoom({
+      owner: session,
+      name: roomName,
+      houseRules: DEFAULT_HOUSE_RULES,
+      bourreSettings: playNowBourreSettings(),
+    });
+
+    openRoom(createdRoomId);
+
+    await waitUntil(
+      () =>
+        currentRoomId === createdRoomId &&
+        currentRoom &&
+        session?.uid &&
+        currentMembers.some((m) => m.userId === session.uid),
+      { label: "Play Now room load" },
+    );
+
+    const created = await bootstrapNewSession({
+      buyInAmount: PLAY_NOW_BUY_IN,
+      handStake: PLAY_NOW_ANTE,
+      limEnabled: false,
+    });
+
+    await waitUntil(
+      () =>
+        openSessionId === created.id &&
+        tableReadyPlayerCount(resolveActiveSession()) >= 1,
+      { label: "Play Now session ready" },
+    );
+
+    const robotCount = pickPlayNowRobotCount(MAX_TABLE_PLAYERS, 1);
+    if (robotCount < 1) {
+      throw new Error("Not enough seats available for Play Now.");
+    }
+
+    const takenNames = tableReadyRoster(resolveActiveSession()).map((p) => p.displayName);
+    const robotNames = pickUniqueRobotNames(robotCount, takenNames);
+
+    for (const name of robotNames) {
+      const added = await addSessionRobot(currentRoomId, created.id, name);
+      if (added === false) {
+        throw new Error(`Could not add ${name} — try Play Now again.`);
+      }
+    }
+
+    await waitUntil(
+      () => tableReadyPlayerCount(resolveActiveSession()) >= 1 + robotCount,
+      { label: "Play Now robot roster" },
+    );
+
+    showRoomsError("");
+    await triggerSessionPlay("play-now");
+  } catch (err) {
+    console.error("runPlayNowFlow:", err);
+    const hint =
+      createdRoomId != null
+        ? "Play Now could not finish — your room is open; finish setup or tap Play Now again."
+        : "Play Now failed — please try again.";
+    showRoomsError(formatClientGameError(err, hint));
+    if (createdRoomId) {
+      openRoom(createdRoomId);
+    }
+  } finally {
+    playNowInFlight = false;
+    setPlayNowBusy(false);
+  }
+}
+
+function goToPrivateRooms() {
+  const roomsView = $("#view-rooms");
+  if (roomsView && !roomsView.hidden) return;
+  if (location.hash !== "#rooms") {
+    location.hash = "#rooms";
+  }
+  showView();
+}
 
 if (createRoomForm) {
   createRoomForm.addEventListener("submit", async (e) => {
@@ -4081,55 +4269,18 @@ async function onNewSession() {
     const cap = await refreshRoomSessionCap(currentRoomId);
     if (cap.room) currentRoom = cap.room;
 
-    const players = currentMembers.map((m) => ({
-      playerId: m.userId,
-      displayName: m.displayName,
-    }));
-    if (players.length === 0 && session) {
-      players.push({ playerId: session.uid, displayName: session.displayName });
-    }
     const roomBs = normalizeBourreSettings(
       currentRoom?.bourreSettings || DEFAULT_BOURRE_SETTINGS,
     );
     const buyInAmount = pendingRoomBuyInOverride ?? roomBs.buyInAmount;
     const handStake = resolveRoomAnteAmount(pendingRoomAnteOverride, roomBs.anteAmount);
 
-    const created = await createSession(currentRoomId, players, buyInAmount, {
-      handStake,
-      limEnabled: roomBs.limEnabled,
-    });
-    if (!created?.id || !created.sessionName) {
-      showRoomsError("Could not create session — please try again.");
-      return;
-    }
-
-    try {
-      await updateRoomBourreSettings(currentRoomId, {
-        buyInAmount,
-        anteAmount: handStake,
-        limEnabled: roomBs.limEnabled,
-      });
-      pendingRoomBuyInOverride = null;
-      pendingRoomAnteOverride = null;
-    } catch (err) {
-      console.warn("updateRoomBourreSettings after create:", err);
-    }
-
-    const optimisticSession = {
-      id: created.id,
-      sessionName: created.sessionName,
-      status: "in_progress",
-      handCount: 0,
+    await bootstrapNewSession({
       buyInAmount,
       handStake,
       limEnabled: roomBs.limEnabled,
-      createdAt: { seconds: Math.floor(Date.now() / 1000) },
-    };
-    rememberPendingSession(optimisticSession);
-    currentSessions = mergeSessionsWithPending(currentSessions);
+    });
     showRoomsError("");
-    roomSetupFocus = "game-setup";
-    openSession(created.id);
     renderRoomDetail();
   } catch (err) {
     console.error("createSession:", err);
