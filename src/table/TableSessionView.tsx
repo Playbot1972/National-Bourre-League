@@ -14,7 +14,6 @@ import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { useDecisionCountdown } from "./hooks/useDecisionCountdown";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
@@ -95,54 +94,8 @@ export function TableSessionView({
   });
 
   const cardsDealt = isCardsDealtPhase(session.phase);
-  const presentationDecisionReady =
-    handPresentation.phase === "decision" && cardsDealt;
-  const selfDecision =
-    Boolean(selfPendingHandChoice) &&
-    (isDecisionPhase(session.phase) ||
-      (isRevealPhase(session.phase) && presentationDecisionReady));
   const selfEnroll =
-    Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
-
-  const decisionLockRef = useRef(false);
-  useEffect(() => {
-    decisionLockRef.current = false;
-  }, [session.sessionId, session.handNumber, session.handEnrollment?.currentIndex]);
-
-  const handleDecisionExpire = useCallback(() => {
-    if (decisionLockRef.current || !selfDecision) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [selfDecision, actions]);
-
-  const decisionCountdown = useDecisionCountdown({
-    active: selfDecision,
-    deadlineMs: session.handEnrollment?.turnDeadlineMs,
-    onExpire: handleDecisionExpire,
-  });
-
-  const decisionSecondsLeft = selfDecision
-    ? decisionCountdown.secondsLeft
-    : enrollmentSecondsLeft;
-
-  const guardedPassEnrollment = useCallback(() => {
-    decisionCountdown.cancel();
-    if (decisionLockRef.current) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [decisionCountdown, actions]);
-
-  const guardedToggleInHand = useCallback(
-    (inHand: boolean) => {
-      if (selfDecision) decisionCountdown.cancel();
-      if (inHand && selfDecision) {
-        if (decisionLockRef.current) return;
-        decisionLockRef.current = true;
-      }
-      actions.onToggleInHand(inHand);
-    },
-    [selfDecision, decisionCountdown, actions],
-  );
+    Boolean(selfPendingHandChoice) && !cardsDealt;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -339,17 +292,11 @@ export function TableSessionView({
     () => ({
       onToggleInHand: (playerId: string, inHand: boolean) => {
         const p = players.find((x) => x.playerId === playerId);
-        if (p?.isSelf) {
-          if (selfDecision) guardedToggleInHand(inHand);
-          else actions.onToggleInHand(inHand);
-        }
+        if (p?.isSelf) actions.onToggleInHand(inHand);
       },
       onPassEnrollment: (playerId: string) => {
         const p = players.find((x) => x.playerId === playerId);
-        if (p?.isSelf && actions.onPassEnrollment) {
-          if (selfDecision) guardedPassEnrollment();
-          else actions.onPassEnrollment();
-        }
+        if (p?.isSelf && actions.onPassEnrollment) actions.onPassEnrollment();
       },
       onTrickDelta: (playerId: string, delta: number) => {
         const p = players.find((x) => x.playerId === playerId);
@@ -382,7 +329,7 @@ export function TableSessionView({
       },
       onReaction: handleReaction,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, selfDecision, guardedPassEnrollment, guardedToggleInHand],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
   );
 
   const sharedTableProps = {
@@ -581,27 +528,7 @@ export function TableSessionView({
             Cards dealt — trump revealed. Review your hand…
           </p>
         )}
-        {selfDecision && (
-          <div className="btable-session__decision-cta" data-testid="decision-panel">
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost btable-session__pass-btn"
-              data-testid="pass-decision-button"
-              onClick={() => guardedPassEnrollment()}
-            >
-              Pass · {decisionSecondsLeft}s
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary btn--sm btable-session__enroll-btn"
-              data-testid="decision-im-in-button"
-              onClick={() => guardedToggleInHand(true)}
-            >
-              I&apos;m in · {decisionSecondsLeft}s
-            </button>
-          </div>
-        )}
-        {selfEnroll && !selfDecision && (
+        {selfEnroll && (
           <div className="btable-session__enroll-cta">
             <button
               type="button"
