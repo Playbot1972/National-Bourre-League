@@ -169,6 +169,14 @@ export function initSessionSetupSheet(root) {
 }
 
 /**
+ * Inline style for the sheet element so remounted markup does not flash expanded.
+ */
+export function sessionSetupSheetStyleAttr() {
+  if (!isMobileSheet() || userSnapOffset == null) return "";
+  return ` style="--sheet-offset:${Math.round(userSnapOffset)}px"`;
+}
+
+/**
  * Reconcile sheet position after renderRoomDetail rebuilds markup.
  * @param {HTMLElement | null} root
  */
@@ -183,22 +191,24 @@ export function syncSessionSetupSheet(root) {
 
     const snaps = measureSnapOffsets(sheet);
     let targetOffset = userSnapOffset;
+    let animate = false;
 
     if (pendingAddPlayersSnap) {
       pendingAddPlayersSnap = false;
       targetOffset = snaps.content;
       userSnapOffset = snaps.content;
       sheet.dataset.sheetSnap = "content";
+      animate = true;
     } else if (targetOffset == null) {
       targetOffset = snaps.peek;
+      userSnapOffset = snaps.peek;
       sheet.dataset.sheetSnap = "peek";
     }
 
-    const animating = sheet.dataset.sheetDragging !== "true";
-    applyOffset(sheet, targetOffset, { animate: animating });
+    applyOffset(sheet, targetOffset, { animate });
   };
 
-  window.requestAnimationFrame(() => window.requestAnimationFrame(run));
+  window.requestAnimationFrame(run);
 }
 
 /**

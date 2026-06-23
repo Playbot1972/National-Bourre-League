@@ -22,6 +22,7 @@ import {
   initSessionSetupSheet,
   requestSessionSetupAddPlayersSnap,
   resetSessionSetupSheet,
+  sessionSetupSheetStyleAttr,
   shouldUseSessionSetupSheet,
   syncSessionSetupSheet,
 } from "./session-setup-sheet.js";
@@ -3745,7 +3746,7 @@ function buildSessionSetupWindowHtml(s, isOwner) {
   const addBody = isOwner
     ? buildSessionPlayerBarHtml(s)
     : `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
-  return `<div class="session-setup-sheet" data-session-setup-sheet data-testid="session-setup-sheet">
+  return `<div class="session-setup-sheet" data-session-setup-sheet data-testid="session-setup-sheet"${sessionSetupSheetStyleAttr()}>
       <div class="session-setup-sheet__handle" data-testid="session-setup-sheet-handle" role="separator" aria-label="Drag to resize session setup"></div>
       <div class="session-setup-window" data-testid="session-setup-window">
         ${addBody}
