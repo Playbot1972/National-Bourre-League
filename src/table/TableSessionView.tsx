@@ -377,6 +377,9 @@ export function TableSessionView({
   );
 
   const revealAdvancedRef = useRef(false);
+  const onAdvanceRevealRef = useRef(actions.onAdvanceReveal);
+  onAdvanceRevealRef.current = actions.onAdvanceReveal;
+
   useEffect(() => {
     revealAdvancedRef.current = false;
   }, [session.handNumber, session.sessionId]);
@@ -384,25 +387,20 @@ export function TableSessionView({
   useEffect(() => {
     if (session.phase !== "reveal") return;
     if (!handPresentation.trumpMergedIntoHand) return;
-    if (handPresentation.phase !== "drawPlayer") return;
-    if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
+    if (revealAdvancedRef.current || !onAdvanceRevealRef.current) return;
 
-    const advance = actions.onAdvanceReveal();
-    void Promise.resolve(advance).then(
-      () => {
-        revealAdvancedRef.current = true;
-      },
-      () => {
+    revealAdvancedRef.current = true;
+    const advance = onAdvanceRevealRef.current();
+    void Promise.resolve(advance).catch(() => {
+      if (session.phase === "reveal") {
         revealAdvancedRef.current = false;
-      },
-    );
+      }
+    });
   }, [
     session.phase,
     session.handNumber,
     session.sessionId,
     handPresentation.trumpMergedIntoHand,
-    handPresentation.phase,
-    actions,
   ]);
 
   useEffect(() => {
