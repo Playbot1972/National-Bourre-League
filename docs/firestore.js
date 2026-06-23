@@ -3458,13 +3458,22 @@ export async function advanceHandReveal(roomId, sessionId) {
 }
 
 async function advanceHandRevealClient(roomId, sessionId) {
+  const snap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!snap.exists()) throw new Error("Session not found");
+  const hand = getSessionCurrentHand(snap.data());
+  if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
+    return;
+  }
   await runDecisionStepTransaction(
     roomId,
     sessionId,
     (sessionData) => {
-      const hand = getSessionCurrentHand(sessionData);
-      if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: activateHandDecision(hand) };
+      const activeHand = getSessionCurrentHand(sessionData);
+      if (activeHand?.phase === HAND_PHASE.DECISION && activeHand?.handDecision?.active) {
+        return null;
+      }
+      if (activeHand?.phase !== HAND_PHASE.REVEAL) return null;
+      return { currentHand: activateHandDecision(activeHand) };
     },
     { requirePatch: true },
   );

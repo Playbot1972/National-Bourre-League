@@ -1308,7 +1308,6 @@ function stopEnrollmentTimer() {
 
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
-  if (!tablePlayOpen) return;
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
   const enrollmentActive = getSessionEnrollment(s)?.active === true;
@@ -1333,7 +1332,10 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-    if (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj)) {
+    if (
+      tablePlayOpen &&
+      (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj))
+    ) {
       syncTableSession(sessionObj);
     }
   }, tickMs);
@@ -2666,7 +2668,6 @@ function processRobotActionsInner(s, scores) {
 
   if (enrollment?.active) {
     if (pagatDecision) {
-      if (!tablePlayOpen) return;
       if (enrollmentHasExpired(enrollment)) {
         timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
           console.warn("enrollment timeout:", e),
@@ -3397,10 +3398,12 @@ function buildTableSessionProps(s) {
       onAdvanceReveal: () => {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
+          const message = e?.message || "";
+          if (message.includes("Decision step did not apply")) return;
           console.warn("advanceHandReveal:", e);
-          const message = formatClientGameError(e, "Could not open draw phase");
-          setTableActionFeedback({ status: "error", message });
-          showRoomsError(message);
+          const userMessage = formatClientGameError(e, "Could not open draw phase");
+          setTableActionFeedback({ status: "error", message: userMessage });
+          showRoomsError(userMessage);
         });
       },
       onTrickDelta: (delta) => {
@@ -3574,8 +3577,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
     if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
+      startEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
     }
@@ -3825,8 +3827,7 @@ function renderRoomDetail() {
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
     if (sessionNeedsEnrollmentDriver(openSessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
+      startEnrollmentTimer();
     }
   }
   if (editingNotes) {
