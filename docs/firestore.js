@@ -90,6 +90,7 @@ import {
   resolveSessionBuyIn,
   handAnteContribution,
   bourrePlayerIds,
+  nextDealFundingFlags,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
 } from "./bourre-rules.js";
@@ -2460,14 +2461,17 @@ async function recordHandClient(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = deleteField();
     }
-    if (bourreIds.includes(pid)) {
-      patch.bourreReplacementDue = potState.maxWinThisHand;
+    const funding = nextDealFundingFlags({
+      playerId: pid,
+      mode,
+      winners,
+      bourreIds,
+      maxWinThisHand: potState.maxWinThisHand,
+    });
+    if (funding.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = funding.bourreReplacementDue;
     }
-    if (
-      winners.includes(pid) &&
-      winners.length >= 2 &&
-      (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split")
-    ) {
+    if (funding.skipNextAnte) {
       patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {

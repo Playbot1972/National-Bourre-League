@@ -177,15 +177,8 @@ export function settleHandDeltas({
     carryOverPot = limOn ? overflow : 0;
   }
 
-  if (bourreMatch > 0 && mode !== "win" && mode !== "split") {
-    for (const pid of bourreIds) {
-      deltas[pid] -= bourrePenalty;
-    }
-    carryOverPot += bourreMatch;
-    if (limOn && mode !== "split") {
-      carryOverPot += overflow;
-    }
-  }
+  // Bourré pot match is always collected on the next deal (bourreReplacementDue),
+  // never at settlement — including frozen-pot / carry modes (Pagat).
 
   return {
     deltas,
@@ -227,6 +220,28 @@ export function handAnteContribution(scoreRow, sessionStake) {
   if (scoreRow?.skipNextAnte) return 0;
   const n = scoreRow?.perHandStake ?? sessionStake;
   return Math.max(0.01, Number(n) || sessionStake);
+}
+
+/**
+ * Score-row flags applied after settlement for the next deal's pot funding.
+ * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
+ */
+export function nextDealFundingFlags({
+  playerId,
+  mode,
+  winners,
+  bourreIds,
+  maxWinThisHand,
+}) {
+  const tiedLeader =
+    winners.includes(playerId) &&
+    winners.length >= 2 &&
+    (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split");
+  const bourreReplacementDue = bourreIds.includes(playerId) ? maxWinThisHand : null;
+  return {
+    skipNextAnte: tiedLeader,
+    bourreReplacementDue,
+  };
 }
 
 /** Apply a settlement delta against a bankroll; negative deltas clamp at zero. */

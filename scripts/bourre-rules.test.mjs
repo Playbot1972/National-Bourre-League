@@ -12,6 +12,7 @@ import {
   scoreBankroll,
   settleSoloDefaultWin,
   handAnteContribution,
+  nextDealFundingFlags,
   bourrePlayerIds,
   isHandComplete,
   sessionChipTotal,
@@ -154,7 +155,7 @@ describe("E — pot and bourré settlement", () => {
     );
   });
 
-  it("push applies bourré penalties only after a completed all-zero-trick hand", () => {
+  it("push carries pot without immediate bourré bankroll hit (deferred to next deal)", () => {
     const participants = ["p1", "p2", "p3", "p4", "p5"];
     const tricksByPlayer = Object.fromEntries(participants.map((pid) => [pid, 0]));
     tricksByPlayer.p1 = 5;
@@ -169,8 +170,11 @@ describe("E — pot and bourré settlement", () => {
       carryIn: 0,
       stakeForPlayer: stake(1),
     });
-    assert.ok(result.bourreIds.length === 4);
-    assert.ok(result.carryOverPot > 5);
+    assert.equal(result.bourreIds.length, 4);
+    assert.equal(result.carryOverPot, 5);
+    assert.equal(result.bourreMatch, 20);
+    assert.equal(result.deltas.p2, -1);
+    assert.equal(result.deltas.p3, -1);
   });
 
   it("co_win_carry carries pot on tied most tricks (e.g. 2-1-2)", () => {
@@ -355,6 +359,28 @@ describe("solo default win (Pagat)", () => {
   });
 });
 
+/** Mirrors recordHand score patches for next-deal funding flags. */
+function applyNextDealFundingToScores(scoreById, { mode, winners, bourreIds, potState, participants }) {
+  for (const pid of participants) {
+    const row = scoreById[pid];
+    if (row.skipNextAnte) delete scoreById[pid].skipNextAnte;
+    if (row.bourreReplacementDue != null) delete scoreById[pid].bourreReplacementDue;
+    const funding = nextDealFundingFlags({
+      playerId: pid,
+      mode,
+      winners,
+      bourreIds,
+      maxWinThisHand: potState.maxWinThisHand,
+    });
+    if (funding.bourreReplacementDue != null) {
+      scoreById[pid].bourreReplacementDue = funding.bourreReplacementDue;
+    }
+    if (funding.skipNextAnte) {
+      scoreById[pid].skipNextAnte = true;
+    }
+  }
+}
+
 /** Simulate deal → settlement with posted antes (matches firestore recordHand flow). */
 function runPostedAnteHand({
   scoreById,
@@ -437,12 +463,14 @@ function runPostedAnteHand({
       net: (row.net || 0) + (solvent.appliedDeltas[pid] ?? 0),
       out: (solvent.bankrolls[pid] ?? 0) <= 0,
     };
-    if (nominal.bourreIds.includes(pid)) {
-      scoreById[pid].bourreReplacementDue = nominal.potState.maxWinThisHand;
-    } else if (row.bourreReplacementDue != null) {
-      delete scoreById[pid].bourreReplacementDue;
-    }
   }
+  applyNextDealFundingToScores(scoreById, {
+    mode,
+    winners,
+    bourreIds: nominal.bourreIds,
+    potState: nominal.potState,
+    participants: active,
+  });
 
   carry = solvent.carryOverPot;
 
@@ -564,7 +592,9 @@ describe("bankroll conservation invariant", () => {
     assert.equal(scoreById.p1.bankroll, 99);
     assert.equal(scoreById.p2.bankroll, 99);
     assert.equal(scoreById.p3.bankroll, 99);
-    assert.equal(scoreById.p1.skipNextAnte, undefined);
+    assert.equal(scoreById.p1.skipNextAnte, true);
+    assert.equal(scoreById.p3.skipNextAnte, true);
+    assert.equal(scoreById.p2.skipNextAnte, undefined);
   });
 
   it("session end reconciles when two players are broke and one remains solvent", () => {
@@ -599,5 +629,143 @@ describe("bankroll conservation invariant", () => {
       buyIn * 3,
     );
     assert.equal(scoreById.p1.bankroll + carry, buyIn * 3);
+  });
+});
+
+describe("frozen-pot next-deal funding (Pagat tie + bourré)", () => {
+  const buyIn = 100;
+  const ante = 1;
+
+  it("nextDealFundingFlags: tied leaders skip ante; bourré owes pot only", () => {
+    const flags = nextDealFundingFlags({
+      playerId: "p4",
+      mode: "co_win_carry",
+      winners: ["p1", "p2"],
+      bourreIds: ["p4"],
+      maxWinThisHand: 4,
+    });
+    assert.equal(flags.skipNextAnte, false);
+    assert.equal(flags.bourreReplacementDue, 4);
+
+    const tied = nextDealFundingFlags({
+      playerId: "p1",
+      mode: "co_win_carry",
+      winners: ["p1", "p2"],
+      bourreIds: ["p4"],
+      maxWinThisHand: 4,
+    });
+    assert.equal(tied.skipNextAnte, true);
+    assert.equal(tied.bourreReplacementDue, null);
+  });
+
+  it("2-2-1-0: tied leaders skip ante; middle player antes; bourré pays pot only", () => {
+    const four = ["p1", "p2", "p3", "p4"];
+    const scoreById = Object.fromEntries(four.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+    const { carryOverPot, bourreIds, potState } = runPostedAnteHand({
+      scoreById,
+      participants: four,
+      buyIn,
+      ante,
+      mode: "co_win_carry",
+      winners: ["p1", "p2"],
+      tricksByPlayer: { p1: 2, p2: 2, p3: 1, p4: 0 },
+    });
+
+    assert.equal(carryOverPot, 4);
+    assert.deepEqual(bourreIds, ["p4"]);
+    assert.equal(potState.maxWinThisHand, 4);
+    assert.equal(scoreById.p1.skipNextAnte, true);
+    assert.equal(scoreById.p2.skipNextAnte, true);
+    assert.equal(scoreById.p3.skipNextAnte, undefined);
+    assert.equal(scoreById.p4.bourreReplacementDue, 4);
+    assert.equal(scoreById.p4.bankroll, 99);
+
+    const nextDeal = collectHandAntes({
+      participants: four,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], ante),
+    });
+    assert.equal(nextDeal.postedAntes.p1, 0);
+    assert.equal(nextDeal.postedAntes.p2, 0);
+    assert.equal(nextDeal.postedAntes.p3, 1);
+    assert.equal(nextDeal.postedAntes.p4, 4);
+    assert.equal(
+      Object.values(nextDeal.postedAntes).reduce((s, n) => s + n, 0) + carryOverPot,
+      9,
+    );
+    assert.equal(
+      sessionChipTotal(
+        Object.fromEntries(four.map((pid) => [pid, { bankroll: nextDeal.bankrolls[pid] }])),
+        { carryOverPot, postedAntes: nextDeal.postedAntes, buyInFallback: buyIn },
+      ),
+      buyIn * 4,
+    );
+  });
+
+  it("2-1-2 tie without bourré: only tied players skip next ante", () => {
+    const three = ["p1", "p2", "p3"];
+    const scoreById = Object.fromEntries(three.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+    runPostedAnteHand({
+      scoreById,
+      participants: three,
+      buyIn,
+      ante,
+      mode: "co_win_carry",
+      winners: ["p1", "p3"],
+      tricksByPlayer: { p1: 2, p2: 1, p3: 2 },
+    });
+    const nextDeal = collectHandAntes({
+      participants: three,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], ante),
+    });
+    assert.equal(nextDeal.postedAntes.p1, 0);
+    assert.equal(nextDeal.postedAntes.p2, 1);
+    assert.equal(nextDeal.postedAntes.p3, 0);
+  });
+
+  it("win with bourré: loser pays replacement only on next deal (not at settlement)", () => {
+    const three = ["p1", "p2", "p3"];
+    const scoreById = Object.fromEntries(three.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+    const { bourreIds, potState } = runPostedAnteHand({
+      scoreById,
+      participants: three,
+      buyIn,
+      ante,
+      winners: ["p1"],
+      tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+    });
+    assert.deepEqual(bourreIds, ["p3"]);
+    assert.equal(scoreById.p3.bankroll, 99);
+    assert.equal(scoreById.p3.bourreReplacementDue, potState.maxWinThisHand);
+    const nextDeal = collectHandAntes({
+      participants: three,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], ante),
+    });
+    assert.equal(nextDeal.postedAntes.p3, 3);
+    assert.equal(nextDeal.postedAntes.p1, 1);
+    assert.equal(nextDeal.postedAntes.p2, 1);
+  });
+
+  it("co_win_carry with bourré does not double-count pot into carry", () => {
+    const four = ["p1", "p2", "p3", "p4"];
+    const result = settleHandDeltas({
+      mode: "co_win_carry",
+      winners: ["p1", "p2"],
+      participants: four,
+      tricksByPlayer: { p1: 2, p2: 2, p3: 1, p4: 0 },
+      anteAmount: ante,
+      limEnabled: false,
+      carryIn: 0,
+      antePot: 4,
+      stakeForPlayer: () => 0,
+    });
+    assert.equal(result.carryOverPot, 4);
+    assert.ok(result.deltas.p4 === 0);
+    assert.equal(result.bourreMatch, 4);
   });
 });
