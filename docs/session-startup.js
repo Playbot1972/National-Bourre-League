@@ -212,18 +212,41 @@ function y(e) {
 	return e.enrollmentGateActive && e.isSelf && !e.isFinal && e.playerId === e.currentChoicePlayerId && e.bankroll > 0 && !e.isOut;
 }
 //#endregion
+//#region src/session/botDecisionClock.ts
+var b = 400, x = 2500;
+function S(e, t, n) {
+	return `${e}:${t}:${n}`;
+}
+function C(e, t = Date.now()) {
+	return {
+		playerId: e,
+		deadlineMs: t + (400 + Math.random() * (x - 400))
+	};
+}
+function w(e, t) {
+	if (!t) return {
+		expired: !0,
+		secondsLeft: 0
+	};
+	let n = Math.max(0, t.deadlineMs - e);
+	return {
+		expired: n <= 0,
+		secondsLeft: Math.max(0, Math.ceil(n / 1e3))
+	};
+}
+//#endregion
 //#region src/session/tableStartup.ts
-function b(e) {
+function T(e) {
 	let t = e?.liveEnrollment?.deal?.publicHand;
 	return !t?.phase || m(e)?.active || e?.pendingCoWinSettlement || !s(e?.currentHand) ? !1 : a(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 }
-function x(e) {
+function E(e) {
 	if (!e?.liveEnrollment?.deal) return !1;
-	if (b(e)) return !0;
+	if (T(e)) return !0;
 	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
 	return (t === "draw" || t === "play") && !n ? s(e.currentHand) : t === "draw" || t === "play" ? !1 : s(e?.currentHand);
 }
-function S(e, t) {
+function D(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -253,10 +276,10 @@ function S(e, t) {
 		kind: "ready_mid_hand",
 		canOpenTable: !0,
 		needsEnrollment: !1,
-		shouldRepair: x(e),
+		shouldRepair: E(e),
 		reason: "hand_in_progress",
 		recovery: "refresh"
-	} : x(e) ? {
+	} : E(e) ? {
 		kind: "stale_live_deal",
 		canOpenTable: !0,
 		needsEnrollment: !0,
@@ -272,10 +295,10 @@ function S(e, t) {
 		recovery: "refresh"
 	};
 }
-function C(e) {
+function O(e) {
 	return e.needsEnrollment;
 }
-function w(e, t) {
+function k(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -290,4 +313,4 @@ function w(e, t) {
 	}
 }
 //#endregion
-export { S as analyzeTableStartup, p as authoritativeCurrentHand, y as canPlayerShowHandChoice, d as handPhaseStarted, s as isClearedPreDealHand, h as isLegacyEnrollmentActive, g as isPagatDecisionActive, b as isStaleLiveDealSnapshot, v as resolveCurrentHandChoicePlayerId, _ as resolveTableEnrollmentActive, f as sessionHandDealStarted, x as shouldClearOrphanLiveEnrollment, C as tableStartupNeedsEnrollment, w as tableStartupUserMessage };
+export { x as BOT_DECISION_DELAY_MAX_MS, b as BOT_DECISION_DELAY_MIN_MS, D as analyzeTableStartup, p as authoritativeCurrentHand, S as botDecisionClockKey, y as canPlayerShowHandChoice, w as computeBotDecisionCountdown, d as handPhaseStarted, s as isClearedPreDealHand, h as isLegacyEnrollmentActive, g as isPagatDecisionActive, T as isStaleLiveDealSnapshot, v as resolveCurrentHandChoicePlayerId, _ as resolveTableEnrollmentActive, f as sessionHandDealStarted, E as shouldClearOrphanLiveEnrollment, C as startBotDecisionClock, O as tableStartupNeedsEnrollment, k as tableStartupUserMessage };

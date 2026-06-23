@@ -39,6 +39,14 @@ export {
   canPlayerShowHandChoice,
 } from "./liveHand";
 
+export {
+  BOT_DECISION_DELAY_MIN_MS,
+  BOT_DECISION_DELAY_MAX_MS,
+  botDecisionClockKey,
+  computeBotDecisionCountdown,
+  startBotDecisionClock,
+} from "./botDecisionClock";
+
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (!livePublic?.phase) return false;
