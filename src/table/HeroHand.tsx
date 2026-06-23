@@ -7,6 +7,7 @@ import { dealMotionWindowMs, useHeroCardMotion } from "./animations/useHeroCardM
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
+import { isLegalPlayIndex } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
 import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard, TableActionFeedback } from "./types";
@@ -97,6 +98,7 @@ export function HeroHand({
   const [localBusy, setLocalBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
+  const [illegalFlashIndex, setIllegalFlashIndex] = useState<number | null>(null);
   const [dealing, setDealing] = useState(false);
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
@@ -104,6 +106,9 @@ export function HeroHand({
   const prevCardIdsRef = useRef<Set<string>>(new Set());
   const handRootRef = useRef<HTMLDivElement>(null);
   const playLockRef = useRef(false);
+  const preselectTimerRef = useRef<number | null>(null);
+  const pendingPlayIndexRef = useRef<number | null>(null);
+  const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
 
@@ -148,12 +153,31 @@ export function HeroHand({
     cards,
   });
 
+  const clearPreselectTimer = useCallback(() => {
+    if (preselectTimerRef.current != null) {
+      window.clearTimeout(preselectTimerRef.current);
+      preselectTimerRef.current = null;
+    }
+    pendingPlayIndexRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => clearPreselectTimer();
+  }, [clearPreselectTimer]);
+
+  useEffect(() => {
+    clearPreselectTimer();
+    setSelectedPlay(null);
+  }, [phase, isMyTurn, legalPlayIndices, cards.length, clearPreselectTimer]);
+
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
       setPlayingIndex(null);
+      setSelectedPlay(null);
+      clearPreselectTimer();
       playLockRef.current = false;
     }
-  }, [actionFeedback?.status]);
+  }, [actionFeedback?.status, clearPreselectTimer]);
 
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
@@ -179,18 +203,13 @@ export function HeroHand({
     [busy, maxDrawDiscards, trumpDisabledIndex],
   );
 
-  const triggerPlay = useCallback(
+  const executePlay = useCallback(
     async (index: number) => {
       if (playLockRef.current || busy || !onPlayCard) return;
-      if (legalPlayIndices && !legalPlayIndices.includes(index)) {
-        playIllegalActionFeedback();
-        setIllegalShakeIndex(index);
-        window.setTimeout(() => setIllegalShakeIndex(null), MICRO_MS.illegalShake);
-        setLocalError("That card can't be played now");
-        return;
-      }
+      if (!isLegalPlayIndex(index, legalPlayIndices)) return;
+      clearPreselectTimer();
       playLockRef.current = true;
-      setSelectedPlay(index);
+      setSelectedPlay(null);
       setPlayingIndex(index);
       setLocalError(null);
       const card = typedCards[index];
@@ -214,8 +233,49 @@ export function HeroHand({
         playLockRef.current = false;
       }
     },
-    [busy, legalPlayIndices, onPlayCard, currentUserId, typedCards],
+    [busy, legalPlayIndices, onPlayCard, currentUserId, typedCards, clearPreselectTimer],
   );
+
+  const preselectCard = useCallback(
+    (index: number) => {
+      if (playLockRef.current || busy || !onPlayCard || phase !== "play" || !isMyTurn) return;
+      if (!isLegalPlayIndex(index, legalPlayIndices)) {
+        playIllegalActionFeedback();
+        clearPreselectTimer();
+        setSelectedPlay(null);
+        setIllegalShakeIndex(index);
+        setIllegalFlashIndex(index);
+        window.setTimeout(() => {
+          setIllegalShakeIndex(null);
+          setIllegalFlashIndex(null);
+        }, MICRO_MS.illegalFlash);
+        setLocalError("Illegal play");
+        return;
+      }
+      clearPreselectTimer();
+      setSelectedPlay(index);
+      setLocalError(null);
+      pendingPlayIndexRef.current = index;
+      preselectTimerRef.current = window.setTimeout(() => {
+        preselectTimerRef.current = null;
+        const pending = pendingPlayIndexRef.current;
+        pendingPlayIndexRef.current = null;
+        if (pending === index && !playLockRef.current) {
+          void executePlayRef.current(index);
+        }
+      }, MICRO_MS.autoPlayPreselect);
+    },
+    [
+      busy,
+      clearPreselectTimer,
+      isMyTurn,
+      legalPlayIndices,
+      onPlayCard,
+      phase,
+    ],
+  );
+
+  executePlayRef.current = executePlay;
 
   const runDrawAction = useCallback(
     async (indices: number[]) => {
@@ -271,12 +331,21 @@ export function HeroHand({
     }
   }, [onFoldDraw, busy]);
 
-  const handleIllegalPlay = useCallback((index: number) => {
-    playIllegalActionFeedback();
-    setIllegalShakeIndex(index);
-    window.setTimeout(() => setIllegalShakeIndex(null), MICRO_MS.illegalShake);
-    setLocalError("That card can't be played now");
-  }, []);
+  const handleIllegalPlay = useCallback(
+    (index: number) => {
+      playIllegalActionFeedback();
+      clearPreselectTimer();
+      setSelectedPlay(null);
+      setIllegalShakeIndex(index);
+      setIllegalFlashIndex(index);
+      window.setTimeout(() => {
+        setIllegalShakeIndex(null);
+        setIllegalFlashIndex(null);
+      }, MICRO_MS.illegalFlash);
+      setLocalError("Illegal play");
+    },
+    [clearPreselectTimer],
+  );
 
   if (!signedIn) {
     return (
@@ -320,9 +389,9 @@ export function HeroHand({
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";
     if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
-    if (playingIndex === i) return "selected";
+    if (playingIndex === i) return "default";
     if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
-    if (inPlayPhase && selectedPlay === i) return "selected";
+    if (inPlayPhase && selectedPlay === i && isMyTurn) return "play-preselected";
     if (inPlayPhase && !isMyTurn) return "disabled";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
@@ -357,7 +426,7 @@ export function HeroHand({
       <p className="btable-sr-only" aria-live="polite">
         {phaseStatus}
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
-        {inPlayPhase && isMyTurn && " — select a legal card to play"}
+        {inPlayPhase && isMyTurn && " — tap a legal card to preselect; it plays automatically"}
       </p>
       <div
         ref={handRootRef}
@@ -380,9 +449,10 @@ export function HeroHand({
             legalPlayIndices,
             playingIndex,
             illegalShakeIndex,
+            illegalFlashIndex,
             busy,
             trickPlayOriginPlayerId: currentUserId,
-            onPlayCard: triggerPlay,
+            onPlayCard: preselectCard,
             onSelectCard: toggleDrawIndex,
             onIllegalPlay: handleIllegalPlay,
             onPeek: setPeekIndex,

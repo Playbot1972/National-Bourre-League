@@ -13,6 +13,7 @@ export interface HandCardInteraction {
   legalPlayIndices?: number[];
   playingIndex?: number | null;
   illegalShakeIndex?: number | null;
+  illegalFlashIndex?: number | null;
   busy?: boolean;
   trickPlayOriginPlayerId?: string | null;
   onPlayCard?: (index: number) => void;
@@ -146,6 +147,7 @@ function HandCard({
         playing={playing}
         playable={playable}
         illegalShake={interaction?.illegalShakeIndex === index}
+        illegalFlash={interaction?.illegalFlashIndex === index}
         disabled={gestureDisabled && (isPlayMode || isDrawMode) && !illegalTarget}
         data-testid={testId}
         data-card-index={index}

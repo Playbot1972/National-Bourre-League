@@ -1167,8 +1167,9 @@
   transform: none;
 }
 
-.btable-hero__hand-row .hand__slot .pcard--selected {
-  transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+.btable-hero__hand-row .hand__slot .pcard--selected,
+.btable-hero__hand-row .hand__slot .pcard--play-preselected {
+  transform: translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04);
 }
 
 .btable-hero__hand-row .hand__slot .pcard--draw-selected {

@@ -8,6 +8,7 @@ export type CardState =
   | "winner"
   | "muted"
   | "selected"
+  | "play-preselected"
   | "draw-selected"
   | "disabled";
 
@@ -32,6 +33,7 @@ interface PlayingCardProps {
   playing?: boolean;
   playable?: boolean;
   illegalShake?: boolean;
+  illegalFlash?: boolean;
   disabled?: boolean;
   ariaLabel?: string;
   "data-testid"?: string;
@@ -52,6 +54,7 @@ export function PlayingCard({
   playing = false,
   playable = false,
   illegalShake = false,
+  illegalFlash = false,
   disabled = false,
   ariaLabel,
   "data-testid": dataTestId,
@@ -70,6 +73,7 @@ export function PlayingCard({
     pressed ? "pcard--pressed" : "",
     playing ? "pcard--playing" : "",
     illegalShake ? "pcard--illegal-shake" : "",
+    illegalFlash ? "pcard--illegal-flash" : "",
     disabled ? "pcard--disabled" : "",
   ]
     .filter(Boolean)
