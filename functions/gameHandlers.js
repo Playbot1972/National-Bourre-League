@@ -442,6 +442,7 @@ function buildDealCompletionPatch(
     },
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -635,7 +636,7 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
     }
   }
   if (patch.privateHandsByPlayer) {
-    tx.update(ref, {
+    const sessionUpdate = {
       liveEnrollment: {
         active: false,
         deal: {
@@ -646,7 +647,11 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
       handEnrollment: FieldValue.delete(),
       currentHand: patch.currentHand,
       updatedAt: FieldValue.serverTimestamp(),
-    });
+    };
+    if (patch.carryOverPotAdjust > 0) {
+      sessionUpdate.carryOverPot = FieldValue.increment(patch.carryOverPotAdjust);
+    }
+    tx.update(ref, sessionUpdate);
     return;
   }
   tx.update(ref, {
@@ -1716,7 +1721,7 @@ export async function handleRecordHand(
     limEnabled,
     carryIn,
     antePot,
-    stakeForPlayer: stakeForPot,
+    stakeForPlayer: stakeForSettlement,
   });
 
   const {

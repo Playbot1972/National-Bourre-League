@@ -615,7 +615,7 @@ export function TableSessionView({
       <footer className="btable-session__foot muted small">
         <FeedbackSettings compact />
         {mySessionNet != null ? (
-          <>Your session net {formatNet(mySessionNet)}</>
+          <>Your session profit/loss {formatNet(mySessionNet)}</>
         ) : (
           <>Shared pot and game state only · sign in to track your ledger</>
         )}

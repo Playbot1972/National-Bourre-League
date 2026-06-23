@@ -50,6 +50,25 @@ export function resolveSessionBuyIn(sessionData, roomBourreSettings) {
 }
 
 /**
+ * Session chip conservation: bankrolls + table pot (carry + posted antes this deal).
+ * @param {Record<string, { bankroll?: number, net?: number }>} scoreById
+ */
+export function sessionChipTotal(
+  scoreById,
+  { carryOverPot = 0, postedAntes = {}, buyInFallback = 0 } = {},
+) {
+  const bankrollSum = Object.values(scoreById || {}).reduce(
+    (sum, row) => sum + scoreBankroll(row, buyInFallback),
+    0,
+  );
+  const antePot = Object.values(postedAntes || {}).reduce(
+    (sum, n) => sum + Math.max(0, Number(n) || 0),
+    0,
+  );
+  return bankrollSum + Math.max(0, Number(carryOverPot) || 0) + antePot;
+}
+
+/**
  * Live hand pot state (public — safe to show all players).
  * @param {{ anteAmount: number, limEnabled?: boolean, carryIn?: number, antePot: number }} input
  */
@@ -274,7 +293,8 @@ export function settleSoloDefaultWin({
 /**
  * Collect per-hand antes when a deal begins. Insufficient stacks contribute
  * remaining chips, mark the player out, and exclude them from the deal.
- * @returns {{ bankrolls: Record<string, number>, postedAntes: Record<string, number>, outIds: string[], activeParticipants: string[] }}
+ * Uncollected bourré replacement (busted before paying full pot match) rolls into carry.
+ * @returns {{ bankrolls: Record<string, number>, postedAntes: Record<string, number>, outIds: string[], activeParticipants: string[], uncollectedPenalties: number }}
  */
 export function collectHandAntes({
   participants,
@@ -286,10 +306,15 @@ export function collectHandAntes({
   const postedAntes = {};
   const outIds = [];
   const activeParticipants = [];
+  let uncollectedPenalties = 0;
 
   for (const pid of participants) {
+    const row = scoreById[pid];
+    const replacementDue = Number(row?.bourreReplacementDue);
+    const isBourreReplacement =
+      Number.isFinite(replacementDue) && replacementDue > 0;
     const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
-    const br = scoreBankroll(scoreById[pid], buyInFallback);
+    const br = scoreBankroll(row, buyInFallback);
 
     if (stake <= 0) {
       bankrolls[pid] = br;
@@ -301,6 +326,10 @@ export function collectHandAntes({
     const result = applyBankrollDelta(br, -stake);
     bankrolls[pid] = result.newBankroll;
     postedAntes[pid] = Math.abs(result.appliedDelta);
+
+    if (isBourreReplacement && result.busted) {
+      uncollectedPenalties += Math.max(0, stake - Math.abs(result.appliedDelta));
+    }
 
     if (result.busted) {
       outIds.push(pid);
@@ -314,6 +343,7 @@ export function collectHandAntes({
     postedAntes,
     outIds: [...new Set(outIds)],
     activeParticipants,
+    uncollectedPenalties,
   };
 }
 
@@ -378,7 +408,7 @@ export function applySolventSettlement({
     shortfall += settlementShortfall(nominalDeltas[pid] ?? 0, appliedDeltas[pid] ?? 0);
   }
 
-  const adjustedCarry = Math.max(0, (Number(carryOverPot) || 0) - shortfall);
+  const adjustedCarry = Math.max(0, Number(carryOverPot) || 0);
 
   const totalPool = participants.reduce((sum, pid) => {
     const loss = appliedDeltas[pid] ?? 0;
@@ -387,18 +417,22 @@ export function applySolventSettlement({
 
   if (mode === "win" && winners.length === 1) {
     const winner = winners[0];
-    const winDelta = totalPool;
+    const winDelta =
+      totalPool > 0 ? totalPool : Math.max(0, nominalDeltas[winner] ?? 0);
     const br = scoreBankroll(scoreById[winner], buyInFallback);
     bankrolls[winner] = br + winDelta;
     appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
   } else if (mode === "split" && winners.length >= 2) {
-    const share = totalPool / winners.length;
+    const poolWin =
+      totalPool > 0
+        ? totalPool
+        : winners.reduce((sum, wid) => sum + Math.max(0, nominalDeltas[wid] ?? 0), 0);
+    const share = poolWin / winners.length;
     for (const winner of winners) {
       const br = scoreBankroll(scoreById[winner], buyInFallback);
       const already = appliedDeltas[winner] ?? 0;
-      const winDelta = share + already;
       bankrolls[winner] = br + share;
-      appliedDeltas[winner] = winDelta;
+      appliedDeltas[winner] = already + share;
     }
   } else {
     for (const pid of participants) {
