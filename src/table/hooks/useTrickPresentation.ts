@@ -9,6 +9,7 @@ import {
 import {
   playFlyKey,
   clearPlayOriginCache,
+  primePlayOrigins,
   snapshotPlayOrigin,
 } from "../trickPlayFly";
 import {
@@ -26,6 +27,7 @@ interface UseTrickPresentationInput {
   participantIds: string[];
   trumpSuit?: string | null;
   playedCards?: PlayedCardEntry[];
+  turnPlayerId?: string | null;
 }
 
 export type TrickPresentation = TrickPresentationModel & {
@@ -39,6 +41,7 @@ export function useTrickPresentation({
   participantIds,
   trumpSuit,
   playedCards,
+  turnPlayerId,
 }: UseTrickPresentationInput): TrickPresentation {
   const [store, dispatch] = useReducer(
     reduceTrickPresentation,
@@ -108,6 +111,8 @@ export function useTrickPresentation({
 
   useLayoutEffect(() => {
     if (!sessionPlayActive && !pipelineActive) return;
+    primePlayOrigins(participantIds);
+    if (turnPlayerId) primePlayOrigins([turnPlayerId]);
     const livePlays = currentTrick?.plays ?? [];
     if (livePlays.length > 0) snapshotTrickPlayOrigins(livePlays);
     const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
@@ -115,6 +120,8 @@ export function useTrickPresentation({
   }, [
     sessionPlayActive,
     pipelineActive,
+    participantIds,
+    turnPlayerId,
     currentTrick?.plays,
     store.pendingResolution?.frozen.plays,
   ]);

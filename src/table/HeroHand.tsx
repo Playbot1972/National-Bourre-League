@@ -452,6 +452,9 @@ export function HeroHand({
         ref={handRootRef}
         className="btable-hero__hand-3d"
         data-trick-play-origin={currentUserId ?? undefined}
+        data-trick-play-origin-active={
+          inPlayPhase && isMyTurn && currentUserId ? currentUserId : undefined
+        }
       >
         <div
           className="btable-hero__hand-row"
