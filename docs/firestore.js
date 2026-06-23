@@ -89,6 +89,7 @@ import {
   settleSoloDefaultWin,
   resolveSessionBuyIn,
   handAnteContribution,
+  sumProjectedHandAntes,
   bourrePlayerIds,
   nextDealFundingFlags,
   DEFAULT_BOURRE_SETTINGS,
@@ -517,6 +518,7 @@ export {
   anteAlreadyPosted,
   applySolventSettlement,
   handAnteContribution,
+  sumProjectedHandAntes,
   bourrePlayerIds,
 } from "./bourre-rules.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
@@ -1962,6 +1964,8 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
       scoreById: dealContext.scoreById ?? {},
       sessionStake: dealContext.sessionStake ?? 1,
       buyIn: dealContext.buyIn ?? 1,
+      carryIn: dealContext.carryIn ?? 0,
+      handCount: dealContext.handCount ?? 0,
     },
   );
 }
