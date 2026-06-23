@@ -12,7 +12,8 @@ import {
   deserializeCards,
   serializeCards,
   shuffledDeckFromSeed,
-  remainingDeckCount,
+  pileFromPublicHand,
+  totalAvailableReplacements,
   applyPlayerDraw,
   advanceAfterDraw,
   applyDrawFold,
@@ -774,11 +775,9 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
   const deckSeed = ch.deckSeed;
-  const deckNextIndex = ch.deckNextIndex ?? 0;
-  const deckRemaining =
-    deckSeed != null
-      ? remainingDeckCount(shuffledDeckFromSeed(deckSeed), deckNextIndex)
-      : ch.remainingDeckCount ?? 0;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
+  const pile = pileFromPublicHand(ch, deck);
+  const deckRemaining = totalAvailableReplacements(pile);
   const discardIndices = botDrawDiscardIndices(effective, ch.trumpSuit, maxDraw, deckRemaining);
   return runSubmitDrawTransaction(db, { roomId, sessionId, playerId, discardIndices });
 }
@@ -1366,7 +1365,6 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     if (deckSeed == null) throw new HttpsError("failed-precondition", "Missing deck seed on session");
 
     const deck = shuffledDeckFromSeed(deckSeed);
-    const deckNextIndex = currentHand.deckNextIndex ?? 0;
     const maxDraw =
       currentHand.maxDrawDiscards ?? maxDrawDiscards(currentHand.participantIds?.length ?? 2);
 
@@ -1376,19 +1374,14 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
       publicHand: currentHand,
       discardIndices: discardIndices || [],
       deck,
-      deckNextIndex,
       maxDiscards: maxDraw,
     });
 
-    let nextPublic = advanceAfterDraw(
+    const nextPublic = advanceAfterDraw(
       drawResult.publicHand,
       actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
-    nextPublic = {
-      ...nextPublic,
-      remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
-    };
 
     writePrivateHandInTransaction(
       tx,

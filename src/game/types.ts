@@ -59,6 +59,14 @@ export interface PublicHandState {
   tricksByPlayer: Record<string, number>;
   deckSeed?: number;
   deckNextIndex?: number;
+  /** Face-down stock pile for replacement draws. */
+  drawStock?: SerializedCard[];
+  /** Spent cards eligible to rebuild stock when it empties. */
+  recyclePool?: SerializedCard[];
+  /** Current drawer's discards — excluded from recycle until their draw completes. */
+  pendingDrawDiscards?: SerializedCard[];
+  /** Incremented each time recycle is shuffled back into stock (deterministic reshuffle). */
+  recycleShuffleCount?: number;
   actionOrder?: string[];
   drawCompletedIds?: string[];
   maxDrawDiscards?: number;

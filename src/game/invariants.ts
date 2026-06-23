@@ -1,4 +1,5 @@
 import { cardKey, cardsEqual } from "./cardUtils";
+import type { DrawPileState } from "./drawPile";
 import type { Card } from "../types";
 import type { CurrentTrickState, PlayedCardEntry, PublicHandState } from "./types";
 
@@ -22,10 +23,25 @@ function addKeys(map: Map<string, string>, card: Card, location: string) {
   return [];
 }
 
+function assertDrawPileUniqueness(seen: Map<string, string>, pile: DrawPileState): string[] {
+  const dupes: string[] = [];
+  for (let i = 0; i < pile.stock.length; i += 1) {
+    dupes.push(...addKeys(seen, pile.stock[i], `stock[${i}]`));
+  }
+  for (let i = 0; i < pile.recyclePool.length; i += 1) {
+    dupes.push(...addKeys(seen, pile.recyclePool[i], `recycle[${i}]`));
+  }
+  for (let i = 0; i < pile.pendingDiscards.length; i += 1) {
+    dupes.push(...addKeys(seen, pile.pendingDiscards[i], `pending[${i}]`));
+  }
+  return dupes;
+}
+
 /** Fail loudly when the same rank+suit appears in more than one zone. */
 export function assertCardUniqueness(input: {
-  deck: Card[];
-  deckNextIndex: number;
+  drawPile?: DrawPileState;
+  deck?: Card[];
+  deckNextIndex?: number;
   trumpUpcard: Card | null;
   trumpHolderId?: string | null;
   privateHands: Record<string, Card[]>;
@@ -35,8 +51,12 @@ export function assertCardUniqueness(input: {
   const seen = new Map<string, string>();
   const dupes: string[] = [];
 
-  for (let i = input.deckNextIndex; i < input.deck.length; i += 1) {
-    dupes.push(...addKeys(seen, input.deck[i], `deck[${i}]`));
+  if (input.drawPile) {
+    dupes.push(...assertDrawPileUniqueness(seen, input.drawPile));
+  } else if (input.deck != null && input.deckNextIndex != null) {
+    for (let i = input.deckNextIndex; i < input.deck.length; i += 1) {
+      dupes.push(...addKeys(seen, input.deck[i], `deck[${i}]`));
+    }
   }
 
   for (const [playerId, hand] of Object.entries(input.privateHands)) {

@@ -12,6 +12,8 @@ import {
 } from "./invariants";
 import { activePlayerOrder } from "./playerOrder";
 import { shuffledDeckFromSeed } from "./deckState";
+import { pileFromPublicHand } from "./drawPile";
+import { serializeHandState } from "./serialize";
 import { HAND_PHASE } from "./types";
 import type { PublicHandState } from "./types";
 
@@ -28,25 +30,11 @@ function deal(seed = 42) {
 }
 
 function publicFromDeal(d: ReturnType<typeof deal>): PublicHandState {
-  return {
-    phase: HAND_PHASE.DRAW,
-    participantIds: d.participantIds,
+  return serializeHandState(d, {
     dealerId: "p1",
-    trumpHolderId: d.trumpHolderId,
-    trumpSuit: d.trumpSuit,
-    trumpUpcard: d.trumpUpcard,
-    remainingDeckCount: d.remainingDeck.length,
-    currentTrick: null,
-    leadSuit: null,
-    playedCards: [],
-    turnPlayerId: d.turnPlayerId,
-    tricksByPlayer: d.tricksByPlayer,
-    deckSeed: d.deckSeed,
-    deckNextIndex: d.deckNextIndex,
     actionOrder: d.dealOrder,
-    drawCompletedIds: [],
     maxDrawDiscards: 5,
-  };
+  }).publicHand;
 }
 
 describe("deal and trump reveal", () => {
@@ -80,8 +68,7 @@ describe("deal and trump reveal", () => {
   it("initial deal has no duplicate across deck, trump reveal, and hands", () => {
     const d = deal();
     assertCardUniqueness({
-      deck: shuffledDeckFromSeed(d.deckSeed),
-      deckNextIndex: d.deckNextIndex,
+      drawPile: pileFromPublicHand(publicFromDeal(d), shuffledDeckFromSeed(d.deckSeed)),
       trumpUpcard: d.trumpUpcard,
       trumpHolderId: d.trumpHolderId,
       privateHands: d.privateHands,
@@ -94,18 +81,18 @@ describe("card uniqueness", () => {
     const d = deal();
     const pub = publicFromDeal(d);
     const deck = shuffledDeckFromSeed(d.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     const effective = effectivePlayerHand("p2", d.privateHands.p2, pub);
     const drawResult = applyDraw({
       hand: effective,
       discardIndices: [0, 1],
-      deck,
-      deckNextIndex: d.deckNextIndex,
+      pile,
+      deckSeed: d.deckSeed,
       maxDiscards: 4,
     });
     const nextPrivate = privateHandFromEffective("p2", drawResult.hand, pub);
     assertCardUniqueness({
-      deck,
-      deckNextIndex: drawResult.deckNextIndex,
+      drawPile: drawResult.pile,
       trumpUpcard: d.trumpUpcard,
       trumpHolderId: d.trumpHolderId,
       privateHands: { ...d.privateHands, p2: nextPrivate },
@@ -136,8 +123,7 @@ describe("card uniqueness", () => {
     pub = result.publicHand;
     const stored = privateHandFromEffective(leadId, result.playerHand, pub);
     assertCardUniqueness({
-      deck: shuffledDeckFromSeed(d.deckSeed),
-      deckNextIndex: pub.deckNextIndex ?? d.deckNextIndex,
+      drawPile: pileFromPublicHand(pub, shuffledDeckFromSeed(d.deckSeed)),
       trumpUpcard: (pub.trumpUpcard as typeof d.trumpUpcard) ?? null,
       trumpHolderId: d.trumpHolderId,
       privateHands: { ...d.privateHands, [leadId]: stored },
@@ -152,14 +138,15 @@ describe("draw flow", () => {
     const d = deal();
     const pub = publicFromDeal(d);
     const deck = shuffledDeckFromSeed(d.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     for (const count of [1, 2, 3, 4]) {
       const fresh = effectivePlayerHand("p3", d.privateHands.p3, pub);
       const indices = Array.from({ length: count }, (_, i) => i);
       const result = applyDraw({
         hand: fresh,
         discardIndices: indices,
-        deck,
-        deckNextIndex: d.deckNextIndex,
+        pile,
+        deckSeed: d.deckSeed,
         maxDiscards: 4,
       });
       assert.equal(result.discarded, count);
@@ -170,14 +157,16 @@ describe("draw flow", () => {
   it("rejects over-limit discard count", () => {
     const d = deal();
     const pub = publicFromDeal(d);
+    const deck = shuffledDeckFromSeed(d.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     const effective = effectivePlayerHand("p3", d.privateHands.p3, pub);
     assert.throws(
       () =>
         applyDraw({
           hand: effective,
           discardIndices: [0, 1, 2, 3, 4],
-          deck: shuffledDeckFromSeed(d.deckSeed),
-          deckNextIndex: d.deckNextIndex,
+          pile,
+          deckSeed: d.deckSeed,
           maxDiscards: 4,
         }),
       /at most 4/,

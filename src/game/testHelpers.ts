@@ -5,6 +5,7 @@ import {
   applyPlayerDraw,
   type ApplyPlayerDrawResult,
 } from "./draw";
+import { pileFromPublicHand, totalAvailableReplacements } from "./drawPile";
 import {
   assertCardUniqueness,
   effectivePlayerHand,
@@ -69,14 +70,13 @@ export function initSimulatedHand(
   };
 }
 
-/** Assert no card appears in deck remainder, trump upcard, hands, trick, or played pile. */
+/** Assert no card appears in draw pile, trump upcard, hands, trick, or played pile. */
 export function assertNoDuplicateCards(state: SimulatedHandState): void {
   const trump = state.publicHand.trumpUpcard
     ? deserializeCards([state.publicHand.trumpUpcard])[0]
     : null;
   assertCardUniqueness({
-    deck: state.deck,
-    deckNextIndex: state.publicHand.deckNextIndex ?? 0,
+    drawPile: pileFromPublicHand(state.publicHand, state.deck),
     trumpUpcard: trump,
     trumpHolderId: state.publicHand.trumpHolderId ?? state.publicHand.dealerId,
     privateHands: state.privateHands,
@@ -106,10 +106,13 @@ export function botDiscardFor(state: SimulatedHandState, playerId: string): numb
     state.privateHands[playerId],
     state.publicHand,
   );
+  const pile = pileFromPublicHand(state.publicHand, state.deck);
+  const available = totalAvailableReplacements(pile);
   return botDrawDiscardIndices(
     hand,
     state.publicHand.trumpSuit,
     state.publicHand.maxDrawDiscards ?? 5,
+    available,
   );
 }
 
@@ -126,7 +129,6 @@ export function applyBotDraw(state: SimulatedHandState, playerId: string): Simul
     publicHand: state.publicHand,
     discardIndices,
     deck: state.deck,
-    deckNextIndex: state.publicHand.deckNextIndex ?? 0,
     maxDiscards: state.publicHand.maxDrawDiscards ?? 5,
   });
   const order = state.publicHand.actionOrder ?? state.publicHand.participantIds;

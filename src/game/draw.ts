@@ -1,5 +1,11 @@
 import { removeCardsAtIndices } from "./cardUtils";
-import { drawCardsFromDeck } from "./deckState";
+import {
+  applyDrawPile,
+  pileFromPublicHand,
+  publicHandWithPile,
+  totalAvailableReplacements,
+  type DrawPileState,
+} from "./drawPile";
 import { maxDrawDiscards } from "./drawLimit";
 import {
   effectiveIndexDiscardsTrump,
@@ -14,14 +20,14 @@ import type { PublicHandState } from "./types";
 export interface ApplyDrawInput {
   hand: Card[];
   discardIndices: number[];
-  deck: Card[];
-  deckNextIndex: number;
+  pile: DrawPileState;
+  deckSeed: number;
   maxDiscards: number;
 }
 
 export interface ApplyDrawResult {
   hand: Card[];
-  deckNextIndex: number;
+  pile: DrawPileState;
   discarded: number;
 }
 
@@ -37,31 +43,34 @@ export function applyDraw(input: ApplyDrawInput): ApplyDrawResult {
     throw new Error(`Draw limit is ${input.maxDiscards}`);
   }
 
+  const discardedCards = indices.map((i) => input.hand[i]);
   const afterDiscard = removeCardsAtIndices(input.hand, indices);
   const drawCount = indices.length;
   if (drawCount === 0) {
     return {
       hand: afterDiscard,
-      deckNextIndex: input.deckNextIndex,
+      pile: input.pile,
       discarded: 0,
     };
   }
 
-  const deckRemaining = Math.max(0, input.deck.length - input.deckNextIndex);
-  if (deckRemaining < drawCount) {
+  const available = totalAvailableReplacements(input.pile);
+  if (available < drawCount) {
     throw new Error(
-      `Not enough cards left in deck (${deckRemaining} remaining, tried to draw ${drawCount})`,
+      `Not enough cards left in draw pile (${available} remaining, tried to draw ${drawCount})`,
     );
   }
 
-  const { cards: replacements, deckNextIndex } = drawCardsFromDeck(
-    input.deck,
-    input.deckNextIndex,
+  const { pile, replacements } = applyDrawPile({
+    pile: input.pile,
+    discardedCards,
     drawCount,
-  );
+    deckSeed: input.deckSeed,
+  });
+
   return {
     hand: [...afterDiscard, ...replacements],
-    deckNextIndex,
+    pile,
     discarded: drawCount,
   };
 }
@@ -113,26 +122,28 @@ export interface ApplyPlayerDrawInput {
   privateHand: Card[];
   publicHand: PublicHandState;
   discardIndices: number[];
-  deck: Card[];
-  deckNextIndex: number;
+  /** Legacy full deck — used to derive stock when drawStock is absent. */
+  deck?: Card[];
   maxDiscards: number;
 }
 
 export interface ApplyPlayerDrawResult {
   privateHand: Card[];
   publicHand: PublicHandState;
-  deckNextIndex: number;
+  pile: DrawPileState;
   discarded: number;
 }
 
 /** Draw/discard using effective hand (includes dealer trump upcard when on table). */
 export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawResult {
+  const deckSeed = input.publicHand.deckSeed ?? 0;
+  const pile = pileFromPublicHand(input.publicHand, input.deck);
   const effective = effectivePlayerHand(input.playerId, input.privateHand, input.publicHand);
   const drawResult = applyDraw({
     hand: effective,
     discardIndices: input.discardIndices,
-    deck: input.deck,
-    deckNextIndex: input.deckNextIndex,
+    pile,
+    deckSeed,
     maxDiscards: input.maxDiscards,
   });
 
@@ -143,11 +154,7 @@ export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawRes
     input.publicHand,
   );
 
-  let nextPublic: PublicHandState = {
-    ...input.publicHand,
-    deckNextIndex: drawResult.deckNextIndex,
-    remainingDeckCount: Math.max(0, input.deck.length - drawResult.deckNextIndex),
-  };
+  let nextPublic = publicHandWithPile(input.publicHand, drawResult.pile);
 
   if (trumpDiscarded) {
     nextPublic = { ...nextPublic, trumpUpcard: null };
@@ -158,7 +165,7 @@ export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawRes
   return {
     privateHand,
     publicHand: nextPublic,
-    deckNextIndex: drawResult.deckNextIndex,
+    pile: drawResult.pile,
     discarded: drawResult.discarded,
   };
 }
@@ -184,6 +191,7 @@ export function revealToDraw(
     tricksByPlayer,
     turnPlayerId: firstTurn,
     maxDrawDiscards: maxDrawDiscards(playingIds.length, dealingRule),
+    pendingDrawDiscards: [],
   };
 }
 
@@ -257,6 +265,7 @@ export function advanceAfterDraw(
       ...publicHand,
       drawCompletedIds,
       turnPlayerId: nextTurn,
+      pendingDrawDiscards: [],
     };
   }
 
@@ -269,6 +278,7 @@ export function advanceAfterDraw(
     ...publicHand,
     phase: HAND_PHASE.PLAY,
     drawCompletedIds,
+    pendingDrawDiscards: [],
     // First active seat left of dealer leads trick 1; trump flip is not auto-led.
     turnPlayerId: leadPlayerId,
     currentTrick: {

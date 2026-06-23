@@ -34,6 +34,16 @@ export {
 export type { DecisionCompletionContext, DecisionStepResult } from "./decision";
 export { maxDrawDiscards } from "./drawLimit";
 export {
+  applyDrawPile,
+  createDrawPileFromStock,
+  drawFromPile,
+  emptyDrawPile,
+  pileFromPublicHand,
+  publicHandWithPile,
+  totalAvailableReplacements,
+} from "./drawPile";
+export type { ApplyDrawPileInput, DrawPileState } from "./drawPile";
+export {
   applyDraw,
   advanceAfterDraw,
   firstUnresolvedDrawTurn,
