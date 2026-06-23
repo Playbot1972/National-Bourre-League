@@ -255,8 +255,9 @@
         <button class="modal__close" type="button" data-close-create-room aria-label="Close">&times;</button>
         <h2 class="modal__title" id="create-room-title">Create a room</h2>
         <p class="muted small">Set house rules for your table. You can edit these anytime in the room.</p>
-        <form class="create-room-form" id="create-room-form">
-          <fieldset class="create-room-form__section">
+        <p class="muted small create-room-form__step-hint">Press Return after naming your room to set buy-in and ante.</p>
+        <form class="create-room-form" id="create-room-form" data-step="name">
+          <fieldset class="create-room-form__section" data-create-step="name">
             <legend class="house-rules-form__legend">Room basics</legend>
           <label class="create-room-form__field">
             <span>Room name <span class="muted">(optional)</span></span>
@@ -283,7 +284,7 @@
           </fieldset>
           </fieldset>
 
-          <fieldset class="create-room-form__section">
+          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="bourre">
             <legend class="house-rules-form__legend">Bourré settings</legend>
             <div class="bourre-settings-form">
               <label class="bourre-settings__row">
@@ -316,7 +317,7 @@
             </div>
           </fieldset>
 
-          <fieldset class="create-room-form__section">
+          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="regional">
             <legend class="house-rules-form__legend">Regional tables</legend>
             <p class="muted small session-preset-note">Each room can open up to 4 regional tables. The next table name is assigned when you tap <strong>+ New session</strong> after the room is created.</p>
           </fieldset>
