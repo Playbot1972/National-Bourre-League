@@ -3458,15 +3458,13 @@ export async function advanceHandReveal(roomId, sessionId) {
 }
 
 async function advanceHandRevealClient(roomId, sessionId) {
-  const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   await runDecisionStepTransaction(
     roomId,
     sessionId,
     (sessionData) => {
       const hand = getSessionCurrentHand(sessionData);
       if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: revealToDraw(hand, dealingRule) };
+      return { currentHand: activateHandDecision(hand) };
     },
     { requirePatch: true },
   );
