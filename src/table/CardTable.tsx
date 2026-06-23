@@ -238,6 +238,7 @@ export function CardTable({
               <div
                 key={player.playerId}
                 className={`btable__seat-slot btable__seat-slot--${i}`}
+                data-seat-index={i}
               >
                 <Seat
                   player={seatPlayer}
