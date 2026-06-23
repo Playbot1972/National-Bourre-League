@@ -128,7 +128,6 @@ export function applyLocalCommitToPlayerFlags(commit, flags, myUid) {
     case LOCAL_HAND_ACTION.DECISION_PLAY:
       next.canToggleInHand = false;
       next.canPassEnrollment = false;
-      next.enrollmentOnClock = false;
       next.enrollmentJoined = true;
       next.inHand = true;
       if (commit.kind === LOCAL_HAND_ACTION.DECISION_PLAY) {
@@ -139,7 +138,6 @@ export function applyLocalCommitToPlayerFlags(commit, flags, myUid) {
     case LOCAL_HAND_ACTION.DECISION_PASS:
       next.canToggleInHand = false;
       next.canPassEnrollment = false;
-      next.enrollmentOnClock = false;
       next.enrollmentSatOut = true;
       break;
     case LOCAL_HAND_ACTION.DRAW:

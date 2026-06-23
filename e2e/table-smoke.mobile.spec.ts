@@ -39,13 +39,13 @@ test.describe("Bourré table smoke — mobile", () => {
     await expect(page.locator(".bseat")).toHaveCount(4);
     await expect(page.locator(".bseat__avatar")).toHaveCount(4);
 
-    for (const id of ["decision-im-in-button", "settings-button"] as const) {
+    for (const id of ["seat-opt-in", "settings-button"] as const) {
       const el = page.getByTestId(id).first();
       await expect(el).toBeVisible();
       expect(await isElementInViewport(page, id)).toBe(true);
     }
 
-    await page.getByTestId("decision-im-in-button").evaluate((el) => (el as HTMLButtonElement).click());
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toBeVisible();
   });
 
