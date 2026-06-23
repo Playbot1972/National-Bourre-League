@@ -401,6 +401,9 @@ export function formatClientGameError(err, fallback = "Something went wrong — 
   if (isEnrollmentPermissionError(err) || isPermissionDenied(err)) {
     return "Permission denied — refresh the page and try again.";
   }
+  if (lower.includes("not in reveal phase")) {
+    return fallback;
+  }
   return msg || fallback;
 }
 
