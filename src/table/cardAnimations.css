@@ -247,17 +247,78 @@
 }
 
 .btrick--sweep {
-  animation: btrick-sweep var(--trick-sweep-ms) var(--premium-ease-out) forwards;
+  animation: btrick-sweep-to-book var(--trick-sweep-ms) var(--premium-ease-out) forwards;
 }
 
-@keyframes btrick-sweep {
+@keyframes btrick-sweep-to-book {
   0% {
     opacity: 1;
     transform: scale(1) translate3d(0, 0, 0);
+    filter: none;
+  }
+  42% {
+    opacity: 0.92;
+    transform: scale(0.94) translate3d(0, -6px, 4px);
+    filter: brightness(1.05);
   }
   100% {
     opacity: 0;
-    transform: scale(0.78) translate3d(0, -14px, -8px);
+    transform: scale(0.72) translate3d(0, -22px, -12px);
+    filter: blur(1px) brightness(0.9);
+  }
+}
+
+/* Trick won — cards slide into winner's book pile under avatar */
+.bseat--trick-capture .bseat__avatar-stack {
+  animation: bseat-book-receive 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes bseat-book-receive {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(54, 185, 124, 0));
+  }
+  38% {
+    filter: drop-shadow(0 0 14px rgba(54, 185, 124, 0.45));
+  }
+  100% {
+    filter: none;
+  }
+}
+
+.bseat--trick-capture .bseat__trick-books .bseat__trick-book-card:last-child {
+  animation: bbook-slide-in var(--trick-sweep-ms) var(--premium-ease-out) backwards;
+}
+
+@keyframes bbook-slide-in {
+  0% {
+    opacity: 0;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.5px - 5px))
+      translateY(-40px)
+      rotateZ(calc(var(--book-i, 0) * 3.5deg - 22deg))
+      rotateX(58deg)
+      scale(0.58);
+    filter: drop-shadow(0 14px 20px rgba(0, 0, 0, 0.55));
+  }
+  52% {
+    opacity: 1;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.5px - 5px))
+      translateY(calc(var(--book-i, 0) * -2px - 6px))
+      rotateZ(calc(var(--book-i, 0) * 3.5deg - 8deg))
+      rotateX(44deg)
+      scale(1.06);
+  }
+  100% {
+    opacity: 1;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.5px - 5px))
+      translateY(calc(var(--book-i, 0) * -2px))
+      rotateZ(calc(var(--book-i, 0) * 3.5deg - 5deg))
+      rotateX(38deg)
+      translateZ(calc(var(--book-i, 0) * -2px))
+      scale(1);
+    filter: none;
   }
 }
 
@@ -472,7 +533,10 @@
   .btable-hero--draw-discard .pcard--draw-selected,
   .btable-hero--draw-receive .hand__slot,
   .btable-hero--draw-receive .hand__slot .pcard,
-  .bseat__hole-card {
+  .bseat__hole-card,
+  .bseat--trick-capture .bseat__avatar-stack,
+  .bseat--trick-capture .bseat__trick-books .bseat__trick-book-card:last-child,
+  .btrick--sweep {
     animation-duration: 120ms !important;
   }
 }

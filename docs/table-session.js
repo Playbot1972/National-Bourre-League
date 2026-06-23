@@ -12417,6 +12417,25 @@ function Cl({ player: e, region: t, handLane: n = "below", style: r, onToggleInH
 						className: "bseat__avatar-stack",
 						"data-trick-play-origin": !e.isSelf && e.inHand && !m ? e.playerId : void 0,
 						children: [
+							e.inHand && /* @__PURE__ */ (0, g.jsx)("span", {
+								className: [
+									"bseat__trick-badge",
+									f === 0 ? "bseat__trick-badge--zero" : "",
+									e.isWinner || e.isTrickCapture ? "bseat__trick-badge--tick" : ""
+								].filter(Boolean).join(" "),
+								"aria-label": `${f} tricks won`,
+								title: `${f} trick${f === 1 ? "" : "s"} won`,
+								children: f
+							}),
+							/* @__PURE__ */ (0, g.jsx)("div", {
+								className: "bseat__trick-books",
+								"aria-hidden": f <= 0,
+								"data-trick-count": f,
+								children: Array.from({ length: Math.min(f, 5) }, (e, t) => /* @__PURE__ */ (0, g.jsx)("span", {
+									className: "bseat__trick-book-card",
+									style: { "--book-i": t }
+								}, t))
+							}),
 							m && /* @__PURE__ */ (0, g.jsx)("div", {
 								className: "bseat__hole-cards bseat__hole-cards--crown",
 								"aria-label": `${p} cards in hand`,

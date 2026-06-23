@@ -130,6 +130,34 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               !player.isSelf && player.inHand && !showHoleCards ? player.playerId : undefined
             }
           >
+            {player.inHand && (
+              <span
+                className={[
+                  "bseat__trick-badge",
+                  trickCount === 0 ? "bseat__trick-badge--zero" : "",
+                  player.isWinner || player.isTrickCapture ? "bseat__trick-badge--tick" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-label={`${trickCount} tricks won`}
+                title={`${trickCount} trick${trickCount === 1 ? "" : "s"} won`}
+              >
+                {trickCount}
+              </span>
+            )}
+            <div
+              className="bseat__trick-books"
+              aria-hidden={trickCount <= 0}
+              data-trick-count={trickCount}
+            >
+              {Array.from({ length: Math.min(trickCount, 5) }, (_, i) => (
+                <span
+                  key={i}
+                  className="bseat__trick-book-card"
+                  style={{ ["--book-i" as string]: i }}
+                />
+              ))}
+            </div>
             {showHoleCards && (
               <div
                 className="bseat__hole-cards bseat__hole-cards--crown"
