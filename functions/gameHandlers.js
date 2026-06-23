@@ -1171,16 +1171,28 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
   await assertRoomMember(db, roomId, actorId);
   const dealingRule = await getDealingRule(db, roomId);
   const ref = sessionRef(db, roomId, sessionId);
+  let alreadyPastReveal = false;
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Session not found");
     const hand = getSessionCurrentHand(snap.data());
     if (hand?.phase !== HAND_PHASE.REVEAL) {
+      if (
+        hand?.phase === HAND_PHASE.DECISION ||
+        hand?.phase === HAND_PHASE.DRAW ||
+        hand?.phase === HAND_PHASE.PLAY
+      ) {
+        alreadyPastReveal = true;
+        return;
+      }
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
     const nextHand = revealToDraw(hand, dealingRule);
     tx.update(ref, publicHandSessionUpdate(snap.data(), nextHand));
   });
+  if (alreadyPastReveal) {
+    return { status: "ok", phase: "past_reveal" };
+  }
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   return { status: "draw" };
 }

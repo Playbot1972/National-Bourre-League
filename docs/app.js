@@ -3305,6 +3305,10 @@ function buildTableSessionProps(s) {
       onAdvanceReveal: () => {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
+          const lower = String(e?.message ?? "").toLowerCase();
+          if (lower.includes("not in reveal")) {
+            return;
+          }
           console.warn("advanceHandReveal:", e);
           const message = formatClientGameError(e, "Could not open draw phase");
           setTableActionFeedback({ status: "error", message });
