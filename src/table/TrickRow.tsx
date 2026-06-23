@@ -70,7 +70,12 @@ export function TrickRow({
             {winnerName} takes it
           </div>
         )}
-        <div className="btrick__cards" role="list" aria-label="Cards in trick">
+        <div
+          className="btrick__cards"
+          role="list"
+          aria-label="Cards in trick"
+          style={{ ["--trick-card-count" as string]: displayPlays.length }}
+        >
           {displayPlays.map((play, i) => (
             <TrickPlaySlot
               key={`${play.playerId}-${play.card.rank}-${play.card.suit}-${i}`}

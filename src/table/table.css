@@ -535,7 +535,6 @@
 .center-play .btrick {
   justify-content: center;
   flex-wrap: nowrap;
-  gap: 3px;
   min-height: 58px;
 }
 
@@ -635,9 +634,19 @@
   position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 4px;
+  justify-content: center;
   min-width: 48px;
   min-height: 74px;
+  --trick-card-overlap: 15px;
+  --trick-card-width: 52px;
+  --trick-card-height: 74px;
+  --trick-card-step: calc(var(--trick-card-width) - var(--trick-card-overlap));
+  --trick-card-travel-ms: 340ms;
+  --trick-card-settle-ms: 140ms;
+  --trick-card-shift-ms: 220ms;
+  --trick-ease-fly: cubic-bezier(0.22, 1, 0.36, 1);
+  --trick-ease-shift: cubic-bezier(0.2, 0, 0, 1);
+  --trick-ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .btrick__surface {
@@ -649,11 +658,12 @@
 }
 
 .btrick__cards {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: inherit;
-  width: 100%;
+  position: relative;
+  width: calc(
+    var(--trick-card-width) + max(0, var(--trick-card-count, 1) - 1) * var(--trick-card-step)
+  );
+  height: var(--trick-card-height);
+  margin-inline: auto;
 }
 
 .btrick--empty {
@@ -675,10 +685,20 @@
 }
 
 .btrick__play {
+  position: absolute;
+  left: 0;
+  bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  width: var(--trick-card-width);
+  transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
+  z-index: calc(var(--slot-index, 0) + 1);
+}
+
+.btrick__play--settled {
+  transition: transform var(--trick-card-shift-ms) var(--trick-ease-shift);
 }
 
 .btrick__name {
@@ -713,34 +733,84 @@
 }
 
 .btrick__play--fly-from-hand .pcard {
-  animation: btrick-fly-from-hand var(--trick-card-land-ms, 320ms) cubic-bezier(0.22, 1, 0.36, 1)
+  animation: btrick-fly-from-hand var(--trick-card-travel-ms, 340ms) var(--trick-ease-fly, cubic-bezier(0.22, 1, 0.36, 1))
     forwards;
   transform-style: preserve-3d;
 }
 
 @keyframes btrick-fly-from-hand {
   0% {
-    transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 24px) rotateZ(-12deg) rotateY(-28deg)
-      scale(0.88);
-    opacity: 0.88;
-  }
-  70% {
-    transform: translate3d(calc(var(--fly-dx, 0) * 0.15), calc(var(--fly-dy, 0) * 0.15), 8px)
-      rotateZ(3deg) rotateY(6deg) scale(1.03);
-    opacity: 1;
+    transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 0) scale(0.92);
+    opacity: 0.86;
   }
   100% {
-    transform: translate3d(0, 0, 0) rotateZ(0deg) rotateY(0deg) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
     opacity: 1;
   }
 }
 
 .btrick__play--land .pcard {
-  animation: btrick-card-land var(--trick-card-land-ms, 520ms) cubic-bezier(0.34, 1.35, 0.64, 1);
+  animation: btrick-card-land var(--trick-card-travel-ms, 340ms) var(--trick-ease-fly, cubic-bezier(0.22, 1, 0.36, 1))
+    forwards;
 }
 
-.btrick__play--winner .pcard {
-  animation: btrick-winner-glow var(--trick-winner-highlight-ms, 1600ms) ease;
+@keyframes btrick-card-land {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -16px, 0) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.btrick__play--settle .pcard {
+  animation: btrick-card-settle var(--trick-card-settle-ms, 140ms) var(--trick-ease-settle, cubic-bezier(0.34, 1.56, 0.64, 1))
+    forwards;
+}
+
+@keyframes btrick-card-settle {
+  0% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.btrick__play--winner .pcard--winner {
+  z-index: 12;
+}
+
+.btrick__play--winner .pcard--winner .pcard__surface {
+  border: 3px solid #36b97c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(54, 185, 124, 0.35),
+    0 8px 18px rgba(8, 60, 38, 0.42);
+}
+
+.btrick__play--winner .pcard--winner {
+  animation: btrick-winner-emphasis var(--trick-winner-highlight-ms, 1600ms) ease forwards;
+}
+
+@keyframes btrick-winner-emphasis {
+  0% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 0 rgba(54, 185, 124, 0));
+  }
+  18% {
+    transform: translateY(-2px) scale(1.02);
+    filter: drop-shadow(0 4px 10px rgba(54, 185, 124, 0.35));
+  }
+  100% {
+    transform: translateY(-2px) scale(1.02);
+    filter: drop-shadow(0 6px 14px rgba(54, 185, 124, 0.4));
+  }
 }
 
 .btrick--hold .btrick__play:not(.btrick__play--winner) .pcard {
@@ -749,36 +819,6 @@
 
 .btrick--sweep {
   animation: btrick-sweep var(--trick-sweep-ms, 900ms) ease forwards;
-}
-
-@keyframes btrick-card-land {
-  0% {
-    opacity: 0;
-    transform: translateY(-22px) translateZ(18px) rotateX(18deg) rotateZ(-8deg) scale(0.86);
-  }
-  65% {
-    opacity: 1;
-    transform: translateY(3px) translateZ(4px) rotateX(-4deg) rotateZ(2deg) scale(1.03);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) translateZ(0) rotateX(0deg) rotateZ(0deg) scale(1);
-  }
-}
-
-@keyframes btrick-winner-glow {
-  0% {
-    transform: translateY(0) translateZ(0);
-    filter: drop-shadow(0 0 0 rgba(54, 185, 124, 0));
-  }
-  45% {
-    transform: translateY(-14px) translateZ(10px) rotateX(6deg);
-    filter: drop-shadow(0 8px 16px rgba(54, 185, 124, 0.45));
-  }
-  100% {
-    transform: translateY(-8px) translateZ(4px);
-    filter: drop-shadow(0 4px 10px rgba(54, 185, 124, 0.28));
-  }
 }
 
 @keyframes btrick-winner-tag {
@@ -808,9 +848,8 @@
   animation: btrick-echo-dim var(--trick-post-read-ms, 1600ms) ease forwards;
 }
 
-.btrick--echo-pipeline .btrick__play--winner .pcard {
-  animation: btrick-winner-glow var(--trick-winner-highlight-ms, 400ms) ease forwards;
-  animation-delay: var(--trick-post-read-ms, 1600ms);
+.btrick--echo-pipeline .btrick__play--winner .pcard--winner {
+  animation: btrick-winner-emphasis var(--trick-winner-highlight-ms, 400ms) ease forwards;
 }
 
 .btrick--echo-pipeline .btrick__winner-tag {
@@ -2376,6 +2415,11 @@
 
   .center-play {
     width: min(68%, clamp(180px, 44vw, 280px));
+  }
+
+  .center-play .btrick {
+    --trick-card-width: clamp(48px, 11vmin, 72px);
+    --trick-card-height: calc(clamp(48px, 11vmin, 72px) * 1.423);
   }
 
   .center-play .btrick__play .pcard--sm,
