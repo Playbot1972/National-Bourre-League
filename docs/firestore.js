@@ -2413,13 +2413,10 @@ async function recordHandClient(
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
     stakeForPlayer: stakeForSettlement,
-    bourreIds,
-    bourrePenalty: potState.maxWinThisHand,
   });
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = solvent.bourreRemainders ?? {};
 
   const batch = writeBatch(db);
   const handLedger = {
@@ -2463,8 +2460,8 @@ async function recordHandClient(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = deleteField();
     }
-    if (bourreRemainders[pid] != null && bourreRemainders[pid] > 0) {
-      patch.bourreReplacementDue = bourreRemainders[pid];
+    if (bourreIds.includes(pid)) {
+      patch.bourreReplacementDue = potState.maxWinThisHand;
     }
     if (
       winners.includes(pid) &&
@@ -3461,13 +3458,15 @@ export async function advanceHandReveal(roomId, sessionId) {
 }
 
 async function advanceHandRevealClient(roomId, sessionId) {
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   await runDecisionStepTransaction(
     roomId,
     sessionId,
     (sessionData) => {
       const hand = getSessionCurrentHand(sessionData);
       if (hand?.phase !== HAND_PHASE.REVEAL) return null;
-      return { currentHand: activateHandDecision(hand) };
+      return { currentHand: revealToDraw(hand, dealingRule) };
     },
     { requirePatch: true },
   );

@@ -9,8 +9,6 @@ import {
   applyDecisionPass,
   applyDecisionPlay,
   applyDecisionTimeout,
-  HAND_DECISION_MS,
-  HAND_DECISION_SECONDS,
   buildHandDecision,
   currentDecisionPlayer,
   dealerMustPlayTrumpAce,
@@ -20,13 +18,6 @@ const SORTED = ["p1", "p2", "p3", "p4"];
 const DEAL_CTX = { dealerId: "p1", sortedPlayerIds: SORTED, dealingRule: null };
 
 describe("Pagat decision phase", () => {
-  it("uses a 15 second decision window", () => {
-    assert.equal(HAND_DECISION_SECONDS, 15);
-    assert.equal(HAND_DECISION_MS, 15_000);
-    const decision = buildHandDecision(SORTED, "p1", true, 1_000);
-    assert.equal(decision.turnDeadlineMs, 16_000);
-  });
-
   it("deals into reveal with inactive decision clock", () => {
     const deal = dealInitialHand({
       dealerId: "p1",

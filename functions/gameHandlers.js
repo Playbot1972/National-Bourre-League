@@ -1165,6 +1165,7 @@ function decisionStepPatch(step) {
 
 export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }) {
   await assertRoomMember(db, roomId, actorId);
+  const dealingRule = await getDealingRule(db, roomId);
   const ref = sessionRef(db, roomId, sessionId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -1173,11 +1174,11 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
     if (hand?.phase !== HAND_PHASE.REVEAL) {
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
-    const nextHand = activateHandDecision(hand);
+    const nextHand = revealToDraw(hand, dealingRule);
     tx.update(ref, publicHandSessionUpdate(snap.data(), nextHand));
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  return { status: "decision" };
+  return { status: "draw" };
 }
 
 export async function handleSetHandParticipation(
@@ -1747,13 +1748,10 @@ export async function handleRecordHand(
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
     stakeForPlayer: stakeForSettlement,
-    bourreIds,
-    bourrePenalty: potState.maxWinThisHand,
   });
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = solvent.bourreRemainders ?? {};
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -1793,9 +1791,11 @@ export async function handleRecordHand(
       patch.out = FieldValue.delete();
     }
     if (current.skipNextAnte) patch.skipNextAnte = FieldValue.delete();
-    if (current.bourreReplacementDue != null) patch.bourreReplacementDue = FieldValue.delete();
-    if (bourreRemainders[pid] != null && bourreRemainders[pid] > 0) {
-      patch.bourreReplacementDue = bourreRemainders[pid];
+    if (current.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = FieldValue.delete();
+    }
+    if (bourreIds.includes(pid)) {
+      patch.bourreReplacementDue = potState.maxWinThisHand;
     }
     if (
       winners.includes(pid) &&

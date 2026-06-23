@@ -65,7 +65,7 @@
       /** @type {{ index: number, at: number }[]} */
       window.__fixturePlayLog = [];
 
-      const HAND_DECISION_MS = 15_000;
+      const HAND_DECISION_MS = 12_000;
       const deadlineStart = Date.now() + HAND_DECISION_MS;
 
       const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);

@@ -1703,36 +1703,6 @@
 
 .bseat--enroll-clock .bseat__avatar-wrap {
   box-shadow: 0 0 12px rgba(230, 180, 80, 0.35);
-  overflow: visible;
-}
-
-/* Countdown ring — avatar overlay only; must not affect flex layout elsewhere */
-.bseat__avatar-wrap .btable-timer-ring--avatar {
-  position: absolute;
-  inset: -6px;
-  z-index: 1;
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.bseat__avatar-wrap .btable-timer-ring--avatar .bseat__timer-ring {
-  position: static;
-  width: 100%;
-  height: 100%;
-  transform: none;
-}
-
-.bseat__avatar-wrap .btable-timer-ring__seconds {
-  position: absolute;
-  font-size: 10px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--gold-300, #f4d58d);
-  line-height: 1;
-  pointer-events: none;
-  z-index: 2;
 }
 
 .bseat__avatar-stack {
@@ -4066,12 +4036,6 @@
   gap: 8px;
   align-items: center;
   justify-content: center;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bseat__timer-ring__progress {
-    transition: none !important;
-  }
 }
 
 .btable-session__discard-pick {

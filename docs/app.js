@@ -116,7 +116,6 @@ import {
   cardsRemainingInHand,
   displayHoleCardCount,
   buildPlayValidationState,
-  HAND_DECISION_MS,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -3089,7 +3088,6 @@ function buildTableSessionProps(s) {
       const onEnrollmentClock =
         enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
       const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
-      const clockTotalMs = pagatDecisionActive ? HAND_DECISION_MS : HAND_ENROLLMENT_MS;
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
       const playerFlags = {
@@ -3119,7 +3117,7 @@ function buildTableSessionProps(s) {
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         enrollmentOnClock: onEnrollmentClock,
         enrollmentTimeLeft: onEnrollmentClock
-          ? enrollmentMsLeftVal / clockTotalMs
+          ? enrollmentMsLeftVal / HAND_ENROLLMENT_MS
           : undefined,
         enrollmentSecondsOnClock: onEnrollmentClock
           ? enrollmentSecondsLeft(enrollment)
@@ -3309,7 +3307,7 @@ function buildTableSessionProps(s) {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
           console.warn("advanceHandReveal:", e);
-          const message = formatClientGameError(e, "Could not open play/pass");
+          const message = formatClientGameError(e, "Could not open draw phase");
           setTableActionFeedback({ status: "error", message });
           showRoomsError(message);
         });
