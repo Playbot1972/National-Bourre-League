@@ -14,7 +14,6 @@ import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { EnrollmentTimerRing } from "./EnrollmentTimerRing";
 import { useDecisionCountdown } from "./hooks/useDecisionCountdown";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
