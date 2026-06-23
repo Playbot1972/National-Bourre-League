@@ -47,6 +47,7 @@ interface MobileCardTableProps {
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
+  recommendedPlayIndex?: number | null;
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
@@ -77,6 +78,7 @@ export function MobileCardTable({
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
+  recommendedPlayIndex,
   handComplete = false,
   actionFeedback,
   trickPresentation,
@@ -344,6 +346,7 @@ export function MobileCardTable({
           drawCompleted={drawCompleted}
           maxDrawDiscards={session.maxDrawDiscards ?? 4}
           legalPlayIndices={legalPlayIndices ?? undefined}
+          recommendedPlayIndex={recommendedPlayIndex ?? undefined}
           handComplete={handComplete}
           actionFeedback={actionFeedback}
           onSubmitDraw={onSubmitDraw}

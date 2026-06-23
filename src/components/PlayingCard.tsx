@@ -8,6 +8,7 @@ export type CardState =
   | "winner"
   | "muted"
   | "selected"
+  | "play-recommended"
   | "play-preselected"
   | "draw-selected"
   | "disabled";
@@ -32,6 +33,8 @@ interface PlayingCardProps {
   pressed?: boolean;
   playing?: boolean;
   playable?: boolean;
+  /** When false, legal cards skip the ambient playable hint animation (hero hand). */
+  showPlayableHint?: boolean;
   illegalShake?: boolean;
   illegalFlash?: boolean;
   disabled?: boolean;
@@ -53,6 +56,7 @@ export function PlayingCard({
   pressed = false,
   playing = false,
   playable = false,
+  showPlayableHint = true,
   illegalShake = false,
   illegalFlash = false,
   disabled = false,
@@ -69,7 +73,7 @@ export function PlayingCard({
     `pcard--${size}`,
     `pcard--${state}`,
     interactive ? "pcard--interactive" : "",
-    playable ? "pcard--playable" : "",
+    playable && showPlayableHint ? "pcard--playable" : "",
     pressed ? "pcard--pressed" : "",
     playing ? "pcard--playing" : "",
     illegalShake ? "pcard--illegal-shake" : "",

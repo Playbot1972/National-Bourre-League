@@ -23,6 +23,7 @@ interface HeroHandProps {
   drawCompleted?: boolean;
   maxDrawDiscards?: number;
   legalPlayIndices?: number[];
+  recommendedPlayIndex?: number | null;
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
@@ -75,6 +76,7 @@ export function HeroHand({
   drawCompleted = false,
   maxDrawDiscards = 4,
   legalPlayIndices,
+  recommendedPlayIndex = null,
   handComplete = false,
   actionFeedback,
   onSubmitDraw,
@@ -99,6 +101,7 @@ export function HeroHand({
   const [localError, setLocalError] = useState<string | null>(null);
   const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
   const [illegalFlashIndex, setIllegalFlashIndex] = useState<number | null>(null);
+  const [bestPlayEnabled, setBestPlayEnabled] = useState(false);
   const [dealing, setDealing] = useState(false);
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
@@ -111,6 +114,10 @@ export function HeroHand({
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
+  const handCardKey = useMemo(
+    () => cards.map((c) => `${c.rank}-${c.suit}`).join("|"),
+    [cards],
+  );
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
@@ -168,7 +175,10 @@ export function HeroHand({
   useEffect(() => {
     clearPreselectTimer();
     setSelectedPlay(null);
-  }, [phase, isMyTurn, legalPlayIndices, cards.length, clearPreselectTimer]);
+    setPeekIndex(null);
+    setIllegalShakeIndex(null);
+    setIllegalFlashIndex(null);
+  }, [phase, isMyTurn, legalPlayIndices, handCardKey, recommendedPlayIndex, clearPreselectTimer]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -386,12 +396,22 @@ export function HeroHand({
     return <HeroHandReserve className={className} />;
   }
 
+  const showBestPlayRecommendation =
+    inPlayPhase &&
+    isMyTurn &&
+    bestPlayEnabled &&
+    selectedPlay === null &&
+    recommendedPlayIndex !== null &&
+    recommendedPlayIndex >= 0;
+
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";
     if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
     if (playingIndex === i) return "default";
+    if (illegalFlashIndex === i || illegalShakeIndex === i) return "default";
     if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
     if (inPlayPhase && selectedPlay === i && isMyTurn) return "play-preselected";
+    if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
     if (inPlayPhase && !isMyTurn) return "disabled";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
@@ -433,7 +453,10 @@ export function HeroHand({
         className="btable-hero__hand-3d"
         data-trick-play-origin={currentUserId ?? undefined}
       >
-        <div className="btable-hero__hand-row">
+        <div
+          className="btable-hero__hand-row"
+          data-hero-play-turn={inPlayPhase && isMyTurn ? "true" : undefined}
+        >
         <Hand
           cards={typedCards}
           size={cardSize}
@@ -451,6 +474,7 @@ export function HeroHand({
             illegalShakeIndex,
             illegalFlashIndex,
             busy,
+            showPlayableHint: false,
             trickPlayOriginPlayerId: currentUserId,
             onPlayCard: preselectCard,
             onSelectCard: toggleDrawIndex,
@@ -459,6 +483,18 @@ export function HeroHand({
           }}
         />
         </div>
+        {inPlayPhase && isMyTurn && (
+          <label className="btable-hero__best-play">
+            <input
+              type="checkbox"
+              className="btable-hero__best-play-input"
+              checked={bestPlayEnabled}
+              onChange={(e) => setBestPlayEnabled(e.target.checked)}
+              data-testid="best-play-checkbox"
+            />
+            <span className="btable-hero__best-play-label">Best Play</span>
+          </label>
+        )}
       </div>
       {feedbackError && (
         <p className="btable-hero__error" role="alert">

@@ -15,6 +15,8 @@ export interface HandCardInteraction {
   illegalShakeIndex?: number | null;
   illegalFlashIndex?: number | null;
   busy?: boolean;
+  /** Skip ambient playable hint animation on hero hand. */
+  showPlayableHint?: boolean;
   trickPlayOriginPlayerId?: string | null;
   onPlayCard?: (index: number) => void;
   onSelectCard?: (index: number) => void;
@@ -148,6 +150,7 @@ function HandCard({
         playable={playable}
         illegalShake={interaction?.illegalShakeIndex === index}
         illegalFlash={interaction?.illegalFlashIndex === index}
+        showPlayableHint={interaction?.showPlayableHint !== false}
         disabled={gestureDisabled && (isPlayMode || isDrawMode) && !illegalTarget}
         data-testid={testId}
         data-card-index={index}

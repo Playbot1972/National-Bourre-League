@@ -242,6 +242,18 @@
     0 18px 36px rgba(0, 0, 0, 0.42);
 }
 
+.pcard--play-recommended {
+  transform: translateY(-8px) rotateX(6deg) rotateY(-2deg) scale(1.02);
+  z-index: 6;
+}
+.pcard--play-recommended .pcard__surface {
+  border-color: rgba(230, 180, 80, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(230, 180, 80, 0.45),
+    0 12px 24px rgba(0, 0, 0, 0.32);
+}
+
 @keyframes pcard-play-preselect-pulse {
   0%,
   100% {
@@ -292,6 +304,13 @@
   cursor: pointer;
   appearance: none;
   font: inherit;
+}
+.pcard--interactive:focus {
+  outline: none;
+}
+.pcard--interactive:focus-visible .pcard__surface {
+  outline: 2px solid var(--gold-300, #e6b450);
+  outline-offset: 2px;
 }
 .pcard--playable {
   touch-action: none;

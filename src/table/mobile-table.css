@@ -296,6 +296,16 @@
   transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
 }
 
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--play-recommended,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--play-recommended {
+  transform: translateY(-7px) rotateX(5deg) rotateY(-2deg) scale(1.02);
+}
+
+.btable-mobile-hero-dock .btable-hero__best-play {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
 .btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--draw-selected,
 .btable-mobile-hero-dock .btable-hero .hand__slot .pcard--draw-selected {
   transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);

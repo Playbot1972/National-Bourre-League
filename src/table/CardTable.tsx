@@ -36,6 +36,8 @@ interface CardTableProps {
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
+  /** Bot-heuristic best play index for the viewing player (display hand space). */
+  recommendedPlayIndex?: number | null;
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
@@ -67,6 +69,7 @@ export function CardTable({
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
+  recommendedPlayIndex,
   handComplete = false,
   actionFeedback,
   trickPresentation,
@@ -288,6 +291,7 @@ export function CardTable({
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
+        recommendedPlayIndex={recommendedPlayIndex ?? undefined}
         handComplete={handComplete}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
