@@ -1174,7 +1174,7 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
     if (hand?.phase !== HAND_PHASE.REVEAL) {
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
-    const nextHand = revealToDraw(hand, dealingRule);
+    const nextHand = activateHandDecision(hand);
     tx.update(ref, publicHandSessionUpdate(snap.data(), nextHand));
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);

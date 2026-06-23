@@ -6,7 +6,7 @@ import type { HandDecision, PublicHandState, SerializedCard } from "./types";
 
 export type { HandDecision } from "./types";
 
-export const HAND_DECISION_SECONDS = 12;
+export const HAND_DECISION_SECONDS = 15;
 export const HAND_DECISION_MS = HAND_DECISION_SECONDS * 1000;
 
 export interface DecisionCompletionContext {
