@@ -392,7 +392,8 @@ export function TableSessionView({
     if (handPresentation.phase !== "drawPlayer") return;
     if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
 
-    void actions.onAdvanceReveal().then(
+    const advance = actions.onAdvanceReveal();
+    void Promise.resolve(advance).then(
       () => {
         revealAdvancedRef.current = true;
       },
