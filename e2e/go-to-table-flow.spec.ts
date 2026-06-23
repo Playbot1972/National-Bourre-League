@@ -49,7 +49,7 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
 
   test("8 players: full table rejects a 9th robot", async ({ page }) => {
     await setupRoomWithBots(page, 8);
-    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(7);
+    await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(7);
 
     await page.getByTestId("add-player-robot").check();
     await page.getByTestId("session-add-player-pill").click();
@@ -57,7 +57,7 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
     await expect(page.locator("#rooms-error")).toContainText(/full.*8 players max/i, {
       timeout: 10_000,
     });
-    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(7);
+    await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(7);
   });
 
   test("8 players: Go to Table deals without internal error", async ({ page }) => {

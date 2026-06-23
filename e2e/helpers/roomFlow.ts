@@ -104,7 +104,7 @@ export async function addRobotsUntilCount(page: Page, totalPlayers: number) {
   for (let i = 0; i < botsNeeded; i += 1) {
     await page.getByTestId("add-player-robot").check();
     await page.getByTestId("session-add-player-pill").click();
-    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(i + 1, {
+    await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(i + 1, {
       timeout: 15_000,
     });
   }
