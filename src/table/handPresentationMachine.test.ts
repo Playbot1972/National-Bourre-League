@@ -23,6 +23,40 @@ const baseSnap = snapshotFromSession({
 });
 
 describe("handPresentationMachine", () => {
+  it("enters decision presentation after trump reveal when server is in decision", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      enrollmentActive: false,
+      trumpUpcard: { rank: "K", suit: "hearts" },
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        enrollmentActive: false,
+        trumpUpcard: { rank: "K", suit: "hearts" },
+      },
+    });
+    assert.equal(store.phase, "ante");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.trumpMergedIntoHand, true);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "decision",
+        enrollmentActive: true,
+        trumpUpcard: { rank: "K", suit: "hearts" },
+      },
+    });
+    assert.equal(store.phase, "decision");
+    assert.equal(store.trumpRevealActive, false);
+  });
+
   it("skips trump replay when Pagat decision completes into draw", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
