@@ -57,7 +57,6 @@ describe("local-hand-commit", () => {
       {
         canToggleInHand: true,
         canPassEnrollment: true,
-        enrollmentOnClock: true,
         enrollmentJoined: false,
         inHand: false,
       },
@@ -77,7 +76,7 @@ describe("local-hand-commit", () => {
     });
     const flags = applyLocalCommitToPlayerFlags(
       commit,
-      { canToggleInHand: true, canPassEnrollment: true, enrollmentOnClock: true },
+      { canToggleInHand: true, canPassEnrollment: true },
       "p0",
     );
     assert.equal(flags.canToggleInHand, false);

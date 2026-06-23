@@ -85,7 +85,6 @@
             isLeading: false,
             isWinner: false,
             isRobot: isBot(id),
-            enrollmentOnClock: onClock && isSelf,
             enrollmentJoined: state.selfCommitted && isSelf,
             enrollmentSatOut: satOut,
             canToggleInHand: onClock && isSelf,
@@ -94,8 +93,6 @@
             showHoleCards: phase === "play" && id !== "p0",
             holeCardCount: phase === "play" ? 4 : 0,
             isOnTurn: phase === "draw" && id === "p0",
-            enrollmentSecondsOnClock: onClock && isSelf ? 18 : undefined,
-            enrollmentTimeLeft: onClock && isSelf ? 0.72 : undefined,
           };
         });
       }
@@ -158,7 +155,6 @@
             : "Trump Hearts · draw round",
           showCoWinSettlement: false,
           enrollmentActive: decisionMode,
-          enrollmentSecondsLeft: 18,
           currentUserId: "p0",
           heroCards,
           privateHandReady: cardsDealt,

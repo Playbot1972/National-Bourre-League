@@ -58,6 +58,7 @@
       /** Pagat flow: legacy `enrollment` maps to post-deal decision. */
       const phase = phaseParam === "enrollment" ? "decision" : phaseParam;
       const tick = params.get("tick") !== "0";
+      void tick;
 
       let actionFeedback = null;
       let selfCommitted = false;
@@ -67,6 +68,8 @@
 
       const HAND_DECISION_MS = 12_000;
       const deadlineStart = Date.now() + HAND_DECISION_MS;
+      void deadlineStart;
+      void HAND_DECISION_MS;
 
       const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);
       const dealerId = ids[playerCount - 1];
@@ -90,10 +93,7 @@
         return phase === "decision" && !selfCommitted && !selfPassed;
       }
 
-      function buildPlayers(nowMs) {
-        const msLeft = Math.max(0, deadlineStart - nowMs);
-        const secLeft = Math.max(0, Math.ceil(msLeft / 1000));
-        const fraction = msLeft / HAND_DECISION_MS;
+      function buildPlayers() {
         const onDecisionClock = selfNeedsDecision();
 
         return ids.map((id) => {
@@ -116,9 +116,6 @@
             isLeading: false,
             isWinner: false,
             isRobot: isBot(id),
-            enrollmentOnClock: onDecisionClock && isSelf,
-            enrollmentTimeLeft: onDecisionClock && isSelf ? fraction : undefined,
-            enrollmentSecondsOnClock: onDecisionClock && isSelf ? secLeft : undefined,
             enrollmentJoined: selfCommitted && isSelf,
             enrollmentSatOut: satOut,
             canToggleInHand: onDecisionClock && isSelf,
@@ -127,7 +124,6 @@
             showHoleCards: (phase === "draw" || phase === "play") && !isSelf && inHand,
             holeCardCount: phase === "draw" || phase === "play" ? 4 : 0,
             isOnTurn: phase === "draw" && id === "p0",
-            isActiveActor: onDecisionClock && isSelf,
           };
         });
       }
@@ -142,8 +138,7 @@
           ]
         : [];
 
-      function buildProps(nowMs = Date.now()) {
-        const secLeft = Math.max(0, Math.ceil((deadlineStart - nowMs) / 1000));
+      function buildProps() {
         const session = {
           sessionId: "fixture-session",
           handNumber: 1,
@@ -175,7 +170,7 @@
 
         return {
           session,
-          players: buildPlayers(nowMs),
+          players: buildPlayers(),
           potMetrics: {
             anteAmount: 1,
             potCap: 20,
@@ -189,7 +184,7 @@
           leaderLabel:
             phase === "decision"
               ? selfNeedsDecision()
-                ? `Your turn — play or pass (${secLeft}s)`
+                ? "Your turn — play or pass"
                 : "Waiting for other players"
               : phase === "reveal"
                 ? "Trump revealed — reviewing hand"
@@ -200,7 +195,6 @@
                     : "Waiting to deal",
           showCoWinSettlement: false,
           enrollmentActive: phase === "decision",
-          enrollmentSecondsLeft: phase === "decision" ? secLeft : 0,
           currentUserId: "p0",
           heroCards,
           privateHandReady: cardsDealt,
@@ -257,14 +251,11 @@
       root.dataset.botCount = String(botCount);
       root.dataset.phase = phase;
 
-      function render(nowMs) {
-        mountTableSession(root, buildProps(nowMs));
+      function render() {
+        mountTableSession(root, buildProps());
       }
 
       render();
-      if (tick && phase === "decision") {
-        setInterval(() => render(Date.now()), 1000);
-      }
     </script>
   </body>
 </html>

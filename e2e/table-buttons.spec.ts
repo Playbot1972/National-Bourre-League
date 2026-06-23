@@ -5,7 +5,7 @@ import { tapPlayCard, playCardLocator } from "./helpers/cardPlay";
 test.describe("Table UI buttons — click audit", () => {
   test("decision: I'm in button responds", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
-    const imIn = page.getByTestId("decision-im-in-button");
+    const imIn = page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in");
     await expect(imIn).toBeVisible();
     await expect(imIn).toBeEnabled();
     await imIn.evaluate((el) => (el as HTMLButtonElement).click());

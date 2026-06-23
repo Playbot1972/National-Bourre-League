@@ -82,9 +82,9 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
             Boolean(document.querySelector(".btable-mobile-wrap")),
           );
           if (!usesMobileTable) {
-            await expect(page.getByTestId("decision-panel")).toBeVisible();
+            await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
           }
-          await expect(page.getByTestId("decision-im-in-button")).toBeVisible();
+          await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
         }
 
         if (phase === "draw" || phase === "play") {
@@ -96,18 +96,3 @@ for (const { players, bots, label } of PLAYER_MATRIX) {
     }
   });
 }
-
-test.describe("Decision timer ticks", () => {
-  test("countdown decreases over 2 seconds", async ({ page }) => {
-    await page.goto("/e2e-fixtures/table-session?players=4&bots=2&phase=decision&tick=1");
-    const timerLocator = page.getByTestId("pass-decision-button");
-    await expect(timerLocator).toBeVisible();
-    const first = await timerLocator.textContent();
-    await page.waitForTimeout(2100);
-    const second = await timerLocator.textContent();
-    expect(first).not.toEqual(second);
-    const firstSec = parseInt(first?.match(/(\d+)s/)?.[1] ?? "99", 10);
-    const secondSec = parseInt(second?.match(/(\d+)s/)?.[1] ?? "0", 10);
-    expect(secondSec).toBeLessThan(firstSec);
-  });
-});

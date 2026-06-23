@@ -8,7 +8,7 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, formatLocalActionCue, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
+import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -45,7 +45,6 @@ export function TableSessionView({
   showCoWinSettlement,
   splitSharePerWinner = 0,
   enrollmentActive = false,
-  enrollmentSecondsLeft = 0,
   currentUserId,
   heroCards = EMPTY_HERO_CARDS,
   rawHeroCards = EMPTY_HERO_CARDS,
@@ -69,9 +68,6 @@ export function TableSessionView({
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
-  const selfPendingHandChoice = players.find(
-    (p) => p.isSelf && (p.canToggleInHand || p.canPassEnrollment),
-  );
   const trickPresentation = useTrickPresentation({
     phase: session.phase,
     currentTrick: session.currentTrick,
@@ -94,14 +90,6 @@ export function TableSessionView({
   });
 
   const cardsDealt = isCardsDealtPhase(session.phase);
-  const presentationDecisionReady =
-    handPresentation.phase === "decision" && cardsDealt;
-  const selfDecision =
-    Boolean(selfPendingHandChoice) &&
-    (isDecisionPhase(session.phase) ||
-      (isRevealPhase(session.phase) && presentationDecisionReady));
-  const selfEnroll =
-    Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -229,10 +217,6 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
-
-  const localActionCue = localActionRequired
-    ? formatLocalActionCue(session.phase, enrollmentActive)
-    : null;
 
   const showTrumpSuitReminder =
     trumpHolderPresentation.showTrumpSuitReminder ||
@@ -518,11 +502,6 @@ export function TableSessionView({
             </p>
           )}
         </div>
-        {localActionCue && (
-          <p className="btable-session__action-cue muted small" data-testid="action-cue" aria-live="polite">
-            {localActionCue}
-          </p>
-        )}
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
           <p className="btable-session__turn muted small" aria-live="polite">
             {turnLabel}
@@ -543,51 +522,9 @@ export function TableSessionView({
             Cards dealt — trump revealed. Review your hand…
           </p>
         )}
-        {selfDecision && (
-          <div className="btable-session__decision-cta" data-testid="decision-panel">
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost btable-session__pass-btn"
-              data-testid="pass-decision-button"
-              onClick={() => actions.onPassEnrollment?.()}
-            >
-              Pass · {enrollmentSecondsLeft}s
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary btn--sm btable-session__enroll-btn"
-              data-testid="decision-im-in-button"
-              onClick={() => actions.onToggleInHand?.(true)}
-            >
-              I&apos;m in · {enrollmentSecondsLeft}s
-            </button>
-          </div>
-        )}
-        {selfEnroll && !selfDecision && (
-          <div className="btable-session__enroll-cta">
-            <button
-              type="button"
-              className="btn btn--primary btn--sm btable-session__enroll-btn"
-              data-testid="join-button"
-              onClick={() => actions.onToggleInHand(true)}
-            >
-              I&apos;m in · {enrollmentSecondsLeft}s
-            </button>
-            {actions.onPassEnrollment && (
-              <button
-                type="button"
-                className="btn btn--sm btn--ghost btable-session__pass-btn"
-                data-testid="pass-enrollment-button"
-                onClick={() => actions.onPassEnrollment?.()}
-              >
-                Pass
-              </button>
-            )}
-          </div>
-        )}
-        {enrollmentActive && !selfEnroll && !isRevealPhase(session.phase) && (
+        {enrollmentActive && !isRevealPhase(session.phase) && (
           <p className="btable-session__enroll muted small">
-            Play or pass: {enrollmentSecondsLeft}s each · clockwise from dealer
+            Play or pass · clockwise from dealer
           </p>
         )}
       </header>

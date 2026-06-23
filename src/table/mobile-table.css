@@ -450,8 +450,7 @@
 .btable-session--mobile-layout .btable-session__status,
 .btable-session--mobile-layout .btable-session__turn,
 .btable-session--mobile-layout .btable-session__hint,
-.btable-session--mobile-layout .btable-session__enroll,
-.btable-session--mobile-layout .btable-session__action-cue {
+.btable-session--mobile-layout .btable-session__enroll {
   display: none;
   visibility: hidden;
   height: 0;
@@ -470,11 +469,6 @@
 .btable-session--mobile-layout .btable-session__title {
   font-size: clamp(0.8rem, 2.8vmin, 0.9rem);
   margin: 0;
-}
-
-.btable-session--mobile-layout .btable-session__enroll-cta {
-  display: flex;
-  justify-content: center;
 }
 
 .btable-session--mobile-layout .btable-session__foot {

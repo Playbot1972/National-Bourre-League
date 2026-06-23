@@ -14,7 +14,7 @@ test.describe("Bourré table smoke — desktop", () => {
     await expect(page.getByTestId("table-root")).toBeVisible();
     await expect(page.getByTestId("table-felt")).toBeVisible();
     await expect(page.getByTestId("pot-display")).toBeVisible();
-    await expect(page.getByTestId("decision-panel")).toBeVisible();
+    await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
 
     await expect(page.locator(".bseat")).toHaveCount(4);
     await expect(page.locator(".bseat__avatar").first()).toBeVisible();
@@ -53,7 +53,7 @@ test.describe("Bourré table smoke — desktop", () => {
   test("decision I'm in is clickable and shows feedback", async ({ page }) => {
     await openTableFixture(page, { players: 4, bots: 0, phase: "decision", tick: false });
 
-    const imIn = page.getByTestId("decision-im-in-button");
+    const imIn = page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in");
     await expect(imIn).toBeVisible();
     await expect(imIn).toBeEnabled();
     await imIn.evaluate((el) => (el as HTMLButtonElement).click());
