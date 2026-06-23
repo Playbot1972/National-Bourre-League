@@ -91,7 +91,7 @@ export function buildCoWinSettlementView(input: {
 
   const bourreLine =
     bourreIds.length > 0
-      ? `Bourré: ${bourreNames} took 0 tricks — each pays ${potLabel} into the next hand's pot`
+      ? `Bourré: ${bourreNames} took 0 tricks — each pays ${potLabel} (${formatRiskStake(bourreIds.length * pot.maxWinThisHand)} total for next deal)`
       : null;
 
   const splitShare = input.splitSharePerWinner;
@@ -156,6 +156,7 @@ export function buildHandOutcomeView(input: {
   potMaxWin: number;
   carryOverPot: number;
   bourreIds?: string[];
+  bourreCarryOver?: number;
 }): HandOutcomeViewModel {
   const {
     settlement,
@@ -170,6 +171,11 @@ export function buildHandOutcomeView(input: {
   const bourreNames = namesFor(bourreIds, players);
   const potLabel = formatRiskStake(potMaxWin);
   const carryLabel = formatRiskStake(carryOverPot);
+  const bourreSeed =
+    input.bourreCarryOver != null && input.bourreCarryOver > 0
+      ? input.bourreCarryOver
+      : bourreIds.length * potMaxWin;
+  const bourreSeedLabel = formatRiskStake(bourreSeed);
   const detailLines: string[] = [];
 
   if (settlement === "win" && winnerIds.length === 1) {
@@ -179,7 +185,7 @@ export function buildHandOutcomeView(input: {
     detailLines.push(`Pot won this hand: ${potLabel} (added to ${name}'s chips).`);
     if (bourreIds.length) {
       detailLines.push(
-        `Bourré: ${bourreNames} took 0 tricks — each owes ${potLabel} into the next hand's pot.`,
+        `Bourré: ${bourreNames} took 0 tricks — each paid ${potLabel} (${bourreSeedLabel} seeded for the next deal).`,
       );
     }
     return {
@@ -187,7 +193,7 @@ export function buildHandOutcomeView(input: {
       detailLines,
       carryoverLine:
         carryOverPot > 0
-          ? `${carryLabel} already in the table pot for the next deal.`
+          ? `Next pot seeded: ${carryLabel}${bourreIds.length ? ` (includes ${bourreSeedLabel} from bourré)` : ""}.`
           : null,
     };
   }
