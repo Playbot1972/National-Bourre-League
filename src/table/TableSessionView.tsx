@@ -387,16 +387,27 @@ export function TableSessionView({
   }, [session.handNumber, session.sessionId]);
 
   useEffect(() => {
-    if (
-      session.phase === "reveal" &&
-      handPresentation.trumpMergedIntoHand &&
-      !revealAdvancedRef.current &&
-      actions.onAdvanceReveal
-    ) {
-      revealAdvancedRef.current = true;
-      void actions.onAdvanceReveal();
-    }
-  }, [session.phase, session.handNumber, session.sessionId, handPresentation.trumpMergedIntoHand, actions]);
+    if (session.phase !== "reveal") return;
+    if (!handPresentation.trumpMergedIntoHand) return;
+    if (handPresentation.phase !== "drawPlayer") return;
+    if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
+
+    void actions.onAdvanceReveal().then(
+      () => {
+        revealAdvancedRef.current = true;
+      },
+      () => {
+        revealAdvancedRef.current = false;
+      },
+    );
+  }, [
+    session.phase,
+    session.handNumber,
+    session.sessionId,
+    handPresentation.trumpMergedIntoHand,
+    handPresentation.phase,
+    actions,
+  ]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
