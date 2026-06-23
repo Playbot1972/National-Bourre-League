@@ -1659,7 +1659,6 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
       actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
-    writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, []);
 
     if (foldResult.kind === "soloWin") {
       const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap);
@@ -1675,10 +1674,12 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
         buyIn,
       });
       await primeClientPatchReads(tx, roomId, sessionId, patch);
+      writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, []);
       applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
       return;
     }
 
+    writePrivateHandInTransaction(tx, ref, sessionData, roomId, sessionId, playerId, []);
     tx.update(ref, publicHandSessionUpdate(sessionData, foldResult.publicHand));
   });
 }
@@ -1987,6 +1988,10 @@ async function runDecisionStepTransaction(roomId, sessionId, buildPatch, { requi
     }
     applied = true;
     await primeClientPatchReads(tx, roomId, sessionId, patch);
+    if (patch.soloWin) {
+      applySoloWinInTransaction(tx, ref, patch, roomId, sessionId);
+      return;
+    }
     if (patch.scorePatches) {
       for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
         tx.update(scoreDoc(roomId, sessionId, playerId), {

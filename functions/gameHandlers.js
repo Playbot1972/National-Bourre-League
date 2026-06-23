@@ -1455,17 +1455,6 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
       playerId,
     );
 
-    writePrivateHandInTransaction(
-      tx,
-      db,
-      ref,
-      sessionData,
-      roomId,
-      sessionId,
-      playerId,
-      [],
-    );
-
     if (foldResult.kind === "soloWin") {
       const sortedPlayerIds = seatPlayerIds(sessionData, scoreSnap.docs);
       const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
@@ -1481,9 +1470,30 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
       });
       if (!patch) throw new HttpsError("failed-precondition", "Could not settle solo win");
       await primePatchScoreReads(tx, db, roomId, sessionId, patch);
+      writePrivateHandInTransaction(
+        tx,
+        db,
+        ref,
+        sessionData,
+        roomId,
+        sessionId,
+        playerId,
+        [],
+      );
       applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
       return { status: "solo_win", winnerId: foldResult.winnerId };
     }
+
+    writePrivateHandInTransaction(
+      tx,
+      db,
+      ref,
+      sessionData,
+      roomId,
+      sessionId,
+      playerId,
+      [],
+    );
 
     tx.update(ref, publicHandSessionUpdate(sessionData, foldResult.publicHand));
     return { status: "folded", phase: foldResult.publicHand.phase };
