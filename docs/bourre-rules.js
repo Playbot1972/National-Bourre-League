@@ -177,18 +177,13 @@ export function settleHandDeltas({
     carryOverPot = limOn ? overflow : 0;
   }
 
-  if (bourreMatch > 0) {
-    if (mode === "win" || mode === "split") {
-      // Bourré pot match seeds the next hand via carry; collected in applySolventSettlement.
-      carryOverPot += bourreMatch;
-    } else {
-      for (const pid of bourreIds) {
-        deltas[pid] -= bourrePenalty;
-      }
-      carryOverPot += bourreMatch;
-      if (limOn && mode !== "split") {
-        carryOverPot += overflow;
-      }
+  if (bourreMatch > 0 && mode !== "win" && mode !== "split") {
+    for (const pid of bourreIds) {
+      deltas[pid] -= bourrePenalty;
+    }
+    carryOverPot += bourreMatch;
+    if (limOn && mode !== "split") {
+      carryOverPot += overflow;
     }
   }
 
@@ -365,14 +360,8 @@ export function settlementShortfall(nominalDelta, appliedDelta) {
   return 0;
 }
 
-/** Total next-pot seed from bourré penalties (full pot × bourré count). */
-export function bourreNextPotSeed(bourreCount, potMaxWin) {
-  const count = Math.max(0, Math.floor(Number(bourreCount) || 0));
-  const pot = Math.max(0, Number(potMaxWin) || 0);
-  return count * pot;
-}
-
 /**
+ * Clamp nominal settlement deltas to each player's bankroll.
  * Winners are rebalanced to the actual pool collected from losers.
  */
 export function applySolventSettlement({
@@ -384,13 +373,10 @@ export function applySolventSettlement({
   carryOverPot,
   buyInFallback = 0,
   stakeForPlayer = () => 0,
-  bourreIds = [],
-  bourrePenalty = 0,
 }) {
   const appliedDeltas = {};
   const bankrolls = {};
   const bustedIds = [];
-  const bourreRemainders = {};
 
   for (const pid of participants) {
     const br = scoreBankroll(scoreById[pid], buyInFallback);
@@ -422,27 +408,7 @@ export function applySolventSettlement({
     shortfall += settlementShortfall(nominalDeltas[pid] ?? 0, appliedDeltas[pid] ?? 0);
   }
 
-  const nominalBourreSeed = bourreNextPotSeed(bourreIds.length, bourrePenalty);
-  let bourreCollected = 0;
-  if (bourreIds.length > 0 && bourrePenalty > 0) {
-    for (const pid of bourreIds) {
-      if (!participants.includes(pid)) continue;
-      const br = bankrolls[pid] ?? scoreBankroll(scoreById[pid], buyInFallback);
-      const result = applyBankrollDelta(br, -bourrePenalty);
-      appliedDeltas[pid] = (appliedDeltas[pid] ?? 0) + result.appliedDelta;
-      bankrolls[pid] = result.newBankroll;
-      bourreCollected += Math.abs(result.appliedDelta);
-      const bourreShortfall = settlementShortfall(-bourrePenalty, result.appliedDelta);
-      if (bourreShortfall > 0) {
-        bourreRemainders[pid] = bourreShortfall;
-        shortfall += bourreShortfall;
-      }
-      if (result.busted) bustedIds.push(pid);
-    }
-  }
-
-  const baseCarry = Math.max(0, Number(carryOverPot) || 0) - nominalBourreSeed;
-  const adjustedCarry = Math.max(0, baseCarry + bourreCollected);
+  const adjustedCarry = Math.max(0, Number(carryOverPot) || 0);
 
   const totalPool = participants.reduce((sum, pid) => {
     const loss = appliedDeltas[pid] ?? 0;
@@ -451,23 +417,16 @@ export function applySolventSettlement({
 
   if (mode === "win" && winners.length === 1) {
     const winner = winners[0];
-    const nominalWin = Math.max(0, nominalDeltas[winner] ?? 0);
     const winDelta =
-      nominalWin > 0 ? nominalWin : totalPool > 0 ? totalPool : 0;
+      totalPool > 0 ? totalPool : Math.max(0, nominalDeltas[winner] ?? 0);
     const br = scoreBankroll(scoreById[winner], buyInFallback);
     bankrolls[winner] = br + winDelta;
     appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
   } else if (mode === "split" && winners.length >= 2) {
-    const nominalWinPool = winners.reduce(
-      (sum, wid) => sum + Math.max(0, nominalDeltas[wid] ?? 0),
-      0,
-    );
     const poolWin =
-      nominalWinPool > 0
-        ? nominalWinPool
-        : totalPool > 0
-          ? totalPool
-          : 0;
+      totalPool > 0
+        ? totalPool
+        : winners.reduce((sum, wid) => sum + Math.max(0, nominalDeltas[wid] ?? 0), 0);
     const share = poolWin / winners.length;
     for (const winner of winners) {
       const br = scoreBankroll(scoreById[winner], buyInFallback);
@@ -496,7 +455,5 @@ export function applySolventSettlement({
     outIds,
     carryOverPot: adjustedCarry,
     shortfall,
-    bourreCollected,
-    bourreRemainders,
   };
 }

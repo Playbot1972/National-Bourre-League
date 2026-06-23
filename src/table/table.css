@@ -1792,11 +1792,6 @@
   z-index: 3;
 }
 
-.btable-timer-ring--avatar {
-  width: 56px;
-  height: 56px;
-}
-
 .bseat__timer-ring__track {
   stroke: rgba(244, 213, 141, 0.22);
 }

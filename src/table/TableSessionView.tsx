@@ -94,8 +94,14 @@ export function TableSessionView({
   });
 
   const cardsDealt = isCardsDealtPhase(session.phase);
+  const presentationDecisionReady =
+    handPresentation.phase === "decision" && cardsDealt;
+  const selfDecision =
+    Boolean(selfPendingHandChoice) &&
+    (isDecisionPhase(session.phase) ||
+      (isRevealPhase(session.phase) && presentationDecisionReady));
   const selfEnroll =
-    Boolean(selfPendingHandChoice) && !cardsDealt;
+    Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -377,9 +383,6 @@ export function TableSessionView({
   );
 
   const revealAdvancedRef = useRef(false);
-  const onAdvanceRevealRef = useRef(actions.onAdvanceReveal);
-  onAdvanceRevealRef.current = actions.onAdvanceReveal;
-
   useEffect(() => {
     revealAdvancedRef.current = false;
   }, [session.handNumber, session.sessionId]);
@@ -387,20 +390,25 @@ export function TableSessionView({
   useEffect(() => {
     if (session.phase !== "reveal") return;
     if (!handPresentation.trumpMergedIntoHand) return;
-    if (revealAdvancedRef.current || !onAdvanceRevealRef.current) return;
+    if (handPresentation.phase !== "drawPlayer") return;
+    if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
 
-    revealAdvancedRef.current = true;
-    const advance = onAdvanceRevealRef.current();
-    void Promise.resolve(advance).catch(() => {
-      if (session.phase === "reveal") {
+    const advance = actions.onAdvanceReveal();
+    void Promise.resolve(advance).then(
+      () => {
+        revealAdvancedRef.current = true;
+      },
+      () => {
         revealAdvancedRef.current = false;
-      }
-    });
+      },
+    );
   }, [
     session.phase,
     session.handNumber,
     session.sessionId,
     handPresentation.trumpMergedIntoHand,
+    handPresentation.phase,
+    actions,
   ]);
 
   useEffect(() => {
@@ -526,7 +534,27 @@ export function TableSessionView({
             Cards dealt — trump revealed. Review your hand…
           </p>
         )}
-        {selfEnroll && (
+        {selfDecision && (
+          <div className="btable-session__decision-cta" data-testid="decision-panel">
+            <button
+              type="button"
+              className="btn btn--sm btn--ghost btable-session__pass-btn"
+              data-testid="pass-decision-button"
+              onClick={() => actions.onPassEnrollment?.()}
+            >
+              Pass · {enrollmentSecondsLeft}s
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm btable-session__enroll-btn"
+              data-testid="decision-im-in-button"
+              onClick={() => actions.onToggleInHand?.(true)}
+            >
+              I&apos;m in · {enrollmentSecondsLeft}s
+            </button>
+          </div>
+        )}
+        {selfEnroll && !selfDecision && (
           <div className="btable-session__enroll-cta">
             <button
               type="button"
