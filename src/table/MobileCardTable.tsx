@@ -259,6 +259,7 @@ export function MobileCardTable({
                 <div
                   key={player.playerId}
                   className={`btable__seat-slot btable__seat-slot--${i}`}
+                  data-seat-index={i + 1}
                 >
                   <Seat
                     player={seatPlayer}
@@ -289,6 +290,7 @@ export function MobileCardTable({
               <div
                 key={feltSelfPlayer.playerId}
                 className="btable__seat-slot btable__seat-slot--self"
+                data-seat-index={0}
               >
                 <Seat
                   player={
