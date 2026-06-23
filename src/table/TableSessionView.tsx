@@ -8,7 +8,7 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, turnIndicatorLabel } from "./handUi";
+import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -25,7 +25,9 @@ import {
   mapEffectiveIndicesToDisplay,
   resolveHeroHandDisplay,
 } from "./heroHandDisplay";
+import { computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
+import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
 import type { PotSnapshot } from "./settlementCopy";
 
@@ -166,6 +168,37 @@ export function TableSessionView({
       heroHandDisplay.trumpDisabledIndex,
     );
   }, [legalPlayIndices, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex]);
+
+  const displayRecommendedPlayIndex = useMemo(() => {
+    if (!legalPlayIndices?.length || !heroCards.length) return null;
+    const effectiveHand = heroCards.map(serializedToCard);
+    const effectiveRecommended = computeRecommendedPlayIndex(
+      effectiveHand,
+      {
+        trumpSuit: (session.trumpSuit ?? "clubs") as Suit,
+        currentTrick: session.currentTrick ?? null,
+        leadSuit: (session.leadSuit ?? null) as Suit | null,
+        cinchEnabled: session.cinchEnabled === true,
+      },
+      legalPlayIndices,
+    );
+    if (effectiveRecommended == null) return null;
+    if (heroHandDisplay.indexMode === "effective") return effectiveRecommended;
+    const mapped = mapEffectiveIndicesToDisplay(
+      [effectiveRecommended],
+      heroHandDisplay.trumpDisabledIndex,
+    );
+    return mapped[0] ?? null;
+  }, [
+    legalPlayIndices,
+    heroCards,
+    session.trumpSuit,
+    session.currentTrick,
+    session.leadSuit,
+    session.cinchEnabled,
+    heroHandDisplay.indexMode,
+    heroHandDisplay.trumpDisabledIndex,
+  ]);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
@@ -320,6 +353,7 @@ export function TableSessionView({
     privateHandReady,
     currentUserId,
     legalPlayIndices: displayLegalPlayIndices,
+    recommendedPlayIndex: displayRecommendedPlayIndex,
     handComplete,
     actionFeedback,
     trickPresentation,

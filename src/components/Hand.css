@@ -106,6 +106,10 @@
   perspective: 1200px;
   perspective-origin: center 88%;
   transform-style: preserve-3d;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
 }
 
 .btable-hero--scale-lg .hand--fan .hand__slot {
@@ -149,9 +153,14 @@
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
 .btable-hero__hand-row .hand--fan .hand__slot:focus-within {
-  transform: translate3d(0, -16px, 8px) rotateX(12deg) rotateY(-8deg) scale(1.045) !important;
+  transform: none !important;
   rotate: none;
-  z-index: 20;
+  z-index: auto;
+}
+
+.btable-hero__hand-row[data-hero-play-turn="true"] .hand--fan .hand__slot:hover,
+.btable-hero__hand-row[data-hero-play-turn="true"] .hand--fan .hand__slot:focus-within {
+  transform: none !important;
 }
 
 .btable-hero__hand-row .hand__slot--peek {

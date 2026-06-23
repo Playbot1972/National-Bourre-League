@@ -1172,14 +1172,23 @@
   transform: translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04);
 }
 
+.btable-hero__hand-row .hand__slot .pcard--play-recommended {
+  transform: translateY(-8px) rotateX(6deg) rotateY(-2deg) scale(1.02);
+}
+
 .btable-hero__hand-row .hand__slot .pcard--draw-selected {
   transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
 .btable-hero__hand-row .hand--fan .hand__slot:focus-within {
-  transform: translateY(-14px) scale(1.04) !important;
+  transform: none !important;
   rotate: none;
+}
+
+.btable-hero__hand-row[data-hero-play-turn="true"] .hand--fan .hand__slot:hover,
+.btable-hero__hand-row[data-hero-play-turn="true"] .hand--fan .hand__slot:focus-within {
+  transform: none !important;
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot--peek {
@@ -1188,6 +1197,39 @@
 
 .btable-hero .hand--fan .hand__slot:not(:first-child) {
   margin-left: 0;
+}
+
+.btable-hero__hand-row .hand__slot .pcard--playable {
+  transform: none;
+  animation: none;
+}
+
+.btable-hero__best-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  align-self: flex-start;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(244, 240, 232, 0.78);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btable-hero__best-play-input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: #e6b450;
+  cursor: pointer;
+}
+
+.btable-hero__best-play-label {
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .btable-hero .hand--fan .hand__slot:hover {
