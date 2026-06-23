@@ -2413,10 +2413,13 @@ async function recordHandClient(
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
     stakeForPlayer: stakeForSettlement,
+    bourreIds,
+    bourrePenalty: potState.maxWinThisHand,
   });
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
+  const bourreRemainders = solvent.bourreRemainders ?? {};
 
   const batch = writeBatch(db);
   const handLedger = {
@@ -2460,8 +2463,8 @@ async function recordHandClient(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = deleteField();
     }
-    if (bourreIds.includes(pid)) {
-      patch.bourreReplacementDue = potState.maxWinThisHand;
+    if (bourreRemainders[pid] != null && bourreRemainders[pid] > 0) {
+      patch.bourreReplacementDue = bourreRemainders[pid];
     }
     if (
       winners.includes(pid) &&
