@@ -156,7 +156,7 @@ function u(e) {
 	let x = f.map((e) => {
 		let n = t[e] ?? 0;
 		return `${s(e, r)} — ${n} trick${n === 1 ? "" : "s"}`;
-	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks — each pays ${_} into the next hand's pot` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${o(i.maxWinThisHand)} → ${o(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
+	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks — each pays ${_} (${o(h.length * i.maxWinThisHand)} total for next deal)` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${o(i.maxWinThisHand)} → ${o(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
 		let t = u[e], n = s(e, r);
 		return t === "split" ? `${n}: Agreed to split ✓` : t === "push" ? `${n}: Declined split ✓` : `${n}: Waiting to vote…`;
 	}), O = e.currentUserId != null && f.includes(e.currentUserId);
@@ -176,44 +176,44 @@ function u(e) {
 	};
 }
 function d(e) {
-	let { settlement: t, winnerIds: n, participantIds: r, tricksByPlayer: i, players: a, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? l(i, r), p = c(f, a), m = o(u), h = o(d), g = [];
+	let { settlement: t, winnerIds: n, participantIds: r, tricksByPlayer: i, players: a, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? l(i, r), p = c(f, a), m = o(u), h = o(d), g = o(e.bourreCarryOver != null && e.bourreCarryOver > 0 ? e.bourreCarryOver : f.length * u), _ = [];
 	if (t === "win" && n.length === 1) {
 		let e = s(n[0], a), t = i[n[0]] ?? 0;
-		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — each owes ${m} into the next hand's pot.`), {
+		return _.push(`${e} wins the table pot this hand (${t} tricks).`), _.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && _.push(`Bourré: ${p} took 0 tricks — each paid ${m} (${g} seeded for the next deal).`), {
 			headline: `${e} wins ${m} this hand`,
-			detailLines: g,
-			carryoverLine: d > 0 ? `${h} already in the table pot for the next deal.` : null
+			detailLines: _,
+			carryoverLine: d > 0 ? `Next pot seeded: ${h}${f.length ? ` (includes ${g} from bourré)` : ""}.` : null
 		};
 	}
 	if (t === "split") {
 		let e = c(n, a), t = n.length ? u / n.length : 0;
-		return g.push(`${e} agreed to split — ${o(t)} each from max win ${m}.`), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+		return _.push(`${e} agreed to split — ${o(t)} each from max win ${m}.`), f.length && _.push(`Bourré: ${p} took 0 tricks.`), {
 			headline: `Pot split — ${e}`,
-			detailLines: g,
+			detailLines: _,
 			carryoverLine: null
 		};
 	}
-	if (t === "push") return g.push("No winner with tricks — everyone who stayed in is bourré'd."), f.length && g.push(`Bourré: ${p}.`), g.push(`Full pot ${m} carries forward.`), {
+	if (t === "push") return _.push("No winner with tricks — everyone who stayed in is bourré'd."), f.length && _.push(`Bourré: ${p}.`), _.push(`Full pot ${m} carries forward.`), {
 		headline: "Hand pushed — pot carries",
-		detailLines: g,
+		detailLines: _,
 		carryoverLine: `Next hand pot includes ${h}.`
 	};
-	if (t === "non_winner_ante_up") return g.push("Co-winners did not all agree to split."), g.push(`Pot ${m} carries to the next hand.`), g.push("Players who did not tie for the lead ante up next hand."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+	if (t === "non_winner_ante_up") return _.push("Co-winners did not all agree to split."), _.push(`Pot ${m} carries to the next hand.`), _.push("Players who did not tie for the lead ante up next hand."), f.length && _.push(`Bourré: ${p} took 0 tricks.`), {
 		headline: "No split agreement — pot pushed",
-		detailLines: g,
+		detailLines: _,
 		carryoverLine: `Next hand starts with ${h} in the pot.`
 	};
 	if (t === "co_win_carry") {
 		let e = c(n, a);
-		return g.push(`Tie for most tricks — ${e} (${n.length} co-winners).`), g.push(`No outright winner; full pot ${m} carries to the next deal.`), g.push("Hand ends; enrollment opens for the next deal. Seats may change between deals."), g.push("Tied leaders skip the ante for that deal; other seated players ante as usual."), g.push("New players seated in time for enrollment may join that deal."), f.length && g.push(`Bourré: ${p} took 0 tricks.`), {
+		return _.push(`Tie for most tricks — ${e} (${n.length} co-winners).`), _.push(`No outright winner; full pot ${m} carries to the next deal.`), _.push("Hand ends; enrollment opens for the next deal. Seats may change between deals."), _.push("Tied leaders skip the ante for that deal; other seated players ante as usual."), _.push("New players seated in time for enrollment may join that deal."), f.length && _.push(`Bourré: ${p} took 0 tricks.`), {
 			headline: "Tie — pot carries",
-			detailLines: g,
+			detailLines: _,
 			carryoverLine: `Next deal starts with ${h} in the pot.`
 		};
 	}
 	return {
 		headline: "Hand complete",
-		detailLines: g,
+		detailLines: _,
 		carryoverLine: d > 0 ? `Carryover: ${h}` : null
 	};
 }
