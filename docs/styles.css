@@ -1407,6 +1407,96 @@ body.room-detail-open .room-actions {
   display: none;
 }
 
+.game-setup-panel {
+  margin-top: 12px;
+}
+
+.game-setup-panel--focus .session-setup-window {
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35);
+}
+
+.game-setup-panel__head {
+  margin-bottom: 8px;
+}
+
+.game-setup-panel__head h4 {
+  margin: 0 0 4px;
+}
+
+.game-setup-panel__table-name {
+  margin: 8px 0 0;
+}
+
+.game-setup-panel__roster {
+  margin-top: 14px;
+}
+
+.game-setup-panel__roster h5,
+.game-setup-panel__add h5 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.game-setup-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-setup-roster__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.game-setup-roster__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.game-setup-roster__role {
+  font-style: normal;
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+
+.game-setup-panel__add {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-faint);
+}
+
+.add-player-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-setup-panel__actions {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.game-setup-panel__actions--open {
+  align-items: stretch;
+}
+
+.game-setup-panel__secondary {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-faint);
+}
+
+.game-setup-stakes {
+  margin-top: 8px;
+}
+
 .subpanel--setup-focus {
   box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35);
   border-radius: 12px;
@@ -1419,7 +1509,7 @@ body.room-detail-open .room-actions {
   background: var(--surface-chip);
   border: 1px solid var(--border-faint);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   margin-bottom: 12px;
 }
 
@@ -1427,95 +1517,13 @@ body.room-detail-open .room-actions {
   box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.35);
 }
 
-/* Mobile bottom sheet — session setup (Add guest / robot). Desktop uses display:contents. */
+/* Legacy sheet wrapper — inline panel only (no fixed bottom sheet). */
 .session-setup-sheet {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  display: contents;
 }
 
 .session-setup-sheet__handle {
-  display: none;
-}
-
-@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
-  body.room-detail-open #room-detail-view {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  }
-
-  body.room-detail-open .session-toolbar {
-    position: static;
-    top: auto;
-    z-index: auto;
-    margin: 0;
-    padding: 0;
-    background: transparent;
-  }
-
-  .session-setup-sheet {
-    --sheet-offset: 0px;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 120;
-    margin: 0;
-    max-height: min(92dvh, 100%);
-    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
-    background: var(--surface-chip);
-    border: 1px solid var(--border-faint);
-    border-bottom: 0;
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
-    transform: translateY(var(--sheet-offset, 0));
-    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
-    overflow: hidden;
-    touch-action: none;
-  }
-
-  .session-setup-sheet[data-sheet-dragging="true"],
-  .session-setup-sheet[data-sheet-animating="false"] {
-    transition: none;
-  }
-
-  .session-setup-sheet__handle {
-    display: block;
-    flex-shrink: 0;
-    height: 28px;
-    margin: 0;
-    padding: 10px 0 6px;
-    cursor: grab;
-    touch-action: none;
-  }
-
-  .session-setup-sheet__handle::before {
-    content: "";
-    display: block;
-    width: 40px;
-    height: 4px;
-    margin: 0 auto;
-    border-radius: 999px;
-    background: var(--border-soft, rgba(255, 255, 255, 0.28));
-  }
-
-  .session-setup-sheet .session-setup-window {
-    flex: 1 1 auto;
-    min-height: 0;
-    max-height: min(72dvh, 100%);
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    margin: 0;
-    padding: 0 14px 10px;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
-
-  .session-setup-sheet .session-action-pills {
-    flex-shrink: 0;
-    padding: 0 14px 4px;
-  }
+  display: none !important;
 }
 
 .session-action-pills {

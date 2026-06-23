@@ -20,11 +20,7 @@ import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   clearSessionSetupSheetSnap,
   initSessionSetupSheet,
-  requestSessionSetupAddPlayersSnap,
   resetSessionSetupSheet,
-  sessionSetupSheetStyleAttr,
-  shouldUseSessionSetupSheet,
-  syncSessionSetupSheet,
 } from "./session-setup-sheet.js";
 import {
   ensureUserDoc,
@@ -89,6 +85,7 @@ import {
   tricksToWinHint,
   playerHandStake,
   scoreBankroll,
+  resolveSessionBuyIn,
   rebuySessionPlayer,
   MAX_TRICKS_PER_HAND,
   MAX_TABLE_PLAYERS,
@@ -747,13 +744,6 @@ function bindRoomDetailDelegatedControls() {
     const el = e.target;
     if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
 
-    if (el.id === "new-session-stake") {
-      pendingRoomAnteOverride = parseAnteAmount(el.value);
-      syncAnteSelectToAmount($("#room-ante-amount", roomDetailView), pendingRoomAnteOverride);
-      saveRoomBourreSettingsFromForm();
-      return;
-    }
-
     if (el.id === "feedback-sound-enabled") {
       saveFeedbackPrefs({ soundEnabled: el.checked });
       return;
@@ -767,9 +757,6 @@ function bindRoomDetailDelegatedControls() {
     if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
       if (el.id === "room-ante-amount") {
         pendingRoomAnteOverride = parseAnteAmount(el.value);
-        syncAnteSelectToAmount($("#new-session-stake", roomDetailView), pendingRoomAnteOverride);
-        roomSetupFocus = "regional";
-        scheduleRenderRoomDetail();
       }
       saveRoomBourreSettingsFromForm();
     }
@@ -795,7 +782,6 @@ let roomSetupFocus = null;
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
 let sessionPlayInFlight = false;
-const SESSION_AUTO_PLAY_DELAY_MS = 1000;
 const SESSION_AUTO_PLAY_INSTANT_BOT_COUNT = 7;
 function countSessionRobots(scores = openScores) {
   return scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length;
@@ -810,15 +796,11 @@ function clearSessionAutoPlayTimer() {
 
 function scheduleSessionAutoPlay({ afterRobotAdd = false, projectedRobotCount = null } = {}) {
   clearSessionAutoPlayTimer();
+  if (!afterRobotAdd) return;
   const robots = projectedRobotCount ?? countSessionRobots();
-  if (afterRobotAdd && robots >= SESSION_AUTO_PLAY_INSTANT_BOT_COUNT) {
+  if (robots >= SESSION_AUTO_PLAY_INSTANT_BOT_COUNT) {
     void triggerSessionPlay("auto-instant");
-    return;
   }
-  sessionAutoPlayTimer = window.setTimeout(() => {
-    sessionAutoPlayTimer = null;
-    void triggerSessionPlay("auto-delayed");
-  }, SESSION_AUTO_PLAY_DELAY_MS);
 }
 
 async function triggerSessionPlay(_source = "manual") {
@@ -847,29 +829,16 @@ function applyRoomSetupFocus() {
     const target =
       focus === "regional"
         ? roomDetailView.querySelector(".subpanel--regional-tables")
-        : roomDetailView.querySelector("[data-testid='session-setup-window']");
+        : roomDetailView.querySelector("[data-testid='game-setup-panel']") ??
+          roomDetailView.querySelector("[data-testid='session-setup-window']");
     if (!target) return;
-    target.classList.add(
-      focus === "add-players" ? "session-setup-window--focus" : "subpanel--setup-focus",
-    );
-    if (focus === "add-players" && shouldUseSessionSetupSheet()) {
-      requestSessionSetupAddPlayersSnap();
-      syncSessionSetupSheet(roomDetailView);
-      window.requestAnimationFrame(() => {
-        $("#add-player-name", roomDetailView)?.focus({ preventScroll: true });
-      });
-    } else if (!shouldUseSessionSetupSheet()) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (focus === "add-players") {
-        $("#add-player-name", roomDetailView)?.focus();
-      }
-    } else if (focus === "regional") {
-      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    target.classList.add("game-setup-panel--focus");
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focus === "add-players" || focus === "game-setup") {
+      $("#add-player-name", roomDetailView)?.focus();
     }
     window.setTimeout(() => {
-      target.classList.remove(
-        focus === "add-players" ? "session-setup-window--focus" : "subpanel--setup-focus",
-      );
+      target.classList.remove("game-setup-panel--focus");
     }, 2400);
   });
 }
@@ -914,7 +883,7 @@ function buildSessionPlayerSectionHtml(s, isOwner) {
   if (!isOwner) {
     return `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
   }
-  return buildSessionPlayerBarHtml(s);
+  return buildAddPlayerFormHtml();
 }
 
 let roomGoneHandled = false;
@@ -1905,7 +1874,6 @@ function saveRoomBourreSettingsFromForm() {
       pendingRoomBuyInOverride = null;
       pendingRoomAnteOverride = null;
       syncAnteSelectToAmount($("#room-ante-amount", roomDetailView), anteEl.value);
-      syncAnteSelectToAmount($("#new-session-stake", roomDetailView), anteEl.value);
       return syncOpenSessionLimEnabled(limEnabled);
     })
     .then(() => {
@@ -1973,7 +1941,7 @@ if (createRoomForm) {
     try {
       const roomId = await createRoom({ owner: session, name, houseRules, bourreSettings });
       closeCreateRoomModal();
-      roomSetupFocus = "regional";
+      roomSetupFocus = "game-setup";
       openRoom(roomId);
     } catch (err) {
       console.error(err);
@@ -3477,7 +3445,6 @@ function renderRoomDetail() {
   const openSessionObj = resolveActiveSession();
   const isOwner = session?.uid === currentRoom.ownerId;
   const visibleMembers = currentMembers;
-  const rosterEntries = buildRoomRosterEntries(visibleMembers, openScores, openSessionObj);
   const roomBuyInAmount = pendingRoomBuyInOverride ?? bourreSettings.buyInAmount;
   const roomAnteAmount = resolveRoomAnteAmount(pendingRoomAnteOverride, bourreSettings.anteAmount);
   const sessionPool = isValidSessionNamePool(currentRoom.sessionNamePool)
@@ -3489,7 +3456,6 @@ function renderRoomDetail() {
     isOwner &&
     !sessionHardCap &&
     canCreateAnotherSession(currentSessions.length, sessionPool, claimedNames);
-  const showNewSessionAnte = isOwner && canCreateSession;
   const newSessionDisabledReason = !isOwner
     ? ""
     : sessionHardCap
@@ -3497,7 +3463,6 @@ function renderRoomDetail() {
       : !canCreateSession
         ? "No preset table names available — try again in a moment."
         : "";
-  const sessionCapReached = isOwner && sessionHardCap;
 
   roomDetailView.innerHTML = `
     <button class="link-back" id="back-to-rooms">← All rooms</button>
@@ -3518,97 +3483,32 @@ function renderRoomDetail() {
     </div>
 
     <div class="room-detail__grid">
-      <section class="subpanel subpanel--bourre-settings">
-        <h4>Bourré settings</h4>
-        ${
-          isOwner
-            ? `<div class="bourre-settings-form">
-                 <label class="bourre-settings__row">
-                   <span class="bourre-settings__label">Buy-in</span>
-                   <input
-                     type="number"
-                     class="text-input bourre-settings__amount"
-                     id="room-buy-in-amount"
-                     min="1"
-                     step="1"
-                     value="${roomBuyInAmount}"
-                     aria-label="Room buy-in amount"
-                   />
-                 </label>
-                 <label class="bourre-settings__row">
-                   <span class="bourre-settings__label">Ante</span>
-                   <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
-                     ${renderAnteSelectOptionsHtml(roomAnteAmount, escapeHtml)}
-                   </select>
-                 </label>
-                 <label class="bourre-settings__row bourre-settings__lim">
-                   <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
-                   <span>LmT</span>
-                   <span class="muted small">Pot cap 20× ante · overflow → next hand</span>
-                 </label>
-                 <label class="bourre-settings__row bourre-settings__lim">
-                   <input type="checkbox" id="room-rebuy-enabled" ${bourreSettings.rebuyEnabled ? "checked" : ""} />
-                   <span>Rebuy</span>
-                   <span class="muted small">Allow manual top-up when bankroll hits zero</span>
-                 </label>
-                 <p class="muted small">Applies to new sessions. Buy-in is each player&apos;s starting stack; ante is the per-hand contribution to the pot.</p>
-               </div>`
-            : `<ul class="kv">
-                 <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
-                 <li><span>Ante</span><span>${escapeHtml(formatAnteStake(bourreSettings.anteAmount))}</span></li>
-                 ${
-                   bourreSettings.limEnabled
-                     ? `<li><span>Pot cap</span><span>${escapeHtml(formatRiskStake(bourreSettings.potCap))}</span></li>`
-                     : ""
-                 }
-                 <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
-                 <li><span>Rebuy</span><span>${bourreSettings.rebuyEnabled ? "On" : "Off"}</span></li>
-               </ul>`
-        }
-      </section>
-
       <section class="subpanel">
         <h4>House rules</h4>
         ${isOwner ? renderHouseRulesEditor(hr) : renderHouseRulesReadOnly(hr)}
       </section>
 
       <section class="subpanel">
-        <h4>Members &amp; players (${rosterEntries.length})</h4>
-        <p class="muted small members__hint">Signed-in room members plus guests and robots on the open session.</p>
+        <h4>Room members (${visibleMembers.length})</h4>
+        <p class="muted small members__hint">Signed-in accounts with access to this room.</p>
         <ul class="members">
-          ${rosterEntries
-            .map((entry) => {
-              const uid = entry.playerId || "";
+          ${visibleMembers
+            .map((m) => {
+              const uid = m.userId || "";
               const canKick =
-                entry.kind === "member" &&
                 isOwner &&
                 uid &&
                 uid !== currentRoom.ownerId &&
                 uid !== session?.uid;
-              const canRemoveSessionPlayer =
-                (entry.kind === "robot" || entry.kind === "guest") &&
-                isOwner &&
-                uid &&
-                openSessionObj &&
-                openSessionObj.status !== "final";
-              const roleLabel =
-                entry.role === "owner"
-                  ? "owner"
-                  : entry.role === "robot"
-                    ? "robot"
-                    : entry.role === "guest"
-                      ? "guest"
-                      : "player";
-              return `<li class="members__row" data-testid="roster-entry-${escapeHtml(entry.kind)}">
-                <span class="dot${entry.kind === "robot" ? " dot--robot" : entry.kind === "guest" ? " dot--guest" : ""}"></span>
-                <span class="members__name">${escapeHtml(entry.displayName)}</span>
+              const roleLabel = m.role === "owner" ? "owner" : "member";
+              return `<li class="members__row" data-testid="roster-entry-member">
+                <span class="dot"></span>
+                <span class="members__name">${escapeHtml(m.displayName)}</span>
                 <em class="members__role">${escapeHtml(roleLabel)}</em>
                 ${
                   canKick
-                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from room">Remove</button>`
-                    : canRemoveSessionPlayer
-                      ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-remove-session-player="${escapeHtml(uid)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)} from session">Remove</button>`
-                      : ""
+                    ? `<button type="button" class="btn btn--sm btn--danger members__kick" data-kick-member="${escapeHtml(uid)}" data-kick-name="${escapeHtml(m.displayName)}" aria-label="Remove ${escapeHtml(m.displayName)} from room">Remove</button>`
+                    : ""
                 }
               </li>`;
             })
@@ -3620,51 +3520,23 @@ function renderRoomDetail() {
     <section class="subpanel subpanel--regional-tables">
       <div class="subpanel__head">
         <h4>Regional tables</h4>
-        <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned when you tap <strong>+ New session</strong>.</p>
-        <div class="session-new">
-          ${
-            isOwner
-              ? `${
-                  showNewSessionAnte
-                    ? `<label class="session-new__stake">
-                   <span class="muted">Ante</span>
-                   <select class="num-select" id="new-session-stake" aria-label="Ante for new session">
-                     ${renderAnteSelectOptionsHtml(roomAnteAmount, escapeHtml)}
-                   </select>
-                 </label>`
-                    : ""
-                }
-          <button class="btn btn--primary btn--sm" id="new-session" type="button" ${
-            canCreateSession ? "" : "disabled aria-disabled=\"true\""
-          } title="${escapeHtml(
-            canCreateSession
-              ? "Open the next regional table"
-              : newSessionDisabledReason || "All 4 sessions already created",
-          )}">+ New session</button>
-          ${
-            canCreateSession
-              ? `<p class="muted small session-cap-note">${currentSessions.length} of ${MAX_ROOM_SESSIONS} regional table${currentSessions.length === 1 ? "" : "s"} open</p>`
-              : newSessionDisabledReason
-                ? `<p class="muted small session-cap-note session-cap-note--full">${escapeHtml(newSessionDisabledReason)}</p>`
-                : sessionCapReached
-                  ? `<p class="muted small session-cap-note session-cap-note--full">All 4 sessions already created.</p>`
-                  : ""
-          }`
-              : `<p class="muted small">Only the room owner can start regional tables.</p>`
-          }
-        </div>
+        <p class="muted small session-preset-note">Up to ${MAX_ROOM_SESSIONS} tables per room. Switch tabs below; setup stays in one panel.</p>
       </div>
       <div class="session-tabs session-tabs--preset">
         ${renderCreatedSessionTabs(sessionPool, currentSessions, openSessionId)}
       </div>
-      ${
-        openSessionObj
-          ? `<div id="session-toolbar-root" class="session-toolbar">${buildSessionToolbarHtml(openSessionObj, isOwner)}</div>
-             <div id="session-panel-mount"></div>`
-          : isOwner && currentSessions.length === 0
-            ? `<p class="muted small session-open-hint" data-testid="session-open-hint">Tap <strong>+ New session</strong> above to open a table, then add guests or robots.</p>`
-            : ""
-      }
+      <div id="game-setup-root">${buildUnifiedGameSetupHtml({
+        openSessionObj,
+        isOwner,
+        canCreateSession,
+        newSessionDisabledReason,
+        sessionHardCap,
+        currentSessionsLength: currentSessions.length,
+        roomBuyInAmount,
+        roomAnteAmount,
+        bourreSettings,
+      })}</div>
+      <div id="session-panel-mount"></div>
     </section>`;
 
   if (openSessionObj) {
@@ -3712,7 +3584,6 @@ function renderRoomDetail() {
     if (robotEl) robotEl.checked = editingAddPlayer.robotChecked;
   }
   applyRoomSetupFocus();
-  syncSessionSetupSheet(roomDetailView);
 }
 
 function buildAddPlayerFormHtml() {
@@ -3722,59 +3593,178 @@ function buildAddPlayerFormHtml() {
            <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" checked />
            Robot — auto I&apos;m in &amp; play to win (name optional)
          </label>
+         <button type="submit" class="btn btn--sm" id="session-add-player-pill" data-testid="session-add-player-pill">Add to roster</button>
        </form>`;
 }
 
-function buildSessionActionPillsHtml(s, isOwner) {
-  if (!s || s.status === "final") return "";
-  const ready = tableReadyPlayerCount(s) >= 2;
+function buildSetupRosterHtml(sessionObj, isOwner) {
+  if (!sessionObj || sessionObj.status === "final") {
+    return `<p class="muted small game-setup-roster__empty">Open a table to build your roster.</p>`;
+  }
+  const roster = tableReadyRoster(sessionObj);
+  if (roster.length === 0) {
+    return `<p class="muted small game-setup-roster__empty">No players yet — add guests or robots below.</p>`;
+  }
+  const buyIn = resolveSessionBuyIn(sessionObj, normalizeBourreSettings(currentRoom?.bourreSettings));
+  return `<ul class="game-setup-roster" data-testid="game-setup-roster">
+    ${roster
+      .map((entry) => {
+        const sc = openScores.find((s) => s.playerId === entry.playerId);
+        const robot = entry.isRobot;
+        const guest = !robot && !currentMembers.some((m) => m.userId === entry.playerId);
+        const roleLabel = robot ? "robot" : guest ? "guest" : "player";
+        const chips =
+          sc != null
+            ? formatRiskStake(scoreBankroll(sc, buyIn))
+            : null;
+        const canRemove =
+          isOwner &&
+          sessionObj.status !== "final" &&
+          (robot || guest) &&
+          entry.playerId;
+        return `<li class="game-setup-roster__row" data-testid="setup-roster-entry">
+          <span class="dot${robot ? " dot--robot" : guest ? " dot--guest" : ""}"></span>
+          <span class="game-setup-roster__name">${escapeHtml(entry.displayName)}</span>
+          <em class="game-setup-roster__role">${escapeHtml(roleLabel)}</em>
+          ${chips ? `<span class="game-setup-roster__chips muted small">${escapeHtml(chips)}</span>` : ""}
+          ${
+            canRemove
+              ? `<button type="button" class="btn btn--sm btn--danger game-setup-roster__remove" data-remove-session-player="${escapeHtml(entry.playerId)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)}">Remove</button>`
+              : ""
+          }
+        </li>`;
+      })
+      .join("")}
+  </ul>`;
+}
+
+function buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings) {
+  if (isOwner) {
+    return `<div class="game-setup-stakes bourre-settings-form" data-testid="game-setup-stakes">
+      <label class="bourre-settings__row">
+        <span class="bourre-settings__label">Buy-in</span>
+        <input
+          type="number"
+          class="text-input bourre-settings__amount"
+          id="room-buy-in-amount"
+          min="1"
+          step="1"
+          value="${roomBuyInAmount}"
+          aria-label="Room buy-in amount"
+        />
+      </label>
+      <label class="bourre-settings__row">
+        <span class="bourre-settings__label">Ante</span>
+        <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
+          ${renderAnteSelectOptionsHtml(roomAnteAmount, escapeHtml)}
+        </select>
+      </label>
+      <label class="bourre-settings__row bourre-settings__lim">
+        <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
+        <span>LmT</span>
+        <span class="muted small">Pot cap 20× ante</span>
+      </label>
+      <label class="bourre-settings__row bourre-settings__lim">
+        <input type="checkbox" id="room-rebuy-enabled" ${bourreSettings.rebuyEnabled ? "checked" : ""} />
+        <span>Rebuy</span>
+        <span class="muted small">Top-up when bankroll hits zero</span>
+      </label>
+      <p class="muted small">Buy-in is each player&apos;s starting stack; ante feeds the pot each hand.</p>
+    </div>`;
+  }
+  return `<ul class="kv game-setup-stakes game-setup-stakes--readonly">
+    <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
+    <li><span>Ante</span><span>${escapeHtml(formatAnteStake(bourreSettings.anteAmount))}</span></li>
+    <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
+  </ul>`;
+}
+
+function buildUnifiedGameSetupHtml({
+  openSessionObj,
+  isOwner,
+  canCreateSession,
+  newSessionDisabledReason,
+  sessionHardCap,
+  currentSessionsLength,
+  roomBuyInAmount,
+  roomAnteAmount,
+  bourreSettings,
+}) {
+  const hasActiveSession = openSessionObj && openSessionObj.status !== "final";
+  const ready = hasActiveSession && tableReadyPlayerCount(openSessionObj) >= 2;
   const playDisabled = ready ? "" : 'disabled aria-disabled="true"';
-  const playTitle = ready ? "Open the live card table" : "Add at least two players first";
-  return `<div class="session-action-pills" data-testid="session-action-pills">
-      <button type="button" class="session-action-pill session-action-pill--add" id="session-add-player-pill" data-testid="session-add-player-pill" ${
-        isOwner ? "" : 'disabled aria-disabled="true"'
-      } title="${isOwner ? "Add guest or robot" : "Only the host can add players"}">Add Player</button>
-      <button type="button" class="session-action-pill session-action-pill--play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
-      <button type="button" class="session-action-pill session-action-pill--stats" id="complete-session" ${
-        isOwner ? "" : 'disabled aria-disabled="true"'
-      } title="${isOwner ? "Complete session and update Ape Scores" : "Only the host can update stats"}">Update Stats</button>
-    </div>`;
-}
+  const playTitle = ready
+    ? "Open the live card table"
+    : "Add at least one more player (you count as player 1), then tap Play";
 
-function buildSessionSetupWindowHtml(s, isOwner) {
-  if (!s || s.status === "final") return "";
-  const addBody = isOwner
-    ? buildSessionPlayerBarHtml(s)
-    : `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
-  return `<div class="session-setup-sheet" data-session-setup-sheet data-testid="session-setup-sheet"${sessionSetupSheetStyleAttr()}>
-      <div class="session-setup-sheet__handle" data-testid="session-setup-sheet-handle" role="separator" aria-label="Drag to resize session setup"></div>
-      <div class="session-setup-window" data-testid="session-setup-window">
-        ${addBody}
-        ${buildSessionActionPillsHtml(s, isOwner)}
+  const openTableBtn = isOwner
+    ? `<button class="btn btn--primary" id="new-session" type="button" data-testid="open-table-btn" ${
+        canCreateSession ? "" : 'disabled aria-disabled="true"'
+      } title="${escapeHtml(
+        canCreateSession
+          ? "Open a regional table and start building your roster"
+          : newSessionDisabledReason || "Cannot open another table",
+      )}">${hasActiveSession ? "+ Open another table" : "Open table"}</button>`
+    : "";
+
+  const sessionMeta = hasActiveSession
+    ? `<p class="game-setup-panel__table-name"><strong>${escapeHtml(openSessionObj.sessionName || "Table")}</strong> · ante ${escapeHtml(formatAnteStake(openSessionObj.handStake ?? roomAnteAmount))}</p>`
+    : isOwner
+      ? `<p class="muted small game-setup-panel__hint">Set buy-in and ante, tap <strong>Open table</strong>, then add players or robots.</p>`
+      : `<p class="muted small game-setup-panel__hint">Waiting for the host to open a table.</p>`;
+
+  const capNote =
+    isOwner && currentSessionsLength > 0
+      ? `<p class="muted small session-cap-note">${currentSessionsLength} of ${MAX_ROOM_SESSIONS} regional table${currentSessionsLength === 1 ? "" : "s"} open${
+          sessionHardCap ? " (max reached)" : ""
+        }</p>`
+      : "";
+
+  const addSection =
+    hasActiveSession && isOwner
+      ? `<div class="game-setup-panel__add" data-testid="session-add-players">
+          <h5>Add guest or robot</h5>
+          <p class="muted small">You count as player 1. Need at least two seated players before Play.</p>
+          ${buildAddPlayerFormHtml()}
+        </div>`
+      : !isOwner && hasActiveSession
+        ? `<p class="muted small">Only the host can add guests and robots.</p>`
+        : "";
+
+  const actions =
+    hasActiveSession && openSessionObj.status !== "final"
+      ? `<footer class="game-setup-panel__actions" data-testid="session-action-pills">
+          <button type="button" class="btn btn--primary btn--block game-setup-panel__play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
+          ${
+            isOwner
+              ? `<button type="button" class="btn btn--sm game-setup-panel__stats" id="complete-session" title="Complete session and update Ape Scores">Update Stats</button>`
+              : ""
+          }
+        </footer>`
+      : isOwner && !hasActiveSession
+        ? `<footer class="game-setup-panel__actions game-setup-panel__actions--open">
+            ${openTableBtn}
+            ${capNote}
+          </footer>`
+        : "";
+
+  return `<section class="game-setup-panel" data-testid="game-setup-panel">
+    <div class="session-setup-window" data-testid="session-setup-window">
+      <header class="game-setup-panel__head">
+        <h4>Table setup</h4>
+        <p class="muted small">One place to set stakes, build your roster, and start play.</p>
+      </header>
+      ${buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
+      ${sessionMeta}
+      <div class="game-setup-panel__roster">
+        <h5>Roster</h5>
+        ${buildSetupRosterHtml(openSessionObj, isOwner)}
       </div>
-    </div>`;
-}
-
-function buildSessionPlayerBarHtml(s) {
-  if (!s || s.status === "final") return "";
-  return `<div class="session-add-players" data-testid="session-add-players">
-      <h5 class="session-add-players__title">Add guest or robot</h5>
-      <p class="muted small session-add-players__hint">Need at least two players (up to ${MAX_TABLE_PLAYERS}), then tap <strong>Play</strong>.</p>
-      ${buildAddPlayerFormHtml()}
-    </div>`;
-}
-
-function buildGoToTableButtonHtml(s) {
-  if (!s || s.status === "final") return "";
-  const ready = tableReadyPlayerCount(s) >= 2;
-  const disabled = ready ? "" : "disabled aria-disabled=\"true\"";
-  const title = ready ? "Open the live card table" : "Add at least two players first";
-  return `<button type="button" class="btn btn--primary btn--sm session-toolbar__table-btn" id="open-table-play-inline" data-testid="open-table-play-inline" ${disabled} title="${title}">Play</button>`;
-}
-
-function buildSessionToolbarHtml(s, isOwner) {
-  if (!s || s.status === "final") return "";
-  return buildSessionSetupWindowHtml(s, isOwner);
+      ${addSection}
+      ${actions}
+      ${hasActiveSession && isOwner && canCreateSession && !sessionHardCap ? `<div class="game-setup-panel__secondary">${openTableBtn}${capNote}</div>` : ""}
+    </div>
+  </section>`;
 }
 
 function buildSessionLiveStatusHtml(s) {
@@ -3895,9 +3885,9 @@ function mountSessionPanel(s, isOwner) {
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
         <p class="muted small session-waiting-players">
-          Need at least two players for the live table. ${
+          Need at least one more player for the live table (you count as player 1). ${
             isOwner
-              ? "Add a guest or robot above, then tap"
+              ? "Add guests or robots in the setup panel, then tap"
               : "Ask the host to add players, then tap"
           } <strong>Play</strong>.
         </p>
@@ -4138,7 +4128,7 @@ async function onNewSession() {
     rememberPendingSession(optimisticSession);
     currentSessions = mergeSessionsWithPending(currentSessions);
     showRoomsError("");
-    roomSetupFocus = "add-players";
+    roomSetupFocus = "game-setup";
     openSession(created.id);
     renderRoomDetail();
   } catch (err) {

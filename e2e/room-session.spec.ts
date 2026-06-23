@@ -25,34 +25,29 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await expect(roomBuyIn).toHaveValue("5");
     await page.waitForTimeout(400);
     await expect(roomBuyIn).toHaveValue("5");
-    await expect(page.locator("#new-session-stake")).toBeVisible();
-    await expect(page.locator("#new-session-stake")).not.toHaveValue("5");
+    await expect(page.locator("#room-ante-amount")).toBeVisible();
+    await expect(page.locator("#room-ante-amount")).not.toHaveValue("5");
   });
 
-  test("bourré settings and regional tables ante controls mirror sub-dollar values", async ({ page }) => {
-    const bourreAnte = page.locator("#room-ante-amount");
-    const regionalAnte = page.locator("#new-session-stake");
-    await expect(bourreAnte).toBeVisible();
-    await expect(regionalAnte).toBeVisible();
+  test("table setup ante control keeps sub-dollar values", async ({ page }) => {
+    const roomAnte = page.locator("#room-ante-amount");
+    await expect(roomAnte).toBeVisible();
 
-    await bourreAnte.selectOption("0.25");
+    await roomAnte.selectOption("0.25");
     await page.waitForTimeout(400);
-    await expect(bourreAnte).toHaveValue("0.25");
-    await expect(regionalAnte).toHaveValue("0.25");
+    await expect(roomAnte).toHaveValue("0.25");
 
-    await regionalAnte.selectOption("0.01");
+    await roomAnte.selectOption("0.01");
     await page.waitForTimeout(400);
-    await expect(regionalAnte).toHaveValue("0.01");
-    await expect(bourreAnte).toHaveValue("0.01");
+    await expect(roomAnte).toHaveValue("0.01");
 
-    await regionalAnte.selectOption("1");
+    await roomAnte.selectOption("1");
     await page.waitForTimeout(400);
-    await expect(regionalAnte).toHaveValue("1");
-    await expect(bourreAnte).toHaveValue("1");
+    await expect(roomAnte).toHaveValue("1");
   });
 
-  test("new session ante dropdown keeps selected value after change", async ({ page }) => {
-    const sessionAnte = page.locator("#new-session-stake");
+  test("table setup ante dropdown keeps selected value after change", async ({ page }) => {
+    const sessionAnte = page.locator("#room-ante-amount");
     await expect(sessionAnte).toBeVisible();
     await sessionAnte.selectOption("10");
     await expect(sessionAnte).toHaveValue("10");
@@ -61,7 +56,7 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await expect(page.locator("#room-buy-in-amount")).not.toHaveValue("10");
   });
 
-  test("+ New session opens a regional tab after confirm", async ({ page }) => {
+  test("Open table creates a regional tab after confirm", async ({ page }) => {
     await page.waitForTimeout(300);
     page.once("dialog", (dialog) => dialog.accept());
     await page.locator("#new-session").click({ force: true });
@@ -79,7 +74,7 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await expect(page.getByTestId("add-player-robot")).toBeVisible();
     await page.getByTestId("add-player-robot").check();
     await page.getByTestId("session-add-player-pill").click();
-    await expect(page.locator(".members__role").filter({ hasText: "robot" })).toBeVisible({
+    await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toBeVisible({
       timeout: 15_000,
     });
   });
