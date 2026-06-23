@@ -3340,10 +3340,12 @@ function buildTableSessionProps(s) {
       onAdvanceReveal: () => {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
+          const message = e?.message || "";
+          if (message.includes("Decision step did not apply")) return;
           console.warn("advanceHandReveal:", e);
-          const message = formatClientGameError(e, "Could not open draw phase");
-          setTableActionFeedback({ status: "error", message });
-          showRoomsError(message);
+          const userMessage = formatClientGameError(e, "Could not open play/pass");
+          setTableActionFeedback({ status: "error", message: userMessage });
+          showRoomsError(userMessage);
         });
       },
       onTrickDelta: (delta) => {

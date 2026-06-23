@@ -15609,24 +15609,21 @@ function df({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 			onDismiss: E
 		}),
 		x ? /* @__PURE__ */ (0, g.jsx)(ad, { ...fe }) : /* @__PURE__ */ (0, g.jsx)(Zu, { ...fe })
-	] }), pe = (0, l.useRef)(!1);
-	return (0, l.useEffect)(() => {
+	] }), pe = (0, l.useRef)(!1), me = (0, l.useRef)(y.onAdvanceReveal);
+	return me.current = y.onAdvanceReveal, (0, l.useEffect)(() => {
 		pe.current = !1;
 	}, [e.handNumber, e.sessionId]), (0, l.useEffect)(() => {
-		if (e.phase !== "reveal" || !j.trumpMergedIntoHand || j.phase !== "drawPlayer" || pe.current || !y.onAdvanceReveal) return;
-		let t = y.onAdvanceReveal();
-		Promise.resolve(t).then(() => {
-			pe.current = !0;
-		}, () => {
-			pe.current = !1;
+		if (e.phase !== "reveal" || !j.trumpMergedIntoHand || pe.current || !me.current) return;
+		pe.current = !0;
+		let t = me.current();
+		Promise.resolve(t).catch(() => {
+			e.phase === "reveal" && (pe.current = !1);
 		});
 	}, [
 		e.phase,
 		e.handNumber,
 		e.sessionId,
-		j.trumpMergedIntoHand,
-		j.phase,
-		y
+		j.trumpMergedIntoHand
 	]), (0, l.useEffect)(() => {
 		let e = (e) => {
 			(e.key === b.hotkeys.toggleSettings || e.key === "," && e.metaKey) && C((e) => !e), e.key === b.hotkeys.focusTable && document.querySelector(".btable-wrap")?.scrollIntoView({
