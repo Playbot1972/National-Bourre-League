@@ -125,7 +125,12 @@
               join one with an invite code. Rooms are saved to Firestore.
             </p>
             <div class="room-actions">
-              <button class="btn btn--primary" id="create-room">+ Create a room</button>
+              <div class="room-actions__primary">
+                <button class="btn btn--primary" id="create-room">+ Create a room</button>
+                <button class="btn btn--primary" id="play-now" type="button" data-testid="play-now" aria-busy="false">
+                  Play Now
+                </button>
+              </div>
               <form class="join-form" id="join-form">
                 <input
                   class="text-input"

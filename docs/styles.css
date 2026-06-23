@@ -817,10 +817,21 @@ button {
 /* Room actions / join */
 .room-actions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   margin: 16px 0;
+}
+
+.room-actions__primary {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.room-actions__primary .btn {
+  width: 100%;
 }
 body.room-detail-open .room-actions {
   position: sticky;
