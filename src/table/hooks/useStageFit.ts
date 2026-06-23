@@ -15,7 +15,7 @@ import { useMobileTable } from "../useMobileTable";
 interface UseStageFitOptions {
   aspect: number;
   enabled?: boolean;
-  /** Resets hero peak budget when the hand changes. */
+  /** Resets hero peak budget when the table session changes. */
   sessionKey?: string;
 }
 

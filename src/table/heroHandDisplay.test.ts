@@ -67,6 +67,44 @@ describe("heroHandDisplay", () => {
     assert.equal(state.trumpDisabledIndex, null);
   });
 
+  it("keeps holder fan stable while raw private hand catches up", () => {
+    const state = resolveHeroHandDisplay({
+      rawHeroCards: [],
+      effectiveHeroCards: effective,
+      playerId: "dealer",
+      trumpHolderId: "dealer",
+      trumpUpcard,
+      trumpSuit: "hearts",
+      phase: "draw",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
+      },
+    });
+    assert.equal(state.displayCards.length, 4);
+    assert.equal(state.indexMode, "display");
+  });
+
+  it("prefers raw five-card fan once private hand is fully loaded", () => {
+    const state = resolveHeroHandDisplay({
+      rawHeroCards: raw,
+      effectiveHeroCards: effective,
+      playerId: "dealer",
+      trumpHolderId: "dealer",
+      trumpUpcard,
+      trumpSuit: "hearts",
+      phase: "draw",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
+      },
+    });
+    assert.equal(state.displayCards.length, 5);
+    assert.equal(state.indexMode, "display");
+  });
+
   it("keeps effective hand for non-holders", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,

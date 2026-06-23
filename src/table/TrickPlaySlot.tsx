@@ -45,7 +45,6 @@ export function TrickPlaySlot({
       return;
     }
 
-    setFlyMode("pending");
     const slot = slotRef.current;
     if (!slot) return;
 
@@ -62,6 +61,8 @@ export function TrickPlaySlot({
       setCssFly(null);
       return;
     }
+
+    setFlyMode("pending");
 
     if (isCardMotionReady() && typeof window !== "undefined") {
       setFlyMode("gsap");

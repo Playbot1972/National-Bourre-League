@@ -52,9 +52,11 @@ export function useTrickPresentation({
   const timersRef = useRef<number[]>([]);
   const resolutionKeyRef = useRef<string | null>(null);
   const snapshottedPlaysRef = useRef<Set<string>>(new Set());
+  const pipelineActiveRef = useRef(false);
 
   const pipelineActive =
     store.phase !== "live" || Boolean(store.pendingResolution);
+  pipelineActiveRef.current = pipelineActive;
   const sessionPlayActive = phase === "play";
 
   const snapshotTrickPlayOrigins = (plays: { playerId: string; card: { rank: string; suit: string } }[]) => {
@@ -79,7 +81,7 @@ export function useTrickPresentation({
   useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
-    if (!sessionPlayActive && !pipelineActive) {
+    if (!sessionPlayActive && !pipelineActiveRef.current) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -106,7 +108,6 @@ export function useTrickPresentation({
     trumpSuit,
     playedCards,
     sessionPlayActive,
-    pipelineActive,
   ]);
 
   useLayoutEffect(() => {

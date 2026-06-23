@@ -80,13 +80,14 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
   const hasTrumpOnTable = Boolean(input.trumpUpcard);
   const trumpIndex =
     isHolder && hasTrumpOnTable
-      ? findTrumpDisplayIndex(input.rawHeroCards, input.trumpUpcard)
+      ? findTrumpDisplayIndex(input.rawHeroCards, input.trumpUpcard) ??
+        findTrumpDisplayIndex(input.effectiveHeroCards, input.trumpUpcard)
       : null;
 
   const defaultReminder =
     !hasTrumpOnTable && Boolean(input.trumpSuit) && input.phase === "play";
 
-  if (!isHolder || !hasTrumpOnTable || trumpIndex === null) {
+  if (!isHolder || !hasTrumpOnTable) {
     return {
       displayCards: input.effectiveHeroCards,
       revealedTrumpIndex: null,
@@ -109,11 +110,17 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
   });
   const rawCards =
     input.rawHeroCards.length > 0 ? input.rawHeroCards : input.effectiveHeroCards;
+  const holderUsesRawFan =
+    trumpRevealActive ||
+    trumpMergeActive ||
+    !trumpMergedIntoHand ||
+    input.rawHeroCards.length >= input.effectiveHeroCards.length;
+  const displayCards = holderUsesRawFan ? rawCards : input.effectiveHeroCards;
   const showRevealedTrump = trumpRevealActive || trumpMergeActive;
 
   return {
-    displayCards: rawCards,
-    revealedTrumpIndex: showRevealedTrump ? trumpIndex : null,
+    displayCards,
+    revealedTrumpIndex: showRevealedTrump && trumpIndex !== null ? trumpIndex : null,
     trumpMergeActive,
     trumpMergedIntoHand,
     hideCenterTrumpForHolder: holderPresentation.hideCenterTrump,
