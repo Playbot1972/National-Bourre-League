@@ -4,8 +4,17 @@ import type { Rank, Suit } from "../types";
 import { totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
-/** Card travel to center (400–700 ms). */
-export const CARD_LAND_MS = 560;
+/** Card travel from seat to table center. */
+export const TRICK_CARD_TRAVEL_MS = 340;
+
+/** Arrival settle/pop after travel. */
+export const TRICK_CARD_SETTLE_MS = 140;
+
+/** Existing table cards shift sideways when a new card lands. */
+export const TRICK_CARD_SHIFT_MS = 220;
+
+/** Full play-to-table presentation (travel + settle). */
+export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 350;

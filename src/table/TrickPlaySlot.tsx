@@ -1,17 +1,19 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
-import { animateCardToTable } from "./animations/cardMotion";
-import { initCardMotion, isCardMotionReady } from "./animations/initMotion";
 import { serializedToCard } from "./handUi";
 import {
   flyOffsetToSlot,
   playFlyKey,
   resolvePlayOrigin,
 } from "./trickPlayFly";
-import { CARD_LAND_MS, prefersReducedMotion } from "./trickTiming";
+import {
+  prefersReducedMotion,
+  TRICK_CARD_SETTLE_MS,
+  TRICK_CARD_TRAVEL_MS,
+} from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 
-type FlyMode = "pending" | "gsap" | "css" | "land" | "static";
+type FlyMode = "pending" | "travel" | "settle" | "land" | "static";
 
 interface TrickPlaySlotProps {
   play: TrickPlay;
@@ -35,6 +37,7 @@ export function TrickPlaySlot({
   const [cssFly, setCssFly] = useState<{ dx: number; dy: number } | null>(null);
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   const isLanding = index === displayCount - 1 && presentationPhase === "live";
+  const isSettled = !isLanding;
   const showWinnerCard =
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
@@ -53,64 +56,67 @@ export function TrickPlaySlot({
 
     const playKey = playFlyKey(play);
     const origin = resolvePlayOrigin(play.playerId, playKey);
-    const tableRoot = slot.closest(".btable-wrap") ?? document;
-    initCardMotion(tableRoot);
+    const reduced = prefersReducedMotion();
+    const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
+    const settleMs = reduced ? Math.round(TRICK_CARD_SETTLE_MS * 0.55) : TRICK_CARD_SETTLE_MS;
 
     if (!origin) {
       setFlyMode("land");
       setCssFly(null);
-      return;
-    }
-
-    setFlyMode("pending");
-
-    if (isCardMotionReady() && typeof window !== "undefined") {
-      setFlyMode("gsap");
-      setCssFly(null);
-      animateCardToTable(cardEl, origin, {
-        onComplete: () => setFlyMode("static"),
-      });
-      return;
+      const landTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
+      const settleTimer = window.setTimeout(() => setFlyMode("static"), travelMs + settleMs);
+      return () => {
+        window.clearTimeout(landTimer);
+        window.clearTimeout(settleTimer);
+      };
     }
 
     const slotRect = slot.getBoundingClientRect();
     const cardRect = cardEl.getBoundingClientRect();
     const offset = flyOffsetToSlot(origin, slotRect, cardRect);
     setCssFly(offset);
-    setFlyMode("css");
+    setFlyMode("pending");
 
-    const landMs = prefersReducedMotion()
-      ? Math.round(CARD_LAND_MS * 0.55)
-      : CARD_LAND_MS;
-    const timer = window.setTimeout(() => {
+    const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
+    const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
+    const doneTimer = window.setTimeout(() => {
       setFlyMode("static");
       setCssFly(null);
-    }, landMs);
-    return () => window.clearTimeout(timer);
+    }, travelMs + settleMs);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(settleTimer);
+      window.clearTimeout(doneTimer);
+    };
   }, [isLanding, play]);
 
-  const flyStyle: CSSProperties | undefined =
-    flyMode === "css" && cssFly
+  const flyStyle: CSSProperties = {
+    ["--slot-index" as string]: index,
+    ...(cssFly
       ? {
           ["--fly-dx" as string]: `${cssFly.dx}px`,
           ["--fly-dy" as string]: `${cssFly.dy}px`,
         }
-      : undefined;
+      : {}),
+  };
 
   return (
     <div
       ref={slotRef}
       className={[
         "btrick__play",
-        flyMode === "gsap" ? "btrick__play--gsap-fly" : "",
-        flyMode === "css" ? "btrick__play--fly-from-hand" : "",
+        isSettled ? "btrick__play--settled" : "",
+        flyMode === "travel" || flyMode === "land" ? "btrick__play--fly-from-hand" : "",
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",
+        flyMode === "settle" ? "btrick__play--settle" : "",
         isWinner && showWinnerCard ? "btrick__play--winner" : "",
       ]
         .filter(Boolean)
         .join(" ")}
       style={flyStyle}
+      data-slot-index={index}
     >
       <PlayingCard
         card={serializedToCard(play.card)}

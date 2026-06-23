@@ -375,6 +375,8 @@
   min-height: clamp(72px, 16vmin, 104px);
   padding-top: clamp(8px, 2vmin, 16px);
   overflow: visible;
+  --trick-card-width: var(--pcard-sm-w, 52px);
+  --trick-card-height: var(--pcard-sm-h, 74px);
 }
 
 .btable-mobile .center-play .btrick--empty {

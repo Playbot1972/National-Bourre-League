@@ -15,6 +15,9 @@ import {
   CARD_LAND_MS,
   NEXT_LEAD_GAP_MS,
   POST_TRICK_READ_MS,
+  TRICK_CARD_SETTLE_MS,
+  TRICK_CARD_SHIFT_MS,
+  TRICK_CARD_TRAVEL_MS,
   TRICK_SWEEP_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
@@ -204,6 +207,9 @@ export function MobileCardTable({
       style={{
         ["--player-count" as string]: playerCount,
         ["--table-aspect" as string]: tableAspect,
+        ["--trick-card-travel-ms" as string]: `${TRICK_CARD_TRAVEL_MS}ms`,
+        ["--trick-card-settle-ms" as string]: `${TRICK_CARD_SETTLE_MS}ms`,
+        ["--trick-card-shift-ms" as string]: `${TRICK_CARD_SHIFT_MS}ms`,
         ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
         ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
         ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
