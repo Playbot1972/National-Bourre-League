@@ -1170,6 +1170,9 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Session not found");
     const hand = getSessionCurrentHand(snap.data());
+    if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
+      return { status: "decision" };
+    }
     if (hand?.phase !== HAND_PHASE.REVEAL) {
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
