@@ -234,6 +234,25 @@ function beginHandSettleFromPending(store: HandPresentationStore): HandPresentat
   });
 }
 
+function beginRevealPresentation(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  const hasTrump = Boolean(snapshot.trumpUpcard);
+  return withPhase(store, "ante", {
+    trumpRevealActive: hasTrump,
+    trumpMergeActive: false,
+    trumpMergedIntoHand: false,
+    anteAnimActive: true,
+    dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
+    prevSnapshot: snapshot,
+    displayPotAmount: snapshot.potAmount,
+    pendingHandSettle: false,
+    handSettleSnapshot: null,
+    pendingSnapshot: null,
+  });
+}
+
 function beginDrawSequence(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -298,7 +317,13 @@ export function reduceHandPresentation(
       const prev = store.prevSnapshot ?? snapshot;
 
       if (store.sessionKey !== snapshot.sessionKey) {
-        return createHandPresentationStore(snapshot);
+        const fresh = createHandPresentationStore(snapshot);
+        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+      }
+
+      if (store.handNumber !== snapshot.handNumber) {
+        const fresh = createHandPresentationStore(snapshot);
+        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
       }
 
       // Authoritative play phase must not wait on draw/trump presentation.
@@ -357,16 +382,11 @@ export function reduceHandPresentation(
         prev.phase !== "reveal" &&
         (store.phase === "idle" ||
           store.phase === "nextHandReset" ||
-          store.phase === "enrollment")
+          store.phase === "enrollment" ||
+          store.phase === "settle" ||
+          store.phase === "play")
       ) {
-        const hasTrump = Boolean(snapshot.trumpUpcard);
-        return withPhase(store, "ante", {
-          trumpRevealActive: hasTrump,
-          anteAnimActive: true,
-          dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
-          prevSnapshot: snapshot,
-          displayPotAmount: snapshot.potAmount,
-        });
+        return beginRevealPresentation(store, snapshot);
       }
 
       if (

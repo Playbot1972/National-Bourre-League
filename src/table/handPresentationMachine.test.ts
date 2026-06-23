@@ -195,6 +195,76 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "clearEnrollmentPulse" });
     assert.deepEqual(store.enrollmentPulse, {});
   });
+
+  it("resets stale trump flags when hand number advances into reveal", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 1 });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, phase: "play", handNumber: 1, handComplete: true },
+    });
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    assert.equal(store.phase, "settle");
+    assert.equal(store.trumpMergedIntoHand, false);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "nextHandReset");
+
+    store = {
+      ...store,
+      trumpMergedIntoHand: true,
+      trumpRevealActive: false,
+      phase: "play",
+    };
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        handNumber: 2,
+        phase: "reveal",
+        trumpUpcard: { rank: "K", suit: "spades" },
+        drawCompletedIds: [],
+        turnPlayerId: "p1",
+      },
+    });
+    assert.equal(store.handNumber, 2);
+    assert.equal(store.phase, "ante");
+    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.trumpMergedIntoHand, false);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpMergedIntoHand, true);
+  });
+
+  it("starts reveal presentation when prior hand ended in play with stale trump state", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 1 });
+    store = {
+      ...store,
+      trumpMergedIntoHand: true,
+      trumpRevealActive: false,
+      phase: "play",
+      handNumber: 1,
+    };
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        handNumber: 2,
+        phase: "reveal",
+        trumpUpcard: { rank: "Q", suit: "diamonds" },
+        drawCompletedIds: [],
+        turnPlayerId: "p2",
+      },
+    });
+    assert.equal(store.handNumber, 2);
+    assert.equal(store.phase, "ante");
+    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.trumpMergedIntoHand, false);
+  });
 });
 
 describe("trick timing with hand flow", () => {
