@@ -146,12 +146,12 @@ describe("trickPresentationMachine", () => {
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
-    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 3);
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
     store = reduceTrickPresentation(store, { type: "revealNextCard" });
     assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
-  it("marks pipeline active while pending resolution is landing", () => {
+  it("keeps all trick cards visible while pending resolution lands", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
@@ -161,7 +161,7 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.isPipelineActive, true);
     assert.equal(model.isResolving, false);
-    assert.equal(model.displayPlays.length, 0);
+    assert.equal(model.displayPlays.length, 4);
   });
 
   it("buffers server snapshots while the trick pipeline is running", () => {
@@ -228,6 +228,23 @@ describe("trickPresentationMachine", () => {
     });
     store = reduceTrickPresentation(store, { type: "clampRevealedCount", target: 0 });
     assert.equal(store.revealedCount, 4);
+  });
+
+  it("shows final-trick echo when resolving pipeline clears the live row", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    const model = buildTrickPresentationModel(store, null);
+    assert.equal(model.displayPlays.length, 4);
+    assert.equal(model.showFinalTrickEcho, false);
   });
 
   it("does not allow live phase until pipeline completes", () => {

@@ -26,6 +26,11 @@ export interface TrickPresentationModel {
   isResolving: boolean;
   /** True while a trick is landing or running the hold/reveal/sweep pipeline. */
   isPipelineActive: boolean;
+  /** Frozen final trick for echo layer when the live row clears before settle. */
+  trickEchoPlays: TrickPlay[];
+  trickEchoWinnerId: string | null;
+  trickEchoPhase: TrickPresentationPhase;
+  showFinalTrickEcho: boolean;
 }
 
 export interface PendingTrickResolution {
@@ -245,10 +250,24 @@ export function buildTrickPresentationModel(
       : livePlays.length > 0
         ? livePlays
         : serializedPlays(store.prevTrick);
+  const revealLimit =
+    store.phase === "live"
+      ? store.pendingResolution
+        ? Math.max(store.revealedCount, holdPlays.length)
+        : Math.min(store.revealedCount, holdPlays.length)
+      : holdPlays.length;
   const displayPlays =
     store.phase === "live"
-      ? holdPlays.slice(0, Math.min(store.revealedCount, holdPlays.length))
+      ? holdPlays.slice(0, revealLimit)
       : store.frozenTrick?.plays ?? [];
+
+  const trickEchoPlays = store.frozenTrick?.plays ?? [];
+  const trickEchoWinnerId = store.frozenTrick?.winnerId ?? null;
+  const trickEchoPhase = store.phase;
+  const showFinalTrickEcho =
+    trickEchoPlays.length > 0 &&
+    displayPlays.length === 0 &&
+    store.phase !== "live";
 
   const winnerPlayerId =
     store.phase === "live" || store.phase === "trickComplete"
@@ -272,5 +291,9 @@ export function buildTrickPresentationModel(
     revealedCount: store.revealedCount,
     isResolving: store.phase !== "live",
     isPipelineActive: store.phase !== "live" || Boolean(store.pendingResolution),
+    trickEchoPlays,
+    trickEchoWinnerId,
+    trickEchoPhase,
+    showFinalTrickEcho,
   };
 }

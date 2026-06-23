@@ -19,6 +19,10 @@ interface PotCenterProps {
   trickWinnerPlayerId?: string | null;
   trickShowWinnerTag?: boolean;
   trickPresentationPhase?: TrickPresentationPhase;
+  trickEchoPlays?: TrickPlay[];
+  trickEchoWinnerId?: string | null;
+  trickEchoPhase?: TrickPresentationPhase;
+  showFinalTrickEcho?: boolean;
   playerNames?: Record<string, string>;
   anteAnimActive?: boolean;
   trumpRevealActive?: boolean;
@@ -47,6 +51,10 @@ export function PotCenter({
   trickWinnerPlayerId = null,
   trickShowWinnerTag = false,
   trickPresentationPhase = "live",
+  trickEchoPlays = [],
+  trickEchoWinnerId = null,
+  trickEchoPhase = "live",
+  showFinalTrickEcho = false,
   playerNames = {},
   anteAnimActive = false,
   trumpRevealActive = false,
@@ -68,6 +76,8 @@ export function PotCenter({
   const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
   const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
   const liveTrickCardCount = trickDisplayPlays.length;
+  const finalTrickEcho =
+    showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
@@ -136,6 +146,7 @@ export function PotCenter({
           settleAnimActive ? "center-play--settle" : "",
           settleCarryOver ? "center-play--carry" : "",
           trickResolving ? "center-play--trick-resolving" : "",
+          finalTrickEcho ? "center-play--final-trick-echo" : "",
         ]
           .filter(Boolean)
           .join(" ")}
@@ -183,13 +194,27 @@ export function PotCenter({
         </div>
 
         <div className="center-play__trick-stage">
-          <TrickRow
-            displayPlays={trickDisplayPlays}
-            winnerPlayerId={trickWinnerPlayerId}
-            showWinnerTag={trickShowWinnerTag}
-            presentationPhase={trickPresentationPhase}
-            playerNames={playerNames}
-          />
+          <div className="center-play__trick-live">
+            <TrickRow
+              displayPlays={trickDisplayPlays}
+              winnerPlayerId={trickWinnerPlayerId}
+              showWinnerTag={trickShowWinnerTag}
+              presentationPhase={trickPresentationPhase}
+              playerNames={playerNames}
+            />
+          </div>
+          {finalTrickEcho && (
+            <div className="center-play__trick-echo" aria-hidden="true">
+              <TrickRow
+                displayPlays={trickEchoPlays}
+                winnerPlayerId={trickEchoWinnerId}
+                showWinnerTag
+                presentationPhase={trickEchoPhase}
+                playerNames={playerNames}
+                variant="echo"
+              />
+            </div>
+          )}
         </div>
 
         <dl className="center-play__stats">

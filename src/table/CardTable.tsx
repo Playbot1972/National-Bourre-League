@@ -97,7 +97,7 @@ export function CardTable({
   const tableAspect = tableAspectForPlayers(playerCount);
   const playerNames = Object.fromEntries(feltPlayers.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
-  const sessionKey = `${session.sessionId}:${session.handNumber}`;
+  const sessionKey = session.sessionId;
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -220,6 +220,10 @@ export function CardTable({
             trickWinnerPlayerId={trickPresentation.winnerPlayerId}
             trickShowWinnerTag={trickPresentation.showWinnerTag}
             trickPresentationPhase={trickPresentation.phase}
+            trickEchoPlays={trickPresentation.trickEchoPlays}
+            trickEchoWinnerId={trickPresentation.trickEchoWinnerId}
+            trickEchoPhase={trickPresentation.trickEchoPhase}
+            showFinalTrickEcho={trickPresentation.showFinalTrickEcho}
             playerNames={playerNames}
             anteAnimActive={handPresentation.anteAnimActive}
             trumpRevealActive={handPresentation.trumpRevealActive}

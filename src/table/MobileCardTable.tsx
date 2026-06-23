@@ -114,7 +114,7 @@ export function MobileCardTable({
   const tableAspect = mobileTableAspect(opponents.length, orientation);
   const playerNames = Object.fromEntries(players.map((p) => [p.playerId, p.displayName]));
   const handTiming = handTimingScale();
-  const sessionKey = `${session.sessionId}:${session.handNumber}`;
+  const sessionKey = session.sessionId;
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -240,6 +240,10 @@ export function MobileCardTable({
               trickWinnerPlayerId={trickPresentation.winnerPlayerId}
               trickShowWinnerTag={trickPresentation.showWinnerTag}
               trickPresentationPhase={trickPresentation.phase}
+              trickEchoPlays={trickPresentation.trickEchoPlays}
+              trickEchoWinnerId={trickPresentation.trickEchoWinnerId}
+              trickEchoPhase={trickPresentation.trickEchoPhase}
+              showFinalTrickEcho={trickPresentation.showFinalTrickEcho}
               playerNames={playerNames}
               anteAnimActive={handPresentation.anteAnimActive}
               trumpRevealActive={handPresentation.trumpRevealActive}
