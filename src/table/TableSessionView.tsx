@@ -14,7 +14,6 @@ import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { useDecisionCountdown } from "./hooks/useDecisionCountdown";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
@@ -103,42 +102,6 @@ export function TableSessionView({
       (isRevealPhase(session.phase) && presentationDecisionReady));
   const selfEnroll =
     Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
-
-  const decisionLockRef = useRef(false);
-  useEffect(() => {
-    decisionLockRef.current = false;
-  }, [session.sessionId, session.handNumber, session.handEnrollment?.currentIndex]);
-
-  const handleDecisionExpire = useCallback(() => {
-    if (decisionLockRef.current || !selfDecision) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [selfDecision, actions]);
-
-  const decisionCountdown = useDecisionCountdown({
-    active: selfDecision,
-    deadlineMs: session.handEnrollment?.turnDeadlineMs,
-    onExpire: handleDecisionExpire,
-  });
-
-  const guardedPassEnrollment = useCallback(() => {
-    decisionCountdown.cancel();
-    if (decisionLockRef.current) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [decisionCountdown, actions]);
-
-  const guardedToggleInHand = useCallback(
-    (inHand: boolean) => {
-      if (selfDecision) decisionCountdown.cancel();
-      if (inHand && selfDecision) {
-        if (decisionLockRef.current) return;
-        decisionLockRef.current = true;
-      }
-      actions.onToggleInHand(inHand);
-    },
-    [selfDecision, decisionCountdown, actions],
-  );
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -335,17 +298,11 @@ export function TableSessionView({
     () => ({
       onToggleInHand: (playerId: string, inHand: boolean) => {
         const p = players.find((x) => x.playerId === playerId);
-        if (p?.isSelf) {
-          if (selfDecision) guardedToggleInHand(inHand);
-          else actions.onToggleInHand(inHand);
-        }
+        if (p?.isSelf) actions.onToggleInHand(inHand);
       },
       onPassEnrollment: (playerId: string) => {
         const p = players.find((x) => x.playerId === playerId);
-        if (p?.isSelf && actions.onPassEnrollment) {
-          if (selfDecision) guardedPassEnrollment();
-          else actions.onPassEnrollment();
-        }
+        if (p?.isSelf && actions.onPassEnrollment) actions.onPassEnrollment();
       },
       onTrickDelta: (playerId: string, delta: number) => {
         const p = players.find((x) => x.playerId === playerId);
@@ -378,7 +335,7 @@ export function TableSessionView({
       },
       onReaction: handleReaction,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, selfDecision, guardedPassEnrollment, guardedToggleInHand],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
   );
 
   const sharedTableProps = {
@@ -426,9 +383,6 @@ export function TableSessionView({
   );
 
   const revealAdvancedRef = useRef(false);
-  const onAdvanceRevealRef = useRef(actions.onAdvanceReveal);
-  onAdvanceRevealRef.current = actions.onAdvanceReveal;
-
   useEffect(() => {
     revealAdvancedRef.current = false;
   }, [session.handNumber, session.sessionId]);
@@ -436,20 +390,25 @@ export function TableSessionView({
   useEffect(() => {
     if (session.phase !== "reveal") return;
     if (!handPresentation.trumpMergedIntoHand) return;
-    if (revealAdvancedRef.current || !onAdvanceRevealRef.current) return;
+    if (handPresentation.phase !== "drawPlayer") return;
+    if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
 
-    revealAdvancedRef.current = true;
-    const advance = onAdvanceRevealRef.current();
-    void Promise.resolve(advance).catch(() => {
-      if (session.phase === "reveal") {
+    const advance = actions.onAdvanceReveal();
+    void Promise.resolve(advance).then(
+      () => {
+        revealAdvancedRef.current = true;
+      },
+      () => {
         revealAdvancedRef.current = false;
-      }
-    });
+      },
+    );
   }, [
     session.phase,
     session.handNumber,
     session.sessionId,
     handPresentation.trumpMergedIntoHand,
+    handPresentation.phase,
+    actions,
   ]);
 
   useEffect(() => {
@@ -575,7 +534,27 @@ export function TableSessionView({
             Cards dealt — trump revealed. Review your hand…
           </p>
         )}
-        {selfEnroll && (
+        {selfDecision && (
+          <div className="btable-session__decision-cta" data-testid="decision-panel">
+            <button
+              type="button"
+              className="btn btn--sm btn--ghost btable-session__pass-btn"
+              data-testid="pass-decision-button"
+              onClick={() => actions.onPassEnrollment?.()}
+            >
+              Pass · {enrollmentSecondsLeft}s
+            </button>
+            <button
+              type="button"
+              className="btn btn--primary btn--sm btable-session__enroll-btn"
+              data-testid="decision-im-in-button"
+              onClick={() => actions.onToggleInHand?.(true)}
+            >
+              I&apos;m in · {enrollmentSecondsLeft}s
+            </button>
+          </div>
+        )}
+        {selfEnroll && !selfDecision && (
           <div className="btable-session__enroll-cta">
             <button
               type="button"

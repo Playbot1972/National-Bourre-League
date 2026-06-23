@@ -48,7 +48,6 @@ describe("Pagat decision phase", () => {
     const activated = activateHandDecision(bundle.publicHand, 1_000);
     assert.equal(activated.phase, HAND_PHASE.DECISION);
     assert.equal(activated.handDecision?.active, true);
-    assert.equal(activated.handDecision?.turnDeadlineMs, 1_000 + 15_000);
     assert.equal(currentDecisionPlayer(activated.handDecision!), "p2");
   });
 

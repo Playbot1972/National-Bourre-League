@@ -1,7 +1,6 @@
 import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
-import { EnrollmentTimerRing } from "./EnrollmentTimerRing";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
 import type { Rank, Suit } from "../types";
@@ -16,6 +15,46 @@ interface SeatProps {
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
   onReaction?: (emoji: string) => void;
+}
+
+function EnrollmentTimerRing({ fraction }: { fraction: number }) {
+  const clamped = Math.max(0, Math.min(1, fraction));
+  const size = 56;
+  const stroke = 3;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - clamped);
+  const urgent = clamped <= 0.25;
+
+  return (
+    <svg
+      className={`bseat__timer-ring${urgent ? " bseat__timer-ring--urgent" : ""}`}
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      aria-hidden="true"
+    >
+      <circle
+        className="bseat__timer-ring__track"
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        strokeWidth={stroke}
+      />
+      <circle
+        className="bseat__timer-ring__progress"
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        strokeWidth={stroke}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </svg>
+  );
 }
 
 export function Seat({ player, region, handLane = "below", style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
@@ -171,6 +210,9 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
                 })}
               </div>
             )}
+            {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
+              <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
+            )}
             {bourrePressure && (
               <span
                 className="bseat__bourre-pressure-badge"
@@ -204,13 +246,6 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               }}
               onBlur={() => setAvatarPeek(false)}
             >
-              {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
-                <EnrollmentTimerRing
-                  fraction={player.enrollmentTimeLeft}
-                  secondsLeft={player.enrollmentSecondsOnClock}
-                  className="btable-timer-ring--avatar"
-                />
-              )}
               {player.isDealer && (
                 <span
                   className={`bseat__dealer${player.dealerMoved ? " bseat__dealer--moved" : ""}`}
