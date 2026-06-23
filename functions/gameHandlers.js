@@ -1747,13 +1747,10 @@ export async function handleRecordHand(
     carryOverPot: nominalCarry,
     buyInFallback: buyIn,
     stakeForPlayer: stakeForSettlement,
-    bourreIds,
-    bourrePenalty: potState.maxWinThisHand,
   });
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = solvent.bourreRemainders ?? {};
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -1793,9 +1790,11 @@ export async function handleRecordHand(
       patch.out = FieldValue.delete();
     }
     if (current.skipNextAnte) patch.skipNextAnte = FieldValue.delete();
-    if (current.bourreReplacementDue != null) patch.bourreReplacementDue = FieldValue.delete();
-    if (bourreRemainders[pid] != null && bourreRemainders[pid] > 0) {
-      patch.bourreReplacementDue = bourreRemainders[pid];
+    if (current.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = FieldValue.delete();
+    }
+    if (bourreIds.includes(pid)) {
+      patch.bourreReplacementDue = potState.maxWinThisHand;
     }
     if (
       winners.includes(pid) &&
