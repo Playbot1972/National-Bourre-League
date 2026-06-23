@@ -67,7 +67,7 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await page.locator("#new-session").click({ force: true });
     await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(".session-tab").first()).toContainText(/hand/i);
-    await expect(page.getByTestId("session-add-players")).toBeVisible();
+    await expect(page.getByTestId("session-setup-window")).toBeVisible();
     await expect(page.getByTestId("add-player-robot")).toBeVisible();
   });
 
@@ -75,10 +75,10 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await page.waitForTimeout(300);
     page.once("dialog", (dialog) => dialog.accept());
     await page.locator("#new-session").click({ force: true });
-    await expect(page.getByTestId("session-add-players")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("add-player-robot")).toBeVisible();
     await page.getByTestId("add-player-robot").check();
-    await page.getByTestId("add-player-submit").click();
+    await page.getByTestId("session-add-player-pill").click();
     await expect(page.locator(".members__role").filter({ hasText: "robot" })).toBeVisible({
       timeout: 15_000,
     });

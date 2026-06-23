@@ -70,6 +70,10 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
     await page.locator("#create-room").click();
     await expect(modal).toBeVisible();
     await page.locator("#create-room-name").fill(name);
+    await page.locator("#create-room-name").press("Enter");
+    await expect(page.locator("#create-room-ante")).toBeVisible({ timeout: 5_000 });
+    await page.locator("#create-room-ante").selectOption({ index: 1 });
+    await expect(page.locator('[data-create-step="regional"]')).toBeVisible({ timeout: 5_000 });
     await page.locator("#create-room-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
 
     try {
@@ -94,7 +98,7 @@ export async function openNewSession(page: Page) {
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("#new-session").click({ force: true });
   await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
-  await expect(page.getByTestId("session-add-players")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
 }
 
 /** Host counts as one seat; add robots until `totalPlayers` are seated. */
@@ -102,7 +106,7 @@ export async function addRobotsUntilCount(page: Page, totalPlayers: number) {
   const botsNeeded = Math.max(0, totalPlayers - 1);
   for (let i = 0; i < botsNeeded; i += 1) {
     await page.getByTestId("add-player-robot").check();
-    await page.getByTestId("add-player-submit").click();
+    await page.getByTestId("session-add-player-pill").click();
     await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(i + 1, {
       timeout: 15_000,
     });
@@ -110,10 +114,12 @@ export async function addRobotsUntilCount(page: Page, totalPlayers: number) {
 }
 
 export async function goToTable(page: Page) {
-  const goBtn = page.getByTestId("open-table-play").first();
-  await expect(goBtn).toBeEnabled({ timeout: 15_000 });
-  await goBtn.click();
   const overlay = page.locator("#table-play-overlay");
+  if (!(await overlay.isVisible().catch(() => false))) {
+    const goBtn = page.getByTestId("open-table-play").first();
+    await expect(goBtn).toBeEnabled({ timeout: 15_000 });
+    await goBtn.click();
+  }
   await expect(overlay).toBeVisible({ timeout: 15_000 });
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 }

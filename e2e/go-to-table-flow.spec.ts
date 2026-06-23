@@ -52,7 +52,7 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
     await expect(page.locator(".members__role").filter({ hasText: "robot" })).toHaveCount(7);
 
     await page.getByTestId("add-player-robot").check();
-    await page.getByTestId("add-player-submit").click();
+    await page.getByTestId("session-add-player-pill").click();
 
     await expect(page.locator("#rooms-error")).toContainText(/full.*8 players max/i, {
       timeout: 10_000,
@@ -92,7 +92,7 @@ test.describe("Go to Table — room buttons smoke", () => {
     await expect(overlay).toBeHidden();
 
     await expect(page.getByTestId("open-table-play").first()).toBeVisible();
-    await expect(page.getByTestId("session-add-players")).toBeVisible();
+    await expect(page.getByTestId("session-setup-window")).toBeVisible();
   });
 
   test("overlay stage fills viewport and table scale changes size", async ({ page }) => {

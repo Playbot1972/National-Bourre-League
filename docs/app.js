@@ -631,6 +631,16 @@ function bindRoomDetailDelegatedControls() {
       openSession(sessionTab.dataset.openSession);
       return;
     }
+    if (e.target.closest("#session-add-player-pill")) {
+      e.preventDefault();
+      $("#add-player-form", roomDetailView)?.requestSubmit();
+      return;
+    }
+    if (e.target.closest("#open-table-play") || e.target.closest("#open-table-play-inline")) {
+      e.preventDefault();
+      void triggerSessionPlay("manual");
+      return;
+    }
     if (e.target.closest("#complete-session")) {
       e.preventDefault();
       onCompleteSession();
@@ -715,6 +725,8 @@ function bindRoomDetailDelegatedControls() {
         }
         if (added !== true) return;
         showRoomsError("");
+        const projectedRobots = isRobot ? countSessionRobots() + 1 : countSessionRobots();
+        scheduleSessionAutoPlay({ afterRobotAdd: isRobot, projectedRobotCount: projectedRobots });
       });
     if (input) input.value = "";
     const robotCheckbox = $("#add-player-robot", roomDetailView);
@@ -746,6 +758,8 @@ function bindRoomDetailDelegatedControls() {
       if (el.id === "room-ante-amount") {
         pendingRoomAnteOverride = parseAnteAmount(el.value);
         syncAnteSelectToAmount($("#new-session-stake", roomDetailView), pendingRoomAnteOverride);
+        roomSetupFocus = "regional";
+        scheduleRenderRoomDetail();
       }
       saveRoomBourreSettingsFromForm();
     }
@@ -765,6 +779,116 @@ let currentRoom = null;
 let currentMembers = [];
 let currentSessions = [];
 let creatingSession = false;
+/** One-shot scroll/focus target after room create or new session. */
+let roomSetupFocus = null;
+/** Create-room modal wizard step: name → bourre → regional. */
+let createRoomStep = "name";
+/** Debounced auto-play after Add Player. */
+let sessionAutoPlayTimer = null;
+/** Prevents duplicate Play triggers (manual + auto). */
+let sessionPlayInFlight = false;
+const SESSION_AUTO_PLAY_DELAY_MS = 1000;
+const SESSION_AUTO_PLAY_INSTANT_BOT_COUNT = 7;
+function countSessionRobots(scores = openScores) {
+  return scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length;
+}
+
+function clearSessionAutoPlayTimer() {
+  if (sessionAutoPlayTimer) {
+    clearTimeout(sessionAutoPlayTimer);
+    sessionAutoPlayTimer = null;
+  }
+}
+
+function scheduleSessionAutoPlay({ afterRobotAdd = false, projectedRobotCount = null } = {}) {
+  clearSessionAutoPlayTimer();
+  const robots = projectedRobotCount ?? countSessionRobots();
+  if (afterRobotAdd && robots >= SESSION_AUTO_PLAY_INSTANT_BOT_COUNT) {
+    void triggerSessionPlay("auto-instant");
+    return;
+  }
+  sessionAutoPlayTimer = window.setTimeout(() => {
+    sessionAutoPlayTimer = null;
+    void triggerSessionPlay("auto-delayed");
+  }, SESSION_AUTO_PLAY_DELAY_MS);
+}
+
+async function triggerSessionPlay(_source = "manual") {
+  if (sessionPlayInFlight || tablePlayOpen) return;
+  const s = resolveOpenSessionObj();
+  if (!s || s.status === "final") return;
+  if (tableReadyPlayerCount(s) < 2) return;
+  sessionPlayInFlight = true;
+  clearSessionAutoPlayTimer();
+  try {
+    await openTablePlay();
+  } catch (err) {
+    console.error("triggerSessionPlay:", err);
+    const analysis = analyzeTableStartup(s, tableReadyPlayerCount(s));
+    showTableStartupFailure(analysis, err);
+  } finally {
+    sessionPlayInFlight = false;
+  }
+}
+
+function applyRoomSetupFocus() {
+  if (!roomSetupFocus || roomDetailView.hidden) return;
+  const focus = roomSetupFocus;
+  roomSetupFocus = null;
+  window.requestAnimationFrame(() => {
+    const target =
+      focus === "regional"
+        ? roomDetailView.querySelector(".subpanel--regional-tables")
+        : roomDetailView.querySelector("[data-testid='session-setup-window']");
+    if (!target) return;
+    target.classList.add(
+      focus === "add-players" ? "session-setup-window--focus" : "subpanel--setup-focus",
+    );
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (focus === "add-players") {
+      $("#add-player-name", roomDetailView)?.focus();
+    }
+    window.setTimeout(() => {
+      target.classList.remove(
+        focus === "add-players" ? "session-setup-window--focus" : "subpanel--setup-focus",
+      );
+    }, 2400);
+  });
+}
+
+function setCreateRoomStep(step) {
+  createRoomStep = step;
+  if (!createRoomForm) return;
+  createRoomForm.dataset.step = step;
+  for (const section of createRoomForm.querySelectorAll("[data-create-step]")) {
+    const sectionStep = section.dataset.createStep;
+    section.classList.toggle("create-room-form__section--hidden", sectionStep !== step);
+  }
+  const title = $("#create-room-title");
+  const hint = createRoomForm.querySelector(".create-room-form__step-hint");
+  if (title) {
+    if (step === "name") title.textContent = "Create a room";
+    else if (step === "bourre") title.textContent = "Bourré settings";
+    else title.textContent = "Regional tables";
+  }
+  if (hint) {
+    hint.textContent =
+      step === "name"
+        ? "Press Return after naming your room to set buy-in and ante."
+        : step === "bourre"
+          ? "Choose buy-in and ante — you will land in Regional tables next."
+          : "Tap + New session to add guests or robots, then use Play.";
+  }
+  if (step === "bourre") {
+    $("#create-room-buy-in", createRoomForm)?.focus();
+  } else if (step === "regional") {
+    createRoomForm.querySelector('[data-create-step="regional"]')?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }
+}
+
 /** Optimistic session stubs until Firestore snapshot includes them. */
 const pendingOpenSessions = new Map();
 let openSessionId = null;
@@ -1837,6 +1961,7 @@ function openCreateRoomModal() {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
   }
+  setCreateRoomStep("name");
   createRoomModal.hidden = false;
   document.body.classList.add("modal-open");
   if (nameEl) nameEl.focus();
@@ -1854,9 +1979,42 @@ $("#create-room").addEventListener("click", () => {
 });
 
 if (createRoomForm) {
+  createRoomForm.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "create-room-name" && createRoomStep === "name") {
+      e.preventDefault();
+      setCreateRoomStep("bourre");
+      return;
+    }
+    if (
+      createRoomStep === "bourre" &&
+      (target.id === "create-room-buy-in" || target.closest('[data-create-step="bourre"]'))
+    ) {
+      if (target.tagName === "TEXTAREA") return;
+      if (target.id === "create-room-ante") return;
+      e.preventDefault();
+      setCreateRoomStep("regional");
+    }
+  });
+
+  createRoomForm.addEventListener("change", (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLSelectElement)) return;
+    if (el.id === "create-room-ante" && createRoomStep === "bourre") {
+      setCreateRoomStep("regional");
+    }
+  });
+
   createRoomForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!session) return;
+    if (createRoomStep !== "regional") {
+      if (createRoomStep === "name") setCreateRoomStep("bourre");
+      else if (createRoomStep === "bourre") setCreateRoomStep("regional");
+      return;
+    }
     showRoomsError("");
     const name = $("#create-room-name")?.value.trim() || "";
     const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");
@@ -1864,6 +2022,7 @@ if (createRoomForm) {
     try {
       const roomId = await createRoom({ owner: session, name, houseRules, bourreSettings });
       closeCreateRoomModal();
+      roomSetupFocus = "regional";
       openRoom(roomId);
     } catch (err) {
       console.error(err);
@@ -2090,6 +2249,8 @@ function closeRoom() {
   clearDetailSubs();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
+  clearSessionAutoPlayTimer();
+  sessionPlayInFlight = false;
   closeTablePlay();
   unmountTableSessionHost();
   currentRoomId = null;
@@ -2333,17 +2494,6 @@ function bindTablePlayControls() {
       } catch {
         /* ignore */
       }
-    }
-  });
-
-  roomDetailView.addEventListener("click", (e) => {
-    if (e.target.closest("#open-table-play")) {
-      e.preventDefault();
-      openTablePlay().catch((err) => {
-        console.error("openTablePlay:", err);
-        const analysis = analyzeTableStartup(resolveOpenSessionObj(), tableReadyPlayerCount(resolveOpenSessionObj()));
-        showTableStartupFailure(analysis, err);
-      });
     }
   });
 }
@@ -3511,7 +3661,7 @@ function renderRoomDetail() {
       </section>
     </div>
 
-    <section class="subpanel">
+    <section class="subpanel subpanel--regional-tables">
       <div class="subpanel__head">
         <h4>Regional tables</h4>
         <p class="muted small session-preset-note">Each room can open up to ${MAX_ROOM_SESSIONS} regional tables. The next table name is assigned when you tap <strong>+ New session</strong>.</p>
@@ -3605,6 +3755,7 @@ function renderRoomDetail() {
     }
     if (robotEl) robotEl.checked = editingAddPlayer.robotChecked;
   }
+  applyRoomSetupFocus();
 }
 
 function buildAddPlayerFormHtml() {
@@ -3614,15 +3765,41 @@ function buildAddPlayerFormHtml() {
            <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" checked />
            Robot — auto I&apos;m in &amp; play to win (name optional)
          </label>
-         <button class="btn btn--sm" type="submit" data-testid="add-player-submit">Add player</button>
        </form>`;
+}
+
+function buildSessionActionPillsHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  const ready = tableReadyPlayerCount(s) >= 2;
+  const playDisabled = ready ? "" : 'disabled aria-disabled="true"';
+  const playTitle = ready ? "Open the live card table" : "Add at least two players first";
+  return `<div class="session-action-pills" data-testid="session-action-pills">
+      <button type="button" class="session-action-pill session-action-pill--add" id="session-add-player-pill" data-testid="session-add-player-pill" ${
+        isOwner ? "" : 'disabled aria-disabled="true"'
+      } title="${isOwner ? "Add guest or robot" : "Only the host can add players"}">Add Player</button>
+      <button type="button" class="session-action-pill session-action-pill--play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
+      <button type="button" class="session-action-pill session-action-pill--stats" id="complete-session" ${
+        isOwner ? "" : 'disabled aria-disabled="true"'
+      } title="${isOwner ? "Complete session and update Ape Scores" : "Only the host can update stats"}">Update Stats</button>
+    </div>`;
+}
+
+function buildSessionSetupWindowHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  const addBody = isOwner
+    ? buildSessionPlayerBarHtml(s)
+    : `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
+  return `<div class="session-setup-window" data-testid="session-setup-window">
+      ${addBody}
+      ${buildSessionActionPillsHtml(s, isOwner)}
+    </div>`;
 }
 
 function buildSessionPlayerBarHtml(s) {
   if (!s || s.status === "final") return "";
   return `<div class="session-add-players" data-testid="session-add-players">
       <h5 class="session-add-players__title">Add guest or robot</h5>
-      <p class="muted small session-add-players__hint">Need at least two players (up to ${MAX_TABLE_PLAYERS}), then tap <strong>Go to Table</strong>.</p>
+      <p class="muted small session-add-players__hint">Need at least two players (up to ${MAX_TABLE_PLAYERS}), then tap <strong>Play</strong>.</p>
       ${buildAddPlayerFormHtml()}
     </div>`;
 }
@@ -3632,7 +3809,12 @@ function buildGoToTableButtonHtml(s) {
   const ready = tableReadyPlayerCount(s) >= 2;
   const disabled = ready ? "" : "disabled aria-disabled=\"true\"";
   const title = ready ? "Open the live card table" : "Add at least two players first";
-  return `<button type="button" class="btn btn--primary btn--sm session-toolbar__table-btn" id="open-table-play" data-testid="open-table-play" ${disabled} title="${title}">Go to Table</button>`;
+  return `<button type="button" class="btn btn--primary btn--sm session-toolbar__table-btn" id="open-table-play-inline" data-testid="open-table-play-inline" ${disabled} title="${title}">Play</button>`;
+}
+
+function buildSessionToolbarHtml(s, isOwner) {
+  if (!s || s.status === "final") return "";
+  return buildSessionSetupWindowHtml(s, isOwner);
 }
 
 function buildSessionLiveStatusHtml(s) {
@@ -3646,25 +3828,13 @@ function buildSessionLiveStatusHtml(s) {
     const phase = getSessionCurrentHand(s)?.phase;
     if (phase === "draw") status += " · draw phase";
     else if (phase === "play") status += " · live play";
-    else status += " · tap Go to Table to deal";
+    else status += " · tap Play to deal";
   }
   return `<div class="session-live-card">
       <p class="session-live-card__status">${escapeHtml(status)}</p>
       <p class="muted small session-live-card__hint">
         Cards and enrollment are in the table view. Hand results and session controls stay here.
       </p>
-    </div>`;
-}
-
-function buildSessionToolbarHtml(s, isOwner) {
-  if (!s || s.status === "final") return "";
-  const playerCount = tableReadyPlayerCount(s);
-  const addPlayersHtml =
-    playerCount >= 2 ? buildSessionPlayerSectionHtml(s, isOwner) : "";
-  return `${addPlayersHtml}
-    <div class="session-toolbar__actions">
-      ${buildGoToTableButtonHtml(s)}
-      <button class="btn btn--sm" id="complete-session" type="button">Complete session &amp; update Ape Scores</button>
     </div>`;
 }
 
@@ -3761,17 +3931,15 @@ function mountSessionPanel(s, isOwner) {
   }
 
   if (playerCount < 2) {
-    const addPlayersHtml = buildSessionPlayerSectionHtml(s, isOwner);
     resetSessionPanelTableHost();
     mount.innerHTML = `
       <div class="session session--stack session--waiting">
-        ${addPlayersHtml}
         <p class="muted small session-waiting-players">
           Need at least two players for the live table. ${
             isOwner
               ? "Add a guest or robot above, then tap"
               : "Ask the host to add players, then tap"
-          } <strong>Go to Table</strong>.
+          } <strong>Play</strong>.
         </p>
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
@@ -3805,8 +3973,8 @@ function renderSessionPanel(s) {
       : `<div class="session-table-wrap">
            <div id="table-session-inline-root" class="table-session-root" aria-label="Live card table"></div>
            <div class="session-play-cta">
-             <button type="button" class="btn btn--primary btn--block" id="open-table-play" data-testid="open-table-play">
-               Go to Table
+             <button type="button" class="btn btn--primary btn--block" id="open-table-play-inline" data-testid="open-table-play-inline">
+               Play
              </button>
              <p class="muted small session-play-cta__hint">
                Full-screen table view. Hand results and session controls stay in the sidebar.
@@ -4010,6 +4178,7 @@ async function onNewSession() {
     rememberPendingSession(optimisticSession);
     currentSessions = mergeSessionsWithPending(currentSessions);
     showRoomsError("");
+    roomSetupFocus = "add-players";
     openSession(created.id);
     renderRoomDetail();
   } catch (err) {
