@@ -781,8 +781,6 @@ let currentSessions = [];
 let creatingSession = false;
 /** One-shot scroll/focus target after room create or new session. */
 let roomSetupFocus = null;
-/** Create-room modal wizard step: name → bourre → regional. */
-let createRoomStep = "name";
 /** Debounced auto-play after Add Player. */
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
@@ -854,39 +852,6 @@ function applyRoomSetupFocus() {
       );
     }, 2400);
   });
-}
-
-function setCreateRoomStep(step) {
-  createRoomStep = step;
-  if (!createRoomForm) return;
-  createRoomForm.dataset.step = step;
-  for (const section of createRoomForm.querySelectorAll("[data-create-step]")) {
-    const sectionStep = section.dataset.createStep;
-    section.classList.toggle("create-room-form__section--hidden", sectionStep !== step);
-  }
-  const title = $("#create-room-title");
-  const hint = createRoomForm.querySelector(".create-room-form__step-hint");
-  if (title) {
-    if (step === "name") title.textContent = "Create a room";
-    else if (step === "bourre") title.textContent = "Bourré settings";
-    else title.textContent = "Regional tables";
-  }
-  if (hint) {
-    hint.textContent =
-      step === "name"
-        ? "Press Return after naming your room to set buy-in and ante."
-        : step === "bourre"
-          ? "Choose buy-in and ante — you will land in Regional tables next."
-          : "Tap + New session to add guests or robots, then use Play.";
-  }
-  if (step === "bourre") {
-    $("#create-room-buy-in", createRoomForm)?.focus();
-  } else if (step === "regional") {
-    createRoomForm.querySelector('[data-create-step="regional"]')?.scrollIntoView({
-      behavior: "smooth",
-      block: "nearest",
-    });
-  }
 }
 
 /** Optimistic session stubs until Firestore snapshot includes them. */
@@ -1961,7 +1926,6 @@ function openCreateRoomModal() {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
   }
-  setCreateRoomStep("name");
   createRoomModal.hidden = false;
   document.body.classList.add("modal-open");
   if (nameEl) nameEl.focus();
@@ -1979,42 +1943,9 @@ $("#create-room").addEventListener("click", () => {
 });
 
 if (createRoomForm) {
-  createRoomForm.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.isComposing) return;
-    const target = e.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.id === "create-room-name" && createRoomStep === "name") {
-      e.preventDefault();
-      setCreateRoomStep("bourre");
-      return;
-    }
-    if (
-      createRoomStep === "bourre" &&
-      (target.id === "create-room-buy-in" || target.closest('[data-create-step="bourre"]'))
-    ) {
-      if (target.tagName === "TEXTAREA") return;
-      if (target.id === "create-room-ante") return;
-      e.preventDefault();
-      setCreateRoomStep("regional");
-    }
-  });
-
-  createRoomForm.addEventListener("change", (e) => {
-    const el = e.target;
-    if (!(el instanceof HTMLSelectElement)) return;
-    if (el.id === "create-room-ante" && createRoomStep === "bourre") {
-      setCreateRoomStep("regional");
-    }
-  });
-
   createRoomForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!session) return;
-    if (createRoomStep !== "regional") {
-      if (createRoomStep === "name") setCreateRoomStep("bourre");
-      else if (createRoomStep === "bourre") setCreateRoomStep("regional");
-      return;
-    }
     showRoomsError("");
     const name = $("#create-room-name")?.value.trim() || "";
     const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");

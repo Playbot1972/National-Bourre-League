@@ -255,9 +255,8 @@
         <button class="modal__close" type="button" data-close-create-room aria-label="Close">&times;</button>
         <h2 class="modal__title" id="create-room-title">Create a room</h2>
         <p class="muted small">Set house rules for your table. You can edit these anytime in the room.</p>
-        <p class="muted small create-room-form__step-hint">Press Return after naming your room to set buy-in and ante.</p>
-        <form class="create-room-form" id="create-room-form" data-step="name">
-          <fieldset class="create-room-form__section" data-create-step="name">
+        <form class="create-room-form" id="create-room-form">
+          <fieldset class="create-room-form__section">
             <legend class="house-rules-form__legend">Room basics</legend>
           <label class="create-room-form__field">
             <span>Room name <span class="muted">(optional)</span></span>
@@ -284,7 +283,7 @@
           </fieldset>
           </fieldset>
 
-          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="bourre">
+          <fieldset class="create-room-form__section">
             <legend class="house-rules-form__legend">Bourré settings</legend>
             <div class="bourre-settings-form">
               <label class="bourre-settings__row">
@@ -317,14 +316,20 @@
             </div>
           </fieldset>
 
-          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="regional">
+          <fieldset class="create-room-form__section">
             <legend class="house-rules-form__legend">Regional tables</legend>
-            <p class="muted small session-preset-note">Each room can open up to 4 regional tables. The next table name is assigned when you tap <strong>+ New session</strong> after the room is created.</p>
+            <p class="muted small session-preset-note">Each room can open up to 4 regional tables. The next table name is assigned when you tap <strong>New Session</strong> after the room is created.</p>
           </fieldset>
 
           <div class="create-room-form__actions">
+            <button
+              type="submit"
+              class="session-action-pill session-action-pill--play create-room-form__new-session"
+              id="create-room-new-session"
+            >
+              New Session
+            </button>
             <button type="button" class="btn" data-close-create-room>Cancel</button>
-            <button type="submit" class="btn btn--primary">Create room</button>
           </div>
         </form>
       </div>
