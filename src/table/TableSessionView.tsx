@@ -14,7 +14,6 @@ import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { EnrollmentTimerRing } from "./EnrollmentTimerRing";
 import { useDecisionCountdown } from "./hooks/useDecisionCountdown";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
@@ -140,6 +139,18 @@ export function TableSessionView({
     },
     [selfDecision, decisionCountdown, actions],
   );
+
+  const tablePlayers = useMemo(() => {
+    if (!selfDecision) return players;
+    return players.map((p) => {
+      if (!p.isSelf || !p.enrollmentOnClock) return p;
+      return {
+        ...p,
+        enrollmentTimeLeft: decisionCountdown.fraction,
+        enrollmentSecondsOnClock: decisionCountdown.secondsLeft,
+      };
+    });
+  }, [players, selfDecision, decisionCountdown.fraction, decisionCountdown.secondsLeft]);
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -378,7 +389,7 @@ export function TableSessionView({
 
   const sharedTableProps = {
     session,
-    players,
+    players: tablePlayers,
     potMetrics,
     participantCount,
     enrollmentActive,
@@ -574,12 +585,6 @@ export function TableSessionView({
         )}
         {selfDecision && (
           <div className="btable-session__decision-cta" data-testid="decision-panel">
-            <EnrollmentTimerRing
-              fraction={decisionCountdown.fraction}
-              secondsLeft={decisionCountdown.secondsLeft}
-              size={48}
-              className="btable-session__decision-timer"
-            />
             <button
               type="button"
               className="btn btn--sm btn--ghost btable-session__pass-btn"

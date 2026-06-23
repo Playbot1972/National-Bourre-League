@@ -171,9 +171,6 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
                 })}
               </div>
             )}
-            {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
-              <EnrollmentTimerRing fraction={player.enrollmentTimeLeft} />
-            )}
             {bourrePressure && (
               <span
                 className="bseat__bourre-pressure-badge"
@@ -193,7 +190,11 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               className={`bseat__avatar-wrap${avatarPeek ? " bseat__avatar-wrap--peek" : ""}`}
               role="button"
               tabIndex={0}
-              aria-label={`${player.displayName} seat`}
+              aria-label={
+                player.enrollmentOnClock && player.enrollmentSecondsOnClock != null
+                  ? `${player.displayName} seat — ${player.enrollmentSecondsOnClock} seconds to decide`
+                  : `${player.displayName} seat`
+              }
               aria-expanded={avatarPeek}
               onClick={(e) => {
                 e.stopPropagation();
@@ -207,6 +208,12 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               }}
               onBlur={() => setAvatarPeek(false)}
             >
+              {player.enrollmentOnClock && player.enrollmentTimeLeft != null && (
+                <EnrollmentTimerRing
+                  fraction={player.enrollmentTimeLeft}
+                  secondsLeft={player.enrollmentSecondsOnClock}
+                />
+              )}
               {player.isDealer && (
                 <span
                   className={`bseat__dealer${player.dealerMoved ? " bseat__dealer--moved" : ""}`}
