@@ -94,14 +94,8 @@ export function TableSessionView({
   });
 
   const cardsDealt = isCardsDealtPhase(session.phase);
-  const presentationDecisionReady =
-    handPresentation.phase === "decision" && cardsDealt;
-  const selfDecision =
-    Boolean(selfPendingHandChoice) &&
-    (isDecisionPhase(session.phase) ||
-      (isRevealPhase(session.phase) && presentationDecisionReady));
   const selfEnroll =
-    Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
+    Boolean(selfPendingHandChoice) && !cardsDealt;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -534,27 +528,7 @@ export function TableSessionView({
             Cards dealt — trump revealed. Review your hand…
           </p>
         )}
-        {selfDecision && (
-          <div className="btable-session__decision-cta" data-testid="decision-panel">
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost btable-session__pass-btn"
-              data-testid="pass-decision-button"
-              onClick={() => actions.onPassEnrollment?.()}
-            >
-              Pass · {enrollmentSecondsLeft}s
-            </button>
-            <button
-              type="button"
-              className="btn btn--primary btn--sm btable-session__enroll-btn"
-              data-testid="decision-im-in-button"
-              onClick={() => actions.onToggleInHand?.(true)}
-            >
-              I&apos;m in · {enrollmentSecondsLeft}s
-            </button>
-          </div>
-        )}
-        {selfEnroll && !selfDecision && (
+        {selfEnroll && (
           <div className="btable-session__enroll-cta">
             <button
               type="button"
