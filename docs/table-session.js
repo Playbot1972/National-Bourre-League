@@ -13548,6 +13548,7 @@ function Yu({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 									}), r = L.find((t) => t.playerId === e.playerId) ?? e;
 									return /* @__PURE__ */ (0, g.jsx)("div", {
 										className: `btable__seat-slot btable__seat-slot--${t}`,
+										"data-seat-index": t,
 										children: /* @__PURE__ */ (0, g.jsx)(ou, {
 											player: r,
 											region: n.region,
@@ -13801,6 +13802,7 @@ function rd({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 									let n = wu(t, j.length, k), r = ne.find((t) => t.playerId === e.playerId) ?? e;
 									return /* @__PURE__ */ (0, g.jsx)("div", {
 										className: `btable__seat-slot btable__seat-slot--${t}`,
+										"data-seat-index": t + 1,
 										children: /* @__PURE__ */ (0, g.jsx)(ou, {
 											player: r,
 											region: n.region,
@@ -13817,6 +13819,7 @@ function rd({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 									}, e.playerId);
 								}), N && P && /* @__PURE__ */ (0, g.jsx)("div", {
 									className: "btable__seat-slot btable__seat-slot--self",
+									"data-seat-index": 0,
 									children: /* @__PURE__ */ (0, g.jsx)(ou, {
 										player: ne.find((e) => e.playerId === N.playerId) ?? N,
 										region: P.region,
