@@ -1165,6 +1165,7 @@ function decisionStepPatch(step) {
 
 export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }) {
   await assertRoomMember(db, roomId, actorId);
+  const dealingRule = await getDealingRule(db, roomId);
   const ref = sessionRef(db, roomId, sessionId);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -1173,11 +1174,11 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
     if (hand?.phase !== HAND_PHASE.REVEAL) {
       throw new HttpsError("failed-precondition", "Not in reveal phase");
     }
-    const nextHand = activateHandDecision(hand);
+    const nextHand = revealToDraw(hand, dealingRule);
     tx.update(ref, publicHandSessionUpdate(snap.data(), nextHand));
   });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  return { status: "decision" };
+  return { status: "draw" };
 }
 
 export async function handleSetHandParticipation(

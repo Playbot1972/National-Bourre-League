@@ -4038,34 +4038,6 @@
   justify-content: center;
 }
 
-.btable-timer-ring {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.btable-timer-ring__seconds {
-  position: absolute;
-  font-size: 0.75rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--gold, #c9a227);
-  line-height: 1;
-  pointer-events: none;
-}
-
-.btable-session__decision-timer {
-  margin-right: 2px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bseat__timer-ring__progress {
-    transition: none !important;
-  }
-}
-
 .btable-session__discard-pick {
   display: inline-flex;
   flex-wrap: wrap;

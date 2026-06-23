@@ -467,14 +467,6 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
 
     case "trumpReveal": {
-      if (snap?.phase === "decision") {
-        return withPhase(store, "decision", {
-          trumpRevealActive: false,
-          trumpMergeActive: false,
-          trumpMergedIntoHand: true,
-          pendingSnapshot: snap,
-        });
-      }
       if (snap?.phase === "draw") {
         return {
           ...beginDrawSequence(store, snap, 0, 0),

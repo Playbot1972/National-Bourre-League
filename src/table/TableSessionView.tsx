@@ -14,8 +14,6 @@ import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { EnrollmentTimerRing } from "./EnrollmentTimerRing";
-import { useDecisionCountdown } from "./hooks/useDecisionCountdown";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
@@ -104,42 +102,6 @@ export function TableSessionView({
       (isRevealPhase(session.phase) && presentationDecisionReady));
   const selfEnroll =
     Boolean(selfPendingHandChoice) && !selfDecision && !cardsDealt;
-
-  const decisionLockRef = useRef(false);
-  useEffect(() => {
-    decisionLockRef.current = false;
-  }, [session.sessionId, session.handNumber, session.handEnrollment?.currentIndex]);
-
-  const handleDecisionExpire = useCallback(() => {
-    if (decisionLockRef.current || !selfDecision) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [selfDecision, actions]);
-
-  const decisionCountdown = useDecisionCountdown({
-    active: selfDecision,
-    deadlineMs: session.handEnrollment?.turnDeadlineMs,
-    onExpire: handleDecisionExpire,
-  });
-
-  const guardedPassEnrollment = useCallback(() => {
-    decisionCountdown.cancel();
-    if (decisionLockRef.current) return;
-    decisionLockRef.current = true;
-    actions.onPassEnrollment?.();
-  }, [decisionCountdown, actions]);
-
-  const guardedToggleInHand = useCallback(
-    (inHand: boolean) => {
-      if (selfDecision) decisionCountdown.cancel();
-      if (inHand && selfDecision) {
-        if (decisionLockRef.current) return;
-        decisionLockRef.current = true;
-      }
-      actions.onToggleInHand(inHand);
-    },
-    [selfDecision, decisionCountdown, actions],
-  );
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -574,27 +536,21 @@ export function TableSessionView({
         )}
         {selfDecision && (
           <div className="btable-session__decision-cta" data-testid="decision-panel">
-            <EnrollmentTimerRing
-              fraction={decisionCountdown.fraction}
-              secondsLeft={decisionCountdown.secondsLeft}
-              size={48}
-              className="btable-session__decision-timer"
-            />
             <button
               type="button"
               className="btn btn--sm btn--ghost btable-session__pass-btn"
               data-testid="pass-decision-button"
-              onClick={guardedPassEnrollment}
+              onClick={() => actions.onPassEnrollment?.()}
             >
-              Pass · {decisionCountdown.secondsLeft}s
+              Pass · {enrollmentSecondsLeft}s
             </button>
             <button
               type="button"
               className="btn btn--primary btn--sm btable-session__enroll-btn"
               data-testid="decision-im-in-button"
-              onClick={() => guardedToggleInHand(true)}
+              onClick={() => actions.onToggleInHand?.(true)}
             >
-              I&apos;m in · {decisionCountdown.secondsLeft}s
+              I&apos;m in · {enrollmentSecondsLeft}s
             </button>
           </div>
         )}
