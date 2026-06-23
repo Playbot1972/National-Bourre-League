@@ -79,6 +79,7 @@ export function TableSessionView({
     participantIds: session.participantIds,
     trumpSuit: session.trumpSuit,
     playedCards: session.playedCards,
+    turnPlayerId: session.turnPlayerId,
   });
   const handPresentation = useHandPresentation({
     session,

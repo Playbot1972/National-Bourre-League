@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  clearPlayOriginCache,
   flyOffsetToSlot,
   playFlyKey,
+  primePlayOrigin,
   readCachedPlayOrigin,
+  readPrimedPlayOrigin,
+  readSeatPlayOrigin,
+  resolvePlayOrigin,
   snapshotPlayOrigin,
 } from "./trickPlayFly";
 
@@ -27,5 +32,47 @@ describe("trickPlayFly", () => {
 
   it("returns undefined for uncached origins", () => {
     assert.equal(readCachedPlayOrigin("missing:key"), undefined);
+  });
+
+  it("reads stable seat play-origin anchors", { skip: typeof document === "undefined" }, () => {
+    clearPlayOriginCache();
+    const host = document.createElement("div");
+    const anchor = document.createElement("span");
+    anchor.setAttribute("data-seat-play-origin", "bot-1");
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({
+        left: 80,
+        top: 120,
+        width: 34,
+        height: 48,
+        right: 114,
+        bottom: 168,
+        x: 80,
+        y: 120,
+        toJSON: () => ({}),
+      }),
+    });
+    host.appendChild(anchor);
+    document.body.appendChild(host);
+
+    const rect = readSeatPlayOrigin("bot-1");
+    assert.deepEqual(rect, { left: 80, top: 120, width: 34, height: 48 });
+
+    const primed = primePlayOrigin("bot-1");
+    assert.deepEqual(primed, rect);
+    assert.deepEqual(readPrimedPlayOrigin("bot-1"), rect);
+
+    const key = playFlyKey({ playerId: "bot-1", card: { rank: "K", suit: "spades" } });
+    const snap = snapshotPlayOrigin("bot-1", key);
+    assert.deepEqual(snap, rect);
+    assert.deepEqual(resolvePlayOrigin("bot-1", key), rect);
+
+    host.remove();
+  });
+
+  it("clears primed and cached origins together", () => {
+    clearPlayOriginCache();
+    assert.equal(readPrimedPlayOrigin("p1"), undefined);
+    assert.equal(readCachedPlayOrigin("p1:A:hearts"), undefined);
   });
 });

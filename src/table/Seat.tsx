@@ -101,6 +101,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         player.isDealer ? "bseat--dealer" : "",
         player.trumpMerging ? "bseat--trump-merge" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
+        player.isOnTurn && player.inHand ? "bseat--play-origin-active" : "",
         player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
         player.winnerFlash ? "bseat--winner-flash" : "",
@@ -121,7 +122,18 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         .filter(Boolean)
         .join(" ")}
       style={style}
+      data-trick-play-origin-active={
+        player.isOnTurn && player.inHand ? player.playerId : undefined
+      }
     >
+      {player.inHand && !player.isSelf && (
+        <span
+          className="bseat__play-origin"
+          data-seat-play-origin={player.playerId}
+          data-trick-play-origin={player.playerId}
+          aria-hidden="true"
+        />
+      )}
       <div className="bseat__core">
         <div className="bseat__avatar-stage">
           <div

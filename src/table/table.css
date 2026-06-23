@@ -1275,6 +1275,33 @@
   z-index: 0;
 }
 
+/* Stable fly origin — card-sized anchor at the opponent hand lane (survives plays). */
+.bseat__play-origin {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 34px;
+  height: 48px;
+  transform: translate(-50%, -62%) scale(0.67);
+  transform-origin: 50% 100%;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 0;
+}
+
+.bseat--play-origin-active .bseat__play-origin {
+  visibility: visible;
+  outline: 0 solid transparent;
+}
+
+.bseat--hand-side .bseat__play-origin {
+  top: 50%;
+  left: auto;
+  right: -6px;
+  transform: translate(72%, -50%) scale(0.67);
+  transform-origin: 0% 50%;
+}
+
 /* Opponent resting hand — compact fanned crown behind the avatar */
 .bseat:not(.bseat--self) .bseat__hole-cards--crown {
   left: 50%;
