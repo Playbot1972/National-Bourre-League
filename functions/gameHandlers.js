@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1794,14 +1794,17 @@ export async function handleRecordHand(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = FieldValue.delete();
     }
-    if (bourreIds.includes(pid)) {
-      patch.bourreReplacementDue = potState.maxWinThisHand;
+    const funding = nextDealFundingFlags({
+      playerId: pid,
+      mode,
+      winners,
+      bourreIds,
+      maxWinThisHand: potState.maxWinThisHand,
+    });
+    if (funding.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = funding.bourreReplacementDue;
     }
-    if (
-      winners.includes(pid) &&
-      winners.length >= 2 &&
-      (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split")
-    ) {
+    if (funding.skipNextAnte) {
       patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
