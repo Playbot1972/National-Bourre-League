@@ -1,17 +1,36 @@
+/**
+ * Rules regression — fixture tier (deterministic).
+ *
+ * Mounts real `table-session.js` + `bourre-rules.js` via `/e2e-fixtures/rules-regression`.
+ * Does NOT run a Firestore hand lifecycle or bot-driven 5-trick play.
+ *
+ * Bourré coverage split:
+ * - Settlement assignment + payment math → `bourre-rules.js` (see `scripts/bourre-rules.test.mjs`)
+ * - Final-trick pressure logic → `src/table/logic.ts` (see `src/table/logic.test.ts`)
+ * - This file → table UI reactions to fixture state (phase tags, pressure badges, trick counts)
+ *
+ * Product note: settled bourré badge (`bourre-marker-badge`) is rendered for `isSelf` only
+ * (see `CardTable.tsx`). Opponent bourré after settlement is asserted via `bourreIds` fixture
+ * state + trick-count badges — not via a visible opponent settled badge.
+ *
+ * See `e2e/README.md` § Bourré coverage pyramid.
+ */
 import { test, expect } from "./fixtures/consoleGuard";
 import {
   advanceRulesFixture,
   expectNoBourreMarkers,
+  expectNoSettledBourreBadge,
+  expectOpponentTrickCount,
   expectPhaseTag,
   openRulesRegressionFixture,
   readRulesFixtureState,
   tableRoot,
 } from "./helpers/rulesRegression";
 
-test.describe("Rules regression — fixture scenarios", () => {
-  test.describe("1 — Premature bourré", () => {
+test.describe("Rules regression — fixture (deterministic)", () => {
+  test.describe("[fixture UI] premature bourré — no markers before trick play", () => {
     for (const phase of ["draw", "decision", "reveal"] as const) {
-      test(`2-player hand in ${phase} does not show bourré before trick play`, async ({ page }) => {
+      test(`2-player ${phase} phase: no bourré UI before tricks complete`, async ({ page }) => {
         await openRulesRegressionFixture(page, "premature-bourre", { phase });
         await expectNoBourreMarkers(page);
 
@@ -24,8 +43,8 @@ test.describe("Rules regression — fixture scenarios", () => {
     }
   });
 
-  test.describe("2 — Bourré correctness", () => {
-    test("zero-trick stayed-in player is bourré after settlement; passer and winner are not", async ({
+  test.describe("[fixture + bourre-rules.js] settlement bourreIds", () => {
+    test("assigns bourré to zero-trick stayed-in player only (passer and winner excluded)", async ({
       page,
     }) => {
       await openRulesRegressionFixture(page, "bourre-settlement");
@@ -35,14 +54,20 @@ test.describe("Rules regression — fixture scenarios", () => {
       const bourreBotSeat = root.locator(".bseat").filter({ hasText: "Bot 1" });
       const passerSeat = root.locator(".bseat").filter({ hasText: "Bot 2" });
 
-      await expect(selfSeat.getByTestId("bourre-marker-badge")).toHaveCount(0);
+      // Winner (self): no bourré pressure or settled badge at hand end.
+      await expectNoSettledBourreBadge(selfSeat);
       await expect(selfSeat.getByTestId("bourre-pressure-badge")).toHaveCount(0);
-      await expect(bourreBotSeat.getByTestId("bourre-marker-badge")).toHaveCount(0);
+      await expectOpponentTrickCount(selfSeat, 5);
+
+      // Opponent with 0 tricks: evidence via trick-count badge, not settled marker (isSelf-only UI).
+      await expectNoSettledBourreBadge(bourreBotSeat);
       await expect(bourreBotSeat.getByTestId("bourre-pressure-badge")).toHaveCount(0);
-      await expect(selfSeat.getByLabel("5 tricks won")).toBeVisible();
-      await expect(bourreBotSeat.getByLabel("0 tricks won")).toBeVisible();
+      await expectOpponentTrickCount(bourreBotSeat, 0);
+
+      // Passer was not in the hand.
       await expect(passerSeat).not.toHaveClass(/bseat--in-hand/);
 
+      // Authoritative assignment from bourre-rules.js bourrePlayerIds().
       const state = await readRulesFixtureState(page);
       expect(state?.bourreIds).toEqual(["p1"]);
       expect(state?.recentBourreIds).toEqual(["p1"]);
@@ -50,20 +75,25 @@ test.describe("Rules regression — fixture scenarios", () => {
       expect(state?.bourreIds).not.toContain("p0");
       expect(state?.bourreIds).not.toContain("p2");
     });
+  });
 
-    test("bourré pressure appears only on final trick for zero-trick player", async ({ page }) => {
+  test.describe("[fixture UI] final-trick bourré pressure", () => {
+    test("shows pressure badge on 0-trick opponent on trick 5 only (not settled marker)", async ({
+      page,
+    }) => {
       await openRulesRegressionFixture(page, "premature-bourre", { phase: "play" });
+      // 4 tricks played → one trick remains; p1 has 0 tricks (see logic.ts playersAtBourreRisk).
       await advanceRulesFixture(page, "finalTrickRisk");
 
       const botSeat = tableRoot(page).getByTestId("seat-top");
       await expect(botSeat.getByTestId("bourre-pressure-badge")).toHaveCount(1);
-      await expect(botSeat.getByTestId("bourre-marker-badge")).toHaveCount(0);
+      await expectNoSettledBourreBadge(botSeat);
       await expect(tableRoot(page).getByTestId("seat-bottom-self").getByTestId("bourre-pressure-badge")).toHaveCount(0);
     });
   });
 
-  test.describe("3 — Dealer turned-card draw rule", () => {
-    test("dealer can discard revealed trump and trump suit stays locked", async ({ page }) => {
+  test.describe("[fixture UI] dealer turned-card draw", () => {
+    test("dealer can discard merged trump card; trump suit stays locked", async ({ page }) => {
       await openRulesRegressionFixture(page, "dealer-trump-draw");
 
       await expectPhaseTag(page, /draw/i);
@@ -87,7 +117,7 @@ test.describe("Rules regression — fixture scenarios", () => {
     });
   });
 
-  test.describe("4 — Bourré payment next hand", () => {
+  test.describe("[fixture + bourre-rules.js] bourré payment next hand", () => {
     test("bourré player pays replacement only; others pay normal ante", async ({ page }) => {
       await openRulesRegressionFixture(page, "bourre-payment");
 
@@ -107,8 +137,8 @@ test.describe("Rules regression — fixture scenarios", () => {
     });
   });
 
-  test.describe("5 — Phase order", () => {
-    test("phases advance reveal → decision → draw → play without skipping", async ({ page }) => {
+  test.describe("[fixture UI] phase order", () => {
+    test("reveal → decision → draw → play without skipping or premature bourré", async ({ page }) => {
       await openRulesRegressionFixture(page, "phase-sequence", { phase: "reveal" });
       await expectPhaseTag(page, /dealing/i);
 
@@ -129,8 +159,10 @@ test.describe("Rules regression — fixture scenarios", () => {
     });
   });
 
-  test.describe("6 — Low player count", () => {
-    test("two-player fixture reaches draw with both seats in hand", async ({ page }) => {
+  test.describe("[fixture UI] low player count", () => {
+    test("two-player table reaches draw with both seats in hand (not bourré failure state)", async ({
+      page,
+    }) => {
       await openRulesRegressionFixture(page, "two-player");
       await expectPhaseTag(page, /draw/i);
 

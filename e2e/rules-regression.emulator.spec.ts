@@ -1,3 +1,17 @@
+/**
+ * Rules regression — emulator tier (partial Firestore integration).
+ *
+ * Real room → session → table via Firebase emulators. Validates hand phase order and
+ * absence of premature bourré UI during enrollment / draw / early play.
+ *
+ * NOT covered here (intentionally — slow, bot-dependent, or covered elsewhere):
+ * - Full 5-trick hand ending in zero-trick bourré through Firestore
+ * - Post-hand bourré settlement assignment (→ `scripts/bourre-rules.test.mjs` + fixture tier)
+ * - Bourré replacement payment on next deal (→ fixture `bourre-payment` scenario)
+ * - Settled bourré badge on opponents (product renders badge for `isSelf` only)
+ *
+ * See `e2e/README.md` § Bourré coverage pyramid.
+ */
 import { test, expect } from "@playwright/test";
 import {
   advanceThroughDrawPhase,
@@ -16,7 +30,7 @@ function tableOverlay(page: import("@playwright/test").Page) {
   return page.locator("#table-play-overlay");
 }
 
-test.describe("Rules regression — emulator live hand", () => {
+test.describe("Rules regression — emulator (partial integration)", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
   test.setTimeout(180_000);
 
@@ -24,7 +38,7 @@ test.describe("Rules regression — emulator live hand", () => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
   });
 
-  test("1 human + 1 robot: no premature bourré before draw completes", async ({ page }) => {
+  test("[emulator] 2p: no premature bourré UI through enrollment into draw", async ({ page }) => {
     await setupRoomWithBots(page, 2);
     await goToTable(page);
 
@@ -51,7 +65,7 @@ test.describe("Rules regression — emulator live hand", () => {
     await expect(overlay.getByTestId("hero-hand")).not.toContainText(/bourr/i);
   });
 
-  test("2 players: phase order reaches draw then trick play", async ({ page }) => {
+  test("[emulator] 2p: phase order draw → trick play (no premature bourré)", async ({ page }) => {
     await setupRoomWithBots(page, 2);
     await goToTable(page);
     await waitForDrawPhase(page);
@@ -65,7 +79,7 @@ test.describe("Rules regression — emulator live hand", () => {
     await expectNoBourreMarkers(page);
   });
 
-  test("2 players: valid hand play does not dead-end after I'm in", async ({ page }) => {
+  test("[emulator] 2p: play phase reachable after I'm in (no dead-end draw)", async ({ page }) => {
     await setupRoomWithBots(page, 2);
     await goToTable(page);
     await waitForPlayPhase(page);

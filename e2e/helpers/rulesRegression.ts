@@ -1,3 +1,9 @@
+/**
+ * Helpers for the rules-regression fixture tier (`/e2e-fixtures/rules-regression`).
+ *
+ * These utilities assert table UI + fixture `readState()` snapshots. They do not
+ * substitute for `bourre-rules.js` unit tests or a full Firestore hand lifecycle.
+ */
 import { expect, type Locator, type Page } from "@playwright/test";
 
 export type RulesScenario =
@@ -14,6 +20,7 @@ export interface RulesFixtureState {
   handNumber: number;
   tricksByPlayer: Record<string, number>;
   recentBourreIds: string[];
+  /** From bourre-rules.js `bourrePlayerIds()` — authoritative settlement assignment. */
   bourreIds: string[];
   enrolledIds: string[];
   declinedIds: string[];
@@ -72,12 +79,31 @@ export async function expectPhaseTag(page: Page, pattern: RegExp) {
   await expect(page.getByTestId("phase-tag")).toHaveAttribute("data-phase", /.+/);
 }
 
+/**
+ * No bourré pressure or settled marker anywhere on the table.
+ * Use during pre-settlement phases (draw, decision, reveal, early play).
+ */
 export async function expectNoBourreMarkers(page: Page) {
   const root = tableRoot(page);
   await expect(root.getByTestId("bourre-marker-badge")).toHaveCount(0);
   await expect(root.getByTestId("bourre-pressure-badge")).toHaveCount(0);
   await expect(root.locator(".bseat--bourre")).toHaveCount(0);
   await expect(root.locator(".bseat--bourre-pressure")).toHaveCount(0);
+}
+
+/**
+ * Settled bourré badge (`bourre-marker-badge`) — production renders this for `isSelf`
+ * only (`CardTable.tsx` gates `bourreAlert`). Opponents after settlement should be
+ * checked via `expectOpponentTrickCount` + fixture `bourreIds`, not this badge.
+ */
+export async function expectNoSettledBourreBadge(seat: Locator) {
+  await expect(seat.getByTestId("bourre-marker-badge")).toHaveCount(0);
+}
+
+/** Trick-count badge on a seat — valid opponent bourré evidence in fixture/E2E tests. */
+export async function expectOpponentTrickCount(seat: Locator, tricks: number) {
+  const label = tricks === 1 ? "1 trick won" : `${tricks} tricks won`;
+  await expect(seat.getByLabel(label)).toBeVisible();
 }
 
 export async function readPotDisplay(page: Page): Promise<string> {

@@ -34,6 +34,16 @@
       <div id="table-root" data-testid="rules-regression-fixture"></div>
     </div>
     <script type="module">
+      /**
+       * Rules-regression fixture — deterministic table mount for Playwright.
+       *
+       * Uses production `table-session.js` for UI and imports `bourre-rules.js` for:
+       *   - bourreIds via bourrePlayerIds()
+       *   - ante breakdown via collectHandAntes() / handAnteContribution()
+       *
+       * Does NOT connect to Firestore or run bot-driven 5-trick play.
+       * Full settlement math is also covered in scripts/bourre-rules.test.mjs.
+       */
       import { mountTableSession } from "/table-session.js";
       import {
         collectHandAntes,
