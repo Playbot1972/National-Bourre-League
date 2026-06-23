@@ -84,6 +84,7 @@ import {
   deriveWinnersFromTricks,
   tricksToWinHint,
   playerHandStake,
+  sumProjectedHandAntes,
   scoreBankroll,
   resolveSessionBuyIn,
   rebuySessionPlayer,
@@ -2891,6 +2892,17 @@ function buildTableLeaderLabel(
   return `Tap + when you take a trick (${totalTricks}/5 played · most tricks wins, can be ${winHint} with ${participantIds.length} in)`;
 }
 
+function activeSeatedPlayerIds(sessionPlayers, displayScores) {
+  const fromSession = (sessionPlayers || []).map((p) => p.playerId).filter(Boolean);
+  const pool = fromSession.length
+    ? fromSession
+    : displayScores.map((sc) => sc.playerId).filter(Boolean);
+  return pool.filter((pid) => {
+    const row = displayScores.find((sc) => sc.playerId === pid);
+    return row?.out !== true;
+  });
+}
+
 function buildTableSessionProps(s) {
   const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
@@ -3004,9 +3016,15 @@ function buildTableSessionProps(s) {
 
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
   const postedAntes = currentHand?.postedAntes ?? {};
-  const antePot = handParticipantIds.reduce(
-    (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, handStake)),
-    0,
+  const potFundingPlayerIds =
+    handParticipantIds.length > 0
+      ? handParticipantIds
+      : activeSeatedPlayerIds(s.players, displayScores);
+  const antePot = sumProjectedHandAntes(
+    scoreById,
+    potFundingPlayerIds,
+    handStake,
+    postedAntes,
   );
   const limEnabled = s.limEnabled === true;
   const potState = computeHandPotState({

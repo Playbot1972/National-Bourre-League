@@ -13,6 +13,7 @@ import {
   settleSoloDefaultWin,
   handAnteContribution,
   nextDealFundingFlags,
+  sumProjectedHandAntes,
   bourrePlayerIds,
   isHandComplete,
   sessionChipTotal,
@@ -284,6 +285,19 @@ describe("bankroll solvency", () => {
     assert.equal(handAnteContribution({ bourreReplacementDue: 5, skipNextAnte: true }, 1), 5);
     assert.equal(handAnteContribution({ skipNextAnte: true }, 1), 0);
     assert.equal(handAnteContribution({}, 1), 1);
+  });
+
+  it("sumProjectedHandAntes previews bourré replacement between deals", () => {
+    const scoreById = {
+      p1: { bankroll: 99 },
+      p2: { bankroll: 95, bourreReplacementDue: 4 },
+      p3: { bankroll: 95, bourreReplacementDue: 4 },
+    };
+    assert.equal(sumProjectedHandAntes(scoreById, ["p1", "p2", "p3"], 1), 9);
+    assert.equal(
+      sumProjectedHandAntes(scoreById, ["p1", "p2", "p3"], 1, { p1: 1 }),
+      9,
+    );
   });
 
   it("bourré player posts replacement only on the next deal", () => {

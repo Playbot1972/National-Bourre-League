@@ -223,6 +223,24 @@ export function handAnteContribution(scoreRow, sessionStake) {
 }
 
 /**
+ * Sum antes for pot display — uses posted amounts when known, otherwise each
+ * player's next-deal obligation (normal ante, waived ante, or bourré replacement).
+ */
+export function sumProjectedHandAntes(scoreById, playerIds, sessionStake, postedAntes = {}) {
+  return (playerIds || []).reduce((sum, pid) => {
+    if (
+      postedAntes != null &&
+      Object.prototype.hasOwnProperty.call(postedAntes, pid)
+    ) {
+      return sum + Math.max(0, Number(postedAntes[pid]) || 0);
+    }
+    const row = scoreById?.[pid];
+    if (row?.out === true) return sum;
+    return sum + handAnteContribution(row, sessionStake);
+  }, 0);
+}
+
+/**
  * Score-row flags applied after settlement for the next deal's pot funding.
  * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
  */

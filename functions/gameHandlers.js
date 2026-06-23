@@ -566,6 +566,8 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
       scoreById: dealContext.scoreById ?? {},
       sessionStake: dealContext.sessionStake ?? 1,
       buyIn: dealContext.buyIn ?? 1,
+      carryIn: dealContext.carryIn ?? 0,
+      handCount: dealContext.handCount ?? 0,
     },
   );
 }
@@ -1146,6 +1148,8 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       scoreById,
       buyIn,
       sessionStake,
+      carryIn: data.carryOverPot || 0,
+      handCount: data.handCount || 0,
     });
     await primeDealPatchReads(tx, db, roomId, sessionId, patch);
     writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
@@ -1271,6 +1275,8 @@ export async function handleSetHandParticipation(
           scoreById,
           buyIn,
           sessionStake,
+          carryIn: data.carryOverPot || 0,
+          handCount: data.handCount || 0,
         });
         await primeDealPatchReads(tx, db, roomId, sessionId, patch);
         writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
@@ -1291,6 +1297,8 @@ export async function handleSetHandParticipation(
         scoreById,
         buyIn,
         sessionStake,
+        carryIn: data.carryOverPot || 0,
+        handCount: data.handCount || 0,
       });
       await primeDealPatchReads(tx, db, roomId, sessionId, patch);
       writePrivateHands(tx, db, roomId, sessionId, patch.privateHandsByPlayer);
