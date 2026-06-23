@@ -484,7 +484,7 @@ function z(e, t, n) {
 }
 //#endregion
 //#region src/game/decision.ts
-var be = 15, B = 15 * 1e3;
+var be = 12, B = 12 * 1e3;
 function V(e, t, n = !1, r = Date.now()) {
 	return {
 		active: n,

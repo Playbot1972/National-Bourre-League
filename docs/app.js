@@ -116,7 +116,6 @@ import {
   cardsRemainingInHand,
   displayHoleCardCount,
   buildPlayValidationState,
-  HAND_DECISION_MS,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -160,9 +159,6 @@ import {
   resolveTableEnrollmentActive,
   resolveCurrentHandChoicePlayerId,
   canPlayerShowHandChoice,
-  botDecisionClockKey,
-  computeBotDecisionCountdown,
-  startBotDecisionClock,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -917,34 +913,6 @@ let enrollmentTimer = null;
 let robotActionInFlight = false;
 let botAdvanceInFlight = false;
 let lastRobotTrickAt = 0;
-/** Client-paced visible bot decision window for Pagat play/pass. */
-let botDecisionClockState = null;
-
-function resetBotDecisionClock() {
-  botDecisionClockState = null;
-}
-
-function ensureBotDecisionClockForSession(sessionObj, playerId, handDecision) {
-  if (!playerId || !isRobotPlayerId(playerId)) {
-    resetBotDecisionClock();
-    return null;
-  }
-  const handNumber = sessionHandNumber(sessionObj);
-  const key = botDecisionClockKey(sessionObj.id, handNumber, handDecision?.currentIndex ?? 0);
-  if (
-    !botDecisionClockState ||
-    botDecisionClockState.key !== key ||
-    botDecisionClockState.playerId !== playerId
-  ) {
-    const clock = startBotDecisionClock(playerId, Date.now());
-    botDecisionClockState = { key, ...clock };
-  }
-  return botDecisionClockState;
-}
-
-function enrollmentClockFraction(enrollmentMsLeftVal, clockTotalMs) {
-  return clockTotalMs > 0 ? enrollmentMsLeftVal / clockTotalMs : 0;
-}
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
 /** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (1600+300+200). */
@@ -1308,6 +1276,7 @@ function stopEnrollmentTimer() {
 
 function startEnrollmentTimer() {
   stopEnrollmentTimer();
+  if (!tablePlayOpen) return;
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
   const enrollmentActive = getSessionEnrollment(s)?.active === true;
@@ -1315,7 +1284,6 @@ function startEnrollmentTimer() {
   const needsDriver = sessionNeedsBotDriver(s, openScores);
   if (!enrollmentActive && !pagatClock && !needsDriver) return;
 
-  const tickMs = enrollmentActive || pagatClock ? 250 : 1000;
   enrollmentTimer = setInterval(() => {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);
     if (!sessionObj || sessionObj.status === "final") {
@@ -1332,13 +1300,10 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-    if (
-      tablePlayOpen &&
-      (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj))
-    ) {
+    if (getSessionEnrollment(sessionObj)?.active || isPagatHandClock(sessionObj)) {
       syncTableSession(sessionObj);
     }
-  }, tickMs);
+  }, 1000);
 }
 let tablePlayOpen = false;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
@@ -2662,52 +2627,7 @@ function processRobotActionsInner(s, scores) {
 
   const now = Date.now();
   const enrollment = getSessionEnrollment(s);
-  const currentHand = getSessionCurrentHand(s);
-  const handPhase = currentHand?.phase;
-  const pagatDecision = isPagatDecisionActive(handPhase, currentHand?.handDecision);
-
   if (enrollment?.active) {
-    if (pagatDecision) {
-      if (enrollmentHasExpired(enrollment)) {
-        timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
-          console.warn("enrollment timeout:", e),
-        );
-        return;
-      }
-      const currentId = resolveCurrentHandChoicePlayerId({
-        pagatDecisionActive: true,
-        handDecision: currentHand?.handDecision,
-        legacyEnrollmentActive: false,
-        enrollment,
-      });
-      const playingIds = enrollment.enrolledIds || [];
-      const passedIds = enrollment.declinedIds || [];
-      if (
-        currentId &&
-        isRobotPlayerId(currentId) &&
-        !playingIds.includes(currentId) &&
-        !passedIds.includes(currentId)
-      ) {
-        const clock = ensureBotDecisionClockForSession(s, currentId, currentHand?.handDecision);
-        const { expired } = computeBotDecisionCountdown(now, clock);
-        if (!expired) return;
-        if (robotActionInFlight) return;
-        robotActionInFlight = true;
-        resetBotDecisionClock();
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: currentId,
-          inHand: true,
-          discardCount: 0,
-          actorId,
-        })
-          .catch((e) => console.warn("robot decision:", e))
-          .finally(() => {
-            robotActionInFlight = false;
-          });
-      }
-      return;
-    }
-
     if (SERVER_HAND_AUTHORITY && tablePlayOpen) {
       if (!botAdvanceInFlight) {
         botAdvanceInFlight = true;
@@ -2728,6 +2648,8 @@ function processRobotActionsInner(s, scores) {
     }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
     const committedIds = enrollment.enrolledIds || [];
+  const handPhase = getSessionCurrentHand(s)?.phase;
+  const isPagatDecision = handPhase === "decision";
     if (
       currentId &&
       isRobotPlayerId(currentId) &&
@@ -2738,7 +2660,7 @@ function processRobotActionsInner(s, scores) {
       setHandParticipation(currentRoomId, openSessionId, {
         playerId: currentId,
         inHand: true,
-        discardCount: 0,
+        discardCount: isPagatDecision ? 0 : 0,
         actorId,
       })
         .catch((e) => console.warn("robot enroll:", e))
@@ -2775,8 +2697,12 @@ function processRobotActionsInner(s, scores) {
     return;
   }
 
-  const participants = currentHand?.participantIds || [];
+  const currentHand = getSessionCurrentHand(s);
+  const participants = currentHand.participantIds || [];
   if (!participants.length) return;
+
+  const handPhase = currentHand.phase;
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
     const turnId = currentHand.turnPlayerId;
@@ -3061,16 +2987,6 @@ function buildTableSessionProps(s) {
     legacyEnrollmentActive,
     enrollment,
   });
-  const clockTotalMs = pagatDecisionActive ? HAND_DECISION_MS : HAND_ENROLLMENT_MS;
-  const activeBotClock =
-    pagatDecisionActive &&
-    currentEnrollmentPlayerId &&
-    isRobotPlayerId(currentEnrollmentPlayerId)
-      ? ensureBotDecisionClockForSession(s, currentEnrollmentPlayerId, pagatHandDecision)
-      : null;
-  if (!pagatDecisionActive || !currentEnrollmentPlayerId || !isRobotPlayerId(currentEnrollmentPlayerId)) {
-    resetBotDecisionClock();
-  }
 
   const { ready: handReady, winnerIds: derivedWinnerIds, maxTricks } = deriveWinnersFromTricks(
     tricksThisHand,
@@ -3172,18 +3088,6 @@ function buildTableSessionProps(s) {
       const onEnrollmentClock =
         enrollmentActive && sc.playerId === currentEnrollmentPlayerId;
       const enrollmentMsLeftVal = onEnrollmentClock ? enrollmentMsLeft(enrollment) : 0;
-      let enrollmentTimeLeftVal;
-      let enrollmentSecondsOnClockVal;
-      if (onEnrollmentClock) {
-        if (activeBotClock && activeBotClock.playerId === sc.playerId) {
-          const botTick = computeBotDecisionCountdown(Date.now(), activeBotClock);
-          enrollmentTimeLeftVal = botTick.fraction;
-          enrollmentSecondsOnClockVal = botTick.secondsLeft;
-        } else {
-          enrollmentTimeLeftVal = enrollmentClockFraction(enrollmentMsLeftVal, clockTotalMs);
-          enrollmentSecondsOnClockVal = enrollmentSecondsLeft(enrollment);
-        }
-      }
       const rating = openPlayerRatings[sc.playerId];
       const apeScoreVal = rating?.apeScore;
       const playerFlags = {
@@ -3212,8 +3116,12 @@ function buildTableSessionProps(s) {
         isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
         enrollmentOnClock: onEnrollmentClock,
-        enrollmentTimeLeft: onEnrollmentClock ? enrollmentTimeLeftVal : undefined,
-        enrollmentSecondsOnClock: onEnrollmentClock ? enrollmentSecondsOnClockVal : undefined,
+        enrollmentTimeLeft: onEnrollmentClock
+          ? enrollmentMsLeftVal / HAND_ENROLLMENT_MS
+          : undefined,
+        enrollmentSecondsOnClock: onEnrollmentClock
+          ? enrollmentSecondsLeft(enrollment)
+          : undefined,
         enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
         enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
         decisionPlannedDiscards: plannedDiscards[sc.playerId],
@@ -3398,12 +3306,10 @@ function buildTableSessionProps(s) {
       onAdvanceReveal: () => {
         if (!currentRoomId || !openSessionId) return Promise.resolve();
         return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
-          const message = e?.message || "";
-          if (message.includes("Decision step did not apply")) return;
           console.warn("advanceHandReveal:", e);
-          const userMessage = formatClientGameError(e, "Could not open draw phase");
-          setTableActionFeedback({ status: "error", message: userMessage });
-          showRoomsError(userMessage);
+          const message = formatClientGameError(e, "Could not open draw phase");
+          setTableActionFeedback({ status: "error", message });
+          showRoomsError(message);
         });
       },
       onTrickDelta: (delta) => {
@@ -3577,7 +3483,8 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     void processTableFeedbackEvents(sessionObj);
     if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
-      startEnrollmentTimer();
+      if (tablePlayOpen) startEnrollmentTimer();
+      else stopEnrollmentTimer();
     } else {
       stopEnrollmentTimer();
     }
@@ -3827,7 +3734,8 @@ function renderRoomDetail() {
   if (openSessionObj && openSessionObj.status !== "final") {
     processRobotActions(openSessionObj, openScores);
     if (sessionNeedsEnrollmentDriver(openSessionObj)) {
-      startEnrollmentTimer();
+      if (tablePlayOpen) startEnrollmentTimer();
+      else stopEnrollmentTimer();
     }
   }
   if (editingNotes) {
