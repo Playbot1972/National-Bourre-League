@@ -18,6 +18,15 @@ import {
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
+  clearSessionSetupSheetSnap,
+  initSessionSetupSheet,
+  requestSessionSetupAddPlayersSnap,
+  resetSessionSetupSheet,
+  sessionSetupSheetStyleAttr,
+  shouldUseSessionSetupSheet,
+  syncSessionSetupSheet,
+} from "./session-setup-sheet.js";
+import {
   ensureUserDoc,
   ensurePlayerDoc,
   createRoom,
@@ -583,6 +592,7 @@ function syncOpenSessionLimEnabled(limEnabled) {
 function bindRoomDetailDelegatedControls() {
   if (roomDetailView.dataset.controlsBound) return;
   roomDetailView.dataset.controlsBound = "1";
+  initSessionSetupSheet(roomDetailView);
 
   let houseRulesSaveTimer = null;
   let sessionNotesSaveTimer = null;
@@ -842,9 +852,19 @@ function applyRoomSetupFocus() {
     target.classList.add(
       focus === "add-players" ? "session-setup-window--focus" : "subpanel--setup-focus",
     );
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-    if (focus === "add-players") {
-      $("#add-player-name", roomDetailView)?.focus();
+    if (focus === "add-players" && shouldUseSessionSetupSheet()) {
+      requestSessionSetupAddPlayersSnap();
+      syncSessionSetupSheet(roomDetailView);
+      window.requestAnimationFrame(() => {
+        $("#add-player-name", roomDetailView)?.focus({ preventScroll: true });
+      });
+    } else if (!shouldUseSessionSetupSheet()) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      if (focus === "add-players") {
+        $("#add-player-name", roomDetailView)?.focus();
+      }
+    } else if (focus === "regional") {
+      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     window.setTimeout(() => {
       target.classList.remove(
@@ -2184,6 +2204,7 @@ function closeRoom() {
   sessionPlayInFlight = false;
   closeTablePlay();
   unmountTableSessionHost();
+  resetSessionSetupSheet();
   currentRoomId = null;
   openSessionId = null;
   renderRoomsList();
@@ -3365,6 +3386,10 @@ function openSession(sessionId) {
   if (scoresUnsub) scoresUnsub();
   if (handsUnsub) handsUnsub();
   stopPrivateHandSubscription();
+  const previousSessionId = openSessionId;
+  if (previousSessionId && previousSessionId !== sessionId) {
+    clearSessionSetupSheetSnap();
+  }
   openSessionId = sessionId;
   openScores = [];
   openHands = [];
@@ -3687,6 +3712,7 @@ function renderRoomDetail() {
     if (robotEl) robotEl.checked = editingAddPlayer.robotChecked;
   }
   applyRoomSetupFocus();
+  syncSessionSetupSheet(roomDetailView);
 }
 
 function buildAddPlayerFormHtml() {
@@ -3720,9 +3746,12 @@ function buildSessionSetupWindowHtml(s, isOwner) {
   const addBody = isOwner
     ? buildSessionPlayerBarHtml(s)
     : `<p class="muted small session-add-players__guest-hint">Only the room host can add guests and robots.</p>`;
-  return `<div class="session-setup-window" data-testid="session-setup-window">
-      ${addBody}
-      ${buildSessionActionPillsHtml(s, isOwner)}
+  return `<div class="session-setup-sheet" data-session-setup-sheet data-testid="session-setup-sheet"${sessionSetupSheetStyleAttr()}>
+      <div class="session-setup-sheet__handle" data-testid="session-setup-sheet-handle" role="separator" aria-label="Drag to resize session setup"></div>
+      <div class="session-setup-window" data-testid="session-setup-window">
+        ${addBody}
+        ${buildSessionActionPillsHtml(s, isOwner)}
+      </div>
     </div>`;
 }
 
