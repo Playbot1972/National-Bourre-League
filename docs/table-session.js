@@ -12476,6 +12476,8 @@ function Ll({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 					children: [
 						/* @__PURE__ */ (0, g.jsx)("span", {
 							className: `bpot__phase-tag bpot__phase-tag--${i ?? "waiting"}`,
+							"data-testid": "phase-tag-center",
+							"data-phase": i ?? "waiting",
 							children: E
 						}),
 						D && r && /* @__PURE__ */ (0, g.jsx)("span", {
@@ -12710,12 +12712,14 @@ function Vl({ player: e, region: t, handLane: n = "below", style: r, onToggleInH
 							e.enrollmentOnClock && e.enrollmentTimeLeft != null && /* @__PURE__ */ (0, g.jsx)(Bl, { fraction: e.enrollmentTimeLeft }),
 							b && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__bourre-pressure-badge",
+								"data-testid": "bourre-pressure-badge",
 								"aria-label": x ? "You need this trick to avoid bourré" : "At risk of bourré",
 								title: x ? "Win this trick or go bourré" : "Must win this trick",
 								children: x ? "Bourré risk!" : "0 tricks"
 							}),
 							y && !b && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__bourre-badge",
+								"data-testid": "bourre-marker-badge",
 								"aria-label": "Bourré",
 								title: "Bourré",
 								children: "Bourré"
@@ -12765,6 +12769,7 @@ function Vl({ player: e, region: t, handLane: n = "below", style: r, onToggleInH
 					}),
 					h && /* @__PURE__ */ (0, g.jsx)("span", {
 						className: `bseat__stack${e.isOut ? " bseat__stack--out" : ""}`,
+						"data-testid": "seat-stack",
 						"aria-label": `Chips ${Ol(e.bankroll ?? 0)}`,
 						title: `Chips ${Ol(e.bankroll ?? 0)}`,
 						children: Ol(e.bankroll ?? 0)
@@ -15544,6 +15549,8 @@ function Qd({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 							}),
 							/* @__PURE__ */ (0, g.jsx)("span", {
 								className: `btable-session__phase-tag btable-session__phase-tag--${e.phase ?? "waiting"}`,
+								"data-testid": "phase-tag",
+								"data-phase": e.phase ?? "waiting",
 								children: ne
 							}),
 							/* @__PURE__ */ (0, g.jsx)("button", {

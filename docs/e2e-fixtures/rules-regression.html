@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Rules regression fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        width: 100%;
+        min-height: 100dvh;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      #table-root {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="rules-regression-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+      import {
+        collectHandAntes,
+        handAnteContribution,
+        bourrePlayerIds,
+      } from "/bourre-rules.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const scenario = params.get("scenario") || "premature-bourre";
+
+      const TWO_PLAYER_IDS = ["p0", "p1"];
+      const THREE_PLAYER_IDS = ["p0", "p1", "p2"];
+
+      function defaultState() {
+        return {
+          scenario,
+          playerIds: scenario === "bourre-settlement" || scenario === "bourre-payment" ? THREE_PLAYER_IDS : TWO_PLAYER_IDS,
+          phase: "draw",
+          handNumber: 1,
+          carryOverPot: 0,
+          tricksByPlayer: { p0: 0, p1: 0, p2: 0 },
+          declinedIds: [],
+          enrolledIds: [],
+          recentBourreIds: [],
+          bourreReplacementDue: {},
+          bankrolls: { p0: 20, p1: 20, p2: 20 },
+          pot: 2,
+          trumpSuit: "hearts",
+          trumpUpcard: { rank: "7", suit: "hearts" },
+          trumpHolderId: "p0",
+          dealerId: "p0",
+          turnPlayerId: "p0",
+          trumpMerged: true,
+          drawDiscardedTrump: false,
+          heroCards: [
+            { rank: "A", suit: "spades" },
+            { rank: "K", suit: "diamonds" },
+            { rank: "Q", suit: "clubs" },
+            { rank: "J", suit: "spades" },
+            { rank: "7", suit: "hearts" },
+          ],
+          actionFeedback: null,
+          handComplete: false,
+          showSettlement: false,
+        };
+      }
+
+      const state = defaultState();
+
+      function applyScenarioDefaults() {
+        switch (scenario) {
+          case "premature-bourre":
+            state.phase = params.get("phase") || "draw";
+            state.playerIds = TWO_PLAYER_IDS;
+            state.enrolledIds = ["p0", "p1"];
+            state.tricksByPlayer = { p0: 0, p1: 0 };
+            state.recentBourreIds = [];
+            if (state.phase === "play") {
+              state.tricksByPlayer = { p0: 1, p1: 1 };
+              state.turnPlayerId = "p0";
+            }
+            break;
+          case "bourre-settlement":
+            state.phase = "play";
+            state.enrolledIds = ["p0", "p1"];
+            state.declinedIds = ["p2"];
+            state.tricksByPlayer = { p0: 5, p1: 0, p2: 0 };
+            state.handComplete = true;
+            state.recentBourreIds = ["p1"];
+            break;
+          case "dealer-trump-draw":
+            // Post-merge draw: trump lives in the dealer's fifth card, not the center pile.
+            state.phase = "draw";
+            state.playerIds = TWO_PLAYER_IDS;
+            state.enrolledIds = ["p0", "p1"];
+            state.trumpHolderId = "p0";
+            state.dealerId = "p0";
+            state.turnPlayerId = "p0";
+            state.trumpMerged = true;
+            state.trumpUpcard = null;
+            state.trumpSuit = "hearts";
+            break;
+          case "bourre-payment":
+            state.handNumber = 2;
+            state.phase = "decision";
+            state.playerIds = THREE_PLAYER_IDS;
+            state.enrolledIds = [];
+            state.bourreReplacementDue = { p1: 5 };
+            state.bankrolls = { p0: 19, p1: 14, p2: 19 };
+            state.pot = 0;
+            state.carryOverPot = 5;
+            state.trumpUpcard = null;
+            break;
+          case "phase-sequence":
+            state.phase = params.get("phase") || "reveal";
+            state.playerIds = TWO_PLAYER_IDS;
+            state.enrolledIds = ["p0", "p1"];
+            break;
+          case "two-player":
+            state.phase = "draw";
+            state.playerIds = TWO_PLAYER_IDS;
+            state.enrolledIds = ["p0", "p1"];
+            break;
+          default:
+            break;
+        }
+      }
+
+      applyScenarioDefaults();
+
+      function displayName(id) {
+        return id === "p0" ? "You" : `Bot ${id.slice(1)}`;
+      }
+
+      function tricksForParticipants() {
+        const out = {};
+        for (const id of state.playerIds) {
+          out[id] = state.tricksByPlayer[id] ?? 0;
+        }
+        return out;
+      }
+
+      function inHandIds() {
+        return state.playerIds.filter(
+          (id) => state.enrolledIds.includes(id) && !state.declinedIds.includes(id),
+        );
+      }
+
+      function buildPlayers() {
+        const tricks = tricksForParticipants();
+        const totalTricks = Object.values(tricks).reduce((s, n) => s + n, 0);
+        const finalTrickPending = state.phase === "play" && totalTricks === 4;
+
+        return state.playerIds.map((id) => {
+          const isSelf = id === "p0";
+          const satOut = state.declinedIds.includes(id);
+          const playing = state.enrolledIds.includes(id);
+          const inHand =
+            (state.phase === "reveal" ||
+              state.phase === "decision" ||
+              state.phase === "draw" ||
+              state.phase === "play") &&
+            playing &&
+            !satOut;
+          const trickCount = tricks[id] ?? 0;
+          const atRisk =
+            finalTrickPending && inHand && trickCount === 0 && state.phase === "play";
+          const bourreMarker =
+            state.recentBourreIds.includes(id) && !atRisk;
+          return {
+            playerId: id,
+            displayName: displayName(id),
+            handsWon: 0,
+            inHand,
+            tricksThisHand: trickCount,
+            isSelf,
+            isDealer: id === state.dealerId,
+            isLeading: false,
+            isWinner: false,
+            isRobot: id !== "p0",
+            bankroll: state.bankrolls[id] ?? 0,
+            bourreReplacementDue: state.bourreReplacementDue[id] ?? null,
+            isOut: (state.bankrolls[id] ?? 0) <= 0,
+            enrollmentOnClock: state.phase === "decision" && isSelf && !playing && !satOut,
+            enrollmentSatOut: satOut,
+            enrollmentJoined: playing && !inHand,
+            canToggleInHand: state.phase === "decision" && isSelf,
+            canPassEnrollment: state.phase === "decision" && isSelf,
+            canEditTricks: false,
+            showHoleCards: (state.phase === "draw" || state.phase === "play") && !isSelf && inHand,
+            holeCardCount: inHand ? 5 : 0,
+            isOnTurn: state.turnPlayerId === id,
+            bourreAlert: bourreMarker ? "marker" : null,
+            bourrePressure: atRisk,
+          };
+        });
+      }
+
+      function computeAnteBreakdown() {
+        const scoreById = Object.fromEntries(
+          state.playerIds.map((id) => [
+            id,
+            {
+              bankroll: state.bankrolls[id] ?? 0,
+              bourreReplacementDue: state.bourreReplacementDue[id],
+            },
+          ]),
+        );
+        const participants = state.playerIds.filter((id) => (state.bankrolls[id] ?? 0) > 0);
+        const collected = collectHandAntes({
+          participants,
+          scoreById,
+          buyInFallback: 20,
+          stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], 1),
+        });
+        return {
+          postedAntes: collected.postedAntes,
+          antePot: Object.values(collected.postedAntes).reduce((s, n) => s + n, 0),
+          contributions: Object.fromEntries(
+            participants.map((pid) => [
+              pid,
+              handAnteContribution(scoreById[pid], 1),
+            ]),
+          ),
+        };
+      }
+
+      function buildProps() {
+        const cardsDealt =
+          state.phase === "reveal" ||
+          state.phase === "decision" ||
+          state.phase === "draw" ||
+          state.phase === "play";
+        const participants = inHandIds();
+        const tricks = tricksForParticipants();
+
+        return {
+          session: {
+            sessionId: "rules-fixture",
+            handNumber: state.handNumber,
+            handStake: 1,
+            carryOverPot: state.carryOverPot,
+            isFinal: false,
+            dealerId: state.dealerId,
+            trumpHolderId: state.trumpHolderId,
+            participantIds: participants,
+            tricksByPlayer: tricks,
+            phase: cardsDealt ? state.phase : null,
+            trumpSuit: cardsDealt ? state.trumpSuit : null,
+            trumpUpcard: state.drawDiscardedTrump ? null : state.trumpUpcard,
+            turnPlayerId: state.turnPlayerId,
+            remainingDeckCount: state.phase === "draw" ? 28 : null,
+            maxDrawDiscards: 5,
+            handEnrollment:
+              state.phase === "decision"
+                ? {
+                    active: true,
+                    orderedPlayerIds: state.playerIds,
+                    currentIndex: 0,
+                    turnDeadlineMs: Date.now() + 12_000,
+                    enrolledIds: [...state.enrolledIds],
+                    declinedIds: [...state.declinedIds],
+                  }
+                : null,
+            currentTrick:
+              state.phase === "play"
+                ? {
+                    trickNumber: Math.min(5, Object.values(tricks).reduce((s, n) => s + n, 0) + 1),
+                    leadPlayerId: state.turnPlayerId ?? "p0",
+                    leadSuit: "spades",
+                    plays: [],
+                  }
+                : null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: state.pot + state.carryOverPot,
+            maxWinThisHand: state.pot + state.carryOverPot,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          leaderLabel: "Rules regression fixture",
+          showCoWinSettlement: false,
+          enrollmentActive: state.phase === "decision",
+          enrollmentSecondsLeft: 10,
+          currentUserId: "p0",
+          heroCards: cardsDealt ? state.heroCards : [],
+          rawHeroCards: cardsDealt ? state.heroCards : [],
+          privateHandReady: cardsDealt,
+          handComplete: state.handComplete,
+          legalPlayIndices: state.phase === "play" ? [0, 1, 2, 3, 4] : null,
+          recentBourreIds: state.recentBourreIds,
+          actionFeedback: state.actionFeedback,
+          actions: {
+            onToggleInHand: (inHand) => {
+              if (inHand) {
+                state.enrolledIds = [...new Set([...state.enrolledIds, "p0"])];
+                state.actionFeedback = { status: "success", message: "You're in this hand." };
+              } else {
+                state.declinedIds = [...new Set([...state.declinedIds, "p0"])];
+                state.actionFeedback = { status: "success", message: "You passed this hand." };
+              }
+              render();
+            },
+            onPassEnrollment: () => {
+              state.declinedIds = [...new Set([...state.declinedIds, "p0"])];
+              state.actionFeedback = { status: "success", message: "You passed this hand." };
+              render();
+            },
+            onTrickDelta: () => {},
+            onSubmitDraw: async (indices) => {
+              if (indices.includes(4)) {
+                state.drawDiscardedTrump = true;
+                state.heroCards[4] = { rank: "9", suit: "clubs" };
+              }
+              state.actionFeedback = {
+                status: "success",
+                message: indices.length
+                  ? `Drew ${indices.length} replacement card(s)`
+                  : "Standing pat",
+              };
+              render();
+            },
+            onPassDraw: async () => {
+              state.actionFeedback = { status: "success", message: "Standing pat" };
+              render();
+            },
+            onPlayCard: async () => {
+              state.actionFeedback = { status: "success", message: "Card played" };
+              render();
+            },
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+
+      function render() {
+        mountTableSession(root, buildProps());
+      }
+
+      window.__rulesRegressionFixture = {
+        readState: () => ({
+          scenario: state.scenario,
+          phase: state.phase,
+          handNumber: state.handNumber,
+          tricksByPlayer: { ...state.tricksByPlayer },
+          recentBourreIds: [...state.recentBourreIds],
+          bourreIds: bourrePlayerIds(tricksForParticipants(), inHandIds()),
+          enrolledIds: [...state.enrolledIds],
+          declinedIds: [...state.declinedIds],
+          bankrolls: { ...state.bankrolls },
+          trumpSuit: state.trumpSuit,
+          trumpUpcard: state.drawDiscardedTrump ? null : state.trumpUpcard,
+          drawDiscardedTrump: state.drawDiscardedTrump,
+          anteBreakdown: computeAnteBreakdown(),
+          pot: state.pot,
+          carryOverPot: state.carryOverPot,
+        }),
+        advance(action, payload = {}) {
+          switch (action) {
+            case "setPhase":
+              state.phase = payload.phase ?? state.phase;
+              if (payload.phase === "draw") state.trumpMerged = true;
+              break;
+            case "imIn":
+              state.enrolledIds = [...new Set([...state.enrolledIds, "p0"])];
+              state.phase = "draw";
+              state.trumpMerged = true;
+              break;
+            case "finalTrickRisk":
+              state.phase = "play";
+              state.tricksByPlayer = { p0: 4, p1: 0 };
+              state.turnPlayerId = "p1";
+              break;
+            case "settleHand":
+              state.handComplete = true;
+              state.recentBourreIds = bourrePlayerIds(tricksForParticipants(), inHandIds());
+              state.phase = "decision";
+              state.handNumber += 1;
+              break;
+            case "applyNextHandAntes": {
+              const breakdown = computeAnteBreakdown();
+              for (const [pid, posted] of Object.entries(breakdown.postedAntes)) {
+                state.bankrolls[pid] = Math.max(0, (state.bankrolls[pid] ?? 0) - posted);
+              }
+              state.pot = breakdown.antePot;
+              state.carryOverPot = 0;
+              for (const pid of Object.keys(state.bourreReplacementDue)) {
+                delete state.bourreReplacementDue[pid];
+              }
+              break;
+            }
+            default:
+              break;
+          }
+          render();
+        },
+      };
+
+      render();
+    </script>
+  </body>
+</html>
