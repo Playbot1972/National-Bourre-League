@@ -136,6 +136,7 @@ export function CardTable({
       }),
       tricksThisHand,
       isOnTurn: suppressTurn ? false : player.isOnTurn,
+      isActiveActor: suppressTurn ? false : player.isActiveActor,
       isLeading:
         trickWinnerSeat &&
         (trickPresentation.phase === "winnerReveal" ||
@@ -167,11 +168,18 @@ export function CardTable({
       currentUserId &&
         session.drawCompletedIds?.includes(currentUserId),
     );
+  const hasActiveTurn = displayPlayers.some((p) => p.isActiveActor);
 
   return (
     <div
       ref={wrapRef}
-      className={`btable-wrap btable-wrap--stage-fit ${countClass}`}
+      className={[
+        "btable-wrap btable-wrap--stage-fit",
+        countClass,
+        hasActiveTurn ? "btable-wrap--has-active-turn" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-testid="table-root"
       style={{
         ["--player-count" as string]: playerCount,

@@ -8,7 +8,7 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
+import { formatHandPhase, formatLocalActionCue, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -229,6 +229,10 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
+
+  const localActionCue = localActionRequired
+    ? formatLocalActionCue(session.phase, enrollmentActive)
+    : null;
 
   const showTrumpSuitReminder =
     trumpHolderPresentation.showTrumpSuitReminder ||
@@ -514,6 +518,11 @@ export function TableSessionView({
             </p>
           )}
         </div>
+        {localActionCue && (
+          <p className="btable-session__action-cue muted small" data-testid="action-cue" aria-live="polite">
+            {localActionCue}
+          </p>
+        )}
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
           <p className="btable-session__turn muted small" aria-live="polite">
             {turnLabel}

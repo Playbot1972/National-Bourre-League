@@ -436,6 +436,8 @@ export function HeroHand({
         drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
         drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
         showDrawActions ? "btable-hero--draw-actions" : "",
+        inPlayPhase && isMyTurn ? "btable-hero--your-turn" : "",
+        (inDrawPhase || inPlayPhase) && isInHand && !isMyTurn ? "btable-hero--waiting-turn" : "",
         standPatPulse ? "btable-hero--stand-pat" : "",
         foldOutPulse ? "btable-hero--fold-out" : "",
       ])}

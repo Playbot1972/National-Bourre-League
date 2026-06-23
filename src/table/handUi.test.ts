@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatHandPhase,
+  formatLocalActionCue,
   formatTrumpSuit,
   isCardsDealtPhase,
   turnIndicatorLabel,
@@ -11,10 +12,17 @@ describe("G — hand UI labels", () => {
   it("formatHandPhase reflects session phase", () => {
     assert.equal(formatHandPhase(null, false), "Waiting to deal");
     assert.equal(formatHandPhase("reveal", false), "Dealing");
-    assert.equal(formatHandPhase("decision", false), "Play or pass");
-    assert.equal(formatHandPhase("draw", false), "Draw round");
-    assert.equal(formatHandPhase("play", false), "Trick play");
-    assert.equal(formatHandPhase(null, true), "Play or pass");
+    assert.equal(formatHandPhase("decision", false), "Choosing");
+    assert.equal(formatHandPhase("draw", false), "Drawing");
+    assert.equal(formatHandPhase("play", false), "Playing");
+    assert.equal(formatHandPhase(null, true), "Choosing");
+  });
+
+  it("formatLocalActionCue describes the expected local action", () => {
+    assert.equal(formatLocalActionCue("decision", false), "Tap I'm in or Pass on your seat");
+    assert.equal(formatLocalActionCue("draw", false), "Draw, Stand pat, or I'm Out");
+    assert.equal(formatLocalActionCue("play", false), "Tap a legal card to play");
+    assert.equal(formatLocalActionCue("reveal", false), null);
   });
 
   it("isCardsDealtPhase is true for reveal, decision, draw and play", () => {

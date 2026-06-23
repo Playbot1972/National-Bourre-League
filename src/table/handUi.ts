@@ -11,19 +11,32 @@ export function formatHandPhase(
   phase: string | null | undefined,
   enrollmentActive: boolean,
 ): string {
-  if (enrollmentActive) return "Play or pass";
+  if (enrollmentActive) return "Choosing";
   switch (phase) {
     case "reveal":
       return "Dealing";
     case "decision":
-      return "Play or pass";
+      return "Choosing";
     case "draw":
-      return "Draw round";
+      return "Drawing";
     case "play":
-      return "Trick play";
+      return "Playing";
     default:
       return "Waiting to deal";
   }
+}
+
+/** Short cue for the local human when they must act (visual only). */
+export function formatLocalActionCue(
+  phase: string | null | undefined,
+  enrollmentActive: boolean,
+): string | null {
+  if (enrollmentActive || phase === "decision") {
+    return "Tap I'm in or Pass on your seat";
+  }
+  if (phase === "draw") return "Draw, Stand pat, or I'm Out";
+  if (phase === "play") return "Tap a legal card to play";
+  return null;
 }
 
 export function formatTrumpSuit(suit: string | null | undefined): string {

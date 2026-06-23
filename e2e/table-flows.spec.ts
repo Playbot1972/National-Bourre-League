@@ -7,7 +7,6 @@ import {
 } from "./helpers/overlayLayout";
 import { openTableFlowsFixture, advanceFixture, readFixtureState } from "./helpers/tableFlows";
 import {
-  YOUR_TURN_FIRST_MS,
   YOUR_TURN_REPEAT_MS,
   YOUR_TURN_EXIT_MS,
   YOUR_TURN_HOLD_MS,
@@ -126,13 +125,10 @@ test.describe("5 — Dealer trump presentation", () => {
 });
 
 test.describe("6 — Turn reminder cadence", () => {
-  test("Your Turn appears only for local player on 15s + repeat cadence", async ({ page }) => {
+  test("Your Turn appears immediately on handoff, then repeats if idle", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-06-19T12:00:00Z") });
     await openTableFlowsFixture(page, { scenario: "your-turn", phase: "play" });
 
-    await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
-
-    await page.clock.runFor(YOUR_TURN_FIRST_MS);
     await expect(page.getByTestId("your-turn-attention")).toBeVisible();
     await expect(page.getByTestId("your-turn-attention")).toContainText("Your Turn");
 
