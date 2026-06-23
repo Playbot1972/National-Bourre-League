@@ -34,7 +34,7 @@ export function YourTurnAttention({
       aria-live="polite"
       aria-label="Your turn"
     >
-      <span className="byour-turn__text">Your Turn!</span>
+      <span className="byour-turn__text">Your Turn</span>
     </div>
   );
 }

@@ -450,7 +450,8 @@
 .btable-session--mobile-layout .btable-session__status,
 .btable-session--mobile-layout .btable-session__turn,
 .btable-session--mobile-layout .btable-session__hint,
-.btable-session--mobile-layout .btable-session__enroll {
+.btable-session--mobile-layout .btable-session__enroll,
+.btable-session--mobile-layout .btable-session__action-cue {
   display: none;
   visibility: hidden;
   height: 0;

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "../trickTiming";
 
-/** Delay before the first local "Your Turn" attention cue. */
-export const YOUR_TURN_FIRST_MS = 15_000;
+/** Handoff cue fires immediately when turn/phase ownership changes. */
+export const YOUR_TURN_HANDOFF_MS = 0;
 
-/** Escalating reminder intervals after the first cue (6s, 5s, 4s, 3s, 2s). */
-export const YOUR_TURN_REPEAT_MS = [6_000, 5_000, 4_000, 3_000, 2_000] as const;
+/** Gentle nudges if the local player still has not acted. */
+export const YOUR_TURN_REPEAT_MS = [12_000, 18_000, 24_000] as const;
 
 /** Pop-in scale animation. */
 export const YOUR_TURN_POP_MS = 380;
@@ -15,6 +15,9 @@ export const YOUR_TURN_HOLD_MS = 420;
 
 /** Float up + fade off-screen. */
 export const YOUR_TURN_EXIT_MS = 620;
+
+/** @deprecated Use YOUR_TURN_HANDOFF_MS — kept for test imports during transition. */
+export const YOUR_TURN_FIRST_MS = YOUR_TURN_HANDOFF_MS;
 
 export type YourTurnAttentionPhase = "hidden" | "pop" | "exit";
 
@@ -46,12 +49,11 @@ export function useYourTurnAttention(input: {
     }
   };
 
-  const scheduleNextReminder = () => {
+  const scheduleNextReminder = useCallback(() => {
     const idx = repeatIndexRef.current;
+    if (idx === 0) return;
     const delay =
-      idx === 0
-        ? YOUR_TURN_FIRST_MS
-        : YOUR_TURN_REPEAT_MS[Math.min(idx - 1, YOUR_TURN_REPEAT_MS.length - 1)];
+      YOUR_TURN_REPEAT_MS[Math.min(idx - 1, YOUR_TURN_REPEAT_MS.length - 1)];
     delayTimerRef.current = window.setTimeout(() => {
       delayTimerRef.current = null;
       if (!actionRequiredRef.current) return;
@@ -59,7 +61,14 @@ export function useYourTurnAttention(input: {
       setAttentionPhase("pop");
       repeatIndexRef.current = idx + 1;
     }, delay);
-  };
+  }, []);
+
+  const showHandoffCue = useCallback(() => {
+    if (!actionRequiredRef.current) return;
+    setBeat(0);
+    setAttentionPhase("pop");
+    repeatIndexRef.current = 1;
+  }, []);
 
   useEffect(() => {
     clearTimers();
@@ -71,16 +80,16 @@ export function useYourTurnAttention(input: {
       return clearTimers;
     }
 
-    const bootTimer = window.setTimeout(() => {
+    const handoffTimer = window.setTimeout(() => {
       if (!actionRequiredRef.current) return;
-      scheduleNextReminder();
-    }, 0);
+      showHandoffCue();
+    }, YOUR_TURN_HANDOFF_MS);
 
     return () => {
-      window.clearTimeout(bootTimer);
+      window.clearTimeout(handoffTimer);
       clearTimers();
     };
-  }, [input.activityKey, input.actionRequired]);
+  }, [input.activityKey, input.actionRequired, showHandoffCue]);
 
   useEffect(() => {
     if (attentionPhase !== "pop") return;
@@ -117,7 +126,7 @@ export function useYourTurnAttention(input: {
         hideTimerRef.current = null;
       }
     };
-  }, [attentionPhase, input.actionRequired]);
+  }, [attentionPhase, input.actionRequired, scheduleNextReminder]);
 
   return { phase: attentionPhase, beat };
 }

@@ -72,6 +72,13 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
   const bourrePressure = Boolean(player.bourrePressure);
   const bourrePressureSelf = bourrePressure && player.isSelf;
   const seatTrumpRevealed = player.revealedTrumpIndex != null && player.revealedTrumpUpcard;
+  const isActiveActor = player.isActiveActor ?? player.isOnTurn;
+  const activeTurnLabel =
+    isActiveActor && player.isSelf
+      ? "Your turn"
+      : isActiveActor
+        ? "Turn"
+        : null;
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -101,6 +108,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         player.isDealer ? "bseat--dealer" : "",
         player.trumpMerging ? "bseat--trump-merge" : "",
         player.isOnTurn ? "bseat--on-turn" : "",
+        isActiveActor ? "bseat--active-actor" : "",
         player.isOnTurn && player.inHand ? "bseat--play-origin-active" : "",
         player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
@@ -261,6 +269,11 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
                 </span>
               )}
               {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
+              {activeTurnLabel && (
+                <span className="bseat__turn-tag" aria-hidden="true">
+                  {activeTurnLabel}
+                </span>
+              )}
               {bourrePressure && (
                 <span className="bseat__bourre-pressure-ring" aria-hidden="true" />
               )}
@@ -335,7 +348,12 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         {player.canToggleInHand && (
           <button
             type="button"
-            className="bseat__opt-in btn btn--sm"
+            className={[
+              "bseat__opt-in btn btn--sm",
+              isActiveActor ? "bseat__opt-in--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             data-testid="seat-opt-in"
             onClick={onToggleInHand}
           >
@@ -350,7 +368,12 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         {player.canPassEnrollment && onPassEnrollment && (
           <button
             type="button"
-            className="bseat__pass btn btn--sm btn--ghost"
+            className={[
+              "bseat__pass btn btn--sm btn--ghost",
+              isActiveActor ? "bseat__pass--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             data-testid="seat-pass-enrollment"
             onClick={onPassEnrollment}
           >

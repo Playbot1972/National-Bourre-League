@@ -127,6 +127,7 @@
             showHoleCards: (phase === "draw" || phase === "play") && !isSelf && inHand,
             holeCardCount: phase === "draw" || phase === "play" ? 4 : 0,
             isOnTurn: phase === "draw" && id === "p0",
+            isActiveActor: onDecisionClock && isSelf,
           };
         });
       }
