@@ -46,6 +46,48 @@ See **`docs/E2E_UI_UX_REPORT.md`** for the full pass/fail matrix by user journey
 
 Player-matrix fixture: `/e2e-fixtures/table-session?players=8&bots=4&phase=enrollment` (no `.html` — `serve` strips query params on redirect).
 
+## Rules regression (Pagat Bourré)
+
+Focused business-rule tests that catch premature bourré, dealer trump draw, bourré payment, and phase-order bugs.
+
+```bash
+# Fast fixture suite — no emulators (recommended on every PR)
+npm run test:e2e:rules
+
+# Partial Firestore integration — requires emulators + social server
+npm run emulators   # terminal 1
+npm run social      # terminal 2 (or rely on Playwright auto-start)
+PLAYWRIGHT_EMULATORS=1 npm run test:e2e:rules:live
+```
+
+| Suite | Tier | What it checks |
+|-------|------|----------------|
+| `e2e/rules-regression.fixture.spec.ts` | **Fixture (deterministic)** | Table UI + `bourre-rules.js` snapshot via `/e2e-fixtures/rules-regression` |
+| `e2e/rules-regression.emulator.spec.ts` | **Emulator (partial)** | Real room → draw → play; phase order; no premature bourré UI |
+| `e2e/helpers/rulesRegression.ts` | Helpers | Fixture URLs, phase/bourré assertions, pot reads |
+
+### Bourré coverage pyramid
+
+Read this before adding tests — do not assume one tier covers another.
+
+| Layer | Location | Deterministic? | Bourré coverage |
+|-------|----------|----------------|-----------------|
+| **Unit — rules engine** | `scripts/bourre-rules.test.mjs` | Yes | `bourrePlayerIds`, `settleHandDeltas`, `collectHandAntes`, `handAnteContribution`, push/carry, replacement payment |
+| **Unit — table logic** | `src/table/logic.test.ts`, `src/table/settlementCopy.test.ts` | Yes | Final-trick pressure (`playersAtBourreRisk`), settlement copy |
+| **E2E — fixture** | `e2e/rules-regression.fixture.spec.ts` | Yes | Premature bourré UI; post-hand `bourreIds`; opponent 0/5 trick badges; dealer trump discard; next-hand ante math; phase order; 2-player draw |
+| **E2E — emulator** | `e2e/rules-regression.emulator.spec.ts` | Partial | Enrollment → draw → play without premature bourré; no dead-end after “I'm in” |
+| **E2E — smoke** | `e2e/table-smoke.*`, `table-flows` | Partial / visual | Layout and controls; `table-flows` `bourre` scenario is pulse animation only |
+| **Manual** | `docs/QA_RELEASE.md` | — | Full 5-trick bourré through live emulators when needed |
+
+**Not deterministically covered in CI (by design):**
+
+- **Full Firestore 5-trick hand ending in zero-trick bourré** — slow and bot-dependent; settlement assignment is covered by `bourre-rules.test.mjs` + fixture `bourre-settlement`; emulator tests only assert phase order and no premature bourré.
+- **Settled bourré badge on opponents** — production renders `bourre-marker-badge` for `isSelf` only (`CardTable.tsx`). Opponent bourré in fixture tests uses `bourreIds` + trick-count badges (`0 tricks won` / `5 tricks won`), not an opponent settled badge.
+
+**Why the old suite missed these bugs:** most table E2E tests mount `/e2e-fixtures/table-session` or `table-flows` with static props — they never run `bourre-rules.js` settlement, `collectHandAntes`, or the draw engine. The `bourre` table-flows scenario only toggles `recentBourreIds` for pulse animation, not post-hand bourré assignment or payment.
+
+**CI recommendation:** run `npm run test:e2e:rules` on every PR (fast, no Java). Run `test:e2e:rules:live` nightly or before release when emulators are available.
+
 ## CI note
 
 E2E is optional in CI until emulators + social server are wired into the workflow.

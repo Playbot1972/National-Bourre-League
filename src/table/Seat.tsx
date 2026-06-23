@@ -204,6 +204,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
             {bourrePressure && (
               <span
                 className="bseat__bourre-pressure-badge"
+                data-testid="bourre-pressure-badge"
                 aria-label={bourrePressureSelf ? "You need this trick to avoid bourré" : "At risk of bourré"}
                 title={bourrePressureSelf ? "Win this trick or go bourré" : "Must win this trick"}
               >
@@ -211,7 +212,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               </span>
             )}
             {bourreMarker && !bourrePressure && (
-              <span className="bseat__bourre-badge" aria-label="Bourré" title="Bourré">
+              <span className="bseat__bourre-badge" data-testid="bourre-marker-badge" aria-label="Bourré" title="Bourré">
                 Bourré
               </span>
             )}
@@ -259,6 +260,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
           {showBankroll && (
             <span
               className={`bseat__stack${player.isOut ? " bseat__stack--out" : ""}`}
+              data-testid="seat-stack"
               aria-label={`Chips ${formatBankroll(player.bankroll ?? 0)}`}
               title={`Chips ${formatBankroll(player.bankroll ?? 0)}`}
             >

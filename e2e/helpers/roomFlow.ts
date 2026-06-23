@@ -157,7 +157,7 @@ async function isRevealPhaseActive(overlay: Locator) {
 }
 
 /** Click enrollment / decision CTAs when shown. */
-async function tryHandEnrollmentActions(
+export async function tryHandEnrollmentActions(
   page: Page,
   overlay: Locator,
   lastActionClick: { at: number },

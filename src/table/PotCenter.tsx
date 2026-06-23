@@ -163,7 +163,11 @@ export function PotCenter({
           </div>
         )}
         <div className="center-play__phase" aria-live="polite">
-          <span className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}>
+          <span
+            className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}
+            data-testid="phase-tag-center"
+            data-phase={phase ?? "waiting"}
+          >
             {phaseLabel}
           </span>
           {hasTrumpCard && trumpSuit && (
