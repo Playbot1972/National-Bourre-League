@@ -117,7 +117,8 @@ import {
   deserializeCards,
   serializeCards,
   shuffledDeckFromSeed,
-  remainingDeckCount,
+  pileFromPublicHand,
+  totalAvailableReplacements,
   applyPlayerDraw,
   advanceAfterDraw,
   applyDrawFold,
@@ -1591,7 +1592,6 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
     if (deckSeed == null) throw new Error("Missing deck seed on session");
 
     const deck = shuffledDeckFromSeed(deckSeed);
-    const deckNextIndex = currentHand.deckNextIndex ?? 0;
     const maxDraw =
       currentHand.maxDrawDiscards ?? maxDrawDiscards(currentHand.participantIds?.length ?? 2);
 
@@ -1601,19 +1601,14 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       publicHand: currentHand,
       discardIndices: discardIndices || [],
       deck,
-      deckNextIndex,
       maxDiscards: maxDraw,
     });
 
-    let nextPublic = advanceAfterDraw(
+    const nextPublic = advanceAfterDraw(
       drawResult.publicHand,
       actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
     );
-    nextPublic = {
-      ...nextPublic,
-      remainingDeckCount: remainingDeckCount(deck, drawResult.deckNextIndex),
-    };
 
     writePrivateHandInTransaction(
       tx,
@@ -1760,11 +1755,9 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
   const deckSeed = ch.deckSeed;
-  const deckNextIndex = ch.deckNextIndex ?? 0;
-  const deckRemaining =
-    deckSeed != null
-      ? remainingDeckCount(shuffledDeckFromSeed(deckSeed), deckNextIndex)
-      : ch.remainingDeckCount ?? 0;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
+  const pile = pileFromPublicHand(ch, deck);
+  const deckRemaining = totalAvailableReplacements(pile);
   const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw, deckRemaining);
   await submitHandDraw(roomId, sessionId, { playerId, discardIndices: indices, actorId });
 }

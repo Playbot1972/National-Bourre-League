@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { applyDraw, advanceAfterDraw, allDrawsComplete } from "./draw";
 import { applyPlayerDraw } from "./draw";
+import { pileFromPublicHand } from "./drawPile";
 import { maxDrawDiscards } from "./drawLimit";
 import { effectivePlayerHand } from "./invariants";
 import { shuffledDeckFromSeed } from "./deckState";
@@ -17,14 +18,15 @@ import { HAND_PHASE } from "./types";
 describe("C — draw / discard phase", () => {
   it("allows stand pat (0 discards)", () => {
     const deal = dealForTest();
-    const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
+    const pub = publicHandFromDeal(deal);
+    const pile = pileFromPublicHand(pub, deck);
     const hand = effectivePlayerHand("p2", deal.privateHands.p2, pub);
     const result = applyDraw({
       hand,
       discardIndices: [],
-      deck,
-      deckNextIndex: deal.deckNextIndex,
+      pile,
+      deckSeed: deal.deckSeed,
       maxDiscards: 4,
     });
     assert.equal(result.discarded, 0);
@@ -35,13 +37,14 @@ describe("C — draw / discard phase", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     for (const count of [1, 2, 3, 4, 5]) {
       const hand = effectivePlayerHand("p3", deal.privateHands.p3, pub);
       const result = applyDraw({
         hand,
         discardIndices: Array.from({ length: count }, (_, i) => i),
-        deck,
-        deckNextIndex: deal.deckNextIndex,
+        pile,
+        deckSeed: deal.deckSeed,
         maxDiscards: 5,
       });
       assert.equal(result.discarded, count);
@@ -53,13 +56,14 @@ describe("C — draw / discard phase", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     for (const count of [1, 2, 3, 4]) {
       const hand = effectivePlayerHand("p3", deal.privateHands.p3, pub);
       const result = applyDraw({
         hand,
         discardIndices: Array.from({ length: count }, (_, i) => i),
-        deck,
-        deckNextIndex: deal.deckNextIndex,
+        pile,
+        deckSeed: deal.deckSeed,
         maxDiscards: 4,
       });
       assert.equal(result.discarded, count);
@@ -70,14 +74,16 @@ describe("C — draw / discard phase", () => {
   it("rejects over-limit discard count", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
+    const deck = shuffledDeckFromSeed(deal.deckSeed);
+    const pile = pileFromPublicHand(pub, deck);
     const hand = effectivePlayerHand("p3", deal.privateHands.p3, pub);
     assert.throws(
       () =>
         applyDraw({
           hand,
           discardIndices: [0, 1, 2, 3, 4],
-          deck: shuffledDeckFromSeed(deal.deckSeed),
-          deckNextIndex: deal.deckNextIndex,
+          pile,
+          deckSeed: deal.deckSeed,
           maxDiscards: 4,
         }),
       /at most 4/,
@@ -96,7 +102,6 @@ describe("C — draw / discard phase", () => {
       publicHand: pub,
       discardIndices: [0],
       deck,
-      deckNextIndex: deal.deckNextIndex,
       maxDiscards: 4,
     });
     assert.ok(result.publicHand.trumpUpcard);
@@ -117,7 +122,6 @@ describe("C — draw / discard phase", () => {
       publicHand: pub,
       discardIndices: [trumpIdx],
       deck,
-      deckNextIndex: deal.deckNextIndex,
       maxDiscards: 4,
     });
     assert.equal(result.publicHand.trumpUpcard, null);
