@@ -6,6 +6,8 @@ export const MICRO_MS = {
   trumpReminder: 900,
   feedbackPulse: 420,
   illegalShake: 340,
+  illegalFlash: 420,
+  autoPlayPreselect: 220,
   cardSelect: 380,
   winnerFlash: 520,
   bankrollTick: 900,

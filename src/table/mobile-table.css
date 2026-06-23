@@ -290,7 +290,9 @@
 }
 
 .btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--selected,
-.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--selected {
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--play-preselected,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--selected,
+.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--play-preselected {
   transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
 }
 
