@@ -14,6 +14,7 @@ import {
 } from "./feedback";
 import {
   getTrickAnimationBusyState,
+  isTablePresentationBusy,
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   subscribeTrickAnimationBusy,
@@ -59,6 +60,7 @@ export {
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,
   getTrickAnimationBusyState,
+  isTablePresentationBusy,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
 };

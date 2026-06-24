@@ -17,6 +17,7 @@ import {
   usingEmulator,
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
+import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   clearSessionSetupSheetSnap,
   initSessionSetupSheet,
@@ -2606,12 +2607,38 @@ function processRobotActions(s, scores) {
   }
 }
 
-function isTrickAnimationBlockingBots() {
+function isTablePresentationBlockingBots() {
   try {
-    return tableMountApi?.isTrickAnimationBusy?.() === true;
+    return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
     return false;
   }
+}
+
+function snapshotGameFlowContext(s, scores) {
+  const ch = getSessionCurrentHand(s);
+  const participants = ch?.participantIds ?? [];
+  const actionOrder = ch?.actionOrder ?? participants;
+  const turnId = ch?.turnPlayerId ?? null;
+  const turnIndex = turnId ? actionOrder.indexOf(turnId) : -1;
+  return {
+    handNumber: sessionHandNumber(s),
+    handPhase: ch?.phase ?? null,
+    trickNumber: ch?.currentTrick?.trickNumber ?? null,
+    trickPlays: ch?.currentTrick?.plays?.length ?? 0,
+    turnPlayerId: turnId,
+    turnIndex,
+    dealerId: resolveHandDealerId(s?.dealerId ?? null, ch),
+    actionOrder,
+    drawCompleted: (ch?.drawCompletedIds ?? []).length,
+    drawTotal: participants.length,
+    trumpUpcard: Boolean(ch?.trumpUpcard),
+    trumpSuit: ch?.trumpSuit ?? null,
+    botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
+    trickAnimBusy: isTablePresentationBlockingBots(),
+    robotActionInFlight,
+    msSinceLastRobot: Date.now() - lastRobotTrickAt,
+  };
 }
 
 function processRobotActionsInner(s, scores) {
@@ -2704,6 +2731,13 @@ function processRobotActionsInner(s, scores) {
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
+    if (isTablePresentationBlockingBots()) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
+      }
+      return;
+    }
+
     const turnId = currentHand.turnPlayerId;
     const drawDone = currentHand.drawCompletedIds || [];
     if (
@@ -2712,6 +2746,9 @@ function processRobotActionsInner(s, scores) {
       participants.includes(turnId) &&
       !drawDone.includes(turnId)
     ) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "robot-submit-draw", snapshotGameFlowContext(s, scores));
+      }
       lastRobotTrickAt = now;
       robotActionInFlight = true;
       robotSubmitDraw(currentRoomId, openSessionId, {
@@ -2728,7 +2765,12 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
-    if (isTrickAnimationBlockingBots()) return;
+    if (isTablePresentationBlockingBots()) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
+      }
+      return;
+    }
 
     const turnId = currentHand.turnPlayerId;
     const trick = currentHand.currentTrick;
@@ -2757,6 +2799,9 @@ function processRobotActionsInner(s, scores) {
     }
 
     if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "robot-play-card", snapshotGameFlowContext(s, scores));
+      }
       lastRobotTrickAt = now;
       robotActionInFlight = true;
       robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
@@ -3545,6 +3590,12 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
 function scheduleTableSessionSync(openSessionObj) {
   cancelAnimationFrame(tableSyncFrame);
   tableSyncFrame = requestAnimationFrame(() => {
+    if (isGameFlowDebugEnabled()) {
+      const sessionObj = resolveOpenSessionObj(openSessionObj);
+      if (sessionObj) {
+        logGameFlow("scheduleTableSessionSync", "raf", snapshotGameFlowContext(sessionObj, openScores));
+      }
+    }
     syncTableSession(openSessionObj);
   });
 }

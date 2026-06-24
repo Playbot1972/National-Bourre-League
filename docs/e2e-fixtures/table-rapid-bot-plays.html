@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Rapid bot plays fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-rapid-bot-plays-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      /** Play Now repro: hero + human + 2 bots. */
+      const ids = ["p0", "p1", "bot_a", "bot_b"];
+      const dealerId = "bot_b";
+
+      let currentTrick = {
+        trickNumber: 1,
+        leadPlayerId: "p1",
+        leadSuit: "clubs",
+        plays: [],
+      };
+      let turnPlayerId = "p1";
+
+      window.__rapidBotPlaysFixture = {
+        maxCardCount: 0,
+        countDrops: 0,
+        lastCount: 0,
+        done: false,
+      };
+
+      function sampleDom() {
+        const row = document.querySelector('[data-testid="trick-row"]');
+        const count = parseInt(row?.getAttribute("data-trick-card-count") || "0", 10);
+        const f = window.__rapidBotPlaysFixture;
+        if (count > f.maxCardCount) f.maxCardCount = count;
+        if (count < f.lastCount && f.lastCount > 0) f.countDrops += 1;
+        f.lastCount = count;
+      }
+
+      function displayName(id) {
+        if (id === "p0") return "You";
+        if (id.startsWith("bot")) return "Bot";
+        return "Player 1";
+      }
+
+      function buildPlayers() {
+        return ids.map((id) => ({
+          playerId: id,
+          displayName: displayName(id),
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 0,
+          isSelf: id === "p0",
+          isDealer: id === dealerId,
+          isLeading: id === currentTrick.leadPlayerId,
+          isWinner: false,
+          isRobot: id.startsWith("bot"),
+          canToggleInHand: false,
+          canEditTricks: false,
+          showHoleCards: id !== "p0",
+          holeCardCount: 4,
+          isOnTurn: id === turnPlayerId,
+        }));
+      }
+
+      function buildProps() {
+        return {
+          session: {
+            sessionId: "fixture-rapid-bot-plays",
+            handNumber: 2,
+            handStake: 1,
+            carryOverPot: 0,
+            isFinal: false,
+            dealerId,
+            trumpHolderId: dealerId,
+            participantIds: ids,
+            actionOrder: ["p1", "bot_a", "p0", "bot_b"],
+            seatedIds: ids,
+            tricksByPlayer: { p0: 0, p1: 0, bot_a: 0, bot_b: 0 },
+            phase: "play",
+            trumpSuit: "hearts",
+            trumpUpcard: null,
+            turnPlayerId,
+            remainingDeckCount: 16,
+            maxDrawDiscards: 3,
+            currentTrick,
+            playedCards: [],
+            handEnrollment: null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: 4,
+            maxWinThisHand: 4,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel: "Rapid bot plays fixture",
+          showCoWinSettlement: false,
+          enrollmentActive: false,
+          currentUserId: "p0",
+          heroCards: [
+            { rank: "10", suit: "diamonds" },
+            { rank: "8", suit: "spades" },
+            { rank: "7", suit: "clubs" },
+            { rank: "6", suit: "diamonds" },
+            { rank: "5", suit: "hearts" },
+          ],
+          privateHandReady: true,
+          legalPlayIndices: [0, 1, 2, 3, 4],
+          actionFeedback: null,
+          actions: {
+            onToggleInHand: () => {},
+            onTrickDelta: () => {},
+            onSettle: () => {},
+            onSubmitDraw: async () => {},
+            onPassDraw: async () => {},
+            onPlayCard: async () => {},
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+      const sampler = window.setInterval(sampleDom, 40);
+
+      function render() {
+        mountTableSession(root, buildProps());
+        sampleDom();
+      }
+
+      render();
+
+      const play1 = { playerId: "p1", card: { rank: "K", suit: "clubs" } };
+      const play2 = { playerId: "bot_a", card: { rank: "9", suit: "clubs" } };
+      const play3 = { playerId: "p0", card: { rank: "2", suit: "clubs" } };
+      const play4 = { playerId: "bot_b", card: { rank: "A", suit: "clubs" } };
+
+      /** Rapid bot-like snapshot churn: play, stale shrink, recover, next plays. */
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1] };
+        turnPlayerId = "bot_a";
+        render();
+      }, 200);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [] };
+        render();
+      }, 320);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2] };
+        turnPlayerId = "p0";
+        render();
+      }, 400);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1] };
+        render();
+      }, 520);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2, play3] };
+        turnPlayerId = "bot_b";
+        render();
+      }, 640);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2] };
+        render();
+      }, 760);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2, play3, play4] };
+        turnPlayerId = "p1";
+        render();
+      }, 900);
+
+      setTimeout(() => {
+        window.__rapidBotPlaysFixture.done = true;
+        window.clearInterval(sampler);
+        sampleDom();
+      }, 2200);
+    </script>
+  </body>
+</html>

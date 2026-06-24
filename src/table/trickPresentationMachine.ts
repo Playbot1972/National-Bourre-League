@@ -7,6 +7,7 @@ import {
   type TrickPresentationPhase,
 } from "./trickTiming";
 import { playFlyKey } from "./trickPlayFly";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "./types";
 
 export interface ServerTrickSnapshot {
@@ -57,6 +58,8 @@ export interface TrickPresentationStore {
   pendingResolution: PendingTrickResolution | null;
   /** Longest prefix-stable trick play list seen this trick (survives stale snapshots). */
   peakTrickPlays: TrickPlay[];
+  /** Cards already shown this trick — never shrink display below this during live play. */
+  displayRevealFloor: number;
 }
 
 export function createTrickPresentationStore(
@@ -75,6 +78,7 @@ export function createTrickPresentationStore(
     resolvedTricks: null,
     pendingResolution: null,
     peakTrickPlays: serializedPlays(currentTrick),
+    displayRevealFloor: 0,
   };
 }
 
@@ -134,6 +138,11 @@ export function applyLiveServerUpdate(
     ((livePlays.length < store.revealedCount && prevPlays.length >= store.revealedCount) ||
       (livePlays.length < peakTrickPlays.length && prevPlays.length >= peakTrickPlays.length));
 
+  const liveTrickNum = snapshot.currentTrick?.trickNumber ?? null;
+  const prevTrickNum = store.prevTrick?.trickNumber ?? null;
+  const trickChanged =
+    liveTrickNum != null && prevTrickNum != null && liveTrickNum !== prevTrickNum;
+
   return {
     ...store,
     prevTricks: { ...snapshot.tricksByPlayer },
@@ -142,6 +151,7 @@ export function applyLiveServerUpdate(
     pendingServer: null,
     resolvedTricks: null,
     peakTrickPlays,
+    displayRevealFloor: trickChanged ? 0 : store.displayRevealFloor,
   };
 }
 
@@ -180,6 +190,34 @@ export function reduceTrickPresentation(
   store: TrickPresentationStore,
   event: TrickPresentationEvent,
 ): TrickPresentationStore {
+  const next = reduceTrickPresentationCore(store, event);
+  if (isGameFlowDebugEnabled()) {
+    const plays = serializedPlays(store.prevTrick).length;
+    const nextPlays = serializedPlays(next.prevTrick).length;
+    if (
+      store.phase !== next.phase ||
+      store.revealedCount !== next.revealedCount ||
+      plays !== nextPlays ||
+      Boolean(store.pendingResolution) !== Boolean(next.pendingResolution) ||
+      event.type === "serverUpdate"
+    ) {
+      logGameFlow("trickPresentation", event.type, {
+        phase: `${store.phase} -> ${next.phase}`,
+        revealedCount: `${store.revealedCount} -> ${next.revealedCount}`,
+        prevTrickPlays: `${plays} -> ${nextPlays}`,
+        peakPlays: next.peakTrickPlays?.length ?? 0,
+        pendingResolution: Boolean(next.pendingResolution),
+        livePlays: event.type === "serverUpdate" ? event.snapshot.currentTrick?.plays?.length : undefined,
+      });
+    }
+  }
+  return next;
+}
+
+function reduceTrickPresentationCore(
+  store: TrickPresentationStore,
+  event: TrickPresentationEvent,
+): TrickPresentationStore {
   switch (event.type) {
     case "reset":
     case "reinit":
@@ -192,7 +230,12 @@ export function reduceTrickPresentation(
       if (store.phase !== "live") return store;
       const target = liveRevealTarget(store);
       if (store.revealedCount >= target) return store;
-      return { ...store, revealedCount: store.revealedCount + 1 };
+      const revealedCount = store.revealedCount + 1;
+      return {
+        ...store,
+        revealedCount,
+        displayRevealFloor: Math.max(store.displayRevealFloor, revealedCount),
+      };
     }
 
     case "clampRevealedCount": {
@@ -242,6 +285,7 @@ export function reduceTrickPresentation(
               ? { ...pending.tricksByPlayer }
               : store.displayTricksByPlayer,
             peakTrickPlays: serializedPlays(pending?.currentTrick),
+            displayRevealFloor: pendingReveal,
           };
         }
         default:
@@ -316,15 +360,26 @@ export function buildTrickPresentationModel(
 ): TrickPresentationModel {
   const livePlays = serializedPlays(liveCurrentTrick);
   const holdPlays = resolveHoldPlays(store, livePlays);
-  const revealLimit =
+  const floor = store.displayRevealFloor;
+  const holdForDisplay =
+    holdPlays.length >= floor
+      ? holdPlays
+      : (store.peakTrickPlays?.length ?? 0) >= floor
+        ? store.peakTrickPlays!
+        : holdPlays;
+  const rawRevealLimit =
     store.phase === "live"
       ? store.pendingResolution
-        ? Math.max(store.revealedCount, holdPlays.length)
-        : Math.min(store.revealedCount, holdPlays.length)
-      : holdPlays.length;
+        ? Math.max(store.revealedCount, holdForDisplay.length)
+        : Math.min(store.revealedCount, holdForDisplay.length)
+      : holdForDisplay.length;
+  const revealLimit =
+    store.phase === "live" && !store.pendingResolution
+      ? Math.max(rawRevealLimit, floor)
+      : rawRevealLimit;
   const displayPlays =
     store.phase === "live"
-      ? holdPlays.slice(0, revealLimit)
+      ? holdForDisplay.slice(0, revealLimit)
       : store.frozenTrick?.plays ?? [];
 
   const trickEchoPlays = store.frozenTrick?.plays ?? [];

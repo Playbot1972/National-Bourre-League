@@ -12,6 +12,7 @@ import {
   TRICK_CARD_TRAVEL_MS,
 } from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 
 type FlyMode = "pending" | "travel" | "settle" | "land" | "static";
 
@@ -31,11 +32,15 @@ function completeFlight(
   setFlyMode: (mode: FlyMode) => void,
   setCssFly: (value: { dx: number; dy: number } | null) => void,
   flightStartedRef: { current: boolean },
+  debug?: { playKey: string; index: number },
 ) {
   flightStartedRef.current = false;
   setHasLanded(true);
   setFlyMode("static");
   setCssFly(null);
+  if (debug && isGameFlowDebugEnabled()) {
+    logGameFlow("TrickPlaySlot", "fly-complete", debug);
+  }
 }
 
 export function TrickPlaySlot({
@@ -62,6 +67,14 @@ export function TrickPlaySlot({
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
   useLayoutEffect(() => {
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("TrickPlaySlot", "play-enter", {
+        playKey,
+        index,
+        instantPlace,
+        isLanding,
+      });
+    }
     setHasLanded(false);
     flightStartedRef.current = false;
     setFlyMode("static");
@@ -72,13 +85,19 @@ export function TrickPlaySlot({
     if (hasLanded) return;
 
     if (instantPlace || !isLivePhase) {
-      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+        playKey,
+        index,
+      });
       return;
     }
 
     if (!isLanding) {
       if (flightStartedRef.current || flyMode !== "static") {
-        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+        playKey,
+        index,
+      });
       } else {
         setHasLanded(true);
       }
@@ -95,7 +114,10 @@ export function TrickPlaySlot({
 
     const origin = resolvePlayOrigin(play.playerId, playKey);
     if (!origin) {
-      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+        playKey,
+        index,
+      });
       return;
     }
 
@@ -110,10 +132,17 @@ export function TrickPlaySlot({
     setCssFly(offset);
     setFlyMode("pending");
 
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs, settleMs });
+    }
+
     const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
     const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
     const doneTimer = window.setTimeout(() => {
-      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+        playKey,
+        index,
+      });
     }, travelMs + settleMs);
 
     return () => {

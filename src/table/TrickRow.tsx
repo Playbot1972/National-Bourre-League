@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { TrickPlaySlot } from "./TrickPlaySlot";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 
 interface TrickRowProps {
@@ -22,6 +24,14 @@ export function TrickRow({
   variant = "live",
   instantTrickPlays = false,
 }: TrickRowProps) {
+  useEffect(() => {
+    if (!isGameFlowDebugEnabled()) return;
+    logGameFlow("TrickRow", displayPlays.length === 0 ? "trick-empty" : "trick-cards", {
+      count: displayPlays.length,
+      phase: presentationPhase,
+    });
+  }, [displayPlays.length, presentationPhase]);
+
   if (displayPlays.length === 0) {
     return (
       <div

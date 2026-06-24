@@ -1,4 +1,6 @@
-/** Published trick animation state for the social app bot driver (docs/app.js). */
+/** Published table presentation state for the social app bot driver (docs/app.js). */
+
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 
 export interface TrickAnimationBusyState {
   pipelineActive: boolean;
@@ -8,6 +10,9 @@ export interface TrickAnimationBusyState {
   motionGateActive: boolean;
   peakPlayCount: number;
   displayedPlayCount: number;
+  /** Hand deal / trump / draw presentation still running. */
+  handPresenting: boolean;
+  handPresentationPhase: string;
 }
 
 const IDLE: TrickAnimationBusyState = {
@@ -16,6 +21,8 @@ const IDLE: TrickAnimationBusyState = {
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
+  handPresenting: false,
+  handPresentationPhase: "idle",
 };
 
 let state: TrickAnimationBusyState = IDLE;
@@ -27,12 +34,31 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
     a.revealCatchUp === b.revealCatchUp &&
     a.motionGateActive === b.motionGateActive &&
     a.peakPlayCount === b.peakPlayCount &&
-    a.displayedPlayCount === b.displayedPlayCount
+    a.displayedPlayCount === b.displayedPlayCount &&
+    a.handPresenting === b.handPresenting &&
+    a.handPresentationPhase === b.handPresentationPhase
+  );
+}
+
+function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
+  return (
+    s.handPresenting ||
+    s.pipelineActive ||
+    s.revealCatchUp ||
+    s.motionGateActive ||
+    (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0)
   );
 }
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
   if (statesEqual(state, next)) return;
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("trickAnimationBridge", "busy-state", {
+      from: state,
+      to: next,
+      busy: isTablePresentationBusyFrom(next),
+    });
+  }
   state = next;
   for (const listener of listeners) listener();
 }
@@ -53,6 +79,11 @@ export function isTrickAnimationBusy(): boolean {
     state.motionGateActive ||
     (state.peakPlayCount > state.displayedPlayCount && state.peakPlayCount > 0)
   );
+}
+
+/** True while hand or trick presentation must finish before bot draw/play. */
+export function isTablePresentationBusy(): boolean {
+  return isTablePresentationBusyFrom(state);
 }
 
 export function subscribeTrickAnimationBusy(listener: () => void): () => void {

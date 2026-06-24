@@ -19,6 +19,7 @@ import {
   reduceTrickPresentation,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
+import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
 interface UseTrickPresentationInput {
@@ -103,6 +104,14 @@ export function useTrickPresentation({
       trumpSuit,
       reducedMotion: prefersReducedMotion(),
     });
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useTrickPresentation", "serverUpdate-effect", {
+        sessionPhase: phase,
+        trickNumber: currentTrick?.trickNumber,
+        livePlays: currentTrick?.plays?.length ?? 0,
+        turnPlayerId,
+      });
+    }
   }, [
     phase,
     currentTrick,
@@ -215,6 +224,12 @@ export function useTrickPresentation({
       : CARD_REVEAL_STAGGER_MS;
     revealTimerRef.current = window.setTimeout(() => {
       revealTimerRef.current = null;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "revealNextCard-timer", {
+          revealedCount: store.revealedCount,
+          targetReveal: targetRevealRef.current,
+        });
+      }
       dispatch({ type: "revealNextCard" });
     }, timing);
   };

@@ -8,6 +8,7 @@ import {
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
+import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -114,6 +115,16 @@ export function useHandPresentation({
       heroDrawDiscardCount: delta.discardCount,
       heroDrawReplaceCount: delta.replaceCount,
     });
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useHandPresentation", "serverUpdate-effect", {
+        handNumber: snapshot.handNumber,
+        serverPhase: snapshot.phase,
+        drawCompleted: snapshot.drawCompletedIds.length,
+        participantCount: snapshot.participantIds.length,
+        trumpUpcard: Boolean(snapshot.trumpUpcard),
+        turnPlayerId: snapshot.turnPlayerId,
+      });
+    }
   }, [snapshot, heroCards]);
 
   const enrollmentPulseKey = JSON.stringify(store.enrollmentPulse);
@@ -137,7 +148,15 @@ export function useHandPresentation({
     const delay = phaseScheduleMs(store, reduced);
     if (delay <= 0) return;
 
-    schedule(() => dispatch({ type: "advancePhase" }), delay);
+    schedule(() => {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useHandPresentation", "advancePhase-timer", {
+          fromPhase: store.phase,
+          delay,
+        });
+      }
+      dispatch({ type: "advancePhase" });
+    }, delay);
     schedule(() => dispatch({ type: "watchdog" }), PRESENTATION_WATCHDOG_MS);
   }, [store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
