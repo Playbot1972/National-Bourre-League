@@ -20,6 +20,16 @@ export function activePlayerOrder(
   return order.filter((id) => active.has(id));
 }
 
+/** Advance one seat clockwise within the active action ring. */
+export function nextActivePlayerClockwise(
+  order: string[],
+  currentPlayerId: string,
+): string | null {
+  const idx = order.indexOf(currentPlayerId);
+  if (idx < 0) return order[0] ?? null;
+  return order[(idx + 1) % order.length] ?? null;
+}
+
 /**
  * First active seat to lead trick 1 / start the draw clock — left of dealer,
  * skipping inactive players. Never returns the dealer when another active seat exists.
@@ -36,6 +46,9 @@ export function openingLeaderId(
   }
   return order[0]!;
 }
+
+/** Alias — first active player clockwise from the dealer's left. */
+export const firstLeaderFromDealerLeft = openingLeaderId;
 
 /** Full clockwise seat ring for a hand (prefer over participant join order). */
 export function resolveSeatRing(
@@ -66,11 +79,17 @@ export function resolveActionOrder(
   fallbackSortedPlayerIds?: string[],
 ): string[] {
   const participantIds = hand.participantIds ?? [];
+  const seatRing = resolveSeatRing(hand, fallbackSortedPlayerIds);
+  if (seatRing.length > 0) {
+    const fromSeats = activePlayerOrder(hand.dealerId, participantIds, seatRing);
+    if (fromSeats.length > 0) {
+      return fromSeats;
+    }
+  }
   if (hand.actionOrder?.length) {
     return hand.actionOrder.filter((id) => participantIds.includes(id));
   }
-  const seatRing = resolveSeatRing(hand, fallbackSortedPlayerIds);
-  return activePlayerOrder(hand.dealerId, participantIds, seatRing);
+  return participantIds;
 }
 
 /** Five cards per player in a standard Bourré deal. */

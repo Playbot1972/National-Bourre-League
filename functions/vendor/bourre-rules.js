@@ -251,6 +251,9 @@ export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionSt
   const antePot = sumProjectedHandAntes(scoreById, playerIds, sessionStake, postedAntes);
   return carry + antePot;
 }
+
+/**
+ * Score-row flags applied after settlement for the next deal's pot funding.
  * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
  */
 export function nextDealFundingFlags({

@@ -5,6 +5,7 @@ import {
   openingLeaderId,
   resolveActionOrder,
   resolveSeatRing,
+  nextActivePlayerClockwise,
 } from "./playerOrder";
 import { advanceAfterDraw } from "./draw";
 import { HAND_PHASE } from "./types";
@@ -53,5 +54,21 @@ describe("resolveActionOrder", () => {
     });
     assert.deepEqual(ring, SORTED);
     assert.equal(openingLeaderId("host", ["host", "bot_a"], ring), "bot_a");
+  });
+
+  it("resolveActionOrder ignores join-order actionOrder when seatedIds are present", () => {
+    const hand = {
+      dealerId: "host",
+      participantIds: ["host", "bot_a", "bot_b"],
+      seatedIds: SORTED,
+      actionOrder: ["host", "bot_a", "bot_b"],
+    };
+    assert.deepEqual(resolveActionOrder(hand), ["bot_a", "bot_b", "host"]);
+  });
+
+  it("nextActivePlayerClockwise wraps within the action ring", () => {
+    const order = ["bot_a", "bot_b", "host"];
+    assert.equal(nextActivePlayerClockwise(order, "host"), "bot_a");
+    assert.equal(nextActivePlayerClockwise(order, "bot_a"), "bot_b");
   });
 });

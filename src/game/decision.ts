@@ -1,6 +1,6 @@
 import { maxDrawDiscards } from "./drawLimit";
 import { firstUnresolvedDrawTurn } from "./draw";
-import { playerOrderFromDealer } from "./playerOrder";
+import { playerOrderFromDealer, resolveActionOrder } from "./playerOrder";
 import { HAND_PHASE } from "./types";
 import type { HandDecision, PublicHandState, SerializedCard } from "./types";
 
@@ -61,9 +61,7 @@ function completeDecisionToDraw(
   plannedDiscards: Record<string, number>,
   dealingRule?: string | null,
 ): PublicHandState {
-  const actionOrder = (hand.actionOrder ?? hand.participantIds).filter((id) =>
-    playingIds.includes(id),
-  );
+  const actionOrder = resolveActionOrder(hand).filter((id) => playingIds.includes(id));
   const maxDraw = maxDrawDiscards(playingIds.length, dealingRule);
   const drawCompletedIds = playingIds.filter(
     (id) => (plannedDiscards[id] ?? 0) === 0,

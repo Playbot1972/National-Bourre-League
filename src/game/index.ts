@@ -6,6 +6,8 @@ export {
   playerOrderFromDealer,
   activePlayerOrder,
   openingLeaderId,
+  firstLeaderFromDealerLeft,
+  nextActivePlayerClockwise,
   resolveActionOrder,
   resolveSeatRing,
   CARDS_PER_PLAYER,
