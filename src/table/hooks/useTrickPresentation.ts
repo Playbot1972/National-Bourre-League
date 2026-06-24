@@ -181,8 +181,11 @@ export function useTrickPresentation({
 
   const targetReveal =
     store.phase === "live"
-      ? store.pendingResolution?.frozen.plays.length ??
-        (currentTrick?.plays?.length ?? 0)
+      ? Math.max(
+          store.pendingResolution?.frozen.plays.length ?? 0,
+          currentTrick?.plays?.length ?? 0,
+          store.peakTrickPlays?.length ?? 0,
+        )
       : store.revealedCount;
 
   useEffect(() => {

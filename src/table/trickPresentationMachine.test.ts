@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
+  liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
   trickPlaysArePrefix,
@@ -269,6 +270,40 @@ describe("trickPresentationMachine", () => {
     const b = [{ playerId: "p2", card: { rank: "K", suit: "hearts" } }];
     assert.equal(trickPlaysArePrefix(a, [...a, ...b]), true);
     assert.equal(trickPlaysArePrefix(b, [...a, ...b]), false);
+  });
+
+  it("keeps reveal target when stale empty snapshot arrives before first stagger", () => {
+    const play1 = { playerId: "p1", card: { rank: "K", suit: "clubs" } };
+    const trick1 = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "clubs",
+      plays: [play1],
+    };
+    let store = createTrickPresentationStore({ p0: 0, p1: 0 }, trick1);
+    assert.equal(store.revealedCount, 0);
+    assert.equal(store.peakTrickPlays.length, 1);
+
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { ...trick1, plays: [] },
+        tricksByPlayer: { p0: 0, p1: 0 },
+      },
+      participantIds: ["p0", "p1"],
+    });
+
+    assert.equal(store.peakTrickPlays.length, 1);
+    assert.equal(store.prevTrick?.plays.length, 1);
+    assert.equal(liveRevealTarget(store), 1);
+
+    store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    assert.equal(store.revealedCount, 1);
+    assert.equal(
+      buildTrickPresentationModel(store, { ...trick1, plays: [] }).displayPlays.length,
+      1,
+    );
+    assert.equal(resolveHoldPlays(store, []).length, 1);
   });
 
   it("does not clamp revealed count down on mid-trick server sync", () => {
