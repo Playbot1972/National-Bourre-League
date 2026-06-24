@@ -24,6 +24,18 @@ interface TrickPlaySlotProps {
   winnerPlayerId?: string | null;
 }
 
+function completeFlight(
+  setHasLanded: (value: boolean) => void,
+  setFlyMode: (mode: FlyMode) => void,
+  setCssFly: (value: { dx: number; dy: number } | null) => void,
+  flightStartedRef: { current: boolean },
+) {
+  flightStartedRef.current = false;
+  setHasLanded(true);
+  setFlyMode("static");
+  setCssFly(null);
+}
+
 export function TrickPlaySlot({
   play,
   index,
@@ -39,9 +51,10 @@ export function TrickPlaySlot({
   const flightStartedRef = useRef(false);
   const playKey = playFlyKey(play);
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
-  const isLanding = index === displayCount - 1 && presentationPhase === "live";
-  /** Shift only after land completes — avoids shift + fly keyframes on the same card. */
-  const isSettled = hasLanded || (!isLanding && flyMode === "static");
+  const isLivePhase = presentationPhase === "live";
+  const isLanding = index === displayCount - 1 && isLivePhase;
+  /** Shift transition only after a completed land — never during fly keyframes. */
+  const isSettled = hasLanded;
   const showWinnerCard =
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
@@ -55,12 +68,16 @@ export function TrickPlaySlot({
   useLayoutEffect(() => {
     if (hasLanded) return;
 
+    if (!isLivePhase) {
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      return;
+    }
+
     if (!isLanding) {
       if (flightStartedRef.current || flyMode !== "static") {
-        flightStartedRef.current = false;
+        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      } else {
         setHasLanded(true);
-        setFlyMode("static");
-        setCssFly(null);
       }
       return;
     }
@@ -84,9 +101,7 @@ export function TrickPlaySlot({
       setCssFly(null);
       const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
       const doneTimer = window.setTimeout(() => {
-        flightStartedRef.current = false;
-        setHasLanded(true);
-        setFlyMode("static");
+        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
       }, travelMs + settleMs);
       return () => {
         window.clearTimeout(settleTimer);
@@ -103,10 +118,7 @@ export function TrickPlaySlot({
     const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
     const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
     const doneTimer = window.setTimeout(() => {
-      flightStartedRef.current = false;
-      setHasLanded(true);
-      setFlyMode("static");
-      setCssFly(null);
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
     }, travelMs + settleMs);
 
     return () => {
@@ -114,7 +126,7 @@ export function TrickPlaySlot({
       window.clearTimeout(settleTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [hasLanded, isLanding, play.playerId, playKey]);
+  }, [hasLanded, isLanding, isLivePhase, play.playerId, playKey]);
 
   const flyStyle: CSSProperties = {
     ["--slot-index" as string]: index,

@@ -701,7 +701,7 @@
   z-index: calc(var(--slot-index, 0) + 1);
 }
 
-.btrick__play--settled {
+.btrick__play--settled.btrick__play--static-landed {
   transition: transform var(--trick-card-shift-ms) var(--trick-ease-shift);
 }
 

@@ -4,6 +4,7 @@ import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
   reduceTrickPresentation,
+  resolveHoldPlays,
 } from "./trickPresentationMachine";
 import { trickResolutionScheduleMs } from "./trickTiming";
 
@@ -196,6 +197,40 @@ describe("trickPresentationMachine", () => {
     assert.equal(store.phase, "live");
     assert.equal(store.prevTrick?.plays.length, 1);
     assert.equal(store.revealedCount, 1);
+  });
+
+  it("keeps hold plays when a stale snapshot drops mid-trick cards", () => {
+    const partialTrick = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts",
+      plays: [
+        { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+        { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+      ],
+    };
+    const fullTrick = {
+      ...partialTrick,
+      plays: [
+        ...partialTrick.plays,
+        { playerId: "p3", card: { rank: "Q", suit: "hearts" } },
+      ],
+    };
+    let store = createTrickPresentationStore({ p1: 0, p2: 0, p3: 0 }, fullTrick);
+    for (let i = 0; i < 3; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    assert.equal(store.revealedCount, 3);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: partialTrick,
+        tricksByPlayer: { p1: 0, p2: 0, p3: 0 },
+      },
+      participantIds: ["p1", "p2", "p3"],
+    });
+    assert.equal(resolveHoldPlays(store, partialTrick.plays).length, 3);
+    assert.equal(buildTrickPresentationModel(store, partialTrick).displayPlays.length, 3);
   });
 
   it("does not clamp revealed count down on mid-trick server sync", () => {
