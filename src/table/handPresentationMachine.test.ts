@@ -87,30 +87,6 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, false);
   });
 
-  it("does not replay draw animation for an already-presented player", () => {
-    let store = createHandPresentationStore(baseSnap);
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { ...baseSnap, drawCompletedIds: ["p2"] },
-      heroDrawDiscardCount: 1,
-      heroDrawReplaceCount: 1,
-    });
-    assert.equal(store.animatingDrawPlayerId, "p2");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.displayDrawCompletedIds.includes("p2"), true);
-    assert.equal(store.drawPresentationConsumedIds.includes("p2"), true);
-    assert.equal(store.drawAnimSubPhase, "done");
-    const phaseStartedAt = store.phaseStartedAt;
-
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p3" },
-    });
-    assert.equal(store.animatingDrawPlayerId, null);
-    assert.equal(store.phaseStartedAt, phaseStartedAt);
-  });
-
   it("does not re-open drawPlayer for consumed bots when prev snapshot regresses", () => {
     const botA = "bot_hiud3taw";
     const botB = "bot_qa2qh6l5";
@@ -173,6 +149,65 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.animatingDrawPlayerId, null);
     assert.equal(store.phaseStartedAt, settledPhaseAt);
+  });
+
+  it("reserves consumed on discard start so alternating advancePhase cannot reopen bots", () => {
+    const botA = "bot_ova3dpwd";
+    const botB = "bot_jii2or4c";
+    const snap = snapshotFromSession({
+      sessionId: "s-alt",
+      handNumber: 1,
+      phase: "draw",
+      participantIds: ["p0", botA, botB],
+      actionOrder: [botA, botB, "p0"],
+      drawCompletedIds: [botA, botB],
+      turnPlayerId: "p0",
+      potAmount: 3,
+    });
+
+    let store = createHandPresentationStore({ ...snap, drawCompletedIds: [] });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA] },
+    });
+    assert.equal(store.animatingDrawPlayerId, botA);
+    assert.ok(store.drawPresentationConsumedIds.includes(botA));
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.ok(store.displayDrawCompletedIds.includes(botA));
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA, botB] },
+    });
+    assert.equal(store.animatingDrawPlayerId, botB);
+    assert.ok(store.drawPresentationConsumedIds.includes(botB));
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.ok(store.displayDrawCompletedIds.includes(botB));
+
+    const beforeReplay = store.phaseStartedAt;
+    store = {
+      ...store,
+      prevSnapshot: { ...snap, drawCompletedIds: [], phase: "decision" },
+    };
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA, botB], phase: "draw" },
+    });
+    assert.equal(store.animatingDrawPlayerId, null);
+    assert.equal(store.phaseStartedAt, beforeReplay);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA] },
+    });
+    assert.equal(store.animatingDrawPlayerId, null);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.animatingDrawPlayerId, null);
+    assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [botA, botB].sort());
   });
 
   it("resets draw presentation consumed set on hand number change", () => {

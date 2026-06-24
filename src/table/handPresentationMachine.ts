@@ -205,17 +205,30 @@ export function nextDrawPresentationTarget(
   next: HandServerSnapshot,
 ): string | null {
   for (const id of next.drawCompletedIds) {
-    if (store.drawPresentationConsumedIds.includes(id)) continue;
+    if (isDrawPresentationConsumed(store, id)) continue;
+    if (store.displayDrawCompletedIds.includes(id)) continue;
     if (!prev.drawCompletedIds.includes(id)) return id;
   }
   return null;
+}
+
+function isDrawPresentationConsumed(store: HandPresentationStore, playerId: string): boolean {
+  return store.drawPresentationConsumedIds.includes(playerId);
+}
+
+function isDrawPresentationInFlight(store: HandPresentationStore): boolean {
+  return (
+    store.phase === "drawPlayer" &&
+    store.animatingDrawPlayerId != null &&
+    store.drawAnimSubPhase !== "done"
+  );
 }
 
 function markDrawPresentationConsumed(
   store: HandPresentationStore,
   playerId: string | null | undefined,
 ): string[] {
-  if (!playerId || store.drawPresentationConsumedIds.includes(playerId)) {
+  if (!playerId || isDrawPresentationConsumed(store, playerId)) {
     return store.drawPresentationConsumedIds;
   }
   return [...store.drawPresentationConsumedIds, playerId];
@@ -229,28 +242,68 @@ function mergeDrawPresentationConsumed(
   return [...merged];
 }
 
+/** Pick next server-completed player who still needs draw presentation this hand. */
+function pickNextDrawPresentationPlayer(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+  nextCompleted: string[],
+): string | null {
+  for (const id of snapshot.actionOrder) {
+    if (!snapshot.participantIds.includes(id)) continue;
+    if (!snapshot.drawCompletedIds.includes(id)) continue;
+    if (nextCompleted.includes(id)) continue;
+    if (isDrawPresentationConsumed(store, id)) continue;
+    return id;
+  }
+  return null;
+}
+
+function logDrawCandidateResolution(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+  chosen: string | null,
+  reason: string,
+): void {
+  if (!isGameFlowDebugEnabled()) return;
+  logGameFlow("handPresentation", "draw-candidate-resolve", {
+    handNumber: store.handNumber,
+    candidates: [...snapshot.drawCompletedIds],
+    consumed: [...store.drawPresentationConsumedIds],
+    displayCompleted: [...store.displayDrawCompletedIds],
+    inFlight: store.animatingDrawPlayerId,
+    inFlightSubPhase: store.drawAnimSubPhase,
+    chosen,
+    reason,
+  });
+}
+
 function beginDrawPlayerAnim(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
   playerId: string,
   discardCount: number,
   replaceCount: number,
+  reason: string,
 ): HandPresentationStore {
-  if (store.drawPresentationConsumedIds.includes(playerId)) {
-    if (isGameFlowDebugEnabled()) {
-      logGameFlow("handPresentation", "drawPresentation-consumed-skip", {
-        handNumber: store.handNumber,
-        playerId,
-      });
-    }
+  if (isDrawPresentationConsumed(store, playerId)) {
+    logDrawCandidateResolution(store, snapshot, null, `consumed-skip:${playerId}:${reason}`);
     return store;
   }
+  if (
+    isDrawPresentationInFlight(store) &&
+    store.animatingDrawPlayerId !== playerId
+  ) {
+    logDrawCandidateResolution(store, snapshot, null, `in-flight-skip:${reason}`);
+    return store;
+  }
+  logDrawCandidateResolution(store, snapshot, playerId, reason);
   return withPhase(store, "drawPlayer", {
     animatingDrawPlayerId: playerId,
     drawAnimSubPhase: "discard",
     drawDiscardCount: discardCount,
     drawReplaceCount: replaceCount,
     prevSnapshot: snapshot,
+    drawPresentationConsumedIds: markDrawPresentationConsumed(store, playerId),
   });
 }
 
@@ -296,10 +349,10 @@ function beginDrawSequence(
   const prevEmpty = { ...snapshot, drawCompletedIds: [] };
   const first = nextDrawPresentationTarget(store, prevEmpty, snapshot);
   if (first) {
-    return beginDrawPlayerAnim(store, snapshot, first, discardCount, replaceCount);
+    return beginDrawPlayerAnim(store, snapshot, first, discardCount, replaceCount, "beginDrawSequence");
   }
   return withPhase(store, "drawPlayer", {
-    displayDrawCompletedIds: [],
+    displayDrawCompletedIds: store.displayDrawCompletedIds,
     prevSnapshot: snapshot,
   });
 }
@@ -468,7 +521,11 @@ function reduceHandPresentationCore(
 
       if (
         snapshot.phase === "draw" &&
-        (store.phase === "decision" || prev.phase === "decision")
+        (store.phase === "decision" || prev.phase === "decision") &&
+        store.drawPresentationConsumedIds.length === 0 &&
+        store.displayDrawCompletedIds.length === 0 &&
+        store.phase !== "drawPlayer" &&
+        store.phase !== "drawReady"
       ) {
         return beginDrawSequence(store, snapshot, 0, 0);
       }
@@ -480,12 +537,26 @@ function reduceHandPresentationCore(
             store.phase === "drawPlayer" &&
             store.animatingDrawPlayerId === completed &&
             store.drawAnimSubPhase !== "done";
-          if (!animatingNow) {
+          if (!animatingNow && !isDrawPresentationInFlight(store)) {
             const isHeroEvent = heroDrawDiscardCount > 0 || heroDrawReplaceCount > 0;
             const discards = isHeroEvent ? heroDrawDiscardCount : completed === snapshot.turnPlayerId ? 0 : 1;
             const replacements = isHeroEvent ? heroDrawReplaceCount : discards;
-            return beginDrawPlayerAnim(store, snapshot, completed, discards, replacements);
+            return beginDrawPlayerAnim(
+              store,
+              snapshot,
+              completed,
+              discards,
+              replacements,
+              "serverUpdate",
+            );
           }
+          if (animatingNow) {
+            logDrawCandidateResolution(store, snapshot, null, "serverUpdate:animating-same-player");
+          } else if (isDrawPresentationInFlight(store)) {
+            logDrawCandidateResolution(store, snapshot, null, "serverUpdate:in-flight-other-player");
+          }
+        } else if (!completed) {
+          logDrawCandidateResolution(store, snapshot, null, "serverUpdate:no-candidate");
         }
 
         if (
@@ -588,15 +659,11 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       }
       if (ref) {
         const syncedPrev = { ...ref, drawCompletedIds: [...nextCompleted] };
-        const nextPlayer = ref.actionOrder.find(
-          (id) =>
-            ref.participantIds.includes(id) &&
-            !nextCompleted.includes(id) &&
-            !consumedIds.includes(id),
-        );
-        if (nextPlayer && ref.drawCompletedIds.includes(nextPlayer)) {
-          return beginDrawPlayerAnim(store, syncedPrev, nextPlayer, 1, 1);
+        const nextPlayer = pickNextDrawPresentationPlayer(store, ref, nextCompleted);
+        if (nextPlayer) {
+          return beginDrawPlayerAnim(store, syncedPrev, nextPlayer, 1, 1, "advancePhase:nextPlayer");
         }
+        logDrawCandidateResolution(store, ref, null, "advancePhase:no-next-player");
       }
       const syncedPrev =
         ref && playerId ? { ...ref, drawCompletedIds: [...nextCompleted] } : ref;
