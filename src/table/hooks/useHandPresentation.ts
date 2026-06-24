@@ -144,7 +144,12 @@ export function useHandPresentation({
   useEffect(() => {
     const reduced = prefersReducedMotion();
     const phaseKey = `${store.handNumber}:${store.phase}:${store.animatingDrawPlayerId ?? ""}:${store.drawAnimSubPhase}:${store.phaseStartedAt}`;
-    if (advanceArmedKeyRef.current === phaseKey) return;
+    if (advanceArmedKeyRef.current === phaseKey) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useHandPresentation", "advancePhase-timer-skip-duplicate", { phaseKey });
+      }
+      return;
+    }
 
     clearTimers();
     const delay = phaseScheduleMs(store, reduced);
@@ -158,6 +163,15 @@ export function useHandPresentation({
       phaseStartedAt: store.phaseStartedAt,
     };
     advanceArmedKeyRef.current = phaseKey;
+
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useHandPresentation", "advancePhase-timer-armed", {
+        phaseKey,
+        delay,
+        fromPhase: store.phase,
+        drawAnimSubPhase: store.drawAnimSubPhase,
+      });
+    }
 
     schedule(() => {
       if (advanceArmedKeyRef.current !== phaseKey) return;
