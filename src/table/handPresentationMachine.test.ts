@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
+  phaseScheduleMs,
   reduceHandPresentation,
   snapshotFromSession,
 } from "./handPresentationMachine";
@@ -83,6 +84,40 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, true);
     assert.equal(store.trumpMergeActive, false);
     assert.equal(store.trumpRevealActive, false);
+  });
+
+  it("does not replay draw animation for an already-presented player", () => {
+    let store = createHandPresentationStore(baseSnap);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"] },
+      heroDrawDiscardCount: 1,
+      heroDrawReplaceCount: 1,
+    });
+    assert.equal(store.animatingDrawPlayerId, "p2");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.displayDrawCompletedIds.includes("p2"), true);
+    assert.equal(store.drawAnimSubPhase, "done");
+    const phaseStartedAt = store.phaseStartedAt;
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p3" },
+    });
+    assert.equal(store.animatingDrawPlayerId, null);
+    assert.equal(store.phaseStartedAt, phaseStartedAt);
+  });
+
+  it("does not schedule idle drawPlayer beat when waiting for next server draw", () => {
+    const store = createHandPresentationStore(baseSnap);
+    const idleDraw = {
+      ...store,
+      phase: "drawPlayer" as const,
+      animatingDrawPlayerId: null,
+      drawAnimSubPhase: "done" as const,
+    };
+    assert.equal(phaseScheduleMs(idleDraw, false), 0);
   });
 
   it("animates each draw completion before advancing display list", () => {

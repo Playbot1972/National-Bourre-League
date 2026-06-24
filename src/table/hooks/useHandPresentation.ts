@@ -90,11 +90,14 @@ export function useHandPresentation({
 
   const timersRef = useRef<number[]>([]);
   const heroKeysRef = useRef<string[]>([]);
-  const phaseKeyRef = useRef<string>("");
+  const advanceArmedKeyRef = useRef<string | null>(null);
+  const storeRef = useRef(store);
+  storeRef.current = store;
 
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
     timersRef.current = [];
+    advanceArmedKeyRef.current = null;
   };
 
   const schedule = (fn: () => void, ms: number) => {
@@ -140,25 +143,61 @@ export function useHandPresentation({
 
   useEffect(() => {
     const reduced = prefersReducedMotion();
-    const phaseKey = `${store.phase}:${store.animatingDrawPlayerId ?? ""}:${store.drawAnimSubPhase}:${store.phaseStartedAt}`;
-    if (phaseKeyRef.current === phaseKey) return;
-    phaseKeyRef.current = phaseKey;
+    const phaseKey = `${store.handNumber}:${store.phase}:${store.animatingDrawPlayerId ?? ""}:${store.drawAnimSubPhase}:${store.phaseStartedAt}`;
+    if (advanceArmedKeyRef.current === phaseKey) return;
 
     clearTimers();
     const delay = phaseScheduleMs(store, reduced);
     if (delay <= 0) return;
 
+    const armedAt = {
+      handNumber: store.handNumber,
+      phase: store.phase,
+      animatingDrawPlayerId: store.animatingDrawPlayerId,
+      drawAnimSubPhase: store.drawAnimSubPhase,
+      phaseStartedAt: store.phaseStartedAt,
+    };
+    advanceArmedKeyRef.current = phaseKey;
+
     schedule(() => {
+      if (advanceArmedKeyRef.current !== phaseKey) return;
+      advanceArmedKeyRef.current = null;
+
+      const current = storeRef.current;
+      if (
+        current.handNumber !== armedAt.handNumber ||
+        current.phase !== armedAt.phase ||
+        current.animatingDrawPlayerId !== armedAt.animatingDrawPlayerId ||
+        current.drawAnimSubPhase !== armedAt.drawAnimSubPhase ||
+        current.phaseStartedAt !== armedAt.phaseStartedAt
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("useHandPresentation", "advancePhase-timer-stale", {
+            armedAt,
+            current: {
+              handNumber: current.handNumber,
+              phase: current.phase,
+              animatingDrawPlayerId: current.animatingDrawPlayerId,
+              drawAnimSubPhase: current.drawAnimSubPhase,
+              phaseStartedAt: current.phaseStartedAt,
+            },
+          });
+        }
+        return;
+      }
+
       if (isGameFlowDebugEnabled()) {
         logGameFlow("useHandPresentation", "advancePhase-timer", {
-          fromPhase: store.phase,
+          fromPhase: armedAt.phase,
           delay,
+          animatingDrawPlayerId: armedAt.animatingDrawPlayerId,
+          drawAnimSubPhase: armedAt.drawAnimSubPhase,
         });
       }
       dispatch({ type: "advancePhase" });
     }, delay);
     schedule(() => dispatch({ type: "watchdog" }), PRESENTATION_WATCHDOG_MS);
-  }, [store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
+  }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
   useEffect(() => {
     if (
