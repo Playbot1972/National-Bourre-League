@@ -12,6 +12,12 @@ import {
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,
 } from "./feedback";
+import {
+  getTrickAnimationBusyState,
+  isTrickAnimationBusy,
+  resetTrickAnimationBusyState,
+  subscribeTrickAnimationBusy,
+} from "./trickAnimationBridge";
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
@@ -41,6 +47,7 @@ export function unmountTableSession() {
   root?.unmount();
   root = null;
   rootEl = null;
+  resetTrickAnimationBusyState();
 }
 
 export {
@@ -51,6 +58,9 @@ export {
   getFeedbackPrefs,
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,
+  getTrickAnimationBusyState,
+  isTrickAnimationBusy,
+  subscribeTrickAnimationBusy,
 };
 
 export type { TableSessionViewProps, TablePlayer, TableSessionData, TableSessionActions } from "./types";

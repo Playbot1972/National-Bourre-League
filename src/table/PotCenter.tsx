@@ -40,6 +40,8 @@ interface PotCenterProps {
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
   instantTrickPlays?: boolean;
+  /** Peak stable trick play count — defers trump swap while stagger catches up. */
+  peakTrickPlayCount?: number;
 }
 
 export function PotCenter({
@@ -71,10 +73,15 @@ export function PotCenter({
   hideCenterTrump = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
   instantTrickPlays = false,
+  peakTrickPlayCount = 0,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
   const liveTrickCardCount = trickDisplayPlays.length;
+  const trickPlaysPending =
+    liveTrickCardCount > 0 ||
+    peakTrickPlayCount > liveTrickCardCount ||
+    instantTrickPlays;
 
   /** Defer trump upcard → suit-badge swap while trick cards are landing. */
   const [displayTrumpUpcard, setDisplayTrumpUpcard] = useState(trumpUpcard ?? null);
@@ -84,12 +91,12 @@ export function PotCenter({
       return;
     }
     if (!displayTrumpUpcard) return;
-    if (liveTrickCardCount > 0 || trickResolving) {
+    if (trickPlaysPending || trickResolving) {
       const id = window.setTimeout(() => setDisplayTrumpUpcard(null), CARD_LAND_MS + 200);
       return () => window.clearTimeout(id);
     }
     setDisplayTrumpUpcard(null);
-  }, [trumpUpcard, liveTrickCardCount, trickResolving, displayTrumpUpcard]);
+  }, [trumpUpcard, trickPlaysPending, trickResolving, displayTrumpUpcard]);
 
   const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
   const showTrumpSuitReminder =

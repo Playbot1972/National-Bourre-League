@@ -265,6 +265,7 @@ export function MobileCardTable({
               potTick={microinteractions.potTick}
               trumpReminderPulse={microinteractions.trumpReminderPulse}
               instantTrickPlays={instantTrickPlays}
+              peakTrickPlayCount={trickPresentation.peakPlayCount}
             />
           </div>
 

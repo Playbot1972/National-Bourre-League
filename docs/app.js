@@ -2606,6 +2606,14 @@ function processRobotActions(s, scores) {
   }
 }
 
+function isTrickAnimationBlockingBots() {
+  try {
+    return tableMountApi?.isTrickAnimationBusy?.() === true;
+  } catch {
+    return false;
+  }
+}
+
 function processRobotActionsInner(s, scores) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
@@ -2720,6 +2728,8 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
+    if (isTrickAnimationBlockingBots()) return;
+
     const turnId = currentHand.turnPlayerId;
     const trick = currentHand.currentTrick;
     const trickNum = trick?.trickNumber ?? 0;
