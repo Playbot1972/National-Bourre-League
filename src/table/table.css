@@ -253,6 +253,7 @@
   align-items: center;
   gap: 3px;
   width: 52px;
+  min-height: 72px;
   flex: 0 0 auto;
   pointer-events: none;
   perspective: 900px;

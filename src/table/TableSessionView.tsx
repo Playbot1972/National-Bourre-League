@@ -15,6 +15,7 @@ import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
+import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -77,6 +78,11 @@ export function TableSessionView({
     playedCards: session.playedCards,
     turnPlayerId: session.turnPlayerId,
   });
+  const instantTrickPlays = useTrumpTrickMotionGate(
+    session.phase,
+    session.trumpUpcard,
+    trickPresentation.displayPlays.length,
+  );
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
@@ -351,6 +357,7 @@ export function TableSessionView({
     trickPresentation,
     handPresentation,
     microinteractions,
+    instantTrickPlays,
     ...tableCallbacks,
   };
 

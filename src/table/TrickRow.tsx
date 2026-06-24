@@ -9,6 +9,7 @@ interface TrickRowProps {
   playerNames?: Record<string, string>;
   /** Presentation-only: CSS-driven final-trick echo when the live row clears early. */
   variant?: "live" | "echo";
+  instantTrickPlays?: boolean;
 }
 
 /** Public trick cards only — never hole cards. */
@@ -19,6 +20,7 @@ export function TrickRow({
   presentationPhase = "live",
   playerNames = {},
   variant = "live",
+  instantTrickPlays = false,
 }: TrickRowProps) {
   if (displayPlays.length === 0) {
     return (
@@ -85,6 +87,7 @@ export function TrickRow({
               displayCount={displayPlays.length}
               playerName={playerNames[play.playerId] ?? "Player"}
               winnerPlayerId={winnerPlayerId}
+              instantPlace={instantTrickPlays}
             />
           ))}
         </div>
