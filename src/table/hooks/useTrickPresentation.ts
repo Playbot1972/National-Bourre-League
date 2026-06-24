@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import {
   CARD_LAND_MS,
+  CARD_REVEAL_STAGGER_MS,
   prefersReducedMotion,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
@@ -188,7 +189,9 @@ export function useTrickPresentation({
     if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live") return;
     if (store.revealedCount >= targetReveal) return;
 
-    const timing = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
+    const timing = prefersReducedMotion()
+      ? Math.round(CARD_REVEAL_STAGGER_MS * 0.55)
+      : CARD_REVEAL_STAGGER_MS;
     const id = window.setTimeout(() => dispatch({ type: "revealNextCard" }), timing);
     return () => window.clearTimeout(id);
   }, [

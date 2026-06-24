@@ -11888,35 +11888,36 @@ function mc() {
 //#endregion
 //#region src/table/TrickPlaySlot.tsx
 function hc({ play: e, index: t, presentationPhase: n, displayCount: r, playerName: i, winnerPlayerId: a = null }) {
-	let o = (0, l.useRef)(null), [s, c] = (0, l.useState)("static"), [u, d] = (0, l.useState)(null), [f, p] = (0, l.useState)(!1), m = (0, l.useRef)(!1), h = Aa(e), v = a != null && e.playerId === a, y = t === r - 1 && n === "live", b = f || !y, x = v && n !== "live" && n !== "trickComplete";
+	let o = (0, l.useRef)(null), [s, c] = (0, l.useState)("static"), [u, d] = (0, l.useState)(null), [f, p] = (0, l.useState)(!1), m = (0, l.useRef)(!1), h = Aa(e), v = a != null && e.playerId === a, y = t === r - 1 && n === "live", b = f || !y && s === "static", x = v && n !== "live" && n !== "trickComplete";
 	(0, l.useLayoutEffect)(() => {
 		p(!1), m.current = !1, c("static"), d(null);
 	}, [h]), (0, l.useLayoutEffect)(() => {
 		if (f) return;
-		if (!y || typeof document > "u") {
-			m.current || (c("static"), d(null));
+		if (!y) {
+			(m.current || s !== "static") && (m.current = !1, p(!0), c("static"), d(null));
 			return;
 		}
+		if (typeof document > "u") return;
 		let t = o.current;
 		if (!t) return;
 		let n = t.querySelector(".pcard");
 		if (!n) return;
-		let r = za(e.playerId, h), i = mc(), a = i ? 187 : 340, s = i ? 77 : 140;
+		let r = za(e.playerId, h), i = mc(), a = i ? 187 : 340, l = i ? 77 : 140;
 		if (m.current = !0, !r) {
 			c("land"), d(null);
 			let e = window.setTimeout(() => c("settle"), a), t = window.setTimeout(() => {
 				m.current = !1, p(!0), c("static");
-			}, a + s);
+			}, a + l);
 			return () => {
 				window.clearTimeout(e), window.clearTimeout(t);
 			};
 		}
 		d(Ha(r, t.getBoundingClientRect(), n.getBoundingClientRect())), c("pending");
-		let l = window.setTimeout(() => c("travel"), 0), u = window.setTimeout(() => c("settle"), a), g = window.setTimeout(() => {
+		let u = window.setTimeout(() => c("travel"), 0), g = window.setTimeout(() => c("settle"), a), _ = window.setTimeout(() => {
 			m.current = !1, p(!0), c("static"), d(null);
-		}, a + s);
+		}, a + l);
 		return () => {
-			window.clearTimeout(l), window.clearTimeout(u), window.clearTimeout(g);
+			window.clearTimeout(u), window.clearTimeout(g), window.clearTimeout(_);
 		};
 	}, [
 		f,
@@ -12006,7 +12007,7 @@ function gc({ displayPlays: e = [], winnerPlayerId: t = null, showWinnerTag: n =
 					displayCount: e.length,
 					playerName: i[n.playerId] ?? "Player",
 					winnerPlayerId: t
-				}, `${n.playerId}-${n.card.rank}-${n.card.suit}-${a}`))
+				}, `${n.playerId}-${n.card.rank}-${n.card.suit}`))
 			})]
 		})
 	});
@@ -14674,7 +14675,7 @@ function ru({ phase: e, currentTrick: t, tricksByPlayer: n, participantIds: r, t
 	let y = s.phase === "live" ? s.pendingResolution?.frozen.plays.length ?? t?.plays?.length ?? 0 : s.revealedCount;
 	return (0, l.useEffect)(() => {
 		if (!h && !m || s.phase !== "live" || s.revealedCount >= y) return;
-		let e = mc() ? 264 : 480, t = window.setTimeout(() => c({ type: "revealNextCard" }), e);
+		let e = mc() ? 325 : 590, t = window.setTimeout(() => c({ type: "revealNextCard" }), e);
 		return () => window.clearTimeout(t);
 	}, [
 		h,

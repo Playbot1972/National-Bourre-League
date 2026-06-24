@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   BOT_PLAY_STAGGER_MS,
   CARD_LAND_MS,
+  CARD_REVEAL_STAGGER_MS,
   completedTrickPlays,
   detectTrickResolution,
   MIN_TRICK_PIPELINE_MS,
@@ -125,5 +126,9 @@ describe("trickTiming", () => {
     assert.ok(robotInterval > pipeline);
     assert.ok(robotInterval > pipeline + BOT_PLAY_STAGGER_MS);
     assert.ok(robotInterval >= MIN_TRICK_PIPELINE_MS);
+  });
+
+  it("card reveal stagger waits for prior card land + shift", () => {
+    assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
   });
 });

@@ -40,7 +40,8 @@ export function TrickPlaySlot({
   const playKey = playFlyKey(play);
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   const isLanding = index === displayCount - 1 && presentationPhase === "live";
-  const isSettled = hasLanded || !isLanding;
+  /** Shift only after land completes — avoids shift + fly keyframes on the same card. */
+  const isSettled = hasLanded || (!isLanding && flyMode === "static");
   const showWinnerCard =
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
@@ -54,13 +55,17 @@ export function TrickPlaySlot({
   useLayoutEffect(() => {
     if (hasLanded) return;
 
-    if (!isLanding || typeof document === "undefined") {
-      if (!flightStartedRef.current) {
+    if (!isLanding) {
+      if (flightStartedRef.current || flyMode !== "static") {
+        flightStartedRef.current = false;
+        setHasLanded(true);
         setFlyMode("static");
         setCssFly(null);
       }
       return;
     }
+
+    if (typeof document === "undefined") return;
 
     const slot = slotRef.current;
     if (!slot) return;

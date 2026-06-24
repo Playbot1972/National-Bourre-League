@@ -78,7 +78,7 @@ export function TrickRow({
         >
           {displayPlays.map((play, i) => (
             <TrickPlaySlot
-              key={`${play.playerId}-${play.card.rank}-${play.card.suit}-${i}`}
+              key={`${play.playerId}-${play.card.rank}-${play.card.suit}`}
               play={play}
               index={i}
               presentationPhase={isEcho ? "winnerReveal" : presentationPhase}
