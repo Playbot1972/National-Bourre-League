@@ -16,6 +16,9 @@ export const TRICK_CARD_SHIFT_MS = 220;
 /** Full play-to-table presentation (travel + settle). */
 export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
+/** Stagger between revealing trick cards — slightly after land so prior card finishes. */
+export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
+
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 350;
 
