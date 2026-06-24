@@ -35,16 +35,30 @@ export function TrickPlaySlot({
   const slotRef = useRef<HTMLDivElement>(null);
   const [flyMode, setFlyMode] = useState<FlyMode>("static");
   const [cssFly, setCssFly] = useState<{ dx: number; dy: number } | null>(null);
+  const [hasLanded, setHasLanded] = useState(false);
+  const flightStartedRef = useRef(false);
+  const playKey = playFlyKey(play);
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   const isLanding = index === displayCount - 1 && presentationPhase === "live";
-  const isSettled = !isLanding;
+  const isSettled = hasLanded || !isLanding;
   const showWinnerCard =
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
   useLayoutEffect(() => {
+    setHasLanded(false);
+    flightStartedRef.current = false;
+    setFlyMode("static");
+    setCssFly(null);
+  }, [playKey]);
+
+  useLayoutEffect(() => {
+    if (hasLanded) return;
+
     if (!isLanding || typeof document === "undefined") {
-      setFlyMode("static");
-      setCssFly(null);
+      if (!flightStartedRef.current) {
+        setFlyMode("static");
+        setCssFly(null);
+      }
       return;
     }
 
@@ -54,20 +68,24 @@ export function TrickPlaySlot({
     const cardEl = slot.querySelector(".pcard") as HTMLElement | null;
     if (!cardEl) return;
 
-    const playKey = playFlyKey(play);
     const origin = resolvePlayOrigin(play.playerId, playKey);
     const reduced = prefersReducedMotion();
     const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
     const settleMs = reduced ? Math.round(TRICK_CARD_SETTLE_MS * 0.55) : TRICK_CARD_SETTLE_MS;
+    flightStartedRef.current = true;
 
     if (!origin) {
       setFlyMode("land");
       setCssFly(null);
-      const landTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
-      const settleTimer = window.setTimeout(() => setFlyMode("static"), travelMs + settleMs);
+      const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
+      const doneTimer = window.setTimeout(() => {
+        flightStartedRef.current = false;
+        setHasLanded(true);
+        setFlyMode("static");
+      }, travelMs + settleMs);
       return () => {
-        window.clearTimeout(landTimer);
         window.clearTimeout(settleTimer);
+        window.clearTimeout(doneTimer);
       };
     }
 
@@ -80,6 +98,8 @@ export function TrickPlaySlot({
     const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
     const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
     const doneTimer = window.setTimeout(() => {
+      flightStartedRef.current = false;
+      setHasLanded(true);
       setFlyMode("static");
       setCssFly(null);
     }, travelMs + settleMs);
@@ -89,7 +109,7 @@ export function TrickPlaySlot({
       window.clearTimeout(settleTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [isLanding, play]);
+  }, [hasLanded, isLanding, play.playerId, playKey]);
 
   const flyStyle: CSSProperties = {
     ["--slot-index" as string]: index,
@@ -107,7 +127,8 @@ export function TrickPlaySlot({
       className={[
         "btrick__play",
         isSettled ? "btrick__play--settled" : "",
-        flyMode === "travel" || flyMode === "land" ? "btrick__play--fly-from-hand" : "",
+        hasLanded && flyMode === "static" ? "btrick__play--static-landed" : "",
+        flyMode === "travel" ? "btrick__play--fly-from-hand" : "",
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",
         flyMode === "settle" ? "btrick__play--settle" : "",

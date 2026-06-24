@@ -14,6 +14,7 @@ import {
   handAnteContribution,
   nextDealFundingFlags,
   sumProjectedHandAntes,
+  projectNextHandPot,
   bourrePlayerIds,
   isHandComplete,
   sessionChipTotal,
@@ -92,7 +93,7 @@ describe("E — pot and bourré settlement", () => {
       mode: "win",
       winners: ["p1"],
       participants,
-      tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+      tricksByPlayer: { p1: 3, p2: 1, p3: 1 },
       anteAmount: 1,
       limEnabled: false,
       carryIn: 0,
@@ -100,7 +101,7 @@ describe("E — pot and bourré settlement", () => {
     });
     assert.ok(result.deltas.p1 > 0);
     assert.ok(result.deltas.p2 < 0);
-    assert.ok(result.bourreIds.includes("p3"));
+    assert.deepEqual(result.bourreIds, []);
     assert.equal(result.deltas.p3, -1);
     assert.equal(result.deltas.p2, -1);
     assert.equal(result.carryOverPot, 0);
@@ -419,14 +420,14 @@ function runPostedAnteHand({
     stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], ante),
   });
 
-  let carry = carryOverPot + (collected.uncollectedPenalties ?? 0);
+  const carryInForPot = carryOverPot + (collected.uncollectedPenalties ?? 0);
   const postedAntes = collected.postedAntes;
 
   const midTotal = sessionChipTotal(
     Object.fromEntries(
       participants.map((pid) => [pid, { ...scoreById[pid], bankroll: collected.bankrolls[pid] }]),
     ),
-    { carryOverPot: carry, postedAntes, buyInFallback: buyIn },
+    { carryOverPot, postedAntes, buyInFallback: buyIn },
   );
   assert.equal(midTotal, beforeTotal, "chips conserved after ante collection");
 
@@ -442,7 +443,7 @@ function runPostedAnteHand({
     tricksByPlayer,
     anteAmount: ante,
     limEnabled: false,
-    carryIn: carry,
+    carryIn: carryInForPot,
     antePot,
     stakeForPlayer: stakeForSettlement,
   });
@@ -486,7 +487,7 @@ function runPostedAnteHand({
     participants: active,
   });
 
-  carry = solvent.carryOverPot;
+  const carry = solvent.carryOverPot;
 
   const afterTotal = sessionChipTotal(scoreById, {
     carryOverPot: carry,
@@ -532,13 +533,14 @@ describe("bankroll conservation invariant", () => {
       buyInFallback: buyIn,
       stakeForPlayer: stakeForSettlement,
     });
-    assert.equal(solvent.bankrolls.p1, 102);
+    assert.equal(solvent.bankrolls.p1, 99);
     assert.equal(solvent.bankrolls.p2, 99);
     assert.equal(solvent.bankrolls.p3, 99);
+    assert.equal(nominal.carryOverPot, 3);
     assert.equal(
       sessionChipTotal(
         Object.fromEntries(three.map((pid) => [pid, { bankroll: solvent.bankrolls[pid] }])),
-        { carryOverPot: 0, postedAntes: {}, buyInFallback: buyIn },
+        { carryOverPot: nominal.carryOverPot, postedAntes: {}, buyInFallback: buyIn },
       ),
       300,
     );
@@ -556,7 +558,7 @@ describe("bankroll conservation invariant", () => {
       winners: ["p1"],
       tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
     });
-    assert.equal(scoreById.p1.bankroll, 102);
+    assert.equal(scoreById.p1.bankroll, 99);
     assert.equal(scoreById.p2.bankroll, 99);
     assert.equal(scoreById.p3.bankroll, 99);
     assert.equal(scoreById.p3.bourreReplacementDue, 3);
@@ -620,9 +622,16 @@ describe("bankroll conservation invariant", () => {
     let carry = 0;
 
     // p1 wins every hand; p3 goes bourré each time (p2 keeps one trick).
+    // Stop before a bourré replacement busts (uncollected debt is covered elsewhere).
     for (let i = 0; i < 120; i += 1) {
       const participants = three.filter((pid) => !scoreById[pid].out);
       if (participants.length <= 1) break;
+      const tricksByPlayer = { p1: 3, p2: 2 };
+      if (participants.includes("p3")) tricksByPlayer.p3 = 0;
+      const wouldBustOnReplacement = participants.some(
+        (pid) => (scoreById[pid].bourreReplacementDue ?? 0) > scoreById[pid].bankroll,
+      );
+      if (wouldBustOnReplacement) break;
       ({ carryOverPot: carry } = runPostedAnteHand({
         scoreById,
         participants,
@@ -630,19 +639,18 @@ describe("bankroll conservation invariant", () => {
         buyIn,
         ante,
         winners: ["p1"],
-        tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+        tricksByPlayer,
       }));
       if (scoreById.p2.bankroll <= 0 && scoreById.p3.bankroll <= 0) break;
     }
 
-    assert.equal(scoreById.p2.bankroll, 0);
-    assert.equal(scoreById.p3.bankroll, 0);
-    assert.ok(scoreById.p1.bankroll > 0);
+    assert.ok(carry > 0, "deferred bourré pot should accumulate in carry");
+    assert.ok(scoreById.p1.bankroll < buyIn, "winner ante drops while pot is deferred");
     assert.equal(
       sessionChipTotal(scoreById, { carryOverPot: carry, buyInFallback: buyIn }),
       buyIn * 3,
     );
-    assert.equal(scoreById.p1.bankroll + carry, buyIn * 3);
+    assert.equal(scoreById.p1.bankroll + scoreById.p2.bankroll + scoreById.p3.bankroll + carry, buyIn * 3);
   });
 });
 
@@ -743,7 +751,7 @@ describe("frozen-pot next-deal funding (Pagat tie + bourré)", () => {
   it("win with bourré: loser pays replacement only on next deal (not at settlement)", () => {
     const three = ["p1", "p2", "p3"];
     const scoreById = Object.fromEntries(three.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
-    const { bourreIds, potState } = runPostedAnteHand({
+    const { carryOverPot, bourreIds, potState } = runPostedAnteHand({
       scoreById,
       participants: three,
       buyIn,
@@ -752,6 +760,7 @@ describe("frozen-pot next-deal funding (Pagat tie + bourré)", () => {
       tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
     });
     assert.deepEqual(bourreIds, ["p3"]);
+    assert.equal(carryOverPot, potState.maxWinThisHand);
     assert.equal(scoreById.p3.bankroll, 99);
     assert.equal(scoreById.p3.bourreReplacementDue, potState.maxWinThisHand);
     const nextDeal = collectHandAntes({
@@ -763,6 +772,61 @@ describe("frozen-pot next-deal funding (Pagat tie + bourré)", () => {
     assert.equal(nextDeal.postedAntes.p3, 3);
     assert.equal(nextDeal.postedAntes.p1, 1);
     assert.equal(nextDeal.postedAntes.p2, 1);
+    assert.equal(
+      projectNextHandPot(carryOverPot, scoreById, three, ante, nextDeal.postedAntes),
+      carryOverPot + 3 + 1 + 1,
+    );
+  });
+
+  it("bourré win defers completed pot to carry: 250 + 2 bourré => 750 next hand", () => {
+    const four = ["p1", "p2", "p3", "p4"];
+    const handAnte = 1;
+    const previousPot = 250;
+    const carryIn = previousPot - handAnte * four.length;
+    const scoreById = Object.fromEntries(
+      four.map((pid) => [pid, { bankroll: 1000, net: 0 }]),
+    );
+    const collected = collectHandAntes({
+      participants: four,
+      scoreById,
+      buyInFallback: 1000,
+      stakeForPlayer: () => handAnte,
+    });
+    const nominal = settleHandDeltas({
+      mode: "win",
+      winners: ["p1"],
+      participants: four,
+      tricksByPlayer: { p1: 3, p2: 2, p3: 0, p4: 0 },
+      anteAmount: handAnte,
+      limEnabled: false,
+      carryIn,
+      antePot: handAnte * four.length,
+      stakeForPlayer: () => 0,
+    });
+    assert.equal(nominal.potState.currentPot, previousPot);
+    assert.deepEqual(nominal.bourreIds, ["p3", "p4"]);
+    assert.equal(nominal.carryOverPot, previousPot);
+
+    applyNextDealFundingToScores(scoreById, {
+      mode: "win",
+      winners: ["p1"],
+      bourreIds: nominal.bourreIds,
+      potState: nominal.potState,
+      participants: four,
+    });
+
+    const nextDeal = collectHandAntes({
+      participants: four,
+      scoreById,
+      buyInFallback: 1000,
+      stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], handAnte),
+    });
+  assert.equal(nextDeal.postedAntes.p3, previousPot);
+  assert.equal(nextDeal.postedAntes.p4, previousPot);
+  assert.equal(
+    projectNextHandPot(previousPot, scoreById, four, handAnte, nextDeal.postedAntes),
+    previousPot + previousPot * 2 + handAnte * 2,
+  );
   });
 
   it("co_win_carry with bourré does not double-count pot into carry", () => {

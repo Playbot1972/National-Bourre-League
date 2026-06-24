@@ -545,8 +545,12 @@
 }
 
 .center-play .btrick__play .pcard--sm {
-  transform: translateZ(8px);
   transform-origin: center bottom;
+}
+
+.btrick__play--settled .pcard--sm,
+.btrick__play--static-landed .pcard--sm {
+  transform: translateZ(8px);
 }
 
 .center-play .btrick__name {

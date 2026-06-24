@@ -11888,33 +11888,43 @@ function mc() {
 //#endregion
 //#region src/table/TrickPlaySlot.tsx
 function hc({ play: e, index: t, presentationPhase: n, displayCount: r, playerName: i, winnerPlayerId: a = null }) {
-	let o = (0, l.useRef)(null), [s, c] = (0, l.useState)("static"), [u, d] = (0, l.useState)(null), f = a != null && e.playerId === a, p = t === r - 1 && n === "live", m = !p, h = f && n !== "live" && n !== "trickComplete";
+	let o = (0, l.useRef)(null), [s, c] = (0, l.useState)("static"), [u, d] = (0, l.useState)(null), [f, p] = (0, l.useState)(!1), m = (0, l.useRef)(!1), h = Aa(e), v = a != null && e.playerId === a, y = t === r - 1 && n === "live", b = f || !y, x = v && n !== "live" && n !== "trickComplete";
 	(0, l.useLayoutEffect)(() => {
-		if (!p || typeof document > "u") {
-			c("static"), d(null);
+		p(!1), m.current = !1, c("static"), d(null);
+	}, [h]), (0, l.useLayoutEffect)(() => {
+		if (f) return;
+		if (!y || typeof document > "u") {
+			m.current || (c("static"), d(null));
 			return;
 		}
 		let t = o.current;
 		if (!t) return;
 		let n = t.querySelector(".pcard");
 		if (!n) return;
-		let r = Aa(e), i = za(e.playerId, r), a = mc(), s = a ? 187 : 340, l = a ? 77 : 140;
-		if (!i) {
+		let r = za(e.playerId, h), i = mc(), a = i ? 187 : 340, s = i ? 77 : 140;
+		if (m.current = !0, !r) {
 			c("land"), d(null);
-			let e = window.setTimeout(() => c("settle"), s), t = window.setTimeout(() => c("static"), s + l);
+			let e = window.setTimeout(() => c("settle"), a), t = window.setTimeout(() => {
+				m.current = !1, p(!0), c("static");
+			}, a + s);
 			return () => {
 				window.clearTimeout(e), window.clearTimeout(t);
 			};
 		}
-		d(Ha(i, t.getBoundingClientRect(), n.getBoundingClientRect())), c("pending");
-		let u = window.setTimeout(() => c("travel"), 0), f = window.setTimeout(() => c("settle"), s), m = window.setTimeout(() => {
-			c("static"), d(null);
-		}, s + l);
+		d(Ha(r, t.getBoundingClientRect(), n.getBoundingClientRect())), c("pending");
+		let l = window.setTimeout(() => c("travel"), 0), u = window.setTimeout(() => c("settle"), a), g = window.setTimeout(() => {
+			m.current = !1, p(!0), c("static"), d(null);
+		}, a + s);
 		return () => {
-			window.clearTimeout(u), window.clearTimeout(f), window.clearTimeout(m);
+			window.clearTimeout(l), window.clearTimeout(u), window.clearTimeout(g);
 		};
-	}, [p, e]);
-	let v = {
+	}, [
+		f,
+		y,
+		e.playerId,
+		h
+	]);
+	let S = {
 		"--slot-index": t,
 		...u ? {
 			"--fly-dx": `${u.dx}px`,
@@ -11925,19 +11935,20 @@ function hc({ play: e, index: t, presentationPhase: n, displayCount: r, playerNa
 		ref: o,
 		className: [
 			"btrick__play",
-			m ? "btrick__play--settled" : "",
-			s === "travel" || s === "land" ? "btrick__play--fly-from-hand" : "",
+			b ? "btrick__play--settled" : "",
+			f && s === "static" ? "btrick__play--static-landed" : "",
+			s === "travel" ? "btrick__play--fly-from-hand" : "",
 			s === "pending" ? "btrick__play--fly-pending" : "",
 			s === "land" ? "btrick__play--land" : "",
 			s === "settle" ? "btrick__play--settle" : "",
-			f && h ? "btrick__play--winner" : ""
+			v && x ? "btrick__play--winner" : ""
 		].filter(Boolean).join(" "),
-		style: v,
+		style: S,
 		"data-slot-index": t,
 		children: [/* @__PURE__ */ (0, g.jsx)(_, {
 			card: xa(e.card),
 			size: "sm",
-			state: h && f ? "winner" : "default"
+			state: x && v ? "winner" : "default"
 		}), /* @__PURE__ */ (0, g.jsx)("span", {
 			className: "btrick__name muted small",
 			children: i
