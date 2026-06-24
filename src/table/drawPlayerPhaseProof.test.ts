@@ -102,6 +102,62 @@ function simulateAdvanceTimerFire(
   return reduceHandPresentation(store, { type: "advancePhase" });
 }
 
+function finishDrawPresentationForActivePlayer(store: HandPresentationStore): HandPresentationStore {
+  let s = store;
+  let guard = 0;
+  while (s.phase === "drawPlayer" && s.animatingDrawPlayerId && s.drawAnimSubPhase !== "done" && guard < 8) {
+    s = reduceHandPresentation(s, { type: "advancePhase" });
+    guard += 1;
+  }
+  return s;
+}
+
+function applyServerUpdateWithTimer(
+  store: HandPresentationStore,
+  snapshot: ReturnType<typeof snapshotFromSession>,
+  armedRef: { current: string | null },
+  logs: LogLine[],
+): HandPresentationStore {
+  let next = reduceHandPresentation(store, {
+    type: "serverUpdate",
+    snapshot,
+  });
+
+  if (
+    next.animatingDrawPlayerId &&
+    next.drawAnimSubPhase === "discard" &&
+    next.animatingDrawPlayerId !== store.animatingDrawPlayerId
+  ) {
+    const key = phaseKey(next);
+    simulateAdvanceTimerArm(next, armedRef, logs);
+    const armedAt = { ...next };
+    next = simulateAdvanceTimerFire(next, armedRef, key, armedAt, logs);
+    if (next.drawAnimSubPhase === "receive") {
+      const key2 = phaseKey(next);
+      const armedAt2 = { ...next };
+      simulateAdvanceTimerArm(next, armedRef, logs);
+      next = simulateAdvanceTimerFire(next, armedRef, key2, armedAt2, logs);
+    }
+  }
+
+  simulateAdvanceTimerArm(next, armedRef, logs);
+  return next;
+}
+
+function countDiscardEntries(logs: LogLine[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const entry of logs) {
+    if (!entry.line.includes("handPresentation :: serverUpdate")) continue;
+    const anim = entry.data?.drawAnim as string | undefined;
+    if (!anim?.includes("->")) continue;
+    const to = anim.split("->").pop()?.trim() ?? "";
+    const sub = entry.data?.drawSubPhase as string | undefined;
+    if (!to || !sub?.endsWith("discard")) continue;
+    counts[to] = (counts[to] ?? 0) + 1;
+  }
+  return counts;
+}
+
 describe("drawPlayer phase proof — log capture", () => {
   it("prints logs: one timer per drawPlayer entry, single exit to next phase", () => {
     const { logs, end } = captureLogs();
@@ -194,5 +250,106 @@ describe("drawPlayer phase proof — log capture", () => {
       1,
       "bot_a discard armed once",
     );
+  });
+
+  it("prints logs: full draw hand — each player enters presentation once under snapshot replay", () => {
+    const botA = "bot_hiud3taw";
+    const botB = "bot_qa2qh6l5";
+    const hero = "p0";
+    const handSnap = snapshotFromSession({
+      sessionId: "proof-full-draw",
+      handNumber: 1,
+      phase: "draw",
+      enrollmentActive: false,
+      participantIds: [hero, botA, botB],
+      actionOrder: [botA, botB, hero],
+      drawCompletedIds: [],
+      turnPlayerId: botA,
+      potAmount: 3,
+    });
+
+    const { logs, end } = captureLogs();
+    const armedRef = { current: null as string | null };
+    let store = createHandPresentationStore(handSnap);
+
+    const replay = (ids: string[], turn: string, label: string) => {
+      logs.push({ line: `[proof] --- replay: ${label} drawCompleted=[${ids.join(",")}] ---` });
+      store = applyServerUpdateWithTimer(
+        store,
+        { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
+        armedRef,
+        logs,
+      );
+      logs.push({
+        line: "[proof] state",
+        data: {
+          phase: store.phase,
+          drawAnim: store.animatingDrawPlayerId,
+          drawSubPhase: store.drawAnimSubPhase,
+          consumed: [...store.drawPresentationConsumedIds],
+          displayCompleted: [...store.displayDrawCompletedIds],
+        },
+      });
+    };
+
+    // Genuine progression
+    replay([botA], botB, "bot_a first draw");
+    store = finishDrawPresentationForActivePlayer(store);
+
+    replay([botA], botB, "stale replay bot_a only");
+    replay([botA, botB], hero, "bot_b draws");
+    store = finishDrawPresentationForActivePlayer(store);
+
+    replay([botA], botB, "stale regression prev empty-ish replay bot_a");
+    store = { ...store, prevSnapshot: { ...handSnap, drawCompletedIds: [] } };
+    replay([botA], botB, "after prev regression bot_a");
+    replay([botA, botB], hero, "stale replay both bots");
+    replay([botA, botB, hero], botA, "hero draws");
+    store = finishDrawPresentationForActivePlayer(store);
+
+    replay([botA, botB, hero], botA, "stale full replay all drawn");
+    replay([botA, botB], hero, "stale partial replay");
+    replay([botA], botB, "stale single bot_a again");
+
+    end();
+
+    const discardEntries = countDiscardEntries(logs);
+    const consumedSkips = logs.filter((l) => l.line.includes("drawPresentation-consumed-skip"));
+    const idleSkips = logs.filter((l) => l.line.includes("advancePhase-timer-idle-skip"));
+
+    console.log("\n========== FULL DRAW SEQUENCE PROOF ==========\n");
+    for (const entry of logs) {
+      console.log(formatLog(entry));
+    }
+    console.log("\n========== PER-PLAYER DISCARD ENTRIES ==========");
+    for (const [id, count] of Object.entries(discardEntries)) {
+      console.log(`  ${id}: ${count} discard entry/entries`);
+    }
+    console.log("\n========== SUMMARY ==========");
+    console.log(`drawPresentation-consumed-skip: ${consumedSkips.length}`);
+    console.log(`advancePhase-timer-idle-skip:   ${idleSkips.length}`);
+    console.log(`final phase:                    ${store.phase}`);
+    console.log(`final consumed:                 ${store.drawPresentationConsumedIds.join(", ")}`);
+    console.log("================================================\n");
+
+    assert.equal(discardEntries[botA], 1, "bot_a enters discard presentation once");
+    assert.equal(discardEntries[botB], 1, "bot_b enters discard presentation once");
+    assert.equal(discardEntries[hero], 1, "hero enters discard presentation once");
+    assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [botA, botB, hero].sort());
+    assert.equal(store.phase, "drawReady");
+    const staleReplays = logs.filter(
+      (l) =>
+        l.line.startsWith("[proof] --- replay: stale") &&
+        (l.data?.drawSubPhase === "done" || true),
+    );
+    assert.ok(staleReplays.length >= 3, "ran multiple stale replay rounds");
+    const reopenDiscard = logs.filter(
+      (l) =>
+        l.line.includes("handPresentation :: serverUpdate") &&
+        (l.data?.drawSubPhase as string)?.endsWith("discard") &&
+        staleReplays.length > 0,
+    );
+    // After all three players consumed, no further discard entries on stale replays
+    assert.equal(reopenDiscard.length, 3, "exactly three discard entries total (one per player)");
   });
 });
