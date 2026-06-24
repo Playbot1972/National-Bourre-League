@@ -1,5 +1,7 @@
 /** Published trick animation state for the social app bot driver (docs/app.js). */
 
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+
 export interface TrickAnimationBusyState {
   pipelineActive: boolean;
   /** Staggered reveal still catching up to server/peak play count. */
@@ -33,6 +35,18 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
   if (statesEqual(state, next)) return;
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("trickAnimationBridge", "busy-state", {
+      from: state,
+      to: next,
+      busy: (
+        next.pipelineActive ||
+        next.revealCatchUp ||
+        next.motionGateActive ||
+        (next.peakPlayCount > next.displayedPlayCount && next.peakPlayCount > 0)
+      ),
+    });
+  }
   state = next;
   for (const listener of listeners) listener();
 }

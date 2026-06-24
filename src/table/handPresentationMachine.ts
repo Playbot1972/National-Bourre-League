@@ -1,4 +1,5 @@
 import type { SerializedCard } from "./types";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
@@ -285,6 +286,32 @@ export type HandPresentationEvent =
   | { type: "clearEnrollmentPulse" };
 
 export function reduceHandPresentation(
+  store: HandPresentationStore,
+  event: HandPresentationEvent,
+): HandPresentationStore {
+  const next = reduceHandPresentationCore(store, event);
+  if (isGameFlowDebugEnabled()) {
+    if (
+      store.phase !== next.phase ||
+      store.handNumber !== next.handNumber ||
+      store.trumpRevealActive !== next.trumpRevealActive ||
+      event.type === "serverUpdate"
+    ) {
+      logGameFlow("handPresentation", event.type, {
+        phase: `${store.phase} -> ${next.phase}`,
+        handNumber: `${store.handNumber} -> ${next.handNumber}`,
+        trumpRevealActive: `${store.trumpRevealActive} -> ${next.trumpRevealActive}`,
+        drawAnim: store.animatingDrawPlayerId,
+        drawSubPhase: `${store.drawAnimSubPhase} -> ${next.drawAnimSubPhase}`,
+        serverPhase: event.type === "serverUpdate" ? event.snapshot.phase : undefined,
+        drawCompleted: event.type === "serverUpdate" ? event.snapshot.drawCompletedIds.length : undefined,
+      });
+    }
+  }
+  return next;
+}
+
+function reduceHandPresentationCore(
   store: HandPresentationStore,
   event: HandPresentationEvent,
 ): HandPresentationStore {

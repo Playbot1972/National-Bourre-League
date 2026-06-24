@@ -7,6 +7,7 @@ import {
   type TrickPresentationPhase,
 } from "./trickTiming";
 import { playFlyKey } from "./trickPlayFly";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "./types";
 
 export interface ServerTrickSnapshot {
@@ -177,6 +178,34 @@ export type TrickPresentationEvent =
   | { type: "advancePhase" };
 
 export function reduceTrickPresentation(
+  store: TrickPresentationStore,
+  event: TrickPresentationEvent,
+): TrickPresentationStore {
+  const next = reduceTrickPresentationCore(store, event);
+  if (isGameFlowDebugEnabled()) {
+    const plays = serializedPlays(store.prevTrick).length;
+    const nextPlays = serializedPlays(next.prevTrick).length;
+    if (
+      store.phase !== next.phase ||
+      store.revealedCount !== next.revealedCount ||
+      plays !== nextPlays ||
+      Boolean(store.pendingResolution) !== Boolean(next.pendingResolution) ||
+      event.type === "serverUpdate"
+    ) {
+      logGameFlow("trickPresentation", event.type, {
+        phase: `${store.phase} -> ${next.phase}`,
+        revealedCount: `${store.revealedCount} -> ${next.revealedCount}`,
+        prevTrickPlays: `${plays} -> ${nextPlays}`,
+        peakPlays: next.peakTrickPlays?.length ?? 0,
+        pendingResolution: Boolean(next.pendingResolution),
+        livePlays: event.type === "serverUpdate" ? event.snapshot.currentTrick?.plays?.length : undefined,
+      });
+    }
+  }
+  return next;
+}
+
+function reduceTrickPresentationCore(
   store: TrickPresentationStore,
   event: TrickPresentationEvent,
 ): TrickPresentationStore {
