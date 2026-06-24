@@ -198,16 +198,6 @@ function enrollmentDiffPulse(
   return pulse;
 }
 
-function nextDrawCompleter(
-  prev: HandServerSnapshot,
-  next: HandServerSnapshot,
-): string | null {
-  for (const id of next.drawCompletedIds) {
-    if (!prev.drawCompletedIds.includes(id)) return id;
-  }
-  return null;
-}
-
 /** Next player needing draw presentation — skips fully consumed players even if prev regressed. */
 export function nextDrawPresentationTarget(
   store: HandPresentationStore,
