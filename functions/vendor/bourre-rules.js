@@ -163,10 +163,11 @@ export function settleHandDeltas({
     carryOverPot = limOn ? overflow : 0;
   } else {
     const winner = winners[0];
+    const deferPotToCarry = bourreIds.length > 0;
     participants.forEach((pid) => {
       const playerStake = stakeForPlayer(pid);
       if (pid === winner) {
-        deltas[pid] = winnerTake - playerStake;
+        deltas[pid] = deferPotToCarry ? -playerStake : winnerTake - playerStake;
       } else if (bourreIds.includes(pid)) {
         // Bourré pot match is collected on the next deal, not at settlement.
         deltas[pid] = -playerStake;
@@ -174,7 +175,7 @@ export function settleHandDeltas({
         deltas[pid] = -playerStake;
       }
     });
-    carryOverPot = limOn ? overflow : 0;
+    carryOverPot = limOn ? overflow : deferPotToCarry ? currentPot : 0;
   }
 
   // Bourré pot match is always collected on the next deal (bourreReplacementDue),
@@ -241,7 +242,15 @@ export function sumProjectedHandAntes(scoreById, playerIds, sessionStake, posted
 }
 
 /**
- * Score-row flags applied after settlement for the next deal's pot funding.
+ * Projected next-hand pot: carry + each seated player's next-deal obligation.
+ * Bourré: nextHandPot = previousPot + (previousPot × bourréCount) when carry holds
+ * the completed pot and each bourré player posts a full pot match.
+ */
+export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionStake, postedAntes = {}) {
+  const carry = Math.max(0, Number(carryOverPot) || 0);
+  const antePot = sumProjectedHandAntes(scoreById, playerIds, sessionStake, postedAntes);
+  return carry + antePot;
+}
  * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
  */
 export function nextDealFundingFlags({
@@ -450,8 +459,12 @@ export function applySolventSettlement({
 
   if (mode === "win" && winners.length === 1) {
     const winner = winners[0];
-    const winDelta =
-      totalPool > 0 ? totalPool : Math.max(0, nominalDeltas[winner] ?? 0);
+    const potDeferredToCarry = carryOverPot > 0;
+    const winDelta = potDeferredToCarry
+      ? 0
+      : totalPool > 0
+        ? totalPool
+        : Math.max(0, nominalDeltas[winner] ?? 0);
     const br = scoreBankroll(scoreById[winner], buyInFallback);
     bankrolls[winner] = br + winDelta;
     appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
