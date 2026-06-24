@@ -22,6 +22,8 @@ interface TrickPlaySlotProps {
   displayCount: number;
   playerName: string;
   winnerPlayerId?: string | null;
+  /** Skip fly animation (trump UI / layout settling). */
+  instantPlace?: boolean;
 }
 
 function completeFlight(
@@ -43,6 +45,7 @@ export function TrickPlaySlot({
   displayCount,
   playerName,
   winnerPlayerId = null,
+  instantPlace = false,
 }: TrickPlaySlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [flyMode, setFlyMode] = useState<FlyMode>("static");
@@ -68,7 +71,7 @@ export function TrickPlaySlot({
   useLayoutEffect(() => {
     if (hasLanded) return;
 
-    if (!isLivePhase) {
+    if (instantPlace || !isLivePhase) {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
       return;
     }
@@ -91,23 +94,15 @@ export function TrickPlaySlot({
     if (!cardEl) return;
 
     const origin = resolvePlayOrigin(play.playerId, playKey);
+    if (!origin) {
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
+      return;
+    }
+
     const reduced = prefersReducedMotion();
     const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
     const settleMs = reduced ? Math.round(TRICK_CARD_SETTLE_MS * 0.55) : TRICK_CARD_SETTLE_MS;
     flightStartedRef.current = true;
-
-    if (!origin) {
-      setFlyMode("land");
-      setCssFly(null);
-      const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
-      const doneTimer = window.setTimeout(() => {
-        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef);
-      }, travelMs + settleMs);
-      return () => {
-        window.clearTimeout(settleTimer);
-        window.clearTimeout(doneTimer);
-      };
-    }
 
     const slotRect = slot.getBoundingClientRect();
     const cardRect = cardEl.getBoundingClientRect();
@@ -126,7 +121,7 @@ export function TrickPlaySlot({
       window.clearTimeout(settleTimer);
       window.clearTimeout(doneTimer);
     };
-  }, [hasLanded, isLanding, isLivePhase, play.playerId, playKey]);
+  }, [hasLanded, instantPlace, isLanding, isLivePhase, play.playerId, playKey]);
 
   const flyStyle: CSSProperties = {
     ["--slot-index" as string]: index,

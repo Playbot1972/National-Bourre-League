@@ -6,6 +6,7 @@ import {
   type TrickPlay,
   type TrickPresentationPhase,
 } from "./trickTiming";
+import { playFlyKey } from "./trickPlayFly";
 import type { CurrentTrickState, PlayedCardEntry } from "./types";
 
 export interface ServerTrickSnapshot {
@@ -50,6 +51,8 @@ export interface TrickPresentationStore {
   resolvedTricks: Record<string, number> | null;
   /** Resolved on server but waiting for in-flight card land animations. */
   pendingResolution: PendingTrickResolution | null;
+  /** Longest prefix-stable trick play list seen this trick (survives stale snapshots). */
+  peakTrickPlays: TrickPlay[];
 }
 
 export function createTrickPresentationStore(
@@ -67,7 +70,35 @@ export function createTrickPresentationStore(
     pendingServer: null,
     resolvedTricks: null,
     pendingResolution: null,
+    peakTrickPlays: serializedPlays(currentTrick),
   };
+}
+
+export function trickPlaysArePrefix(shorter: TrickPlay[], longer: TrickPlay[]): boolean {
+  if (longer.length < shorter.length) return false;
+  for (let i = 0; i < shorter.length; i++) {
+    if (playFlyKey(shorter[i]) !== playFlyKey(longer[i])) return false;
+  }
+  return true;
+}
+
+export function updatePeakTrickPlays(
+  store: TrickPresentationStore,
+  snapshot: ServerTrickSnapshot,
+  livePlays: TrickPlay[],
+): TrickPlay[] {
+  const liveTrickNum = snapshot.currentTrick?.trickNumber ?? null;
+  const prevTrickNum = store.prevTrick?.trickNumber ?? null;
+  const trickChanged =
+    liveTrickNum != null && prevTrickNum != null && liveTrickNum !== prevTrickNum;
+
+  let peak: TrickPlay[] = trickChanged ? [] : [...(store.peakTrickPlays ?? [])];
+  for (const candidate of [livePlays, serializedPlays(store.prevTrick), store.peakTrickPlays ?? []]) {
+    if (candidate.length > peak.length && trickPlaysArePrefix(peak, candidate)) {
+      peak = candidate;
+    }
+  }
+  return peak;
 }
 
 export function bufferServerSnapshot(
@@ -90,6 +121,8 @@ export function applyLiveServerUpdate(
     livePlays.length < store.revealedCount &&
     prevPlays.length >= store.revealedCount;
 
+  const peakTrickPlays = updatePeakTrickPlays(store, snapshot, livePlays);
+
   return {
     ...store,
     prevTricks: { ...snapshot.tricksByPlayer },
@@ -97,6 +130,7 @@ export function applyLiveServerUpdate(
     displayTricksByPlayer: { ...snapshot.tricksByPlayer },
     pendingServer: null,
     resolvedTricks: null,
+    peakTrickPlays,
   };
 }
 
@@ -118,6 +152,7 @@ export function beginTrickResolution(
       currentTrick: nextTrick,
       tricksByPlayer: nextTricks,
     },
+    peakTrickPlays: frozen.plays,
   };
 }
 
@@ -196,6 +231,7 @@ export function reduceTrickPresentation(
             displayTricksByPlayer: pending
               ? { ...pending.tricksByPlayer }
               : store.displayTricksByPlayer,
+            peakTrickPlays: serializedPlays(pending?.currentTrick),
           };
         }
         default:
@@ -246,8 +282,13 @@ export function resolveHoldPlays(
   if (pendingPlays.length > 0) return pendingPlays;
 
   const prevPlays = serializedPlays(store.prevTrick);
+  const peak = store.peakTrickPlays ?? [];
   if (store.phase !== "live") {
-    return livePlays.length > 0 ? livePlays : prevPlays;
+    return livePlays.length > 0 ? livePlays : prevPlays.length > 0 ? prevPlays : peak;
+  }
+
+  if (peak.length > livePlays.length && store.revealedCount > livePlays.length) {
+    return peak;
   }
 
   // Stale snapshots (e.g. trump upcard clear + play in one tick) may briefly shrink

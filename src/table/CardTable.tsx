@@ -46,6 +46,7 @@ interface CardTableProps {
   trickPresentation: TrickPresentation;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
+  instantTrickPlays?: boolean;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -78,6 +79,7 @@ export function CardTable({
   trickPresentation,
   handPresentation,
   microinteractions,
+  instantTrickPlays = false,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -242,6 +244,7 @@ export function CardTable({
             settleCarryOver={handPresentation.settleCarryOver}
             potTick={microinteractions.potTick}
             trumpReminderPulse={microinteractions.trumpReminderPulse}
+            instantTrickPlays={instantTrickPlays}
           />
         </div>
 

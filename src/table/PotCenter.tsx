@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
@@ -5,6 +6,7 @@ import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
+import { CARD_LAND_MS } from "./trickTiming";
 import type { PotMetrics, SerializedCard } from "./types";
 
 interface PotCenterProps {
@@ -37,6 +39,7 @@ interface PotCenterProps {
   hideCenterTrump?: boolean;
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
+  instantTrickPlays?: boolean;
 }
 
 export function PotCenter({
@@ -67,15 +70,32 @@ export function PotCenter({
   trumpReminderPulse = 0,
   hideCenterTrump = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
+  instantTrickPlays = false,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
-  const hasTrumpCard = Boolean(trumpUpcard) && !hideCenterTrump;
+  const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
+  const liveTrickCardCount = trickDisplayPlays.length;
+
+  /** Defer trump upcard → suit-badge swap while trick cards are landing. */
+  const [displayTrumpUpcard, setDisplayTrumpUpcard] = useState(trumpUpcard ?? null);
+  useEffect(() => {
+    if (trumpUpcard) {
+      setDisplayTrumpUpcard(trumpUpcard);
+      return;
+    }
+    if (!displayTrumpUpcard) return;
+    if (liveTrickCardCount > 0 || trickResolving) {
+      const id = window.setTimeout(() => setDisplayTrumpUpcard(null), CARD_LAND_MS + 200);
+      return () => window.clearTimeout(id);
+    }
+    setDisplayTrumpUpcard(null);
+  }, [trumpUpcard, liveTrickCardCount, trickResolving, displayTrumpUpcard]);
+
+  const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
   const showTrumpSuitReminder =
     showTrumpSuitReminderProp ||
     (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
-  const trumpKey = hasTrumpCard ? `${trumpUpcard!.rank}-${trumpUpcard!.suit}` : "none";
-  const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
-  const liveTrickCardCount = trickDisplayPlays.length;
+  const trumpKey = hasTrumpCard ? `${displayTrumpUpcard!.rank}-${displayTrumpUpcard!.suit}` : "trump-slot";
   const finalTrickEcho =
     showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);
 
@@ -96,8 +116,8 @@ export function PotCenter({
           >
             <PlayingCard
               card={{
-                rank: trumpUpcard!.rank as Rank,
-                suit: trumpUpcard!.suit as Suit,
+                rank: displayTrumpUpcard!.rank as Rank,
+                suit: displayTrumpUpcard!.suit as Suit,
               }}
               size="sm"
               state="trump"
@@ -201,6 +221,7 @@ export function PotCenter({
               showWinnerTag={trickShowWinnerTag}
               presentationPhase={trickPresentationPhase}
               playerNames={playerNames}
+              instantTrickPlays={instantTrickPlays}
             />
           </div>
           {finalTrickEcho && (

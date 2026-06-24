@@ -5,6 +5,8 @@ import {
   createTrickPresentationStore,
   reduceTrickPresentation,
   resolveHoldPlays,
+  trickPlaysArePrefix,
+  updatePeakTrickPlays,
 } from "./trickPresentationMachine";
 import { trickResolutionScheduleMs } from "./trickTiming";
 
@@ -229,8 +231,44 @@ describe("trickPresentationMachine", () => {
       },
       participantIds: ["p1", "p2", "p3"],
     });
+    assert.equal(store.peakTrickPlays.length, 3);
     assert.equal(resolveHoldPlays(store, partialTrick.plays).length, 3);
     assert.equal(buildTrickPresentationModel(store, partialTrick).displayPlays.length, 3);
+  });
+
+  it("peakTrickPlays survives prevTrick regression after fast server plays", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+      { playerId: "p3", card: { rank: "Q", suit: "hearts" } },
+    ];
+    const fullTrick = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts",
+      plays,
+    };
+    let store = createTrickPresentationStore({ p1: 0, p2: 0, p3: 0 }, fullTrick);
+    for (let i = 0; i < 2; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { ...fullTrick, plays: plays.slice(0, 2) },
+        tricksByPlayer: { p1: 0, p2: 0, p3: 0 },
+      },
+      participantIds: ["p1", "p2", "p3"],
+    });
+    assert.equal(store.peakTrickPlays.length, 3);
+    assert.equal(updatePeakTrickPlays(store, { currentTrick: { ...fullTrick, plays: plays.slice(0, 1) }, tricksByPlayer: {} }, plays.slice(0, 1)).length, 3);
+  });
+
+  it("trickPlaysArePrefix rejects out-of-order extensions", () => {
+    const a = [{ playerId: "p1", card: { rank: "A", suit: "hearts" } }];
+    const b = [{ playerId: "p2", card: { rank: "K", suit: "hearts" } }];
+    assert.equal(trickPlaysArePrefix(a, [...a, ...b]), true);
+    assert.equal(trickPlaysArePrefix(b, [...a, ...b]), false);
   });
 
   it("does not clamp revealed count down on mid-trick server sync", () => {
