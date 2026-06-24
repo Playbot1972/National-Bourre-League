@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
+  nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
   snapshotFromSession,
@@ -98,6 +99,7 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.displayDrawCompletedIds.includes("p2"), true);
+    assert.equal(store.drawPresentationConsumedIds.includes("p2"), true);
     assert.equal(store.drawAnimSubPhase, "done");
     const phaseStartedAt = store.phaseStartedAt;
 
@@ -107,6 +109,94 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.animatingDrawPlayerId, null);
     assert.equal(store.phaseStartedAt, phaseStartedAt);
+  });
+
+  it("does not re-open drawPlayer for consumed bots when prev snapshot regresses", () => {
+    const botA = "bot_hiud3taw";
+    const botB = "bot_qa2qh6l5";
+    const snap = snapshotFromSession({
+      sessionId: "s-loop",
+      handNumber: 1,
+      phase: "draw",
+      participantIds: ["p0", botA, botB],
+      actionOrder: [botA, botB, "p0"],
+      drawCompletedIds: [],
+      turnPlayerId: botA,
+      potAmount: 3,
+    });
+
+    function finishDrawAnim(store: ReturnType<typeof createHandPresentationStore>, playerId: string) {
+      let s = store;
+      while (s.animatingDrawPlayerId === playerId && s.drawAnimSubPhase !== "done") {
+        s = reduceHandPresentation(s, { type: "advancePhase" });
+      }
+      return s;
+    }
+
+    let store = createHandPresentationStore(snap);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA] },
+    });
+    assert.equal(store.animatingDrawPlayerId, botA);
+    store = finishDrawAnim(store, botA);
+    assert.ok(store.drawPresentationConsumedIds.includes(botA));
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA, botB], turnPlayerId: "p0" },
+    });
+    assert.equal(store.animatingDrawPlayerId, botB);
+    store = finishDrawAnim(store, botB);
+    assert.ok(store.drawPresentationConsumedIds.includes(botB));
+
+    const settledPhaseAt = store.phaseStartedAt;
+
+    // Stale replay: prev regresses to empty — must not re-animate bot_a or bot_b
+    store = {
+      ...store,
+      prevSnapshot: { ...snap, drawCompletedIds: [] },
+    };
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA], turnPlayerId: botB },
+    });
+    assert.equal(store.animatingDrawPlayerId, null);
+    assert.equal(store.drawAnimSubPhase, "done");
+    assert.equal(store.phaseStartedAt, settledPhaseAt);
+    assert.equal(nextDrawPresentationTarget(store, store.prevSnapshot!, { ...snap, drawCompletedIds: [botA] }), null);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA, botB], turnPlayerId: "p0" },
+    });
+    assert.equal(store.animatingDrawPlayerId, null);
+    assert.equal(store.phaseStartedAt, settledPhaseAt);
+  });
+
+  it("resets draw presentation consumed set on hand number change", () => {
+    let store = createHandPresentationStore(baseSnap);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"] },
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.ok(store.drawPresentationConsumedIds.includes("p2"));
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, handNumber: 2, phase: "draw", drawCompletedIds: [] },
+    });
+    assert.equal(store.handNumber, 2);
+    assert.deepEqual(store.drawPresentationConsumedIds, []);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, handNumber: 2, phase: "draw", drawCompletedIds: ["p1"] },
+    });
+    assert.equal(store.animatingDrawPlayerId, "p1");
   });
 
   it("does not schedule idle drawPlayer beat when waiting for next server draw", () => {

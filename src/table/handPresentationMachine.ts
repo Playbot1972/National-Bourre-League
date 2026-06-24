@@ -73,6 +73,8 @@ export interface HandPresentationStore {
   prevSnapshot: HandServerSnapshot | null;
   pendingSnapshot: HandServerSnapshot | null;
   phaseStartedAt: number;
+  /** Players whose draw presentation fully finished this hand (dedupe key: handNumber + playerId). */
+  drawPresentationConsumedIds: string[];
 }
 
 export function trumpKey(card: SerializedCard | null): string {
@@ -165,6 +167,7 @@ export function createHandPresentationStore(
     prevSnapshot: snapshot,
     pendingSnapshot: null,
     phaseStartedAt: Date.now(),
+    drawPresentationConsumedIds: [],
   };
 }
 
@@ -205,6 +208,37 @@ function nextDrawCompleter(
   return null;
 }
 
+/** Next player needing draw presentation — skips fully consumed players even if prev regressed. */
+export function nextDrawPresentationTarget(
+  store: HandPresentationStore,
+  prev: HandServerSnapshot,
+  next: HandServerSnapshot,
+): string | null {
+  for (const id of next.drawCompletedIds) {
+    if (store.drawPresentationConsumedIds.includes(id)) continue;
+    if (!prev.drawCompletedIds.includes(id)) return id;
+  }
+  return null;
+}
+
+function markDrawPresentationConsumed(
+  store: HandPresentationStore,
+  playerId: string | null | undefined,
+): string[] {
+  if (!playerId || store.drawPresentationConsumedIds.includes(playerId)) {
+    return store.drawPresentationConsumedIds;
+  }
+  return [...store.drawPresentationConsumedIds, playerId];
+}
+
+function mergeDrawPresentationConsumed(
+  store: HandPresentationStore,
+  playerIds: string[],
+): string[] {
+  const merged = new Set([...store.drawPresentationConsumedIds, ...playerIds]);
+  return [...merged];
+}
+
 function beginDrawPlayerAnim(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -212,6 +246,15 @@ function beginDrawPlayerAnim(
   discardCount: number,
   replaceCount: number,
 ): HandPresentationStore {
+  if (store.drawPresentationConsumedIds.includes(playerId)) {
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("handPresentation", "drawPresentation-consumed-skip", {
+        handNumber: store.handNumber,
+        playerId,
+      });
+    }
+    return store;
+  }
   return withPhase(store, "drawPlayer", {
     animatingDrawPlayerId: playerId,
     drawAnimSubPhase: "discard",
@@ -261,7 +304,7 @@ function beginDrawSequence(
   replaceCount: number,
 ): HandPresentationStore {
   const prevEmpty = { ...snapshot, drawCompletedIds: [] };
-  const first = nextDrawCompleter(prevEmpty, snapshot);
+  const first = nextDrawPresentationTarget(store, prevEmpty, snapshot);
   if (first) {
     return beginDrawPlayerAnim(store, snapshot, first, discardCount, replaceCount);
   }
@@ -301,8 +344,9 @@ export function reduceHandPresentation(
         phase: `${store.phase} -> ${next.phase}`,
         handNumber: `${store.handNumber} -> ${next.handNumber}`,
         trumpRevealActive: `${store.trumpRevealActive} -> ${next.trumpRevealActive}`,
-        drawAnim: store.animatingDrawPlayerId,
         drawSubPhase: `${store.drawAnimSubPhase} -> ${next.drawAnimSubPhase}`,
+        drawAnim: `${store.animatingDrawPlayerId ?? ""} -> ${next.animatingDrawPlayerId ?? ""}`,
+        drawConsumed: next.drawPresentationConsumedIds.length,
         serverPhase: event.type === "serverUpdate" ? event.snapshot.phase : undefined,
         drawCompleted: event.type === "serverUpdate" ? event.snapshot.drawCompletedIds.length : undefined,
       });
@@ -440,14 +484,13 @@ function reduceHandPresentationCore(
       }
 
       if (snapshot.phase === "draw") {
-        const completed = nextDrawCompleter(prev, snapshot);
+        const completed = nextDrawPresentationTarget(store, prev, snapshot);
         if (completed && store.phase !== "drawReady") {
-          const alreadyPresented = store.displayDrawCompletedIds.includes(completed);
           const animatingNow =
             store.phase === "drawPlayer" &&
             store.animatingDrawPlayerId === completed &&
             store.drawAnimSubPhase !== "done";
-          if (!alreadyPresented && !animatingNow) {
+          if (!animatingNow) {
             const isHeroEvent = heroDrawDiscardCount > 0 || heroDrawReplaceCount > 0;
             const discards = isHeroEvent ? heroDrawDiscardCount : completed === snapshot.turnPlayerId ? 0 : 1;
             const replacements = isHeroEvent ? heroDrawReplaceCount : discards;
@@ -541,6 +584,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       const nextCompleted = playerId
         ? [...store.displayDrawCompletedIds, playerId]
         : store.displayDrawCompletedIds;
+      const consumedIds = markDrawPresentationConsumed(store, playerId);
       const ref = snap ?? store.prevSnapshot;
       if (ref && nextCompleted.length >= ref.participantIds.length) {
         return withPhase(store, "drawReady", {
@@ -549,12 +593,16 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
           drawAnimSubPhase: "done",
           pendingSnapshot: null,
           prevSnapshot: { ...ref, drawCompletedIds: [...nextCompleted] },
+          drawPresentationConsumedIds: mergeDrawPresentationConsumed(store, nextCompleted),
         });
       }
       if (ref) {
         const syncedPrev = { ...ref, drawCompletedIds: [...nextCompleted] };
         const nextPlayer = ref.actionOrder.find(
-          (id) => ref.participantIds.includes(id) && !nextCompleted.includes(id),
+          (id) =>
+            ref.participantIds.includes(id) &&
+            !nextCompleted.includes(id) &&
+            !consumedIds.includes(id),
         );
         if (nextPlayer && ref.drawCompletedIds.includes(nextPlayer)) {
           return beginDrawPlayerAnim(store, syncedPrev, nextPlayer, 1, 1);
@@ -568,6 +616,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
         animatingDrawPlayerId: null,
         drawAnimSubPhase: "done",
         prevSnapshot: syncedPrev ?? store.prevSnapshot,
+        drawPresentationConsumedIds: consumedIds,
       };
     }
 
