@@ -238,18 +238,36 @@ export function reduceTrickPresentation(
   }
 }
 
+export function resolveHoldPlays(
+  store: TrickPresentationStore,
+  livePlays: TrickPlay[],
+): TrickPlay[] {
+  const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
+  if (pendingPlays.length > 0) return pendingPlays;
+
+  const prevPlays = serializedPlays(store.prevTrick);
+  if (store.phase !== "live") {
+    return livePlays.length > 0 ? livePlays : prevPlays;
+  }
+
+  // Stale snapshots (e.g. trump upcard clear + play in one tick) may briefly shrink
+  // currentTrick.plays — never drop cards the UI has already revealed.
+  if (
+    prevPlays.length > livePlays.length &&
+    store.revealedCount > livePlays.length
+  ) {
+    return prevPlays;
+  }
+
+  return livePlays.length > 0 ? livePlays : prevPlays;
+}
+
 export function buildTrickPresentationModel(
   store: TrickPresentationStore,
   liveCurrentTrick: CurrentTrickState | null | undefined,
 ): TrickPresentationModel {
   const livePlays = serializedPlays(liveCurrentTrick);
-  const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
-  const holdPlays =
-    pendingPlays.length > 0
-      ? pendingPlays
-      : livePlays.length > 0
-        ? livePlays
-        : serializedPlays(store.prevTrick);
+  const holdPlays = resolveHoldPlays(store, livePlays);
   const revealLimit =
     store.phase === "live"
       ? store.pendingResolution

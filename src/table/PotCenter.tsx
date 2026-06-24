@@ -113,7 +113,7 @@ export function PotCenter({
             ]
               .filter(Boolean)
               .join(" ")}
-            key={trumpReminderPulse > 0 ? `trump-reminder-${trumpReminderPulse}` : "trump-reminder"}
+            key="trump-reminder"
             data-testid="trump-suit-reminder"
             aria-label={`Trump suit: ${formatTrumpSuit(trumpSuit)}`}
           >
