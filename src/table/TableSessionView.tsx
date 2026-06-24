@@ -86,7 +86,10 @@ export function TableSessionView({
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
-    actionOrder: session.handEnrollment?.orderedPlayerIds ?? session.participantIds,
+    actionOrder:
+      session.actionOrder ??
+      session.handEnrollment?.orderedPlayerIds ??
+      session.participantIds,
   });
 
   const cardsDealt = isCardsDealtPhase(session.phase);

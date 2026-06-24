@@ -118,6 +118,7 @@ export function enrollmentPatchAfterStep(
   const bundle = serializeHandState(deal, {
     dealerId: dealContext.dealerId,
     actionOrder: deal.dealOrder,
+    seatedIds: dealContext.sortedPlayerIds,
     maxDrawDiscards: maxDrawDiscards(enrolledIds.length, dealContext.dealingRule),
   });
   return {

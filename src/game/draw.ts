@@ -12,7 +12,7 @@ import {
   effectivePlayerHand,
   privateHandFromEffective,
 } from "./invariants";
-import { openingLeaderId, resolveActionOrder, resolveSeatRing } from "./playerOrder";
+import { openingLeaderId, nextActivePlayerClockwise, resolveActionOrder, resolveSeatRing } from "./playerOrder";
 import { HAND_PHASE } from "./types";
 import type { Card } from "../types";
 import type { PublicHandState } from "./types";
@@ -79,9 +79,7 @@ export function nextPlayerInOrder(
   order: string[],
   currentPlayerId: string,
 ): string | null {
-  const idx = order.indexOf(currentPlayerId);
-  if (idx < 0) return order[0] ?? null;
-  return order[(idx + 1) % order.length] ?? null;
+  return nextActivePlayerClockwise(order, currentPlayerId);
 }
 
 /** First draw turn — opens left of dealer, skipping seats already pat. */

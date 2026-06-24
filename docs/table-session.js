@@ -14916,7 +14916,7 @@ function _u({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		heroCards: u,
 		enrolledIds: e.handEnrollment?.enrolledIds ?? mu,
 		declinedIds: e.handEnrollment?.declinedIds ?? mu,
-		actionOrder: e.handEnrollment?.orderedPlayerIds ?? e.participantIds
+		actionOrder: e.actionOrder ?? e.handEnrollment?.orderedPlayerIds ?? e.participantIds
 	}), A = wa(e.phase), j = (0, l.useMemo)(() => ol({
 		trumpHolderId: e.trumpHolderId ?? e.dealerId,
 		trumpUpcard: e.trumpUpcard ?? null,

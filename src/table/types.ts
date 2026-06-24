@@ -124,6 +124,10 @@ export interface TableSessionData {
   maxDrawDiscards?: number | null;
   cinchEnabled?: boolean;
   postedAntes?: Record<string, number>;
+  /** Clockwise draw/play order (dealer-relative seat ring). */
+  actionOrder?: string[];
+  /** Full table seat ring — not join order. */
+  seatedIds?: string[];
   pendingCoWinSettlement?: {
     winnerIds: string[];
     votes?: Record<string, string>;

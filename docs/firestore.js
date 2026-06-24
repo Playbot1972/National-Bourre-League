@@ -523,7 +523,9 @@ export {
   handAnteContribution,
   sumProjectedHandAntes,
   bourrePlayerIds,
+  projectNextHandPot,
 } from "./bourre-rules.js";
+export { resolveActionOrder, openingLeaderId } from "./game-engine.js";
 export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseRulesFromForm } from "./house-rules.js";
 
 // ---------------------------------------------------------------------------
@@ -1510,7 +1512,9 @@ function actionOrderFromHand(currentHand, sortedPlayerIds) {
 }
 
 function sortedPlayerIdsFromSession(sessionData) {
-  return sessionData?.liveEnrollment?.deal?.sortedPlayerIds ?? null;
+  const fromEnrollment = sessionData?.liveEnrollment?.deal?.sortedPlayerIds;
+  if (fromEnrollment?.length) return fromEnrollment;
+  return getSessionCurrentHand(sessionData)?.seatedIds ?? null;
 }
 
 async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {

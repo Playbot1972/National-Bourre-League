@@ -28,10 +28,12 @@ describe("Pagat decision phase", () => {
     const bundle = serializePagatRevealHand(deal, {
       dealerId: "p1",
       actionOrder: deal.dealOrder,
+      seatedIds: SORTED,
     });
     assert.equal(bundle.publicHand.phase, HAND_PHASE.REVEAL);
     assert.equal(bundle.publicHand.handDecision?.active, false);
     assert.deepEqual(bundle.publicHand.seatedIds, SORTED);
+    assert.deepEqual(bundle.publicHand.handDecision?.orderedPlayerIds, ["p2", "p3", "p4", "p1"]);
   });
 
   it("activates decision after reveal", () => {

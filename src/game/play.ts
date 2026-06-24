@@ -10,6 +10,7 @@ import { resolveTrickWinner } from "./trick";
 import { HAND_PHASE } from "./types";
 import type { Card, Suit } from "../types";
 import type { CurrentTrickState, PlayedCardEntry, PublicHandState } from "./types";
+import { resolveActionOrder, nextActivePlayerClockwise } from "./playerOrder";
 import { serializeCard } from "./serialize";
 
 export interface ApplyPlayInput {
@@ -29,11 +30,6 @@ export interface ApplyPlayResult {
 }
 
 const TRICKS_PER_HAND = 5;
-
-function nextInOrder(order: string[], playerId: string): string {
-  const idx = order.indexOf(playerId);
-  return order[(idx + 1) % order.length];
-}
 
 export interface ApplyPlayerPlayInput {
   publicHand: PublicHandState;
@@ -84,7 +80,11 @@ export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPla
 }
 
 export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
-  const { publicHand, playerId, cardIndex, actionOrder } = input;
+  const { publicHand, playerId, cardIndex } = input;
+  const actionOrder =
+    input.actionOrder.length > 0
+      ? input.actionOrder
+      : resolveActionOrder(publicHand);
   if (publicHand.phase !== HAND_PHASE.PLAY) {
     throw new Error("Not in trick-play phase");
   }
@@ -122,7 +122,7 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
   const trickComplete = newPlays.length >= participantIds.length;
 
   if (!trickComplete) {
-    const nextTurn = nextInOrder(actionOrder, playerId);
+    const nextTurn = nextActivePlayerClockwise(actionOrder, playerId);
     const updatedTrick: CurrentTrickState = {
       ...trick,
       leadSuit: effectiveLeadSuit,
@@ -131,6 +131,7 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
     return {
       publicHand: {
         ...publicHand,
+        actionOrder,
         leadSuit: effectiveLeadSuit,
         currentTrick: updatedTrick,
         turnPlayerId: nextTurn,
@@ -178,6 +179,7 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
   return {
     publicHand: {
       ...publicHand,
+      actionOrder,
       tricksByPlayer,
       playedCards,
       leadSuit: null,

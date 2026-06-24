@@ -100,6 +100,8 @@ import {
   resolveHandDealerId,
   enrollmentDeadlineMs,
   tricksForPlayer,
+  resolveActionOrder,
+  projectNextHandPot,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -3003,6 +3005,22 @@ function buildTableSessionProps(s) {
 
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
   const postedAntes = currentHand?.postedAntes ?? {};
+  const seatedIds =
+    currentHand?.seatedIds?.length > 0
+      ? currentHand.seatedIds
+      : activeSeatedPlayerIds(s.players, displayScores);
+  const resolvedActionOrder =
+    currentHand && handParticipantIds.length > 0
+      ? resolveActionOrder(
+          {
+            actionOrder: currentHand.actionOrder,
+            participantIds: handParticipantIds,
+            dealerId,
+            seatedIds,
+          },
+          seatedIds,
+        )
+      : null;
   const potFundingPlayerIds =
     handParticipantIds.length > 0
       ? handParticipantIds
@@ -3014,17 +3032,30 @@ function buildTableSessionProps(s) {
     postedAntes,
   );
   const limEnabled = s.limEnabled === true;
+  const carryOver = s.carryOverPot ?? 0;
   const potState = computeHandPotState({
     anteAmount: handStake,
     limEnabled,
-    carryIn: s.carryOverPot ?? 0,
+    carryIn: carryOver,
     antePot,
   });
+  const projectedNextPot = projectNextHandPot(
+    carryOver,
+    scoreById,
+    potFundingPlayerIds,
+    handStake,
+    postedAntes,
+  );
   const potMetrics = {
     anteAmount: potState.anteAmount,
     potCap: potState.potCap,
-    currentPot: potState.currentPot,
-    maxWinThisHand: potState.maxWinThisHand,
+    currentPot: handParticipantIds.length > 0 ? potState.currentPot : projectedNextPot,
+    maxWinThisHand:
+      handParticipantIds.length > 0
+        ? potState.maxWinThisHand
+        : limEnabled
+          ? Math.min(projectedNextPot, potState.potCap)
+          : projectedNextPot,
     limEnabled: potState.limEnabled,
     overflow: potState.overflow,
   };
@@ -3081,6 +3112,8 @@ function buildTableSessionProps(s) {
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
+      actionOrder: resolvedActionOrder ?? undefined,
+      seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
     },
     heroCards: heroCardList,
     rawHeroCards: privateHeroCards,

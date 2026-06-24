@@ -598,7 +598,9 @@ function actionOrderFromHand(currentHand, sortedPlayerIds) {
 }
 
 function sortedPlayerIdsFromSession(sessionData) {
-  return sessionData?.liveEnrollment?.deal?.sortedPlayerIds ?? null;
+  const fromEnrollment = sessionData?.liveEnrollment?.deal?.sortedPlayerIds;
+  if (fromEnrollment?.length) return fromEnrollment;
+  return getSessionCurrentHand(sessionData)?.seatedIds ?? null;
 }
 
 function writePrivateHands(tx, db, roomId, sessionId, privateHandsByPlayer) {

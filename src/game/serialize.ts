@@ -96,7 +96,11 @@ export function serializePagatRevealHand(
   deal: DealResult,
   options: Omit<SerializeHandOptions, "initialPhase" | "handDecision">,
 ): SerializedHandBundle {
-  const handDecision = buildHandDecision(deal.participantIds, options.dealerId, false);
+  const handDecision = buildHandDecision(
+    options.seatedIds?.length ? options.seatedIds : deal.participantIds,
+    options.dealerId,
+    false,
+  );
   return serializeHandState(deal, {
     ...options,
     initialPhase: HAND_PHASE.REVEAL,
