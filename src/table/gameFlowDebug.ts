@@ -6,7 +6,23 @@
 
 const DEBUG_KEY = "nbl-game-flow-debug";
 
+let debugForced = false;
+let logCaptureSink: ((line: string, data?: Record<string, unknown>) => void) | null = null;
+
+/** Node/tests only — capture `[nbl-flow]` lines without a browser. */
+export function forceGameFlowDebugForTests(
+  sink?: (line: string, data?: Record<string, unknown>) => void,
+): () => void {
+  debugForced = true;
+  logCaptureSink = sink ?? null;
+  return () => {
+    debugForced = false;
+    logCaptureSink = null;
+  };
+}
+
 export function isGameFlowDebugEnabled(): boolean {
+  if (debugForced) return true;
   if (typeof window === "undefined") return false;
   try {
     if (window.localStorage?.getItem(DEBUG_KEY) === "1") return true;
@@ -24,5 +40,10 @@ export function logGameFlow(
   if (!isGameFlowDebugEnabled()) return;
   const ts =
     typeof performance !== "undefined" ? `${performance.now().toFixed(1)}ms` : "";
-  console.info(`[nbl-flow ${ts}] ${source} :: ${event}`, data ?? "");
+  const line = `[nbl-flow ${ts}] ${source} :: ${event}`;
+  if (logCaptureSink) {
+    logCaptureSink(line.trim(), data);
+    return;
+  }
+  console.info(line, data ?? "");
 }

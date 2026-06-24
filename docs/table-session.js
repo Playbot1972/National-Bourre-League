@@ -14075,8 +14075,11 @@ function Vl(e, t) {
 			if (n.phase === "draw") {
 				let t = Y(a, n);
 				if (t && e.phase !== "drawReady") {
-					let a = r > 0 || i > 0, o = a ? r : t === n.turnPlayerId ? 0 : 1;
-					return X(e, n, t, o, a ? i : o);
+					let a = e.displayDrawCompletedIds.includes(t), o = e.phase === "drawPlayer" && e.animatingDrawPlayerId === t && e.drawAnimSubPhase !== "done";
+					if (!a && !o) {
+						let a = r > 0 || i > 0, o = a ? r : t === n.turnPlayerId ? 0 : 1;
+						return X(e, n, t, o, a ? i : o);
+					}
 				}
 				if (n.drawCompletedIds.length === n.participantIds.length && n.participantIds.length > 0 && e.phase === "drawPlayer" && e.drawAnimSubPhase === "done") return J(e, "drawReady", { prevSnapshot: n });
 			}
@@ -14141,18 +14144,29 @@ function Hl(e) {
 				displayDrawCompletedIds: r,
 				animatingDrawPlayerId: null,
 				drawAnimSubPhase: "done",
-				pendingSnapshot: null
+				pendingSnapshot: null,
+				prevSnapshot: {
+					...i,
+					drawCompletedIds: [...r]
+				}
 			});
 			if (i) {
-				({ ...i });
-				let t = i.actionOrder.find((e) => i.participantIds.includes(e) && !r.includes(e));
-				if (t && i.drawCompletedIds.includes(t)) return X(e, i, t, 1, 1);
+				let t = {
+					...i,
+					drawCompletedIds: [...r]
+				}, n = i.actionOrder.find((e) => i.participantIds.includes(e) && !r.includes(e));
+				if (n && i.drawCompletedIds.includes(n)) return X(e, t, n, 1, 1);
 			}
+			let a = i && n ? {
+				...i,
+				drawCompletedIds: [...r]
+			} : i;
 			return {
 				...e,
 				displayDrawCompletedIds: r,
 				animatingDrawPlayerId: null,
-				drawAnimSubPhase: "done"
+				drawAnimSubPhase: "done",
+				prevSnapshot: a ?? e.prevSnapshot
 			};
 		}
 		case "drawReady": return J(e, "play", { pendingSnapshot: null });
@@ -14195,7 +14209,7 @@ function Wl(e, t = !1) {
 		case "ante": return n.anteChipTravelMs * Math.max(1, Math.min(e.dealStaggerCount, 8));
 		case "trumpReveal": return n.trumpRevealHoldMs;
 		case "trumpMerge": return n.trumpMergeAnimMs;
-		case "drawPlayer": return Jc(e.drawAnimSubPhase === "receive" ? 0 : e.drawDiscardCount, e.drawAnimSubPhase === "receive" ? e.drawReplaceCount : 0, t);
+		case "drawPlayer": return e.drawAnimSubPhase === "done" && !e.animatingDrawPlayerId ? 0 : Jc(e.drawAnimSubPhase === "receive" ? 0 : e.drawDiscardCount, e.drawAnimSubPhase === "receive" ? e.drawReplaceCount : 0, t);
 		case "drawReady": return n.drawReadyBeatMs;
 		case "settle": return n.settleHoldMs;
 		case "nextHandReset": return n.nextHandResetMs;
@@ -14237,14 +14251,16 @@ function Jl({ session: e, enrollmentActive: t, potAmount: n, handComplete: r, tr
 		o,
 		s,
 		c
-	]), [d, f] = (0, l.useReducer)(Bl, u, Il), p = (0, l.useRef)([]), m = (0, l.useRef)([]), h = (0, l.useRef)(""), g = () => {
+	]), [d, f] = (0, l.useReducer)(Bl, u, Il), p = (0, l.useRef)([]), m = (0, l.useRef)([]), h = (0, l.useRef)(null), g = (0, l.useRef)(d);
+	g.current = d;
+	let _ = () => {
 		for (let e of p.current) window.clearTimeout(e);
-		p.current = [];
-	}, _ = (e, t) => {
+		p.current = [], h.current = null;
+	}, v = (e, t) => {
 		let n = window.setTimeout(e, t);
 		p.current.push(n);
 	};
-	return (0, l.useEffect)(() => () => g(), []), (0, l.useEffect)(() => {
+	return (0, l.useEffect)(() => () => _(), []), (0, l.useEffect)(() => {
 		let e = a.map((e) => `${e.rank}-${e.suit}`), t = ql(m.current, e);
 		m.current = e, f({
 			type: "serverUpdate",
@@ -14264,17 +14280,44 @@ function Jl({ session: e, enrollmentActive: t, potAmount: n, handComplete: r, tr
 		let e = window.setTimeout(() => f({ type: "clearEnrollmentPulse" }), 480);
 		return () => window.clearTimeout(e);
 	}, [JSON.stringify(d.enrollmentPulse)]), (0, l.useEffect)(() => {
-		let e = mc(), t = `${d.phase}:${d.animatingDrawPlayerId ?? ""}:${d.drawAnimSubPhase}:${d.phaseStartedAt}`;
+		let e = mc(), t = `${d.handNumber}:${d.phase}:${d.animatingDrawPlayerId ?? ""}:${d.drawAnimSubPhase}:${d.phaseStartedAt}`;
 		if (h.current === t) return;
-		h.current = t, g();
+		_();
 		let n = Wl(d, e);
-		n <= 0 || (_(() => {
+		if (n <= 0) return;
+		let r = {
+			handNumber: d.handNumber,
+			phase: d.phase,
+			animatingDrawPlayerId: d.animatingDrawPlayerId,
+			drawAnimSubPhase: d.drawAnimSubPhase,
+			phaseStartedAt: d.phaseStartedAt
+		};
+		h.current = t, v(() => {
+			if (h.current !== t) return;
+			h.current = null;
+			let e = g.current;
+			if (e.handNumber !== r.handNumber || e.phase !== r.phase || e.animatingDrawPlayerId !== r.animatingDrawPlayerId || e.drawAnimSubPhase !== r.drawAnimSubPhase || e.phaseStartedAt !== r.phaseStartedAt) {
+				gc() && _c("useHandPresentation", "advancePhase-timer-stale", {
+					armedAt: r,
+					current: {
+						handNumber: e.handNumber,
+						phase: e.phase,
+						animatingDrawPlayerId: e.animatingDrawPlayerId,
+						drawAnimSubPhase: e.drawAnimSubPhase,
+						phaseStartedAt: e.phaseStartedAt
+					}
+				});
+				return;
+			}
 			gc() && _c("useHandPresentation", "advancePhase-timer", {
-				fromPhase: d.phase,
-				delay: n
+				fromPhase: r.phase,
+				delay: n,
+				animatingDrawPlayerId: r.animatingDrawPlayerId,
+				drawAnimSubPhase: r.drawAnimSubPhase
 			}), f({ type: "advancePhase" });
-		}, n), _(() => f({ type: "watchdog" }), Kc));
+		}, n), v(() => f({ type: "watchdog" }), Kc);
 	}, [
+		d.handNumber,
 		d.phase,
 		d.animatingDrawPlayerId,
 		d.drawAnimSubPhase,

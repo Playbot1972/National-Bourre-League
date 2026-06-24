@@ -442,10 +442,17 @@ function reduceHandPresentationCore(
       if (snapshot.phase === "draw") {
         const completed = nextDrawCompleter(prev, snapshot);
         if (completed && store.phase !== "drawReady") {
-          const isHeroEvent = heroDrawDiscardCount > 0 || heroDrawReplaceCount > 0;
-          const discards = isHeroEvent ? heroDrawDiscardCount : completed === snapshot.turnPlayerId ? 0 : 1;
-          const replacements = isHeroEvent ? heroDrawReplaceCount : discards;
-          return beginDrawPlayerAnim(store, snapshot, completed, discards, replacements);
+          const alreadyPresented = store.displayDrawCompletedIds.includes(completed);
+          const animatingNow =
+            store.phase === "drawPlayer" &&
+            store.animatingDrawPlayerId === completed &&
+            store.drawAnimSubPhase !== "done";
+          if (!alreadyPresented && !animatingNow) {
+            const isHeroEvent = heroDrawDiscardCount > 0 || heroDrawReplaceCount > 0;
+            const discards = isHeroEvent ? heroDrawDiscardCount : completed === snapshot.turnPlayerId ? 0 : 1;
+            const replacements = isHeroEvent ? heroDrawReplaceCount : discards;
+            return beginDrawPlayerAnim(store, snapshot, completed, discards, replacements);
+          }
         }
 
         if (
@@ -541,23 +548,26 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
           animatingDrawPlayerId: null,
           drawAnimSubPhase: "done",
           pendingSnapshot: null,
+          prevSnapshot: { ...ref, drawCompletedIds: [...nextCompleted] },
         });
       }
       if (ref) {
-        const prevDraw = { ...ref, drawCompletedIds: nextCompleted };
+        const syncedPrev = { ...ref, drawCompletedIds: [...nextCompleted] };
         const nextPlayer = ref.actionOrder.find(
           (id) => ref.participantIds.includes(id) && !nextCompleted.includes(id),
         );
         if (nextPlayer && ref.drawCompletedIds.includes(nextPlayer)) {
-          return beginDrawPlayerAnim(store, ref, nextPlayer, 1, 1);
+          return beginDrawPlayerAnim(store, syncedPrev, nextPlayer, 1, 1);
         }
-        void prevDraw;
       }
+      const syncedPrev =
+        ref && playerId ? { ...ref, drawCompletedIds: [...nextCompleted] } : ref;
       return {
         ...store,
         displayDrawCompletedIds: nextCompleted,
         animatingDrawPlayerId: null,
         drawAnimSubPhase: "done",
+        prevSnapshot: syncedPrev ?? store.prevSnapshot,
       };
     }
 
@@ -630,6 +640,9 @@ export function phaseScheduleMs(
     case "trumpMerge":
       return t.trumpMergeAnimMs;
     case "drawPlayer":
+      if (store.drawAnimSubPhase === "done" && !store.animatingDrawPlayerId) {
+        return 0;
+      }
       return drawPlayerScheduleMs(
         store.drawAnimSubPhase === "receive" ? 0 : store.drawDiscardCount,
         store.drawAnimSubPhase === "receive" ? store.drawReplaceCount : 0,
