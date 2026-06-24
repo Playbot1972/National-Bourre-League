@@ -109,19 +109,26 @@ export function bufferServerSnapshot(
   return { ...store, pendingServer: snapshot };
 }
 
+export function liveRevealTarget(store: TrickPresentationStore): number {
+  return Math.max(
+    store.pendingResolution?.frozen.plays.length ?? 0,
+    serializedPlays(store.prevTrick).length,
+    store.peakTrickPlays?.length ?? 0,
+  );
+}
+
 export function applyLiveServerUpdate(
   store: TrickPresentationStore,
   snapshot: ServerTrickSnapshot,
 ): TrickPresentationStore {
   const livePlays = serializedPlays(snapshot.currentTrick);
   const prevPlays = serializedPlays(store.prevTrick);
+  const peakTrickPlays = updatePeakTrickPlays(store, snapshot, livePlays);
   const keepPrevTrick =
     store.phase === "live" &&
     !store.pendingResolution &&
-    livePlays.length < store.revealedCount &&
-    prevPlays.length >= store.revealedCount;
-
-  const peakTrickPlays = updatePeakTrickPlays(store, snapshot, livePlays);
+    ((livePlays.length < store.revealedCount && prevPlays.length >= store.revealedCount) ||
+      (livePlays.length < peakTrickPlays.length && prevPlays.length >= peakTrickPlays.length));
 
   return {
     ...store,
@@ -179,17 +186,16 @@ export function reduceTrickPresentation(
 
     case "revealNextCard": {
       if (store.phase !== "live") return store;
-      const target =
-        store.pendingResolution?.frozen.plays.length ??
-        serializedPlays(store.prevTrick).length;
+      const target = liveRevealTarget(store);
       if (store.revealedCount >= target) return store;
       return { ...store, revealedCount: store.revealedCount + 1 };
     }
 
     case "clampRevealedCount": {
       if (store.phase !== "live" || store.pendingResolution) return store;
-      if (store.revealedCount <= event.target) return store;
-      return { ...store, revealedCount: event.target };
+      const safeTarget = Math.max(event.target, store.peakTrickPlays?.length ?? 0);
+      if (store.revealedCount <= safeTarget) return store;
+      return { ...store, revealedCount: safeTarget };
     }
 
     case "commitTrickResolution": {
@@ -287,16 +293,13 @@ export function resolveHoldPlays(
     return livePlays.length > 0 ? livePlays : prevPlays.length > 0 ? prevPlays : peak;
   }
 
-  if (peak.length > livePlays.length && store.revealedCount > livePlays.length) {
+  if (peak.length > livePlays.length) {
     return peak;
   }
 
   // Stale snapshots (e.g. trump upcard clear + play in one tick) may briefly shrink
   // currentTrick.plays — never drop cards the UI has already revealed.
-  if (
-    prevPlays.length > livePlays.length &&
-    store.revealedCount > livePlays.length
-  ) {
+  if (prevPlays.length > livePlays.length) {
     return prevPlays;
   }
 

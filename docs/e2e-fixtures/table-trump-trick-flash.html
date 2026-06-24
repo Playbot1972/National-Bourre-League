@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Trump trick flash fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-trump-trick-flash-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      /** Three-player hand — mirrors 2 humans + 1 bot repro. */
+      const ids = ["p0", "p1", "bot_a"];
+      const dealerId = "bot_a";
+
+      let trumpUpcard = { rank: "A", suit: "hearts" };
+      let currentTrick = {
+        trickNumber: 1,
+        leadPlayerId: "p1",
+        leadSuit: "clubs",
+        plays: [],
+      };
+      let turnPlayerId = "p1";
+
+      window.__trumpTrickFixture = {
+        maxCardCount: 0,
+        minCardCountAfterFirst: 0,
+        pendingPeak: 0,
+        countDrops: 0,
+        lastCount: 0,
+      };
+
+      function sampleDom() {
+        const row = document.querySelector('[data-testid="trick-row"]');
+        const count = parseInt(row?.getAttribute("data-trick-card-count") || "0", 10);
+        const pending = document.querySelectorAll(".btrick__play--fly-pending").length;
+        const f = window.__trumpTrickFixture;
+        if (count > f.maxCardCount) f.maxCardCount = count;
+        if (count > 0 && (f.minCardCountAfterFirst === 0 || count < f.minCardCountAfterFirst)) {
+          if (f.maxCardCount > 0 && count < f.lastCount) f.countDrops += 1;
+          f.minCardCountAfterFirst = Math.min(f.minCardCountAfterFirst || count, count);
+        }
+        if (pending > f.pendingPeak) f.pendingPeak = pending;
+        if (count < f.lastCount) f.countDrops += 1;
+        f.lastCount = count;
+      }
+
+      function displayName(id) {
+        if (id === "p0") return "You";
+        if (id.startsWith("bot")) return "Bot";
+        return "Player 1";
+      }
+
+      function buildPlayers() {
+        return ids.map((id) => ({
+          playerId: id,
+          displayName: displayName(id),
+          handsWon: 0,
+          inHand: true,
+          tricksThisHand: 0,
+          isSelf: id === "p0",
+          isDealer: id === dealerId,
+          isLeading: id === currentTrick.leadPlayerId,
+          isWinner: false,
+          isRobot: id.startsWith("bot"),
+          canToggleInHand: false,
+          canEditTricks: false,
+          showHoleCards: id !== "p0",
+          holeCardCount: 4,
+          isOnTurn: id === turnPlayerId,
+        }));
+      }
+
+      function buildProps() {
+        return {
+          session: {
+            sessionId: "fixture-trump-trick-flash",
+            handNumber: 3,
+            handStake: 1,
+            carryOverPot: 0,
+            isFinal: false,
+            dealerId,
+            trumpHolderId: dealerId,
+            participantIds: ids,
+            actionOrder: ["p1", "bot_a", "p0"],
+            seatedIds: ids,
+            tricksByPlayer: { p0: 0, p1: 0, bot_a: 0 },
+            phase: "play",
+            trumpSuit: "hearts",
+            trumpUpcard,
+            turnPlayerId,
+            remainingDeckCount: 18,
+            maxDrawDiscards: 3,
+            currentTrick,
+            playedCards: [],
+            handEnrollment: null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: 3,
+            maxWinThisHand: 3,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel: "Trump trick flash fixture",
+          showCoWinSettlement: false,
+          enrollmentActive: false,
+          currentUserId: "p0",
+          heroCards: [
+            { rank: "10", suit: "diamonds" },
+            { rank: "8", suit: "spades" },
+            { rank: "7", suit: "clubs" },
+            { rank: "6", suit: "diamonds" },
+            { rank: "5", suit: "hearts" },
+          ],
+          privateHandReady: true,
+          legalPlayIndices: [0, 1, 2, 3, 4],
+          actionFeedback: null,
+          actions: {
+            onToggleInHand: () => {},
+            onTrickDelta: () => {},
+            onSettle: () => {},
+            onSubmitDraw: async () => {},
+            onPassDraw: async () => {},
+            onPlayCard: async () => {},
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+      const sampler = window.setInterval(sampleDom, 40);
+
+      function render() {
+        mountTableSession(root, buildProps());
+        sampleDom();
+      }
+
+      render();
+
+      const play1 = { playerId: "p1", card: { rank: "K", suit: "clubs" } };
+      const play2 = { playerId: "bot_a", card: { rank: "9", suit: "clubs" } };
+      const play3 = { playerId: "p0", card: { rank: "2", suit: "clubs" } };
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1] };
+        turnPlayerId = "bot_a";
+        render();
+      }, 300);
+
+      /** Opening lead clears trump upcard — same tick as first play (stale empty trick). */
+      setTimeout(() => {
+        trumpUpcard = null;
+        currentTrick = { ...currentTrick, plays: [] };
+        turnPlayerId = "bot_a";
+        render();
+      }, 500);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1] };
+        render();
+      }, 700);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2] };
+        turnPlayerId = "p0";
+        render();
+      }, 1000);
+
+      /** Stale regression: one play while UI already revealed two. */
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1] };
+        render();
+      }, 1200);
+
+      setTimeout(() => {
+        currentTrick = { ...currentTrick, plays: [play1, play2, play3] };
+        turnPlayerId = "p1";
+        render();
+      }, 1400);
+
+      setTimeout(() => {
+        window.clearInterval(sampler);
+        sampleDom();
+        window.__trumpTrickFixture.done = true;
+      }, 3200);
+    </script>
+  </body>
+</html>
