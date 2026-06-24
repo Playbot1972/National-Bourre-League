@@ -352,4 +352,105 @@ describe("drawPlayer phase proof — log capture", () => {
     // After all three players consumed, no further discard entries on stale replays
     assert.equal(reopenDiscard.length, 3, "exactly three discard entries total (one per player)");
   });
+
+  it("prints logs: max-bot draw (8 players) — one discard per id, stale snapshots no-op", () => {
+    const hero = "p0";
+    const bots = [
+      "bot_ova3dpwd",
+      "bot_jii2or4c",
+      "bot_hiud3taw",
+      "bot_qa2qh6l5",
+      "bot_m4xseat5",
+      "bot_m4xseat6",
+      "bot_m4xseat7",
+    ];
+    const all = [...bots, hero];
+    const handSnap = snapshotFromSession({
+      sessionId: "proof-max-bot",
+      handNumber: 1,
+      phase: "draw",
+      enrollmentActive: false,
+      participantIds: all,
+      actionOrder: all,
+      drawCompletedIds: [],
+      turnPlayerId: bots[0],
+      potAmount: 8,
+    });
+
+    const { logs, end } = captureLogs();
+    const armedRef = { current: null as string | null };
+    let store = createHandPresentationStore(handSnap);
+
+    const replay = (ids: string[], turn: string, label: string) => {
+      logs.push({ line: `[proof] --- ${label} drawCompleted=[${ids.join(",")}] ---` });
+      store = applyServerUpdateWithTimer(
+        store,
+        { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
+        armedRef,
+        logs,
+      );
+    };
+
+    // Genuine progression: one new draw completion at a time
+    for (let i = 0; i < all.length; i += 1) {
+      const completed = all.slice(0, i + 1);
+      const nextTurn = all[i + 1] ?? hero;
+      replay(completed, nextTurn, `draw ${all[i]}`);
+      store = finishDrawPresentationForActivePlayer(store);
+      // Stale replay of just-finished player
+      replay([all[i]], all[i + 1] ?? hero, `stale replay ${all[i]} only`);
+      // Stale replay of full list so far
+      replay(completed, nextTurn, `stale replay through ${all[i]}`);
+    }
+
+    // Post-drawReady stale regressions
+    replay(all.slice(0, 4), bots[4], "stale regression to 4 drawn");
+    store = { ...store, prevSnapshot: { ...handSnap, drawCompletedIds: [] } };
+    replay([bots[0]], bots[1], "stale regression prev emptied, bot_a only");
+    replay(all, bots[0], "stale full 8-player replay");
+    replay(all.slice(0, 2), bots[2], "stale partial 2-bot replay");
+
+    end();
+
+    const discardEntries = countDiscardEntries(logs);
+    const candidateResolves = logs.filter((l) => l.line.includes("draw-candidate-resolve"));
+    const staleNoOps = candidateResolves.filter(
+      (l) => l.data?.chosen == null && String(l.data?.reason ?? "").includes("no-candidate"),
+    );
+    const serverUpdates = logs.filter((l) => l.line.includes("handPresentation :: serverUpdate"));
+    const discardArms = serverUpdates.filter((l) =>
+      String(l.data?.drawSubPhase ?? "").endsWith("discard"),
+    );
+
+    console.log("\n========== MAX-BOT DRAW PROOF (8 players) ==========\n");
+    for (const entry of logs) {
+      if (
+        entry.line.includes("draw-candidate-resolve") ||
+        entry.line.includes("handPresentation :: serverUpdate") ||
+        entry.line.includes("handPresentation :: advancePhase") ||
+        entry.line.startsWith("[proof]")
+      ) {
+        console.log(formatLog(entry));
+      }
+    }
+    console.log("\n========== PER-PLAYER DISCARD ENTRIES ==========");
+    for (const id of all) {
+      console.log(`  ${id}: ${discardEntries[id] ?? 0} discard entry/entries`);
+    }
+    console.log("\n========== SUMMARY ==========");
+    console.log(`players:                        ${all.length}`);
+    console.log(`drawAnim discard arms:          ${discardArms.length}`);
+    console.log(`draw-candidate-resolve no-ops:  ${staleNoOps.length}`);
+    console.log(`final phase:                    ${store.phase}`);
+    console.log(`final consumed:                 ${store.drawPresentationConsumedIds.join(", ")}`);
+    console.log("====================================================\n");
+
+    for (const id of all) {
+      assert.equal(discardEntries[id], 1, `${id} enters discard presentation exactly once`);
+    }
+    assert.equal(discardArms.length, all.length, "exactly one discard arm per player");
+    assert.equal(store.phase, "drawReady");
+    assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [...all].sort());
+    assert.ok(staleNoOps.length >= 10, "stale/regressed snapshots produced skip no-ops");
+  });
 });
