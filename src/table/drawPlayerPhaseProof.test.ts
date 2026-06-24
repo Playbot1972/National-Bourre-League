@@ -353,11 +353,13 @@ describe("drawPlayer phase proof — log capture", () => {
     assert.equal(reopenDiscard.length, 3, "exactly three discard entries total (one per player)");
   });
 
-  it("prints logs: max-bot draw (8 players) — one discard per id, stale snapshots no-op", () => {
+  it("stale/regressed draw snapshots do not re-open consumed players (max 8 seats)", () => {
     const hero = "p0";
+    const botA = "bot_ova3dpwd";
+    const botB = "bot_jii2or4c";
     const bots = [
-      "bot_ova3dpwd",
-      "bot_jii2or4c",
+      botA,
+      botB,
       "bot_hiud3taw",
       "bot_qa2qh6l5",
       "bot_m4xseat5",
@@ -381,34 +383,66 @@ describe("drawPlayer phase proof — log capture", () => {
     const armedRef = { current: null as string | null };
     let store = createHandPresentationStore(handSnap);
 
-    const replay = (ids: string[], turn: string, label: string) => {
+    const assertStaleReplayNoOp = (
+      current: HandPresentationStore,
+      ids: string[],
+      turn: string,
+      label: string,
+    ): HandPresentationStore => {
+      const phaseBefore = current.phaseStartedAt;
       logs.push({ line: `[proof] --- ${label} drawCompleted=[${ids.join(",")}] ---` });
-      store = applyServerUpdateWithTimer(
-        store,
-        { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
-        armedRef,
-        logs,
-      );
+      const next = reduceHandPresentation(current, {
+        type: "serverUpdate",
+        snapshot: { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
+      });
+      assert.equal(next.animatingDrawPlayerId, null, `${label}: consumed player must not re-enter drawAnim`);
+      assert.equal(next.drawAnimSubPhase, "done", `${label}: draw presentation must stay idle`);
+      assert.equal(next.phaseStartedAt, phaseBefore, `${label}: stale replay must not restart phase`);
+      simulateAdvanceTimerArm(next, armedRef, logs);
+      return next;
+    };
+
+    const replayDraw = (ids: string[], turn: string, label: string) => {
+      logs.push({ line: `[proof] --- ${label} drawCompleted=[${ids.join(",")}] ---` });
+      const newlyCompleted = ids[ids.length - 1];
+      store = reduceHandPresentation(store, {
+        type: "serverUpdate",
+        snapshot: { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
+      });
+      if (store.animatingDrawPlayerId === newlyCompleted && store.drawAnimSubPhase === "discard") {
+        assert.ok(
+          store.drawPresentationConsumedIds.includes(newlyCompleted),
+          `${newlyCompleted} reserved in consumed set at discard start`,
+        );
+      }
+      simulateAdvanceTimerArm(store, armedRef, logs);
+      store = finishDrawPresentationForActivePlayer(store);
     };
 
     // Genuine progression: one new draw completion at a time
     for (let i = 0; i < all.length; i += 1) {
       const completed = all.slice(0, i + 1);
       const nextTurn = all[i + 1] ?? hero;
-      replay(completed, nextTurn, `draw ${all[i]}`);
-      store = finishDrawPresentationForActivePlayer(store);
-      // Stale replay of just-finished player
-      replay([all[i]], all[i + 1] ?? hero, `stale replay ${all[i]} only`);
-      // Stale replay of full list so far
-      replay(completed, nextTurn, `stale replay through ${all[i]}`);
+      replayDraw(completed, nextTurn, `draw ${all[i]}`);
+      store = assertStaleReplayNoOp(store, [all[i]], all[i + 1] ?? hero, `stale replay ${all[i]} only`);
+      store = assertStaleReplayNoOp(store, completed, nextTurn, `stale replay through ${all[i]}`);
+      if (i === 1) {
+        // Confirmed production bug: alternating stale replays between bot_ova3dpwd and bot_jii2or4c
+        store = assertStaleReplayNoOp(store, [botA], botB, "confirmed bug: stale bot_a only");
+        store = assertStaleReplayNoOp(store, [botA, botB], bots[2], "confirmed bug: stale both bots");
+        store = { ...store, prevSnapshot: { ...handSnap, drawCompletedIds: [], phase: "decision" } };
+        store = assertStaleReplayNoOp(store, [botA, botB], bots[2], "confirmed bug: prev regressed to decision");
+        store = reduceHandPresentation(store, { type: "advancePhase" });
+        assert.equal(store.animatingDrawPlayerId, null, "advancePhase must not reopen consumed bots");
+      }
     }
 
     // Post-drawReady stale regressions
-    replay(all.slice(0, 4), bots[4], "stale regression to 4 drawn");
+    store = assertStaleReplayNoOp(store, all.slice(0, 4), bots[4], "stale regression to 4 drawn");
     store = { ...store, prevSnapshot: { ...handSnap, drawCompletedIds: [] } };
-    replay([bots[0]], bots[1], "stale regression prev emptied, bot_a only");
-    replay(all, bots[0], "stale full 8-player replay");
-    replay(all.slice(0, 2), bots[2], "stale partial 2-bot replay");
+    store = assertStaleReplayNoOp(store, [botA], botB, "stale regression prev emptied, bot_a only");
+    store = assertStaleReplayNoOp(store, all, bots[0], "stale full 8-player replay");
+    store = assertStaleReplayNoOp(store, all.slice(0, 2), bots[2], "stale partial 2-bot replay");
 
     end();
 
@@ -451,6 +485,8 @@ describe("drawPlayer phase proof — log capture", () => {
     assert.equal(discardArms.length, all.length, "exactly one discard arm per player");
     assert.equal(store.phase, "drawReady");
     assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [...all].sort());
-    assert.ok(staleNoOps.length >= 10, "stale/regressed snapshots produced skip no-ops");
+    if (staleNoOps.length > 0) {
+      console.log(`draw-candidate-resolve no-ops: ${staleNoOps.length}`);
+    }
   });
 });
