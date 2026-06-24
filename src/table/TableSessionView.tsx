@@ -17,6 +17,7 @@ import { YourTurnAttention } from "./YourTurnAttention";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
+import { setTrickAnimationBusyState } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
@@ -83,6 +84,27 @@ export function TableSessionView({
     session.trumpUpcard,
     trickPresentation.displayPlays.length,
   );
+
+  useEffect(() => {
+    setTrickAnimationBusyState({
+      pipelineActive: trickPresentation.isPipelineActive,
+      revealCatchUp:
+        trickPresentation.phase === "live" &&
+        trickPresentation.revealedCount < trickPresentation.revealTarget,
+      motionGateActive: instantTrickPlays,
+      peakPlayCount: trickPresentation.peakPlayCount,
+      displayedPlayCount: trickPresentation.displayPlays.length,
+    });
+  }, [
+    trickPresentation.isPipelineActive,
+    trickPresentation.phase,
+    trickPresentation.revealedCount,
+    trickPresentation.revealTarget,
+    trickPresentation.peakPlayCount,
+    trickPresentation.displayPlays.length,
+    instantTrickPlays,
+  ]);
+
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,

@@ -54,6 +54,8 @@ export function useTrickPresentation({
   const resolutionKeyRef = useRef<string | null>(null);
   const snapshottedPlaysRef = useRef<Set<string>>(new Set());
   const pipelineActiveRef = useRef(false);
+  const revealTimerRef = useRef<number | null>(null);
+  const targetRevealRef = useRef(0);
 
   const pipelineActive =
     store.phase !== "live" || Boolean(store.pendingResolution);
@@ -188,22 +190,43 @@ export function useTrickPresentation({
         )
       : store.revealedCount;
 
-  useEffect(() => {
-    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live") return;
-    if (store.revealedCount >= targetReveal) return;
+  targetRevealRef.current = targetReveal;
+
+  const clearRevealTimer = () => {
+    if (revealTimerRef.current != null) {
+      window.clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+  };
+
+  const scheduleRevealIfNeeded = () => {
+    if ((!sessionPlayActive && !pipelineActiveRef.current) || store.phase !== "live") {
+      clearRevealTimer();
+      return;
+    }
+    if (store.revealedCount >= targetRevealRef.current) {
+      clearRevealTimer();
+      return;
+    }
+    if (revealTimerRef.current != null) return;
 
     const timing = prefersReducedMotion()
       ? Math.round(CARD_REVEAL_STAGGER_MS * 0.55)
       : CARD_REVEAL_STAGGER_MS;
-    const id = window.setTimeout(() => dispatch({ type: "revealNextCard" }), timing);
-    return () => window.clearTimeout(id);
-  }, [
-    sessionPlayActive,
-    pipelineActive,
-    store.phase,
-    store.revealedCount,
-    targetReveal,
-  ]);
+    revealTimerRef.current = window.setTimeout(() => {
+      revealTimerRef.current = null;
+      dispatch({ type: "revealNextCard" });
+    }, timing);
+  };
+
+  useEffect(() => {
+    scheduleRevealIfNeeded();
+    return clearRevealTimer;
+  }, [sessionPlayActive, pipelineActive, store.phase, store.revealedCount]);
+
+  useEffect(() => {
+    scheduleRevealIfNeeded();
+  }, [targetReveal]);
 
   useEffect(() => {
     if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live" || store.pendingResolution) {

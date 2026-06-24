@@ -27,6 +27,10 @@ export interface TrickPresentationModel {
   isResolving: boolean;
   /** True while a trick is landing or running the hold/reveal/sweep pipeline. */
   isPipelineActive: boolean;
+  /** Longest stable play prefix seen this trick (survives stale snapshots). */
+  peakPlayCount: number;
+  /** Stagger target — cards still waiting to be revealed when below this. */
+  revealTarget: number;
   /** Frozen final trick for echo layer when the live row clears before settle. */
   trickEchoPlays: TrickPlay[];
   trickEchoWinnerId: string | null;
@@ -339,6 +343,12 @@ export function buildTrickPresentationModel(
   const showWinnerTag =
     store.showWinnerTag && (store.phase === "winnerReveal" || store.phase === "collectTrick");
 
+  const peakPlayCount = store.peakTrickPlays?.length ?? 0;
+  const revealTarget =
+    store.phase === "live"
+      ? liveRevealTarget(store)
+      : store.revealedCount;
+
   return {
     phase: store.phase,
     displayPlays,
@@ -353,6 +363,8 @@ export function buildTrickPresentationModel(
     revealedCount: store.revealedCount,
     isResolving: store.phase !== "live",
     isPipelineActive: store.phase !== "live" || Boolean(store.pendingResolution),
+    peakPlayCount,
+    revealTarget,
     trickEchoPlays,
     trickEchoWinnerId,
     trickEchoPhase,
