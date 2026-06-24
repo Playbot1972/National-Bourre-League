@@ -2607,9 +2607,9 @@ function processRobotActions(s, scores) {
   }
 }
 
-function isTrickAnimationBlockingBots() {
+function isTablePresentationBlockingBots() {
   try {
-    return tableMountApi?.isTrickAnimationBusy?.() === true;
+    return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
     return false;
   }
@@ -2635,7 +2635,7 @@ function snapshotGameFlowContext(s, scores) {
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
-    trickAnimBusy: isTrickAnimationBlockingBots(),
+    trickAnimBusy: isTablePresentationBlockingBots(),
     robotActionInFlight,
     msSinceLastRobot: Date.now() - lastRobotTrickAt,
   };
@@ -2731,6 +2731,13 @@ function processRobotActionsInner(s, scores) {
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
+    if (isTablePresentationBlockingBots()) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
+      }
+      return;
+    }
+
     const turnId = currentHand.turnPlayerId;
     const drawDone = currentHand.drawCompletedIds || [];
     if (
@@ -2758,9 +2765,9 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
-    if (isTrickAnimationBlockingBots()) {
+    if (isTablePresentationBlockingBots()) {
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("processRobotActions", "blocked-trick-animation", snapshotGameFlowContext(s, scores));
+        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
       }
       return;
     }

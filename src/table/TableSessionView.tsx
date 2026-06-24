@@ -85,26 +85,6 @@ export function TableSessionView({
     trickPresentation.displayPlays.length,
   );
 
-  useEffect(() => {
-    setTrickAnimationBusyState({
-      pipelineActive: trickPresentation.isPipelineActive,
-      revealCatchUp:
-        trickPresentation.phase === "live" &&
-        trickPresentation.revealedCount < trickPresentation.revealTarget,
-      motionGateActive: instantTrickPlays,
-      peakPlayCount: trickPresentation.peakPlayCount,
-      displayedPlayCount: trickPresentation.displayPlays.length,
-    });
-  }, [
-    trickPresentation.isPipelineActive,
-    trickPresentation.phase,
-    trickPresentation.revealedCount,
-    trickPresentation.revealTarget,
-    trickPresentation.peakPlayCount,
-    trickPresentation.displayPlays.length,
-    instantTrickPlays,
-  ]);
-
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
@@ -119,6 +99,30 @@ export function TableSessionView({
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
   });
+
+  useEffect(() => {
+    setTrickAnimationBusyState({
+      pipelineActive: trickPresentation.isPipelineActive,
+      revealCatchUp:
+        trickPresentation.phase === "live" &&
+        trickPresentation.revealedCount < trickPresentation.revealTarget,
+      motionGateActive: instantTrickPlays,
+      peakPlayCount: trickPresentation.peakPlayCount,
+      displayedPlayCount: trickPresentation.displayPlays.length,
+      handPresenting: handPresentation.isPresenting,
+      handPresentationPhase: handPresentation.phase,
+    });
+  }, [
+    trickPresentation.isPipelineActive,
+    trickPresentation.phase,
+    trickPresentation.revealedCount,
+    trickPresentation.revealTarget,
+    trickPresentation.peakPlayCount,
+    trickPresentation.displayPlays.length,
+    instantTrickPlays,
+    handPresentation.isPresenting,
+    handPresentation.phase,
+  ]);
 
   const cardsDealt = isCardsDealtPhase(session.phase);
 

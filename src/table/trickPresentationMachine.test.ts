@@ -361,4 +361,34 @@ describe("trickPresentationMachine", () => {
     assert.equal(schedule.readTotalMs, 1600);
     assert.equal(schedule.sweepMs, 520);
   });
+
+  it("displayRevealFloor keeps visible cards when holdPlays briefly shrinks", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+    ];
+    const fullTrick = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts",
+      plays,
+    };
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, fullTrick);
+    for (let i = 0; i < 2; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    assert.equal(store.displayRevealFloor, 2);
+
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { ...fullTrick, plays: [plays[0]] },
+        tricksByPlayer: { p1: 0, p2: 0 },
+      },
+      participantIds: ["p1", "p2"],
+    });
+
+    const model = buildTrickPresentationModel(store, { ...fullTrick, plays: [plays[0]] });
+    assert.equal(model.displayPlays.length, 2);
+  });
 });
