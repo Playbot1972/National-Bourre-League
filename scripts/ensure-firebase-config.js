@@ -57,14 +57,19 @@ if (hasEnv) {
 } else if (hasPlaceholderConfig()) {
   console.error("docs/firebase-config.js still has placeholder Firebase config.");
   console.error("");
-  console.error("Option A — fetch from Firebase CLI (recommended):");
+  console.error("Option A — service account deploy (no firebase login):");
+  console.error("  cp .env.firebase.example .env.firebase   # fill in web app keys");
+  console.error("  npm run setup:service-account -- national-bourre-league");
+  console.error("  npm run deploy:hosting:sa:patch");
+  console.error("");
+  console.error("Option B — fetch from Firebase CLI:");
   console.error("  npx firebase login");
   console.error("  npm run setup:webapp -- national-bourre-league booray.win");
   console.error("");
-  console.error("Option B — copy .env.firebase.example → .env.firebase, fill in values, then:");
+  console.error("Option C — copy .env.firebase.example → .env.firebase, fill in values, then:");
   console.error("  npm run deploy");
   console.error("");
-  console.error("Option C — export env vars, then deploy:");
+  console.error("Option D — export env vars, then deploy:");
   console.error("  export FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=national-bourre-league \\");
   console.error("         FIREBASE_APP_ID=... FIREBASE_AUTH_DOMAIN=booray.win");
   console.error("  npm run deploy");

@@ -25,6 +25,8 @@
     "deploy:patch": "BUILD_CHANNEL=production node scripts/bump-version.js && BUILD_CHANNEL=production npm run deploy",
     "deploy:hosting": "node scripts/ensure-firebase-config.js && node scripts/check-deploy-version.mjs && npm run build:hosting && npx firebase deploy --only hosting --project national-bourre-league",
     "deploy:hosting:patch": "BUILD_CHANNEL=production node scripts/bump-version.js && BUILD_CHANNEL=production npm run deploy:hosting",
+    "deploy:hosting:sa": "bash scripts/deploy-hosting-with-sa.sh",
+    "deploy:hosting:sa:patch": "BUMP_VERSION=1 bash scripts/deploy-hosting-with-sa.sh",
     "deploy:rules": "npx firebase deploy --only firestore:rules --project national-bourre-league",
     "deploy:functions": "npm run build:functions && npx firebase deploy --only functions,firestore:rules",
     "setup": "./scripts/one-time-setup.sh",
