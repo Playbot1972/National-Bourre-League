@@ -57,6 +57,7 @@ export function useTrickPresentation({
   const pipelineActiveRef = useRef(false);
   const revealTimerRef = useRef<number | null>(null);
   const targetRevealRef = useRef(0);
+  const prevSessionPlayRef = useRef(false);
 
   const pipelineActive =
     store.phase !== "live" || Boolean(store.pendingResolution);
@@ -85,7 +86,10 @@ export function useTrickPresentation({
   useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
-    if (!sessionPlayActive && !pipelineActiveRef.current) {
+    const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
+    prevSessionPlayRef.current = sessionPlayActive;
+
+    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current)) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -94,6 +98,12 @@ export function useTrickPresentation({
         type: "reinit",
         snapshot: { currentTrick, tricksByPlayer, playedCards },
       });
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", enteredPlay ? "reinit-play-entry" : "reinit-idle", {
+          trickNumber: currentTrick?.trickNumber,
+          trickPlays: currentTrick?.plays?.length ?? 0,
+        });
+      }
       return;
     }
 

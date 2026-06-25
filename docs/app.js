@@ -2615,6 +2615,25 @@ function isTablePresentationBlockingBots() {
   }
 }
 
+function snapshotTablePresentationGate() {
+  try {
+    const busy = tableMountApi?.getTrickAnimationBusyState?.();
+    if (!busy) return null;
+    return {
+      blockReason: tableMountApi?.getTablePresentationBlockReason?.(busy) ?? null,
+      handPresentationPhase: busy.handPresentationPhase,
+      handPresenting: busy.handPresenting,
+      pipelineActive: busy.pipelineActive,
+      revealCatchUp: busy.revealCatchUp,
+      motionGateActive: busy.motionGateActive,
+      peakPlayCount: busy.peakPlayCount,
+      displayedPlayCount: busy.displayedPlayCount,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function snapshotGameFlowContext(s, scores) {
   const ch = getSessionCurrentHand(s);
   const participants = ch?.participantIds ?? [];
@@ -2636,6 +2655,7 @@ function snapshotGameFlowContext(s, scores) {
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
     trickAnimBusy: isTablePresentationBlockingBots(),
+    presentationGate: snapshotTablePresentationGate(),
     robotActionInFlight,
     msSinceLastRobot: Date.now() - lastRobotTrickAt,
   };

@@ -100,6 +100,10 @@ export function TableSessionView({
       session.participantIds,
   });
 
+  // Server play is authoritative — do not block bots on lagging client draw/trump beats.
+  const handPresentingForBots =
+    handPresentation.isPresenting && session.phase !== "play";
+
   useEffect(() => {
     setTrickAnimationBusyState({
       pipelineActive: trickPresentation.isPipelineActive,
@@ -109,7 +113,7 @@ export function TableSessionView({
       motionGateActive: instantTrickPlays,
       peakPlayCount: trickPresentation.peakPlayCount,
       displayedPlayCount: trickPresentation.displayPlays.length,
-      handPresenting: handPresentation.isPresenting,
+      handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
     });
   }, [
@@ -120,8 +124,9 @@ export function TableSessionView({
     trickPresentation.peakPlayCount,
     trickPresentation.displayPlays.length,
     instantTrickPlays,
-    handPresentation.isPresenting,
+    handPresentingForBots,
     handPresentation.phase,
+    session.phase,
   ]);
 
   const cardsDealt = isCardsDealtPhase(session.phase);
