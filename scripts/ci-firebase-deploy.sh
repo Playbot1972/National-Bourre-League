@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Deploy to Firebase in CI using FIREBASE_SERVICE_ACCOUNT JSON (not interactive login).
+# Deploy to Firebase in CI using a service account key (not interactive login).
 set -euo pipefail
 
 ONLY="${1:?usage: ci-firebase-deploy.sh <only-target> e.g. hosting}"
 PROJECT_ID="${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID required}"
-SA_JSON="${FIREBASE_SERVICE_ACCOUNT:?FIREBASE_SERVICE_ACCOUNT required}"
 
-SA_FILE="${RUNNER_TEMP:-/tmp}/firebase-sa-deploy.json"
-printf '%s' "$SA_JSON" > "$SA_FILE"
-chmod 600 "$SA_FILE"
+# Prefer credentials file from google-github-actions/auth when present.
+SA_FILE="${GOOGLE_APPLICATION_CREDENTIALS:-}"
+if [[ -z "$SA_FILE" || ! -f "$SA_FILE" ]]; then
+  SA_JSON="${FIREBASE_SERVICE_ACCOUNT:?FIREBASE_SERVICE_ACCOUNT required when GOOGLE_APPLICATION_CREDENTIALS unset}"
+  SA_FILE="${RUNNER_TEMP:-/tmp}/firebase-sa-deploy.json"
+  printf '%s' "$SA_JSON" > "$SA_FILE"
+  chmod 600 "$SA_FILE"
+fi
 
-# Drop cached user login / conflicting auth from prior steps.
 rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 unset FIREBASE_TOKEN 2>/dev/null || true
 
@@ -31,14 +34,24 @@ if [[ "${ONLY}" == "functions" ]]; then
   EXTRA+=(--force)
 fi
 
-deploy_once() {
-  if npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${EXTRA[@]}"; then
-    return 0
-  fi
-  # Fallback: mint OAuth token from SA (firebase-tools 15.x intermittent ADC miss).
-  local token
-  token="$(node scripts/firebase-ci-access-token.mjs "$SA_FILE")"
-  FIREBASE_TOKEN="$token" npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${EXTRA[@]}"
+mint_token() {
+  local attempt token
+  for attempt in 1 2 3; do
+    if token="$(node scripts/firebase-ci-access-token.mjs "$SA_FILE" 2>/dev/null)"; then
+      printf '%s' "$token"
+      return 0
+    fi
+    sleep $((attempt * 2))
+  done
+  return 1
 }
 
-deploy_once
+if npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${EXTRA[@]}"; then
+  exit 0
+fi
+
+token="$(mint_token)" || {
+  echo "::error::Could not mint Firebase access token from service account"
+  exit 1
+}
+FIREBASE_TOKEN="$token" npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${EXTRA[@]}"
