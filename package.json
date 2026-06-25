@@ -57,6 +57,7 @@
     "test:rules:firestore": "npx firebase emulators:exec --only firestore --project demo-national-bourre-league \"node --test scripts/firestore-settlement-rules.test.mjs\"",
     "proof:live-settlement": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/live-emulator-settlement-trace.mjs single-bourre\"",
     "proof:live-settlement:multi": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/live-emulator-settlement-trace.mjs multi-bourre\"",
+    "proof:runtime-robot-draw": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/runtime-robot-draw-authority-trace.mjs\"",
     "proof:play-order": "tsx scripts/proof-play-order-trace.ts",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
     "test:version": "node --test scripts/bump-version.test.mjs scripts/write-firebase-config.test.mjs scripts/validate-service-account-key.test.mjs",
