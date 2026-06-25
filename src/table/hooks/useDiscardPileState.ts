@@ -18,7 +18,7 @@ export interface UseDiscardPileStateInput {
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
-export function useDiscardPileState({ handNumber, tableRootRef }: UseDiscardPileStateInput) {
+export function useDiscardPileState({ handNumber }: UseDiscardPileStateInput) {
   const [cards, setCards] = useState<DiscardPileCard[]>([]);
   const pileIndexRef = useRef(0);
   const handRef = useRef(handNumber);

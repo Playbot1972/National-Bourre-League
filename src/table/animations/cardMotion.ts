@@ -9,6 +9,7 @@ import {
 } from "./motionTokens";
 import { flipDelta, invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 import { initCardMotion } from "./initMotion";
+import { animateCardsToDiscardPile } from "./discardPileMotion";
 
 function ensureMotion(): void {
   initCardMotion();
