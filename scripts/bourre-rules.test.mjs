@@ -256,7 +256,7 @@ describe("bankroll solvency", () => {
     assert.equal(solvent.bankrolls.p3, 0);
     assert.equal(solvent.appliedDeltas.p3, -2);
     assert.ok(solvent.bustedIds.includes("p3"));
-    assert.equal(solvent.carryOverPot, 5);
+    assert.equal(solvent.carryOverPot, 1);
   });
 
   it("bourré replacement can bust a short bankroll on the next deal", () => {
@@ -1077,6 +1077,135 @@ describe("bourré pot payout scenarios", () => {
     assert.equal(stale.postedAntes.p3, handAnte);
     assert.equal(fresh.postedAntes.p3, settledPot);
     assert.ok(fresh.nextHandPot > stale.nextHandPot);
+  });
+});
+
+describe("1–8 player bourré settlement (PR #344 invariant)", () => {
+  const buyIn = 100;
+  const ante = 1;
+
+  /** Valid trick totals (5 tricks) with a single clear winner and ≥1 bourré where possible. */
+  const winTricksByCount = {
+    2: { p0: 5, p1: 0 },
+    3: { p0: 3, p1: 2, p2: 0 },
+    4: { p0: 3, p1: 1, p2: 1, p3: 0 },
+    5: { p0: 2, p1: 1, p2: 1, p3: 1, p4: 0 },
+    6: { p0: 2, p1: 1, p2: 1, p3: 1, p4: 0, p5: 0 },
+    7: { p0: 2, p1: 1, p2: 1, p3: 1, p4: 0, p5: 0, p6: 0 },
+    8: { p0: 2, p1: 1, p2: 1, p3: 1, p4: 0, p5: 0, p6: 0, p7: 0 },
+  };
+
+  function participantsFor(n) {
+    return Array.from({ length: n }, (_, i) => `p${i}`);
+  }
+
+  function renameTricks(tricks, pids) {
+    const out = {};
+    pids.forEach((pid, i) => {
+      out[pid] = tricks[`p${i}`] ?? 0;
+    });
+    return out;
+  }
+
+  it("solo default win conserves chips (1 player)", () => {
+    const carryIn = 40;
+    const scoreById = { solo: { bankroll: buyIn, net: 0 } };
+    const before = sessionChipTotal(scoreById, {
+      carryOverPot: carryIn,
+      buyInFallback: buyIn,
+    });
+    const result = settleSoloDefaultWin({
+      winnerId: "solo",
+      carryIn,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: () => ante,
+    });
+    assert.equal(result.ready, true);
+    assert.equal(result.pot, carryIn + ante);
+    assert.equal(result.bankrolls.solo, buyIn - ante + carryIn + ante);
+    const after = sessionChipTotal(
+      { solo: { bankroll: result.bankrolls.solo } },
+      { carryOverPot: 0, buyInFallback: buyIn },
+    );
+    assert.equal(after, before);
+  });
+
+  for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+    it(`${n} players: winner takes pot; bourré pays at settlement; next pot = carry + non-bourré antes`, () => {
+      const pids = participantsFor(n);
+      const tricksByPlayer = renameTricks(winTricksByCount[n], pids);
+      const scoreById = Object.fromEntries(pids.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+      const bourreIds = bourrePlayerIds(tricksByPlayer, pids);
+      assert.ok(bourreIds.length >= 1, "scenario includes at least one bourré");
+      assert.ok(isHandComplete(tricksByPlayer, pids));
+
+      const { carryOverPot, potState } = runPostedAnteHand({
+        scoreById,
+        participants: pids,
+        buyIn,
+        ante,
+        winners: [pids[0]],
+        tricksByPlayer,
+      });
+
+      const handPot = ante * n;
+      const bourreMatch = bourreIds.length * handPot;
+      assert.equal(potState.currentPot, handPot);
+      assert.equal(carryOverPot, bourreMatch);
+      assert.ok(scoreById[pids[0]].bankroll > buyIn - ante, "winner receives hand pot at settlement");
+
+      for (const pid of bourreIds) {
+        assert.equal(scoreById[pid].skipNextAnte, true);
+        assert.equal(scoreById[pid].bourreReplacementDue, undefined);
+      }
+      for (const pid of pids) {
+        if (!bourreIds.includes(pid) && pid !== pids[0]) {
+          assert.equal(scoreById[pid].skipNextAnte, undefined, `${pid} pays normal ante next deal`);
+        }
+      }
+
+      const nextDeal = collectNextHandAntes({
+        carryOverPot,
+        participantIds: pids,
+        scoreById,
+        sessionStake: ante,
+        buyInFallback: buyIn,
+      });
+      const expectedNextPot = bourreMatch + ante * (n - bourreIds.length);
+      assert.equal(nextDeal.nextHandPot, expectedNextPot);
+
+      for (const pid of bourreIds) {
+        assert.equal(nextDeal.postedAntes[pid], 0);
+      }
+
+      const total = sessionChipTotal(
+        Object.fromEntries(pids.map((pid) => [pid, { bankroll: nextDeal.bankrolls[pid] }])),
+        { carryOverPot, postedAntes: nextDeal.postedAntes, buyInFallback: buyIn },
+      );
+      assert.equal(total, buyIn * n);
+    });
+  }
+
+  it("5 players at $20 ante: bust bourré shortfall defers remainder, chips conserved", () => {
+    const ante = 20;
+    const pids = participantsFor(5);
+    const tricksByPlayer = renameTricks(winTricksByCount[5], pids);
+    const scoreById = Object.fromEntries(pids.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+    const { carryOverPot } = runPostedAnteHand({
+      scoreById,
+      participants: pids,
+      buyIn,
+      ante,
+      winners: [pids[0]],
+      tricksByPlayer,
+    });
+    assert.equal(carryOverPot, 80);
+    assert.equal(scoreById.p4.bourreReplacementDue, 20);
+    assert.equal(
+      sessionChipTotal(scoreById, { carryOverPot, buyInFallback: buyIn }),
+      buyIn * 5,
+    );
   });
 });
 

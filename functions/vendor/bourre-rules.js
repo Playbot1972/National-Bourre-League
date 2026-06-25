@@ -249,8 +249,8 @@ export function sumProjectedHandAntes(scoreById, playerIds, sessionStake, posted
 
 /**
  * Projected next-hand pot: carry + each seated player's next-deal obligation.
- * Bourré: nextHandPot = previousPot + (previousPot × bourréCount) when carry holds
- * the completed pot and each bourré player posts a full pot match.
+ * After settlement, carry holds bourré pot match only; non-bourré players ante as usual.
+ * nextHandPot = bourreMatch + (non-bourré seated count × ante), plus any bust remainders.
  */
 export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionStake, postedAntes = {}) {
   const carry = Math.max(0, Number(carryOverPot) || 0);
@@ -336,8 +336,8 @@ export function mergeNextDealFundingIntoScoreById(scoreById, nextDealFunding) {
 }
 
 /**
- * Canonical next-hand ante collection: carry + per-player obligations (ante, waived, bourré).
- * Bourré players post the full settled previous-hand pot only — no extra ante.
+ * Canonical next-hand ante collection: carry + per-player obligations (ante, waived, bust remainder).
+ * Bourré players skip the normal ante when pot match was collected at settlement.
  */
 export function collectNextHandAntes({
   carryOverPot = 0,
@@ -614,7 +614,8 @@ export function applySolventSettlement({
     bankrolls,
     bustedIds: [...new Set(bustedIds)],
     outIds,
-    carryOverPot: adjustedCarry + shortfall,
+    // Nominal carry assumes full bourré match; subtract shortfall so only collected chips seed carry.
+    carryOverPot: Math.max(0, adjustedCarry - shortfall),
     shortfall,
   };
 }
