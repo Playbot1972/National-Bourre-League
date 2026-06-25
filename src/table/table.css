@@ -822,9 +822,7 @@
   filter: grayscale(0.2) brightness(0.92);
 }
 
-.btrick--sweep {
-  animation: btrick-sweep var(--trick-sweep-ms, 900ms) ease forwards;
-}
+/* Trick sweep gather — see cardAnimations.css (.btrick--sweep .btrick__surface) */
 
 @keyframes btrick-winner-tag {
   0% {
@@ -1752,52 +1750,34 @@
   transform-style: preserve-3d;
 }
 
-/* Won tricks / books — stacked under avatar with physical depth */
-.bseat__trick-books {
+/* Won tricks pile — beside avatar, opposite trick-count badge */
+.bseat__won-trick-pile {
+  --trick-pile-x: 8px;
   position: absolute;
-  left: 50%;
-  top: 54%;
-  width: 30px;
-  height: 26px;
-  transform: translateX(-50%);
-  z-index: 0;
+  left: 100%;
+  top: 50%;
+  width: 28px;
+  height: 34px;
+  transform: translate(var(--trick-pile-x), -50%);
+  z-index: 1;
   pointer-events: none;
   perspective: 380px;
   transform-style: preserve-3d;
 }
 
-.bseat__trick-book-card {
+.bseat__won-trick-pile-card {
   position: absolute;
   left: 50%;
   bottom: 0;
   width: 22px;
   height: 30px;
   margin-left: -11px;
-  border-radius: 3px;
-  background:
-    repeating-linear-gradient(
-      52deg,
-      rgba(255, 255, 255, 0.07) 0 1px,
-      transparent 1px 5px
-    ),
-    repeating-linear-gradient(
-      -52deg,
-      rgba(0, 0, 0, 0.12) 0 1px,
-      transparent 1px 5px
-    ),
-    linear-gradient(155deg, #1e4a8c 0%, #123468 52%, #0a2248 100%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.28),
-    0 2px 5px rgba(0, 0, 0, 0.42),
-    0 6px 12px rgba(0, 0, 0, 0.28);
   transform:
-    translateX(calc(var(--book-i, 0) * 2.5px - 5px))
-    translateY(calc(var(--book-i, 0) * -2px))
-    rotateZ(calc(var(--book-i, 0) * 3.5deg - 5deg))
-    rotateX(38deg)
-    translateZ(calc(var(--book-i, 0) * -2px));
+    translateX(calc(var(--book-i, 0) * 2.2px - 4px))
+    translateY(calc(var(--book-i, 0) * -1.6px))
+    rotateZ(calc(var(--book-i, 0) * 2.8deg - 4deg))
+    rotateX(32deg)
+    translateZ(calc(var(--book-i, 0) * -1.5px));
   transform-origin: center bottom;
   transform-style: preserve-3d;
   transition:
@@ -1805,22 +1785,98 @@
     opacity 280ms ease;
 }
 
-.bseat__trick-books[data-trick-count="0"] {
+.bseat__won-trick-pile-card .pcard {
+  width: 100%;
+  height: 100%;
+  box-shadow:
+    0 2px 5px rgba(0, 0, 0, 0.42),
+    0 5px 10px rgba(0, 0, 0, 0.28);
+}
+
+.bseat__won-trick-pile[data-trick-count="0"] {
   opacity: 0;
 }
 
-.bseat--bottom .bseat__trick-books {
-  top: auto;
-  bottom: 58%;
+/* Default: badge left → pile right. Seats 1–3 (p4/p6/p7): badge right → pile left. */
+.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile {
+  left: 0;
+  right: auto;
+  --trick-pile-x: calc(-100% - 8px);
 }
 
-.bseat--top .bseat__trick-books {
-  top: 58%;
+.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile {
+  --trick-pile-x: -4px;
 }
 
-.bseat--left .bseat__trick-books,
-.bseat--right .bseat__trick-books {
-  top: 56%;
+.bseat--bottom .bseat__won-trick-pile {
+  top: 52%;
+}
+
+.bseat--top .bseat__won-trick-pile {
+  top: 48%;
+}
+
+.bseat--left .bseat__won-trick-pile,
+.bseat--right .bseat__won-trick-pile {
+  top: 50%;
+}
+
+/* Hide incoming book until GSAP collection lands */
+.bseat--trick-capture:not(.bseat--pile-reveal-ready) .bseat__won-trick-pile-card:last-child {
+  opacity: 0;
+}
+
+.bseat--trick-capture.bseat--pile-reveal-ready .bseat__won-trick-pile-card:last-child {
+  animation: bbook-slide-in var(--trick-sweep-ms) var(--premium-ease-out) backwards;
+}
+
+@keyframes bbook-slide-in {
+  0% {
+    opacity: 0;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
+      translateY(-28px)
+      rotateZ(calc(var(--book-i, 0) * 2.8deg - 16deg))
+      rotateX(48deg)
+      scale(0.62);
+    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
+  }
+  55% {
+    opacity: 1;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
+      translateY(calc(var(--book-i, 0) * -1.6px - 4px))
+      rotateZ(calc(var(--book-i, 0) * 2.8deg - 6deg))
+      rotateX(38deg)
+      scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform:
+      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
+      translateY(calc(var(--book-i, 0) * -1.6px))
+      rotateZ(calc(var(--book-i, 0) * 2.8deg - 4deg))
+      rotateX(32deg)
+      translateZ(calc(var(--book-i, 0) * -1.5px))
+      scale(1);
+    filter: none;
+  }
 }
 
 .bseat--sat-out {
@@ -3587,6 +3643,17 @@
     0 6px 14px rgba(0, 0, 0, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
   z-index: 140;
+}
+
+.won-trick-fly-ghost {
+  pointer-events: none;
+  z-index: 150;
+  overflow: visible;
+}
+
+.won-trick-fly-ghost .pcard {
+  width: 100%;
+  height: 100%;
 }
 
 [data-gsap-motion="true"] .bseat--draw-discard .bseat__hole-cards {

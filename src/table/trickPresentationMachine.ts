@@ -37,6 +37,8 @@ export interface TrickPresentationModel {
   trickEchoWinnerId: string | null;
   trickEchoPhase: TrickPresentationPhase;
   showFinalTrickEcho: boolean;
+  /** Frozen trick snapshot for collection animation and echo. */
+  frozenTrick: FrozenTrick | null;
 }
 
 export interface PendingTrickResolution {
@@ -424,5 +426,6 @@ export function buildTrickPresentationModel(
     trickEchoWinnerId,
     trickEchoPhase,
     showFinalTrickEcho,
+    frozenTrick: store.frozenTrick,
   };
 }

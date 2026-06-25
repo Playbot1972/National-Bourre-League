@@ -117,16 +117,19 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               </span>
             )}
             <div
-              className="bseat__trick-books"
+              className="bseat__won-trick-pile"
+              data-won-trick-pile-anchor={player.playerId}
               aria-hidden={trickCount <= 0}
               data-trick-count={trickCount}
             >
               {Array.from({ length: Math.min(trickCount, 5) }, (_, i) => (
-                <span
+                <div
                   key={i}
-                  className="bseat__trick-book-card"
+                  className="bseat__won-trick-pile-card"
                   style={{ ["--book-i" as string]: i }}
-                />
+                >
+                  <PlayingCard faceDown size="xs" />
+                </div>
               ))}
             </div>
             {showHoleCards && (

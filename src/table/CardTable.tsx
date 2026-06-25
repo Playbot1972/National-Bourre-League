@@ -18,6 +18,7 @@ import { handTimingScale } from "./handPresentationTiming";
 import { useStageFit } from "./hooks/useStageFit";
 import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
+import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
@@ -117,6 +118,11 @@ export function CardTable({
     tableRootRef: wrapRef,
     pileIndexRef,
     onDiscardCommitted: commitDiscardCards,
+  });
+  useWonTrickCollection({
+    trickPresentation,
+    handNumber: session.handNumber,
+    tableRootRef: wrapRef,
   });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>

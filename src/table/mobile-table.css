@@ -575,6 +575,33 @@
   --trick-badge-x: clamp(3px, 0.9vmin, 5px);
 }
 
+/* Won-trick pile — opposite side from trick badge (mobile) */
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile {
+  left: 0;
+  right: auto;
+  --trick-pile-x: calc(-100% - clamp(6px, 1.4vmin, 8px));
+}
+
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
+.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile {
+  --trick-pile-x: -4px;
+}
+
 .btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
 .btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
 .btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
