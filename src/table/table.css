@@ -1837,46 +1837,13 @@
   top: 50%;
 }
 
-/* Hide incoming book until GSAP collection lands */
+/* Hide incoming book until GSAP collection lands — no second slide-in animation */
 .bseat--trick-capture:not(.bseat--pile-reveal-ready) .bseat__won-trick-pile-card:last-child {
   opacity: 0;
 }
 
 .bseat--trick-capture.bseat--pile-reveal-ready .bseat__won-trick-pile-card:last-child {
-  animation: bbook-slide-in var(--trick-sweep-ms) var(--premium-ease-out) backwards;
-}
-
-@keyframes bbook-slide-in {
-  0% {
-    opacity: 0;
-    transform:
-      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
-      translateY(-28px)
-      rotateZ(calc(var(--book-i, 0) * 2.8deg - 16deg))
-      rotateX(48deg)
-      scale(0.62);
-    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
-  }
-  55% {
-    opacity: 1;
-    transform:
-      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
-      translateY(calc(var(--book-i, 0) * -1.6px - 4px))
-      rotateZ(calc(var(--book-i, 0) * 2.8deg - 6deg))
-      rotateX(38deg)
-      scale(1.04);
-  }
-  100% {
-    opacity: 1;
-    transform:
-      translateX(calc(var(--book-i, 0) * 2.2px - 4px))
-      translateY(calc(var(--book-i, 0) * -1.6px))
-      rotateZ(calc(var(--book-i, 0) * 2.8deg - 4deg))
-      rotateX(32deg)
-      translateZ(calc(var(--book-i, 0) * -1.5px))
-      scale(1);
-    filter: none;
-  }
+  opacity: 1;
 }
 
 .bseat--sat-out {

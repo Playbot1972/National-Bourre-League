@@ -122,6 +122,8 @@ export function CardTable({
   useWonTrickCollection({
     trickPresentation,
     handNumber: session.handNumber,
+    sessionPhase: session.phase,
+    handComplete,
     tableRootRef: wrapRef,
   });
   const bourreRiskIds = new Set(
