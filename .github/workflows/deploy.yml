@@ -107,11 +107,11 @@ jobs:
       - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
           for attempt in 1 2 3; do
-            if npx firebase deploy --only hosting --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"; then
+            if bash scripts/ci-firebase-deploy.sh hosting; then
               exit 0
             fi
             echo "::warning::Firebase hosting deploy attempt ${attempt} failed; retrying in ${attempt}0s..."
@@ -134,18 +134,17 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
         continue-on-error: true
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-        run: npx firebase deploy --only firestore:rules --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: bash scripts/ci-firebase-deploy.sh firestore:rules
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
-          GCLOUD_PROJECT: ${{ secrets.FIREBASE_PROJECT_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
-          npx firebase deploy --only functions --force --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
+          bash scripts/ci-firebase-deploy.sh functions || {
             echo "::error::Cloud Functions deploy failed."
             echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
             echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
