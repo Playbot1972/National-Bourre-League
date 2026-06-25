@@ -39,6 +39,24 @@ export {
   canPlayerShowHandChoice,
 } from "./liveHand";
 
+export {
+  HAND_FLOW_PHASE,
+  HAND_FLOW_TRANSITIONS,
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canAdvanceBots,
+  resolveBotAdvanceHint,
+  resolveHandFlowTurnPlayerId,
+  deriveHandFlowPhase,
+  isHandFlowTransitionAllowed,
+  nextHandFlowPhase,
+  enrollmentDeadlineMs,
+  canActForPlayer,
+  isRobotPlayerId,
+  shouldOpenEnrollmentAfterSettle,
+  shouldAutoOpenNextHand,
+} from "./handPhaseMachine";
+
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (!livePublic?.phase) return false;

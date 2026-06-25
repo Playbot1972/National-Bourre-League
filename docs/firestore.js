@@ -161,6 +161,11 @@ import {
   sessionHandDealStarted,
   shouldClearOrphanLiveEnrollment,
   tableStartupUserMessage,
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canActForPlayer,
+  enrollmentDeadlineMs,
+  resolveBotAdvanceHint,
 } from "./session-startup.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -246,18 +251,8 @@ function isCloudFunctionUnavailable(err) {
   );
 }
 
-/** Normalize enrollment deadline (Firestore may return Timestamp objects). */
-export function enrollmentDeadlineMs(enrollment) {
-  const raw = enrollment?.turnDeadlineMs;
-  if (raw == null) return 0;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw.toMillis === "function") return raw.toMillis();
-  if (typeof raw === "object" && typeof raw.seconds === "number") {
-    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
-}
+/** Normalize enrollment deadline — re-exported from session-startup (hand phase machine). */
+export { enrollmentDeadlineMs, canActForPlayer } from "./session-startup.js";
 
 /** Enrollment — server Cloud Functions first when SERVER_HAND_AUTHORITY is on. */
 async function callEnrollmentAction(clientFn, serverFn) {
@@ -1535,10 +1530,34 @@ function buildScorePatchesFromAnteCollection(collected, dealIds) {
   return patches;
 }
 
-function canActForPlayer(playerId, actorId) {
-  if (!playerId || !actorId) return false;
-  if (playerId === actorId) return true;
-  return isRobotPlayerId(playerId);
+function handActionBlockedMessage(action, reason) {
+  if (reason === "actor_mismatch") {
+    if (action === "play_card") return "You can only play for yourself (or drive a robot)";
+    if (action === "draw_fold") return "You can only fold for yourself (or drive a robot)";
+    return "You can only draw for yourself (or drive a robot)";
+  }
+  if (reason === "not_draw") return "Not in draw phase";
+  if (reason === "not_play") return "Not in trick-play phase";
+  if (reason === "not_your_turn") {
+    return action === "play_card" ? "Not your turn" : "Not your turn to draw";
+  }
+  if (reason === "draw_already_complete") return "Draw already completed";
+  return `Action blocked (${reason})`;
+}
+
+function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
+  const currentHand = getSessionCurrentHand(sessionData);
+  const snapshot = buildHandFlowSnapshot({ session: sessionData });
+  const result = canSubmitHandAction({
+    snapshot,
+    action,
+    playerId,
+    actorId,
+    drawCompletedIds: currentHand.drawCompletedIds ?? [],
+  });
+  if (!result.ok) {
+    throw new Error(handActionBlockedMessage(action, result.reason ?? "blocked"));
+  }
 }
 
 function actionOrderFromHand(currentHand, sortedPlayerIds) {
@@ -1616,10 +1635,6 @@ export async function submitHandDraw(roomId, sessionId, { playerId, discardIndic
 }
 
 async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only draw for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -1627,12 +1642,9 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "submit_draw", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
-    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new Error("Draw already completed");
-    }
 
     const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
     if (!handData) throw new Error("Private hand not found");
@@ -1682,10 +1694,6 @@ export async function foldHandDraw(roomId, sessionId, { playerId, actorId }) {
 }
 
 async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only fold for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
@@ -1697,12 +1705,9 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "draw_fold", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
-    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new Error("Draw already completed");
-    }
 
     const foldResult = applyDrawFold(
       currentHand,
@@ -1743,10 +1748,6 @@ export async function playHandCard(roomId, sessionId, { playerId, cardIndex, act
 }
 
 async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only play for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   let handComplete = false;
 
@@ -1756,8 +1757,9 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "play_card", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.PLAY) throw new Error("Not in trick-play phase");
 
     const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
     if (!handData) throw new Error("Private hand not found");

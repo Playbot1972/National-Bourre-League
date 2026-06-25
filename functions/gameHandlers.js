@@ -35,6 +35,13 @@ import {
   resolveActionOrder,
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting } from "./vendor/bourre-rules.js";
+import {
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canActForPlayer,
+  enrollmentDeadlineMs,
+  resolveBotAdvanceHint,
+} from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -48,11 +55,46 @@ export function isRobotPlayerId(playerId) {
   return typeof playerId === "string" && playerId.startsWith("bot_");
 }
 
-export function canActForPlayer(playerId, actorId) {
-  if (!playerId || !actorId) return false;
-  if (playerId === actorId) return true;
-  return isRobotPlayerId(playerId);
+function handActionHttpsError(action, reason) {
+  if (reason === "actor_mismatch") {
+    const msg =
+      action === "play_card"
+        ? "You can only play for yourself (or drive a robot)"
+        : action === "draw_fold"
+          ? "You can only fold for yourself (or drive a robot)"
+          : "You can only draw for yourself (or drive a robot)";
+    return new HttpsError("permission-denied", msg);
+  }
+  if (reason === "not_draw") return new HttpsError("failed-precondition", "Not in draw phase");
+  if (reason === "not_play") return new HttpsError("failed-precondition", "Not in trick-play phase");
+  if (reason === "not_your_turn") {
+    return new HttpsError(
+      "failed-precondition",
+      action === "play_card" ? "Not your turn" : "Not your turn to draw",
+    );
+  }
+  if (reason === "draw_already_complete") {
+    return new HttpsError("failed-precondition", "Draw already completed");
+  }
+  return new HttpsError("failed-precondition", `Action blocked (${reason})`);
 }
+
+function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
+  const currentHand = getSessionCurrentHand(sessionData);
+  const snapshot = buildHandFlowSnapshot({ session: sessionData });
+  const result = canSubmitHandAction({
+    snapshot,
+    action,
+    playerId,
+    actorId,
+    drawCompletedIds: currentHand.drawCompletedIds ?? [],
+  });
+  if (!result.ok) {
+    throw handActionHttpsError(action, result.reason ?? "blocked");
+  }
+}
+
+export { canActForPlayer } from "./vendor/session-startup.js";
 
 export function sessionRef(db, roomId, sessionId) {
   return db.collection("rooms").doc(roomId).collection("sessions").doc(sessionId);
@@ -194,17 +236,6 @@ function preferInProgressHand(current, livePublic) {
   if (!handInProgress(livePublic)) return current;
   if (!handInProgress(current)) return livePublic;
   return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic : current;
-}
-
-function enrollmentDeadlineMs(enrollment) {
-  const raw = enrollment?.turnDeadlineMs;
-  if (raw == null) return 0;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw.toMillis === "function") return raw.toMillis();
-  if (typeof raw === "object" && typeof raw.seconds === "number") {
-    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
-  }
-  return 0;
 }
 
 function authoritativeCurrentHand(sessionData) {
@@ -834,114 +865,63 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     const sessionData = snap.data();
     if (!sessionData || sessionData.status === "final") return;
 
-    const pending = sessionData.pendingCoWinSettlement;
-    if (pending?.winnerIds?.length >= 2) {
-      const votes = pending.votes || {};
-      const botWinner = pending.winnerIds.find(
-        (id) => isRobotPlayerId(id) && votes[id] !== "split" && votes[id] !== "push",
-      );
-      if (botWinner) {
+    const snapshot = buildHandFlowSnapshot({ session: sessionData });
+    const hint = resolveBotAdvanceHint({
+      snapshot,
+      session: sessionData,
+      nowMs: Date.now(),
+    });
+    if (!hint) return;
+
+    switch (hint.kind) {
+      case "cowin": {
+        const pending = sessionData.pendingCoWinSettlement;
         await handleVoteCoWinSettlement(db, {
           roomId,
           sessionId,
           participantIds: pending.participantIds || sessionData.currentHand?.participantIds || [],
           winnerIds: pending.winnerIds,
-          voterId: botWinner,
+          voterId: hint.turnPlayerId,
           choice: "push",
           recordedBy: actorId,
           actorId,
         });
-        continue;
+        break;
       }
-      return;
-    }
-
-    const enrollment = getSessionEnrollment(sessionData);
-    if (enrollment?.active) {
-      if (Date.now() >= enrollmentDeadlineMs(enrollment)) {
+      case "enrollment_timeout":
         await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
-        continue;
-      }
-      const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
-      if (
-        currentId &&
-        isRobotPlayerId(currentId) &&
-        !(enrollment.enrolledIds || []).includes(currentId) &&
-        !(enrollment.declinedIds || []).includes(currentId)
-      ) {
+        break;
+      case "enrollment":
         await handleSetHandParticipation(db, {
           roomId,
           sessionId,
-          playerId: currentId,
+          playerId: hint.turnPlayerId,
           inHand: true,
           actorId,
         });
-        continue;
-      }
-      return;
+        break;
+      case "decision_timeout":
+        await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
+        break;
+      case "decision":
+        await handleSetHandParticipation(db, {
+          roomId,
+          sessionId,
+          playerId: hint.turnPlayerId,
+          inHand: true,
+          actorId,
+          discardCount: 0,
+        });
+        break;
+      case "draw":
+        await executeBotDraw(db, roomId, sessionId, hint.turnPlayerId, actorId, dealingRule);
+        break;
+      case "play":
+        await executeBotPlay(db, roomId, sessionId, hint.turnPlayerId, actorId);
+        break;
+      default:
+        return;
     }
-
-    const currentHand = getSessionCurrentHand(sessionData);
-    const participants = currentHand.participantIds || [];
-    if (!participants.length) return;
-
-    if (currentHand.phase === HAND_PHASE.DECISION) {
-      const decision = getSessionHandDecision(sessionData);
-      if (decision?.active) {
-        if (Date.now() >= enrollmentDeadlineMs(decision)) {
-          await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
-          continue;
-        }
-        const turnId = currentDecisionPlayer(decision);
-        const playingIds = decision.playingIds || [];
-        const passedIds = decision.passedIds || [];
-        if (
-          turnId &&
-          isRobotPlayerId(turnId) &&
-          !playingIds.includes(turnId) &&
-          !passedIds.includes(turnId)
-        ) {
-          await handleSetHandParticipation(db, {
-            roomId,
-            sessionId,
-            playerId: turnId,
-            inHand: true,
-            actorId,
-            discardCount: 0,
-          });
-          continue;
-        }
-      }
-      return;
-    }
-
-    if (currentHand.phase === HAND_PHASE.DRAW) {
-      const turnId = currentHand.turnPlayerId;
-      const drawDone = currentHand.drawCompletedIds || [];
-      if (
-        turnId &&
-        isRobotPlayerId(turnId) &&
-        participants.includes(turnId) &&
-        !drawDone.includes(turnId)
-      ) {
-        await executeBotDraw(db, roomId, sessionId, turnId, actorId, dealingRule);
-        continue;
-      }
-      return;
-    }
-
-    if (currentHand.phase === HAND_PHASE.PLAY) {
-      const turnId = currentHand.turnPlayerId;
-      const tricks = currentHand.tricksByPlayer || {};
-      if (totalTricksPlayed(tricks, participants) >= MAX_TRICKS_PER_HAND) return;
-      if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
-        await executeBotPlay(db, roomId, sessionId, turnId, actorId);
-        continue;
-      }
-      return;
-    }
-
-    return;
   }
 }
 
@@ -1393,16 +1373,9 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "submit_draw", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) {
-      throw new HttpsError("failed-precondition", "Not in draw phase");
-    }
-    if (currentHand.turnPlayerId !== playerId) {
-      throw new HttpsError("failed-precondition", "Not your turn to draw");
-    }
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new HttpsError("failed-precondition", "Draw already completed");
-    }
 
     const handData = await readPrivateHandInTransaction(
       tx,
@@ -1492,16 +1465,9 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "draw_fold", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) {
-      throw new HttpsError("failed-precondition", "Not in draw phase");
-    }
-    if (currentHand.turnPlayerId !== playerId) {
-      throw new HttpsError("failed-precondition", "Not your turn to draw");
-    }
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new HttpsError("failed-precondition", "Draw already completed");
-    }
 
     const foldResult = applyDrawFold(
       currentHand,
@@ -1567,10 +1533,9 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "play_card", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.PLAY) {
-      throw new HttpsError("failed-precondition", "Not in trick-play phase");
-    }
 
     const handData = await readPrivateHandInTransaction(
       tx,
