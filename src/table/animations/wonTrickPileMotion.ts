@@ -10,6 +10,7 @@ import { initCardMotion } from "./initMotion";
 import { rectFromElement, type MotionRect } from "./flip";
 
 const ACTIVE_WON_TRICK_FLIGHTS = new Set<gsap.core.Timeline>();
+const ACTIVE_SOURCE_CARDS = new Set<HTMLElement>();
 
 export const WON_TRICK_FLY_DURATION_SEC = GSAP_DURATIONS.drawDiscard;
 export const WON_TRICK_FLY_MAX_MS = 480;
@@ -31,9 +32,40 @@ export function readWonTrickPileAnchor(
   return el ? rectFromElement(el) : null;
 }
 
+function restoreSourceCards(): void {
+  for (const el of ACTIVE_SOURCE_CARDS) {
+    gsap.set(el, { clearProps: "opacity,transform,willChange,zIndex" });
+  }
+  ACTIVE_SOURCE_CARDS.clear();
+}
+
+function removeFlyGhosts(root: ParentNode): void {
+  const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+  for (const ghost of doc.querySelectorAll(".won-trick-fly-ghost")) {
+    ghost.remove();
+  }
+}
+
+export function clearAllPileRevealReady(root: ParentNode): void {
+  const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+  for (const seat of doc.querySelectorAll(".bseat--pile-reveal-ready")) {
+    seat.classList.remove("bseat--pile-reveal-ready");
+  }
+}
+
+/** Reset GSAP ghosts, inline card styles, and pile reveal flags after a trick or hand. */
+export function clearWonTrickCollectionArtifacts(root: ParentNode = document): void {
+  for (const tl of ACTIVE_WON_TRICK_FLIGHTS) tl.kill();
+  ACTIVE_WON_TRICK_FLIGHTS.clear();
+  removeFlyGhosts(root);
+  restoreSourceCards();
+  clearAllPileRevealReady(root);
+}
+
 export function killWonTrickFlights(): void {
   for (const tl of ACTIVE_WON_TRICK_FLIGHTS) tl.kill();
   ACTIVE_WON_TRICK_FLIGHTS.clear();
+  restoreSourceCards();
 }
 
 function forceCompleteTimeline(tl: gsap.core.Timeline, maxMs: number): void {
@@ -99,13 +131,19 @@ export function animateTrickCardsToWonPile(
   const stagger = reduced ? 0.03 : 0.05;
   const ghosts: HTMLElement[] = [];
 
-  const tl = gsap.timeline({
-    onComplete: () => {
-      ACTIVE_WON_TRICK_FLIGHTS.delete(tl);
-      for (const g of ghosts) g.remove();
+  const finish = (revealPile: boolean) => {
+    ACTIVE_WON_TRICK_FLIGHTS.delete(tl);
+    for (const g of ghosts) g.remove();
+    restoreSourceCards();
+    if (revealPile) {
       markWinnerPileRevealReady(options.winnerPlayerId, root);
-      options.onComplete?.();
-    },
+    }
+    options.onComplete?.();
+  };
+
+  const tl = gsap.timeline({
+    onComplete: () => finish(true),
+    onInterrupt: () => finish(false),
   });
   ACTIVE_WON_TRICK_FLIGHTS.add(tl);
 
@@ -113,6 +151,7 @@ export function animateTrickCardsToWonPile(
     const placement = wonTrickPilePlacement(options.trickKey, options.bookIndex);
     const ghost = cloneCardForFly(source, host);
     ghosts.push(ghost);
+    ACTIVE_SOURCE_CARDS.add(source);
     gsap.set(source, { opacity: 0 });
 
     const last = rectFromElement(ghost);

@@ -247,6 +247,14 @@
   animation: btrick-sweep-gather var(--trick-sweep-ms) var(--premium-ease-out) forwards;
 }
 
+/* GSAP owns trick collection — disable legacy CSS sweep */
+[data-gsap-motion="true"] .btrick--sweep .btrick__surface {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
 @keyframes btrick-sweep-gather {
   0% {
     opacity: 1;
@@ -498,7 +506,7 @@
   .bseat__hole-card,
   .bseat--trick-capture .bseat__avatar-wrap,
   .bseat--trick-capture.bseat--pile-reveal-ready .bseat__won-trick-pile-card:last-child,
-  .btrick--sweep .btrick__surface {
+  [data-gsap-motion="true"] .btrick--sweep .btrick__surface {
     animation-duration: 120ms !important;
   }
 }

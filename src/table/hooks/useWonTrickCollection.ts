@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import type { TrickPresentation } from "./useTrickPresentation";
 import {
   animateTrickCardsToWonPile,
-  clearWinnerPileRevealReady,
+  clearWonTrickCollectionArtifacts,
   killWonTrickFlights,
   readTrickRowCardElements,
 } from "../animations/wonTrickPileMotion";
@@ -11,23 +11,59 @@ import { wonTrickBookKey } from "../wonTrickPileModel";
 export interface UseWonTrickCollectionInput {
   trickPresentation: TrickPresentation;
   handNumber: number;
+  sessionPhase?: string | null;
+  handComplete?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
+const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
+
 /**
  * GSAP trick collection — visual-only, non-blocking for bot presentation gate.
- * Runs when presentation enters collectTrick; force-completes within ~480ms.
+ * Clears ghosts and presentation flags when each trick or hand resolves.
  */
 export function useWonTrickCollection({
   trickPresentation,
   handNumber,
+  sessionPhase = null,
+  handComplete = false,
   tableRootRef,
 }: UseWonTrickCollectionInput): void {
   const lastCollectKeyRef = useRef<string | null>(null);
+  const handNumberRef = useRef(handNumber);
+  const prevPhaseRef = useRef(trickPresentation.phase);
 
   useLayoutEffect(() => {
-    if (trickPresentation.phase !== "collectTrick") {
-      if (trickPresentation.phase === "live" || trickPresentation.phase === "nextLeadReady") {
+    const root = tableRootRef.current;
+    if (!root) return;
+
+    if (handNumberRef.current !== handNumber) {
+      handNumberRef.current = handNumber;
+      lastCollectKeyRef.current = null;
+      clearWonTrickCollectionArtifacts(root);
+      return;
+    }
+
+    if (handComplete || (sessionPhase != null && sessionPhase !== "play")) {
+      lastCollectKeyRef.current = null;
+      clearWonTrickCollectionArtifacts(root);
+    }
+  }, [handNumber, handComplete, sessionPhase, tableRootRef]);
+
+  useLayoutEffect(() => {
+    const prev = prevPhaseRef.current;
+    const phase = trickPresentation.phase;
+    prevPhaseRef.current = phase;
+
+    const root = tableRootRef.current;
+    if (!root) return;
+
+    if (prev === "collectTrick" && TRICK_RESOLVED_PHASES.has(phase)) {
+      clearWonTrickCollectionArtifacts(root);
+    }
+
+    if (phase !== "collectTrick") {
+      if (TRICK_RESOLVED_PHASES.has(phase)) {
         lastCollectKeyRef.current = null;
       }
       return;
@@ -41,11 +77,8 @@ export function useWonTrickCollection({
     if (lastCollectKeyRef.current === collectKey) return;
     lastCollectKeyRef.current = collectKey;
 
-    const root = tableRootRef.current;
-    if (!root) return;
-
-    clearWinnerPileRevealReady(winnerId, root);
     killWonTrickFlights();
+    removeStaleGhosts(root);
 
     const cardEls = readTrickRowCardElements(root);
     if (!cardEls.length) {
@@ -79,15 +112,16 @@ export function useWonTrickCollection({
   ]);
 
   useLayoutEffect(() => {
-    return () => killWonTrickFlights();
-  }, []);
-
-  useLayoutEffect(() => {
-    if (trickPresentation.phase === "collectTrick") return;
     const root = tableRootRef.current;
-    if (!root) return;
-    for (const seat of root.querySelectorAll(".bseat--pile-reveal-ready")) {
-      seat.classList.remove("bseat--pile-reveal-ready");
-    }
-  }, [trickPresentation.phase, tableRootRef]);
+    return () => {
+      if (root) clearWonTrickCollectionArtifacts(root);
+      else killWonTrickFlights();
+    };
+  }, [tableRootRef]);
+}
+
+function removeStaleGhosts(root: ParentNode): void {
+  for (const ghost of root.querySelectorAll(".won-trick-fly-ghost")) {
+    ghost.remove();
+  }
 }
