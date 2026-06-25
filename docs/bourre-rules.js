@@ -150,36 +150,42 @@ export function settleHandDeltas({
   let carryOverPot = 0;
 
   if (mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry") {
-    carryOverPot = currentPot;
+    carryOverPot = currentPot + bourreMatch;
     participants.forEach((pid) => {
-      deltas[pid] = -stakeForPlayer(pid);
+      const playerStake = stakeForPlayer(pid);
+      const bourreExtra = bourreIds.includes(pid) ? bourrePenalty : 0;
+      deltas[pid] = -playerStake - bourreExtra;
     });
+    if (limOn) carryOverPot = overflow + currentPot + bourreMatch;
   } else if (mode === "split") {
     const share = winnerTake / winners.length;
     participants.forEach((pid) => {
       const playerStake = stakeForPlayer(pid);
-      deltas[pid] = winners.includes(pid) ? share - playerStake : -playerStake;
+      const bourreExtra = bourreIds.includes(pid) ? bourrePenalty : 0;
+      if (winners.includes(pid)) {
+        deltas[pid] = share - playerStake - bourreExtra;
+      } else {
+        deltas[pid] = -playerStake - bourreExtra;
+      }
     });
-    carryOverPot = limOn ? overflow : 0;
+    carryOverPot = (limOn ? overflow : 0) + bourreMatch;
   } else {
     const winner = winners[0];
-    const deferPotToCarry = bourreIds.length > 0;
     participants.forEach((pid) => {
       const playerStake = stakeForPlayer(pid);
       if (pid === winner) {
-        deltas[pid] = deferPotToCarry ? -playerStake : winnerTake - playerStake;
+        deltas[pid] = winnerTake - playerStake;
       } else if (bourreIds.includes(pid)) {
-        // Bourré pot match is collected on the next deal, not at settlement.
-        deltas[pid] = -playerStake;
+        deltas[pid] = -bourrePenalty - playerStake;
       } else {
         deltas[pid] = -playerStake;
       }
     });
-    carryOverPot = limOn ? overflow : deferPotToCarry ? currentPot : 0;
+    carryOverPot = (limOn ? overflow : 0) + bourreMatch;
   }
 
-  // Bourré pot match is always collected on the next deal (bourreReplacementDue),
-  // never at settlement — including frozen-pot / carry modes (Pagat).
+  // Bourré pot match is collected at settlement into carryOverPot (next-hand seed).
+  // Bourré players are exempt from the normal ante on the next deal (skipNextAnte).
 
   return {
     deltas,
@@ -254,7 +260,8 @@ export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionSt
 
 /**
  * Score-row flags applied after settlement for the next deal's pot funding.
- * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
+ * Tied leaders skip ante; bourré players skip ante (pot match already paid at settlement).
+ * bourreReplacementDue is only for a remainder when a bourré player busted mid-settlement.
  * @param {number} settledPot — final previous-hand pot (use currentPot, not base ante).
  */
 export function nextDealFundingFlags({
@@ -264,16 +271,20 @@ export function nextDealFundingFlags({
   bourreIds,
   settledPot,
   maxWinThisHand,
+  bourreReplacementRemainder = null,
 }) {
-  const pot = Math.max(0, Number(settledPot ?? maxWinThisHand) || 0);
   const tiedLeader =
     winners.includes(playerId) &&
     winners.length >= 2 &&
     (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split");
-  const bourreReplacementDue = bourreIds.includes(playerId) ? pot : null;
+  const isBourre = bourreIds.includes(playerId);
+  const remainder =
+    isBourre && bourreReplacementRemainder != null && bourreReplacementRemainder > 0
+      ? bourreReplacementRemainder
+      : null;
   return {
-    skipNextAnte: tiedLeader,
-    bourreReplacementDue,
+    skipNextAnte: tiedLeader || (isBourre && remainder == null),
+    bourreReplacementDue: remainder,
   };
 }
 
@@ -287,6 +298,7 @@ export function buildNextDealFundingSnapshot({
   participants,
   mode,
   winners,
+  bourreRemaindersByPlayer = {},
 }) {
   const byPlayer = {};
   for (const pid of participants || []) {
@@ -296,6 +308,7 @@ export function buildNextDealFundingSnapshot({
       winners,
       bourreIds,
       settledPot,
+      bourreReplacementRemainder: bourreRemaindersByPlayer[pid] ?? null,
     });
   }
   return {
@@ -485,6 +498,16 @@ export function anteAlreadyPosted(postedAntes, playerId) {
   return postedAntes != null && Object.prototype.hasOwnProperty.call(postedAntes, playerId);
 }
 
+/** Uncollected bourré pot-match remainder per player after a bust at settlement. */
+export function bourreRemaindersFromSettlement(bourreIds, nominalDeltas, appliedDeltas) {
+  const remainders = {};
+  for (const pid of bourreIds || []) {
+    const remainder = settlementShortfall(nominalDeltas[pid] ?? 0, appliedDeltas[pid] ?? 0);
+    if (remainder > 0) remainders[pid] = remainder;
+  }
+  return remainders;
+}
+
 /** Amount not collected when a loss was clamped to remaining stack. */
 export function settlementShortfall(nominalDelta, appliedDelta) {
   const nom = Number(nominalDelta) || 0;
@@ -550,12 +573,13 @@ export function applySolventSettlement({
 
   if (mode === "win" && winners.length === 1) {
     const winner = winners[0];
-    const potDeferredToCarry = carryOverPot > 0;
-    const winDelta = potDeferredToCarry
-      ? 0
-      : totalPool > 0
-        ? totalPool
-        : Math.max(0, nominalDeltas[winner] ?? 0);
+    const winnerNominal = nominalDeltas[winner] ?? 0;
+    const winDelta =
+      winnerNominal > 0
+        ? winnerNominal
+        : totalPool > 0
+          ? totalPool
+          : 0;
     const br = scoreBankroll(scoreById[winner], buyInFallback);
     bankrolls[winner] = br + winDelta;
     appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
@@ -590,7 +614,7 @@ export function applySolventSettlement({
     bankrolls,
     bustedIds: [...new Set(bustedIds)],
     outIds,
-    carryOverPot: adjustedCarry,
+    carryOverPot: adjustedCarry + shortfall,
     shortfall,
   };
 }

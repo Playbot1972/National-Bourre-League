@@ -179,7 +179,7 @@ export function buildHandOutcomeView(input: {
     detailLines.push(`Pot won this hand: ${potLabel} (added to ${name}'s chips).`);
     if (bourreIds.length) {
       detailLines.push(
-        `Bourré: ${bourreNames} took 0 tricks — each owes ${potLabel} into the next hand's pot.`,
+        `Bourré: ${bourreNames} took 0 tricks — ${potLabel} each paid into the next hand's pot.`,
       );
     }
     return {
@@ -187,7 +187,7 @@ export function buildHandOutcomeView(input: {
       detailLines,
       carryoverLine:
         carryOverPot > 0
-          ? `${carryLabel} already in the table pot for the next deal.`
+          ? `${carryLabel} seeded for the next deal (bourré pot match).`
           : null,
     };
   }

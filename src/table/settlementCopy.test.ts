@@ -103,13 +103,15 @@ describe("settlement copy — hand outcomes", () => {
       tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
       players,
       potMaxWin: 9,
-      carryOverPot: 0,
+      carryOverPot: 9,
     });
 
     assert.match(view.headline, /Alice wins \$9/);
     assert.match(view.detailLines[0], /table pot this hand/);
     assert.match(view.detailLines[1], /Pot won this hand: \$9/);
     assert.match(view.detailLines[2], /Bourré: Carol/);
+    assert.match(view.detailLines[2], /paid into the next hand/);
+    assert.match(view.carryoverLine!, /\$9 seeded for the next deal/);
   });
 
   it("buildHandOutcomeView for split agreement", () => {

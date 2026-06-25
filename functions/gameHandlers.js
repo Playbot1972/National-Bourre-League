@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, logBourreAccounting } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1801,6 +1801,7 @@ export async function handleRecordHand(
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
+  const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -1849,6 +1850,7 @@ export async function handleRecordHand(
       winners,
       bourreIds,
       settledPot: potState.currentPot,
+      bourreReplacementRemainder: bourreRemainders[pid] ?? null,
     });
     if (funding.bourreReplacementDue != null) {
       patch.bourreReplacementDue = funding.bourreReplacementDue;
@@ -1889,6 +1891,7 @@ export async function handleRecordHand(
     participants,
     mode,
     winners,
+    bourreRemaindersByPlayer: bourreRemainders,
   });
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
   batch.update(sessionRef(db, roomId, sessionId), {

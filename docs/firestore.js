@@ -94,6 +94,7 @@ import {
   nextDealFundingFlags,
   buildNextDealFundingSnapshot,
   mergeNextDealFundingIntoScoreById,
+  bourreRemaindersFromSettlement,
   collectNextHandAntes,
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
@@ -2462,6 +2463,7 @@ async function recordHandClient(
 
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
+  const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
 
   logBourreSettlementTrace("hand-settled", {
     handNumber,
@@ -2528,6 +2530,7 @@ async function recordHandClient(
       winners,
       bourreIds,
       settledPot: potState.currentPot,
+      bourreReplacementRemainder: bourreRemainders[pid] ?? null,
     });
     if (funding.bourreReplacementDue != null) {
       patch.bourreReplacementDue = funding.bourreReplacementDue;
@@ -2568,6 +2571,7 @@ async function recordHandClient(
     participants,
     mode,
     winners,
+    bourreRemaindersByPlayer: bourreRemainders,
   });
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,

@@ -10,7 +10,7 @@ import {
   simulatePagatHandStartFunding,
   simulateRecordHandSettlement,
 } from "../docs/bourre-settlement-flow.js";
-import { handAnteContribution, DEFAULT_HAND_ANTE } from "../docs/bourre-rules.js";
+import { handAnteContribution } from "../docs/bourre-rules.js";
 
 const buyIn = 1000;
 const handAnte = 1;
@@ -27,7 +27,7 @@ function logIntegrationCase(label, result) {
 }
 
 describe("production settlement → deal funding integration", () => {
-  it("single bourré player pays full prior pot on next deal", () => {
+  it("single bourré player pays full prior pot at settlement and skips next ante", () => {
     const scoreById = freshScores(four);
     const postedAntes = { p1: 1, p2: 1, p3: 1, p4: 1 };
     const result = runProductionSettlementDealFlow({
@@ -46,13 +46,15 @@ describe("production settlement → deal funding integration", () => {
     const settledPot = 4;
     assert.equal(result.debug.settledHandPot, settledPot);
     assert.deepEqual(result.debug.bourrePlayers, ["p3"]);
-    assert.equal(result.debug.bourreReplacementDuePersisted.p3, settledPot);
-    assert.equal(result.deal.collected.postedAntes.p3, settledPot);
+    assert.equal(result.settlement.carryOverPot, settledPot);
+    assert.equal(result.settlement.scoreById.p3.skipNextAnte, true);
+    assert.equal(result.debug.bourreReplacementDuePersisted.p3, undefined);
+    assert.equal(result.deal.collected.postedAntes.p3, 0);
     assert.equal(result.deal.collected.postedAntes.p1, handAnte);
-    assert.notEqual(result.deal.collected.postedAntes.p3, handAnte);
+    assert.equal(result.deal.collected.nextHandPot, settledPot + handAnte * 3);
   });
 
-  it("multiple bourré players each pay full prior pot", () => {
+  it("multiple bourré players each pay full prior pot at settlement", () => {
     const previousPot = 250;
     const carryIn = previousPot - handAnte * four.length;
     const scoreById = freshScores(four);
@@ -72,13 +74,14 @@ describe("production settlement → deal funding integration", () => {
 
     assert.equal(result.debug.settledHandPot, previousPot);
     assert.deepEqual(result.debug.bourrePlayers, ["p3", "p4"]);
-    assert.equal(result.deal.collected.postedAntes.p3, previousPot);
-    assert.equal(result.deal.collected.postedAntes.p4, previousPot);
+    assert.equal(result.settlement.carryOverPot, previousPot * 2);
+    assert.equal(result.deal.collected.postedAntes.p3, 0);
+    assert.equal(result.deal.collected.postedAntes.p4, 0);
     assert.equal(result.deal.collected.postedAntes.p1, handAnte);
     assert.equal(result.deal.collected.postedAntes.p2, handAnte);
     assert.equal(
       result.deal.collected.nextHandPot,
-      previousPot + previousPot * 2 + handAnte * 2,
+      previousPot * 2 + handAnte * 2,
     );
   });
 
@@ -109,10 +112,9 @@ describe("production settlement → deal funding integration", () => {
       buyInFallback: buyIn,
     });
     assert.equal(deal.collected.postedAntes.p3, handAnte);
-    assert.notEqual(deal.collected.postedAntes.p3, result.debug.settledHandPot);
   });
 
-  it("stale score rows missing bourreReplacementDue recover via session nextDealFunding", () => {
+  it("stale score rows missing skipNextAnte recover via session nextDealFunding", () => {
     const scoreById = freshScores(four);
     const postedAntes = Object.fromEntries(four.map((pid) => [pid, handAnte]));
     const fresh = runProductionSettlementDealFlow({
@@ -140,23 +142,22 @@ describe("production settlement → deal funding integration", () => {
     );
     logIntegrationCase("stale-read-recovery", stale);
 
-    assert.equal(stale.deal.collected.postedAntes.p3, fresh.deal.collected.postedAntes.p3);
-    assert.equal(stale.deal.collected.postedAntes.p4, fresh.deal.collected.postedAntes.p4);
-    assert.ok(stale.deal.collected.postedAntes.p3 > handAnte);
+    assert.equal(stale.deal.collected.postedAntes.p3, 0);
+    assert.equal(stale.deal.collected.postedAntes.p4, 0);
+    assert.equal(fresh.deal.collected.postedAntes.p3, 0);
     assert.equal(stale.debug.staleReadRecovered, true);
   });
 
-  it("regression: historical pays ~1 instead of full pot when funding snapshot absent", () => {
-    const settledPot = 250;
+  it("regression: stale read without funding snapshot charges bourré player a normal ante", () => {
+    const settledPot = 4;
     const scoreById = freshScores(four);
     const settlement = simulateRecordHandSettlement({
       mode: "win",
       winners: ["p1"],
       participants: four,
-      tricksByPlayer: { p1: 3, p2: 2, p3: 0, p4: 0 },
+      tricksByPlayer: { p1: 3, p2: 2, p3: 0, p4: 1 },
       scoreById,
       sessionStake: handAnte,
-      carryIn: settledPot - handAnte * four.length,
       postedAntes: Object.fromEntries(four.map((pid) => [pid, handAnte])),
       buyInFallback: buyIn,
     });
@@ -164,6 +165,7 @@ describe("production settlement → deal funding integration", () => {
     const staleRows = Object.fromEntries(
       four.map((pid) => {
         const row = { ...settlement.scoreById[pid] };
+        delete row.skipNextAnte;
         delete row.bourreReplacementDue;
         return [pid, row];
       }),
@@ -189,7 +191,7 @@ describe("production settlement → deal funding integration", () => {
       staleScoreById: staleRows,
     });
 
-    logIntegrationCase("historical-ante-bug", {
+    logIntegrationCase("stale-ante-bug", {
       debug: {
         settledHandPot: settlement.debug.settledHandPot,
         bourrePlayers: settlement.debug.bourrePlayers,
@@ -199,14 +201,13 @@ describe("production settlement → deal funding integration", () => {
     });
 
     assert.equal(withoutSnapshot.collected.postedAntes.p3, handAnte);
-    assert.equal(withoutSnapshot.collected.postedAntes.p4, handAnte);
-    assert.equal(withSnapshot.collected.postedAntes.p3, settledPot);
-    assert.equal(withSnapshot.collected.postedAntes.p4, settledPot);
+    assert.equal(withSnapshot.collected.postedAntes.p3, 0);
     assert.equal(
       handAnteContribution(staleRows.p3, handAnte),
       handAnte,
       "stale row alone charges base ante",
     );
+    assert.equal(settlement.carryOverPot, settledPot);
   });
 
   it("no bourré: normal antes only, no replacement flags", () => {

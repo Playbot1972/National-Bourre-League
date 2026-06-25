@@ -12,6 +12,8 @@ import {
   anteAlreadyPosted,
   handAnteContribution,
   bourrePlayerIds,
+  bourreRemaindersFromSettlement,
+  settlementShortfall,
 } from "./bourre-rules.js";
 
 export { buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById };
@@ -27,6 +29,7 @@ export function applyRecordHandFundingToScores({
   winners,
   bourreIds,
   potState,
+  bourreRemaindersByPlayer = {},
 }) {
   const settledPot = potState.currentPot;
   const next = { ...scoreById };
@@ -44,6 +47,7 @@ export function applyRecordHandFundingToScores({
       winners,
       bourreIds,
       settledPot,
+      bourreReplacementRemainder: bourreRemaindersByPlayer[pid] ?? null,
     });
     fundingRead[pid] = { ...funding };
     if (funding.bourreReplacementDue != null) {
@@ -62,6 +66,7 @@ export function applyRecordHandFundingToScores({
     participants,
     mode,
     winners,
+    bourreRemaindersByPlayer,
   });
 
   return {
@@ -148,6 +153,11 @@ export function simulateRecordHandSettlement({
     winners,
     bourreIds,
     potState,
+    bourreRemaindersByPlayer: bourreRemaindersFromSettlement(
+      bourreIds,
+      nominalDeltas,
+      solvent.appliedDeltas,
+    ),
   });
 
   return {

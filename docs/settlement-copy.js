@@ -179,10 +179,10 @@ function d(e) {
 	let { settlement: t, winnerIds: n, participantIds: r, tricksByPlayer: i, players: a, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? l(i, r), p = c(f, a), m = o(u), h = o(d), g = [];
 	if (t === "win" && n.length === 1) {
 		let e = s(n[0], a), t = i[n[0]] ?? 0;
-		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — each owes ${m} into the next hand's pot.`), {
+		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — ${m} each paid into the next hand's pot.`), {
 			headline: `${e} wins ${m} this hand`,
 			detailLines: g,
-			carryoverLine: d > 0 ? `${h} already in the table pot for the next deal.` : null
+			carryoverLine: d > 0 ? `${h} seeded for the next deal (bourré pot match).` : null
 		};
 	}
 	if (t === "split") {

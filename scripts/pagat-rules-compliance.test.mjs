@@ -78,7 +78,7 @@ describe("Pagat pot / settlement compliance", () => {
     assert.notEqual(result.deltas.p1, 0.5);
   });
 
-  it("10 — single bourré player pays full settled pot on next deal", () => {
+  it("10 — single bourré player pays full settled pot at settlement", () => {
     const scoreById = freshScores(four);
     const postedAntes = Object.fromEntries(four.map((pid) => [pid, ante]));
     const result = runProductionSettlementDealFlow({
@@ -94,10 +94,12 @@ describe("Pagat pot / settlement compliance", () => {
     const settledPot = 4;
     assert.equal(result.debug.settledHandPot, settledPot);
     assert.deepEqual(result.debug.bourrePlayers, ["p3"]);
-    assert.equal(result.deal.collected.postedAntes.p3, settledPot);
+    assert.equal(result.settlement.carryOverPot, settledPot);
+    assert.equal(result.settlement.scoreById.p3.skipNextAnte, true);
+    assert.equal(result.deal.collected.postedAntes.p3, 0);
   });
 
-  it("11 — multiple bourré players each pay full settled pot", () => {
+  it("11 — multiple bourré players each pay full settled pot at settlement", () => {
     const previousPot = 250;
     const carryIn = previousPot - ante * four.length;
     const scoreById = freshScores(four);
@@ -114,11 +116,12 @@ describe("Pagat pot / settlement compliance", () => {
       buyInFallback: buyIn,
     });
     assert.equal(result.debug.settledHandPot, previousPot);
-    assert.equal(result.deal.collected.postedAntes.p3, previousPot);
-    assert.equal(result.deal.collected.postedAntes.p4, previousPot);
+    assert.equal(result.settlement.carryOverPot, previousPot * 2);
+    assert.equal(result.deal.collected.postedAntes.p3, 0);
+    assert.equal(result.deal.collected.postedAntes.p4, 0);
     assert.equal(
       result.deal.collected.nextHandPot,
-      previousPot + previousPot * 2 + ante * 2,
+      previousPot * 2 + ante * 2,
     );
   });
 
@@ -140,7 +143,7 @@ describe("Pagat pot / settlement compliance", () => {
     assert.equal(result.debug.bourreReplacementDuePersisted.p3, undefined);
   });
 
-  it("13 — bourré penalty basis is the full settled prior pot", () => {
+  it("13 — bourré player skips next ante after paying pot match at settlement", () => {
     const settledPot = 250;
     const flags = nextDealFundingFlags({
       playerId: "p3",
@@ -149,14 +152,15 @@ describe("Pagat pot / settlement compliance", () => {
       bourreIds: ["p3"],
       settledPot,
     });
-    assert.equal(flags.bourreReplacementDue, settledPot);
+    assert.equal(flags.skipNextAnte, true);
+    assert.equal(flags.bourreReplacementDue, null);
     assert.equal(
       bourrePlayerIds({ p1: 3, p2: 2, p3: 0, p4: 0 }, four).length,
       2,
     );
   });
 
-  it("14 — next-hand ante includes bourré replacement due correctly", () => {
+  it("14 — next-hand pot seeds from bourré carry plus normal antes", () => {
     const scoreById = freshScores(four);
     const settlement = simulateRecordHandSettlement({
       mode: "win",
@@ -176,10 +180,14 @@ describe("Pagat pot / settlement compliance", () => {
       sessionStake: ante,
       buyInFallback: buyIn,
     });
-    assert.equal(deal.collected.postedAntes.p3, settlement.debug.settledHandPot);
+    assert.equal(deal.collected.postedAntes.p3, 0);
     assert.equal(deal.collected.postedAntes.p1, ante);
     assert.equal(deal.collected.postedAntes.p2, ante);
     assert.equal(deal.collected.postedAntes.p4, ante);
+    assert.equal(
+      deal.collected.nextHandPot,
+      settlement.carryOverPot + ante * 3,
+    );
   });
 
   it("15 — integration: persisted settlement → next deal funding (production path)", () => {
@@ -208,10 +216,10 @@ describe("Pagat pot / settlement compliance", () => {
       },
       { staleDealRead: true },
     );
-    assert.equal(stale.deal.collected.postedAntes.p4, fresh.deal.collected.postedAntes.p4);
-    assert.ok(stale.deal.collected.postedAntes.p4 > ante);
+    assert.equal(stale.deal.collected.postedAntes.p4, 0);
+    assert.equal(fresh.deal.collected.postedAntes.p4, 0);
     assert.equal(stale.settlement.carryOverPot, fresh.settlement.carryOverPot);
-    assert.ok(stale.settlement.carryOverPot > 0);
+    assert.ok(stale.settlement.carryOverPot > ante);
     assert.equal(stale.debug.staleReadRecovered, true);
   });
 });
