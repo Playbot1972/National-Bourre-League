@@ -107,17 +107,19 @@ jobs:
       - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          for attempt in 1 2 3; do
-            if bash scripts/ci-firebase-deploy.sh hosting; then
+          for attempt in 1 2 3 4 5; do
+            rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
+            unset FIREBASE_TOKEN || true
+            if npx firebase deploy --only hosting --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"; then
               exit 0
             fi
-            echo "::warning::Firebase hosting deploy attempt ${attempt} failed; retrying in ${attempt}0s..."
-            sleep $((attempt * 10))
+            echo "::warning::Firebase hosting deploy attempt ${attempt} failed; retrying in $((attempt * 15))s..."
+            sleep $((attempt * 15))
           done
-          echo "::error::Firebase hosting deploy failed after 3 attempts"
+          echo "::error::Firebase hosting deploy failed after 5 attempts"
           exit 1
 
       - name: Commit version bump
@@ -134,17 +136,18 @@ jobs:
         if: steps.cfg.outputs.ready == 'true'
         continue-on-error: true
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: bash scripts/ci-firebase-deploy.sh firestore:rules
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: npx firebase deploy --only firestore:rules --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GCLOUD_PROJECT: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          bash scripts/ci-firebase-deploy.sh functions || {
+          npx firebase deploy --only functions --force --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
             echo "::error::Cloud Functions deploy failed."
             echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
             echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
