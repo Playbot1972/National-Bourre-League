@@ -147,6 +147,46 @@ describe("handPhaseMachine — transition table", () => {
     assert.equal(nextHandFlowPhase(HAND_FLOW_PHASE.DRAW, "record_hand"), null);
   });
 
+  it("rejects duplicate transition attempts (already past target phase)", () => {
+    // Already in play — cannot re-apply draw_complete
+    assert.equal(
+      isHandFlowTransitionAllowed(HAND_FLOW_PHASE.PLAY, "draw_complete"),
+      false,
+    );
+    // Already in settle — cannot re-apply hand_complete
+    assert.equal(
+      isHandFlowTransitionAllowed(HAND_FLOW_PHASE.SETTLE, "hand_complete"),
+      false,
+    );
+    // Already in deal — cannot re-open enrollment without going through prep
+    assert.equal(
+      isHandFlowTransitionAllowed(HAND_FLOW_PHASE.DEAL, "open_enrollment"),
+      false,
+    );
+    // Duplicate record_hand from next-hand-prep is not in the table
+    assert.equal(
+      nextHandFlowPhase(HAND_FLOW_PHASE.NEXT_HAND_PREP, "record_hand"),
+      null,
+    );
+  });
+
+  it("allows self-loop transitions only where explicitly defined", () => {
+    assert.equal(
+      nextHandFlowPhase(HAND_FLOW_PHASE.ENROLLMENT, "enrollment_step"),
+      HAND_FLOW_PHASE.ENROLLMENT,
+    );
+    assert.equal(
+      nextHandFlowPhase(HAND_FLOW_PHASE.DRAW, "submit_draw"),
+      HAND_FLOW_PHASE.DRAW,
+    );
+    assert.equal(
+      nextHandFlowPhase(HAND_FLOW_PHASE.PLAY, "play_card"),
+      HAND_FLOW_PHASE.PLAY,
+    );
+    // play_card does not loop from draw
+    assert.equal(nextHandFlowPhase(HAND_FLOW_PHASE.DRAW, "play_card"), null);
+  });
+
   it("every transition row resolves via lookup", () => {
     for (const row of HAND_FLOW_TRANSITIONS) {
       assert.equal(
@@ -231,6 +271,43 @@ describe("handPhaseMachine — turn and action guards", () => {
     });
     assert.equal(result.ok, false);
     assert.equal(result.reason, "draw_already_complete");
+  });
+
+  it("blocks play_card when hand already complete", () => {
+    const result = canSubmitHandAction({
+      snapshot: { ...playSnapshot, handComplete: true, trickCount: 5 },
+      action: "play_card",
+      playerId: "human",
+      actorId: "human",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "hand_complete");
+  });
+
+  it("blocks record_hand before hand is ready to settle", () => {
+    const result = canSubmitHandAction({
+      snapshot: playSnapshot,
+      action: "record_hand",
+      playerId: "human",
+      actorId: "human",
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, "hand_not_ready_to_settle");
+  });
+
+  it("allows record_hand in settle phase", () => {
+    const result = canSubmitHandAction({
+      snapshot: {
+        ...playSnapshot,
+        phase: HAND_FLOW_PHASE.SETTLE,
+        handComplete: true,
+        trickCount: 5,
+      },
+      action: "record_hand",
+      playerId: "human",
+      actorId: "human",
+    });
+    assert.equal(result.ok, true);
   });
 });
 
