@@ -17,6 +17,10 @@ import {
   usingEmulator,
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
+import {
+  shouldClientDriveRobotDraw,
+  shouldUseServerBotAdvanceForDraw,
+} from "./robot-draw-authority.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   clearSessionSetupSheetSnap,
@@ -2883,6 +2887,22 @@ function processRobotActionsInner(s, scores) {
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
+    if (shouldUseServerBotAdvanceForDraw(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+      if (!botAdvanceInFlight) {
+        botAdvanceInFlight = true;
+        advanceSessionBots(currentRoomId, openSessionId)
+          .catch((e) => console.warn("advanceSessionBots:", e))
+          .finally(() => {
+            botAdvanceInFlight = false;
+          });
+      }
+      return;
+    }
+
+    if (!shouldClientDriveRobotDraw(SERVER_HAND_AUTHORITY)) {
+      return;
+    }
+
     if (shouldBlockRobotForPresentation(s, scores)) {
       return;
     }
