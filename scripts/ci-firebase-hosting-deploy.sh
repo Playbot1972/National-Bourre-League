@@ -9,7 +9,8 @@ rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 
 if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
   echo "firebase-auth=ci-token"
-  npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
+  FB_TOOLS="${FIREBASE_TOOLS_VERSION:-14.9.0}"
+  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
   exit 0
 fi
 
@@ -31,4 +32,6 @@ if command -v gcloud >/dev/null 2>&1; then
 fi
 
 echo "firebase-auth=application-default credentials=${CREDS}"
-npx firebase deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
+FB_TOOLS="${FIREBASE_TOOLS_VERSION:-14.9.0}"
+echo "firebase-tools=${FB_TOOLS}"
+npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
