@@ -277,6 +277,67 @@ function logDrawCandidateResolution(
   });
 }
 
+function logDrawReceiveCommit(
+  stage: "before" | "payload" | "after",
+  store: HandPresentationStore,
+  payload?: {
+    playerId: string | null;
+    nextCompleted: string[];
+    nextChosen: string | null;
+  },
+): void {
+  if (!isGameFlowDebugEnabled()) return;
+  logGameFlow("handPresentation", `draw-receive-commit-${stage}`, {
+    handNumber: store.handNumber,
+    inFlight: store.animatingDrawPlayerId,
+    inFlightSubPhase: store.drawAnimSubPhase,
+    displayCompleted: [...store.displayDrawCompletedIds],
+    ...(payload
+      ? {
+          commitPlayerId: payload.playerId,
+          commitNextCompleted: [...payload.nextCompleted],
+          nextChosen: payload.nextChosen,
+        }
+      : {}),
+  });
+}
+
+/** Commit discard/receive presentation for the in-flight player; idempotent per playerId. */
+function commitDrawPlayerReceiveComplete(
+  store: HandPresentationStore,
+  snap: HandServerSnapshot | null,
+): HandPresentationStore {
+  const playerId = store.animatingDrawPlayerId;
+  if (!playerId) {
+    return store.drawAnimSubPhase === "done"
+      ? store
+      : { ...store, drawAnimSubPhase: "done" };
+  }
+
+  const alreadyDisplayed = store.displayDrawCompletedIds.includes(playerId);
+  const nextCompleted = alreadyDisplayed
+    ? store.displayDrawCompletedIds
+    : [...store.displayDrawCompletedIds, playerId];
+  const consumedIds = markDrawPresentationConsumed(store, playerId);
+  const syncedPrev =
+    snap != null ? { ...snap, drawCompletedIds: [...nextCompleted] } : store.prevSnapshot;
+
+  logDrawReceiveCommit("payload", store, {
+    playerId,
+    nextCompleted,
+    nextChosen: null,
+  });
+
+  return {
+    ...store,
+    displayDrawCompletedIds: nextCompleted,
+    animatingDrawPlayerId: null,
+    drawAnimSubPhase: "done",
+    prevSnapshot: syncedPrev ?? store.prevSnapshot,
+    drawPresentationConsumedIds: consumedIds,
+  };
+}
+
 function beginDrawPlayerAnim(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -641,40 +702,54 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       if (store.drawAnimSubPhase === "discard" && store.drawReplaceCount > 0) {
         return { ...store, drawAnimSubPhase: "receive" };
       }
-      const playerId = store.animatingDrawPlayerId;
-      const nextCompleted = playerId
-        ? [...store.displayDrawCompletedIds, playerId]
-        : store.displayDrawCompletedIds;
-      const consumedIds = markDrawPresentationConsumed(store, playerId);
-      const ref = snap ?? store.prevSnapshot;
-      if (ref && nextCompleted.length >= ref.participantIds.length) {
-        return withPhase(store, "drawReady", {
-          displayDrawCompletedIds: nextCompleted,
+
+      logDrawReceiveCommit("before", store);
+      const completingPlayerId = store.animatingDrawPlayerId;
+      const committed = commitDrawPlayerReceiveComplete(store, snap);
+      logDrawReceiveCommit("after", committed);
+
+      const ref = snap ?? committed.prevSnapshot;
+      if (ref && committed.displayDrawCompletedIds.length >= ref.participantIds.length) {
+        return withPhase(committed, "drawReady", {
+          displayDrawCompletedIds: committed.displayDrawCompletedIds,
           animatingDrawPlayerId: null,
           drawAnimSubPhase: "done",
           pendingSnapshot: null,
-          prevSnapshot: { ...ref, drawCompletedIds: [...nextCompleted] },
-          drawPresentationConsumedIds: mergeDrawPresentationConsumed(store, nextCompleted),
+          prevSnapshot: { ...ref, drawCompletedIds: [...committed.displayDrawCompletedIds] },
+          drawPresentationConsumedIds: mergeDrawPresentationConsumed(
+            committed,
+            committed.displayDrawCompletedIds,
+          ),
         });
       }
+
       if (ref) {
-        const syncedPrev = { ...ref, drawCompletedIds: [...nextCompleted] };
-        const nextPlayer = pickNextDrawPresentationPlayer(store, ref, nextCompleted);
+        const syncedPrev = { ...ref, drawCompletedIds: [...committed.displayDrawCompletedIds] };
+        const nextPlayer = pickNextDrawPresentationPlayer(
+          committed,
+          ref,
+          committed.displayDrawCompletedIds,
+        );
+        logDrawReceiveCommit("after", committed, {
+          playerId: completingPlayerId,
+          nextCompleted: committed.displayDrawCompletedIds,
+          nextChosen: nextPlayer,
+        });
         if (nextPlayer) {
-          return beginDrawPlayerAnim(store, syncedPrev, nextPlayer, 1, 1, "advancePhase:nextPlayer");
+          logDrawCandidateResolution(committed, ref, nextPlayer, "advancePhase:nextPlayer");
+          return beginDrawPlayerAnim(
+            committed,
+            syncedPrev,
+            nextPlayer,
+            1,
+            1,
+            "advancePhase:nextPlayer",
+          );
         }
-        logDrawCandidateResolution(store, ref, null, "advancePhase:no-next-player");
+        logDrawCandidateResolution(committed, ref, null, "advancePhase:no-next-player");
       }
-      const syncedPrev =
-        ref && playerId ? { ...ref, drawCompletedIds: [...nextCompleted] } : ref;
-      return {
-        ...store,
-        displayDrawCompletedIds: nextCompleted,
-        animatingDrawPlayerId: null,
-        drawAnimSubPhase: "done",
-        prevSnapshot: syncedPrev ?? store.prevSnapshot,
-        drawPresentationConsumedIds: consumedIds,
-      };
+
+      return committed;
     }
 
     case "drawReady":

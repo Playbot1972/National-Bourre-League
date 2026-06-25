@@ -245,6 +245,48 @@ describe("handPresentationMachine", () => {
     assert.equal(phaseScheduleMs(idleDraw, false), 0);
   });
 
+  it("commits receive before arming next server-completed draw player", () => {
+    const botA = "bot_ed1xbsb4";
+    const botB = "bot_nextdraw";
+    const snap = snapshotFromSession({
+      sessionId: "s-receive-commit",
+      handNumber: 1,
+      phase: "draw",
+      participantIds: ["p0", botA, botB],
+      actionOrder: [botA, botB, "p0"],
+      drawCompletedIds: [],
+      turnPlayerId: botA,
+      potAmount: 3,
+    });
+
+    let store = createHandPresentationStore(snap);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA], turnPlayerId: botB },
+    });
+    assert.equal(store.animatingDrawPlayerId, botA);
+    assert.equal(store.drawAnimSubPhase, "discard");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.drawAnimSubPhase, "receive");
+    assert.deepEqual(store.displayDrawCompletedIds, []);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap, drawCompletedIds: [botA, botB], turnPlayerId: "p0" },
+    });
+    assert.equal(store.animatingDrawPlayerId, botA);
+    assert.equal(store.drawAnimSubPhase, "receive");
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.ok(store.displayDrawCompletedIds.includes(botA));
+    assert.equal(store.animatingDrawPlayerId, botB);
+    assert.equal(store.drawAnimSubPhase, "discard");
+
+    const afterCommit = store;
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.deepEqual(store.displayDrawCompletedIds, afterCommit.displayDrawCompletedIds);
+  });
+
   it("animates each draw completion before advancing display list", () => {
     let store = createHandPresentationStore(baseSnap);
     store = reduceHandPresentation(store, {
