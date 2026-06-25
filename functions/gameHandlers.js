@@ -1913,8 +1913,10 @@ export async function handleRecordHand(
 }
 
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
+  console.info("[gameAdvanceBots] start", { roomId, sessionId, actorId });
   await assertRoomMember(db, roomId, actorId);
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  console.info("[gameAdvanceBots] ok", { roomId, sessionId, actorId });
   return { status: "ok" };
 }
 

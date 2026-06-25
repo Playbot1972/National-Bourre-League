@@ -14,6 +14,7 @@ pure engine as the client (`src/game/` → `functions/vendor/game-engine.js`).
 | `gamePlayCard` | Play one card (auto-settles when hand completes) |
 | `gameRecordHand` | Pot / bourré settlement + next-hand reset |
 | `gameVoteCoWinSettlement` | Co-winner split / decline vote |
+| `gameAdvanceBots` | Server bot enrollment / draw / play chain (`advanceSessionBots`) |
 
 ## Setup
 

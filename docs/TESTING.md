@@ -164,6 +164,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | GitHub Actions: hosting OK, functions fail `iam.serviceAccounts.ActAs` | Deploy SA missing **Service Account User** on App Engine default SA and/or `{projectNumber}-compute@developer.gserviceaccount.com` (Gen2 runtime) | `npm run fix:deploy-iam` or `npm run fix:deploy` then re-run **Deploy to Firebase** |
 | GitHub Actions: `failed to parse service account key JSON` / `unexpected token` | `FIREBASE_SERVICE_ACCOUNT` secret corrupted (not raw JSON) | From repo root: `npm run sync:github-sa-secret` or `npm run fix:deploy` |
 | GitHub Actions: functions fail `Cloud Billing API` / `cloudbilling.googleapis.com` disabled | Billing API not enabled on GCP project | `npm run enable:functions-apis` or `npm run fix:deploy` (as project Owner) |
+| `advanceSessionBots` / `gameAdvanceBots` fails with 403 Forbidden (HTML) on booray.win; other callables return 401 | Gen2 callable missing Cloud Run **public invoker** (`gameAdvanceBots` only) | Ensure `functions/index.js` uses `onCall({ invoker: "public" })`, redeploy functions, then `npm run verify:game-callables` (all PASS) |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
 

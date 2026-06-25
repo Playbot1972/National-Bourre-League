@@ -33,7 +33,12 @@ setGlobalOptions({
 const db = getFirestore();
 
 function wrap(handler) {
-  return onCall({ cors: true, serviceAccount: runtimeServiceAccount }, async (request) => {
+  // Gen2 callables run on Cloud Run; invoker must be public so the Firebase
+  // client (httpsCallable from booray.win) can reach the handler. Auth is
+  // enforced inside the wrapper below — not at the Cloud Run IAM layer.
+  return onCall(
+    { cors: true, invoker: "public", serviceAccount: runtimeServiceAccount },
+    async (request) => {
     if (!request.auth?.uid) {
       const { HttpsError } = await import("firebase-functions/v2/https");
       throw new HttpsError("unauthenticated", "Sign in required");
@@ -41,7 +46,8 @@ function wrap(handler) {
     const data = request.data ?? {};
     const actorId = request.auth.uid;
     return handler(db, { ...data, actorId });
-  });
+    },
+  );
 }
 
 /** Nudge bot enrollment / draw / play when the table is waiting on robots. */

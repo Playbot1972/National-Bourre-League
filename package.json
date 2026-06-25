@@ -60,7 +60,7 @@
     "proof:runtime-robot-draw": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/runtime-robot-draw-authority-trace.mjs\"",
     "proof:play-order": "tsx scripts/proof-play-order-trace.ts",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
-    "test:version": "node --test scripts/bump-version.test.mjs scripts/write-firebase-config.test.mjs scripts/validate-service-account-key.test.mjs",
+    "test:version": "node --test scripts/bump-version.test.mjs scripts/write-firebase-config.test.mjs scripts/validate-service-account-key.test.mjs scripts/verify-game-callables.test.mjs",
     "test:functions": "npm run build:game && node scripts/sync-functions-engine.mjs && npm ci --prefix functions --omit=dev && npm test --prefix functions",
     "test": "npm run test:game && npm run test:table && npm run test:session && npm run test:rules && npm run test:version && npm run test:functions",
     "test:e2e": "playwright test",
@@ -77,7 +77,8 @@
     "start": "npm run dev:local",
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
-    "verify:prod": "node scripts/verify-production.mjs"
+    "verify:prod": "node scripts/verify-production.mjs",
+    "verify:game-callables": "node scripts/verify-game-callables.mjs"
   },
   "dependencies": {
     "gsap": "^3.12.7",
