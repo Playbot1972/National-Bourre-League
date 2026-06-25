@@ -55,6 +55,7 @@
     "test:session": "tsx --test src/session/logic.test.ts src/session/dealer.test.ts src/session/liveHand.test.ts src/session/handLifecycle.test.ts src/session/presetNames.test.ts src/session/tableStartup.test.ts src/session/tableHandChoice.test.ts",
     "test:rules": "node --test scripts/bourre-rules.test.mjs scripts/bourre-settlement-integration.test.mjs scripts/pagat-rules-compliance.test.mjs scripts/risk-stakes.test.mjs scripts/room-ante-state.test.mjs scripts/remove-session-player.test.mjs scripts/invite-code.test.mjs scripts/firestore-settlement-rules.test.mjs scripts/local-hand-commit.test.mjs scripts/play-now.test.mjs",
     "test:rules:firestore": "npx firebase emulators:exec --only firestore --project demo-national-bourre-league \"node --test scripts/firestore-settlement-rules.test.mjs\"",
+    "proof:live-settlement": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/live-emulator-settlement-trace.mjs\"",
     "test:feedback": "tsx --test src/table/feedback/feedback.test.ts",
     "test:version": "node --test scripts/bump-version.test.mjs scripts/write-firebase-config.test.mjs scripts/validate-service-account-key.test.mjs",
     "test:functions": "npm run build:game && node scripts/sync-functions-engine.mjs && npm ci --prefix functions --omit=dev && npm test --prefix functions",
