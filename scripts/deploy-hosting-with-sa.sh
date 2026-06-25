@@ -60,25 +60,17 @@ node scripts/check-deploy-version.mjs
 npm run build:hosting
 
 deploy_hosting() {
-  local auth_mode="$1"
-  shift
-  if [[ "$auth_mode" == "adc" ]]; then
-    npx "firebase-tools@${FB_TOOLS}" deploy --only hosting --non-interactive --project "${PROJECT_ID}"
-  else
-    npx "firebase-tools@${FB_TOOLS}" deploy --only hosting --non-interactive --project "${PROJECT_ID}" --token "$1"
-  fi
+  npx "firebase-tools@${FB_TOOLS}" deploy --only hosting --non-interactive --project "${PROJECT_ID}"
 }
 
 echo "==> Deploying hosting…"
-if deploy_hosting adc; then
+if deploy_hosting; then
   :
 else
-  if [[ ! -d functions/node_modules/google-auth-library ]]; then
-    npm ci --prefix functions --omit=dev --silent
-  fi
-  TOKEN="$(node scripts/firebase-ci-access-token.mjs "${KEY_FILE}")"
-  echo "==> ADC failed — retrying with service-account access token"
-  deploy_hosting token "$TOKEN"
+  echo "==> Retrying after clearing local firebase config…"
+  rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
+  gcloud auth activate-service-account --key-file="${KEY_FILE}" --project="${PROJECT_ID}" --quiet 2>/dev/null || true
+  deploy_hosting
 fi
 
 echo ""

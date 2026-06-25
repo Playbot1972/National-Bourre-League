@@ -3,6 +3,7 @@ import { TableSessionView } from "./TableSessionView";
 import { TableThemeProvider } from "./theme/TableThemeContext.tsx";
 import type { TableSessionViewProps } from "./types";
 import { initCardMotion } from "./animations/initMotion";
+import { clearWonTrickCollectionArtifacts } from "./animations/wonTrickPileMotion";
 import {
   initGameFeedback,
   playBigWinFeedback,
@@ -50,6 +51,7 @@ export function mountTableSession(el: HTMLElement, props: TableSessionViewProps)
 }
 
 export function unmountTableSession() {
+  if (rootEl) clearWonTrickCollectionArtifacts(rootEl);
   root?.unmount();
   root = null;
   rootEl = null;
@@ -73,6 +75,7 @@ export {
   forceReleasePresentationForBots,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
+  clearWonTrickCollectionArtifacts,
 };
 
 export type { TableSessionViewProps, TablePlayer, TableSessionData, TableSessionActions } from "./types";

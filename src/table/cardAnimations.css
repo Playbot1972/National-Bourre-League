@@ -255,6 +255,13 @@
   filter: none;
 }
 
+[data-gsap-motion="true"] .btrick--echo-pipeline .btrick__surface {
+  animation: none !important;
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
 @keyframes btrick-sweep-gather {
   0% {
     opacity: 1;
