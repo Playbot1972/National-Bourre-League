@@ -860,10 +860,13 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
 /** Chain bot enrollment, draw, play, and co-win votes until a human must act. */
 export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
   const dealingRule = await getDealingRule(db, roomId);
+  const steps = [];
   for (let step = 0; step < BOT_ADVANCE_MAX_STEPS; step += 1) {
     const snap = await sessionRef(db, roomId, sessionId).get();
     const sessionData = snap.data();
-    if (!sessionData || sessionData.status === "final") return;
+    if (!sessionData || sessionData.status === "final") {
+      return { status: "noop", steps, reason: "session_final_or_missing" };
+    }
 
     const snapshot = buildHandFlowSnapshot({ session: sessionData });
     const hint = resolveBotAdvanceHint({
@@ -871,7 +874,39 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       session: sessionData,
       nowMs: Date.now(),
     });
-    if (!hint) return;
+    if (!hint) {
+      if (step === 0) {
+        console.info(
+          "[bot-advance]",
+          "skip",
+          JSON.stringify({
+            requester: actorId,
+            owner: "server",
+            roomId,
+            sessionId,
+            phase: snapshot.phase,
+            reason: "no_bot_hint",
+          }),
+        );
+      }
+      return { status: "ok", steps };
+    }
+
+    console.info(
+      "[bot-advance]",
+      "execute",
+      JSON.stringify({
+        requester: actorId,
+        owner: "server",
+        roomId,
+        sessionId,
+        step,
+        phase: snapshot.phase,
+        kind: hint.kind,
+        turnPlayerId: hint.turnPlayerId,
+      }),
+    );
+    steps.push({ kind: hint.kind, turnPlayerId: hint.turnPlayerId, phase: snapshot.phase });
 
     switch (hint.kind) {
       case "cowin": {
@@ -920,9 +955,10 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         await executeBotPlay(db, roomId, sessionId, hint.turnPlayerId, actorId);
         break;
       default:
-        return;
+        return { status: "ok", steps, reason: "unknown_hint" };
     }
   }
+  return { status: "ok", steps, capped: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -1878,9 +1914,19 @@ export async function handleRecordHand(
 }
 
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
+  console.info(
+    "[bot-advance]",
+    "request",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId }),
+  );
   await assertRoomMember(db, roomId, actorId);
-  await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  return { status: "ok" };
+  const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  console.info(
+    "[bot-advance]",
+    "complete",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
+  );
+  return { status: "ok", ...result };
 }
 
 export async function handleVoteCoWinSettlement(

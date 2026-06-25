@@ -18,9 +18,10 @@ import {
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
-  shouldClientDriveRobotDraw,
-  shouldUseServerBotAdvanceForDraw,
-} from "./robot-draw-authority.js";
+  shouldClientDriveBotsDirectly,
+  shouldRequestServerBotAdvance,
+  logBotOrchestrator,
+} from "./bot-orchestrator.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   clearSessionSetupSheetSnap,
@@ -919,7 +920,11 @@ let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
 let botAdvanceInFlight = false;
+let botAdvanceScheduledTimer = null;
+let pendingBotAdvanceWake = false;
+let botAdvanceLastCompletedAt = 0;
 let lastRobotTrickAt = 0;
+const BOT_ADVANCE_DEBOUNCE_MS = 150;
 const ROBOT_PRESENTATION_SOFT_MS = 3_500;
 const ROBOT_PRESENTATION_FORCE_MS = 4_000;
 let robotPresentationBlockEpisode = null;
@@ -1276,6 +1281,7 @@ function stopEnrollmentTimer() {
     clearInterval(enrollmentTimer);
     enrollmentTimer = null;
   }
+  clearBotAdvanceSchedule();
   stopRobotPresentationSubscription();
 }
 
@@ -1293,6 +1299,10 @@ function startEnrollmentTimer() {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);
     if (!sessionObj || sessionObj.status === "final") {
       stopEnrollmentTimer();
+      return;
+    }
+    if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+      processRobotActions(sessionObj, openScores);
       return;
     }
     if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
@@ -2618,6 +2628,146 @@ function processRobotActions(s, scores) {
   }
 }
 
+function clearBotAdvanceSchedule() {
+  if (botAdvanceScheduledTimer) {
+    clearTimeout(botAdvanceScheduledTimer);
+    botAdvanceScheduledTimer = null;
+  }
+}
+
+function snapshotBotOrchestratorContext(s, scores, extra = {}) {
+  const ch = getSessionCurrentHand(s);
+  return {
+    ...snapshotGameFlowContext(s, scores),
+    ...extra,
+    pendingCoWin: Boolean(s?.pendingCoWinSettlement),
+    enrollmentActive: Boolean(getSessionEnrollment(s)?.active),
+    needsBotDriver: sessionNeedsBotDriver(s, scores),
+  };
+}
+
+/**
+ * Debounced client request for server-owned bot advancement.
+ * The server (advanceBotsAfterAction) is the sole executor when authority is on.
+ */
+function scheduleServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
+  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+    logBotOrchestrator("skip-request", {
+      reason: "server_authority_off_or_table_closed",
+      requester: actorId,
+      owner: "server",
+      trigger: reason,
+    });
+    return;
+  }
+  if (!sessionNeedsBotDriver(s, scores)) {
+    logBotOrchestrator("skip-request", {
+      reason: "no_bot_driver_needed",
+      requester: actorId,
+      owner: "server",
+      trigger: reason,
+      ...snapshotBotOrchestratorContext(s, scores),
+    });
+    return;
+  }
+  if (shouldBlockRobotForPresentation(s, scores)) {
+    logBotOrchestrator("skip-request", {
+      reason: "presentation_blocked",
+      requester: actorId,
+      owner: "server",
+      trigger: reason,
+      ...snapshotBotOrchestratorContext(s, scores),
+    });
+    return;
+  }
+
+  const handPhase = getSessionCurrentHand(s)?.phase ?? null;
+  const minGap = handPhase === "play" ? ROBOT_TRICK_INTERVAL_MS : 0;
+  const elapsed = Date.now() - botAdvanceLastCompletedAt;
+  const delay = Math.max(BOT_ADVANCE_DEBOUNCE_MS, minGap > 0 ? minGap - elapsed : 0);
+
+  if (botAdvanceInFlight) {
+    pendingBotAdvanceWake = true;
+    logBotOrchestrator("coalesce-request", {
+      reason: "advance_in_flight",
+      requester: actorId,
+      owner: "server",
+      trigger: reason,
+      delayMs: delay,
+    });
+    return;
+  }
+
+  clearBotAdvanceSchedule();
+  botAdvanceScheduledTimer = setTimeout(() => {
+    botAdvanceScheduledTimer = null;
+    void executeServerBotAdvance(s, scores, actorId, { reason });
+  }, delay);
+
+  logBotOrchestrator("schedule-request", {
+    requester: actorId,
+    owner: "server",
+    trigger: reason,
+    delayMs: delay,
+    ...snapshotBotOrchestratorContext(s, scores),
+  });
+}
+
+async function executeServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
+  if (!currentRoomId || !openSessionId || botAdvanceInFlight) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId) ?? s;
+  if (!sessionObj || sessionObj.status === "final") return;
+  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) return;
+  if (!sessionNeedsBotDriver(sessionObj, scores)) return;
+  if (shouldBlockRobotForPresentation(sessionObj, scores)) {
+    pendingBotAdvanceWake = true;
+    return;
+  }
+
+  botAdvanceInFlight = true;
+  const ctx = snapshotBotOrchestratorContext(sessionObj, scores, { trigger: reason });
+  logBotOrchestrator("request", {
+    requester: actorId,
+    owner: "server",
+    roomId: currentRoomId,
+    sessionId: openSessionId,
+    ...ctx,
+  });
+
+  try {
+    const result = await advanceSessionBots(currentRoomId, openSessionId, {
+      requester: actorId,
+      trigger: reason,
+    });
+    botAdvanceLastCompletedAt = Date.now();
+    logBotOrchestrator("complete", {
+      requester: actorId,
+      owner: "server",
+      roomId: currentRoomId,
+      sessionId: openSessionId,
+      result,
+      ...ctx,
+    });
+  } catch (err) {
+    logBotOrchestrator("error", {
+      requester: actorId,
+      owner: "server",
+      roomId: currentRoomId,
+      sessionId: openSessionId,
+      message: err?.message ?? String(err),
+      ...ctx,
+    });
+    console.warn("advanceSessionBots:", err);
+  } finally {
+    botAdvanceInFlight = false;
+    if (pendingBotAdvanceWake) {
+      pendingBotAdvanceWake = false;
+      const latest = currentSessions.find((x) => x.id === openSessionId);
+      if (latest) scheduleServerBotAdvance(latest, openScores, actorId, { reason: "wake" });
+    }
+  }
+}
+
 function stopRobotPresentationSubscription() {
   if (robotPresentationUnsub) {
     robotPresentationUnsub();
@@ -2800,27 +2950,24 @@ function snapshotGameFlowContext(s, scores) {
 function processRobotActionsInner(s, scores) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
-  if (!actorId || robotActionInFlight) return;
+  if (!actorId) return;
 
   const robotScores = scores.filter(
     (sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId),
   );
   if (!robotScores.length) return;
 
+  // Single-owner path: client requests; server executes all bot phases.
+  if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+    scheduleServerBotAdvance(s, scores, actorId, { reason: "processRobotActions" });
+    return;
+  }
+
+  if (robotActionInFlight) return;
+
   const now = Date.now();
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
-    if (SERVER_HAND_AUTHORITY && tablePlayOpen) {
-      if (!botAdvanceInFlight) {
-        botAdvanceInFlight = true;
-        advanceSessionBots(currentRoomId, openSessionId)
-          .catch((e) => console.warn("advanceSessionBots:", e))
-          .finally(() => {
-            botAdvanceInFlight = false;
-          });
-      }
-      return;
-    }
     if (!tablePlayOpen) return;
     if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
@@ -2830,8 +2977,8 @@ function processRobotActionsInner(s, scores) {
     }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
     const committedIds = enrollment.enrolledIds || [];
-  const handPhase = getSessionCurrentHand(s)?.phase;
-  const isPagatDecision = handPhase === "decision";
+    const handPhase = getSessionCurrentHand(s)?.phase;
+    const isPagatDecision = handPhase === "decision";
     if (
       currentId &&
       isRobotPlayerId(currentId) &&
@@ -2884,22 +3031,9 @@ function processRobotActionsInner(s, scores) {
   if (!participants.length) return;
 
   const handPhase = currentHand.phase;
-  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
-    if (shouldUseServerBotAdvanceForDraw(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
-      if (!botAdvanceInFlight) {
-        botAdvanceInFlight = true;
-        advanceSessionBots(currentRoomId, openSessionId)
-          .catch((e) => console.warn("advanceSessionBots:", e))
-          .finally(() => {
-            botAdvanceInFlight = false;
-          });
-      }
-      return;
-    }
-
-    if (!shouldClientDriveRobotDraw(SERVER_HAND_AUTHORITY)) {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY)) {
       return;
     }
 
@@ -2934,6 +3068,10 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY)) {
+      return;
+    }
+
     if (shouldBlockRobotForPresentation(s, scores)) {
       return;
     }
@@ -2946,7 +3084,6 @@ function processRobotActionsInner(s, scores) {
     const total = totalTricksPlayed(tricks, participants);
     if (total >= MAX_TRICKS_PER_HAND) return;
 
-    // Bots only: auto-lead trick 5 so the final trick does not stall on a robot seat.
     if (
       trickNum === 5 &&
       trickPlays === 0 &&

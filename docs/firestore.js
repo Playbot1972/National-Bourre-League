@@ -3887,9 +3887,33 @@ export async function applyRankingResults(roomId, sessionId, results) {
 }
 
 /** Ask Cloud Functions to run bot enrollment / draw / play through robot turns. */
-export async function advanceSessionBots(roomId, sessionId) {
-  if (!SERVER_HAND_AUTHORITY) return { status: "skipped" };
-  return gameAdvanceBots(roomId, sessionId);
+export async function advanceSessionBots(roomId, sessionId, meta = {}) {
+  if (!SERVER_HAND_AUTHORITY) {
+    console.info(
+      "[bot-orchestrator]",
+      "skip-call",
+      JSON.stringify({ reason: "server_authority_disabled", roomId, sessionId, ...meta }),
+    );
+    return { status: "skipped", reason: "server_authority_disabled" };
+  }
+  console.info(
+    "[bot-orchestrator]",
+    "invoke-gameAdvanceBots",
+    JSON.stringify({
+      requester: meta.requester ?? null,
+      owner: "server",
+      trigger: meta.trigger ?? "client",
+      roomId,
+      sessionId,
+    }),
+  );
+  const result = await gameAdvanceBots(roomId, sessionId);
+  console.info(
+    "[bot-orchestrator]",
+    "gameAdvanceBots-result",
+    JSON.stringify({ roomId, sessionId, requester: meta.requester ?? null, result }),
+  );
+  return result;
 }
 
 // Firestore Timestamp | server placeholder | undefined → comparable seconds.

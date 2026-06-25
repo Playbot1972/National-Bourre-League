@@ -29,12 +29,15 @@ describe("robot draw authority", () => {
 
   it("draw branch in app.js gates robotSubmitDraw behind server authority", () => {
     const src = readFileSync(fileURLToPath(new URL("../docs/app.js", import.meta.url)), "utf8");
-    const drawIdx = src.indexOf('if (handPhase === "draw")');
+    const innerIdx = src.indexOf("function processRobotActionsInner");
+    assert.ok(innerIdx >= 0);
+    const slice = src.slice(innerIdx, innerIdx + 1500);
+    assert.ok(slice.includes("shouldRequestServerBotAdvance"));
+    assert.ok(slice.includes("scheduleServerBotAdvance"));
+    const drawIdx = src.indexOf('if (handPhase === "draw")', innerIdx);
     assert.ok(drawIdx >= 0);
-    const slice = src.slice(drawIdx, drawIdx + 2500);
-    assert.ok(slice.includes("shouldUseServerBotAdvanceForDraw"));
-    assert.ok(slice.includes("advanceSessionBots"));
-    assert.ok(slice.indexOf("advanceSessionBots") < slice.indexOf("robotSubmitDraw"));
-    assert.ok(slice.indexOf("shouldClientDriveRobotDraw") < slice.indexOf("robotSubmitDraw"));
+    const drawSlice = src.slice(drawIdx, drawIdx + 1200);
+    assert.ok(drawSlice.includes("shouldClientDriveBotsDirectly"));
+    assert.ok(drawSlice.indexOf("shouldClientDriveBotsDirectly") < drawSlice.indexOf("robotSubmitDraw"));
   });
 });
