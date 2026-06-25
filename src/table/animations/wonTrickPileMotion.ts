@@ -230,11 +230,17 @@ export function animateTrickCardsToWonPile(
   return tl;
 }
 
+export function hasActiveWonTrickFlights(): boolean {
+  return ACTIVE_WON_TRICK_FLIGHTS.size > 0;
+}
+
 export function readTrickRowCardElements(root: ParentNode): HTMLElement[] {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-  return [
+  const live = [
     ...doc.querySelectorAll<HTMLElement>(
       '[data-trick-variant="live"] .btrick__play .pcard, [data-testid="trick-row"] .btrick__play .pcard',
     ),
   ].filter((el) => el.closest('[data-trick-variant="echo"]') == null);
+  if (live.length > 0) return live;
+  return [...doc.querySelectorAll<HTMLElement>('[data-trick-variant="echo"] .btrick__play .pcard')];
 }

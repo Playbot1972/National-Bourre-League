@@ -1,10 +1,12 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import type { TrickPresentation } from "./useTrickPresentation";
 import {
   animateTrickCardsToWonPile,
   clearWonTrickCollectionArtifacts,
+  hasActiveWonTrickFlights,
   killWonTrickFlights,
   readTrickRowCardElements,
+  WON_TRICK_FLY_MAX_MS,
 } from "../animations/wonTrickPileMotion";
 import { wonTrickBookKey } from "../wonTrickPileModel";
 
@@ -20,7 +22,8 @@ const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
 
 /**
  * GSAP trick collection — visual-only, non-blocking for bot presentation gate.
- * Clears ghosts and presentation flags when each trick or hand resolves.
+ * Clears ghosts and presentation flags when each hand resolves; defers trick cleanup
+ * until the fly finishes so the animation is not cut off mid-flight.
  */
 export function useWonTrickCollection({
   trickPresentation,
@@ -32,6 +35,23 @@ export function useWonTrickCollection({
   const lastCollectKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
   const prevPhaseRef = useRef(trickPresentation.phase);
+  const trickCleanupTimerRef = useRef<number | null>(null);
+
+  const clearTrickCleanupTimer = () => {
+    if (trickCleanupTimerRef.current != null) {
+      window.clearTimeout(trickCleanupTimerRef.current);
+      trickCleanupTimerRef.current = null;
+    }
+  };
+
+  const scheduleTrickArtifactCleanup = (root: HTMLElement) => {
+    clearTrickCleanupTimer();
+    const delay = hasActiveWonTrickFlights() ? WON_TRICK_FLY_MAX_MS + 60 : 0;
+    trickCleanupTimerRef.current = window.setTimeout(() => {
+      trickCleanupTimerRef.current = null;
+      clearAllPileRevealFlags(root);
+    }, delay);
+  };
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -40,12 +60,14 @@ export function useWonTrickCollection({
     if (handNumberRef.current !== handNumber) {
       handNumberRef.current = handNumber;
       lastCollectKeyRef.current = null;
+      clearTrickCleanupTimer();
       clearWonTrickCollectionArtifacts(root);
       return;
     }
 
     if (handComplete || (sessionPhase != null && sessionPhase !== "play")) {
       lastCollectKeyRef.current = null;
+      clearTrickCleanupTimer();
       clearWonTrickCollectionArtifacts(root);
     }
   }, [handNumber, handComplete, sessionPhase, tableRootRef]);
@@ -59,13 +81,11 @@ export function useWonTrickCollection({
     if (!root) return;
 
     if (prev === "collectTrick" && TRICK_RESOLVED_PHASES.has(phase)) {
-      clearWonTrickCollectionArtifacts(root);
+      lastCollectKeyRef.current = null;
+      scheduleTrickArtifactCleanup(root);
     }
 
     if (phase !== "collectTrick") {
-      if (TRICK_RESOLVED_PHASES.has(phase)) {
-        lastCollectKeyRef.current = null;
-      }
       return;
     }
 
@@ -77,6 +97,7 @@ export function useWonTrickCollection({
     if (lastCollectKeyRef.current === collectKey) return;
     lastCollectKeyRef.current = collectKey;
 
+    clearTrickCleanupTimer();
     killWonTrickFlights();
     removeStaleGhosts(root);
 
@@ -111,13 +132,22 @@ export function useWonTrickCollection({
     tableRootRef,
   ]);
 
+  useEffect(() => () => clearTrickCleanupTimer(), []);
+
   useLayoutEffect(() => {
     const root = tableRootRef.current;
     return () => {
+      clearTrickCleanupTimer();
       if (root) clearWonTrickCollectionArtifacts(root);
       else killWonTrickFlights();
     };
   }, [tableRootRef]);
+}
+
+function clearAllPileRevealFlags(root: ParentNode): void {
+  for (const seat of root.querySelectorAll(".bseat--pile-reveal-ready")) {
+    seat.classList.remove("bseat--pile-reveal-ready");
+  }
 }
 
 function removeStaleGhosts(root: ParentNode): void {
