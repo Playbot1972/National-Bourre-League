@@ -43,6 +43,14 @@ deploy_adc() {
   npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
 }
 
+deploy_token() {
+  local token="$1"
+  echo "firebase-auth=service-account-access-token"
+  echo "firebase-tools=${FB_TOOLS}"
+  npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
+  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$token" "${@:2}"
+}
+
 activate_sa
 if deploy_adc "${@:2}"; then
   exit 0
@@ -51,4 +59,13 @@ fi
 echo "::warning::ADC deploy failed — re-activating service account and retrying once"
 rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 activate_sa
-deploy_adc "${@:2}"
+if deploy_adc "${@:2}"; then
+  exit 0
+fi
+
+echo "::warning::ADC deploy failed again — minting service-account access token"
+if [[ ! -d functions/node_modules/google-auth-library ]]; then
+  npm ci --prefix functions --omit=dev --silent
+fi
+TOKEN="$(node scripts/firebase-ci-access-token.mjs "$CREDS")"
+deploy_token "$TOKEN" "${@:2}"
