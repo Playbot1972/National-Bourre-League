@@ -118,6 +118,26 @@ async function checkSocialApp() {
   return { ok: true, detail: `HTTP ${status} from /social/` };
 }
 
+/** @returns {Promise<CheckResult>} */
+async function checkTableSessionBundle() {
+  const { ok, body } = await fetchPath("/social/table-session.js");
+  if (!ok) return { ok: false, detail: "Could not fetch /social/table-session.js" };
+
+  const markers = [
+    "getTablePresentationBlockReason",
+    "draw-receive-commit",
+    "reinit-play-entry",
+  ];
+  const missing = markers.filter((m) => !body.includes(m));
+  if (missing.length) {
+    return {
+      ok: false,
+      detail: `table-session.js missing fixes: ${missing.join(", ")} — presentation patches not deployed`,
+    };
+  }
+  return { ok: true, detail: `table-session.js includes ${markers.length} presentation-gate markers` };
+}
+
 /**
  * @param {string} label
  * @param {CheckResult} result
@@ -141,6 +161,9 @@ print("Firebase config", firebase);
 const social = await checkSocialApp();
 print("Social app", social);
 
-const passed = version.ok && buildMeta.ok && firebase.ok && social.ok;
+const tableBundle = await checkTableSessionBundle();
+print("Table session bundle", tableBundle);
+
+const passed = version.ok && buildMeta.ok && firebase.ok && social.ok && tableBundle.ok;
 console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
 process.exit(passed ? 0 : 1);
