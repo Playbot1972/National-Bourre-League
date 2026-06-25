@@ -99,11 +99,10 @@ describe("E/H — settlement integration", () => {
       assert.ok(typeof result.deltas[pid] === "number");
     }
     if (winnerIds.length === 1) {
+      assert.ok(result.deltas[winnerIds[0]] > 0);
       if (result.bourreIds.length > 0) {
         assert.ok(result.carryOverPot > 0);
-        assert.ok(result.deltas[winnerIds[0]] <= 0);
-      } else {
-        assert.ok(result.deltas[winnerIds[0]] > 0);
+        assert.equal(result.carryOverPot, result.bourreMatch);
       }
     }
     if (result.bourreMatch > 0) {
