@@ -278,6 +278,51 @@ export function nextDealFundingFlags({
 }
 
 /**
+ * Session-level snapshot written atomically with settlement — deal transactions merge
+ * this over score rows so a stale in-memory scoreById cannot drop bourré replacement.
+ */
+export function buildNextDealFundingSnapshot({
+  settledPot,
+  bourreIds,
+  participants,
+  mode,
+  winners,
+}) {
+  const byPlayer = {};
+  for (const pid of participants || []) {
+    byPlayer[pid] = nextDealFundingFlags({
+      playerId: pid,
+      mode,
+      winners,
+      bourreIds,
+      settledPot,
+    });
+  }
+  return {
+    settledPot: Math.max(0, Number(settledPot) || 0),
+    bourreIds: [...(bourreIds || [])],
+    byPlayer,
+  };
+}
+
+/** Apply session nextDealFunding onto score rows before collectNextHandAntes. */
+export function mergeNextDealFundingIntoScoreById(scoreById, nextDealFunding) {
+  if (!nextDealFunding?.byPlayer) return scoreById || {};
+  const merged = { ...(scoreById || {}) };
+  for (const [pid, flags] of Object.entries(nextDealFunding.byPlayer)) {
+    const row = { ...(merged[pid] || {}) };
+    if (flags.bourreReplacementDue != null) {
+      row.bourreReplacementDue = flags.bourreReplacementDue;
+    }
+    if (flags.skipNextAnte) {
+      row.skipNextAnte = true;
+    }
+    merged[pid] = row;
+  }
+  return merged;
+}
+
+/**
  * Canonical next-hand ante collection: carry + per-player obligations (ante, waived, bourré).
  * Bourré players post the full settled previous-hand pot only — no extra ante.
  */

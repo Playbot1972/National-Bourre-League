@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, logBourreAccounting } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, logBourreAccounting } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -474,6 +474,7 @@ function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
     liveEnrollment: FieldValue.delete(),
     currentHand: patch.currentHand ?? emptyPreDealHand(),
     pendingCoWinSettlement: FieldValue.delete(),
+    nextDealFunding: FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 }
@@ -665,6 +666,7 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
     if (patch.carryOverPotAdjust > 0) {
       sessionUpdate.carryOverPot = FieldValue.increment(patch.carryOverPotAdjust);
     }
+    sessionUpdate.nextDealFunding = FieldValue.delete();
     tx.update(ref, sessionUpdate);
     return;
   }
@@ -1044,7 +1046,10 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     if (!sessionSnap.exists) return;
     const freshData = sessionSnap.data();
     const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId));
-    const freshScoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const freshScoreById = mergeNextDealFundingIntoScoreById(
+      Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()])),
+      freshData.nextDealFunding,
+    );
     const autoPatch = buildDealCompletionPatch(
       freshData.dealerId,
       dealExtras.eligibleIds,
@@ -1150,7 +1155,10 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
     const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId));
-    const freshScoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const freshScoreById = mergeNextDealFundingIntoScoreById(
+      Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()])),
+      data.nextDealFunding,
+    );
     const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
       dealerId: data.dealerId,
       sortedPlayerIds,
@@ -1291,7 +1299,10 @@ export async function handleSetHandParticipation(
         const enrolledIds = [...(enrollment.enrolledIds || [])];
         const declinedIds = [...(enrollment.declinedIds || []), playerId];
         const scoreSnapTx = await tx.get(scoresCol(db, roomId, sessionId));
-        const freshScoreById = Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()]));
+        const freshScoreById = mergeNextDealFundingIntoScoreById(
+          Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()])),
+          data.nextDealFunding,
+        );
         const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
           dealerId: data.dealerId,
           sortedPlayerIds,
@@ -1315,7 +1326,10 @@ export async function handleSetHandParticipation(
       const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
       const declinedIds = [...(enrollment.declinedIds || [])];
       const scoreSnapTx = await tx.get(scoresCol(db, roomId, sessionId));
-      const freshScoreById = Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()]));
+      const freshScoreById = mergeNextDealFundingIntoScoreById(
+        Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()])),
+        data.nextDealFunding,
+      );
       const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
         dealerId: data.dealerId,
         sortedPlayerIds,
@@ -1600,7 +1614,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   if (!sessionSnap.exists) return { status: "noop" };
   const sessionData = sessionSnap.data();
-  const currentHand = sessionData.currentHand || {};
+  const currentHand = getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
@@ -1869,6 +1883,13 @@ export async function handleRecordHand(
 
   const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap.docs);
+  const nextDealFunding = buildNextDealFundingSnapshot({
+    settledPot: potState.currentPot,
+    bourreIds,
+    participants,
+    mode,
+    winners,
+  });
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
   batch.update(sessionRef(db, roomId, sessionId), {
     handCount: handNumber,
@@ -1876,6 +1897,7 @@ export async function handleRecordHand(
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: FieldValue.delete(),
+    nextDealFunding,
     handEnrollment: FieldValue.delete(),
     liveEnrollment: FieldValue.delete(),
     currentHand: emptyPreDealHand(),
