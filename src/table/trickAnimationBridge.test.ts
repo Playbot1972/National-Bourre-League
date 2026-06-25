@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  BOT_PRESENTATION_FORCE_RELEASE_MS,
+  BOT_PRESENTATION_SOFT_UNBLOCK_MS,
+  evaluateBotPresentationGate,
   getTablePresentationBlockReason,
   getTrickAnimationBusyState,
+  handPresentingBlocksBots,
   isTablePresentationBusy,
+  isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
@@ -102,5 +107,41 @@ describe("trickAnimationBridge", () => {
     });
     assert.equal(getTrickAnimationBusyState().revealCatchUp, true);
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
+  });
+
+  it("does not block bots for drawPlayer during server draw phase", () => {
+    assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
+  });
+
+  it("soft-unblocks bots after presentation wait threshold", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+    });
+    const start = 1_000_000;
+    const blocked = evaluateBotPresentationGate(start);
+    assert.equal(blocked.blocked, true);
+    const soft = evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS);
+    assert.equal(soft.blocked, false);
+    assert.equal(soft.softUnblock, true);
+    assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS), false);
+  });
+
+  it("force-releases presentation after hard timeout", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      pipelineActive: true,
+    });
+    const start = 2_000_000;
+    evaluateBotPresentationGate(start);
+    const forced = evaluateBotPresentationGate(start + BOT_PRESENTATION_FORCE_RELEASE_MS);
+    assert.equal(forced.forceReleased, true);
+    assert.equal(isTablePresentationBusy(), false);
+    assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
   });
 });

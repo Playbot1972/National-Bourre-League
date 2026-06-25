@@ -9,7 +9,7 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS } from "../handPresentationTiming";
+import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -210,7 +210,11 @@ export function useHandPresentation({
       }
       dispatch({ type: "advancePhase" });
     }, delay);
-    schedule(() => dispatch({ type: "watchdog" }), PRESENTATION_WATCHDOG_MS);
+    const watchdogMs =
+      store.phase === "drawPlayer" || store.phase === "drawReady"
+        ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
+        : PRESENTATION_WATCHDOG_MS;
+    schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
   }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
   useEffect(() => {

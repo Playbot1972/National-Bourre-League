@@ -224,6 +224,35 @@ function isDrawPresentationInFlight(store: HandPresentationStore): boolean {
   );
 }
 
+/** Server advanced to another draw seat — skip lagging peer animation. */
+function fastForwardStaleDrawPresentation(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore | null {
+  if (snapshot.phase !== "draw") return null;
+  if (!isDrawPresentationInFlight(store)) return null;
+  const animating = store.animatingDrawPlayerId;
+  const turnId = snapshot.turnPlayerId;
+  if (!animating || !turnId) return null;
+  if (snapshot.drawCompletedIds.includes(turnId)) return null;
+  if (animating === turnId && !snapshot.drawCompletedIds.includes(animating)) {
+    return null;
+  }
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("handPresentation", "fast-forward-stale-draw", {
+      animating,
+      turnId,
+      drawCompleted: snapshot.drawCompletedIds,
+    });
+  }
+  const committed = commitDrawPlayerReceiveComplete(store, snapshot);
+  return {
+    ...committed,
+    pendingSnapshot: snapshot,
+    prevSnapshot: snapshot,
+  };
+}
+
 function markDrawPresentationConsumed(
   store: HandPresentationStore,
   playerId: string | null | undefined,
@@ -592,6 +621,11 @@ function reduceHandPresentationCore(
       }
 
       if (snapshot.phase === "draw") {
+        const fastForwarded = fastForwardStaleDrawPresentation(store, snapshot);
+        if (fastForwarded) {
+          store = fastForwarded;
+        }
+
         const completed = nextDrawPresentationTarget(store, prev, snapshot);
         if (completed && store.phase !== "drawReady") {
           const animatingNow =

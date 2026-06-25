@@ -15,6 +15,11 @@ export interface TrickAnimationBusyState {
   handPresentationPhase: string;
 }
 
+/** After this, bot driver may proceed even if presentation is still busy. */
+export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 3_500;
+/** After this, presentation busy flags are force-cleared for bots. */
+export const BOT_PRESENTATION_FORCE_RELEASE_MS = 4_000;
+
 const IDLE: TrickAnimationBusyState = {
   pipelineActive: false,
   revealCatchUp: false,
@@ -27,6 +32,13 @@ const IDLE: TrickAnimationBusyState = {
 
 let state: TrickAnimationBusyState = IDLE;
 const listeners = new Set<() => void>();
+
+let botGateBypassUntil = 0;
+let blockEpisode: {
+  reason: string;
+  since: number;
+  blockedLogged: boolean;
+} | null = null;
 
 function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): boolean {
   return (
@@ -57,6 +69,134 @@ function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
   return getTablePresentationBlockReason(s) != null;
 }
 
+/**
+ * Whether hand presentation should block bot draw/play.
+ * During server draw phase, peer draw animations are visual-only.
+ */
+export function handPresentingBlocksBots(
+  isPresenting: boolean,
+  handPresentationPhase: string,
+  sessionPhase: string | null | undefined,
+): boolean {
+  if (!isPresenting) return false;
+  if (sessionPhase === "play") return false;
+  if (sessionPhase === "draw") {
+    if (handPresentationPhase === "drawPlayer" || handPresentationPhase === "drawReady") {
+      return false;
+    }
+  }
+  return true;
+}
+
+export interface BotPresentationGateResult {
+  blocked: boolean;
+  reason: string | null;
+  blockedMs: number;
+  softUnblock: boolean;
+  forceReleased: boolean;
+}
+
+export function forceReleasePresentationForBots(source: string): void {
+  const from = { ...state };
+  const blockedMs = blockEpisode ? Date.now() - blockEpisode.since : 0;
+  const cleared: TrickAnimationBusyState = {
+    ...state,
+    pipelineActive: false,
+    revealCatchUp: false,
+    handPresenting: false,
+    handPresentationPhase: "idle",
+    peakPlayCount: state.displayedPlayCount,
+    motionGateActive: false,
+  };
+  botGateBypassUntil = Date.now() + 1_500;
+  blockEpisode = null;
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("trickAnimationBridge", "table-presentation-force-release", {
+      source,
+      blockedMs,
+      from,
+      to: cleared,
+    });
+  }
+  setTrickAnimationBusyState(cleared);
+}
+
+export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGateResult {
+  if (now < botGateBypassUntil) {
+    return {
+      blocked: false,
+      reason: null,
+      blockedMs: 0,
+      softUnblock: false,
+      forceReleased: false,
+    };
+  }
+
+  const reason = getTablePresentationBlockReason(state);
+  if (reason == null) {
+    blockEpisode = null;
+    return {
+      blocked: false,
+      reason: null,
+      blockedMs: 0,
+      softUnblock: false,
+      forceReleased: false,
+    };
+  }
+
+  if (!blockEpisode || blockEpisode.reason !== reason) {
+    blockEpisode = { reason, since: now, blockedLogged: false };
+  }
+
+  const blockedMs = now - blockEpisode.since;
+
+  if (blockedMs >= BOT_PRESENTATION_FORCE_RELEASE_MS) {
+    if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
+      logGameFlow("trickAnimationBridge", "gate-force-release", { reason, blockedMs });
+    }
+    forceReleasePresentationForBots("gate-timeout");
+    return {
+      blocked: false,
+      reason,
+      blockedMs,
+      softUnblock: true,
+      forceReleased: true,
+    };
+  }
+
+  if (blockedMs >= BOT_PRESENTATION_SOFT_UNBLOCK_MS) {
+    if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
+      logGameFlow("trickAnimationBridge", "gate-soft-unblock", { reason, blockedMs });
+      blockEpisode.blockedLogged = true;
+    }
+    return {
+      blocked: false,
+      reason,
+      blockedMs,
+      softUnblock: true,
+      forceReleased: false,
+    };
+  }
+
+  if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
+    logGameFlow("trickAnimationBridge", "gate-blocked", { reason, blockedMs });
+    blockEpisode.blockedLogged = true;
+  }
+
+  return {
+    blocked: true,
+    reason,
+    blockedMs,
+    softUnblock: false,
+    forceReleased: false,
+  };
+}
+
+/** Bot driver gate — includes soft/force timeout overrides. */
+export function isTablePresentationBusyForBots(now = Date.now()): boolean {
+  return evaluateBotPresentationGate(now).blocked;
+}
+
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
   if (statesEqual(state, next)) return;
   if (isGameFlowDebugEnabled()) {
@@ -70,10 +210,15 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
     });
   }
   state = next;
+  if (getTablePresentationBlockReason(next) == null) {
+    blockEpisode = null;
+  }
   for (const listener of listeners) listener();
 }
 
 export function resetTrickAnimationBusyState(): void {
+  botGateBypassUntil = 0;
+  blockEpisode = null;
   setTrickAnimationBusyState(IDLE);
 }
 

@@ -44,6 +44,9 @@ export const HAND_RESET_MS = 500;
 /** Maximum time any single presentation phase may hold before forced advance. */
 export const PRESENTATION_WATCHDOG_MS = 12_000;
 
+/** Shorter watchdog during draw animations so bots are not stalled by stuck phases. */
+export const BOT_DRAW_PRESENTATION_WATCHDOG_MS = 4_000;
+
 export type HandPresentationPhase =
   | "idle"
   | "handReset"
