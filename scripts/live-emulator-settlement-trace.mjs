@@ -4,7 +4,7 @@
  *
  * Scenarios:
  *   single-bourre  — A wins, C bourrés, D folded (default)
- *   multi-bourre   — A sweeps 5 tricks, B and C bourrés
+ *   multi-bourre   — A wins 5 tricks, B and C bourrés, D folded (pot $20)
  *
  * Run:
  *   npm run proof:live-settlement
@@ -55,22 +55,27 @@ const SCENARIOS = {
     emailPrefix: "multi",
     carryIn: 17,
     settledPot: 17 + 3 * ANTE,
+    potComposition: { carryIn: 17, activeAntes: { A: 1, B: 1, C: 1 }, formula: "17 + 1 + 1 + 1 = 20" },
     tricksByPlayer: (ids) => ({ [ids.HOST]: 5, [ids.P2]: 0, [ids.P3]: 0 }),
     postedAntes: (ids) => ({ [ids.HOST]: ANTE, [ids.P2]: ANTE, [ids.P3]: ANTE }),
     active: (ids) => [ids.HOST, ids.P2, ids.P3],
-    folded: () => [],
-    all: (ids) => [ids.HOST, ids.P2, ids.P3],
-    labels: { host: "A(host)", p2: "B", p3: "C" },
+    folded: (ids) => [ids.P4],
+    all: (ids) => [ids.HOST, ids.P2, ids.P3, ids.P4],
+    labels: { host: "A(host)", p2: "B", p3: "C", p4: "D" },
     bourreExpected: ["B", "C"],
     historicalBugCharges: { B: ANTE, C: ANTE },
     verify: (posted, ids, bourrePlayers, settledPot) => ({
       bourreCharges: { B: posted[ids.P2], C: posted[ids.P3] },
-      nextHandPotExpected: settledPot + settledPot + settledPot + ANTE,
+      foldedDChargedNormalAnte: posted[ids.P4] === ANTE,
+      foldedDNotBourre: !bourrePlayers.includes(ids.P4),
+      nextHandPotExpected: settledPot + settledPot + settledPot + ANTE + ANTE,
       allPassed:
         posted[ids.P2] === settledPot &&
         posted[ids.P3] === settledPot &&
         posted[ids.P2] !== ANTE &&
         posted[ids.P3] !== ANTE &&
+        posted[ids.P4] === ANTE &&
+        !bourrePlayers.includes(ids.P4) &&
         bourrePlayers.includes(ids.P2) &&
         bourrePlayers.includes(ids.P3),
     }),
@@ -275,33 +280,30 @@ async function runScenario(scenarioKey) {
     const hostAuth = await authSignUp(`${scenario.emailPrefix}-p1@test.local`);
     const p2Auth = await authSignUp(`${scenario.emailPrefix}-p2@test.local`);
     const p3Auth = await authSignUp(`${scenario.emailPrefix}-p3@test.local`);
-    const p4Auth =
-      scenarioKey === "single-bourre"
-        ? await authSignUp(`${scenario.emailPrefix}-p4@test.local`)
-        : null;
+    const p4Auth = await authSignUp(`${scenario.emailPrefix}-p4@test.local`);
 
     const ids = {
       HOST: hostAuth.uid,
       P2: p2Auth.uid,
       P3: p3Auth.uid,
-      P4: p4Auth?.uid,
+      P4: p4Auth.uid,
       ALL: scenario.all({
         HOST: hostAuth.uid,
         P2: p2Auth.uid,
         P3: p3Auth.uid,
-        P4: p4Auth?.uid,
+        P4: p4Auth.uid,
       }),
       ACTIVE: scenario.active({
         HOST: hostAuth.uid,
         P2: p2Auth.uid,
         P3: p3Auth.uid,
-        P4: p4Auth?.uid,
+        P4: p4Auth.uid,
       }),
       FOLDED: scenario.folded({
         HOST: hostAuth.uid,
         P2: p2Auth.uid,
         P3: p3Auth.uid,
-        P4: p4Auth?.uid,
+        P4: p4Auth.uid,
       }),
     };
 
@@ -316,6 +318,7 @@ async function runScenario(scenarioKey) {
       settledPot: scenario.settledPot,
       carryOverPot: before.session.carryOverPot,
       postedAntes: mapByLabel(before.session.currentHand?.postedAntes ?? {}, ids, scenario),
+      ...(scenario.potComposition ? { composition: scenario.potComposition } : {}),
     };
 
     trace.checkpoints[2] = {
