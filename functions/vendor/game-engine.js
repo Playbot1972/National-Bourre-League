@@ -102,15 +102,19 @@ function m(e, t, n) {
 }
 var h = m;
 function g(e, t) {
-	return e.seatedIds?.length ? e.seatedIds : t?.length ? t : e.actionOrder?.length ? e.actionOrder : e.participantIds ?? [];
+	return e.seatedIds?.length ? e.seatedIds : t?.length ? t : e.participantIds ?? [];
 }
 function _(e, t) {
-	let n = e.participantIds ?? [], r = g(e, t);
-	if (r.length > 0) {
-		let t = f(e.dealerId, n, r);
+	let n = e.participantIds ?? [];
+	if (!n.length) return [];
+	let r = g(e, t), i = r.length > 0 ? r : t?.length ? t : n, a = f(e.dealerId, n, i);
+	if (a.length > 0) return a;
+	if (e.dealerId) return f(e.dealerId, n, n);
+	if (e.actionOrder?.length) {
+		let t = e.actionOrder.filter((e) => n.includes(e));
 		if (t.length > 0) return t;
 	}
-	return e.actionOrder?.length ? e.actionOrder.filter((e) => n.includes(e)) : n;
+	return n;
 }
 var v = 5;
 //#endregion
