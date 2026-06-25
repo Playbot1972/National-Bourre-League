@@ -40,14 +40,21 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   );
 }
 
+/** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
+export function getTablePresentationBlockReason(
+  s: TrickAnimationBusyState,
+): string | null {
+  if (s.handPresenting) return "handPresenting";
+  if (s.pipelineActive) return "pipelineActive";
+  if (s.revealCatchUp) return "revealCatchUp";
+  if (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0) {
+    return "peakPlayCatchUp";
+  }
+  return null;
+}
+
 function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
-  return (
-    s.handPresenting ||
-    s.pipelineActive ||
-    s.revealCatchUp ||
-    s.motionGateActive ||
-    (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0)
-  );
+  return getTablePresentationBlockReason(s) != null;
 }
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
@@ -57,6 +64,9 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
       from: state,
       to: next,
       busy: isTablePresentationBusyFrom(next),
+      blockReason: getTablePresentationBlockReason(next),
+      motionGateActive: next.motionGateActive,
+      handPresentationPhase: next.handPresentationPhase,
     });
   }
   state = next;
