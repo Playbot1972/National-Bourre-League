@@ -10,6 +10,7 @@ rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 
 if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
   echo "firebase-auth=ci-token"
+  npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
   npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
   exit 0
 fi
@@ -28,21 +29,26 @@ export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
 export CLOUDSDK_CORE_PROJECT="$PROJECT_ID"
 unset FIREBASE_TOKEN 2>/dev/null || true
 
-if command -v gcloud >/dev/null 2>&1; then
-  gcloud auth activate-service-account --key-file="$CREDS" --project="$PROJECT_ID" --quiet
-  gcloud auth application-default set-quota-project "$PROJECT_ID" 2>/dev/null || true
-fi
+activate_sa() {
+  if command -v gcloud >/dev/null 2>&1; then
+    gcloud auth activate-service-account --key-file="$CREDS" --project="$PROJECT_ID" --quiet
+    gcloud auth application-default set-quota-project "$PROJECT_ID" 2>/dev/null || true
+  fi
+}
 
-echo "firebase-auth=application-default credentials=${CREDS}"
-echo "firebase-tools=${FB_TOOLS}"
+deploy_adc() {
+  echo "firebase-auth=application-default credentials=${CREDS}"
+  echo "firebase-tools=${FB_TOOLS}"
+  npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
+  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
+}
 
-DEPLOY_ARGS=(deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}")
-
-if npx "firebase-tools@${FB_TOOLS}" "${DEPLOY_ARGS[@]}"; then
+activate_sa
+if deploy_adc "${@:2}"; then
   exit 0
 fi
 
-echo "::warning::ADC deploy failed — retrying with minted service-account access token"
-TOKEN="$(node scripts/firebase-ci-access-token.mjs "$CREDS")"
-echo "firebase-auth=sa-access-token"
-npx "firebase-tools@${FB_TOOLS}" "${DEPLOY_ARGS[@]}" --token "$TOKEN"
+echo "::warning::ADC deploy failed — re-activating service account and retrying once"
+rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
+activate_sa
+deploy_adc "${@:2}"
