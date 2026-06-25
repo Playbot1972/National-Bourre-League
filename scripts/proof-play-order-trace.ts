@@ -186,12 +186,12 @@ console.log(
       openingLeaderTrick1,
       expectedOpeningLeader: expectedOpening,
       openingLeaderCorrect: openingLeaderTrick1 === expectedOpening,
-      trickLeaders: trickLog.map((t) => ({
+      trickLeaders: trickLog.map((t, i) => ({
         trick: t.trick,
         leader: t.leaderPlayerId,
         playOrderClockwise: t.playOrder,
         winner: t.winnerPlayerId,
-        nextTrickLeader: trickLog[t.trick]?.winnerPlayerId,
+        nextTrickLeader: trickLog[i + 1]?.leaderPlayerId ?? null,
       })),
       tricksByPlayer: hand.tricksByPlayer,
       dealerRotationAfterHand: {
@@ -209,7 +209,47 @@ console.log(
           trickLog.length >= 2
             ? trickLog[1].leaderPlayerId === trickLog[0].winnerPlayerId
             : null,
+        trick3LeaderIsTrick2Winner:
+          trickLog.length >= 3
+            ? trickLog[2].leaderPlayerId === trickLog[1].winnerPlayerId
+            : null,
+        trick4LeaderIsTrick3Winner:
+          trickLog.length >= 4
+            ? trickLog[3].leaderPlayerId === trickLog[2].winnerPlayerId
+            : null,
+        trick5LeaderIsTrick4Winner:
+          trickLog.length >= 5
+            ? trickLog[4].leaderPlayerId === trickLog[3].winnerPlayerId
+            : null,
+        drawFollowsActiveClockwiseFromOpening:
+          actionOrder[0] === openingLeaderTrick1,
         noRawJoinOrderBug: rawJoinOrderBugCheck[0] === "carol",
+        allPassed: (() => {
+          const a = {
+            dealStartsLeftOfDealer: deal.dealOrder[0] === "carol",
+            enrollmentStartsLeftOfDealer:
+              currentEnrollmentPlayer(
+                buildHandEnrollment([...ROSTER], dealerPlayerId, 1_000),
+              ) === "carol",
+            decisionStartsLeftOfDealer: playPassLog[0]?.playerId === "carol",
+            openingIsNextActiveAfterPass: openingLeaderTrick1 === "dave",
+            trick2LeaderIsTrick1Winner:
+              trickLog.length >= 2 &&
+              trickLog[1].leaderPlayerId === trickLog[0].winnerPlayerId,
+            trick3LeaderIsTrick2Winner:
+              trickLog.length >= 3 &&
+              trickLog[2].leaderPlayerId === trickLog[1].winnerPlayerId,
+            trick4LeaderIsTrick3Winner:
+              trickLog.length >= 4 &&
+              trickLog[3].leaderPlayerId === trickLog[2].winnerPlayerId,
+            trick5LeaderIsTrick4Winner:
+              trickLog.length >= 5 &&
+              trickLog[4].leaderPlayerId === trickLog[3].winnerPlayerId,
+            drawFollowsActiveClockwiseFromOpening: actionOrder[0] === openingLeaderTrick1,
+            noRawJoinOrderBug: rawJoinOrderBugCheck[0] === "carol",
+          };
+          return Object.values(a).every(Boolean);
+        })(),
       },
     },
     null,
