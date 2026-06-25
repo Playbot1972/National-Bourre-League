@@ -249,13 +249,41 @@ The site ships as **one Firebase Hosting site** with two apps:
 | `/` | React tutorial (rules, tutorial, in-memory room) | Vite build → `dist/` |
 | `/social/` | Static social app (auth, rooms, Ape Score) | `docs/` copied to `dist/social/` |
 
-**Build & deploy:**
+**Preferred deploy path (no local `firebase login`):**
+
+- Push to `main` — GitHub Actions runs **Deploy to Firebase** (`.github/workflows/deploy.yml`).
+- Or trigger **Deploy to Firebase** manually from the Actions tab.
+
+CI uses the `FIREBASE_SERVICE_ACCOUNT` secret (`GOOGLE_APPLICATION_CREDENTIALS`). When ADC
+auth fails intermittently, `scripts/ci-firebase-hosting-deploy.sh` mints a short-lived access
+token from the service account and retries (PR #332). Prefer CI over manual workstation deploy
+unless there is a separate emergency reason.
+
+**Local deploy (emergency / offline only):**
+
+Service account — no interactive login:
+
+```bash
+cp .env.firebase.example .env.firebase   # fill Firebase web app keys
+# .firebase-sa-key.json from GCP Console → IAM → github-firebase-deploy → Keys
+npm run deploy:hosting:sa:patch
+```
+
+Legacy interactive login (setup scripts, domain tooling — not required for routine hosting deploy):
+
+```bash
+firebase login --reauth
+# or: firebase login --no-localhost
+# Use incognito, project-owner Google account, disable ad blockers on the login page
+npm run deploy:patch
+```
+
+**Build & deploy (full stack — hosting + rules + functions):**
+
 ```bash
 npm install
-firebase login
-firebase use YOUR_REAL_PROJECT_ID
-# Put real Firebase web config in docs/firebase-config.js (projectId, apiKey, …)
-npm run deploy          # build:hosting + deploy hosting + firestore rules
+# Put real Firebase web config in docs/firebase-config.js (or .env.firebase)
+npm run deploy          # build:hosting + deploy hosting + firestore rules + functions
 # or step-by-step:
 npm run build:hosting   # vite build + copy docs/ → dist/social/
 firebase deploy --only hosting,firestore:rules
@@ -270,7 +298,9 @@ comes from these generated artifacts, not hand-edited strings.
 | Command | When to use |
 | --- | --- |
 | `npm run build:test-version` | Local test build after code changes — bumps patch, stamps **dev** channel, runs full `build:hosting` |
-| `npm run deploy:patch` | Local production deploy — bumps patch, stamps **production**, deploys |
+| *(push to `main` or Actions dispatch)* | **Preferred** production deploy — auto-bump + CI |
+| `npm run deploy:hosting:sa:patch` | Emergency local hosting deploy via service account (no `firebase login`) |
+| `npm run deploy:patch` | Local production deploy — bumps patch, stamps **production**, deploys (needs `firebase login` or SA) |
 | `npm run version:sync` | Regenerate version files from current `package.json` without bumping |
 | `npm run verify:prod` | Confirm production `/social/version.js` and `/build-meta.json` match or exceed repo version |
 

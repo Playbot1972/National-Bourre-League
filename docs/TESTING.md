@@ -160,6 +160,7 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Auth / sign-in issues | Wrong host for this repo’s config | Open **http://localhost:8080** (not another port/host unless you changed config) |
 | Emulators not connecting | Emulators not running | Terminal 1: `npm run emulators` |
 | Draw appears to do nothing | Old `main` without #67 | Checkout #67 branch; check table overlay banner + console |
+| GitHub Actions: `Failed to authenticate, have you run firebase login?` | Intermittent ADC miss in `firebase-tools` | Usually self-heals on re-run; PR #332 adds SA token fallback. Refresh secret: `npm run sync:github-sa-secret` or `npm run fix:deploy` |
 | GitHub Actions: hosting OK, functions fail `iam.serviceAccounts.ActAs` | Deploy SA missing **Service Account User** on App Engine default SA and/or `{projectNumber}-compute@developer.gserviceaccount.com` (Gen2 runtime) | `npm run fix:deploy-iam` or `npm run fix:deploy` then re-run **Deploy to Firebase** |
 | GitHub Actions: `failed to parse service account key JSON` / `unexpected token` | `FIREBASE_SERVICE_ACCOUNT` secret corrupted (not raw JSON) | From repo root: `npm run sync:github-sa-secret` or `npm run fix:deploy` |
 | GitHub Actions: functions fail `Cloud Billing API` / `cloudbilling.googleapis.com` disabled | Billing API not enabled on GCP project | `npm run enable:functions-apis` or `npm run fix:deploy` (as project Owner) |
