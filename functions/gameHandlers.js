@@ -1913,11 +1913,44 @@ export async function handleRecordHand(
 }
 
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
-  console.info("[gameAdvanceBots] start", { roomId, sessionId, actorId });
-  await assertRoomMember(db, roomId, actorId);
-  await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  console.info("[gameAdvanceBots] ok", { roomId, sessionId, actorId });
-  return { status: "ok" };
+  console.info(
+    "[bot-advance]",
+    "request",
+    JSON.stringify({
+      callable: "gameAdvanceBots",
+      invocation: "onCall",
+      auth: Boolean(actorId),
+      requester: actorId,
+      owner: "server",
+      roomId,
+      sessionId,
+    }),
+  );
+  try {
+    await assertRoomMember(db, roomId, actorId);
+  } catch (err) {
+    console.warn(
+      "[bot-advance]",
+      "rejected",
+      JSON.stringify({
+        callable: "gameAdvanceBots",
+        invocation: "onCall",
+        auth: Boolean(actorId),
+        requester: actorId,
+        roomId,
+        sessionId,
+        rejectionReason: err?.code ?? err?.message ?? "room_membership",
+      }),
+    );
+    throw err;
+  }
+  const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  console.info(
+    "[bot-advance]",
+    "complete",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
+  );
+  return { status: "ok", ...result };
 }
 
 export async function handleVoteCoWinSettlement(

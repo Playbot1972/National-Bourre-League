@@ -1,6 +1,6 @@
 // game-functions.js — Callable Cloud Functions client for server-authoritative play.
 
-import { app } from "./auth.js";
+import { app, currentUser } from "./auth.js";
 import {
   FIREBASE_SDK_VERSION,
   FUNCTIONS_EMULATOR,
@@ -38,19 +38,31 @@ async function getFunctionsInstance() {
   return initPromise;
 }
 
-function logCallableFailure(name, data, err) {
-  const payload = {
+function callableContext(name) {
+  return {
     function: name,
+    invocation: "httpsCallable",
+    origin: typeof location !== "undefined" ? location.origin : null,
+    auth: Boolean(currentUser()),
+  };
+}
+
+function logCallableFailure(name, data, err, ctx) {
+  const payload = {
+    ...ctx,
     roomId: data?.roomId ?? null,
     sessionId: data?.sessionId ?? null,
     code: err?.code ?? null,
     message: err?.message ?? String(err),
     details: err?.details ?? null,
+    rejectionReason:
+      err?.code === "functions/permission-denied" || /403|forbidden/i.test(err?.message ?? "")
+        ? "missing_cloud_run_invoker"
+        : err?.code ?? "unknown",
   };
-  if (payload.code === "functions/permission-denied" || /403|forbidden/i.test(payload.message)) {
+  if (payload.rejectionReason === "missing_cloud_run_invoker") {
     console.error(
-      "[game-functions] Callable blocked before handler — likely missing Cloud Run invoker on",
-      name,
+      "[game-functions] Callable blocked before handler — likely missing Cloud Run invoker",
       payload,
     );
   } else {
@@ -63,13 +75,15 @@ async function callGame(name, data) {
   if (!functions) {
     throw new Error("Server hand authority is disabled");
   }
+  const ctx = callableContext(name);
+  console.info("[game-functions] invoke", ctx);
   const { httpsCallable } = await import(`${CDN}/firebase-functions.js`);
   const fn = httpsCallable(functions, name);
   try {
     const result = await fn(data);
     return result.data;
   } catch (err) {
-    logCallableFailure(name, data, err);
+    logCallableFailure(name, data, err, ctx);
     throw err;
   }
 }
