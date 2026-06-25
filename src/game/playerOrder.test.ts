@@ -66,6 +66,38 @@ describe("resolveActionOrder", () => {
     assert.deepEqual(resolveActionOrder(hand), ["bot_a", "bot_b", "host"]);
   });
 
+  it("resolveSeatRing does not treat dealer-relative actionOrder as roster ring", () => {
+    const ring = resolveSeatRing({
+      participantIds: ["host", "bot_a", "bot_b"],
+      actionOrder: ["bot_a", "bot_b", "host"],
+    } as never);
+    assert.deepEqual(ring, ["host", "bot_a", "bot_b"]);
+  });
+
+  it("resolveActionOrder dealer-normalizes when only join-order participantIds exist", () => {
+    const hand = {
+      dealerId: "host",
+      participantIds: ["host", "bot_a", "bot_b"],
+    };
+    assert.deepEqual(resolveActionOrder(hand), ["bot_a", "bot_b", "host"]);
+  });
+
+  it("openingLeaderId skips passed seat left of dealer", () => {
+    const roster = ["p1", "p2", "p3", "p4"];
+    const playing = ["p3", "p4", "p1"];
+    assert.equal(openingLeaderId("p1", playing, roster), "p3");
+  });
+
+  it("resolveActionOrder recovers when seatedIds mismatch active participants", () => {
+    const hand = {
+      dealerId: "host",
+      participantIds: ["host", "bot_a", "bot_b"],
+      seatedIds: ["host", "bot_a", "bot_b"],
+      actionOrder: ["host", "bot_a", "bot_b"],
+    };
+    assert.deepEqual(resolveActionOrder(hand), ["bot_a", "bot_b", "host"]);
+  });
+
   it("nextActivePlayerClockwise wraps within the action ring", () => {
     const order = ["bot_a", "bot_b", "host"];
     assert.equal(nextActivePlayerClockwise(order, "host"), "bot_a");

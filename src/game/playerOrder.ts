@@ -50,18 +50,16 @@ export function openingLeaderId(
 /** Alias — first active player clockwise from the dealer's left. */
 export const firstLeaderFromDealerLeft = openingLeaderId;
 
-/** Full clockwise seat ring for a hand (prefer over participant join order). */
+/** Full clockwise seat ring for a hand (roster order — not dealer-relative actionOrder). */
 export function resolveSeatRing(
   hand: {
     seatedIds?: string[];
-    actionOrder?: string[];
     participantIds?: string[];
   },
   fallbackSortedPlayerIds?: string[],
 ): string[] {
   if (hand.seatedIds?.length) return hand.seatedIds;
   if (fallbackSortedPlayerIds?.length) return fallbackSortedPlayerIds;
-  if (hand.actionOrder?.length) return hand.actionOrder;
   return hand.participantIds ?? [];
 }
 
@@ -79,16 +77,28 @@ export function resolveActionOrder(
   fallbackSortedPlayerIds?: string[],
 ): string[] {
   const participantIds = hand.participantIds ?? [];
+  if (!participantIds.length) return [];
+
   const seatRing = resolveSeatRing(hand, fallbackSortedPlayerIds);
-  if (seatRing.length > 0) {
-    const fromSeats = activePlayerOrder(hand.dealerId, participantIds, seatRing);
-    if (fromSeats.length > 0) {
-      return fromSeats;
-    }
+  const ring =
+    seatRing.length > 0
+      ? seatRing
+      : fallbackSortedPlayerIds?.length
+        ? fallbackSortedPlayerIds
+        : participantIds;
+
+  const fromRing = activePlayerOrder(hand.dealerId, participantIds, ring);
+  if (fromRing.length > 0) return fromRing;
+
+  if (hand.dealerId) {
+    return activePlayerOrder(hand.dealerId, participantIds, participantIds);
   }
+
   if (hand.actionOrder?.length) {
-    return hand.actionOrder.filter((id) => participantIds.includes(id));
+    const filtered = hand.actionOrder.filter((id) => participantIds.includes(id));
+    if (filtered.length > 0) return filtered;
   }
+
   return participantIds;
 }
 
