@@ -6,16 +6,23 @@ ONLY="${1:?usage: ci-firebase-hosting-deploy.sh <only> e.g. hosting}"
 PROJECT_ID="${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID required}"
 FB_TOOLS="${FIREBASE_TOOLS_VERSION:-14.9.0}"
 
-# Prefer explicit deploy key written by the workflow step.
-CREDS="${FIREBASE_DEPLOY_SA_KEY:-${GOOGLE_APPLICATION_CREDENTIALS:-}}"
+if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
+  echo "firebase-auth=ci-token"
+  unset GOOGLE_APPLICATION_CREDENTIALS 2>/dev/null || true
+  unset CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE 2>/dev/null || true
+  npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive --token "$FIREBASE_TOKEN"
+  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
+  exit 0
+fi
+
+CREDS="${GOOGLE_APPLICATION_CREDENTIALS:-}"
 if [[ -z "$CREDS" || ! -f "$CREDS" ]]; then
-  echo "::error::Service account key file missing (FIREBASE_DEPLOY_SA_KEY / GOOGLE_APPLICATION_CREDENTIALS)"
+  echo "::error::GOOGLE_APPLICATION_CREDENTIALS missing — google-github-actions/auth step failed"
   exit 1
 fi
 
 node scripts/validate-service-account-key.mjs "$CREDS" --project "$PROJECT_ID"
 
-export GOOGLE_APPLICATION_CREDENTIALS="$CREDS"
 export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$CREDS"
 export GCLOUD_PROJECT="$PROJECT_ID"
 export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
@@ -25,31 +32,26 @@ unset FIREBASE_TOKEN 2>/dev/null || true
 activate_sa() {
   if command -v gcloud >/dev/null 2>&1; then
     gcloud auth activate-service-account --key-file="$CREDS" --project="$PROJECT_ID" --quiet
-    gcloud config set project "$PROJECT_ID" --quiet 2>/dev/null || true
+    gcloud auth application-default set-quota-project "$PROJECT_ID" 2>/dev/null || true
   fi
 }
 
-deploy_sa() {
-  echo "firebase-auth=service-account file=${CREDS}"
+deploy_adc() {
+  echo "firebase-auth=application-default credentials=${CREDS}"
   echo "firebase-tools=${FB_TOOLS}"
+  unset FIREBASE_TOKEN 2>/dev/null || true
+  export GOOGLE_APPLICATION_CREDENTIALS="$CREDS"
+  export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$CREDS"
+  npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
   npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
 }
 
-# Optional legacy CI token (firebase login:ci) — only when explicitly set.
-if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
-  echo "firebase-auth=ci-token"
-  unset GOOGLE_APPLICATION_CREDENTIALS 2>/dev/null || true
-  unset CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE 2>/dev/null || true
-  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
-  exit 0
-fi
-
 activate_sa
-if deploy_sa "${@:2}"; then
+if deploy_adc "${@:2}"; then
   exit 0
 fi
 
-echo "::warning::Service-account deploy failed — retrying after clearing firebase local config"
+echo "::warning::ADC deploy failed — re-activating service account and retrying once"
 rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 activate_sa
-deploy_sa "${@:2}"
+deploy_adc "${@:2}"
