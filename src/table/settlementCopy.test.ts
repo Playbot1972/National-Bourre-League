@@ -39,7 +39,7 @@ describe("settlement copy — co-win vote panel", () => {
     assert.match(view.headline, /Tie — Alice & Bob \(2 tricks each\)/);
     assert.match(view.subhead, /Co-winners must vote/);
     assert.deepEqual(view.winnerLines, ["Alice — 2 tricks", "Bob — 2 tricks"]);
-    assert.match(view.bourreLine!, /Bourré: Dave took 0 tricks/);
+    assert.match(view.bourreLine!, /Bourré: Dave took 0 tricks — each pays \$10 at settlement/);
     assert.match(view.potLine, /\$12.*max win \$10.*\$4 carried in/);
     assert.match(view.splitPreviewLine!, /\$10 → \$5 each/);
     assert.match(view.carryoverIfPushLine, /carries to the next hand/);
@@ -110,7 +110,7 @@ describe("settlement copy — hand outcomes", () => {
     assert.match(view.detailLines[0], /table pot this hand/);
     assert.match(view.detailLines[1], /Pot won this hand: \$9/);
     assert.match(view.detailLines[2], /Bourré: Carol/);
-    assert.match(view.detailLines[2], /paid into the next hand/);
+    assert.match(view.detailLines[2], /paid at settlement/);
     assert.match(view.carryoverLine!, /\$9 seeded for the next deal/);
   });
 

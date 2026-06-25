@@ -91,7 +91,7 @@ export function buildCoWinSettlementView(input: {
 
   const bourreLine =
     bourreIds.length > 0
-      ? `Bourré: ${bourreNames} took 0 tricks — each pays ${potLabel} into the next hand's pot`
+      ? `Bourré: ${bourreNames} took 0 tricks — each pays ${potLabel} at settlement (seeds next deal)`
       : null;
 
   const splitShare = input.splitSharePerWinner;
@@ -179,7 +179,7 @@ export function buildHandOutcomeView(input: {
     detailLines.push(`Pot won this hand: ${potLabel} (added to ${name}'s chips).`);
     if (bourreIds.length) {
       detailLines.push(
-        `Bourré: ${bourreNames} took 0 tricks — ${potLabel} each paid into the next hand's pot.`,
+        `Bourré: ${bourreNames} took 0 tricks — ${potLabel} each paid at settlement (seeds next deal).`,
       );
     }
     return {

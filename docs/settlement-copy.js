@@ -156,7 +156,7 @@ function u(e) {
 	let x = f.map((e) => {
 		let n = t[e] ?? 0;
 		return `${s(e, r)} — ${n} trick${n === 1 ? "" : "s"}`;
-	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks — each pays ${_} into the next hand's pot` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${o(i.maxWinThisHand)} → ${o(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
+	}), S = h.length > 0 ? `Bourré: ${g} took 0 tricks — each pays ${_} at settlement (seeds next deal)` : null, C = e.splitSharePerWinner, w = C > 0 && f.length >= 2 ? `If all co-winners agree to split: ${o(i.maxWinThisHand)} → ${o(C)} each` : null, T = f.length >= 2 ? "If split: pot is divided; no carryover to next hand" : null, E = `If any co-winner declines: full pot ${v} carries to the next hand · non-winners ante up`, D = f.map((e) => {
 		let t = u[e], n = s(e, r);
 		return t === "split" ? `${n}: Agreed to split ✓` : t === "push" ? `${n}: Declined split ✓` : `${n}: Waiting to vote…`;
 	}), O = e.currentUserId != null && f.includes(e.currentUserId);
@@ -179,7 +179,7 @@ function d(e) {
 	let { settlement: t, winnerIds: n, participantIds: r, tricksByPlayer: i, players: a, potMaxWin: u, carryOverPot: d } = e, f = e.bourreIds ?? l(i, r), p = c(f, a), m = o(u), h = o(d), g = [];
 	if (t === "win" && n.length === 1) {
 		let e = s(n[0], a), t = i[n[0]] ?? 0;
-		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — ${m} each paid into the next hand's pot.`), {
+		return g.push(`${e} wins the table pot this hand (${t} tricks).`), g.push(`Pot won this hand: ${m} (added to ${e}'s chips).`), f.length && g.push(`Bourré: ${p} took 0 tricks — ${m} each paid at settlement (seeds next deal).`), {
 			headline: `${e} wins ${m} this hand`,
 			detailLines: g,
 			carryoverLine: d > 0 ? `${h} seeded for the next deal (bourré pot match).` : null
