@@ -101,10 +101,24 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
 
       - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
-        run: npx firebase deploy --only hosting --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          for attempt in 1 2 3; do
+            if npx firebase deploy --only hosting --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"; then
+              exit 0
+            fi
+            echo "::warning::Firebase hosting deploy attempt ${attempt} failed; retrying in ${attempt}0s..."
+            sleep $((attempt * 10))
+          done
+          echo "::error::Firebase hosting deploy failed after 3 attempts"
+          exit 1
 
       - name: Commit version bump
         if: steps.cfg.outputs.ready == 'true'
@@ -119,14 +133,19 @@ jobs:
       - name: Deploy Firestore rules
         if: steps.cfg.outputs.ready == 'true'
         continue-on-error: true
-        run: npx firebase deploy --only firestore:rules --project "${{ secrets.FIREBASE_PROJECT_ID }}"
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: npx firebase deploy --only firestore:rules --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}"
 
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
           GCLOUD_PROJECT: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          npx firebase deploy --only functions --force --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
+          npx firebase deploy --only functions --force --non-interactive --project "${{ secrets.FIREBASE_PROJECT_ID }}" || {
             echo "::error::Cloud Functions deploy failed."
             echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
             echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
