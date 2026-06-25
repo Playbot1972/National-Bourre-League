@@ -43,7 +43,27 @@ deploy_adc() {
   export GOOGLE_APPLICATION_CREDENTIALS="$CREDS"
   export CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$CREDS"
   npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
-  npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}"
+  if [[ "$ONLY" == "functions" ]]; then
+    npx "firebase-tools@${FB_TOOLS}" functions:artifacts:setpolicy \
+      --location us-central1 \
+      --days 30 \
+      --force \
+      --non-interactive \
+      --project "$PROJECT_ID" 2>/dev/null || true
+  fi
+  set +e
+  local out
+  out=$(npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" "${@:2}" 2>&1)
+  local code=$?
+  set -e
+  echo "$out"
+  if [[ $code -ne 0 && "$ONLY" == "functions" ]]; then
+    if echo "$out" | grep -q "Functions successfully deployed but could not set up cleanup policy"; then
+      echo "::warning::Functions deployed; artifact cleanup policy not configured (non-fatal)"
+      return 0
+    fi
+  fi
+  return "$code"
 }
 
 activate_sa
