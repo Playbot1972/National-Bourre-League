@@ -34,7 +34,19 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting } from "./vendor/bourre-rules.js";
+import {
+  recordHandSettlement,
+  scoreBankroll,
+  resolveSessionBuyIn,
+  collectHandAntes,
+  collectNextHandAntes,
+  anteAlreadyPosted,
+  canEnrollWithBankroll,
+  settleSoloDefaultWin,
+  handAnteContribution,
+  mergeNextDealFundingIntoScoreById,
+  logBourreAccounting,
+} from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1757,51 +1769,37 @@ export async function handleRecordHand(
     (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, stake)),
     0,
   );
-  const stakeForPot = (pid) => postedAntes[pid] ?? playerHandStake(scoreById, pid, stake);
-  const stakeForSettlement = (pid) =>
-    anteAlreadyPosted(postedAntes, pid) ? 0 : playerHandStake(scoreById, pid, stake);
-
-  const handSettlement = settleHandDeltas({
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
-    anteAmount: stake,
-    limEnabled,
-    carryIn,
-    antePot,
-    stakeForPlayer: stakeForSettlement,
-  });
-
-  const {
-    deltas: nominalDeltas,
-    carryOverPot: nominalCarry,
-    bourreIds,
-    bourreMatch,
-    potState,
-    pot: grossPot,
-    cappedPot,
-    overflow,
-  } = handSettlement;
 
   const roomSnap = await db.doc(`rooms/${roomId}`).get();
   const roomBourre = roomSnap.data()?.bourreSettings ?? {};
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
 
-  const solvent = applySolventSettlement({
+  const money = recordHandSettlement({
     mode,
     winners,
     participants,
-    nominalDeltas,
+    tricksByPlayer,
     scoreById,
-    carryOverPot: nominalCarry,
+    sessionStake: stake,
+    limEnabled,
+    carryIn,
+    postedAntes,
     buyInFallback: buyIn,
-    stakeForPlayer: stakeForSettlement,
   });
 
-  const deltas = solvent.appliedDeltas;
-  const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
+  const {
+    bourreIds,
+    bourreMatch,
+    potState,
+    grossPot,
+    cappedPot,
+    overflow,
+    appliedDeltas: deltas,
+    carryOverPot,
+    nextDealFunding,
+    bankrolls: solventBankrolls,
+    scoreById: fundedScoreById,
+  } = money;
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -1832,10 +1830,10 @@ export async function handleRecordHand(
       (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
     const patch = {
       net: (current.net || 0) + deltas[pid],
-      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
+      bankroll: solventBankrolls[pid] ?? scoreBankroll(current, buyIn),
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if ((solvent.bankrolls[pid] ?? 0) <= 0) {
+    if ((solventBankrolls[pid] ?? 0) <= 0) {
       patch.out = true;
     } else {
       patch.out = FieldValue.delete();
@@ -1844,18 +1842,11 @@ export async function handleRecordHand(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = FieldValue.delete();
     }
-    const funding = nextDealFundingFlags({
-      playerId: pid,
-      mode,
-      winners,
-      bourreIds,
-      settledPot: potState.currentPot,
-      bourreReplacementRemainder: bourreRemainders[pid] ?? null,
-    });
-    if (funding.bourreReplacementDue != null) {
-      patch.bourreReplacementDue = funding.bourreReplacementDue;
+    const funded = fundedScoreById[pid] || {};
+    if (funded.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = funded.bourreReplacementDue;
     }
-    if (funding.skipNextAnte) {
+    if (funded.skipNextAnte) {
       patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
@@ -1885,14 +1876,6 @@ export async function handleRecordHand(
 
   const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap.docs);
-  const nextDealFunding = buildNextDealFundingSnapshot({
-    settledPot: potState.currentPot,
-    bourreIds,
-    participants,
-    mode,
-    winners,
-    bourreRemaindersByPlayer: bourreRemainders,
-  });
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
   batch.update(sessionRef(db, roomId, sessionId), {
     handCount: handNumber,
