@@ -196,29 +196,13 @@ export function dealCardsFromDeck(
   return tl;
 }
 
-export function animateDrawDiscard(cards: HTMLElement[]): gsap.core.Timeline {
-  ensureMotion();
-  const tl = gsap.timeline();
-  const duration = scaledDuration(GSAP_DURATIONS.drawDiscard);
-  cards.forEach((el, i) => {
-    gsap.set(el, { transformOrigin: "50% 50%", willChange: "transform,opacity" });
-    tl.to(
-      el,
-      {
-        x: 56 + i * 8,
-        y: 42,
-        rotation: 18 + i * 4,
-        rotationX: 48,
-        scale: 0.72,
-        opacity: 0,
-        duration,
-        ease: PREMIUM_EASE_IN_OUT,
-        onComplete: () => killCardMotion(el),
-      },
-      i * 0.05,
-    );
-  });
-  return tl;
+export function animateDrawDiscard(
+  cards: HTMLElement[],
+  cardKeys: string[],
+  pileStartIndex: number,
+  root?: ParentNode,
+): gsap.core.Timeline {
+  return animateCardsToDiscardPile(cards, cardKeys, pileStartIndex, { root });
 }
 
 export function animateDrawReceive(

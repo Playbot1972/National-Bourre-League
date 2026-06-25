@@ -23,8 +23,8 @@ export const TRUMP_MERGE_ANIM_MS = 0;
 /** Enrollment seat pulse when a player joins or passes. */
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
 
-/** Draw discard slide per card (140–220 ms). */
-export const DRAW_DISCARD_MS = 580;
+/** Draw discard slide to center pile (280–420 ms). */
+export const DRAW_DISCARD_MS = 350;
 
 /** Draw replacement per card (100–160 ms). */
 export const DRAW_REPLACE_MS = 620;

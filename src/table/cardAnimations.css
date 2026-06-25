@@ -545,6 +545,7 @@
 [data-gsap-motion="true"] .btable-hero--dealing .hand__slot .pcard,
 [data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
 [data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+[data-gsap-motion="true"] .bseat--draw-discard .bseat__hole-cards,
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot,
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard,
 [data-gsap-motion="true"] .btable-hero--stand-pat .hand__slot .pcard,

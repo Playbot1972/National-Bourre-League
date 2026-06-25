@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Hand } from "../components/Hand";
 import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
@@ -38,6 +38,10 @@ interface HeroHandProps {
   revealedTrumpIndex?: number | null;
   trumpMergeActive?: boolean;
   trumpDisabledIndex?: number | null;
+  handNumber?: number;
+  tableRootRef?: RefObject<HTMLElement | null>;
+  pileIndexRef?: RefObject<number>;
+  onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
 }
 
 function heroShellClass(
@@ -91,6 +95,10 @@ export function HeroHand({
   revealedTrumpIndex = null,
   trumpMergeActive = false,
   trumpDisabledIndex = null,
+  handNumber = 0,
+  tableRootRef,
+  pileIndexRef,
+  onDiscardCommitted,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -158,6 +166,11 @@ export function HeroHand({
     foldOutPulse,
     playingIndex,
     cards,
+    handNumber,
+    playerId: currentUserId,
+    tableRootRef,
+    pileIndexRef,
+    onDiscardCommitted,
   });
 
   const clearPreselectTimer = useCallback(() => {

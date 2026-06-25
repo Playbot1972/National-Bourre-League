@@ -7,7 +7,7 @@ export function initCardMotion(root?: ParentNode | null): void {
     (root instanceof HTMLElement ? root : null) ??
     document.querySelector(".btable-wrap") ??
     document.querySelector(".btable-session");
-  scope?.removeAttribute("data-gsap-motion");
+  scope?.setAttribute("data-gsap-motion", "true");
 }
 
 export function isCardMotionReady(): boolean {

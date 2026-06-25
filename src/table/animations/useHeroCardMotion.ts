@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef, type RefObject } from "react";
 import type { SerializedCard } from "../types";
 import { GSAP_DURATIONS } from "./motionTokens";
 import {
-  animateDrawDiscard,
   animateDrawReceive,
   animateFoldOut,
   animatePlayLift,
@@ -11,6 +10,11 @@ import {
   killCardMotion,
   readDeckOrigin,
 } from "./cardMotion";
+import {
+  heroDiscardCardKeys,
+  readHeroDiscardCardElements,
+  runHeroDiscardFly,
+} from "../hooks/useDiscardPileState";
 import { initCardMotion } from "./initMotion";
 
 function cardKey(card: SerializedCard): string {
@@ -31,6 +35,11 @@ export interface HeroCardMotionOptions {
   foldOutPulse: boolean;
   playingIndex: number | null;
   cards: SerializedCard[];
+  handNumber?: number;
+  playerId?: string | null;
+  tableRootRef?: RefObject<HTMLElement | null>;
+  pileIndexRef?: RefObject<number>;
+  onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
 }
 
 export function useHeroCardMotion(
@@ -44,11 +53,17 @@ export function useHeroCardMotion(
     foldOutPulse,
     playingIndex,
     cards,
+    handNumber = 0,
+    playerId = null,
+    tableRootRef,
+    pileIndexRef,
+    onDiscardCommitted,
   }: HeroCardMotionOptions,
 ): void {
   const cardKeysBeforeDrawRef = useRef<string[]>([]);
   const dealtRef = useRef(false);
   const playLiftRef = useRef<number | null>(null);
+  const discardFlyKeyRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     initCardMotion(handRootRef.current?.closest(".btable-wrap") ?? document);
@@ -74,18 +89,33 @@ export function useHeroCardMotion(
     if (drawAnimSubPhase === "discard") {
       cardKeysBeforeDrawRef.current = cards.map(cardKey);
       const root = handRootRef.current;
-      const cardEls = handCards(root);
-      const targets =
-        pendingDiscardIndices.length > 0
-          ? pendingDiscardIndices
-              .map((i) => cardEls[i])
-              .filter((el): el is HTMLElement => Boolean(el))
-          : [...root?.querySelectorAll<HTMLElement>(".hand__slot--draw-selected .pcard") ?? []];
-      if (targets.length) animateDrawDiscard(targets);
+      const tableRoot = tableRootRef?.current ?? root?.closest(".btable-wrap");
+      const targets = readHeroDiscardCardElements(root, pendingDiscardIndices);
+      const flyKey = `${handNumber}:${playerId}:discard:${targets.length}:${pendingDiscardIndices.join(",")}`;
+      if (!targets.length || !tableRoot || !playerId || discardFlyKeyRef.current === flyKey) {
+        return;
+      }
+      discardFlyKeyRef.current = flyKey;
+      const keys = heroDiscardCardKeys(cards, pendingDiscardIndices.length
+        ? pendingDiscardIndices
+        : targets.map((_, i) => i));
+      const pileStart = pileIndexRef?.current ?? 0;
+      runHeroDiscardFly({
+        cardElements: targets,
+        cardKeys: keys,
+        playerId,
+        pileStartIndex: pileStart,
+        root: tableRoot as HTMLElement,
+        onComplete: (committed) => {
+          if (pileIndexRef) pileIndexRef.current += committed.length;
+          onDiscardCommitted?.(committed);
+        },
+      });
       return;
     }
 
     if (drawAnimSubPhase === "receive") {
+      discardFlyKeyRef.current = null;
       const root = handRootRef.current;
       const cardEls = handCards(root);
       const prev = new Set(cardKeysBeforeDrawRef.current);
@@ -99,9 +129,20 @@ export function useHeroCardMotion(
     }
 
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
+      discardFlyKeyRef.current = null;
       cardKeysBeforeDrawRef.current = cards.map(cardKey);
     }
-  }, [drawAnimSubPhase, cards, pendingDiscardIndices, handRootRef]);
+  }, [
+    drawAnimSubPhase,
+    cards,
+    pendingDiscardIndices,
+    handRootRef,
+    handNumber,
+    playerId,
+    tableRootRef,
+    pileIndexRef,
+    onDiscardCommitted,
+  ]);
 
   useLayoutEffect(() => {
     if (!standPatPulse) return;
