@@ -8,17 +8,19 @@ import { serializedPlays } from "./trickTiming";
 import {
   getTablePresentationBlockReason,
   getTrickAnimationBusyState,
+  handPresentingBlocksBots,
   isTablePresentationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
 
-/** Mirrors TableSessionView — server play is authoritative for bot gating. */
+/** Mirrors TableSessionView — server play/draw is authoritative for bot gating. */
 function handPresentingForBotGate(
   isPresenting: boolean,
   sessionPhase: string | null | undefined,
+  handPresentationPhase = "drawReady",
 ): boolean {
-  return isPresenting && sessionPhase !== "play";
+  return handPresentingBlocksBots(isPresenting, handPresentationPhase, sessionPhase);
 }
 
 const idleBusy = {
@@ -89,6 +91,18 @@ describe("play-start presentation gate", () => {
       handPresentationPhase: "play",
       peakPlayCount: 0,
       displayedPlayCount: 0,
+    });
+    assert.equal(isTablePresentationBusy(), false);
+  });
+
+  it("draw-phase peer animations do not block bots", () => {
+    resetTrickAnimationBusyState();
+    const handPresenting = handPresentingForBotGate(true, "draw", "drawPlayer");
+    assert.equal(handPresenting, false);
+    setTrickAnimationBusyState({
+      ...idleBusy,
+      handPresenting,
+      handPresentationPhase: "drawPlayer",
     });
     assert.equal(isTablePresentationBusy(), false);
   });

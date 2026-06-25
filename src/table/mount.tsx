@@ -13,9 +13,13 @@ import {
   subscribeFeedbackPrefs,
 } from "./feedback";
 import {
+  evaluateBotPresentationGate,
+  forceReleasePresentationForBots,
   getTablePresentationBlockReason,
   getTrickAnimationBusyState,
+  handPresentingBlocksBots,
   isTablePresentationBusy,
+  isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   subscribeTrickAnimationBusy,
@@ -62,7 +66,11 @@ export {
   subscribeFeedbackPrefs,
   getTrickAnimationBusyState,
   getTablePresentationBlockReason,
+  handPresentingBlocksBots,
   isTablePresentationBusy,
+  isTablePresentationBusyForBots,
+  evaluateBotPresentationGate,
+  forceReleasePresentationForBots,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
 };

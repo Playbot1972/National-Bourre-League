@@ -916,6 +916,11 @@ let enrollmentTimer = null;
 let robotActionInFlight = false;
 let botAdvanceInFlight = false;
 let lastRobotTrickAt = 0;
+const ROBOT_PRESENTATION_SOFT_MS = 3_500;
+const ROBOT_PRESENTATION_FORCE_MS = 4_000;
+let robotPresentationBlockEpisode = null;
+let pendingRobotWake = false;
+let robotPresentationUnsub = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
 /** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (1600+300+200). */
@@ -1267,6 +1272,7 @@ function stopEnrollmentTimer() {
     clearInterval(enrollmentTimer);
     enrollmentTimer = null;
   }
+  stopRobotPresentationSubscription();
 }
 
 function startEnrollmentTimer() {
@@ -1295,7 +1301,7 @@ function startEnrollmentTimer() {
       });
     }
     processRobotActions(sessionObj, openScores);
-  }, 1000);
+  }, 500);
 }
 let tablePlayOpen = false;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
@@ -2369,6 +2375,7 @@ async function loadTableMount() {
 }
 
 function unmountTableSessionHost() {
+  stopRobotPresentationSubscription();
   if (tableMountApi) {
     tableMountApi.unmountTableSession();
   }
@@ -2607,12 +2614,137 @@ function processRobotActions(s, scores) {
   }
 }
 
-function isTablePresentationBlockingBots() {
+function stopRobotPresentationSubscription() {
+  if (robotPresentationUnsub) {
+    robotPresentationUnsub();
+    robotPresentationUnsub = null;
+  }
+}
+
+function wakeRobotActions() {
+  if (!tablePlayOpen || !openSessionId) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (!sessionObj || sessionObj.status === "final") return;
+  if (robotActionInFlight) {
+    pendingRobotWake = true;
+    return;
+  }
+  processRobotActions(sessionObj, openScores);
+}
+
+function ensureRobotPresentationSubscription(api) {
+  if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
+  robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
+    wakeRobotActions();
+  });
+}
+
+function finishRobotAction() {
+  robotActionInFlight = false;
+  if (pendingRobotWake) {
+    pendingRobotWake = false;
+    wakeRobotActions();
+  }
+}
+
+function robotTurnPresentationKey(s) {
+  const ch = getSessionCurrentHand(s);
+  return [
+    sessionHandNumber(s),
+    ch?.phase ?? "",
+    ch?.turnPlayerId ?? "",
+    ch?.currentTrick?.trickNumber ?? 0,
+    ch?.currentTrick?.plays?.length ?? 0,
+    (ch?.drawCompletedIds ?? []).length,
+  ].join(":");
+}
+
+function isRawTablePresentationBusy() {
   try {
     return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
     return false;
   }
+}
+
+/**
+ * Draw/play robot gate with per-turn deadline.
+ * Works with legacy table-session.js (no evaluateBotPresentationGate export).
+ */
+function shouldBlockRobotForPresentation(s, scores) {
+  const busy = isRawTablePresentationBusy();
+  if (!busy) {
+    robotPresentationBlockEpisode = null;
+    return false;
+  }
+
+  const turnKey = robotTurnPresentationKey(s);
+  const now = Date.now();
+  if (
+    !robotPresentationBlockEpisode ||
+    robotPresentationBlockEpisode.turnKey !== turnKey
+  ) {
+    robotPresentationBlockEpisode = {
+      turnKey,
+      since: now,
+      firstSeenLogged: false,
+      softLogged: false,
+      forceLogged: false,
+    };
+  }
+
+  const ep = robotPresentationBlockEpisode;
+  const blockedMs = now - ep.since;
+  const ctx = snapshotGameFlowContext(s, scores);
+  const gate = snapshotTablePresentationGate();
+
+  if (blockedMs >= ROBOT_PRESENTATION_FORCE_MS) {
+    if (!ep.forceLogged) {
+      ep.forceLogged = true;
+      tableMountApi?.forceReleasePresentationForBots?.("robot-turn-timeout");
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "robot-force-unblock", {
+          ...ctx,
+          turnKey,
+          blockedMs,
+          gate,
+        });
+        logGameFlow("trickAnimationBridge", "table-presentation-force-release", {
+          ...ctx,
+          turnKey,
+          blockedMs,
+          gate,
+        });
+      }
+    }
+    robotPresentationBlockEpisode = null;
+    return false;
+  }
+
+  if (blockedMs >= ROBOT_PRESENTATION_SOFT_MS) {
+    if (!ep.softLogged && isGameFlowDebugEnabled()) {
+      ep.softLogged = true;
+      logGameFlow("processRobotActions", "robot-block-soft-timeout", {
+        ...ctx,
+        turnKey,
+        blockedMs,
+        gate,
+      });
+    }
+    return false;
+  }
+
+  if (!ep.firstSeenLogged && isGameFlowDebugEnabled()) {
+    ep.firstSeenLogged = true;
+    logGameFlow("processRobotActions", "robot-block-first-seen", {
+      ...ctx,
+      turnKey,
+      blockedMs,
+      gate,
+    });
+  }
+
+  return true;
 }
 
 function snapshotTablePresentationGate() {
@@ -2654,7 +2786,7 @@ function snapshotGameFlowContext(s, scores) {
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
-    trickAnimBusy: isTablePresentationBlockingBots(),
+    trickAnimBusy: isRawTablePresentationBusy(),
     presentationGate: snapshotTablePresentationGate(),
     robotActionInFlight,
     msSinceLastRobot: Date.now() - lastRobotTrickAt,
@@ -2711,7 +2843,7 @@ function processRobotActionsInner(s, scores) {
       })
         .catch((e) => console.warn("robot enroll:", e))
         .finally(() => {
-          robotActionInFlight = false;
+          finishRobotAction();
         });
     }
     return;
@@ -2737,7 +2869,7 @@ function processRobotActionsInner(s, scores) {
       })
         .catch((e) => console.warn("robot co-win vote:", e))
         .finally(() => {
-          robotActionInFlight = false;
+          finishRobotAction();
         });
     }
     return;
@@ -2751,10 +2883,7 @@ function processRobotActionsInner(s, scores) {
   if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
-    if (isTablePresentationBlockingBots()) {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
-      }
+    if (shouldBlockRobotForPresentation(s, scores)) {
       return;
     }
 
@@ -2778,17 +2907,14 @@ function processRobotActionsInner(s, scores) {
       })
         .catch((e) => console.warn("robot draw:", e))
         .finally(() => {
-          robotActionInFlight = false;
+          finishRobotAction();
         });
     }
     return;
   }
 
   if (handPhase === "play") {
-    if (isTablePresentationBlockingBots()) {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("processRobotActions", "blocked-table-presentation", snapshotGameFlowContext(s, scores));
-      }
+    if (shouldBlockRobotForPresentation(s, scores)) {
       return;
     }
 
@@ -2813,7 +2939,7 @@ function processRobotActionsInner(s, scores) {
       robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
         .catch((e) => console.warn("auto trick-5 lead:", e))
         .finally(() => {
-          robotActionInFlight = false;
+          finishRobotAction();
         });
       return;
     }
@@ -2827,7 +2953,7 @@ function processRobotActionsInner(s, scores) {
       robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
         .catch((e) => console.warn("robot play:", e))
         .finally(() => {
-          robotActionInFlight = false;
+          finishRobotAction();
         });
     }
     return;
@@ -2879,7 +3005,7 @@ function processRobotActionsInner(s, scores) {
   updateHandTrick(currentRoomId, openSessionId, targetBot, 1, actorId)
     .catch((e) => console.warn("robot trick:", e))
     .finally(() => {
-      robotActionInFlight = false;
+      finishRobotAction();
     });
 }
 
@@ -3592,6 +3718,7 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
       return;
     }
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
+    ensureRobotPresentationSubscription(api);
     void processTableFeedbackEvents(sessionObj);
     if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
       if (tablePlayOpen) startEnrollmentTimer();

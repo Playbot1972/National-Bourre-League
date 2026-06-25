@@ -17,7 +17,7 @@ import { YourTurnAttention } from "./YourTurnAttention";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import { setTrickAnimationBusyState } from "./trickAnimationBridge";
+import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { useTableTheme } from "./theme/useTableTheme";
@@ -100,9 +100,12 @@ export function TableSessionView({
       session.participantIds,
   });
 
-  // Server play is authoritative — do not block bots on lagging client draw/trump beats.
-  const handPresentingForBots =
-    handPresentation.isPresenting && session.phase !== "play";
+  // Server play/draw is authoritative — do not block bots on peer draw animations.
+  const handPresentingForBots = handPresentingBlocksBots(
+    handPresentation.isPresenting,
+    handPresentation.phase,
+    session.phase,
+  );
 
   useEffect(() => {
     setTrickAnimationBusyState({
