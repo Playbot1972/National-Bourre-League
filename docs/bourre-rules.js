@@ -255,23 +255,66 @@ export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionSt
 /**
  * Score-row flags applied after settlement for the next deal's pot funding.
  * Tied leaders skip ante; bourré players owe the completed pot (replacement only).
+ * @param {number} settledPot — final previous-hand pot (use currentPot, not base ante).
  */
 export function nextDealFundingFlags({
   playerId,
   mode,
   winners,
   bourreIds,
+  settledPot,
   maxWinThisHand,
 }) {
+  const pot = Math.max(0, Number(settledPot ?? maxWinThisHand) || 0);
   const tiedLeader =
     winners.includes(playerId) &&
     winners.length >= 2 &&
     (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split");
-  const bourreReplacementDue = bourreIds.includes(playerId) ? maxWinThisHand : null;
+  const bourreReplacementDue = bourreIds.includes(playerId) ? pot : null;
   return {
     skipNextAnte: tiedLeader,
     bourreReplacementDue,
   };
+}
+
+/**
+ * Canonical next-hand ante collection: carry + per-player obligations (ante, waived, bourré).
+ * Bourré players post the full settled previous-hand pot only — no extra ante.
+ */
+export function collectNextHandAntes({
+  carryOverPot = 0,
+  participantIds,
+  scoreById,
+  sessionStake,
+  buyInFallback = 0,
+}) {
+  const collected = collectHandAntes({
+    participants: participantIds,
+    scoreById,
+    buyInFallback,
+    stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], sessionStake),
+  });
+  const carryIn =
+    Math.max(0, Number(carryOverPot) || 0) + (collected.uncollectedPenalties ?? 0);
+  const antePot = Object.values(collected.postedAntes).reduce(
+    (sum, n) => sum + Math.max(0, Number(n) || 0),
+    0,
+  );
+  const nextHandPot = carryIn + antePot;
+  return { ...collected, carryIn, antePot, nextHandPot };
+}
+
+/** Dev-only bourré accounting trace (set BOURRE_ACCOUNTING_DEBUG=1 or localhost). */
+export function logBourreAccounting(event, payload = {}) {
+  const enabled =
+    (typeof process !== "undefined" && process.env?.BOURRE_ACCOUNTING_DEBUG === "1") ||
+    (typeof location !== "undefined" &&
+      (location.hostname === "localhost" || location.hostname === "127.0.0.1"));
+  if (!enabled) return;
+  const line = { event, ...payload };
+  if (typeof console !== "undefined" && console.info) {
+    console.info("[bourre-accounting]", line);
+  }
 }
 
 /** Apply a settlement delta against a bankroll; negative deltas clamp at zero. */

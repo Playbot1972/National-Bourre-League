@@ -92,6 +92,8 @@ import {
   sumProjectedHandAntes,
   bourrePlayerIds,
   nextDealFundingFlags,
+  collectNextHandAntes,
+  logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
 } from "./bourre-rules.js";
@@ -345,6 +347,18 @@ function isSettlementDevLogging() {
     (typeof location !== "undefined" &&
       (location.hostname === "localhost" || location.hostname === "127.0.0.1"))
   );
+}
+
+function logBourreSettlementTrace(event, payload = {}) {
+  if (!isSettlementDevLogging()) return;
+  if (typeof console !== "undefined" && console.info) {
+    console.info(`[bourre-settlement] ${event}`, payload);
+  }
+}
+
+async function readScoreByIdInTransaction(tx, roomId, sessionId) {
+  const snap = await tx.get(scoresCol(roomId, sessionId));
+  return Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
 }
 
 function logSettlementFailure(source, err, relatedErr = null) {
@@ -1151,7 +1165,9 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error("Session not found");
-      const patch = buildPatch(snap.data());
+      const sessionData = snap.data();
+      const scoreById = await readScoreByIdInTransaction(tx, roomId, sessionId);
+      const patch = buildPatch(sessionData, scoreById);
       if (!patch) {
         if (requirePatch) throw new Error("Enrollment step did not apply");
         return;
@@ -1406,12 +1422,22 @@ function buildPagatHandStartPatch(
 ) {
   const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
     dealContextExtras;
-  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
-  const collected = collectHandAntes({
-    participants: seatedIds,
+  const collected = collectNextHandAntes({
+    carryOverPot: carryIn,
+    participantIds: seatedIds,
     scoreById,
+    sessionStake,
     buyInFallback: buyIn,
-    stakeForPlayer: stakeFor,
+  });
+  logBourreAccounting("next-hand-antes", {
+    handCount,
+    carryIn,
+    nextHandPot: collected.nextHandPot,
+    postedAntes: collected.postedAntes,
+    bankrolls: collected.bankrolls,
+    bourreReplacementDue: Object.fromEntries(
+      seatedIds.map((pid) => [pid, scoreById[pid]?.bourreReplacementDue ?? null]),
+    ),
   });
   const dealIds = collected.activeParticipants;
   if (dealIds.length < 2) {
@@ -2430,6 +2456,23 @@ async function recordHandClient(
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
 
+  logBourreSettlementTrace("hand-settled", {
+    handNumber,
+    mode,
+    previousPot: grossPot,
+    settledPot: potState.currentPot,
+    carryOverPot,
+    bourreIds,
+    bourreMatch,
+    tricksByPlayer: tricksByPlayer || null,
+    bankrollsBefore: Object.fromEntries(
+      participants.map((pid) => [pid, scoreBankroll(scoreById[pid], buyIn)]),
+    ),
+    bankrollsAfter: solvent.bankrolls,
+    postedAntes,
+    antePot,
+  });
+
   const batch = writeBatch(db);
   const handLedger = {
     handNumber,
@@ -2477,7 +2520,7 @@ async function recordHandClient(
       mode,
       winners,
       bourreIds,
-      maxWinThisHand: potState.maxWinThisHand,
+      settledPot: potState.currentPot,
     });
     if (funding.bourreReplacementDue != null) {
       patch.bourreReplacementDue = funding.bourreReplacementDue;
@@ -3424,16 +3467,13 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   }
 
   const dealContextBase = {
-    scoreById,
     sessionStake,
     buyIn,
-    carryIn: data.carryOverPot || 0,
-    handCount: data.handCount || 0,
   };
   await runEnrollmentStepTransaction(
     roomId,
     sessionId,
-    (freshData) => {
+    (freshData, freshScoreById) => {
       if (sessionHandDealStarted(freshData)) return null;
       const freshHand = freshData.currentHand || emptyPreDealHand();
       const freshPhase = freshHand.phase ?? null;
@@ -3450,6 +3490,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
         dealingRule,
         {
           ...dealContextBase,
+          scoreById: freshScoreById,
           carryIn: freshData.carryOverPot || 0,
           handCount: freshData.handCount || 0,
         },
@@ -3529,7 +3570,7 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
     return;
   }
 
-  await runEnrollmentStepTransaction(roomId, sessionId, (data) => {
+  await runEnrollmentStepTransaction(roomId, sessionId, (data, freshScoreById) => {
     const enrollment = getSessionEnrollment(data);
     if (!enrollment?.active) return null;
     if (Date.now() < enrollmentDeadlineMs(enrollment)) return null;
@@ -3542,7 +3583,7 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
-      scoreById,
+      scoreById: freshScoreById,
       buyIn,
       sessionStake,
       carryIn: data.carryOverPot || 0,
@@ -3683,7 +3724,7 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
       await runEnrollmentStepTransaction(
         roomId,
         sessionId,
-        (data) => {
+        (data, freshScoreById) => {
           const activeEnrollment = getSessionEnrollment(data);
           if (!activeEnrollment?.active) return null;
           const turnId = activeEnrollment.orderedPlayerIds[activeEnrollment.currentIndex];
@@ -3696,7 +3737,7 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
             sortedPlayerIds,
             seed: Date.now(),
             dealingRule,
-            scoreById,
+            scoreById: freshScoreById,
             buyIn,
             sessionStake,
             carryIn: data.carryOverPot || 0,
@@ -3713,7 +3754,7 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
     await runEnrollmentStepTransaction(
       roomId,
       sessionId,
-      (data) => {
+      (data, freshScoreById) => {
         const activeEnrollment = getSessionEnrollment(data);
         if (!activeEnrollment?.active) return null;
         const turnId = activeEnrollment.orderedPlayerIds[activeEnrollment.currentIndex];
@@ -3726,7 +3767,7 @@ async function setHandParticipationClient(roomId, sessionId, { playerId, inHand,
           sortedPlayerIds,
           seed: Date.now(),
           dealingRule,
-          scoreById,
+          scoreById: freshScoreById,
           buyIn,
           sessionStake,
           carryIn: data.carryOverPot || 0,
