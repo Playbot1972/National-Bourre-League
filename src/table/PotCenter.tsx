@@ -4,6 +4,8 @@ import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
+import { DiscardPile } from "./DiscardPile";
+import type { DiscardPileCard } from "./discardPileModel";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { CARD_LAND_MS } from "./trickTiming";
@@ -42,6 +44,7 @@ interface PotCenterProps {
   instantTrickPlays?: boolean;
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
+  discardPileCards?: DiscardPileCard[];
 }
 
 export function PotCenter({
@@ -74,6 +77,7 @@ export function PotCenter({
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
   instantTrickPlays = false,
   peakTrickPlayCount = 0,
+  discardPileCards = [],
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
@@ -193,13 +197,8 @@ export function PotCenter({
           </div>
         )}
 
-        {(drawAnimPlayerId && drawAnimSubPhase === "discard" && drawDiscardCount > 0) && (
-          <div className="center-play__discard" aria-hidden="true">
-            {Array.from({ length: drawDiscardCount }, (_, i) => (
-              <span key={i} className="center-play__discard-card" style={{ ["--discard-i" as string]: i }} />
-            ))}
-          </div>
-        )}
+        <DiscardPile cards={discardPileCards} />
+
         <div className="center-play__phase" aria-live="polite">
           <span
             className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}

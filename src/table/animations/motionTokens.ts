@@ -8,7 +8,7 @@ export const GSAP_DURATIONS = {
   deal: 0.62,
   dealStagger: 0.11,
   playToTable: 0.58,
-  drawDiscard: 0.56,
+  drawDiscard: 0.35,
   drawReceive: 0.6,
   drawReceiveStagger: 0.085,
   trumpReveal: 0.64,

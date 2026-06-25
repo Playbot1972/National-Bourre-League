@@ -23,6 +23,8 @@ import {
 } from "./trickTiming";
 import { handTimingScale } from "./handPresentationTiming";
 import { useMobileStageFit } from "./hooks/useMobileStageFit";
+import { useDiscardPileState } from "./hooks/useDiscardPileState";
+import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
@@ -121,6 +123,18 @@ export function MobileCardTable({
   const handTiming = handTimingScale();
   const sessionKey = session.sessionId;
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
+  const { cards: discardPileCards, pileIndexRef, commitDiscardCards } = useDiscardPileState({
+    handNumber: session.handNumber,
+    tableRootRef: wrapRef,
+  });
+  useTableDiscardFly({
+    handPresentation,
+    handNumber: session.handNumber,
+    currentUserId,
+    tableRootRef: wrapRef,
+    pileIndexRef,
+    onDiscardCommitted: commitDiscardCards,
+  });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
       isPlayerAtBourreRisk(
@@ -266,6 +280,7 @@ export function MobileCardTable({
               trumpReminderPulse={microinteractions.trumpReminderPulse}
               instantTrickPlays={instantTrickPlays}
               peakTrickPlayCount={trickPresentation.peakPlayCount}
+              discardPileCards={discardPileCards}
             />
           </div>
 
@@ -381,6 +396,10 @@ export function MobileCardTable({
           revealedTrumpIndex={revealedTrumpIndex}
           trumpMergeActive={trumpMergeActive}
           trumpDisabledIndex={trumpDisabledIndex}
+          handNumber={session.handNumber}
+          tableRootRef={wrapRef}
+          pileIndexRef={pileIndexRef}
+          onDiscardCommitted={commitDiscardCards}
         />
         </div>
         {enrollmentActive && !selfPlayer?.inHand && (
