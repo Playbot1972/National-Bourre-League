@@ -92,6 +92,8 @@ import {
   sumProjectedHandAntes,
   bourrePlayerIds,
   nextDealFundingFlags,
+  buildNextDealFundingSnapshot,
+  mergeNextDealFundingIntoScoreById,
   collectNextHandAntes,
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
@@ -1065,6 +1067,7 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
   if (patch.carryOverPotAdjust > 0) {
     sessionUpdate.carryOverPot = increment(patch.carryOverPotAdjust);
   }
+  sessionUpdate.nextDealFunding = deleteField();
   tx.update(ref, sessionUpdate);
 }
 
@@ -1114,6 +1117,7 @@ function applySoloWinInTransaction(tx, ref, patch, roomId, sessionId) {
     [LIVE_ENROLLMENT_FIELD]: deleteField(),
     currentHand: patch.currentHand ?? emptyPreDealHand(),
     pendingCoWinSettlement: deleteField(),
+    nextDealFunding: deleteField(),
     updatedAt: serverTimestamp(),
   });
 }
@@ -1166,7 +1170,10 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
       const snap = await tx.get(ref);
       if (!snap.exists()) throw new Error("Session not found");
       const sessionData = snap.data();
-      const scoreById = await readScoreByIdInTransaction(tx, roomId, sessionId);
+      const scoreById = mergeNextDealFundingIntoScoreById(
+        await readScoreByIdInTransaction(tx, roomId, sessionId),
+        sessionData.nextDealFunding,
+      );
       const patch = buildPatch(sessionData, scoreById);
       if (!patch) {
         if (requirePatch) throw new Error("Enrollment step did not apply");
@@ -2555,12 +2562,20 @@ async function recordHandClient(
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap);
+  const nextDealFunding = buildNextDealFundingSnapshot({
+    settledPot: potState.currentPot,
+    bourreIds,
+    participants,
+    mode,
+    winners,
+  });
   batch.update(sessionDoc(roomId, sessionId), {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
     dealerId: newDealerId,
     pendingCoWinSettlement: deleteField(),
+    nextDealFunding,
     ...clearedEnrollmentBetweenHands(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
