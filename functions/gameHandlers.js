@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, logBourreAccounting } from "./vendor/bourre-rules.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -390,12 +390,22 @@ function buildDealCompletionPatch(
 ) {
   const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
     dealContextExtras;
-  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
-  const collected = collectHandAntes({
-    participants: enrolledIds,
+  const collected = collectNextHandAntes({
+    carryOverPot: carryIn,
+    participantIds: enrolledIds,
     scoreById,
+    sessionStake,
     buyInFallback: buyIn,
-    stakeForPlayer: stakeFor,
+  });
+  logBourreAccounting("next-hand-antes", {
+    handCount,
+    carryIn,
+    nextHandPot: collected.nextHandPot,
+    postedAntes: collected.postedAntes,
+    bankrolls: collected.bankrolls,
+    bourreReplacementDue: Object.fromEntries(
+      enrolledIds.map((pid) => [pid, scoreById[pid]?.bourreReplacementDue ?? null]),
+    ),
   });
   const dealIds = collected.activeParticipants;
   if (dealIds.length < 2) {
@@ -1026,60 +1036,57 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   });
   if (eligibleIds.length < 1) return { status: "noop" };
 
-  const autoPatch = buildDealCompletionPatch(
-    data.dealerId,
-    eligibleIds,
-    sortedIds,
-    Date.now(),
-    dealingRule,
-    {
-      scoreById,
-      sessionStake,
-      buyIn,
-      carryIn: data.carryOverPot || 0,
-      handCount: data.handCount || 0,
-    },
-  );
-  if (!autoPatch) return { status: "noop" };
-  if (autoPatch?.soloWin) {
-    await db.runTransaction(async (tx) => {
-      const sessionSnap = await tx.get(ref);
-      if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+  const dealExtras = { sessionStake, buyIn, dealingRule, eligibleIds, sortedIds };
+
+  let dealResult = { status: "noop" };
+  await db.runTransaction(async (tx) => {
+    const sessionSnap = await tx.get(ref);
+    if (!sessionSnap.exists) return;
+    const freshData = sessionSnap.data();
+    const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId));
+    const freshScoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const autoPatch = buildDealCompletionPatch(
+      freshData.dealerId,
+      dealExtras.eligibleIds,
+      dealExtras.sortedIds,
+      Date.now(),
+      dealExtras.dealingRule,
+      {
+        sessionStake: dealExtras.sessionStake,
+        buyIn: dealExtras.buyIn,
+        scoreById: freshScoreById,
+        carryIn: freshData.carryOverPot || 0,
+        handCount: freshData.handCount || 0,
+      },
+    );
+    if (!autoPatch) return;
+    if (autoPatch?.soloWin) {
       await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
       applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
-    });
-    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-    return { status: "solo_win" };
-  }
-  if (autoPatch?.privateHandsByPlayer) {
-    await db.runTransaction(async (tx) => {
-      const sessionSnap = await tx.get(ref);
-      if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+      dealResult = { status: "solo_win" };
+      return;
+    }
+    if (autoPatch?.privateHandsByPlayer) {
       await primeDealPatchReads(tx, db, roomId, sessionId, autoPatch);
       writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);
       applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
-    });
-    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-    return { status: "auto_dealt" };
-  }
-  if (autoPatch?.scorePatches && !autoPatch?.privateHandsByPlayer) {
-    if (Object.keys(autoPatch.scorePatches).length > 0) {
-      await db.runTransaction(async (tx) => {
-        const sessionSnap = await tx.get(ref);
-        if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
-        await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
-        for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
-          tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
-            ...scorePatch,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
-        }
-      });
+      dealResult = { status: "auto_dealt" };
+      return;
     }
-    return { status: "noop" };
+    if (autoPatch?.scorePatches && Object.keys(autoPatch.scorePatches).length > 0) {
+      await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
+      for (const [playerId, scorePatch] of Object.entries(autoPatch.scorePatches)) {
+        tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
+          ...scorePatch,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  });
+  if (dealResult.status === "solo_win" || dealResult.status === "auto_dealt") {
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   }
-
-  return { status: "noop" };
+  return dealResult;
 }
 
 export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }) {
@@ -1142,12 +1149,14 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
     const currentId = enrollment.orderedPlayerIds[enrollment.currentIndex];
     const enrolledIds = [...(enrollment.enrolledIds || [])];
     const declinedIds = [...(enrollment.declinedIds || []), currentId];
+    const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId));
+    const freshScoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
     const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
       dealerId: data.dealerId,
       sortedPlayerIds,
       seed: Date.now(),
       dealingRule,
-      scoreById,
+      scoreById: freshScoreById,
       buyIn,
       sessionStake,
       carryIn: data.carryOverPot || 0,
@@ -1281,12 +1290,14 @@ export async function handleSetHandParticipation(
         if ((enrollment.declinedIds || []).includes(playerId)) return { status: "noop" };
         const enrolledIds = [...(enrollment.enrolledIds || [])];
         const declinedIds = [...(enrollment.declinedIds || []), playerId];
+        const scoreSnapTx = await tx.get(scoresCol(db, roomId, sessionId));
+        const freshScoreById = Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()]));
         const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
           dealerId: data.dealerId,
           sortedPlayerIds,
           seed: Date.now(),
           dealingRule,
-          scoreById,
+          scoreById: freshScoreById,
           buyIn,
           sessionStake,
           carryIn: data.carryOverPot || 0,
@@ -1303,12 +1314,14 @@ export async function handleSetHandParticipation(
       if ((enrollment.enrolledIds || []).includes(playerId)) return { status: "noop" };
       const enrolledIds = [...(enrollment.enrolledIds || []), playerId];
       const declinedIds = [...(enrollment.declinedIds || [])];
+      const scoreSnapTx = await tx.get(scoresCol(db, roomId, sessionId));
+      const freshScoreById = Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()]));
       const patch = enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, {
         dealerId: data.dealerId,
         sortedPlayerIds,
         seed: Date.now(),
         dealingRule,
-        scoreById,
+        scoreById: freshScoreById,
         buyIn,
         sessionStake,
         carryIn: data.carryOverPot || 0,
@@ -1821,7 +1834,7 @@ export async function handleRecordHand(
       mode,
       winners,
       bourreIds,
-      maxWinThisHand: potState.maxWinThisHand,
+      settledPot: potState.currentPot,
     });
     if (funding.bourreReplacementDue != null) {
       patch.bourreReplacementDue = funding.bourreReplacementDue;
