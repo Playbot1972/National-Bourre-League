@@ -357,7 +357,9 @@ export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
 
     const passVisible = await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false);
     const drawVisible = await overlay.getByTestId("draw-button").isVisible().catch(() => false);
-    if (passVisible || drawVisible) {
+    const phase = await getHandPhase(overlay);
+    if ((passVisible || drawVisible) && (phase === "draw" || phase === "play")) {
+      if (phase === "play") return;
       const btn = passVisible
         ? overlay.getByTestId("pass-draw-button")
         : overlay.getByTestId("draw-button");
@@ -372,7 +374,6 @@ export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
       await page.waitForTimeout(400);
     }
 
-    const phase = await getHandPhase(overlay);
     const now = Date.now();
     if (phase === "draw" && now - lastNudgeAt > 5000 && now - lastProgressAt > 5000) {
       await page.evaluate(() => window.__nblE2E?.nudgeBots?.()).catch(() => {});
