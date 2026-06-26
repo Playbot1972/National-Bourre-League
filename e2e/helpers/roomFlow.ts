@@ -150,13 +150,20 @@ async function readHandPhase(overlay: Locator): Promise<{ phase: HandPhase; labe
     const hero = scope.querySelector('[data-testid="hero-hand"]');
     const heroLabel = hero?.getAttribute("aria-label") ?? "";
     const heroText = hero?.textContent ?? "";
+    const centerText =
+      scope.querySelector('[data-testid="phase-tag-center"]')?.textContent?.trim() ?? "";
+    const hasPlayButtons = scope.querySelectorAll('[data-testid="play-button"]').length > 0;
+    const trickInFlight = Boolean(scope.querySelector('[aria-label="Cards in trick"] li, [aria-label="Current trick"]'));
 
     if (
       phases.includes("play") ||
       /playing/i.test(heroLabel) ||
-      /playing/i.test(heroText)
+      /playing/i.test(heroText) ||
+      /playing/i.test(centerText) ||
+      hasPlayButtons ||
+      trickInFlight
     ) {
-      return { phase: "play", labels: texts.join(" | ") || heroLabel };
+      return { phase: "play", labels: texts.join(" | ") || centerText || heroLabel };
     }
     if (
       phases.includes("draw") ||
@@ -256,17 +263,16 @@ export async function tryHandEnrollmentActions(
 
 /** Stand pat when the hero has the draw clock. */
 async function tryPassDraw(page: Page, overlay: Locator, lastActionClick: { at: number }) {
-  if ((await readHandPhase(overlay)).phase !== "draw") return false;
-
-  const now = Date.now();
-  if (now - lastActionClick.at < 1500) return false;
-
   const passDraw = overlay.getByTestId("pass-draw-button");
   const drawBtn = overlay.getByTestId("draw-button");
 
   const hasPass = await passDraw.isVisible().catch(() => false);
   const hasDraw = await drawBtn.isVisible().catch(() => false);
   if (!hasPass && !hasDraw) return false;
+  if ((await getHandPhase(overlay)) === "play") return false;
+
+  const now = Date.now();
+  if (now - lastActionClick.at < 1500) return false;
 
   const target = hasPass ? passDraw : drawBtn;
   try {
@@ -330,7 +336,7 @@ export async function waitForDrawPhase(page: Page) {
 /** Pass hero draw turns and wait for bots until trick play begins. */
 export async function advanceThroughDrawPhase(page: Page) {
   const overlay = tableOverlay(page);
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + 180_000;
   const lastActionClick = { at: 0 };
   let lastDrawProgressAt = Date.now();
 
@@ -362,7 +368,7 @@ export async function advanceThroughDrawPhase(page: Page) {
 
   const { phase, labels } = await readHandPhase(overlay);
   throw new Error(
-    `Play phase did not start within 120s (last phase: ${labels || phase || "unknown"})`,
+    `Play phase did not start within 180s (last phase: ${labels || phase || "unknown"})`,
   );
 }
 

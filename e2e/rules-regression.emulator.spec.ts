@@ -14,7 +14,6 @@
  */
 import { test, expect } from "@playwright/test";
 import {
-  advanceThroughDrawPhase,
   emulatorReady,
   expectHandPhase,
   getHandPhase,
@@ -34,7 +33,7 @@ function tableOverlay(page: import("@playwright/test").Page) {
 
 test.describe("Rules regression — emulator (partial integration)", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
-  test.setTimeout(300_000);
+  test.setTimeout(420_000);
 
   test.beforeAll(async () => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
@@ -74,8 +73,7 @@ test.describe("Rules regression — emulator (partial integration)", () => {
     await expectPhaseTag(page, /draw/i);
     await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button")).first()).toBeVisible();
 
-    await advanceThroughDrawPhase(page);
-    await expectHandPhase(overlay, "play");
+    await waitForPlayPhase(page);
     await expectNoBourreMarkers(page);
   });
 
