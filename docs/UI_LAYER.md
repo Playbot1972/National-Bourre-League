@@ -1,51 +1,49 @@
-# UI layer boundaries (step 5)
+# UI layer boundaries
 
 ## Layers
 
 | Layer | Modules | Responsibility |
 |-------|---------|----------------|
-| **Presentation** | `table-view-model.js`, `table-session.js` (React mount) | Map session state → props; animations |
+| **Presentation** | `table-view-model.js`, `room-detail-view.js`, `table-session.js` | Map state → props / HTML |
 | **Intent** | `table-intents.js` | Submit human actions to Firestore / CF |
 | **Feedback** | `table-feedback.js`, `src/table/feedback/` | Sound/haptics; no game truth |
-| **Orchestration** | `session-orchestrator.js`, `bot-orchestrator.js`, `app.js` orchestration runtime | Timers, bot requests, lifecycle recovery |
+| **Lifecycle UI** | `session-lifecycle-ui.js` | Hand-off labels, lifecycle logging (no writes) |
+| **Orchestration** | `session-orchestrator.js`, `bot-orchestrator.js`, `bot-orchestration-runtime.js`, `app.js` runtime | Timers, bot requests, lifecycle recovery |
 | **Truth** | `firestore.js`, Cloud Functions | Persisted session/hand state |
 
-## `app.js` responsibilities (after step 5)
+## `app.js` responsibilities (after cleanup)
 
-| Stays in `app.js` | Extracted |
-|-------------------|-----------|
-| Auth, rooms, DOM `renderRoomDetail` | `buildTableFeedbackSnapshot` → `table-view-model.js` |
-| Firestore subscriptions | Feedback diff → `table-feedback.js` |
-| `buildTableSessionProps` (view model assembly) | Table action handlers → `table-intents.js` |
-| `syncTableSession` (mount only) | |
-| Orchestration runtime (timers, bots) | Documented in `SESSION_ORCHESTRATOR.md` |
+| Stays in `app.js` | Extracted module |
+|-------------------|------------------|
+| Auth, rooms, subscriptions | `table-view-model.js` — seat flags, pot metrics, leader labels |
+| `buildTableSessionProps` assembly | `buildTablePlayerSeatFlags`, `buildTablePotMetrics`, … |
+| `syncTableSession` (mount + feedback) | `table-feedback.js` |
+| Table actions | `table-intents.js` |
+| Next-hand timer + `openNextHandEnrollment` | `session-lifecycle-ui.js` — context + messages |
+| Server bot advance scheduling | `bot-orchestration-runtime.js` |
+| Game setup / roster HTML | `room-detail-view.js` |
+| Session sidebar (notes, ledger) | `app.js` (needs live `openHands` / auth) |
 
 ## Data flow
 
 ```
 Firestore onSnapshot
-  → app.js state (currentSessions, openScores, …)
-  → buildTableSessionProps()     [presentation props]
+  → buildTableSessionProps()     [table-view-model + app state]
   → syncTableSession()           [mount table-session.js]
   → scheduleSessionOrchestration [orchestration — not render]
 
-User click on table
-  → table-intents handler
-  → firestore.js / game-functions.js
-  → server truth update
-  → snapshot → re-render (observe only)
+User click → table-intents → firestore.js / game-functions.js
 ```
 
-## `table-session.js`
+## Naming notes
 
-Built bundle from `src/table/` — presentation + local animation state machines only.
-Does not call Firestore; receives props + `actions` callbacks from `app.js`.
+- `isHandoffReadyForEnrollment` (`session-lifecycle-ui.js`) — flat context for next-hand recovery
+- `shouldOpenEnrollmentAfterSettle` (`session-startup.js`) — phase-machine context (different API)
 
-## Follow-up cleanup (not in step 5)
+## Follow-up cleanup
 
-- Extract `buildTableSessionProps` player-flag mapping to `table-view-model.js`
-- Move orchestration runtime from `app.js` to `table-orchestration-runtime.js` factory
-- Extract hand lifecycle (`openNextHandEnrollment`) to `session-lifecycle.js`
-- Split `renderRoomDetail` HTML builders into `room-detail-view.js`
+- Extract `buildSessionSidebarHtml` when hand-history formatters move to `room-detail-view.js`
+- `table-orchestration-runtime.js` factory for enrollment timer + `runSessionOrchestration`
+- Legacy client bot path in `processRobotActionsInner` → share `resolveBotAdvanceHint`
 
-See also [`HAND_INVARIANTS.md`](HAND_INVARIANTS.md) for runtime guards at write boundaries.
+See also [`HAND_INVARIANTS.md`](HAND_INVARIANTS.md).

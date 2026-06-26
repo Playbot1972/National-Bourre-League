@@ -25,14 +25,38 @@ import {
   buildHeroCardsForTable,
   computeLegalPlayIndices,
   buildTableFeedbackSnapshot,
+  isHandCardsDealtPhase,
+  activeSeatedPlayerIds,
+  buildTablePotMetrics,
+  buildTablePlayerSeatFlags,
+  buildEnrollmentLeaderLabel,
+  buildTableLeaderLabel,
+  totalTricksPlayed,
+  isHandComplete,
+  deriveWinnersFromTricks,
 } from "./table-view-model.js";
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
 import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
-  logBotOrchestrator,
 } from "./bot-orchestrator.js";
+import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
+import {
+  logHandLifecycleTransition,
+  isPagatHandClock,
+  buildHandLifecycleContext,
+  isHandoffReadyForEnrollment,
+  isSessionAutoDealtNextHand,
+  nextHandOpenFeedbackMessage,
+} from "./session-lifecycle-ui.js";
+import {
+  buildAddPlayerFormHtml,
+  buildSessionResultsHtml,
+  buildGameSetupStakesHtml,
+  buildSetupRosterHtml,
+  buildSessionLiveStatusHtml,
+} from "./room-detail-view.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   clearSessionSetupSheetSnap,
@@ -89,7 +113,6 @@ import {
   finalizeSession,
   getSession,
   getSessionScores,
-  computeHandPotState,
   normalizeBourreSettings,
   updateRoomBourreSettings,
   updateRoomHouseRules,
@@ -98,18 +121,13 @@ import {
   HOUSE_RULE_FIELDS,
   normalizeHouseRules,
   readHouseRulesFromForm,
-  deriveWinnersFromTricks,
-  tricksToWinHint,
   playerHandStake,
-  sumProjectedHandAntes,
   scoreBankroll,
   resolveSessionBuyIn,
   rebuySessionPlayer,
   MAX_TRICKS_PER_HAND,
   MAX_TABLE_PLAYERS,
   formatClientGameError,
-  totalTricksPlayed,
-  isHandComplete,
   isRobotPlayerId,
   getSessionEnrollment,
   getSessionHandDecision,
@@ -118,7 +136,6 @@ import {
   enrollmentDeadlineMs,
   tricksForPlayer,
   resolveActionOrder,
-  projectNextHandPot,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -129,10 +146,8 @@ import {
 } from "./session-presets.js";
 import {
   cardsRemainingInHand,
-  displayHoleCardCount,
 } from "./game-engine.js";
 import {
-  bourrePlayerIds,
   formatHandHistoryPublicLine,
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
@@ -172,8 +187,6 @@ import {
   isPagatDecisionActive,
   resolveTableEnrollmentActive,
   resolveCurrentHandChoicePlayerId,
-  canPlayerShowHandChoice,
-  assertBotAdvanceNotInFlight,
   assertHandFlowConsistent,
 } from "./session-startup.js";
 import {
@@ -927,17 +940,35 @@ let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
-let botAdvanceInFlight = false;
-let botAdvanceScheduledTimer = null;
-let pendingBotAdvanceWake = false;
-let botAdvanceLastCompletedAt = 0;
 let lastRobotTrickAt = 0;
 let sessionOrchestrationTimer = null;
 let sessionOrchestrationCoalesce = false;
-const BOT_ADVANCE_DEBOUNCE_MS = 150;
 const ROBOT_PRESENTATION_SOFT_MS = 3_500;
 const ROBOT_PRESENTATION_FORCE_MS = 4_000;
 let robotPresentationBlockEpisode = null;
+
+/** Server bot-advance request controller (execute path is Cloud Functions only). */
+let serverBotAdvance = null;
+
+function getServerBotAdvance() {
+  if (!serverBotAdvance) {
+    serverBotAdvance = createServerBotAdvanceRuntime({
+      shouldRequestAdvance: () => shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen),
+      sessionNeedsBotDriver,
+      shouldBlockForPresentation: shouldBlockRobotForPresentation,
+      snapshotContext: snapshotBotOrchestratorContext,
+      getRoomId: () => currentRoomId,
+      getSessionId: () => openSessionId,
+      getHandPhase: (s) => getSessionCurrentHand(s)?.phase ?? null,
+      advanceSessionBots,
+      findSession: (id) => currentSessions.find((x) => x.id === id),
+      getScores: () => openScores,
+      onWake: (latest, scores, actorId, opts) => scheduleServerBotAdvance(latest, scores, actorId, opts),
+      trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
+    });
+  }
+  return serverBotAdvance;
+}
 let pendingRobotWake = false;
 let robotPresentationUnsub = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
@@ -954,32 +985,6 @@ let nextHandOpenTimer = null;
 let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
 
-function shouldOpenEnrollmentAfterSettle(ctx) {
-  return (
-    ctx.sessionStatus !== "final" &&
-    !ctx.enrollmentActive &&
-    !ctx.handPhase &&
-    (ctx.participantCount ?? 0) === 0 &&
-    !ctx.pendingCoWin
-  );
-}
-
-function logHandLifecycleTransition(transition) {
-  if (typeof console !== "undefined" && console.info) {
-    console.info(
-      `[hand-lifecycle] ${transition.from} → ${transition.to}: ${transition.reason}${
-        transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
-      }`,
-    );
-  }
-}
-
-/** Pagat reveal/decision clock — bots and timers must run even without legacy enrollment. */
-function isPagatHandClock(sessionObj) {
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
-  return phase === "reveal" || phase === "decision";
-}
-
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
     getSessionEnrollment(sessionObj)?.active === true ||
@@ -988,23 +993,9 @@ function sessionNeedsEnrollmentDriver(sessionObj) {
   );
 }
 
-function sessionHandLifecycleContext(sessionObj) {
-  const ch = getSessionCurrentHand(sessionObj);
-  const enrollment = getSessionEnrollment(sessionObj);
-  return {
-    sessionStatus: sessionObj?.status ?? null,
-    enrollmentActive: enrollment?.active === true,
-    handPhase: ch?.phase ?? null,
-    participantCount: ch?.participantIds?.length ?? 0,
-    pendingCoWin: Boolean(sessionObj?.pendingCoWinSettlement),
-    tablePlayOpen,
-  };
-}
-
 function sessionNeedsNextHandEnrollment(sessionObj) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  const ctx = sessionHandLifecycleContext(sessionObj);
-  return shouldOpenEnrollmentAfterSettle(ctx);
+  return isHandoffReadyForEnrollment(buildHandLifecycleContext(sessionObj, { tablePlayOpen }));
 }
 
 function cancelNextHandOpenTimer() {
@@ -1013,29 +1004,6 @@ function cancelNextHandOpenTimer() {
     nextHandOpenTimer = null;
   }
   nextHandOpenStartedAt = 0;
-}
-
-function sessionAutoDealtNextHand(sessionObj) {
-  if (getSessionEnrollment(sessionObj)?.active) return false;
-  const phase = getSessionCurrentHand(sessionObj)?.phase;
-  return (
-    phase === "reveal" ||
-    phase === "decision" ||
-    phase === "draw" ||
-    phase === "play"
-  );
-}
-
-function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
-  const handNum = (sessionObj?.handCount ?? 0) + 1;
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
-  if (sessionAutoDealtNextHand(sessionObj)) {
-    if (phase === "reveal" || phase === "decision") {
-      return `Hand #${handNum} — see your cards, then play or pass`;
-    }
-    return `Hand #${handNum} — dealing next hand…`;
-  }
-  return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
 }
 
 async function openNextHandEnrollment(sessionObj) {
@@ -1058,7 +1026,7 @@ async function openNextHandEnrollment(sessionObj) {
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
-    const autoDealt = sessionAutoDealtNextHand(refreshed);
+    const autoDealt = isSessionAutoDealtNextHand(refreshed);
     scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
     const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
     const dealerLabel = dealerSc?.displayName ?? "dealer";
@@ -1097,8 +1065,8 @@ function maybeRecoverHandLifecycle(sessionObj) {
     return;
   }
 
-  const ctx = sessionHandLifecycleContext(sessionObj);
-  if (!shouldOpenEnrollmentAfterSettle(ctx)) {
+  const ctx = buildHandLifecycleContext(sessionObj, { tablePlayOpen });
+  if (!isHandoffReadyForEnrollment(ctx)) {
     cancelNextHandOpenTimer();
     return;
   }
@@ -2597,147 +2565,15 @@ function processRobotActions(s, scores) {
 }
 
 function clearBotAdvanceSchedule() {
-  if (botAdvanceScheduledTimer) {
-    clearTimeout(botAdvanceScheduledTimer);
-    botAdvanceScheduledTimer = null;
-  }
+  getServerBotAdvance().clearSchedule();
 }
 
-function snapshotBotOrchestratorContext(s, scores, extra = {}) {
-  const ch = getSessionCurrentHand(s);
-  return {
-    ...snapshotGameFlowContext(s, scores),
-    ...extra,
-    pendingCoWin: Boolean(s?.pendingCoWinSettlement),
-    enrollmentActive: Boolean(getSessionEnrollment(s)?.active),
-    needsBotDriver: sessionNeedsBotDriver(s, scores),
-  };
-}
-
-/**
- * Debounced client request for server-owned bot advancement.
- * The server (advanceBotsAfterAction) is the sole executor when authority is on.
- */
 function scheduleServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
-  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
-    logBotOrchestrator("skip-request", {
-      reason: "server_authority_off_or_table_closed",
-      requester: actorId,
-      owner: "server",
-      trigger: reason,
-    });
-    return;
-  }
-  if (!sessionNeedsBotDriver(s, scores)) {
-    logBotOrchestrator("skip-request", {
-      reason: "no_bot_driver_needed",
-      requester: actorId,
-      owner: "server",
-      trigger: reason,
-      ...snapshotBotOrchestratorContext(s, scores),
-    });
-    return;
-  }
-  if (shouldBlockRobotForPresentation(s, scores)) {
-    logBotOrchestrator("skip-request", {
-      reason: "presentation_blocked",
-      requester: actorId,
-      owner: "server",
-      trigger: reason,
-      ...snapshotBotOrchestratorContext(s, scores),
-    });
-    return;
-  }
-
-  const handPhase = getSessionCurrentHand(s)?.phase ?? null;
-  const minGap = handPhase === "play" ? ROBOT_TRICK_INTERVAL_MS : 0;
-  const elapsed = Date.now() - botAdvanceLastCompletedAt;
-  const delay = Math.max(BOT_ADVANCE_DEBOUNCE_MS, minGap > 0 ? minGap - elapsed : 0);
-
-  if (botAdvanceInFlight) {
-    pendingBotAdvanceWake = true;
-    logBotOrchestrator("coalesce-request", {
-      reason: "advance_in_flight",
-      requester: actorId,
-      owner: "server",
-      trigger: reason,
-      delayMs: delay,
-    });
-    return;
-  }
-
-  clearBotAdvanceSchedule();
-  botAdvanceScheduledTimer = setTimeout(() => {
-    botAdvanceScheduledTimer = null;
-    void executeServerBotAdvance(s, scores, actorId, { reason });
-  }, delay);
-
-  logBotOrchestrator("schedule-request", {
-    requester: actorId,
-    owner: "server",
-    trigger: reason,
-    delayMs: delay,
-    ...snapshotBotOrchestratorContext(s, scores),
-  });
+  getServerBotAdvance().schedule(s, scores, actorId, { reason });
 }
 
 async function executeServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
-  if (botAdvanceInFlight) {
-    assertBotAdvanceNotInFlight(true, { source: "executeServerBotAdvance", reason });
-    return;
-  }
-  if (!currentRoomId || !openSessionId) return;
-  const sessionObj = currentSessions.find((x) => x.id === openSessionId) ?? s;
-  if (!sessionObj || sessionObj.status === "final") return;
-  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) return;
-  if (!sessionNeedsBotDriver(sessionObj, scores)) return;
-  if (shouldBlockRobotForPresentation(sessionObj, scores)) {
-    pendingBotAdvanceWake = true;
-    return;
-  }
-
-  botAdvanceInFlight = true;
-  const ctx = snapshotBotOrchestratorContext(sessionObj, scores, { trigger: reason });
-  logBotOrchestrator("request", {
-    requester: actorId,
-    owner: "server",
-    roomId: currentRoomId,
-    sessionId: openSessionId,
-    ...ctx,
-  });
-
-  try {
-    const result = await advanceSessionBots(currentRoomId, openSessionId, {
-      requester: actorId,
-      trigger: reason,
-    });
-    botAdvanceLastCompletedAt = Date.now();
-    logBotOrchestrator("complete", {
-      requester: actorId,
-      owner: "server",
-      roomId: currentRoomId,
-      sessionId: openSessionId,
-      result,
-      ...ctx,
-    });
-  } catch (err) {
-    logBotOrchestrator("error", {
-      requester: actorId,
-      owner: "server",
-      roomId: currentRoomId,
-      sessionId: openSessionId,
-      message: err?.message ?? String(err),
-      ...ctx,
-    });
-    console.warn("advanceSessionBots:", err);
-  } finally {
-    botAdvanceInFlight = false;
-    if (pendingBotAdvanceWake) {
-      pendingBotAdvanceWake = false;
-      const latest = currentSessions.find((x) => x.id === openSessionId);
-      if (latest) scheduleServerBotAdvance(latest, openScores, actorId, { reason: "wake" });
-    }
-  }
+  await getServerBotAdvance().execute(s, scores, actorId, { reason });
 }
 
 /**
@@ -3001,6 +2837,16 @@ function snapshotGameFlowContext(s, scores) {
   };
 }
 
+function snapshotBotOrchestratorContext(s, scores, extra = {}) {
+  return {
+    ...snapshotGameFlowContext(s, scores),
+    ...extra,
+    pendingCoWin: Boolean(s?.pendingCoWinSettlement),
+    enrollmentActive: Boolean(getSessionEnrollment(s)?.active),
+    needsBotDriver: sessionNeedsBotDriver(s, scores),
+  };
+}
+
 function processRobotActionsInner(s, scores) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
@@ -3220,90 +3066,6 @@ function processRobotActionsInner(s, scores) {
     });
 }
 
-function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid, pagatDecision = false) {
-  const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
-  const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
-  if (currentId === myUid) {
-    return pagatDecision
-      ? "Your turn — pass or play"
-      : "Your turn — tap I'm in";
-  }
-  return pagatDecision
-    ? `Waiting for ${name} — pass or play clockwise from dealer`
-    : `Waiting for ${name} — clockwise from dealer`;
-}
-
-function buildTableLeaderLabel(
-  displayScores,
-  participantIds,
-  tricksThisHand,
-  activeWinnerIds,
-  handReady,
-  maxTricks,
-  handComplete,
-  totalTricks,
-  phase,
-  trumpSuit,
-) {
-  const suitNames = {
-    spades: "Spades",
-    hearts: "Hearts",
-    diamonds: "Diamonds",
-    clubs: "Clubs",
-  };
-  if (phase === "draw") {
-    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · draw round — discard up to 5 cards or stand pat`;
-  }
-  if (phase === "play") {
-    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · tap a legal card to play (${totalTricks}/5 tricks)`;
-  }
-  if (!participantIds.length) return "Tap I'm in when you're ready to play.";
-  if (handComplete && handReady && activeWinnerIds.length === 1) {
-    const name =
-      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
-    const bourreIds = bourrePlayerIds(tricksThisHand, participantIds);
-    if (bourreIds.length) {
-      const bourreNames = bourreIds
-        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-        .join(" & ");
-      return `${name} wins (${maxTricks} tricks) · Bourré: ${bourreNames}`;
-    }
-    return `${name} wins (${maxTricks} tricks)`;
-  }
-  if (handComplete && handReady && activeWinnerIds.length >= 2) {
-    const names = activeWinnerIds
-      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-      .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each) · pot carries (no split)`;
-  }
-  if (handReady && activeWinnerIds.length === 1) {
-    const name =
-      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Leader";
-    return `${name} leads (${maxTricks} tricks) — play out to 5 (${totalTricks}/5 played)`;
-  }
-  if (handReady && activeWinnerIds.length >= 2) {
-    const names = activeWinnerIds
-      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-      .join(" & ");
-    return `Tie at ${maxTricks} — finish all 5 tricks (${totalTricks}/5 played)`;
-  }
-  const winHint = tricksToWinHint(participantIds.length);
-  return `Tap + when you take a trick (${totalTricks}/5 played · most tricks wins, can be ${winHint} with ${participantIds.length} in)`;
-}
-
-function activeSeatedPlayerIds(sessionPlayers, displayScores) {
-  const fromSession = (sessionPlayers || []).map((p) => p.playerId).filter(Boolean);
-  const pool = fromSession.length
-    ? fromSession
-    : displayScores.map((sc) => sc.playerId).filter(Boolean);
-  return pool.filter((pid) => {
-    const row = displayScores.find((sc) => sc.playerId === pid);
-    return row?.out !== true;
-  });
-}
-
 function buildTableSessionProps(s) {
   const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
@@ -3330,11 +3092,7 @@ function buildTableSessionProps(s) {
   const trumpSuit = currentHand?.trumpSuit ?? null;
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
   const tricksThisHand = currentHand?.tricksByPlayer || {};
-  const cardsDealt =
-    handPhase === "reveal" ||
-    handPhase === "decision" ||
-    handPhase === "draw" ||
-    handPhase === "play";
+  const cardsDealt = isHandCardsDealtPhase(handPhase);
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
     myUid && cardsDealt
@@ -3415,7 +3173,6 @@ function buildTableSessionProps(s) {
         ? pendingWinners
         : [];
 
-  const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
   const postedAntes = currentHand?.postedAntes ?? {};
   const seatedIds =
     currentHand?.seatedIds?.length > 0
@@ -3433,44 +3190,18 @@ function buildTableSessionProps(s) {
           seatedIds,
         )
       : null;
-  const potFundingPlayerIds =
-    handParticipantIds.length > 0
-      ? handParticipantIds
-      : activeSeatedPlayerIds(s.players, displayScores);
-  const antePot = sumProjectedHandAntes(
-    scoreById,
-    potFundingPlayerIds,
-    handStake,
-    postedAntes,
-  );
   const limEnabled = s.limEnabled === true;
   const carryOver = s.carryOverPot ?? 0;
-  const potState = computeHandPotState({
-    anteAmount: handStake,
-    limEnabled,
-    carryIn: carryOver,
-    antePot,
-  });
-  const projectedNextPot = projectNextHandPot(
-    carryOver,
-    scoreById,
-    potFundingPlayerIds,
+  const { potMetrics } = buildTablePotMetrics({
+    handParticipantIds,
+    sessionPlayers: s.players,
+    displayScores,
     handStake,
+    limEnabled,
+    carryOver,
     postedAntes,
-  );
-  const potMetrics = {
-    anteAmount: potState.anteAmount,
-    potCap: potState.potCap,
-    currentPot: handParticipantIds.length > 0 ? potState.currentPot : projectedNextPot,
-    maxWinThisHand:
-      handParticipantIds.length > 0
-        ? potState.maxWinThisHand
-        : limEnabled
-          ? Math.min(projectedNextPot, potState.potCap)
-          : projectedNextPot,
-    limEnabled: potState.limEnabled,
-    overflow: potState.overflow,
-  };
+  });
+  const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
 
   const showCoWinSettlement =
     handComplete &&
@@ -3488,6 +3219,30 @@ function buildTableSessionProps(s) {
         : null;
 
   const sessionBuyIn = s.buyInAmount ?? normalizeBourreSettings(currentRoom?.bourreSettings).buyInAmount;
+  const seatFlagCtx = {
+    myUid,
+    myPhotoUrl: session?.photoURL ?? null,
+    sessionBuyIn,
+    dealerId,
+    handParticipantIds,
+    tricksThisHand,
+    cardsDealt,
+    currentHand,
+    handComplete,
+    handReady,
+    activeWinnerIds,
+    enrolledDuringSignup,
+    declinedEnrollmentIds,
+    plannedDiscards,
+    enrollmentActive,
+    pagatDecisionActive,
+    currentEnrollmentPlayerId,
+    isFinal,
+    totalTricks,
+    ratingsByPlayerId: openPlayerRatings,
+    applyLocalCommitToPlayerFlags,
+    localHandActionCommit,
+  };
   const lastHand = openHands[0];
   const recentBourreIds =
     lastHand && lastHand.handNumber === (s.handCount ?? 0)
@@ -3533,81 +3288,7 @@ function buildTableSessionProps(s) {
     handComplete,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
-    players: displayScores.map((sc) => {
-      const isSelf = sc.playerId === myUid;
-      const rating = openPlayerRatings[sc.playerId];
-      const apeScoreVal = rating?.apeScore;
-      const playerFlags = {
-        playerId: sc.playerId,
-        displayName: sc.displayName,
-        photoURL: isSelf ? session?.photoURL : null,
-        handsWon: sc.handsWon ?? 0,
-        sessionStreak: sc.handsWon ?? 0,
-        ...(rating && !isRobotPlayerId(sc.playerId)
-          ? {
-              apeScore: apeScoreVal ?? 0,
-              apeClass: rating.apeClass ?? apeClass(apeScoreVal ?? 0),
-              apeStatus: rating.apeStatus ?? apeStatus(rating),
-            }
-          : {}),
-        ...(isSelf ? { net: sc.net ?? 0 } : {}),
-        bankroll: scoreBankroll(sc, sessionBuyIn),
-        isOut: sc.out === true || scoreBankroll(sc, sessionBuyIn) <= 0,
-        ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
-        inHand:
-          handParticipantIds.includes(sc.playerId) ||
-          enrolledDuringSignup.includes(sc.playerId),
-        tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
-        isSelf,
-        isDealer: sc.playerId === dealerId,
-        isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
-        enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
-        decisionPlannedDiscards: plannedDiscards[sc.playerId],
-        isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
-        showHoleCards:
-          cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
-        holeCardCount: cardsDealt
-          ? displayHoleCardCount(currentHand || {}, sc.playerId, false)
-          : 0,
-        isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
-        isActiveActor:
-          (enrollmentActive || pagatDecisionActive) &&
-          currentEnrollmentPlayerId === sc.playerId
-            ? true
-            : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
-        canToggleInHand: canPlayerShowHandChoice({
-          enrollmentGateActive: enrollmentActive,
-          isSelf,
-          playerId: sc.playerId,
-          currentChoicePlayerId: currentEnrollmentPlayerId,
-          isFinal,
-          bankroll: scoreBankroll(sc, sessionBuyIn),
-          isOut: sc.out === true,
-        }),
-        canPassEnrollment:
-          canPlayerShowHandChoice({
-            enrollmentGateActive: enrollmentActive,
-            isSelf,
-            playerId: sc.playerId,
-            currentChoicePlayerId: currentEnrollmentPlayerId,
-            isFinal,
-            bankroll: scoreBankroll(sc, sessionBuyIn),
-            isOut: sc.out === true,
-          }) && !declinedEnrollmentIds.includes(sc.playerId),
-        canEditTricks:
-          !cardsDealt &&
-          !isFinal &&
-          handParticipantIds.includes(sc.playerId) &&
-          isSelf &&
-          !handComplete &&
-          totalTricks < MAX_TRICKS_PER_HAND,
-      };
-      return isSelf && localHandActionCommit
-        ? applyLocalCommitToPlayerFlags(localHandActionCommit, playerFlags, myUid)
-        : playerFlags;
-    }),
+    players: displayScores.map((sc) => buildTablePlayerSeatFlags(sc, seatFlagCtx)),
     potMetrics,
     mySessionNet:
       myUid != null
@@ -3966,99 +3647,40 @@ function renderRoomDetail() {
   applyRoomSetupFocus();
 }
 
-function buildAddPlayerFormHtml() {
-  return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
-         <input class="text-input" id="add-player-name" placeholder="Guest name (optional for robots)" aria-label="Add player name" data-testid="add-player-name" />
-         <label class="add-player-robot">
-           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" checked />
-           Robot — auto I&apos;m in &amp; play to win (name optional)
-         </label>
-         <button type="submit" class="btn btn--sm" id="session-add-player-pill" data-testid="session-add-player-pill">Add to roster</button>
-       </form>`;
-}
-
-function buildSetupRosterHtml(sessionObj, isOwner) {
-  if (!sessionObj || sessionObj.status === "final") {
-    return `<p class="muted small game-setup-roster__empty">Open a table to build your roster.</p>`;
-  }
-  const roster = tableReadyRoster(sessionObj);
-  if (roster.length === 0) {
-    return `<p class="muted small game-setup-roster__empty">No players yet — add guests or robots below.</p>`;
-  }
+function rosterPanelHtml(sessionObj, isOwner) {
   const buyIn = resolveSessionBuyIn(sessionObj, normalizeBourreSettings(currentRoom?.bourreSettings));
-  return `<ul class="game-setup-roster" data-testid="game-setup-roster">
-    ${roster
-      .map((entry) => {
-        const sc = openScores.find((s) => s.playerId === entry.playerId);
-        const robot = entry.isRobot;
-        const guest = !robot && !currentMembers.some((m) => m.userId === entry.playerId);
-        const roleLabel = robot ? "robot" : guest ? "guest" : "player";
-        const chips =
-          sc != null
-            ? formatRiskStake(scoreBankroll(sc, buyIn))
-            : null;
-        const canRemove =
-          isOwner &&
-          sessionObj.status !== "final" &&
-          (robot || guest) &&
-          entry.playerId;
-        return `<li class="game-setup-roster__row" data-testid="setup-roster-entry">
-          <span class="dot${robot ? " dot--robot" : guest ? " dot--guest" : ""}"></span>
-          <span class="game-setup-roster__name">${escapeHtml(entry.displayName)}</span>
-          <em class="game-setup-roster__role">${escapeHtml(roleLabel)}</em>
-          ${chips ? `<span class="game-setup-roster__chips muted small">${escapeHtml(chips)}</span>` : ""}
-          ${
-            canRemove
-              ? `<button type="button" class="btn btn--sm btn--danger game-setup-roster__remove" data-remove-session-player="${escapeHtml(entry.playerId)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)}">Remove</button>`
-              : ""
-          }
-        </li>`;
-      })
-      .join("")}
-  </ul>`;
+  return buildSetupRosterHtml(sessionObj, isOwner, {
+    roster: tableReadyRoster(sessionObj),
+    scores: openScores,
+    members: currentMembers,
+    buyIn,
+    escapeHtml,
+    formatRiskStake,
+    scoreBankroll,
+  });
 }
 
-function buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings) {
-  if (isOwner) {
-    return `<div class="game-setup-stakes bourre-settings-form" data-testid="game-setup-stakes">
-      <label class="bourre-settings__row">
-        <span class="bourre-settings__label">Buy-in</span>
-        <input
-          type="number"
-          class="text-input bourre-settings__amount"
-          id="room-buy-in-amount"
-          min="1"
-          step="1"
-          value="${roomBuyInAmount}"
-          aria-label="Room buy-in amount"
-        />
-      </label>
-      <label class="bourre-settings__row">
-        <span class="bourre-settings__label">Ante</span>
-        <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
-          ${renderAnteSelectOptionsHtml(roomAnteAmount, escapeHtml)}
-        </select>
-      </label>
-      <label class="bourre-settings__row bourre-settings__lim">
-        <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
-        <span>LmT</span>
-        <span class="muted small">Pot cap 20× ante</span>
-      </label>
-      <label class="bourre-settings__row bourre-settings__lim">
-        <input type="checkbox" id="room-rebuy-enabled" ${bourreSettings.rebuyEnabled ? "checked" : ""} />
-        <span>Rebuy</span>
-        <span class="muted small">Top-up when bankroll hits zero</span>
-      </label>
-      <p class="muted small">Buy-in is each player&apos;s starting stack; ante feeds the pot each hand.</p>
-    </div>`;
-  }
-  return `<ul class="kv game-setup-stakes game-setup-stakes--readonly">
-    <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
-    <li><span>Ante</span><span>${escapeHtml(formatAnteStake(bourreSettings.anteAmount))}</span></li>
-    <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
-  </ul>`;
+function stakesPanelHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings) {
+  return buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings, {
+    escapeHtml,
+    renderAnteSelectOptionsHtml,
+    formatRiskStake,
+    formatAnteStake,
+  });
 }
 
+function sessionLiveCardHtml(s) {
+  return buildSessionLiveStatusHtml(s, {
+    tableReadyPlayerCount,
+    tablePlayOpen,
+    formatAnteStake,
+    escapeHtml,
+    getSessionEnrollment,
+    getSessionCurrentHand,
+  });
+}
+
+/** Unified game setup panel (stakes, roster, play CTA). */
 function buildUnifiedGameSetupHtml({
   openSessionObj,
   isOwner,
@@ -4134,38 +3756,17 @@ function buildUnifiedGameSetupHtml({
         <h4>Table setup</h4>
         <p class="muted small">One place to set stakes, build your roster, and start play.</p>
       </header>
-      ${buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
+      ${stakesPanelHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
       ${sessionMeta}
       <div class="game-setup-panel__roster">
         <h5>Roster</h5>
-        ${buildSetupRosterHtml(openSessionObj, isOwner)}
+        ${rosterPanelHtml(openSessionObj, isOwner)}
       </div>
       ${addSection}
       ${actions}
       ${hasActiveSession && isOwner && canCreateSession && !sessionHardCap ? `<div class="game-setup-panel__secondary">${openTableBtn}${capNote}</div>` : ""}
     </div>
   </section>`;
-}
-
-function buildSessionLiveStatusHtml(s) {
-  if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
-  const enrollment = getSessionEnrollment(s);
-  const handNum = (s.handCount ?? 0) + 1;
-  let status = `Hand #${handNum} · ante ${formatAnteStake(s.handStake ?? 1)}`;
-  if (enrollment?.active) {
-    status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
-  } else {
-    const phase = getSessionCurrentHand(s)?.phase;
-    if (phase === "draw") status += " · draw phase";
-    else if (phase === "play") status += " · live play";
-    else status += " · tap Play to deal";
-  }
-  return `<div class="session-live-card">
-      <p class="session-live-card__status">${escapeHtml(status)}</p>
-      <p class="muted small session-live-card__hint">
-        Cards and enrollment are in the table view. Hand results and session controls stay here.
-      </p>
-    </div>`;
 }
 
 function buildSessionSidebarHtml(s) {
@@ -4222,24 +3823,6 @@ function buildSessionSidebarHtml(s) {
         ${renderFeedbackSettingsHtml()}`;
 }
 
-function buildSessionResultsHtml(s) {
-  if (!Array.isArray(s.results)) return "";
-  return `<div class="session-results">
-           <h5>Ape Score results</h5>
-           <ul>
-             ${[...s.results]
-               .sort((a, b) => a.placement - b.placement)
-               .map(
-                 (r) =>
-                   `<li><span class="place">#${r.placement}</span> ${escapeHtml(r.displayName)}
-                      → Ape Score <strong>${r.apeScore}</strong>
-                      <span class="momentum ${r.momentum >= 0 ? "up" : "down"}">${r.momentum >= 0 ? "▲" : "▼"} ${Math.abs(r.momentum)}</span></li>`,
-               )
-               .join("")}
-           </ul>
-         </div>`;
-}
-
 /** Session ledger panel — add players inline while waiting; notes/results here. */
 function mountSessionPanel(s, isOwner) {
   const mount = $("#session-panel-mount", roomDetailView);
@@ -4248,13 +3831,13 @@ function mountSessionPanel(s, isOwner) {
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
   const sidebarHtml = buildSessionSidebarHtml(s);
-  const liveCardHtml = buildSessionLiveStatusHtml(s);
+  const liveCardHtml = sessionLiveCardHtml(s);
 
   if (isFinal) {
     resetSessionPanelTableHost();
     mount.innerHTML = `
       <div class="session session--stack">
-        ${buildSessionResultsHtml(s)}
+        ${buildSessionResultsHtml(s, escapeHtml)}
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
     return;
@@ -4292,7 +3875,7 @@ function renderSessionPanel(s) {
   if (isFinal) {
     return `
     <div class="session session--table">
-      ${buildSessionResultsHtml(s)}
+      ${buildSessionResultsHtml(s, escapeHtml)}
       <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
   }

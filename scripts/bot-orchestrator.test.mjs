@@ -29,6 +29,10 @@ describe("bot orchestrator authority", () => {
 
 describe("app.js bot paths", () => {
   const src = readFileSync(fileURLToPath(new URL("../docs/app.js", import.meta.url)), "utf8");
+  const runtimeSrc = readFileSync(
+    fileURLToPath(new URL("../docs/bot-orchestration-runtime.js", import.meta.url)),
+    "utf8",
+  );
 
   it("server path uses scheduleServerBotAdvance before legacy robotPlayCard", () => {
     const idx = src.indexOf("function processRobotActionsInner");
@@ -52,27 +56,19 @@ describe("app.js bot paths", () => {
   });
 
   it("guards duplicate in-flight server advancement", () => {
-    assert.ok(src.includes("let botAdvanceInFlight = false"));
-    assert.ok(src.includes("pendingBotAdvanceWake"));
-    assert.ok(src.includes("coalesce-request"));
-    assert.ok(src.includes("advance_in_flight"));
-    const scheduleIdx = src.indexOf("function scheduleServerBotAdvance");
-    const executeIdx = src.indexOf("function executeServerBotAdvance");
-    assert.ok(scheduleIdx >= 0 && executeIdx >= 0);
-    const scheduleSlice = src.slice(scheduleIdx, executeIdx);
-    assert.ok(scheduleSlice.includes("if (botAdvanceInFlight)"));
-    const executeSlice = src.slice(executeIdx, executeIdx + 2500);
-    assert.ok(executeSlice.includes("botAdvanceInFlight = true"));
-    assert.ok(executeSlice.includes("botAdvanceInFlight = false"));
-    assert.ok(executeSlice.includes("pendingBotAdvanceWake = false"));
+    assert.ok(src.includes("createServerBotAdvanceRuntime"));
+    assert.ok(runtimeSrc.includes("coalesce-request"));
+    assert.ok(runtimeSrc.includes("advance_in_flight"));
+    assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
+    assert.ok(runtimeSrc.includes("let inFlight = false"));
+    assert.ok(runtimeSrc.includes("pendingWake"));
   });
 
-  it("advanceSessionBots is only invoked from executeServerBotAdvance", () => {
-    const matches = [...src.matchAll(/advanceSessionBots\(/g)];
-    assert.equal(matches.length, 1, "single call site for advanceSessionBots");
-    const callIdx = matches[0].index;
-    const executeIdx = src.indexOf("function executeServerBotAdvance");
-    const nextFn = src.indexOf("function ", executeIdx + 1);
-    assert.ok(callIdx > executeIdx && callIdx < nextFn);
+  it("advanceSessionBots is wired only through bot orchestration runtime", () => {
+    const callSites = [...src.matchAll(/advanceSessionBots\(/g)];
+    assert.equal(callSites.length, 0, "app.js should not call advanceSessionBots directly");
+    assert.ok(src.includes("createServerBotAdvanceRuntime"));
+    assert.ok(src.includes("advanceSessionBots,"));
+    assert.ok(runtimeSrc.includes("deps.advanceSessionBots"));
   });
 });

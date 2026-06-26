@@ -39,8 +39,13 @@ describe("hand invariant wiring", () => {
     assert.ok(body.includes("assertSettlementEntryAllowed"));
   });
 
-  it("app.js guards duplicate bot advance execute", () => {
-    assert.ok(appSrc.includes("assertBotAdvanceNotInFlight"));
+  it("bot orchestration runtime guards duplicate execute", () => {
+    const runtimeSrc = readFileSync(
+      fileURLToPath(new URL("../docs/bot-orchestration-runtime.js", import.meta.url)),
+      "utf8",
+    );
+    assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
+    assert.ok(appSrc.includes("createServerBotAdvanceRuntime"));
   });
 
   it("session-startup bundle exports invariant helpers", () => {
