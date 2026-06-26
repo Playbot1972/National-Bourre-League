@@ -50,4 +50,29 @@ describe("app.js bot paths", () => {
     assert.ok(earlyReturn >= 0 && robotDraw >= 0);
     assert.ok(earlyReturn < robotDraw);
   });
+
+  it("guards duplicate in-flight server advancement", () => {
+    assert.ok(src.includes("let botAdvanceInFlight = false"));
+    assert.ok(src.includes("pendingBotAdvanceWake"));
+    assert.ok(src.includes("coalesce-request"));
+    assert.ok(src.includes("advance_in_flight"));
+    const scheduleIdx = src.indexOf("function scheduleServerBotAdvance");
+    const executeIdx = src.indexOf("function executeServerBotAdvance");
+    assert.ok(scheduleIdx >= 0 && executeIdx >= 0);
+    const scheduleSlice = src.slice(scheduleIdx, executeIdx);
+    assert.ok(scheduleSlice.includes("if (botAdvanceInFlight)"));
+    const executeSlice = src.slice(executeIdx, executeIdx + 2500);
+    assert.ok(executeSlice.includes("botAdvanceInFlight = true"));
+    assert.ok(executeSlice.includes("botAdvanceInFlight = false"));
+    assert.ok(executeSlice.includes("pendingBotAdvanceWake = false"));
+  });
+
+  it("advanceSessionBots is only invoked from executeServerBotAdvance", () => {
+    const matches = [...src.matchAll(/advanceSessionBots\(/g)];
+    assert.equal(matches.length, 1, "single call site for advanceSessionBots");
+    const callIdx = matches[0].index;
+    const executeIdx = src.indexOf("function executeServerBotAdvance");
+    const nextFn = src.indexOf("function ", executeIdx + 1);
+    assert.ok(callIdx > executeIdx && callIdx < nextFn);
+  });
 });
