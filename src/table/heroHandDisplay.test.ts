@@ -47,7 +47,7 @@ describe("heroHandDisplay", () => {
     assert.deepEqual(mapDisplayIndicesToEffective([4], 4), [4]);
   });
 
-  it("shows suit reminder after trump merges into holder hand", () => {
+  it("defers suit reminder while trump upcard remains on the table", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
       effectiveHeroCards: effective,
@@ -63,7 +63,7 @@ describe("heroHandDisplay", () => {
       },
     });
     assert.equal(state.revealedTrumpIndex, null);
-    assert.equal(state.showTrumpSuitReminder, true);
+    assert.equal(state.showTrumpSuitReminder, false);
     assert.equal(state.trumpDisabledIndex, null);
   });
 
