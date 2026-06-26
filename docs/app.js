@@ -4275,7 +4275,14 @@ if (typeof globalThis !== "undefined") {
         if (!currentRoomId || !openSessionId) {
           return Promise.resolve({ ok: false, reason: "no-session" });
         }
-        return advanceSessionBots(currentRoomId, openSessionId, { reason: "e2e-nudge" });
+        const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+        if (!sessionObj) {
+          return Promise.resolve({ ok: false, reason: "no-session" });
+        }
+        const actorId = session?.uid ?? "e2e-nudge";
+        return executeServerBotAdvance(sessionObj, openScores, actorId, {
+          reason: "e2e-nudge",
+        }).then(() => ({ ok: true }));
       },
     };
   }
