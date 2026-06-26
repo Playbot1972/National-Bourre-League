@@ -22,7 +22,6 @@ import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface CardTableProps {
@@ -37,7 +36,6 @@ interface CardTableProps {
   trumpDisabledIndex?: number | null;
   hideCenterTrump?: boolean;
   showTrumpSuitReminder?: boolean;
-  trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -71,7 +69,6 @@ export function CardTable({
   trumpDisabledIndex = null,
   hideCenterTrump = false,
   showTrumpSuitReminder = false,
-  trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
