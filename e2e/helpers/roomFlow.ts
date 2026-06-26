@@ -135,76 +135,81 @@ function tableOverlay(page: Page) {
 
 type HandPhase = "reveal" | "decision" | "draw" | "play" | "waiting" | "";
 
-/** Single DOM read — avoids duplicate phase-tag strict-mode failures. */
-async function readHandPhase(overlay: Locator): Promise<{ phase: HandPhase; labels: string }> {
-  return overlay.evaluate(() => {
-    const scope = document.querySelector("#table-play-overlay") ?? document;
-    const tagEls = [
-      ...scope.querySelectorAll('[data-testid="phase-tag"]'),
-      ...scope.querySelectorAll('[data-testid="phase-tag-center"]'),
-    ];
-    const phases = tagEls
-      .map((el) => (el.getAttribute("data-phase") ?? "").trim())
-      .filter(Boolean);
-    const texts = tagEls.map((el) => (el.textContent ?? "").trim()).filter(Boolean);
-    const hero = scope.querySelector('[data-testid="hero-hand"]');
-    const heroLabel = hero?.getAttribute("aria-label") ?? "";
-    const heroText = hero?.textContent ?? "";
-    const centerText =
-      scope.querySelector('[data-testid="phase-tag-center"]')?.textContent?.trim() ?? "";
-    const hasPlayButtons = scope.querySelectorAll('[data-testid="play-button"]').length > 0;
-    const trickInFlight = Boolean(scope.querySelector('[aria-label="Cards in trick"] li, [aria-label="Current trick"]'));
+async function phaseDataAttr(overlay: Locator, testId: string): Promise<string> {
+  return (await overlay.getByTestId(testId).first().getAttribute("data-phase").catch(() => "")) ?? "";
+}
 
-    if (
-      phases.includes("play") ||
-      /playing/i.test(heroLabel) ||
-      /playing/i.test(heroText) ||
-      /playing/i.test(centerText) ||
-      hasPlayButtons ||
-      trickInFlight
-    ) {
-      return { phase: "play", labels: texts.join(" | ") || centerText || heroLabel };
-    }
-    if (
-      phases.includes("draw") ||
-      /drawing/i.test(heroLabel) ||
-      /drawing/i.test(heroText)
-    ) {
-      return { phase: "draw", labels: texts.join(" | ") || heroLabel };
-    }
-    if (phases.includes("decision") || /choosing/i.test(texts.join(" "))) {
-      return { phase: "decision", labels: texts.join(" | ") };
-    }
-    if (phases.includes("reveal") || /dealing/i.test(texts.join(" "))) {
-      return { phase: "reveal", labels: texts.join(" | ") };
-    }
-    const waiting = phases.includes("waiting") || /waiting to deal/i.test(texts.join(" "));
-    if (waiting) return { phase: "waiting", labels: texts.join(" | ") };
-    const first = phases[0];
-    const phase =
-      first === "play" || first === "draw" || first === "decision" || first === "reveal" || first === "waiting"
-        ? first
-        : "";
-    return { phase, labels: texts.join(" | ") || heroLabel };
-  });
+/** Locator-based checks — matches smoke-draw-play-trace.mjs (avoids stale evaluate reads). */
+async function isPlayPhaseReady(overlay: Locator): Promise<boolean> {
+  if ((await phaseDataAttr(overlay, "phase-tag-center")) === "play") return true;
+  if ((await phaseDataAttr(overlay, "phase-tag")) === "play") return true;
+
+  const heroLabel =
+    (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
+  if (/playing/i.test(heroLabel)) return true;
+
+  if ((await overlay.locator('[aria-label="Cards in trick"] img').count()) > 0) return true;
+  if ((await overlay.getByTestId("play-button").count()) > 0) return true;
+  return false;
+}
+
+async function isDrawPhaseReady(overlay: Locator): Promise<boolean> {
+  if (await isPlayPhaseReady(overlay)) return false;
+  if ((await phaseDataAttr(overlay, "phase-tag-center")) === "draw") return true;
+  if ((await phaseDataAttr(overlay, "phase-tag")) === "draw") return true;
+
+  const heroLabel =
+    (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
+  return /drawing/i.test(heroLabel);
+}
+
+async function isRevealPhaseActive(overlay: Locator): Promise<boolean> {
+  if (await isPlayPhaseReady(overlay) || (await isDrawPhaseReady(overlay))) return false;
+  const header = await phaseDataAttr(overlay, "phase-tag");
+  const center = await phaseDataAttr(overlay, "phase-tag-center");
+  if (header === "reveal" || center === "reveal") return true;
+  const tagText =
+    (await overlay.getByTestId("phase-tag").first().textContent().catch(() => "")) ?? "";
+  return /dealing/i.test(tagText);
 }
 
 export async function getHandPhase(overlay: Locator): Promise<HandPhase> {
-  return (await readHandPhase(overlay)).phase;
+  if (await isPlayPhaseReady(overlay)) return "play";
+  if (await isDrawPhaseReady(overlay)) return "draw";
+
+  const header = await phaseDataAttr(overlay, "phase-tag");
+  const center = await phaseDataAttr(overlay, "phase-tag-center");
+  const phase = header || center;
+  if (phase === "decision" || phase === "reveal" || phase === "waiting") return phase;
+
+  const tagText =
+    (await overlay.getByTestId("phase-tag").first().textContent().catch(() => "")) ?? "";
+  if (/choosing/i.test(tagText)) return "decision";
+  if (/dealing/i.test(tagText)) return "reveal";
+  if (/waiting to deal/i.test(tagText)) return "waiting";
+  return "";
 }
 
 export async function expectHandPhase(overlay: Locator, phase: Exclude<HandPhase, "">) {
-  await expect
-    .poll(async () => getHandPhase(overlay), { timeout: 30_000 })
-    .toBe(phase);
+  if (phase === "play") {
+    await expect.poll(() => isPlayPhaseReady(overlay), { timeout: 30_000 }).toBe(true);
+    return;
+  }
+  await expect.poll(async () => getHandPhase(overlay), { timeout: 30_000 }).toBe(phase);
 }
 
 async function readDataPhase(overlay: Locator): Promise<string> {
-  return (await readHandPhase(overlay)).phase;
+  return getHandPhase(overlay);
 }
 
 async function readPhaseTag(overlay: Locator) {
-  return (await readHandPhase(overlay)).labels;
+  const header =
+    (await overlay.getByTestId("phase-tag").first().textContent().catch(() => ""))?.trim() ?? "";
+  const center =
+    (await overlay.getByTestId("phase-tag-center").textContent().catch(() => ""))?.trim() ?? "";
+  const heroLabel =
+    (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
+  return [header, center, heroLabel].filter(Boolean).join(" | ");
 }
 
 /** Close live table overlay so session setup controls are clickable. */
@@ -218,21 +223,6 @@ export async function ensureTableOverlayClosed(page: Page) {
     await page.keyboard.press("Escape");
   }
   await expect(overlay).toBeHidden({ timeout: 15_000 });
-}
-
-async function isDrawPhaseReady(overlay: Locator) {
-  const { phase } = await readHandPhase(overlay);
-  if (phase === "draw") return true;
-  if (await overlay.getByTestId("trump-button").isVisible().catch(() => false)) return true;
-  return false;
-}
-
-async function isPlayPhaseReady(overlay: Locator) {
-  return (await readHandPhase(overlay)).phase === "play";
-}
-
-async function isRevealPhaseActive(overlay: Locator) {
-  return (await readHandPhase(overlay)).phase === "reveal";
 }
 
 /** Click enrollment / decision CTAs when shown. */
@@ -263,13 +253,14 @@ export async function tryHandEnrollmentActions(
 
 /** Stand pat when the hero has the draw clock. */
 async function tryPassDraw(page: Page, overlay: Locator, lastActionClick: { at: number }) {
+  if (await isPlayPhaseReady(overlay)) return false;
+
   const passDraw = overlay.getByTestId("pass-draw-button");
   const drawBtn = overlay.getByTestId("draw-button");
 
   const hasPass = await passDraw.isVisible().catch(() => false);
   const hasDraw = await drawBtn.isVisible().catch(() => false);
   if (!hasPass && !hasDraw) return false;
-  if ((await getHandPhase(overlay)) === "play") return false;
 
   const now = Date.now();
   if (now - lastActionClick.at < 1500) return false;
@@ -343,8 +334,7 @@ export async function advanceThroughDrawPhase(page: Page) {
   while (Date.now() < deadline) {
     if (await isPlayPhaseReady(overlay)) return;
 
-    const { phase: dataPhase } = await readHandPhase(overlay);
-    const phaseBefore = dataPhase;
+    const phaseBefore = await getHandPhase(overlay);
 
     if (await tryPassDraw(page, overlay, lastActionClick)) {
       lastDrawProgressAt = Date.now();
@@ -355,18 +345,20 @@ export async function advanceThroughDrawPhase(page: Page) {
       (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
     assertNoHandFailure(overlay, feedback);
 
-    const { phase: phaseAfter } = await readHandPhase(overlay);
-    if (phaseAfter === "play") return;
+    if (await isPlayPhaseReady(overlay)) return;
+
+    const phaseAfter = await getHandPhase(overlay);
     if (phaseAfter !== phaseBefore) {
       lastDrawProgressAt = Date.now();
     }
 
     const waitMs =
-      dataPhase === "draw" && Date.now() - lastDrawProgressAt > 4_000 ? 1000 : 400;
+      phaseBefore === "draw" && Date.now() - lastDrawProgressAt > 4_000 ? 1000 : 400;
     await page.waitForTimeout(waitMs);
   }
 
-  const { phase, labels } = await readHandPhase(overlay);
+  const labels = await readPhaseTag(overlay);
+  const phase = await getHandPhase(overlay);
   throw new Error(
     `Play phase did not start within 180s (last phase: ${labels || phase || "unknown"})`,
   );
@@ -374,10 +366,13 @@ export async function advanceThroughDrawPhase(page: Page) {
 
 /** Wait until the live hand is in trick play (draw complete). */
 export async function waitForPlayPhase(page: Page) {
-  await waitForDrawPhase(page);
-  await advanceThroughDrawPhase(page);
-
   const overlay = tableOverlay(page);
+  if (!(await isPlayPhaseReady(overlay)) && !(await isDrawPhaseReady(overlay))) {
+    await waitForDrawPhase(page);
+  }
+  if (!(await isPlayPhaseReady(overlay))) {
+    await advanceThroughDrawPhase(page);
+  }
   await expectHandPhase(overlay, "play");
 }
 
