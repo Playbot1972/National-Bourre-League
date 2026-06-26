@@ -9,7 +9,7 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS } from "../handPresentationTiming";
+import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -235,6 +235,25 @@ export function useHandPresentation({
     if (trickPipelineActive) return;
     dispatch({ type: "tryBeginHandSettle" });
   }, [trickPipelineActive]);
+
+  useEffect(() => {
+    if (store.phase !== "play" || !store.pendingHandSettle) return;
+
+    const delay = trickPipelineActive ? HAND_SETTLE_PIPELINE_WATCHDOG_MS : 0;
+    const id = window.setTimeout(() => {
+      const current = storeRef.current;
+      if (current.phase !== "play" || !current.pendingHandSettle) return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useHandPresentation", "hand-settle-watchdog", {
+          trickPipelineActive,
+          delay,
+        });
+      }
+      dispatch({ type: "watchdog" });
+    }, delay);
+
+    return () => window.clearTimeout(id);
+  }, [store.phase, store.pendingHandSettle, trickPipelineActive]);
 
   return buildHandPresentationModel(store);
 }

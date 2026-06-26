@@ -525,6 +525,26 @@ function reduceHandPresentationCore(
         return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
       }
 
+      const handClearedOnServer =
+        store.phase === "play" &&
+        snapshot.participantIds.length === 0 &&
+        !snapshot.phase &&
+        !snapshot.enrollmentActive &&
+        (prev.participantIds.length > 0 || prev.phase === "play");
+
+      if (handClearedOnServer) {
+        const settleSnap = store.handSettleSnapshot ?? prev;
+        return {
+          ...store,
+          handNumber: snapshot.handNumber,
+          pendingHandSettle: true,
+          handSettleSnapshot: settleSnap,
+          pendingSnapshot: snapshot,
+          prevSnapshot: snapshot,
+          displayPotAmount: snapshot.potAmount,
+        };
+      }
+
       if (store.handNumber !== snapshot.handNumber) {
         const fresh = createHandPresentationStore(snapshot);
         return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
