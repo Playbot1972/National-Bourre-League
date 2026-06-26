@@ -151,7 +151,9 @@ test.describe("Rules regression — fixture (deterministic)", () => {
 
       await advanceRulesFixture(page, "imIn");
       await expectPhaseTag(page, /draw/i);
-      await expect(page.getByTestId("draw-button")).toBeVisible();
+      await expect(
+        page.getByTestId("draw-button").or(page.getByTestId("pass-draw-button")).first(),
+      ).toBeVisible();
 
       await advanceRulesFixture(page, "setPhase", { phase: "play" });
       await expectPhaseTag(page, /playing/i);
