@@ -25,10 +25,10 @@ describe("trumpHolderPresentation", () => {
     assert.equal(state.showRevealedTrumpAtHolder, true);
   });
 
-  it("shows suit reminder after merge during draw", () => {
+  it("shows suit reminder after merge when upcard cleared during draw", () => {
     const state = resolveTrumpHolderPresentation({
       trumpHolderId: "bot_1",
-      trumpUpcard,
+      trumpUpcard: null,
       trumpSuit: "hearts",
       phase: "draw",
       handPresentation: {
@@ -37,8 +37,25 @@ describe("trumpHolderPresentation", () => {
         trumpMergedIntoHand: true,
       },
     });
-    assert.equal(state.hideCenterTrump, true);
+    assert.equal(state.hideCenterTrump, false);
     assert.equal(state.showTrumpSuitReminder, true);
+    assert.equal(state.showRevealedTrumpAtHolder, false);
+  });
+
+  it("keeps center trump visible after merge latch while upcard remains", () => {
+    const state = resolveTrumpHolderPresentation({
+      trumpHolderId: "bot_1",
+      trumpUpcard,
+      trumpSuit: "hearts",
+      phase: "reveal",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
+      },
+    });
+    assert.equal(state.hideCenterTrump, false);
+    assert.equal(state.showTrumpSuitReminder, false);
     assert.equal(state.showRevealedTrumpAtHolder, false);
   });
 
