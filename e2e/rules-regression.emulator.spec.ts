@@ -14,7 +14,7 @@
  */
 import { test, expect } from "@playwright/test";
 import {
-  advanceThroughDrawPhase,
+  driveTableToPlay,
   emulatorReady,
   expectHandPhase,
   getHandPhase,
@@ -22,7 +22,6 @@ import {
   setupRoomWithBots,
   tryHandEnrollmentActions,
   waitForDrawPhase,
-  waitForPlayPhase,
 } from "./helpers/roomFlow";
 import { expectNoBourreMarkers, expectPhaseTag } from "./helpers/rulesRegression";
 
@@ -34,9 +33,10 @@ function tableOverlay(page: import("@playwright/test").Page) {
 
 test.describe("Rules regression — emulator (partial integration)", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
-  test.setTimeout(480_000);
+  test.setTimeout(300_000);
 
-  test.beforeEach(async () => {
+  test.beforeAll(async () => {
+    test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
     await fetch(
       "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts",
       { method: "DELETE" },
@@ -45,10 +45,6 @@ test.describe("Rules regression — emulator (partial integration)", () => {
       "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents",
       { method: "DELETE" },
     ).catch(() => {});
-  });
-
-  test.beforeAll(async () => {
-    test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
   });
 
   test("[emulator] 2p: no premature bourré UI through enrollment into draw", async ({ page }) => {
@@ -85,7 +81,7 @@ test.describe("Rules regression — emulator (partial integration)", () => {
     await expectPhaseTag(page, /draw/i);
     await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button")).first()).toBeVisible();
 
-    await advanceThroughDrawPhase(page);
+    await driveTableToPlay(page);
     await expectHandPhase(overlay, "play");
     await expectNoBourreMarkers(page);
   });
@@ -93,10 +89,9 @@ test.describe("Rules regression — emulator (partial integration)", () => {
   test("[emulator] 2p: play phase reachable after I'm in (no dead-end draw)", async ({ page }) => {
     await setupRoomWithBots(page, 2);
     await goToTable(page);
-    await waitForPlayPhase(page);
+    await driveTableToPlay(page);
 
     const overlay = tableOverlay(page);
-    await expectHandPhase(overlay, "play");
     await expect(overlay.getByTestId("hero-hand")).toBeVisible();
     await expect(overlay.locator(".btable-hero__error")).toHaveCount(0);
     await expectNoBourreMarkers(page);

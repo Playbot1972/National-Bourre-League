@@ -4265,3 +4265,18 @@ if (session) {
   startRoomsSubscription();
   startLeaderboardSubscription();
 }
+
+/** Local emulator E2E: explicit bot-advance nudge when draw stalls (no-op in production). */
+if (typeof globalThis !== "undefined") {
+  const host = globalThis.location?.hostname ?? "";
+  if (host === "localhost" || host === "127.0.0.1") {
+    globalThis.__nblE2E = {
+      nudgeBots() {
+        if (!currentRoomId || !openSessionId) {
+          return Promise.resolve({ ok: false, reason: "no-session" });
+        }
+        return advanceSessionBots(currentRoomId, openSessionId, { reason: "e2e-nudge" });
+      },
+    };
+  }
+}

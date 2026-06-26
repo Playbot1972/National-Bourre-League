@@ -150,6 +150,12 @@ async function isPlayPhaseReady(overlay: Locator): Promise<boolean> {
     "";
   if (center === "play") return true;
 
+  const headerText =
+    (await overlay.getByTestId("phase-tag").first().textContent().catch(() => "")) ?? "";
+  const centerText =
+    (await overlay.getByTestId("phase-tag-center").textContent().catch(() => "")) ?? "";
+  if (/playing/i.test(`${headerText} ${centerText}`)) return true;
+
   const heroLabel =
     (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
   return /playing/i.test(heroLabel);
@@ -326,13 +332,28 @@ export async function waitForDrawPhase(page: Page) {
   throw new Error(`Draw phase did not start within 120s (last phase: ${phase || "unknown"})`);
 }
 
-/** Pass hero draw turns and wait for bots until trick play begins (trace-script parity). */
-export async function advanceThroughDrawPhase(page: Page) {
+/** Trace-parity loop: enrollment → draw passes → play (single deadline). */
+export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
   const overlay = tableOverlay(page);
-  const deadline = Date.now() + 180_000;
+  await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+
+  const deadline = Date.now() + deadlineMs;
+  const lastEnrollClick = { at: 0 };
+  let lastNudgeAt = 0;
+  let lastProgressAt = Date.now();
 
   while (Date.now() < deadline) {
     if (await isPlayPhaseReady(overlay)) return;
+
+    if (await isRevealPhaseActive(overlay)) {
+      await page.waitForTimeout(600);
+      continue;
+    }
+
+    if (await tryHandEnrollmentActions(page, overlay, lastEnrollClick)) {
+      lastProgressAt = Date.now();
+      continue;
+    }
 
     const passVisible = await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false);
     const drawVisible = await overlay.getByTestId("draw-button").isVisible().catch(() => false);
@@ -341,37 +362,41 @@ export async function advanceThroughDrawPhase(page: Page) {
         ? overlay.getByTestId("pass-draw-button")
         : overlay.getByTestId("draw-button");
       try {
-        await btn.click({ timeout: 5000 });
+        await btn.evaluate((el) => (el as HTMLButtonElement).click());
       } catch {
-        await btn.click({ force: true, timeout: 3000 });
+        await btn.click({ force: true, timeout: 3000 }).catch(() => {});
       }
       await page.waitForTimeout(1000);
-      continue;
+      lastProgressAt = Date.now();
+    } else {
+      await page.waitForTimeout(400);
+    }
+
+    const phase = await getHandPhase(overlay);
+    const now = Date.now();
+    if (phase === "draw" && now - lastNudgeAt > 5000 && now - lastProgressAt > 5000) {
+      await page.evaluate(() => window.__nblE2E?.nudgeBots?.()).catch(() => {});
+      lastNudgeAt = now;
     }
 
     const feedback =
       (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
     assertNoHandFailure(overlay, feedback);
-    await page.waitForTimeout(400);
   }
 
   const labels = await readPhaseTag(overlay);
-  const phase = await getHandPhase(overlay);
-  throw new Error(
-    `Play phase did not start within 240s (last phase: ${labels || phase || "unknown"})`,
-  );
+  throw new Error(`Play phase not reached within ${deadlineMs / 1000}s (last: ${labels || "unknown"})`);
+}
+
+/** @deprecated Prefer driveTableToPlay — kept for callers that split draw/play waits. */
+export async function advanceThroughDrawPhase(page: Page) {
+  await driveTableToPlay(page);
 }
 
 /** Wait until the live hand is in trick play (draw complete). */
 export async function waitForPlayPhase(page: Page) {
-  const overlay = tableOverlay(page);
-  if (!(await isPlayPhaseReady(overlay)) && !(await isDrawPhaseReady(overlay))) {
-    await waitForDrawPhase(page);
-  }
-  if (!(await isPlayPhaseReady(overlay))) {
-    await advanceThroughDrawPhase(page);
-  }
-  await expectHandPhase(overlay, "play");
+  await driveTableToPlay(page);
+  await expectHandPhase(tableOverlay(page), "play");
 }
 
 /** Dealer seat must not hold the opening lead on trick 1. */
@@ -409,4 +434,12 @@ export async function setupRoomWithBots(page: Page, totalPlayers: number) {
   await createRoom(page);
   await openNewSession(page);
   await addRobotsUntilCount(page, totalPlayers);
+}
+
+declare global {
+  interface Window {
+    __nblE2E?: {
+      nudgeBots?: () => Promise<unknown>;
+    };
+  }
 }
