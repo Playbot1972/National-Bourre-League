@@ -18,6 +18,10 @@ import {
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
+  SESSION_ORCHESTRATION_DEBOUNCE_MS,
+  logSessionOrchestrator,
+} from "./session-orchestrator.js";
+import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
   logBotOrchestrator,
@@ -924,6 +928,8 @@ let botAdvanceScheduledTimer = null;
 let pendingBotAdvanceWake = false;
 let botAdvanceLastCompletedAt = 0;
 let lastRobotTrickAt = 0;
+let sessionOrchestrationTimer = null;
+let sessionOrchestrationCoalesce = false;
 const BOT_ADVANCE_DEBOUNCE_MS = 150;
 const ROBOT_PRESENTATION_SOFT_MS = 3_500;
 const ROBOT_PRESENTATION_FORCE_MS = 4_000;
@@ -1049,10 +1055,7 @@ async function openNextHandEnrollment(sessionObj) {
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
     const autoDealt = sessionAutoDealtNextHand(refreshed);
-    if (sessionNeedsEnrollmentDriver(refreshed)) {
-      startEnrollmentTimer();
-    }
-    processRobotActions(refreshed, openScores);
+    scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
     const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
     const dealerLabel = dealerSc?.displayName ?? "dealer";
     setTableActionFeedback({
@@ -1281,12 +1284,17 @@ function stopEnrollmentTimer() {
     clearInterval(enrollmentTimer);
     enrollmentTimer = null;
   }
+}
+
+function stopTablePlaySideEffects() {
+  stopEnrollmentTimer();
   clearBotAdvanceSchedule();
+  clearSessionOrchestrationSchedule();
   stopRobotPresentationSubscription();
 }
 
 function startEnrollmentTimer() {
-  stopEnrollmentTimer();
+  if (enrollmentTimer) return;
   if (!tablePlayOpen) return;
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
@@ -1302,7 +1310,7 @@ function startEnrollmentTimer() {
       return;
     }
     if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
-      processRobotActions(sessionObj, openScores);
+      scheduleSessionOrchestration(sessionObj, openScores, { reason: "enrollment-tick" });
       return;
     }
     if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
@@ -1313,8 +1321,9 @@ function startEnrollmentTimer() {
           message: e.message || "Enrollment timer could not advance — check connection.",
         });
       });
+      return;
     }
-    processRobotActions(sessionObj, openScores);
+    scheduleSessionOrchestration(sessionObj, openScores, { reason: "enrollment-tick" });
   }, 500);
 }
 let tablePlayOpen = false;
@@ -2519,10 +2528,7 @@ async function openTablePlay() {
     currentSessions.find((s) => s.id === openSessionId) ??
     openSessionObj;
   await syncTableSession(refreshed);
-  if (sessionNeedsEnrollmentDriver(refreshed)) {
-    startEnrollmentTimer();
-  }
-  processRobotActions(refreshed, openScores);
+  scheduleSessionOrchestration(refreshed, openScores, { reason: "open-table-play" });
   try {
     await overlay.requestFullscreen?.();
   } catch {
@@ -2575,7 +2581,7 @@ function closeTablePlay() {
   tablePlayOpen = false;
   localHandActionCommit = null;
   cancelNextHandOpenTimer();
-  stopEnrollmentTimer();
+  stopTablePlaySideEffects();
   const overlay = $("#table-play-overlay");
   if (overlay) overlay.hidden = true;
   document.body.classList.remove("table-play-active");
@@ -2768,6 +2774,80 @@ async function executeServerBotAdvance(s, scores, actorId, { reason = "snapshot"
   }
 }
 
+/**
+ * Non-render orchestration: lifecycle recovery, enrollment tick wiring, bot requests.
+ * Called from debounced scheduleSessionOrchestration — not from renderRoomDetail.
+ */
+function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {}) {
+  if (!sessionObj || sessionObj.id !== openSessionId || sessionObj.status === "final") {
+    stopEnrollmentTimer();
+    return;
+  }
+
+  maybeRecoverHandLifecycle(sessionObj);
+
+  const enrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
+  const pagatClock = isPagatHandClock(sessionObj);
+  const needsDriver = sessionNeedsBotDriver(sessionObj, scores);
+  const needsEnrollment = sessionNeedsEnrollmentDriver(sessionObj);
+
+  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver || needsEnrollment)) {
+    startEnrollmentTimer();
+  } else if (!enrollmentActive && !pagatClock && !needsDriver) {
+    stopEnrollmentTimer();
+  }
+
+  if (needsDriver || needsEnrollment || enrollmentActive || pagatClock) {
+    processRobotActions(sessionObj, scores);
+  }
+}
+
+function scheduleSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {}) {
+  if (!sessionObj || sessionObj.status === "final") return;
+
+  if (sessionOrchestrationTimer) {
+    sessionOrchestrationCoalesce = true;
+    logSessionOrchestrator("coalesce", {
+      reason,
+      sessionId: sessionObj.id,
+      trigger: reason,
+    });
+    return;
+  }
+
+  logSessionOrchestrator("schedule", {
+    reason,
+    sessionId: sessionObj.id,
+    debounceMs: SESSION_ORCHESTRATION_DEBOUNCE_MS,
+  });
+
+  sessionOrchestrationTimer = setTimeout(() => {
+    sessionOrchestrationTimer = null;
+    const latest = currentSessions.find((s) => s.id === sessionObj.id) ?? sessionObj;
+    if (!latest || latest.status === "final") return;
+
+    logSessionOrchestrator("run", {
+      reason,
+      sessionId: latest.id,
+      trigger: reason,
+    });
+    runSessionOrchestration(latest, scores ?? openScores, { reason });
+
+    if (sessionOrchestrationCoalesce) {
+      sessionOrchestrationCoalesce = false;
+      scheduleSessionOrchestration(latest, openScores, { reason: "coalesce-wake" });
+    }
+  }, SESSION_ORCHESTRATION_DEBOUNCE_MS);
+}
+
+function clearSessionOrchestrationSchedule() {
+  if (sessionOrchestrationTimer) {
+    clearTimeout(sessionOrchestrationTimer);
+    sessionOrchestrationTimer = null;
+  }
+  sessionOrchestrationCoalesce = false;
+}
+
 function stopRobotPresentationSubscription() {
   if (robotPresentationUnsub) {
     robotPresentationUnsub();
@@ -2783,7 +2863,7 @@ function wakeRobotActions() {
     pendingRobotWake = true;
     return;
   }
-  processRobotActions(sessionObj, openScores);
+  scheduleSessionOrchestration(sessionObj, openScores, { reason: "presentation-wake" });
 }
 
 function ensureRobotPresentationSubscription(api) {
@@ -3816,7 +3896,6 @@ function buildTableSessionProps(s) {
             const sessionObj = currentSessions.find((x) => x.id === openSessionId);
             if (sessionObj) {
               scheduleTableSessionSync(sessionObj);
-              processRobotActions(sessionObj, openScores);
             }
           })
           .catch((e) => {
@@ -3877,13 +3956,6 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     ensureRobotPresentationSubscription(api);
     void processTableFeedbackEvents(sessionObj);
-    if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
-    } else {
-      stopEnrollmentTimer();
-    }
-    maybeRecoverHandLifecycle(sessionObj);
   } catch (err) {
     console.error("table-session mount:", err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -3986,7 +4058,7 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
 
 function scheduleRenderRoomDetail() {
   const open = currentSessions.find((s) => s.id === openSessionId);
-  if (open) maybeRecoverHandLifecycle(open);
+  if (open) scheduleSessionOrchestration(open, openScores, { reason: "snapshot" });
   if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
   renderRoomDetailTimer = window.setTimeout(() => {
     renderRoomDetailTimer = 0;
@@ -4132,13 +4204,6 @@ function renderRoomDetail() {
     mountSessionPanel(openSessionObj, isOwner);
   }
   scheduleTableSessionSync(openSessionObj);
-  if (openSessionObj && openSessionObj.status !== "final") {
-    processRobotActions(openSessionObj, openScores);
-    if (sessionNeedsEnrollmentDriver(openSessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
-    }
-  }
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
