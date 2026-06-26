@@ -19,10 +19,17 @@ export function forceInvariantsForTests(enabled = true): () => void {
   };
 }
 
+function nodeEnv(name: string): string | undefined {
+  const g = globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  };
+  return g.process?.env?.[name];
+}
+
 export function isInvariantsStrict(): boolean {
   if (invariantsForced) return true;
-  if (typeof process !== "undefined" && process.env?.NBL_INVARIANTS === "1") return true;
-  if (typeof process !== "undefined" && process.env?.NODE_ENV === "test") return true;
+  if (nodeEnv("NBL_INVARIANTS") === "1") return true;
+  if (nodeEnv("NODE_ENV") === "test") return true;
   if (typeof window === "undefined") return false;
   try {
     if (window.localStorage?.getItem(DEBUG_KEY) === "1") return true;

@@ -16,6 +16,7 @@ import {
   authoritativeCurrentHand,
   getSessionEnrollment,
   isClearedPreDealHand,
+  isHandEnrollmentView,
   isLegacyEnrollmentActive,
   isPagatDecisionActive,
   resolveCurrentHandChoicePlayerId,
@@ -476,8 +477,10 @@ export function resolveBotAdvanceHint(input: BotAdvanceInput): BotAdvanceHint | 
       return null;
     }
 
-    const ids = enrollment?.orderedPlayerIds ?? [];
-    const idx = enrollment?.currentIndex ?? 0;
+    if (!isHandEnrollmentView(enrollment)) return null;
+
+    const ids = enrollment.orderedPlayerIds ?? [];
+    const idx = enrollment.currentIndex ?? 0;
     const turnId = ids[idx] ?? null;
     if (!turnId) return null;
 
@@ -485,8 +488,8 @@ export function resolveBotAdvanceHint(input: BotAdvanceInput): BotAdvanceHint | 
       return { kind: "enrollment_timeout", turnPlayerId: turnId };
     }
 
-    const enrolled = enrollment?.enrolledIds ?? [];
-    const declined = enrollment?.declinedIds ?? [];
+    const enrolled = enrollment.enrolledIds ?? [];
+    const declined = enrollment.declinedIds ?? [];
     if (
       isRobotPlayerId(turnId) &&
       !enrolled.includes(turnId) &&

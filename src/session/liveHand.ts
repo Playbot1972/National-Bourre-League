@@ -18,6 +18,7 @@ export interface PublicHandView {
   participantIds?: string[];
   tricksByPlayer?: Record<string, number>;
   drawCompletedIds?: string[];
+  turnPlayerId?: string | null;
   handDecision?: HandDecision | null;
 }
 
@@ -171,7 +172,22 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   return current;
 }
 
-export function getSessionEnrollment(sessionData: SessionHandView | null | undefined) {
+/** True when enrollment has roster fields (handEnrollment / decision view), not liveEnrollment-only. */
+export function isHandEnrollmentView(
+  enrollment: unknown,
+): enrollment is HandEnrollmentView {
+  return (
+    enrollment != null &&
+    typeof enrollment === "object" &&
+    ("orderedPlayerIds" in enrollment ||
+      "enrolledIds" in enrollment ||
+      "currentIndex" in enrollment)
+  );
+}
+
+export function getSessionEnrollment(
+  sessionData: SessionHandView | null | undefined,
+): HandEnrollmentView | null {
   const hand = authoritativeCurrentHand(sessionData);
   const phase = hand?.phase ?? null;
   if (phase === "reveal" || phase === "draw" || phase === "play") {
@@ -183,7 +199,7 @@ export function getSessionEnrollment(sessionData: SessionHandView | null | undef
   }
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
-  if (live?.active) return live;
+  if (live?.active) return live as HandEnrollmentView;
   if (
     livePhase === "draw" ||
     livePhase === "play" ||
