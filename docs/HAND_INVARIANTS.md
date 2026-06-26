@@ -32,7 +32,7 @@ bugs surface early instead of as mysterious UI or accounting failures.
 | Server draw/play/fold | `functions/gameHandlers.js` → same |
 | Settlement | `recordHandClient` / `handleRecordHand` → `assertSettlementEntryAllowed` + chip check |
 | Auto-settle after tricks | `finalizeHandFromCardPlay` (client + server) |
-| Bot advance (client) | `docs/app.js` `executeServerBotAdvance` |
+| Bot advance (client) | `docs/bot-orchestration-runtime.js` (`assertBotAdvanceNotInFlight` on execute) |
 | Bot advance (server) | `advanceBotsAfterAction` step-cap diagnostic |
 | Orchestration (dev) | `runSessionOrchestration` + `isGameFlowDebugEnabled()` → `assertHandFlowConsistent` |
 

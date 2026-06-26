@@ -32,44 +32,61 @@ setGlobalOptions({
 
 const db = getFirestore();
 
-function wrap(handler) {
-  return onCall({ cors: true, serviceAccount: runtimeServiceAccount }, async (request) => {
-    if (!request.auth?.uid) {
-      const { HttpsError } = await import("firebase-functions/v2/https");
-      throw new HttpsError("unauthenticated", "Sign in required");
-    }
-    const data = request.data ?? {};
-    const actorId = request.auth.uid;
-    return handler(db, { ...data, actorId });
-  });
+function wrap(handler, callableName) {
+  // Gen2 callables run on Cloud Run; invoker must be public so the Firebase
+  // client (httpsCallable from booray.win) can reach the handler. Auth is
+  // enforced inside the wrapper below — not at the Cloud Run IAM layer.
+  return onCall(
+    { cors: true, invoker: "public", serviceAccount: runtimeServiceAccount },
+    async (request) => {
+      const origin = request.rawRequest?.headers?.origin ?? null;
+      const meta = {
+        callable: callableName,
+        origin,
+        invocation: "onCall",
+        auth: Boolean(request.auth?.uid),
+      };
+      if (!request.auth?.uid) {
+        console.warn(
+          "[game-callable] rejected",
+          JSON.stringify({ ...meta, reason: "unauthenticated" }),
+        );
+        const { HttpsError } = await import("firebase-functions/v2/https");
+        throw new HttpsError("unauthenticated", "Sign in required");
+      }
+      const data = request.data ?? {};
+      const actorId = request.auth.uid;
+      return handler(db, { ...data, actorId });
+    },
+  );
 }
 
 /** Nudge bot enrollment / draw / play when the table is waiting on robots. */
-export const gameAdvanceBots = wrap(handleAdvanceBots);
+export const gameAdvanceBots = wrap(handleAdvanceBots, "gameAdvanceBots");
 
 /** Start enrollment when the session is between hands. */
-export const gameEnsureHandEnrollment = wrap(handleEnsureHandEnrollment);
+export const gameEnsureHandEnrollment = wrap(handleEnsureHandEnrollment, "gameEnsureHandEnrollment");
 
 /** Enrollment timeout — auto sit-out for current seat. */
-export const gameTimeoutEnrollment = wrap(handleTimeoutEnrollment);
+export const gameTimeoutEnrollment = wrap(handleTimeoutEnrollment, "gameTimeoutEnrollment");
 
 /** Advance Pagat reveal → play/pass decision after trump/hand presentation. */
-export const gameAdvanceHandReveal = wrap(handleAdvanceHandReveal);
+export const gameAdvanceHandReveal = wrap(handleAdvanceHandReveal, "gameAdvanceHandReveal");
 
 /** I'm in / sit-out during enrollment (may deal when round completes). */
-export const gameSetHandParticipation = wrap(handleSetHandParticipation);
+export const gameSetHandParticipation = wrap(handleSetHandParticipation, "gameSetHandParticipation");
 
 /** Draw / stand pat during draw phase. */
-export const gameSubmitDraw = wrap(handleSubmitDraw);
+export const gameSubmitDraw = wrap(handleSubmitDraw, "gameSubmitDraw");
 
 /** Fold out during draw phase (forfeit ante, skip tricks). */
-export const gameFoldDraw = wrap(handleFoldDraw);
+export const gameFoldDraw = wrap(handleFoldDraw, "gameFoldDraw");
 
 /** Play one card during trick play (may auto-settle when hand completes). */
-export const gamePlayCard = wrap(handlePlayCard);
+export const gamePlayCard = wrap(handlePlayCard, "gamePlayCard");
 
 /** Record hand settlement (pot, bourré, next-hand reset). */
-export const gameRecordHand = wrap(handleRecordHand);
+export const gameRecordHand = wrap(handleRecordHand, "gameRecordHand");
 
 /** Co-winner split / decline vote. */
-export const gameVoteCoWinSettlement = wrap(handleVoteCoWinSettlement);
+export const gameVoteCoWinSettlement = wrap(handleVoteCoWinSettlement, "gameVoteCoWinSettlement");
