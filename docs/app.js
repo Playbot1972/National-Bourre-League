@@ -40,6 +40,7 @@ import { createTableIntentHandlers } from "./table-intents.js";
 import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
+  logBotOrchestrator,
 } from "./bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
 import {
@@ -964,6 +965,8 @@ function getServerBotAdvance() {
       findSession: (id) => currentSessions.find((x) => x.id === id),
       getScores: () => openScores,
       onWake: (latest, scores, actorId, opts) => scheduleServerBotAdvance(latest, scores, actorId, opts),
+      onAdvanceError: (latest, scores, actorId) =>
+        driveClientBotsForCurrentTurn(latest, scores, actorId, { reason: "advance-error-fallback" }),
       trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
     });
   }
@@ -1111,6 +1114,9 @@ function getTableIntentHandlers() {
         pendingDrawShuffle = true;
       },
       scheduleTableSessionSync,
+      wakeBotsAfterHandAction: (sessionObj) => {
+        scheduleSessionOrchestration(sessionObj, openScores, { reason: "post-hand-action" });
+      },
       setHandParticipation,
       submitHandDraw,
       foldHandDraw,
@@ -2705,6 +2711,9 @@ function robotTurnPresentationKey(s) {
 
 function isRawTablePresentationBusy() {
   try {
+    if (typeof tableMountApi?.isTablePresentationBusyForBots === "function") {
+      return tableMountApi.isTablePresentationBusyForBots() === true;
+    }
     return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
     return false;
@@ -2847,7 +2856,7 @@ function snapshotBotOrchestratorContext(s, scores, extra = {}) {
   };
 }
 
-function processRobotActionsInner(s, scores) {
+function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
   if (!actorId) return;
@@ -2858,7 +2867,10 @@ function processRobotActionsInner(s, scores) {
   if (!robotScores.length) return;
 
   // Single-owner path: client requests; server executes all bot phases.
-  if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+  if (
+    shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen) &&
+    !clientFallbackOnly
+  ) {
     scheduleServerBotAdvance(s, scores, actorId, { reason: "processRobotActions" });
     return;
   }
@@ -2933,7 +2945,7 @@ function processRobotActionsInner(s, scores) {
   const handPhase = currentHand.phase;
 
   if (handPhase === "draw") {
-    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY)) {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY) && !clientFallbackOnly) {
       return;
     }
 
@@ -2968,7 +2980,7 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
-    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY)) {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY) && !clientFallbackOnly) {
       return;
     }
 
@@ -3066,6 +3078,23 @@ function processRobotActionsInner(s, scores) {
     });
 }
 
+/** Honor-system fallback when gameAdvanceBots is unavailable or fails. */
+function driveClientBotsForCurrentTurn(s, scores, actorId, { reason = "fallback" } = {}) {
+  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) return;
+  if (!sessionNeedsBotDriver(s, scores)) return;
+  if (shouldBlockRobotForPresentation(s, scores)) {
+    getServerBotAdvance().markPendingWake();
+    return;
+  }
+  logBotOrchestrator("client-fallback", {
+    reason,
+    requester: actorId,
+    owner: "client",
+    ...snapshotBotOrchestratorContext(s, scores),
+  });
+  processRobotActionsInner(s, scores, { clientFallbackOnly: true });
+}
+
 function buildTableSessionProps(s) {
   const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
@@ -3116,6 +3145,21 @@ function buildTableSessionProps(s) {
     handPhase,
     currentHand,
   });
+  if (
+    localHandActionCommit &&
+    myUid &&
+    localHandActionCommit.kind === LOCAL_HAND_ACTION.DRAW &&
+    Date.now() - (localHandActionCommit.atMs ?? 0) > 12_000 &&
+    !(currentHand?.drawCompletedIds ?? []).includes(myUid)
+  ) {
+    clearLocalHandCommit();
+    if (!tableActionFeedback || tableActionFeedback.status === "loading") {
+      setTableActionFeedback({
+        status: "error",
+        message: "Draw could not complete — check connection and try again.",
+      });
+    }
+  }
   let enrollment = serverEnrollment;
   const pagatHandDecision = currentHand?.handDecision;
   const pagatDecisionActive = isPagatDecisionActive(handPhase, pagatHandDecision);

@@ -310,6 +310,32 @@ async function callGameOrClient(clientFn, serverFn) {
   }
 }
 
+/**
+ * Draw/fold — Cloud Functions first when SERVER_HAND_AUTHORITY is on so the server
+ * chains advanceBotsAfterAction after the human draw (client-only writes skip that).
+ */
+async function callGameServerOrClient(clientFn, serverFn) {
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      if (isCloudFunctionUnavailable(serverErr)) {
+        console.warn(
+          "Game Cloud Function unavailable, trying client write.",
+          serverErr?.code || serverErr?.message || serverErr,
+        );
+        try {
+          return await clientFn();
+        } catch (clientErr) {
+          throw serverErr;
+        }
+      }
+      throw serverErr;
+    }
+  }
+  return callGameOrClient(clientFn, serverFn);
+}
+
 /** Settlement — Cloud Functions first when enabled; client batch is the fallback. */
 async function callSettlementOrClient(clientFn, serverFn) {
   if (SERVER_HAND_AUTHORITY) {
@@ -1676,7 +1702,7 @@ function assertRecordHandChipConservation({
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  return callGameOrClient(
+  return callGameServerOrClient(
     () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
     () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
   );
@@ -1735,7 +1761,7 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
 
 /** Fold out during draw — forfeit ante, skip trick play for this hand. */
 export async function foldHandDraw(roomId, sessionId, { playerId, actorId }) {
-  return callGameOrClient(
+  return callGameServerOrClient(
     () => foldHandDrawClient(roomId, sessionId, { playerId, actorId }),
     () => gameFoldDraw(roomId, sessionId, { playerId, actorId }),
   );

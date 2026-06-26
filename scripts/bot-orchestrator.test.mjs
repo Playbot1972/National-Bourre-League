@@ -37,7 +37,7 @@ describe("app.js bot paths", () => {
   it("server path uses scheduleServerBotAdvance before legacy robotPlayCard", () => {
     const idx = src.indexOf("function processRobotActionsInner");
     assert.ok(idx >= 0);
-    const slice = src.slice(idx, idx + 4500);
+    const slice = src.slice(idx, idx + 7000);
     assert.ok(slice.includes("shouldRequestServerBotAdvance"));
     assert.ok(slice.includes("scheduleServerBotAdvance"));
     const serverIdx = slice.indexOf("scheduleServerBotAdvance");

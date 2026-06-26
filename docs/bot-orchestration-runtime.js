@@ -20,6 +20,7 @@ const BOT_ADVANCE_DEBOUNCE_MS = 150;
  * @param {(sessionId: string) => object | undefined} deps.findSession
  * @param {() => object[]} deps.getScores
  * @param {(session: object, scores: object[], actorId: string, opts: object) => void} deps.onWake
+ * @param {(session: object, scores: object[], actorId: string, err: unknown) => void} [deps.onAdvanceError]
  * @param {number} [deps.trickIntervalMs]
  */
 export function createServerBotAdvanceRuntime(deps) {
@@ -151,6 +152,11 @@ export function createServerBotAdvanceRuntime(deps) {
         ...ctx,
       });
       console.warn("advanceSessionBots:", err);
+      try {
+        deps.onAdvanceError?.(sessionObj, scores, actorId, err);
+      } catch (fallbackErr) {
+        console.warn("bot-advance fallback:", fallbackErr);
+      }
     } finally {
       inFlight = false;
       if (pendingWake) {
