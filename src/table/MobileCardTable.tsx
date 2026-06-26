@@ -34,6 +34,8 @@ import {
   isPlayerAtBourreRisk,
 } from "./logic";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
+import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
+import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 
 interface MobileCardTableProps {
   session: TableSessionData;
@@ -47,6 +49,7 @@ interface MobileCardTableProps {
   trumpDisabledIndex?: number | null;
   hideCenterTrump?: boolean;
   showTrumpSuitReminder?: boolean;
+  trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -78,6 +81,7 @@ export function MobileCardTable({
   trumpDisabledIndex = null,
   hideCenterTrump = false,
   showTrumpSuitReminder = false,
+  trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
@@ -157,8 +161,16 @@ export function MobileCardTable({
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
+    const seatTrump = resolveSeatTrumpDisplay(
+      player.playerId,
+      trumpHolderPresentation,
+      session.trumpUpcard ?? null,
+      player.holeCardCount ?? 0,
+      player.isSelf,
+    );
     return {
       ...player,
+      ...seatTrump,
       bankroll: displayLiveBankroll(player.bankroll, potMetrics.anteAmount, {
         inHand: player.inHand,
         anteAnimActive: handPresentation.anteAnimActive,

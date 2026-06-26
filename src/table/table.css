@@ -1351,8 +1351,13 @@
   right: auto;
   bottom: auto;
   width: max-content;
-  transform: translate(-50%, -62%) scale(var(--hole-crown-scale));
+  transform: translate(-50%, -72%) scale(var(--hole-crown-scale));
   transform-origin: 50% 100%;
+}
+
+/* Seat crown keeps classic red backs — not four-color blue deck backs. */
+.btable-room[data-deck-mode="four-color"] .bseat__hole-cards--crown .pcard--back {
+  background: none;
 }
 
 .bseat__hole-card {
@@ -1369,7 +1374,7 @@
 }
 
 .bseat--trump-reveal .bseat__hole-card--trump-revealed {
-  z-index: 4;
+  z-index: 1;
 }
 
 .bseat--trump-reveal .bseat__hole-card--trump-revealed .pcard--trump {
@@ -1548,7 +1553,7 @@
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.45),
     0 0 0 2px rgba(244, 213, 141, 0.25);
-  z-index: 2;
+  z-index: 5;
   min-width: 44px;
   min-height: 44px;
   display: grid;
