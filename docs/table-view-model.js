@@ -18,6 +18,7 @@ import {
   getSessionCurrentHand,
   totalTricksPlayed,
   MAX_TRICKS_PER_HAND,
+  tricksToWinHint,
 } from "./firestore.js";
 import {
   scoreBankroll,
@@ -25,9 +26,7 @@ import {
   computeHandPotState,
   projectNextHandPot,
   sumProjectedHandAntes,
-  playerHandStake,
 } from "./bourre-rules.js";
-import { tricksToWinHint } from "./settlement-copy.js";
 import { apeClass, apeStatus } from "./ranking.js";
 import { canPlayerShowHandChoice, isRobotPlayerId } from "./session-startup.js";
 
