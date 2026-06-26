@@ -3,6 +3,7 @@ import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
+import type { Rank, Suit } from "../types";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -23,11 +24,14 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
   }, []);
 
   const trickCount = player.tricksThisHand;
+  const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
+  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
   const bourrePressure = Boolean(player.bourrePressure);
   const bourrePressureSelf = bourrePressure && player.isSelf;
+  const seatTrumpRevealed = player.revealedTrumpIndex != null && player.revealedTrumpUpcard;
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -70,6 +74,8 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         bourrePressureSelf ? "bseat--bourre-pressure-self" : "",
         player.bankrollTick === "up" ? "bseat--bankroll-up" : "",
         player.bankrollTick === "down" ? "bseat--bankroll-down" : "",
+        seatTrumpRevealed ? "bseat--trump-reveal" : "",
+        player.seatTrumpMergeActive ? "bseat--trump-merge" : "",
         avatarPeek ? "bseat--meta-open" : "",
       ]
         .filter(Boolean)
@@ -92,7 +98,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
           <div
             className="bseat__avatar-stack"
             data-trick-play-origin={
-              !player.isSelf && player.inHand ? player.playerId : undefined
+              !player.isSelf && player.inHand && !showHoleCards ? player.playerId : undefined
             }
           >
             {player.inHand && (
@@ -126,6 +132,46 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
                 </div>
               ))}
             </div>
+            {showHoleCards && (
+              <div
+                className="bseat__hole-cards bseat__hole-cards--crown"
+                aria-label={`${cardsHeld} cards in hand`}
+                data-trick-play-origin={player.playerId}
+              >
+                {Array.from({ length: cardsHeld }, (_, i) => {
+                  const isTrumpSlot =
+                    player.revealedTrumpIndex === i && player.revealedTrumpUpcard;
+                  return (
+                    <div
+                      key={i}
+                      className={[
+                        "bseat__hole-card",
+                        isTrumpSlot ? "bseat__hole-card--trump-revealed" : "",
+                        isTrumpSlot && player.seatTrumpMergeActive
+                          ? "bseat__hole-card--trump-merge"
+                          : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                      style={{ ["--hole-i" as string]: i }}
+                    >
+                      {isTrumpSlot ? (
+                        <PlayingCard
+                          card={{
+                            rank: player.revealedTrumpUpcard!.rank as Rank,
+                            suit: player.revealedTrumpUpcard!.suit as Suit,
+                          }}
+                          size="xs"
+                          state="trump"
+                        />
+                      ) : (
+                        <PlayingCard faceDown size="xs" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {bourrePressure && (
               <span
                 className="bseat__bourre-pressure-badge"

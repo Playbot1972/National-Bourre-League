@@ -282,6 +282,8 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
     decisionPlannedDiscards: plannedDiscards[sc.playerId],
     isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
+    showHoleCards:
+      cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
     holeCardCount: cardsDealt ? displayHoleCardCount(currentHand || {}, sc.playerId, false) : 0,
     isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     isActiveActor:

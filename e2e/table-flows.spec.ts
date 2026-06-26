@@ -109,12 +109,13 @@ test.describe("4 — Pass / draw decision", () => {
 });
 
 test.describe("5 — Dealer trump presentation", () => {
-  test("center trump stays visible after reveal hold (no seat hole-card crown)", async ({ page }) => {
+  test("bot dealer shows red hole-card fan; center trump visible", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "dealer-trump", phase: "draw" });
     const dealerSeat = page.locator(".bseat--dealer");
     await expect(dealerSeat).toBeAttached();
 
-    await expect(dealerSeat.locator(".bseat__hole-card")).toHaveCount(0);
+    await expect(dealerSeat.locator(".bseat__hole-cards--crown")).toBeAttached({ timeout: 3_000 });
+    await expect(dealerSeat.locator(".bseat__hole-card")).toHaveCount(5);
     await expect(page.getByTestId("trump-button")).toBeVisible({ timeout: 3_000 });
   });
 });
