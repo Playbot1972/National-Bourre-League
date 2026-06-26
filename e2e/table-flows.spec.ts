@@ -109,19 +109,13 @@ test.describe("4 — Pass / draw decision", () => {
 });
 
 test.describe("5 — Dealer trump presentation", () => {
-  test("bot dealer trump reveals at seat then merges without duplicate", async ({ page }) => {
+  test("center trump stays visible after reveal hold (no seat hole-card crown)", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "dealer-trump", phase: "draw" });
     const dealerSeat = page.locator(".bseat--dealer");
     await expect(dealerSeat).toBeAttached();
 
-    await expect(dealerSeat).toHaveClass(/bseat--trump-reveal/, { timeout: 3_000 });
-    await expect(dealerSeat.locator(".bseat__hole-card--trump-revealed").first()).toBeAttached();
-    await expect(page.getByTestId("trump-button")).toHaveCount(0);
-
-    await page.waitForTimeout(800);
-    const revealedCount = await dealerSeat.locator(".bseat__hole-card--trump-revealed").count();
-    expect(revealedCount).toBeLessThanOrEqual(1);
-    await expect(dealerSeat.locator(".bseat__hole-card")).toHaveCount(5);
+    await expect(dealerSeat.locator(".bseat__hole-card")).toHaveCount(0);
+    await expect(page.getByTestId("trump-button")).toBeVisible({ timeout: 3_000 });
   });
 });
 

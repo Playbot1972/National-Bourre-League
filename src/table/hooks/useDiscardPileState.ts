@@ -6,11 +6,8 @@ import {
 } from "../discardPileModel";
 import {
   animateCardsToDiscardPile,
-  animateOriginRectsToDiscardPile,
   killDiscardFlights,
-  seatOriginRectsForDiscard,
 } from "../animations/discardPileMotion";
-import { readSeatPlayOrigin } from "../trickPlayFly";
 import type { SerializedCard } from "../types";
 
 export interface UseDiscardPileStateInput {
@@ -82,7 +79,6 @@ export interface RunBotDiscardFlyInput {
   handNumber: number;
   discardCount: number;
   pileStartIndex: number;
-  root: HTMLElement;
   onComplete: (committed: { id: string; playerId: string }[]) => void;
 }
 
@@ -91,7 +87,6 @@ export function runBotDiscardFly({
   handNumber,
   discardCount,
   pileStartIndex,
-  root,
   onComplete,
 }: RunBotDiscardFlyInput): void {
   const keys = discardCardKeysForDraw({
@@ -100,26 +95,8 @@ export function runBotDiscardFly({
     discardCount,
     pileStartIndex,
   });
-  const origins = seatOriginRectsForDiscard(playerId, discardCount, root);
-  if (!origins.length) {
-    const seat = readSeatPlayOrigin(playerId);
-    if (seat) {
-      origins.push(
-        ...Array.from({ length: discardCount }, (_, i) => ({
-          ...seat,
-          left: seat.left + i * 3,
-          top: seat.top - i * 2,
-        })),
-      );
-    }
-  }
-  if (!origins.length) {
-    onComplete(keys.map((id) => ({ id, playerId })));
-    return;
-  }
-  animateOriginRectsToDiscardPile(origins, keys, pileStartIndex, root, {
-    onComplete: () => onComplete(keys.map((id) => ({ id, playerId }))),
-  });
+  // Presentation-only: bot discards update the center pile without seat-origin card ghosts.
+  onComplete(keys.map((id) => ({ id, playerId })));
 }
 
 export function heroDiscardCardKeys(
