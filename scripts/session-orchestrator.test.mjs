@@ -39,11 +39,16 @@ describe("session orchestrator", () => {
     assert.equal(body.includes("maybeRecoverHandLifecycle"), false);
   });
 
-  it("onPlayCard success does not call processRobotActions", () => {
-    const idx = src.indexOf("onPlayCard:");
+  it("onPlayCard intent does not call processRobotActions", () => {
+    const intentsSrc = readFileSync(
+      fileURLToPath(new URL("../docs/table-intents.js", import.meta.url)),
+      "utf8",
+    );
+    const idx = intentsSrc.indexOf("onPlayCard(cardIndex)");
     assert.ok(idx >= 0);
-    const body = src.slice(idx, idx + 1200);
+    const body = intentsSrc.slice(idx, idx + 1200);
     assert.equal(body.includes("processRobotActions"), false);
+    assert.equal(src.includes("actions: getTableIntentHandlers()"), true);
   });
 
   it("has orchestration storm coalesce", () => {
