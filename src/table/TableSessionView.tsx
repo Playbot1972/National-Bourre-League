@@ -381,7 +381,6 @@ export function TableSessionView({
     trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
     hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
     showTrumpSuitReminder,
-    trumpHolderPresentation,
     privateHandReady,
     currentUserId,
     legalPlayIndices: displayLegalPlayIndices,

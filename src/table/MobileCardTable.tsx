@@ -33,7 +33,6 @@ import {
   displayLiveBankroll,
   isPlayerAtBourreRisk,
 } from "./logic";
-import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
 interface MobileCardTableProps {
@@ -48,7 +47,6 @@ interface MobileCardTableProps {
   trumpDisabledIndex?: number | null;
   hideCenterTrump?: boolean;
   showTrumpSuitReminder?: boolean;
-  trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
   legalPlayIndices?: number[] | null;
@@ -80,7 +78,6 @@ export function MobileCardTable({
   trumpDisabledIndex = null,
   hideCenterTrump = false,
   showTrumpSuitReminder = false,
-  trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
   legalPlayIndices,
