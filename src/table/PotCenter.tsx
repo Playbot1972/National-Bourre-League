@@ -197,7 +197,7 @@ export function PotCenter({
           </div>
         )}
 
-        <DiscardPile cards={discardPileCards} />
+        {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
 
         <div className="center-play__phase" aria-live="polite">
           <span

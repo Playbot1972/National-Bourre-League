@@ -126,6 +126,7 @@ export function MobileCardTable({
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
   const { cards: discardPileCards, pileIndexRef, commitDiscardCards } = useDiscardPileState({
     handNumber: session.handNumber,
+    sessionPhase: session.phase,
     tableRootRef: wrapRef,
   });
   useTableDiscardFly({
