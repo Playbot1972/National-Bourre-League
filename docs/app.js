@@ -22,6 +22,13 @@ import {
   logSessionOrchestrator,
 } from "./session-orchestrator.js";
 import {
+  buildHeroCardsForTable,
+  computeLegalPlayIndices,
+  buildTableFeedbackSnapshot,
+} from "./table-view-model.js";
+import { applyTableFeedbackDiff } from "./table-feedback.js";
+import { createTableIntentHandlers } from "./table-intents.js";
+import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
   logBotOrchestrator,
@@ -121,13 +128,8 @@ import {
   sessionTabLabel,
 } from "./session-presets.js";
 import {
-  getLegalPlayIndices,
-  deserializeCards,
-  effectivePlayerHand,
-  serializeCards,
   cardsRemainingInHand,
   displayHoleCardCount,
-  buildPlayValidationState,
 } from "./game-engine.js";
 import {
   bourrePlayerIds,
@@ -1118,32 +1120,56 @@ function maybeRecoverHandLifecycle(sessionObj) {
   }, delay);
 }
 
-function cardKeyFromSerialized(card) {
-  if (!card?.rank || !card?.suit) return null;
-  return `${card.rank}-${card.suit}`;
+let tableIntentHandlers = null;
+
+/** Intent submission — wired once; reads live app state via getters. */
+function getTableIntentHandlers() {
+  if (!tableIntentHandlers) {
+    tableIntentHandlers = createTableIntentHandlers({
+      getAuth: () => session,
+      getRoomId: () => currentRoomId,
+      getSessionId: () => openSessionId,
+      getCurrentSessions: () => currentSessions,
+      getHandPhase: () => getSessionCurrentHand(resolveActiveSession())?.phase ?? null,
+      getCurrentHand: () => getSessionCurrentHand(resolveActiveSession()),
+      getSessionCurrentHand,
+      setTableActionFeedback,
+      showRoomsError,
+      commitLocalHandAction,
+      clearLocalHandCommit,
+      markPendingDrawShuffle: () => {
+        pendingDrawShuffle = true;
+      },
+      scheduleTableSessionSync,
+      setHandParticipation,
+      submitHandDraw,
+      foldHandDraw,
+      playHandCard,
+      advanceHandReveal,
+      updateHandTrick,
+      onSettleHand,
+      formatClientGameError,
+    });
+  }
+  return tableIntentHandlers;
 }
 
-function buildTableFeedbackSnapshot(sessionObj) {
-  const ch = getSessionCurrentHand(sessionObj);
+async function processTableFeedbackEvents(sessionObj) {
+  const api = await ensureTableFeedbackApi();
+  if (!api || !sessionObj) return;
+
   const myUid = session?.uid ?? null;
-  const participantIds = ch?.participantIds ?? [];
-  const tricks = ch?.tricksByPlayer ?? {};
-  const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
-  const handComplete = isHandComplete(tricks, participantIds);
-  return {
-    sessionId: sessionObj?.id ?? null,
-    phase: ch?.phase ?? null,
-    trumpKey: cardKeyFromSerialized(ch?.trumpUpcard),
-    drawCompletedIds: [...(ch?.drawCompletedIds ?? [])],
-    myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
-    handComplete,
-    myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
-    heroCardKeys: (openPrivateHand?.cards ?? [])
-      .map(cardKeyFromSerialized)
-      .filter(Boolean)
-      .sort()
-      .join(","),
-  };
+  const next = buildTableFeedbackSnapshot(sessionObj, {
+    myUid,
+    privateHandCards: openPrivateHand?.cards ?? [],
+  });
+  const { snapshot, clearPendingDrawShuffle } = applyTableFeedbackDiff(
+    tableFeedbackSnapshot,
+    next,
+    { api, myUid, pendingDrawShuffle },
+  );
+  tableFeedbackSnapshot = snapshot;
+  if (clearPendingDrawShuffle) pendingDrawShuffle = false;
 }
 
 async function ensureTableFeedbackApi() {
@@ -1155,72 +1181,6 @@ async function ensureTableFeedbackApi() {
     tableFeedbackApi = null;
   }
   return tableFeedbackApi;
-}
-
-async function processTableFeedbackEvents(sessionObj) {
-  const api = await ensureTableFeedbackApi();
-  if (!api || !sessionObj) return;
-
-  const next = buildTableFeedbackSnapshot(sessionObj);
-  const prev = tableFeedbackSnapshot;
-  const myUid = session?.uid ?? null;
-
-  if (!prev || prev.sessionId !== next.sessionId) {
-    tableFeedbackSnapshot = next;
-    if (next.trumpKey && next.phase === "draw") {
-      api.playShuffleFeedback?.({ delayMs: 80 });
-    }
-    return;
-  }
-
-  if (!prev.trumpKey && next.trumpKey) {
-    api.playShuffleFeedback?.({ delayMs: 80 });
-  }
-
-  if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
-    if (next.heroCardKeys !== prev.heroCardKeys) {
-      pendingDrawShuffle = false;
-      api.playShuffleFeedback?.({ delayMs: 120 });
-    }
-  }
-
-  if (myUid && next.myTricks > prev.myTricks) {
-    api.playTrickWinFeedback?.();
-  }
-
-  if (next.handComplete && !prev.handComplete && next.myIsWinner) {
-    api.playBigWinFeedback?.();
-  }
-
-  tableFeedbackSnapshot = next;
-}
-
-function buildHeroCardsForTable(currentHand, privateCardList, playerId, handPhase) {
-  const privateCards = privateCardList ?? [];
-  if ((handPhase !== "draw" && handPhase !== "play") || !currentHand || !playerId) {
-    return privateCards;
-  }
-  const effective = effectivePlayerHand(
-    playerId,
-    deserializeCards(privateCards),
-    currentHand,
-  );
-  return serializeCards(effective);
-}
-
-function computeLegalPlayIndices(currentHand, heroCards, playerId) {
-  if (!currentHand || currentHand.phase !== "play" || !heroCards?.length || !playerId) {
-    return null;
-  }
-  const privateHand = deserializeCards(heroCards);
-  const hand = effectivePlayerHand(playerId, privateHand, currentHand);
-  const ctx = buildPlayValidationState({ hand, publicHand: currentHand });
-  return getLegalPlayIndices(ctx, {
-    dealerSeat: currentHand.dealerId ?? null,
-    leaderSeat: currentHand.currentTrick?.leadPlayerId ?? null,
-    currentTurnSeat: currentHand.turnPlayerId ?? null,
-    trickIndex: currentHand.currentTrick?.trickNumber ?? 0,
-  });
 }
 
 function setTableActionFeedback(feedback) {
@@ -3660,255 +3620,7 @@ function buildTableSessionProps(s) {
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
-    actions: {
-      onToggleInHand: (inHand) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
-          return;
-        }
-        const liveHand = getSessionCurrentHand(
-          currentSessions.find((x) => x.id === openSessionId),
-        );
-        const livePhase = liveHand?.phase ?? null;
-        const cardsAlreadyDealt =
-          livePhase === "reveal" ||
-          livePhase === "decision" ||
-          livePhase === "draw" ||
-          livePhase === "play";
-        if (cardsAlreadyDealt && inHand) {
-          commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount: 0 });
-          setTableActionFeedback({ status: "loading", message: "Joining hand…" });
-          setHandParticipation(currentRoomId, openSessionId, {
-            playerId: session.uid,
-            inHand: true,
-            discardCount: 0,
-            actorId: session.uid,
-          })
-            .then(() => {
-              setTableActionFeedback({
-                status: "success",
-                message: "You're in this hand.",
-              });
-            })
-            .catch((e) => {
-              clearLocalHandCommit();
-              const message = e.message || "Could not play this hand";
-              setTableActionFeedback({ status: "error", message });
-              showRoomsError(message);
-            });
-          return;
-        }
-        commitLocalHandAction(
-          inHand ? LOCAL_HAND_ACTION.ENROLL_PLAY : LOCAL_HAND_ACTION.ENROLL_PASS,
-        );
-        setTableActionFeedback({ status: "loading", message: inHand ? "Joining hand…" : "Passing hand…" });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: inHand ? "You're in this hand." : "You passed this hand.",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not update hand participation";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onPassEnrollment: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to pass." });
-          return;
-        }
-        const kind = handPhase === "decision"
-          ? LOCAL_HAND_ACTION.DECISION_PASS
-          : LOCAL_HAND_ACTION.ENROLL_PASS;
-        commitLocalHandAction(kind);
-        setTableActionFeedback({ status: "loading", message: "Passing hand…" });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand: false,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({ status: "success", message: "You passed this hand." });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not pass this hand";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onDecisionPlay: (discardCount) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to play." });
-          return;
-        }
-        const label =
-          discardCount > 0 ? `Playing — will draw ${discardCount}` : "Staying pat";
-        commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount });
-        setTableActionFeedback({ status: "loading", message: `${label}…` });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand: true,
-          discardCount,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: discardCount > 0 ? `You're in — draw ${discardCount}` : "You're in — standing pat",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not play this hand";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onAdvanceReveal: () => {
-        if (!currentRoomId || !openSessionId) return Promise.resolve();
-        return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
-          const lower = String(e?.message ?? "").toLowerCase();
-          if (lower.includes("not in reveal")) {
-            return;
-          }
-          console.warn("advanceHandReveal:", e);
-          const message = formatClientGameError(e, "Could not open draw phase");
-          setTableActionFeedback({ status: "error", message });
-          showRoomsError(message);
-        });
-      },
-      onTrickDelta: (delta) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
-        updateHandTrick(currentRoomId, openSessionId, session.uid, delta, session.uid).catch(
-          (e) => showRoomsError(e.message || "Could not update tricks"),
-        );
-      },
-      onSubmitDraw: (discardIndices) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to draw"));
-        }
-        const maxDraw = currentHand?.maxDrawDiscards ?? 5;
-        if (discardIndices.length > maxDraw) {
-          const err = new Error(`You may discard at most ${maxDraw} cards`);
-          setTableActionFeedback({ status: "error", message: err.message });
-          return Promise.reject(err);
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({
-          status: "loading",
-          message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
-        });
-        return submitHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          discardIndices,
-          actorId: session.uid,
-        })
-          .then(() => {
-            if (discardIndices.length > 0) {
-              pendingDrawShuffle = true;
-            }
-            setTableActionFeedback({
-              status: "success",
-              message: discardIndices.length
-                ? `Drew ${discardIndices.length} replacement card(s)`
-                : "Standing pat",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not submit draw",
-            });
-            throw e;
-          });
-      },
-      onPassDraw: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to draw"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({ status: "loading", message: "Standing pat…" });
-        return submitHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          discardIndices: [],
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({ status: "success", message: "Standing pat" });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not stand pat",
-            });
-            throw e;
-          });
-      },
-      onFoldDraw: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to fold"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({ status: "loading", message: "Folding out…" });
-        return foldHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: "You're out this hand — ante forfeited",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not fold out",
-            });
-            throw e;
-          });
-      },
-      onPlayCard: (cardIndex) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to play"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.PLAY_CARD);
-        setTableActionFeedback({ status: "loading", message: "Playing card…" });
-        return playHandCard(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          cardIndex,
-          actorId: session.uid,
-        })
-          .then(() => {
-            tableActionFeedback = null;
-            const sessionObj = currentSessions.find((x) => x.id === openSessionId);
-            if (sessionObj) {
-              scheduleTableSessionSync(sessionObj);
-            }
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not play card",
-            });
-            throw e;
-          });
-      },
-      onSettle: (choice) => onSettleHand(choice),
-    },
+    actions: getTableIntentHandlers(),
   };
 }
 
