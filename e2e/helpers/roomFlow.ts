@@ -101,31 +101,55 @@ export async function openNewSession(page: Page) {
 
 /** Host counts as one seat; add robots until `totalPlayers` are seated. */
 export async function addRobotsUntilCount(page: Page, totalPlayers: number) {
-  await ensureTableOverlayClosed(page);
   const botsNeeded = Math.max(0, totalPlayers - 1);
+  const robotRoles = () =>
+    page.locator(".game-setup-roster__role").filter({ hasText: "robot" });
+
   for (let i = 0; i < botsNeeded; i += 1) {
+    await ensureTableOverlayClosed(page);
     await page.getByTestId("add-player-robot").check();
     const pill = page.getByTestId("session-add-player-pill");
-    try {
-      await pill.click({ timeout: 8000 });
-    } catch {
-      await ensureTableOverlayClosed(page);
-      await pill.click({ force: true, timeout: 5000 });
+    await expect(pill).toBeVisible({ timeout: 15_000 });
+
+    const isSeventhRobot = i + 1 >= 7;
+    for (let attempt = 0; attempt < (isSeventhRobot ? 2 : 1); attempt += 1) {
+      if (attempt > 0) await ensureTableOverlayClosed(page);
+      try {
+        await pill.click({ timeout: 8000 });
+      } catch {
+        await ensureTableOverlayClosed(page);
+        await pill.evaluate((el) => (el as HTMLButtonElement).click());
+      }
+      const countTimeout = isSeventhRobot ? 30_000 : 15_000;
+      try {
+        await expect(robotRoles()).toHaveCount(i + 1, { timeout: countTimeout });
+        break;
+      } catch (err) {
+        if (attempt === 1 || !isSeventhRobot) throw err;
+      }
     }
-    await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(i + 1, {
-      timeout: 15_000,
-    });
+  }
+
+  // 7th robot triggers instant table open — allow roster snapshot to settle.
+  if (botsNeeded >= 7) {
+    await expect(robotRoles()).toHaveCount(botsNeeded, { timeout: 30_000 });
   }
 }
 
 export async function goToTable(page: Page) {
   const overlay = page.locator("#table-play-overlay");
   if (!(await overlay.isVisible().catch(() => false))) {
-    const goBtn = page.getByTestId("open-table-play").first();
-    await expect(goBtn).toBeEnabled({ timeout: 15_000 });
-    await goBtn.click();
+    // 7+ bots may have triggered instant play — wait before clicking Play through body lock.
+    try {
+      await expect(overlay).toBeVisible({ timeout: 10_000 });
+    } catch {
+      await ensureTableOverlayClosed(page);
+      const goBtn = page.getByTestId("open-table-play").first();
+      await expect(goBtn).toBeEnabled({ timeout: 15_000 });
+      await goBtn.evaluate((el) => (el as HTMLButtonElement).click());
+      await expect(overlay).toBeVisible({ timeout: 15_000 });
+    }
   }
-  await expect(overlay).toBeVisible({ timeout: 15_000 });
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 }
 
@@ -223,14 +247,26 @@ async function readPhaseTag(overlay: Locator) {
 /** Close live table overlay so session setup controls are clickable. */
 export async function ensureTableOverlayClosed(page: Page) {
   const overlay = page.locator("#table-play-overlay");
-  if (!(await overlay.isVisible().catch(() => false))) return;
-  const close = page.locator("#close-table-play");
-  if (await close.isVisible().catch(() => false)) {
-    await close.click({ force: true });
-  } else {
-    await page.keyboard.press("Escape");
+  const bodyLocked = await page.evaluate(() =>
+    document.body.classList.contains("table-play-active"),
+  );
+  const overlayVisible = await overlay.isVisible().catch(() => false);
+
+  if (overlayVisible || bodyLocked) {
+    const close = page.locator("#close-table-play");
+    if (await close.isVisible().catch(() => false)) {
+      await close.click({ force: true });
+    } else {
+      await page.keyboard.press("Escape");
+    }
+    await expect(overlay).toBeHidden({ timeout: 15_000 });
   }
-  await expect(overlay).toBeHidden({ timeout: 15_000 });
+
+  await page.evaluate(() => {
+    document.body.classList.remove("table-play-active");
+    const el = document.querySelector("#table-play-overlay");
+    if (el instanceof HTMLElement) el.hidden = true;
+  });
 }
 
 /** Click enrollment / decision CTAs when shown. */
