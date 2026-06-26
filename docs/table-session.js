@@ -10475,22 +10475,25 @@ function Ea(e) {
 }
 //#endregion
 //#region src/table/hooks/useDiscardPileState.ts
-function Da({ handNumber: e }) {
-	let [t, n] = (0, l.useState)([]), r = (0, l.useRef)(0), i = (0, l.useRef)(e);
+function Da({ handNumber: e, sessionPhase: t }) {
+	let [n, r] = (0, l.useState)([]), i = (0, l.useRef)(0), a = (0, l.useRef)(e), o = (0, l.useRef)(t ?? null);
 	return (0, l.useEffect)(() => {
-		i.current !== e && (i.current = e, r.current = 0, pa(), n([]));
-	}, [e]), {
-		cards: t,
-		pileIndexRef: r,
+		a.current !== e && (a.current = e, i.current = 0, pa(), r([]));
+	}, [e]), (0, l.useEffect)(() => {
+		let e = t ?? null, n = o.current;
+		o.current = e, n === "draw" && e === "play" && (pa(), r([]));
+	}, [t]), {
+		cards: n,
+		pileIndexRef: i,
 		commitDiscardCards: (0, l.useCallback)((t) => {
 			if (!t.length) return;
-			let i = t.map((t) => sa({
+			let n = t.map((t) => sa({
 				id: t.id,
 				playerId: t.playerId,
 				handNumber: e,
-				pileIndex: r.current++
+				pileIndex: i.current++
 			}));
-			n((e) => [...e, ...i]);
+			r((e) => [...e, ...n]);
 		}, [e])
 	};
 }
@@ -12382,7 +12385,7 @@ function Vc({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 						style: { "--ante-i": t }
 					}, t))
 				}),
-				/* @__PURE__ */ (0, g.jsx)(Bc, { cards: ee }),
+				i === "draw" ? /* @__PURE__ */ (0, g.jsx)(Bc, { cards: ee }) : null,
 				/* @__PURE__ */ (0, g.jsxs)("div", {
 					className: "center-play__phase",
 					"aria-live": "polite",
@@ -13472,6 +13475,7 @@ function nu({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 		sessionKey: ne
 	}), { cards: I, pileIndexRef: L, commitDiscardCards: R } = Da({
 		handNumber: e.handNumber,
+		sessionPhase: e.phase,
 		tableRootRef: re
 	});
 	jl({
@@ -13764,6 +13768,7 @@ function uu({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 		sessionKey: L
 	}), { cards: z, pileIndexRef: B, commitDiscardCards: ie } = Da({
 		handNumber: e.handNumber,
+		sessionPhase: e.phase,
 		tableRootRef: R
 	});
 	jl({

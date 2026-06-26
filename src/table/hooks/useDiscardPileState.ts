@@ -12,13 +12,16 @@ import type { SerializedCard } from "../types";
 
 export interface UseDiscardPileStateInput {
   handNumber: number;
+  /** Server hand phase — pile clears when draw ends (before trick play). */
+  sessionPhase?: string | null;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
-export function useDiscardPileState({ handNumber }: UseDiscardPileStateInput) {
+export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPileStateInput) {
   const [cards, setCards] = useState<DiscardPileCard[]>([]);
   const pileIndexRef = useRef(0);
   const handRef = useRef(handNumber);
+  const phaseRef = useRef(sessionPhase ?? null);
 
   useEffect(() => {
     if (handRef.current === handNumber) return;
@@ -27,6 +30,16 @@ export function useDiscardPileState({ handNumber }: UseDiscardPileStateInput) {
     killDiscardFlights();
     setCards([]);
   }, [handNumber]);
+
+  useEffect(() => {
+    const phase = sessionPhase ?? null;
+    const prev = phaseRef.current;
+    phaseRef.current = phase;
+    if (prev === "draw" && phase === "play") {
+      killDiscardFlights();
+      setCards([]);
+    }
+  }, [sessionPhase]);
 
   const commitDiscardCards = useCallback(
     (entries: { id: string; playerId: string }[]) => {
