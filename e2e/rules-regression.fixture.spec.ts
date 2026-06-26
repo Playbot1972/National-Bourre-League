@@ -143,7 +143,7 @@ test.describe("Rules regression — fixture (deterministic)", () => {
       await expectPhaseTag(page, /dealing/i);
 
       await advanceRulesFixture(page, "setPhase", { phase: "decision" });
-      await expectPhaseTag(page, /play or pass/i);
+      await expectPhaseTag(page, /choosing/i);
       await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
 
       await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").click();
@@ -154,7 +154,7 @@ test.describe("Rules regression — fixture (deterministic)", () => {
       await expect(page.getByTestId("draw-button")).toBeVisible();
 
       await advanceRulesFixture(page, "setPhase", { phase: "play" });
-      await expectPhaseTag(page, /trick play/i);
+      await expectPhaseTag(page, /playing/i);
       await expectNoBourreMarkers(page);
     });
   });

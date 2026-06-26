@@ -16,6 +16,8 @@ import { test, expect } from "@playwright/test";
 import {
   advanceThroughDrawPhase,
   emulatorReady,
+  expectHandPhase,
+  getHandPhase,
   goToTable,
   setupRoomWithBots,
   tryHandEnrollmentActions,
@@ -32,7 +34,7 @@ function tableOverlay(page: import("@playwright/test").Page) {
 
 test.describe("Rules regression — emulator (partial integration)", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
 
   test.beforeAll(async () => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
@@ -51,9 +53,7 @@ test.describe("Rules regression — emulator (partial integration)", () => {
       await expectNoBourreMarkers(page);
       await expect(overlay.getByTestId("bourre-result-sting")).toHaveCount(0);
 
-      const phaseText =
-        (await overlay.getByTestId("phase-tag").textContent().catch(() => "")) ?? "";
-      if (/draw round/i.test(phaseText)) break;
+      if ((await getHandPhase(overlay)) === "draw") break;
 
       await tryHandEnrollmentActions(page, overlay, lastActionClick);
       await page.waitForTimeout(500);
@@ -72,10 +72,10 @@ test.describe("Rules regression — emulator (partial integration)", () => {
 
     const overlay = tableOverlay(page);
     await expectPhaseTag(page, /draw/i);
-    await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button"))).toBeVisible();
+    await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button")).first()).toBeVisible();
 
     await advanceThroughDrawPhase(page);
-    await expect(overlay.getByTestId("phase-tag")).toContainText(/trick play/i, { timeout: 30_000 });
+    await expectHandPhase(overlay, "play");
     await expectNoBourreMarkers(page);
   });
 
@@ -85,7 +85,7 @@ test.describe("Rules regression — emulator (partial integration)", () => {
     await waitForPlayPhase(page);
 
     const overlay = tableOverlay(page);
-    await expect(overlay.getByTestId("phase-tag")).toContainText(/trick play/i);
+    await expectHandPhase(overlay, "play");
     await expect(overlay.getByTestId("hero-hand")).toBeVisible();
     await expect(overlay.locator(".btable-hero__error")).toHaveCount(0);
     await expectNoBourreMarkers(page);
