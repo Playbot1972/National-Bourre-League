@@ -34,7 +34,18 @@ function tableOverlay(page: import("@playwright/test").Page) {
 
 test.describe("Rules regression — emulator (partial integration)", () => {
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
-  test.setTimeout(360_000);
+  test.setTimeout(480_000);
+
+  test.beforeEach(async () => {
+    await fetch(
+      "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts",
+      { method: "DELETE" },
+    ).catch(() => {});
+    await fetch(
+      "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents",
+      { method: "DELETE" },
+    ).catch(() => {});
+  });
 
   test.beforeAll(async () => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");

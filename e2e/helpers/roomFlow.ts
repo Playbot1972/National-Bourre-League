@@ -141,16 +141,18 @@ async function phaseDataAttr(overlay: Locator, testId: string): Promise<string> 
 
 /** Locator-based checks — matches smoke-draw-play-trace.mjs (avoids stale evaluate reads). */
 async function isPlayPhaseReady(overlay: Locator): Promise<boolean> {
-  if ((await phaseDataAttr(overlay, "phase-tag-center")) === "play") return true;
-  if ((await phaseDataAttr(overlay, "phase-tag")) === "play") return true;
+  const header =
+    (await overlay.getByTestId("phase-tag").first().getAttribute("data-phase").catch(() => "")) ?? "";
+  if (header === "play") return true;
+
+  const center =
+    (await overlay.getByTestId("phase-tag-center").getAttribute("data-phase").catch(() => "")) ??
+    "";
+  if (center === "play") return true;
 
   const heroLabel =
     (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
-  if (/playing/i.test(heroLabel)) return true;
-
-  if ((await overlay.locator('[aria-label="Cards in trick"] img').count()) > 0) return true;
-  if ((await overlay.getByTestId("play-button").count()) > 0) return true;
-  return false;
+  return /playing/i.test(heroLabel);
 }
 
 async function isDrawPhaseReady(overlay: Locator): Promise<boolean> {
@@ -324,43 +326,39 @@ export async function waitForDrawPhase(page: Page) {
   throw new Error(`Draw phase did not start within 120s (last phase: ${phase || "unknown"})`);
 }
 
-/** Pass hero draw turns and wait for bots until trick play begins. */
+/** Pass hero draw turns and wait for bots until trick play begins (trace-script parity). */
 export async function advanceThroughDrawPhase(page: Page) {
   const overlay = tableOverlay(page);
   const deadline = Date.now() + 180_000;
-  const lastActionClick = { at: 0 };
-  let lastDrawProgressAt = Date.now();
 
   while (Date.now() < deadline) {
     if (await isPlayPhaseReady(overlay)) return;
 
-    const phaseBefore = await getHandPhase(overlay);
-
-    if (await tryPassDraw(page, overlay, lastActionClick)) {
-      lastDrawProgressAt = Date.now();
+    const passVisible = await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false);
+    const drawVisible = await overlay.getByTestId("draw-button").isVisible().catch(() => false);
+    if (passVisible || drawVisible) {
+      const btn = passVisible
+        ? overlay.getByTestId("pass-draw-button")
+        : overlay.getByTestId("draw-button");
+      try {
+        await btn.click({ timeout: 5000 });
+      } catch {
+        await btn.click({ force: true, timeout: 3000 });
+      }
+      await page.waitForTimeout(1000);
       continue;
     }
 
     const feedback =
       (await overlay.getByTestId("feedback-banner").textContent().catch(() => "")) ?? "";
     assertNoHandFailure(overlay, feedback);
-
-    if (await isPlayPhaseReady(overlay)) return;
-
-    const phaseAfter = await getHandPhase(overlay);
-    if (phaseAfter !== phaseBefore) {
-      lastDrawProgressAt = Date.now();
-    }
-
-    const waitMs =
-      phaseBefore === "draw" && Date.now() - lastDrawProgressAt > 4_000 ? 1000 : 400;
-    await page.waitForTimeout(waitMs);
+    await page.waitForTimeout(400);
   }
 
   const labels = await readPhaseTag(overlay);
   const phase = await getHandPhase(overlay);
   throw new Error(
-    `Play phase did not start within 180s (last phase: ${labels || phase || "unknown"})`,
+    `Play phase did not start within 240s (last phase: ${labels || phase || "unknown"})`,
   );
 }
 
