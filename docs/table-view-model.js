@@ -282,8 +282,6 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
     decisionPlannedDiscards: plannedDiscards[sc.playerId],
     isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
-    // Opponent hole-card crown removed — trump/deal presentation uses dedicated animations.
-    showHoleCards: false,
     holeCardCount: cardsDealt ? displayHoleCardCount(currentHand || {}, sc.playerId, false) : 0,
     isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     isActiveActor:

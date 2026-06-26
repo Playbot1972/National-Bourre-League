@@ -33,7 +33,6 @@ import {
   displayLiveBankroll,
   isPlayerAtBourreRisk,
 } from "./logic";
-import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 
@@ -132,7 +131,6 @@ export function MobileCardTable({
     handPresentation,
     handNumber: session.handNumber,
     currentUserId,
-    tableRootRef: wrapRef,
     pileIndexRef,
     onDiscardCommitted: commitDiscardCards,
   });
@@ -162,16 +160,8 @@ export function MobileCardTable({
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
-    const seatTrump = resolveSeatTrumpDisplay(
-      player.playerId,
-      trumpHolderPresentation,
-      session.trumpUpcard ?? null,
-      player.holeCardCount ?? 0,
-      player.isSelf,
-    );
     return {
       ...player,
-      ...seatTrump,
       bankroll: displayLiveBankroll(player.bankroll, potMetrics.anteAmount, {
         inHand: player.inHand,
         anteAnimActive: handPresentation.anteAnimActive,
@@ -192,9 +182,10 @@ export function MobileCardTable({
             : player.isLeading,
       isTrickCapture: capturingTrick,
       enrollmentPulse,
-      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
-      drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
-      drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
+      drawAnimSubPhase:
+        drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
+      drawDiscardCount: drawingNow && player.isSelf ? handPresentation.drawDiscardCount : 0,
+      drawReplaceCount: drawingNow && player.isSelf ? handPresentation.drawReplaceCount : 0,
       turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
