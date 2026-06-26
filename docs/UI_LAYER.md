@@ -47,3 +47,5 @@ Does not call Firestore; receives props + `actions` callbacks from `app.js`.
 - Move orchestration runtime from `app.js` to `table-orchestration-runtime.js` factory
 - Extract hand lifecycle (`openNextHandEnrollment`) to `session-lifecycle.js`
 - Split `renderRoomDetail` HTML builders into `room-detail-view.js`
+
+See also [`HAND_INVARIANTS.md`](HAND_INVARIANTS.md) for runtime guards at write boundaries.

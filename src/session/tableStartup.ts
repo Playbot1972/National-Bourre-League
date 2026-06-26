@@ -57,6 +57,23 @@ export {
   shouldAutoOpenNextHand,
 } from "./handPhaseMachine";
 
+export {
+  HandInvariantError,
+  assertConsistentHandFlowPhase,
+  assertSingleTurnOwner,
+  assertHandFlowTransition,
+  assertHandFlowConsistent,
+  assertSettlementEntryAllowed,
+  assertHandActionAllowed,
+  assertBotAdvanceNotInFlight,
+  assertSessionChipConserved,
+  flowEventForAction,
+  checkInvariant,
+  failInvariant,
+} from "./handInvariants";
+
+export { forceInvariantsForTests, isInvariantsStrict, logInvariantViolation } from "./invariantDebug";
+
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (!livePublic?.phase) return false;

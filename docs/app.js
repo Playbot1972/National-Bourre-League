@@ -173,6 +173,8 @@ import {
   resolveTableEnrollmentActive,
   resolveCurrentHandChoicePlayerId,
   canPlayerShowHandChoice,
+  assertBotAdvanceNotInFlight,
+  assertHandFlowConsistent,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -2680,7 +2682,11 @@ function scheduleServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = 
 }
 
 async function executeServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
-  if (!currentRoomId || !openSessionId || botAdvanceInFlight) return;
+  if (botAdvanceInFlight) {
+    assertBotAdvanceNotInFlight(true, { source: "executeServerBotAdvance", reason });
+    return;
+  }
+  if (!currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId) ?? s;
   if (!sessionObj || sessionObj.status === "final") return;
   if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) return;
@@ -2742,6 +2748,14 @@ function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {
   if (!sessionObj || sessionObj.id !== openSessionId || sessionObj.status === "final") {
     stopEnrollmentTimer();
     return;
+  }
+
+  if (isGameFlowDebugEnabled()) {
+    try {
+      assertHandFlowConsistent(sessionObj);
+    } catch (err) {
+      console.warn("[nbl-invariant]", err?.code ?? "hand_flow", err?.message ?? err);
+    }
   }
 
   maybeRecoverHandLifecycle(sessionObj);

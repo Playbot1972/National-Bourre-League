@@ -34,13 +34,17 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal } from "./vendor/bourre-rules.js";
 import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
   canActForPlayer,
   enrollmentDeadlineMs,
   resolveBotAdvanceHint,
+  assertHandActionAllowed,
+  assertSettlementEntryAllowed,
+  assertSessionChipConserved,
+  checkInvariant,
 } from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 
@@ -81,17 +85,59 @@ function handActionHttpsError(action, reason) {
 
 function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
   const currentHand = getSessionCurrentHand(sessionData);
-  const snapshot = buildHandFlowSnapshot({ session: sessionData });
-  const result = canSubmitHandAction({
-    snapshot,
-    action,
-    playerId,
-    actorId,
-    drawCompletedIds: currentHand.drawCompletedIds ?? [],
-  });
-  if (!result.ok) {
-    throw handActionHttpsError(action, result.reason ?? "blocked");
+  try {
+    assertHandActionAllowed(
+      sessionData,
+      action,
+      playerId,
+      actorId,
+      currentHand.drawCompletedIds ?? [],
+    );
+  } catch (err) {
+    if (err?.name === "HandInvariantError" && err.code === "action_blocked") {
+      throw handActionHttpsError(action, err.context?.reason ?? "blocked");
+    }
+    if (err?.name === "HandInvariantError" && err.code === "illegal_transition") {
+      throw new HttpsError("failed-precondition", `Action blocked (illegal phase transition: ${action})`);
+    }
+    if (err?.name === "HandInvariantError") {
+      throw new HttpsError("failed-precondition", err.message);
+    }
+    throw err;
   }
+}
+
+function assertRecordHandChipConservation({
+  scoreById,
+  carryOverPot,
+  postedAntes,
+  buyIn,
+  solvent,
+  participants,
+  deltas,
+}) {
+  const beforeTotal = sessionChipTotal(scoreById, {
+    carryOverPot,
+    postedAntes,
+    buyInFallback: buyIn,
+  });
+  const afterScores = { ...scoreById };
+  for (const pid of participants) {
+    afterScores[pid] = {
+      ...afterScores[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
+      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+    };
+  }
+  const afterTotal = sessionChipTotal(afterScores, {
+    carryOverPot: solvent.carryOverPot,
+    postedAntes: {},
+    buyInFallback: buyIn,
+  });
+  assertSessionChipConserved(beforeTotal, afterTotal, {
+    boundary: "handleRecordHand",
+    participantCount: participants.length,
+  });
 }
 
 export { canActForPlayer } from "./vendor/session-startup.js";
@@ -958,6 +1004,12 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         return { status: "ok", steps, reason: "unknown_hint" };
     }
   }
+  checkInvariant(
+    false,
+    "bot_advance_step_cap",
+    `Bot advance hit ${BOT_ADVANCE_MAX_STEPS} steps without human pause`,
+    { roomId, sessionId, actorId },
+  );
   return { status: "ok", steps, capped: true };
 }
 
@@ -1621,6 +1673,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
 
   if (!ready) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "push" });
     await handleRecordHand(db, {
       roomId,
       sessionId,
@@ -1634,6 +1687,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   }
 
   if (winnerIds.length === 1) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "win" });
     await handleRecordHand(db, {
       roomId,
       sessionId,
@@ -1742,6 +1796,8 @@ export async function handleRecordHand(
     }
   }
 
+  assertSettlementEntryAllowed(sessionData, { settlement: mode });
+
   const stake = sessionData.handStake ?? 1;
   const limEnabled = sessionData.limEnabled === true;
   const carryIn = sessionData.carryOverPot || 0;
@@ -1803,6 +1859,16 @@ export async function handleRecordHand(
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
   const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
+
+  assertRecordHandChipConservation({
+    scoreById,
+    carryOverPot: carryIn,
+    postedAntes,
+    buyIn,
+    solvent,
+    participants,
+    deltas,
+  });
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {

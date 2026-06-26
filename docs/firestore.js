@@ -99,6 +99,7 @@ import {
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
+  sessionChipTotal,
 } from "./bourre-rules.js";
 import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
@@ -166,6 +167,11 @@ import {
   canActForPlayer,
   enrollmentDeadlineMs,
   resolveBotAdvanceHint,
+  assertHandActionAllowed,
+  assertSettlementEntryAllowed,
+  assertSessionChipConserved,
+  assertHandFlowConsistent,
+  assertBotAdvanceNotInFlight,
 } from "./session-startup.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -1547,16 +1553,22 @@ function handActionBlockedMessage(action, reason) {
 
 function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
   const currentHand = getSessionCurrentHand(sessionData);
-  const snapshot = buildHandFlowSnapshot({ session: sessionData });
-  const result = canSubmitHandAction({
-    snapshot,
-    action,
-    playerId,
-    actorId,
-    drawCompletedIds: currentHand.drawCompletedIds ?? [],
-  });
-  if (!result.ok) {
-    throw new Error(handActionBlockedMessage(action, result.reason ?? "blocked"));
+  try {
+    assertHandActionAllowed(
+      sessionData,
+      action,
+      playerId,
+      actorId,
+      currentHand.drawCompletedIds ?? [],
+    );
+  } catch (err) {
+    if (err?.name === "HandInvariantError" && err.code === "action_blocked") {
+      throw new Error(handActionBlockedMessage(action, err.context?.reason ?? "blocked"));
+    }
+    if (err?.name === "HandInvariantError" && err.code === "illegal_transition") {
+      throw new Error(`Action blocked (illegal phase transition: ${action})`);
+    }
+    throw err;
   }
 }
 
@@ -1580,6 +1592,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
 
   if (!ready) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "push" });
     await recordHand(roomId, sessionId, {
       winnerIds: [],
       participantIds,
@@ -1591,6 +1604,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   }
 
   if (winnerIds.length === 1) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "win" });
     await recordHand(roomId, sessionId, {
       winnerIds,
       participantIds,
@@ -1623,6 +1637,40 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     settlement: "co_win_carry",
     recordedBy,
     tricksByPlayer,
+  });
+}
+
+/** Chip conservation at settlement boundary (bankrolls + carry + posted antes). */
+function assertRecordHandChipConservation({
+  scoreById,
+  carryOverPot,
+  postedAntes,
+  buyIn,
+  solvent,
+  participants,
+  deltas,
+}) {
+  const beforeTotal = sessionChipTotal(scoreById, {
+    carryOverPot,
+    postedAntes,
+    buyInFallback: buyIn,
+  });
+  const afterScores = { ...scoreById };
+  for (const pid of participants) {
+    afterScores[pid] = {
+      ...afterScores[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
+      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+    };
+  }
+  const afterTotal = sessionChipTotal(afterScores, {
+    carryOverPot: solvent.carryOverPot,
+    postedAntes: {},
+    buyInFallback: buyIn,
+  });
+  assertSessionChipConserved(beforeTotal, afterTotal, {
+    boundary: "recordHand",
+    participantCount: participants.length,
   });
 }
 
@@ -2405,6 +2453,8 @@ async function recordHandClient(
     if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
   }
 
+  assertSettlementEntryAllowed(sessionData, { settlement: mode });
+
   const stake = sessionData.handStake ?? 1;
   const limEnabled = sessionData.limEnabled === true;
   const carryIn = sessionData.carryOverPot || 0;
@@ -2466,6 +2516,16 @@ async function recordHandClient(
   const deltas = solvent.appliedDeltas;
   const carryOverPot = solvent.carryOverPot;
   const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
+
+  assertRecordHandChipConservation({
+    scoreById,
+    carryOverPot: carryIn,
+    postedAntes,
+    buyIn,
+    solvent,
+    participants,
+    deltas,
+  });
 
   logBourreSettlementTrace("hand-settled", {
     handNumber,
