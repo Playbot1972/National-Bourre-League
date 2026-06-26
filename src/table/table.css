@@ -1607,49 +1607,23 @@
 }
 
 /*
- * 4 / 6 / 7 player — trick counter on the right for seat indices 1–3 only
- * (first three opponents clockwise from hero). All other seats keep left placement.
+ * Opponents (seat index 1+, players 2–8) — trick counter on the right edge of the avatar.
+ * Hero seat (index 0) keeps the default left placement.
  */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge {
+.btable__seat-slot:not([data-seat-index="0"]) .bseat__trick-badge {
   left: 100%;
   right: auto;
   --trick-badge-x: 5px;
 }
 
-/* Right-rail among seats 1–3: tuck inward so the badge stays on-screen */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge {
+/* Right-rail opponents: tuck inward so the badge stays on-screen */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge {
   --trick-badge-x: -2px;
 }
 
-/* Top/bottom among seats 1–3 on dense rings: clear hole-card crown */
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge {
+/* Top/bottom opponents on dense rings: clear hole-card crown */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--top .bseat__trick-badge,
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--bottom .bseat__trick-badge {
   --trick-badge-x: 6px;
 }
 
@@ -1802,30 +1776,14 @@
   opacity: 0;
 }
 
-/* Default: badge left → pile right. Seats 1–3 (p4/p6/p7): badge right → pile left. */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile {
+/* Default: badge left → pile right. Opponents: badge right → pile left. */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat__won-trick-pile {
   left: 0;
   right: auto;
   --trick-pile-x: calc(-100% - 8px);
 }
 
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile {
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__won-trick-pile {
   --trick-pile-x: -4px;
 }
 

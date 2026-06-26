@@ -19,6 +19,7 @@ import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
  * @param {() => void} deps.clearLocalHandCommit
  * @param {() => void} deps.markPendingDrawShuffle
  * @param {(sessionObj: object) => void} deps.scheduleTableSessionSync
+ * @param {(sessionObj: object, scores: object[]) => void} [deps.wakeBotsAfterHandAction]
  * @param {(roomId: string, sessionId: string, payload: object) => Promise<unknown>} deps.setHandParticipation
  * @param {(roomId: string, sessionId: string, payload: object) => Promise<unknown>} deps.submitHandDraw
  * @param {(roomId: string, sessionId: string, payload: object) => Promise<unknown>} deps.foldHandDraw
@@ -208,6 +209,8 @@ export function createTableIntentHandlers(deps) {
               ? `Drew ${discardIndices.length} replacement card(s)`
               : "Standing pat",
           });
+          const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+          if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
@@ -232,6 +235,8 @@ export function createTableIntentHandlers(deps) {
         })
         .then(() => {
           deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
+          const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+          if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
@@ -258,6 +263,8 @@ export function createTableIntentHandlers(deps) {
             status: "success",
             message: "You're out this hand — ante forfeited",
           });
+          const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+          if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
