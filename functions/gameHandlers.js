@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed } from "./vendor/bourre-rules.js";
 import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
@@ -843,13 +843,6 @@ async function getRoomSnap(db, roomId) {
 async function getDealingRule(db, roomId) {
   const roomSnap = await getRoomSnap(db, roomId);
   return roomSnap.data()?.houseRules?.dealing ?? null;
-}
-
-function tiesHouseRuleAllowsSplit(houseRules) {
-  const text = String(houseRules?.ties ?? "").toLowerCase();
-  if (!text) return false;
-  if (text.includes("no split") || text.includes("carries")) return false;
-  return text.includes("split evenly") || /\bsplit\b/.test(text);
 }
 
 const BOT_ADVANCE_MAX_STEPS = 64;
@@ -1705,7 +1698,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   }
 
   const roomSnap = await getRoomSnap(db, roomId);
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };

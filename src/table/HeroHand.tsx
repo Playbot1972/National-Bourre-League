@@ -199,23 +199,31 @@ export function HeroHand({
   useEffect(() => {
     clearPreselectTimer();
     setSelectedPlay(null);
+    setSelectedDraw(new Set());
+    drawSelectionTouchedRef.current = false;
     setPeekIndex(null);
     setIllegalShakeIndex(null);
     setIllegalFlashIndex(null);
     setLocalError(null);
-  }, [phase, isMyTurn, legalPlayIndices, handCardKey, recommendedPlayIndex, clearPreselectTimer]);
+  }, [phase, handCardKey, clearPreselectTimer]);
 
   useEffect(() => {
-    setSelectedDraw(new Set());
-    drawSelectionTouchedRef.current = false;
-  }, [phase, handCardKey, drawCompleted]);
+    if (selectedPlay === null) return;
+    if (!isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
+      setSelectedPlay(null);
+      pendingPlayIndexRef.current = null;
+      clearPreselectTimer();
+    }
+  }, [legalPlayIndices, selectedPlay, clearPreselectTimer]);
+
+  const busy =
+    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   useEffect(() => {
     if (
       !bestPlayEnabled ||
       !inDrawPhase ||
       drawCompleted ||
-      !isMyTurn ||
       drawSelectionTouchedRef.current
     ) {
       return;
@@ -225,10 +233,30 @@ export function HeroHand({
     bestPlayEnabled,
     inDrawPhase,
     drawCompleted,
-    isMyTurn,
     recommendedDiscardKey,
     recommendedDiscardIndices,
   ]);
+
+  useEffect(() => {
+    if (!inPlayPhase || !isMyTurn || selectedPlay === null || playLockRef.current || busy) {
+      return;
+    }
+    if (!isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
+      setSelectedPlay(null);
+      pendingPlayIndexRef.current = null;
+      return;
+    }
+    if (preselectTimerRef.current != null) return;
+    pendingPlayIndexRef.current = selectedPlay;
+    preselectTimerRef.current = window.setTimeout(() => {
+      preselectTimerRef.current = null;
+      const pending = pendingPlayIndexRef.current;
+      pendingPlayIndexRef.current = null;
+      if (pending !== null && !playLockRef.current) {
+        void executePlayRef.current(pending);
+      }
+    }, MICRO_MS.autoPlayPreselect);
+  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -240,8 +268,6 @@ export function HeroHand({
   }, [actionFeedback?.status, clearPreselectTimer]);
 
   const cardSize = settings.cardScale === "lg" ? "md" : "sm";
-  const busy =
-    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
   const feedbackError = scrubInternalActionMessage(
     actionFeedback?.status === "error" ? actionFeedback.message : localError,
   );
@@ -299,24 +325,27 @@ export function HeroHand({
 
   const preselectCard = useCallback(
     (index: number) => {
-      if (playLockRef.current || busy || !onPlayCard || phase !== "play" || !isMyTurn) return;
+      if (playLockRef.current || busy || !onPlayCard || phase !== "play") return;
       if (!isLegalPlayIndex(index, legalPlayIndices)) {
-        playIllegalActionFeedback();
-        clearPreselectTimer();
-        setSelectedPlay(null);
-        setIllegalShakeIndex(index);
-        setIllegalFlashIndex(index);
-        window.setTimeout(() => {
-          setIllegalShakeIndex(null);
-          setIllegalFlashIndex(null);
-        }, MICRO_MS.illegalFlash);
-        setLocalError("Illegal play");
+        if (isMyTurn) {
+          playIllegalActionFeedback();
+          clearPreselectTimer();
+          setSelectedPlay(null);
+          setIllegalShakeIndex(index);
+          setIllegalFlashIndex(index);
+          window.setTimeout(() => {
+            setIllegalShakeIndex(null);
+            setIllegalFlashIndex(null);
+          }, MICRO_MS.illegalFlash);
+          setLocalError("Illegal play");
+        }
         return;
       }
       clearPreselectTimer();
       setSelectedPlay(index);
       setLocalError(null);
       pendingPlayIndexRef.current = index;
+      if (!isMyTurn) return;
       preselectTimerRef.current = window.setTimeout(() => {
         preselectTimerRef.current = null;
         const pending = pendingPlayIndexRef.current;
@@ -414,7 +443,7 @@ export function HeroHand({
       saveBestPlayEnabled(enabled);
       if (enabled) {
         drawSelectionTouchedRef.current = false;
-        if (inDrawPhase && !drawCompleted && isMyTurn) {
+        if (inDrawPhase && !drawCompleted) {
           setSelectedDraw(new Set(recommendedDiscardIndices));
         }
         return;
@@ -423,7 +452,7 @@ export function HeroHand({
         setSelectedDraw(new Set());
       }
     },
-    [inDrawPhase, drawCompleted, isMyTurn, recommendedDiscardIndices],
+    [inDrawPhase, drawCompleted, recommendedDiscardIndices],
   );
 
   const showBestPlayControl =
@@ -501,7 +530,6 @@ export function HeroHand({
   const showBestPlayRecommendation =
     showBestPlayControl &&
     inPlayPhase &&
-    isMyTurn &&
     bestPlayEnabled &&
     selectedPlay === null &&
     recommendedPlayIndex !== null &&
@@ -518,17 +546,16 @@ export function HeroHand({
       }
       return "draw-selected";
     }
-    if (inPlayPhase && selectedPlay === i && isMyTurn) return "play-preselected";
+    if (inPlayPhase && selectedPlay === i) return "play-preselected";
     if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
-    if (inPlayPhase && !isMyTurn) return "disabled";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
   };
 
   const enablePeek = dealtPhase && isInHand && !(inPlayPhase && isMyTurn);
   let gestureMode: CardGestureMode = "none";
-  if (inPlayPhase && isMyTurn) gestureMode = "play";
-  else if (inDrawPhase && isMyTurn && !drawCompleted) gestureMode = "draw-select";
+  if (inPlayPhase && isInHand) gestureMode = "play";
+  else if (inDrawPhase && isInHand && !drawCompleted) gestureMode = "draw-select";
   else if (enablePeek) gestureMode = "peek";
 
   const selectedCount = selectedDraw.size;
@@ -593,6 +620,7 @@ export function HeroHand({
             illegalFlashIndex,
             busy,
             showPlayableHint: false,
+            allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
             trickPlayOriginPlayerId: currentUserId,
             onPlayCard: preselectCard,
             onSelectCard: toggleDrawIndex,

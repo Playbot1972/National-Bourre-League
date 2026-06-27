@@ -716,12 +716,13 @@
 
 .btrick__winner-tag {
   position: absolute;
-  top: -18px;
+  top: auto;
+  bottom: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -730,7 +731,8 @@
   box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
   white-space: nowrap;
   animation: btrick-winner-tag var(--trick-winner-highlight-ms, 1600ms) ease;
-  z-index: 2;
+  z-index: 30;
+  pointer-events: none;
 }
 
 .btrick__play--fly-pending .pcard {
@@ -1440,7 +1442,7 @@
   right: auto;
   bottom: auto;
   width: max-content;
-  transform: translate(-50%, -72%) scale(var(--hole-crown-scale));
+  transform: translate(-50%, -115%) scale(var(--hole-crown-scale));
   transform-origin: 50% 100%;
 }
 
@@ -2335,6 +2337,52 @@
   justify-content: center;
   flex-wrap: wrap;
   margin: 8px 0;
+}
+
+.btable-split-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 120;
+  max-width: min(92vw, 360px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(12, 18, 14, 0.94);
+  border: 1px solid rgba(54, 185, 124, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.btable-split-toast__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold, #f4d58d);
+}
+
+.btable-split-toast__names {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btable-split-toast__share {
+  margin: 0 0 8px;
+}
+
+.btable-split-toast__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btable-split-toast__timer {
+  margin: 0;
+  font-size: 11px;
 }
 
 .btable-session__foot {

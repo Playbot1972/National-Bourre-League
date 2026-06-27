@@ -12,6 +12,8 @@ export const DEFAULT_BOURRE_SETTINGS = {
   limEnabled: false,
   /** Optional house rule — manual top-up when bankroll hits zero (off by default). */
   rebuyEnabled: false,
+  /** Optional house rule — tied leaders may vote to split the pot (off by default). */
+  splitPotEnabled: false,
 };
 
 /**
@@ -37,7 +39,13 @@ export function normalizeBourreSettings(raw = {}) {
     potCap: anteAmount * POT_CAP_MULTIPLIER,
     limEnabled: raw.limEnabled === true,
     rebuyEnabled: raw.rebuyEnabled === true,
+    splitPotEnabled: raw.splitPotEnabled === true,
   };
+}
+
+/** True when room Bourré settings opt into tied-leader split-pot vote. */
+export function splitPotVoteAllowed(bourreSettings) {
+  return normalizeBourreSettings(bourreSettings).splitPotEnabled === true;
 }
 
 /** Starting stack for a session — prefers session buy-in, then room settings. */
@@ -276,7 +284,7 @@ export function nextDealFundingFlags({
   const tiedLeader =
     winners.includes(playerId) &&
     winners.length >= 2 &&
-    (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split");
+    (mode === "co_win_carry" || mode === "non_winner_ante_up");
   const isBourre = bourreIds.includes(playerId);
   const remainder =
     isBourre && bourreReplacementRemainder != null && bourreReplacementRemainder > 0

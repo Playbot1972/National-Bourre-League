@@ -158,6 +158,7 @@ export interface TableSessionActions {
   onAdvanceReveal?: () => void | Promise<void>;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
+  onSettleCarryover?: () => void | Promise<void>;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onFoldDraw?: () => void | Promise<void>;
@@ -179,6 +180,8 @@ export interface TableSessionViewProps {
   myHandContribution: number | null;
   leaderLabel: string;
   showCoWinSettlement: boolean;
+  /** When true, co-win uses compact split-pot vote instead of carryover-only. */
+  splitPotEnabled?: boolean;
   splitSharePerWinner?: number;
   voteStatus: string;
   enrollmentActive?: boolean;

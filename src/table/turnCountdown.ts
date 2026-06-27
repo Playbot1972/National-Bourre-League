@@ -106,8 +106,8 @@ export function buildTurnCountdownState(
   nowMs: number,
 ): TurnCountdownState | null {
   const elapsed = Math.max(0, nowMs - startedAtMs);
-  const remainingMs = Math.max(0, TURN_COUNTDOWN_MS - elapsed);
-  if (remainingMs <= 0) return null;
+  const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
+  const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
 
   return {
     playerId,

@@ -191,7 +191,7 @@
 }
 
 .btable-mobile-wrap .bseat:not(.bseat--self) .bseat__hole-cards--crown {
-  transform: translate(-50%, -58%) scale(var(--hole-crown-scale, 0.67));
+  transform: translate(-50%, -93%) scale(var(--hole-crown-scale, 0.67));
 }
 
 .btable-mobile-oval {

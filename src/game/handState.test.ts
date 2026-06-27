@@ -49,7 +49,7 @@ describe("deal and trump reveal", () => {
         (c) => c.rank === d.trumpUpcard.rank && c.suit === d.trumpUpcard.suit,
       ),
     );
-    assert.equal(effectivePlayerHand("p1", dealerPrivate, pub).length, 5);
+    assert.equal(effectivePlayerHand("p1", dealerPrivate, pub).length, 4);
   });
 
   it("does not auto-lead the flipped trump — first trick starts empty", () => {
@@ -192,7 +192,7 @@ describe("dealer trump upcard during play", () => {
       },
     };
 
-    assert.equal(effectivePlayerHand("p1", d.privateHands.p1, pub).length, 5);
+    assert.equal(effectivePlayerHand("p1", d.privateHands.p1, pub).length, 4);
 
     const result = applyPlayerPlayCard({
       publicHand: pub,

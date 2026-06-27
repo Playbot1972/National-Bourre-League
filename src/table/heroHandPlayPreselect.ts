@@ -1,4 +1,5 @@
 import { botDrawDiscardIndices, botPlayCardIndex } from "../game/play";
+import { isTrump } from "../game/cardUtils";
 import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";
 import type { Card, Suit } from "../types";
@@ -57,7 +58,11 @@ export function computeRecommendedDiscardIndices(
 ): number[] {
   if (!hand.length || maxDiscards <= 0) return [];
   const excluded = new Set(excludedIndices);
-  const eligibleOriginalIndices = hand.map((_, index) => index).filter((index) => !excluded.has(index));
+  const eligibleOriginalIndices = hand
+    .map((_, index) => index)
+    .filter((index) => !excluded.has(index))
+    .filter((index) => !isTrump(hand[index]!, trumpSuit))
+    .filter((index) => hand[index]!.rank !== "A");
   if (!eligibleOriginalIndices.length) return [];
 
   const eligibleHand = eligibleOriginalIndices.map((index) => hand[index]!);

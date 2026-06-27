@@ -96,6 +96,7 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
+  settleCoWinCarryover,
   addSessionPlayer,
   addSessionRobot,
   removeSessionPlayer,
@@ -798,7 +799,7 @@ function bindRoomDetailDelegatedControls() {
       return;
     }
 
-    if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
+    if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled" || el.id === "room-split-pot-enabled") {
       if (el.id === "room-ante-amount") {
         pendingRoomAnteOverride = parseAnteAmount(el.value);
       }
@@ -1152,6 +1153,7 @@ function getTableIntentHandlers() {
       advanceHandReveal,
       updateHandTrick,
       onSettleHand,
+      onSettleCarryover: onSettleCoWinCarryover,
       formatClientGameError,
       getActionErrorContext,
     });
@@ -1896,16 +1898,19 @@ function saveRoomBourreSettingsFromForm() {
   const anteEl = $("#room-ante-amount", roomDetailView);
   const limEl = $("#room-lim-enabled", roomDetailView);
   const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
+  const splitPotEl = $("#room-split-pot-enabled", roomDetailView);
   if (!buyInEl || !anteEl || !limEl || !currentRoomId) return;
   pendingRoomBuyInOverride = parseBuyInAmount(buyInEl.value);
   pendingRoomAnteOverride = parseAnteAmount(anteEl.value);
   const limEnabled = limEl.checked;
   const rebuyEnabled = rebuyEl?.checked === true;
+  const splitPotEnabled = splitPotEl?.checked === true;
   updateRoomBourreSettings(currentRoomId, {
     buyInAmount: pendingRoomBuyInOverride,
     anteAmount: pendingRoomAnteOverride,
     limEnabled,
     rebuyEnabled,
+    splitPotEnabled,
   })
     .then(() => {
       pendingRoomBuyInOverride = null;
@@ -1931,6 +1936,7 @@ function readBourreSettingsFromCreateForm(form) {
     anteAmount: parseAnteAmount($("#create-room-ante", form)?.value),
     limEnabled: $("#create-room-lim-enabled", form)?.checked === true,
     rebuyEnabled: $("#create-room-rebuy-enabled", form)?.checked === true,
+    splitPotEnabled: $("#create-room-split-pot-enabled", form)?.checked === true,
   });
 }
 
@@ -1947,6 +1953,8 @@ function openCreateRoomModal() {
   if (limEl) limEl.checked = defaults.limEnabled;
   const rebuyEl = $("#create-room-rebuy-enabled", createRoomForm);
   if (rebuyEl) rebuyEl.checked = defaults.rebuyEnabled;
+  const splitPotEl = $("#create-room-split-pot-enabled", createRoomForm);
+  if (splitPotEl) splitPotEl.checked = defaults.splitPotEnabled;
   for (const { id } of HOUSE_RULE_FIELDS) {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
@@ -3323,6 +3331,7 @@ function buildTableSessionProps(s) {
         )
       : null;
   const limEnabled = s.limEnabled === true;
+  const splitPotEnabled = normalizeBourreSettings(currentRoom?.bourreSettings).splitPotEnabled === true;
   const carryOver = s.carryOverPot ?? 0;
   const { potMetrics } = buildTablePotMetrics({
     handParticipantIds,
@@ -3443,6 +3452,7 @@ function buildTableSessionProps(s) {
         ),
     enrollmentActive,
     showCoWinSettlement,
+    splitPotEnabled,
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
@@ -4224,6 +4234,18 @@ async function onSettleHand(choice) {
   } catch (err) {
     console.error("voteCoWinSettlement:", err);
     showRoomsError(err.message || "Could not record vote");
+  }
+}
+
+async function onSettleCoWinCarryover() {
+  if (!currentRoomId || !openSessionId || !session) return;
+  try {
+    await settleCoWinCarryover(currentRoomId, openSessionId, {
+      recordedBy: session.uid,
+    });
+  } catch (err) {
+    if (String(err?.message || "").includes("No pending")) return;
+    console.error("settleCoWinCarryover:", err);
   }
 }
 

@@ -33,9 +33,16 @@ describe("turnCountdown", () => {
     assert.ok(late!.remainingMs <= 3_500);
   });
 
-  it("expires after the full duration", () => {
+  it("expires after the full duration then cycles to a new green segment", () => {
     const started = 0;
-    assert.equal(buildTurnCountdownState("p1", started, TURN_COUNTDOWN_MS), null);
+    const nearEnd = buildTurnCountdownState("p1", started, TURN_COUNTDOWN_MS - 1);
+    assert.ok(nearEnd);
+    assert.equal(nearEnd!.segment, "red");
+
+    const nextCycle = buildTurnCountdownState("p1", started, TURN_COUNTDOWN_MS);
+    assert.ok(nextCycle);
+    assert.equal(nextCycle!.segment, "green");
+    assert.ok(nextCycle!.remainingMs > TURN_COUNTDOWN_MS - 500);
   });
 
   it("resolves active actor during play from turnPlayerId", () => {

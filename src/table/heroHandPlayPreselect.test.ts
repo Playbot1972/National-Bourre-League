@@ -45,7 +45,7 @@ test("computeRecommendedPlayIndex leads high when opening a trick", () => {
   assert.equal(idx, 2);
 });
 
-test("computeRecommendedDiscardIndices prefers lowest non-trump cards", () => {
+test("computeRecommendedDiscardIndices never recommends aces or trump", () => {
   const hand: Card[] = [
     { rank: "A", suit: "hearts" },
     { rank: "3", suit: "clubs" },
@@ -54,6 +54,12 @@ test("computeRecommendedDiscardIndices prefers lowest non-trump cards", () => {
     { rank: "K", suit: "hearts" },
   ];
   assert.deepEqual(computeRecommendedDiscardIndices(hand, "hearts", 2), [1, 2]);
+  const trumpOnly: Card[] = [
+    { rank: "A", suit: "hearts" },
+    { rank: "K", suit: "hearts" },
+    { rank: "Q", suit: "hearts" },
+  ];
+  assert.deepEqual(computeRecommendedDiscardIndices(trumpOnly, "hearts", 2), []);
 });
 
 test("computeRecommendedDiscardIndices respects deck remainder and exclusions", () => {

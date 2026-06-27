@@ -17,6 +17,8 @@ export interface HandCardInteraction {
   busy?: boolean;
   /** Skip ambient playable hint animation on hero hand. */
   showPlayableHint?: boolean;
+  /** Allow queueing a play selection before it is the local player's turn. */
+  allowPlayPreselect?: boolean;
   trickPlayOriginPlayerId?: string | null;
   onPlayCard?: (index: number) => void;
   onSelectCard?: (index: number) => void;
@@ -80,6 +82,12 @@ function HandCard({
   const legalPlay =
     !interaction?.legalPlayIndices || interaction.legalPlayIndices.includes(index);
   const playable = isPlayMode && isMyTurn && legalPlay && !interaction?.busy;
+  const preselectable =
+    isPlayMode &&
+    !isMyTurn &&
+    Boolean(interaction?.allowPlayPreselect) &&
+    legalPlay &&
+    !interaction?.busy;
   const playing = interaction?.playingIndex === index;
   const illegalTarget =
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
@@ -89,17 +97,18 @@ function HandCard({
   const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
-    (isPlayMode && !isMyTurn) ||
+    (isPlayMode && !isMyTurn && !preselectable) ||
     (isDrawMode && !isMyTurn);
   const disabled =
     gestureDisabled ||
-    (isPlayMode && !legalPlay) ||
+    (isPlayMode && !legalPlay && !preselectable) ||
     (isDrawMode && !isMyTurn);
 
   const pointerHandlers = useCardGestureHandlers({
-    disabled: gestureDisabled || (!playable && !isDrawMode && !isPeekMode && !illegalTarget),
+    disabled: gestureDisabled || (!playable && !preselectable && !isDrawMode && !isPeekMode && !illegalTarget),
     mode: illegalTarget ? "draw-select" : (interaction?.mode ?? "none"),
-    onPlay: playable ? () => interaction?.onPlayCard?.(index) : undefined,
+    onPlay:
+      playable || preselectable ? () => interaction?.onPlayCard?.(index) : undefined,
     onSelect:
       isDrawMode && isMyTurn
         ? () => interaction?.onSelectCard?.(index)

@@ -27,6 +27,7 @@ import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
  * @param {(roomId: string, sessionId: string) => Promise<unknown>} deps.advanceHandReveal
  * @param {(roomId: string, sessionId: string, playerId: string, delta: number, actorId: string) => Promise<unknown>} deps.updateHandTrick
  * @param {(choice: string) => Promise<unknown>} deps.onSettleHand
+ * @param {() => Promise<unknown>} [deps.onSettleCarryover]
  * @param {(err: unknown, fallback: string) => string} deps.formatClientGameError
  * @param {(kind?: string) => object | null} [deps.getActionErrorContext]
  * @param {object} deps.getSessionCurrentHand
@@ -299,6 +300,10 @@ export function createTableIntentHandlers(deps) {
 
     onSettle(choice) {
       return deps.onSettleHand(choice);
+    },
+
+    onSettleCarryover() {
+      return deps.onSettleCarryover?.() ?? Promise.resolve();
     },
   };
 }

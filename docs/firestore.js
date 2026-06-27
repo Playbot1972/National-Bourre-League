@@ -101,8 +101,8 @@ import {
   normalizeBourreSettings,
   sessionChipTotal,
   eligibleIdsForAnteCollection,
+  splitPotVoteAllowed,
 } from "./bourre-rules.js";
-import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -810,6 +810,7 @@ export async function updateRoomBourreSettings(roomId, bourreSettings) {
       anteAmount: normalized.anteAmount,
       limEnabled: normalized.limEnabled,
       rebuyEnabled: normalized.rebuyEnabled,
+      splitPotEnabled: normalized.splitPotEnabled,
     },
     updatedAt: serverTimestamp(),
   });
@@ -1675,7 +1676,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };
@@ -2747,6 +2748,42 @@ async function recordHandClient(
 }
 
 /**
+ * Auto-settle a pending co-win as Pagat carryover when the split vote window expires
+ * without unanimous agreement.
+ */
+export async function settleCoWinCarryover(roomId, sessionId, { recordedBy } = {}) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const pending = sessionData.pendingCoWinSettlement;
+  if (!pending?.winnerIds?.length || pending.winnerIds.length < 2) {
+    throw new Error("No pending co-win settlement");
+  }
+
+  const votes = pending.votes || {};
+  if (pending.winnerIds.every((w) => votes[w] === "split")) {
+    return { status: "already_split" };
+  }
+
+  const currentHand = getSessionCurrentHand(sessionData);
+  const tricksByPlayer = currentHand?.tricksByPlayer || {};
+  const participantIds = pending.participantIds?.length
+    ? pending.participantIds
+    : currentHand?.participantIds || [];
+
+  await recordHand(roomId, sessionId, {
+    winnerIds: pending.winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
+  });
+  return { status: "settled", settlement: "co_win_carry" };
+}
+
+/**
  * Co-winners vote to split or decline. One decline settles immediately (non-winners
  * ante up). Split only when every co-winner has agreed to split.
  */
@@ -2925,7 +2962,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };
