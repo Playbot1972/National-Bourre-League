@@ -28,9 +28,21 @@ import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
  * @param {(roomId: string, sessionId: string, playerId: string, delta: number, actorId: string) => Promise<unknown>} deps.updateHandTrick
  * @param {(choice: string) => Promise<unknown>} deps.onSettleHand
  * @param {(err: unknown, fallback: string) => string} deps.formatClientGameError
+ * @param {(kind?: string) => object | null} [deps.getActionErrorContext]
  * @param {object} deps.getSessionCurrentHand
  */
 export function createTableIntentHandlers(deps) {
+  function actionErrorMessage(err, fallback) {
+    return deps.formatClientGameError(err, fallback);
+  }
+
+  function setActionError(err, fallback, actionKind) {
+    const message = actionErrorMessage(err, fallback);
+    const context = deps.getActionErrorContext?.(actionKind) ?? null;
+    deps.setTableActionFeedback({ status: "error", message }, context);
+    return message;
+  }
+
   function requireAuth(message) {
     const auth = deps.getAuth();
     if (!auth?.uid || !deps.getRoomId() || !deps.getSessionId()) {
@@ -70,8 +82,7 @@ export function createTableIntentHandlers(deps) {
           })
           .catch((e) => {
             deps.clearLocalHandCommit();
-            const message = e.message || "Could not play this hand";
-            deps.setTableActionFeedback({ status: "error", message });
+            const message = setActionError(e, "Could not play this hand", "enrollment");
             deps.showRoomsError(message);
           });
         return;
@@ -97,8 +108,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          const message = e.message || "Could not update hand participation";
-          deps.setTableActionFeedback({ status: "error", message });
+          const message = setActionError(e, "Could not update hand participation", "enrollment");
           deps.showRoomsError(message);
         });
     },
@@ -124,8 +134,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          const message = e.message || "Could not pass this hand";
-          deps.setTableActionFeedback({ status: "error", message });
+          const message = setActionError(e, "Could not pass this hand", "enrollment");
           deps.showRoomsError(message);
         });
     },
@@ -152,8 +161,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          const message = e.message || "Could not play this hand";
-          deps.setTableActionFeedback({ status: "error", message });
+          const message = setActionError(e, "Could not play this hand", "enrollment");
           deps.showRoomsError(message);
         });
     },
@@ -166,8 +174,7 @@ export function createTableIntentHandlers(deps) {
         const lower = String(e?.message ?? "").toLowerCase();
         if (lower.includes("not in reveal")) return;
         console.warn("advanceHandReveal:", e);
-        const message = deps.formatClientGameError(e, "Could not open draw phase");
-        deps.setTableActionFeedback({ status: "error", message });
+        const message = setActionError(e, "Could not open draw phase", "reveal");
         deps.showRoomsError(message);
       });
     },
@@ -214,10 +221,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          deps.setTableActionFeedback({
-            status: "error",
-            message: e.message || "Could not submit draw",
-          });
+          setActionError(e, "Could not submit draw", "draw");
           throw e;
         });
     },
@@ -240,10 +244,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          deps.setTableActionFeedback({
-            status: "error",
-            message: e.message || "Could not stand pat",
-          });
+          setActionError(e, "Could not stand pat", "draw");
           throw e;
         });
     },
@@ -268,10 +269,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          deps.setTableActionFeedback({
-            status: "error",
-            message: e.message || "Could not fold out",
-          });
+          setActionError(e, "Could not fold out", "fold");
           throw e;
         });
     },
@@ -294,10 +292,7 @@ export function createTableIntentHandlers(deps) {
         })
         .catch((e) => {
           deps.clearLocalHandCommit();
-          deps.setTableActionFeedback({
-            status: "error",
-            message: e.message || "Could not play card",
-          });
+          setActionError(e, "Could not play card", "play");
           throw e;
         });
     },

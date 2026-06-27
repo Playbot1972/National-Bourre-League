@@ -58,6 +58,56 @@ describe("table UI layer modules", () => {
     handlers.onToggleInHand(true);
     // no throw — early return when unauthenticated
   });
+
+  it("createTableIntentHandlers formats internal play errors", async () => {
+    let feedback = null;
+    let context = null;
+    const handlers = createTableIntentHandlers({
+      getAuth: () => ({ uid: "human" }),
+      getRoomId: () => "r1",
+      getSessionId: () => "s1",
+      getCurrentSessions: () => [{ id: "s1", handCount: 0 }],
+      getHandPhase: () => "play",
+      getCurrentHand: () => ({ phase: "play", turnPlayerId: "human" }),
+      getSessionCurrentHand: () => ({ phase: "play", turnPlayerId: "human" }),
+      setTableActionFeedback: (fb, ctx) => {
+        feedback = fb;
+        context = ctx;
+      },
+      showRoomsError: () => {},
+      commitLocalHandAction: () => {},
+      clearLocalHandCommit: () => {},
+      markPendingDrawShuffle: () => {},
+      scheduleTableSessionSync: () => {},
+      setHandParticipation: async () => {},
+      submitHandDraw: async () => {},
+      foldHandDraw: async () => {},
+      playHandCard: async () => {
+        const err = new Error("INTERNAL");
+        err.code = "functions/internal";
+        throw err;
+      },
+      advanceHandReveal: async () => {},
+      updateHandTrick: async () => {},
+      onSettleHand: async () => {},
+      formatClientGameError: (err, fallback) => {
+        if (String(err?.code) === "functions/internal") {
+          return "The server could not finish that table action. Refresh the page and try again.";
+        }
+        return fallback;
+      },
+      getActionErrorContext: (kind) => ({
+        handNumber: 1,
+        phase: "play",
+        turnPlayerId: "human",
+        actionKind: kind,
+      }),
+    });
+    await handlers.onPlayCard(0).catch(() => {});
+    assert.equal(feedback?.status, "error");
+    assert.match(feedback?.message ?? "", /server could not finish/);
+    assert.equal(context?.actionKind, "play");
+  });
 });
 
 describe("app.js UI wiring", () => {

@@ -9,6 +9,7 @@ import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { isLegalPlayIndex } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
+import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
@@ -191,6 +192,7 @@ export function HeroHand({
     setPeekIndex(null);
     setIllegalShakeIndex(null);
     setIllegalFlashIndex(null);
+    setLocalError(null);
   }, [phase, isMyTurn, legalPlayIndices, handCardKey, recommendedPlayIndex, clearPreselectTimer]);
 
   useEffect(() => {
@@ -207,8 +209,9 @@ export function HeroHand({
   const cardSize = settings.cardScale === "lg" ? "md" : "sm";
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
-  const feedbackError =
-    actionFeedback?.status === "error" ? actionFeedback.message : localError;
+  const feedbackError = scrubInternalActionMessage(
+    actionFeedback?.status === "error" ? actionFeedback.message : localError,
+  );
   const phaseStatus = formatHandPhase(phase, enrollmentActive);
 
   const toggleDrawIndex = useCallback(
@@ -251,7 +254,8 @@ export function HeroHand({
         setPlayingIndex(null);
         playLockRef.current = false;
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Could not play card");
+        const raw = err instanceof Error ? err.message : "Could not play card";
+        setLocalError(scrubInternalActionMessage(raw));
         setPlayingIndex(null);
         playLockRef.current = false;
       }

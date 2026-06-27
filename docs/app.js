@@ -38,6 +38,10 @@ import {
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
 import {
+  isStaleTableActionError,
+  scrubRawInternalMessage,
+} from "./table-action-feedback.js";
+import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
   logBotOrchestrator,
@@ -933,6 +937,7 @@ let openPrivateHand = null;
 let privateHandSnapSeen = false;
 let openPlayerRatings = {};
 let tableActionFeedback = null;
+let tableActionFeedbackContext = null;
 let tableFeedbackTimer = null;
 let tableFeedbackSnapshot = null;
 /** Local participation/action overlay until Firestore confirms (see local-hand-commit.js). */
@@ -1048,11 +1053,12 @@ async function openNextHandEnrollment(sessionObj) {
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
-    setTableActionFeedback({
-      status: "error",
-      message: err?.message || "Could not open the next join window",
-    });
-    showRoomsError(err?.message || "Could not open the next join window");
+    const message = formatClientGameError(err, "Could not open the next join window");
+    setTableActionFeedback(
+      { status: "error", message },
+      getActionErrorContext("settlement"),
+    );
+    showRoomsError(message);
   } finally {
     nextHandOpenInFlight = false;
   }
@@ -1125,6 +1131,7 @@ function getTableIntentHandlers() {
       updateHandTrick,
       onSettleHand,
       formatClientGameError,
+      getActionErrorContext,
     });
   }
   return tableIntentHandlers;
@@ -1159,15 +1166,52 @@ async function ensureTableFeedbackApi() {
   return tableFeedbackApi;
 }
 
-function setTableActionFeedback(feedback) {
-  tableActionFeedback = feedback;
+function getActionErrorContext(actionKind) {
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  const currentHand = sessionObj ? getSessionCurrentHand(sessionObj) : null;
+  return {
+    handNumber: sessionObj ? sessionHandNumber(sessionObj) : null,
+    phase: currentHand?.phase ?? null,
+    turnPlayerId: currentHand?.turnPlayerId ?? null,
+    actionKind: actionKind ?? null,
+    atMs: Date.now(),
+  };
+}
+
+function normalizeTableActionFeedback(feedback) {
+  if (!feedback?.message) return feedback;
+  const message = scrubRawInternalMessage(feedback.message);
+  return message === feedback.message ? feedback : { ...feedback, message };
+}
+
+function clearStaleTableActionFeedback(sessionState) {
+  if (!tableActionFeedback || tableActionFeedback.status !== "error") return false;
+  if (!isStaleTableActionError(tableActionFeedbackContext, sessionState)) return false;
+  tableActionFeedback = null;
+  tableActionFeedbackContext = null;
   if (tableFeedbackTimer) {
     clearTimeout(tableFeedbackTimer);
     tableFeedbackTimer = null;
   }
-  if (feedback?.status === "success") {
+  return true;
+}
+
+function setTableActionFeedback(feedback, context) {
+  const normalized = feedback ? normalizeTableActionFeedback(feedback) : null;
+  tableActionFeedback = normalized;
+  if (normalized?.status === "error") {
+    tableActionFeedbackContext = context ?? getActionErrorContext(null);
+  } else {
+    tableActionFeedbackContext = null;
+  }
+  if (tableFeedbackTimer) {
+    clearTimeout(tableFeedbackTimer);
+    tableFeedbackTimer = null;
+  }
+  if (normalized?.status === "success") {
     tableFeedbackTimer = setTimeout(() => {
       tableActionFeedback = null;
+      tableActionFeedbackContext = null;
       tableFeedbackTimer = null;
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
@@ -1252,10 +1296,14 @@ function startEnrollmentTimer() {
     if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
         console.warn("enrollment timeout:", e);
-        setTableActionFeedback({
-          status: "error",
-          message: e.message || "Enrollment timer could not advance — check connection.",
-        });
+        const message = formatClientGameError(
+          e,
+          "Enrollment timer could not advance — check connection.",
+        );
+        setTableActionFeedback(
+          { status: "error", message },
+          getActionErrorContext("enrollment"),
+        );
       });
       return;
     }
@@ -3154,10 +3202,13 @@ function buildTableSessionProps(s) {
   ) {
     clearLocalHandCommit();
     if (!tableActionFeedback || tableActionFeedback.status === "loading") {
-      setTableActionFeedback({
-        status: "error",
-        message: "Draw could not complete — check connection and try again.",
-      });
+      setTableActionFeedback(
+        {
+          status: "error",
+          message: "Draw could not complete — check connection and try again.",
+        },
+        getActionErrorContext("draw"),
+      );
     }
   }
   let enrollment = serverEnrollment;
@@ -3209,6 +3260,21 @@ function buildTableSessionProps(s) {
   );
   const totalTricks = totalTricksPlayed(tricksThisHand, handParticipantIds);
   const handComplete = isHandComplete(tricksThisHand, handParticipantIds);
+  clearStaleTableActionFeedback({
+    handNumber,
+    phase: handPhase,
+    turnPlayerId: currentHand?.turnPlayerId ?? null,
+    handComplete,
+  });
+  if (
+    tableActionFeedback?.status === "error" &&
+    tableActionFeedbackContext?.actionKind === "private_hand" &&
+    privateHandSnapSeen &&
+    privateHeroCards.length > 0
+  ) {
+    tableActionFeedback = null;
+    tableActionFeedbackContext = null;
+  }
   const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
   const activeWinnerIds =
     handReady && derivedWinnerIds.length > 0
@@ -3452,10 +3518,11 @@ function startPrivateHandSubscription() {
     (err) => {
       privateHandSnapSeen = true;
       console.error("privateHand subscription:", err);
-      setTableActionFeedback({
-        status: "error",
-        message: err?.message || "Could not load your private hand",
-      });
+      const message = formatClientGameError(err, "Could not load your private hand");
+      setTableActionFeedback(
+        { status: "error", message },
+        getActionErrorContext("private_hand"),
+      );
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
     },
