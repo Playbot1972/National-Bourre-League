@@ -270,6 +270,17 @@ export function resolveCurrentHandChoicePlayerId(input: {
   return null;
 }
 
+/** True while a player is locked into the current deal (draw/play). */
+export function isPlayerLockedInLiveHand(input: {
+  phase?: string | null;
+  participantIds?: string[];
+  playerId: string;
+}): boolean {
+  if (!input.participantIds?.includes(input.playerId)) return false;
+  const phase = input.phase ?? null;
+  return phase === "draw" || phase === "play";
+}
+
 export function canPlayerShowHandChoice(input: {
   enrollmentGateActive: boolean;
   isSelf: boolean;

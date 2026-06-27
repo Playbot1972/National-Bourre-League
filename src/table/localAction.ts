@@ -4,6 +4,7 @@ import {
   canSubmitHandAction,
   HAND_FLOW_PHASE,
 } from "../session/handPhaseMachine";
+import { isPlayerLockedInLiveHand } from "../session/liveHand";
 
 export interface LocalActionInput {
   currentUserId: string | null | undefined;
@@ -26,7 +27,12 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   if (!uid || input.handComplete) return false;
 
   const self = input.selfPlayer;
-  if (!self || self.isOut) return false;
+  const lockedInLiveHand = isPlayerLockedInLiveHand({
+      phase: input.session.phase,
+      participantIds: input.session.participantIds,
+      playerId: uid,
+    });
+  if (!self || (!lockedInLiveHand && self.isOut)) return false;
   if (self.actionDeclared) return false;
 
   const snapshot = buildHandFlowSnapshot({

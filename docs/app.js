@@ -1154,6 +1154,7 @@ function getTableIntentHandlers() {
       updateHandTrick,
       onSettleHand,
       onSettleCarryover: onSettleCoWinCarryover,
+      onRebuy: onRebuySession,
       formatClientGameError,
       getActionErrorContext,
     });
@@ -3332,6 +3333,7 @@ function buildTableSessionProps(s) {
       : null;
   const limEnabled = s.limEnabled === true;
   const splitPotEnabled = normalizeBourreSettings(currentRoom?.bourreSettings).splitPotEnabled === true;
+  const rebuyEnabled = normalizeBourreSettings(currentRoom?.bourreSettings).rebuyEnabled === true;
   const carryOver = s.carryOverPot ?? 0;
   const { potMetrics } = buildTablePotMetrics({
     handParticipantIds,
@@ -3453,6 +3455,7 @@ function buildTableSessionProps(s) {
     enrollmentActive,
     showCoWinSettlement,
     splitPotEnabled,
+    rebuyEnabled,
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
@@ -4246,6 +4249,22 @@ async function onSettleCoWinCarryover() {
   } catch (err) {
     if (String(err?.message || "").includes("No pending")) return;
     console.error("settleCoWinCarryover:", err);
+  }
+}
+
+async function onRebuySession() {
+  if (!currentRoomId || !openSessionId || !session?.uid) return;
+  try {
+    await rebuySessionPlayer(currentRoomId, openSessionId, {
+      playerId: session.uid,
+      actorId: session.uid,
+    });
+    const refreshed = await refreshOpenSessionFromServer(currentRoomId, openSessionId);
+    if (refreshed) await syncTableSession(refreshed);
+    showRoomsError("Rebuy complete — you can join the next hand.", "success");
+  } catch (err) {
+    console.error("rebuySessionPlayer:", err);
+    showRoomsError(err.message || "Could not rebuy");
   }
 }
 
