@@ -504,10 +504,10 @@ function reduceHandPresentationCore(
       return { ...store, enrollmentPulse: {} };
 
     case "watchdog":
-      if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
       if (store.pendingHandSettle && store.phase === "play") {
         return beginHandSettleFromPending(store);
       }
+      if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
       return advanceHandPhase({ ...store, pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot });
 
     case "tryBeginHandSettle":

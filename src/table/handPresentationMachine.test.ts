@@ -395,6 +395,20 @@ describe("handPresentationMachine", () => {
     assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
   });
 
+  it("watchdog begins hand settle immediately when pendingHandSettle is latched", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = {
+      ...store,
+      phaseStartedAt: Date.now(),
+      pendingHandSettle: true,
+      handSettleSnapshot: { ...baseSnap, phase: "play", handComplete: true },
+    };
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.phase, "settle");
+    assert.equal(store.pendingHandSettle, false);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+  });
+
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);

@@ -36,6 +36,7 @@ interface UseTrickPresentationInput {
 
 export type TrickPresentation = TrickPresentationModel & {
   phase: TrickPresentationPhase;
+  forceHandEndDrain: () => void;
 };
 
 export function useTrickPresentation({
@@ -94,7 +95,10 @@ export function useTrickPresentation({
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
 
-    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current)) {
+    const handEnding =
+      handComplete || (phase == null && participantIds.length === 0);
+
+    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current && !handEnding)) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -135,6 +139,8 @@ export function useTrickPresentation({
     trumpSuit,
     playedCards,
     sessionPlayActive,
+    handComplete,
+    participantIds.length,
   ]);
 
   useLayoutEffect(() => {
@@ -208,7 +214,8 @@ export function useTrickPresentation({
   useEffect(() => {
     const handEndedForDrain =
       handComplete || (phase == null && participantIds.length === 0);
-    if (sessionPlayActive || !pipelineActive || !handEndedForDrain) return;
+    if (!pipelineActive || !handEndedForDrain) return;
+    if (sessionPlayActive && !handComplete) return;
 
     const reduced = prefersReducedMotion();
     const stepMs = reduced ? 60 : 160;
@@ -333,5 +340,8 @@ export function useTrickPresentation({
   ]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
-  return model;
+  return {
+    ...model,
+    forceHandEndDrain: () => dispatch({ type: "forceHandEndDrain" }),
+  };
 }

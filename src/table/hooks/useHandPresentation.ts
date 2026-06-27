@@ -33,6 +33,8 @@ export interface UseHandPresentationInput {
   potAmount: number;
   handComplete: boolean;
   trickPipelineActive?: boolean;
+  /** Last-resort: slam trick presentation to idle when hand-end convergence times out. */
+  forceTrickHandEndDrain?: () => void;
   heroCards?: SerializedCard[];
   enrolledIds?: string[];
   declinedIds?: string[];
@@ -47,6 +49,7 @@ export function useHandPresentation({
   potAmount,
   handComplete,
   trickPipelineActive = false,
+  forceTrickHandEndDrain,
   heroCards = EMPTY_HERO_CARDS,
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
@@ -239,21 +242,25 @@ export function useHandPresentation({
   useEffect(() => {
     if (store.phase !== "play" || !store.pendingHandSettle) return;
 
-    const delay = trickPipelineActive ? HAND_SETTLE_PIPELINE_WATCHDOG_MS : 0;
+    if (!trickPipelineActive) {
+      dispatch({ type: "tryBeginHandSettle" });
+      return;
+    }
+
     const id = window.setTimeout(() => {
       const current = storeRef.current;
       if (current.phase !== "play" || !current.pendingHandSettle) return;
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("useHandPresentation", "hand-settle-watchdog", {
-          trickPipelineActive,
-          delay,
+        logGameFlow("useHandPresentation", "hand-end-convergence-force", {
+          trickPipelineActive: true,
         });
       }
-      dispatch({ type: "watchdog" });
-    }, delay);
+      forceTrickHandEndDrain?.();
+      dispatch({ type: "tryBeginHandSettle" });
+    }, HAND_SETTLE_PIPELINE_WATCHDOG_MS);
 
     return () => window.clearTimeout(id);
-  }, [store.phase, store.pendingHandSettle, trickPipelineActive]);
+  }, [store.phase, store.pendingHandSettle, trickPipelineActive, forceTrickHandEndDrain]);
 
   return buildHandPresentationModel(store);
 }

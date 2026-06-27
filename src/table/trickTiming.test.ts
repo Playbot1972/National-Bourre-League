@@ -78,6 +78,31 @@ describe("trickTiming", () => {
     assert.equal(frozen!.plays[3]?.playerId, "p4");
   });
 
+  it("detects fifth trick when participantIds clear before tricks snapshot", () => {
+    const frozen = detectTrickResolution({
+      prevTricks: { p1: 2, p2: 1, p3: 1 },
+      nextTricks: { p1: 2, p2: 2, p3: 1 },
+      participantIds: [],
+      prevTrick: {
+        trickNumber: 5,
+        leadPlayerId: "p2",
+        leadSuit: "clubs",
+        plays: [
+          { playerId: "p2", card: { rank: "A", suit: "clubs" } },
+          { playerId: "p3", card: { rank: "K", suit: "clubs" } },
+        ],
+      },
+      playedCards: [
+        { playerId: "p2", card: { rank: "A", suit: "clubs" }, trickNumber: 5 },
+        { playerId: "p3", card: { rank: "K", suit: "clubs" }, trickNumber: 5 },
+        { playerId: "p1", card: { rank: "Q", suit: "clubs" }, trickNumber: 5 },
+      ],
+    });
+    assert.ok(frozen);
+    assert.equal(frozen!.winnerId, "p2");
+    assert.equal(frozen!.trickNumber, 5);
+  });
+
   it("returns null when trick count unchanged", () => {
     assert.equal(
       detectTrickResolution({
