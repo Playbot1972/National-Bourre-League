@@ -182,6 +182,7 @@ function m(e) {
 }
 function h(e) {
 	let t = e?.currentHand ?? c(), n = e?.liveEnrollment?.deal?.publicHand, r = n?.phase ?? null;
+	if (l(t) && n && !u(n)) return c();
 	if (u(t) && u(n)) {
 		let e = t.phase === "reveal" || t.phase === "decision", r = n?.drawCompletedIds?.length ?? 0, i = t.drawCompletedIds?.length ?? 0, a = o(n?.tricksByPlayer ?? {}, n?.participantIds ?? []), s = o(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 		return e && n?.phase === "draw" && s === 0 && a === 0 && r > 0 && i === 0 ? t : f(t, n);

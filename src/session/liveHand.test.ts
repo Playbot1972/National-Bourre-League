@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { getSessionCurrentHand, getSessionEnrollment, sessionHandDealStarted, handPhaseStarted } from "./liveHand";
+import {
+  getSessionCurrentHand,
+  getSessionEnrollment,
+  sessionHandDealStarted,
+  handPhaseStarted,
+  isClearedPreDealHand,
+} from "./liveHand";
 
 describe("live enrollment hand view", () => {
   it("ignores orphan liveEnrollment deal when currentHand is cleared between hands", () => {
@@ -56,6 +62,26 @@ describe("live enrollment hand view", () => {
     };
     assert.equal(getSessionEnrollment(session), null);
     assert.equal(getSessionCurrentHand(session).phase, "play");
+  });
+
+  it("ignores completed stale live deal when currentHand is cleared after settlement", () => {
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "play",
+            participantIds: ["a", "b", "c"],
+            tricksByPlayer: { a: 3, b: 1, c: 1 },
+          },
+        },
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+    const hand = getSessionCurrentHand(session);
+    assert.equal(hand.phase, undefined);
+    assert.deepEqual(hand.participantIds, []);
+    assert.ok(isClearedPreDealHand(hand));
   });
 
   it("returns active handEnrollment when stale deal has no live phase", () => {
