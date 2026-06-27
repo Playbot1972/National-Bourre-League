@@ -257,6 +257,18 @@
     0 12px 24px rgba(0, 0, 0, 0.32);
 }
 
+.pcard--draw-recommended {
+  transform: translateY(-10px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+  z-index: 5;
+}
+.pcard--draw-recommended .pcard__surface {
+  border-color: rgba(54, 185, 124, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(54, 185, 124, 0.5),
+    0 10px 20px rgba(0, 0, 0, 0.28);
+}
+
 @keyframes pcard-play-preselect-pulse {
   0%,
   100% {
@@ -390,7 +402,7 @@
 
 /* Pick-up hover (mouse) */
 @media (hover: hover) and (pointer: fine) {
-  .pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing):not(.pcard--draw-selected) {
+  .pcard--interactive:hover:not(.pcard--disabled):not(.pcard--playing):not(.pcard--draw-selected):not(.pcard--draw-recommended) {
     transform: translateY(var(--pcard-lift-y)) rotateX(var(--pcard-tilt-x)) rotateY(var(--pcard-tilt-y))
       scale(1.03);
     z-index: 6;
@@ -516,6 +528,7 @@
   .pcard--illegal-flash .pcard__surface,
   .pcard--selected,
   .pcard--play-preselected,
+  .pcard--draw-recommended,
   .pcard--draw-selected,
   .pcard--playing {
     animation-duration: 80ms !important;

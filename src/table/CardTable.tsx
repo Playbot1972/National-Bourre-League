@@ -45,6 +45,8 @@ interface CardTableProps {
   legalPlayIndices?: number[] | null;
   /** Bot-heuristic best play index for the viewing player (display hand space). */
   recommendedPlayIndex?: number | null;
+  /** Bot-heuristic discard indices for the viewing player (display hand space). */
+  recommendedDiscardIndices?: number[];
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
@@ -79,6 +81,7 @@ export function CardTable({
   currentUserId = null,
   legalPlayIndices,
   recommendedPlayIndex,
+  recommendedDiscardIndices = [],
   handComplete = false,
   actionFeedback,
   trickPresentation,
@@ -351,6 +354,7 @@ export function CardTable({
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
         recommendedPlayIndex={recommendedPlayIndex ?? undefined}
+        recommendedDiscardIndices={recommendedDiscardIndices}
         handComplete={handComplete}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}

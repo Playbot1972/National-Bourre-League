@@ -84,6 +84,8 @@ function HandCard({
   const illegalTarget =
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
   const isDrawSelected = isDrawMode && state === "draw-selected";
+  const isDrawRecommended = isDrawMode && state === "draw-recommended";
+  const isPlayRecommended = state === "play-recommended";
   const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
@@ -125,12 +127,17 @@ function HandCard({
         "hand__slot",
         peekActive ? "hand__slot--peek" : "",
         isDrawSelected ? "hand__slot--draw-selected" : "",
+        isDrawRecommended ? "hand__slot--draw-recommended" : "",
+        isPlayRecommended ? "hand__slot--play-recommended" : "",
         slotClassFor?.(card, index) ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
       style={style}
-      aria-selected={isDrawSelected ? true : undefined}
+      aria-selected={isDrawSelected || isDrawRecommended ? true : undefined}
+      data-draw-hint={
+        isDrawRecommended ? "suggested" : isDrawSelected ? "selected" : undefined
+      }
       data-trick-play-origin-active={
         interaction?.playingIndex === index && interaction.trickPlayOriginPlayerId
           ? interaction.trickPlayOriginPlayerId
