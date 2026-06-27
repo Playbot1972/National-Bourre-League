@@ -70,19 +70,14 @@ export function mapDisplayIndicesToEffective(
 }
 
 /**
- * Presentation-only hero hand: trump holder sees five private cards with the
- * trump as the face-up fifth card during reveal, then a merged five-card fan.
+ * Presentation-only hero hand: while trump is in the center reveal, the holder
+ * sees four cards in the fan (fifth is the public trump upcard).
  */
 export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDisplayState {
   const isHolder = Boolean(
     input.playerId && input.trumpHolderId && input.playerId === input.trumpHolderId,
   );
   const hasTrumpOnTable = Boolean(input.trumpUpcard);
-  const trumpIndex =
-    isHolder && hasTrumpOnTable
-      ? findTrumpDisplayIndex(input.rawHeroCards, input.trumpUpcard) ??
-        findTrumpDisplayIndex(input.effectiveHeroCards, input.trumpUpcard)
-      : null;
 
   const defaultReminder =
     !hasTrumpOnTable && Boolean(input.trumpSuit) && input.phase === "play";
@@ -100,7 +95,7 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
     };
   }
 
-  const { trumpRevealActive, trumpMergeActive, trumpMergedIntoHand } = input.handPresentation;
+  const { trumpMergeActive, trumpMergedIntoHand } = input.handPresentation;
   const holderPresentation = resolveTrumpHolderPresentation({
     trumpHolderId: input.trumpHolderId,
     trumpUpcard: input.trumpUpcard,
@@ -108,29 +103,15 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
     phase: input.phase,
     handPresentation: input.handPresentation,
   });
-  const rawCards =
-    input.rawHeroCards.length > 0 ? input.rawHeroCards : input.effectiveHeroCards;
-  const holderUsesRawFan =
-    trumpRevealActive ||
-    trumpMergeActive ||
-    !trumpMergedIntoHand ||
-    input.rawHeroCards.length >= input.effectiveHeroCards.length;
-  const displayCards = holderUsesRawFan ? rawCards : input.effectiveHeroCards;
-  const showRevealedTrump = trumpRevealActive || trumpMergeActive;
 
   return {
-    displayCards,
-    revealedTrumpIndex: showRevealedTrump && trumpIndex !== null ? trumpIndex : null,
+    displayCards: input.effectiveHeroCards,
+    revealedTrumpIndex: null,
     trumpMergeActive,
     trumpMergedIntoHand,
     hideCenterTrumpForHolder: holderPresentation.hideCenterTrump,
     showTrumpSuitReminder: holderPresentation.showTrumpSuitReminder,
-    trumpDisabledIndex:
-      input.phase === "draw" &&
-      !trumpRevealActive &&
-      !trumpMergeActive
-        ? null
-        : trumpIndex,
-    indexMode: "display",
+    trumpDisabledIndex: null,
+    indexMode: "effective",
   };
 }

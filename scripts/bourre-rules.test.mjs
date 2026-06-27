@@ -700,6 +700,15 @@ describe("bourré at settlement + next-deal funding", () => {
     });
     assert.equal(tied.skipNextAnte, true);
     assert.equal(tied.bourreReplacementDue, null);
+
+    const splitWinner = nextDealFundingFlags({
+      playerId: "p1",
+      mode: "split",
+      winners: ["p1", "p2"],
+      bourreIds: [],
+      maxWinThisHand: 4,
+    });
+    assert.equal(splitWinner.skipNextAnte, false);
   });
 
   it("2-2-1-0: tied leaders skip ante; middle player antes; bourré paid at settlement", () => {

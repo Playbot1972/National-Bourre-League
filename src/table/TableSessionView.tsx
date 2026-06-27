@@ -20,7 +20,7 @@ import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
-import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
+import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
 import { useTableTheme } from "./theme/useTableTheme";
 import { useMobileTable } from "./useMobileTable";
 import {
@@ -32,7 +32,6 @@ import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from ".
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
-import type { PotSnapshot } from "./settlementCopy";
 
 /** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
 const EMPTY_ENROLLMENT_IDS: string[] = [];
@@ -46,6 +45,7 @@ export function TableSessionView({
   mySessionNet,
   leaderLabel,
   showCoWinSettlement,
+  splitPotEnabled = false,
   splitSharePerWinner = 0,
   enrollmentActive = false,
   currentUserId,
@@ -356,14 +356,6 @@ export function TableSessionView({
     prevSuccessPulseRef.current = microinteractions.feedbackSuccessPulse;
   }, [microinteractions.feedbackSuccessPulse]);
 
-  const settlementPotMetrics: PotSnapshot = {
-    currentPot: potMetrics.currentPot,
-    maxWinThisHand: potMetrics.maxWinThisHand,
-    limEnabled: potMetrics.limEnabled,
-    overflow: potMetrics.overflow,
-    carryIn: session.carryOverPot ?? 0,
-  };
-
   const handleReaction = useCallback(
     (emoji: string) => {
       pushReaction(emoji, currentUserId ?? undefined);
@@ -639,15 +631,16 @@ export function TableSessionView({
 
       <TableSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {showCoWinSettlement && !session.isFinal && (
-        <SettlementCoWinPanel
+      {showCoWinSettlement && !session.isFinal && splitPotEnabled && (
+        <SplitPotDecisionToast
           session={session}
           players={players}
-          potMetrics={settlementPotMetrics}
           splitSharePerWinner={splitSharePerWinner}
           currentUserId={currentUserId}
           isCoWinner={isCoWinner}
-          onSettle={actions.onSettle}
+          onAgreeSplit={() => actions.onSettle("split")}
+          onDeclineSplit={() => actions.onSettle("push")}
+          onCarryover={() => actions.onSettleCarryover?.()}
         />
       )}
 

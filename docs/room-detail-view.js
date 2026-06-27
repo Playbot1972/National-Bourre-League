@@ -77,6 +77,11 @@ export function buildGameSetupStakesHtml(
         <span>Rebuy</span>
         <span class="muted small">Top-up when bankroll hits zero</span>
       </label>
+      <label class="bourre-settings__row bourre-settings__lim bourre-settings__split-pot">
+        <input type="checkbox" id="room-split-pot-enabled" ${bourreSettings.splitPotEnabled ? "checked" : ""} />
+        <span>Split pot</span>
+        <span class="muted small">If players tie for most tricks, tied leaders may choose to split the pot instead of carrying it.</span>
+      </label>
       <p class="muted small">Buy-in is each player&apos;s starting stack; ante feeds the pot each hand.</p>
     </div>`;
   }
@@ -84,6 +89,7 @@ export function buildGameSetupStakesHtml(
     <li><span>Buy-in</span><span>${escape(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
     <li><span>Ante</span><span>${escape(formatAnteStake(bourreSettings.anteAmount))}</span></li>
     <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
+    <li><span>Split pot</span><span>${bourreSettings.splitPotEnabled ? "On" : "Off"}</span></li>
   </ul>`;
 }
 

@@ -19,7 +19,7 @@ const effective = raw.slice(0, 4);
 const trumpUpcard = { rank: "A", suit: "hearts" };
 
 describe("heroHandDisplay", () => {
-  it("shows five raw cards for trump holder while trump is on the table", () => {
+  it("shows four effective cards for trump holder while trump is on the table", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
       effectiveHeroCards: effective,
@@ -34,10 +34,10 @@ describe("heroHandDisplay", () => {
         trumpMergedIntoHand: false,
       },
     });
-    assert.equal(state.displayCards.length, 5);
-    assert.equal(state.revealedTrumpIndex, 4);
-    assert.equal(state.hideCenterTrumpForHolder, true);
-    assert.equal(state.indexMode, "display");
+    assert.equal(state.displayCards.length, 4);
+    assert.equal(state.revealedTrumpIndex, null);
+    assert.equal(state.hideCenterTrumpForHolder, false);
+    assert.equal(state.indexMode, "effective");
   });
 
   it("maps effective draw/play indices to display positions", () => {
@@ -67,7 +67,7 @@ describe("heroHandDisplay", () => {
     assert.equal(state.trumpDisabledIndex, null);
   });
 
-  it("keeps holder fan stable while raw private hand catches up", () => {
+  it("keeps holder fan at four cards while raw private hand catches up", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: [],
       effectiveHeroCards: effective,
@@ -83,10 +83,10 @@ describe("heroHandDisplay", () => {
       },
     });
     assert.equal(state.displayCards.length, 4);
-    assert.equal(state.indexMode, "display");
+    assert.equal(state.indexMode, "effective");
   });
 
-  it("prefers raw five-card fan once private hand is fully loaded", () => {
+  it("shows four effective cards once private hand is fully loaded with trump on table", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
       effectiveHeroCards: effective,
@@ -101,8 +101,8 @@ describe("heroHandDisplay", () => {
         trumpMergedIntoHand: true,
       },
     });
-    assert.equal(state.displayCards.length, 5);
-    assert.equal(state.indexMode, "display");
+    assert.equal(state.displayCards.length, 4);
+    assert.equal(state.indexMode, "effective");
   });
 
   it("keeps effective hand for non-holders", () => {
