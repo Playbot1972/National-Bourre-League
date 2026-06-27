@@ -55,7 +55,7 @@ export function animateDeckGhostsToSeatOrigins(
   const stagger = reduced ? 0.04 : GSAP_DURATIONS.drawReceiveStagger;
   const ghosts: HTMLElement[] = [];
 
-  for (const seat of seatOrigins) {
+  for (let i = 0; i < seatOrigins.length; i++) {
     const ghost = createCardBackGhost(deckOrigin);
     host.appendChild(ghost);
     ghosts.push(ghost);
@@ -113,7 +113,9 @@ export function animateDeckGhostsToSeatOrigins(
           y: dy,
           opacity: 0.92,
           duration: Math.min(duration, 0.22),
-          onComplete: () => gsap.set(ghost, { clearProps: "transform,opacity,willChange" }),
+          onComplete: () => {
+            gsap.set(ghost, { clearProps: "transform,opacity,willChange" });
+          },
         },
         i * stagger,
       );
@@ -136,7 +138,9 @@ export function animateDeckGhostsToSeatOrigins(
         opacity: 1,
         duration,
         ease: PREMIUM_EASE_BOUNCE,
-        onComplete: () => gsap.set(ghost, { clearProps: "transform,opacity,willChange" }),
+        onComplete: () => {
+          gsap.set(ghost, { clearProps: "transform,opacity,willChange" });
+        },
       },
       i * stagger,
     );
