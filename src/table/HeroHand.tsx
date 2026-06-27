@@ -134,6 +134,8 @@ export function HeroHand({
     () => recommendedDiscardIndices.slice().sort((a, b) => a - b).join(","),
     [recommendedDiscardIndices],
   );
+  const inDrawPhase = phase === "draw";
+  const inPlayPhase = phase === "play";
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
@@ -236,8 +238,6 @@ export function HeroHand({
     }
   }, [actionFeedback?.status, clearPreselectTimer]);
 
-  const inDrawPhase = phase === "draw";
-  const inPlayPhase = phase === "play";
   const cardSize = settings.cardScale === "lg" ? "md" : "sm";
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
