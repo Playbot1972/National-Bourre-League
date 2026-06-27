@@ -7,6 +7,7 @@ import { dealMotionWindowMs, useHeroCardMotion } from "./animations/useHeroCardM
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
+import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import { isLegalPlayIndex } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
@@ -112,7 +113,7 @@ export function HeroHand({
   const [localError, setLocalError] = useState<string | null>(null);
   const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
   const [illegalFlashIndex, setIllegalFlashIndex] = useState<number | null>(null);
-  const [bestPlayEnabled, setBestPlayEnabled] = useState(false);
+  const [bestPlayEnabled, setBestPlayEnabled] = useState(() => getBestPlayEnabled());
   const [dealing, setDealing] = useState(false);
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
@@ -410,6 +411,7 @@ export function HeroHand({
   const handleBestPlayChange = useCallback(
     (enabled: boolean) => {
       setBestPlayEnabled(enabled);
+      saveBestPlayEnabled(enabled);
       if (enabled) {
         drawSelectionTouchedRef.current = false;
         if (inDrawPhase && !drawCompleted && isMyTurn) {
@@ -425,7 +427,21 @@ export function HeroHand({
   );
 
   const showBestPlayControl =
-    isMyTurn && ((inDrawPhase && !drawCompleted) || inPlayPhase);
+    signedIn && isInHand && (inDrawPhase || inPlayPhase);
+
+  const renderBestPlayCheckbox = () =>
+    showBestPlayControl ? (
+      <label className="btable-hero__best-play">
+        <input
+          type="checkbox"
+          className="btable-hero__best-play-input"
+          checked={bestPlayEnabled}
+          onChange={(e) => handleBestPlayChange(e.target.checked)}
+          data-testid="best-play-checkbox"
+        />
+        <span className="btable-hero__best-play-label">Best Play</span>
+      </label>
+    ) : null;
 
   if (!signedIn) {
     return (
@@ -450,6 +466,9 @@ export function HeroHand({
             ? "Cards not available — leave and re-open the session, or refresh the page."
             : "Loading your cards…"}
         </p>
+        <div className="btable-hero__hand-3d btable-hero__hand-3d--chrome-only">
+          {renderBestPlayCheckbox()}
+        </div>
       </div>
     );
   }
@@ -463,12 +482,26 @@ export function HeroHand({
   }
 
   if (cards.length === 0 && !isDealer) {
+    if (showBestPlayControl) {
+      return (
+        <div
+          className={heroShellClass(settings, className, ["btable-hero--reserved"])}
+          data-testid="hero-hand"
+          aria-live="polite"
+        >
+          <div className="btable-hero__hand-3d btable-hero__hand-3d--chrome-only">
+            {renderBestPlayCheckbox()}
+          </div>
+        </div>
+      );
+    }
     return <HeroHandReserve className={className} />;
   }
 
   const showBestPlayRecommendation =
     showBestPlayControl &&
     inPlayPhase &&
+    isMyTurn &&
     bestPlayEnabled &&
     selectedPlay === null &&
     recommendedPlayIndex !== null &&
@@ -525,13 +558,10 @@ export function HeroHand({
       <p className="btable-sr-only" aria-live="polite">
         {phaseStatus}
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
-        {inDrawPhase &&
-          !drawCompleted &&
-          isMyTurn &&
-          bestPlayEnabled &&
-          recommendedDiscardIndices.length > 0 &&
-          " — green outline marks suggested discards"}
         {inPlayPhase && isMyTurn && " — tap a legal card to preselect; it plays automatically"}
+        {bestPlayEnabled &&
+          (inDrawPhase || inPlayPhase) &&
+          " — green outline marks suggested cards"}
       </p>
       <div
         ref={handRootRef}
@@ -571,18 +601,7 @@ export function HeroHand({
           }}
         />
         </div>
-        {showBestPlayControl && (
-          <label className="btable-hero__best-play">
-            <input
-              type="checkbox"
-              className="btable-hero__best-play-input"
-              checked={bestPlayEnabled}
-              onChange={(e) => handleBestPlayChange(e.target.checked)}
-              data-testid="best-play-checkbox"
-            />
-            <span className="btable-hero__best-play-label">Best Play</span>
-          </label>
-        )}
+        {renderBestPlayCheckbox()}
       </div>
       {feedbackError && (
         <p className="btable-hero__error" role="alert">

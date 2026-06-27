@@ -178,6 +178,25 @@ export function serializedPlays(trick: CurrentTrickState | null | undefined): Tr
   return trick?.plays?.map((p) => ({ playerId: p.playerId, card: p.card })) ?? [];
 }
 
+/** Current trick leader from cards played so far (updates as each card lands). */
+export function currentTrickLeaderId(
+  plays: TrickPlay[],
+  leadSuit: string | null | undefined,
+  trumpSuit: string | null | undefined,
+): string | null {
+  if (!plays.length) return null;
+  if (plays.length === 1) return plays[0]!.playerId;
+  if (!leadSuit || !trumpSuit) return plays[plays.length - 1]!.playerId;
+  return resolveTrickWinner(
+    plays.map((p) => ({
+      playerId: p.playerId,
+      card: { rank: p.card.rank as Rank, suit: p.card.suit as Suit },
+    })),
+    leadSuit as Suit,
+    trumpSuit as Suit,
+  );
+}
+
 /** Recover full trick plays when the server resolves atomically (last card not in prevTrick). */
 export function completedTrickPlays(input: {
   prevTrick: CurrentTrickState | null | undefined;

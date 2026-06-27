@@ -282,6 +282,7 @@ export function MobileCardTable({
               enrollmentActive={enrollmentActive}
               remainingDeckCount={session.remainingDeckCount}
               trickDisplayPlays={trickPresentation.displayPlays}
+              trickLeadSuit={session.currentTrick?.leadSuit ?? session.leadSuit ?? null}
               trickWinnerPlayerId={trickPresentation.winnerPlayerId}
               trickShowWinnerTag={trickPresentation.showWinnerTag}
               trickPresentationPhase={trickPresentation.phase}

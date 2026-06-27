@@ -787,6 +787,14 @@
   }
 }
 
+.btrick__play--leading {
+  z-index: 11;
+}
+
+.btrick__play--leading .pcard--trick-leading {
+  transform: translateY(-2px) scale(1.01);
+}
+
 .btrick__play--winner .pcard--winner {
   z-index: 12;
 }
@@ -1293,6 +1301,11 @@
 .btable-hero__best-play-label {
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+.btable-hero__hand-3d--chrome-only {
+  min-height: 0;
+  justify-content: flex-end;
 }
 
 .btable-hero .hand--fan .hand__slot:hover {
