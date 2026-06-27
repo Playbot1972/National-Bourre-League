@@ -84,6 +84,7 @@ function HandCard({
   const illegalTarget =
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
   const isDrawSelected = isDrawMode && state === "draw-selected";
+  const isPlayRecommended = state === "play-recommended";
   const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
@@ -125,6 +126,7 @@ function HandCard({
         "hand__slot",
         peekActive ? "hand__slot--peek" : "",
         isDrawSelected ? "hand__slot--draw-selected" : "",
+        isPlayRecommended ? "hand__slot--play-recommended" : "",
         slotClassFor?.(card, index) ?? "",
       ]
         .filter(Boolean)

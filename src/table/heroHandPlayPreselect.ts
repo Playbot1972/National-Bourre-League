@@ -1,4 +1,4 @@
-import { botPlayCardIndex } from "../game/play";
+import { botDrawDiscardIndices, botPlayCardIndex } from "../game/play";
 import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";
 import type { Card, Suit } from "../types";
@@ -42,4 +42,30 @@ export function computeRecommendedPlayIndex(
   const idx = botPlayCardIndex(hand, ctx);
   if (legalPlayIndices.includes(idx)) return idx;
   return legalPlayIndices[0] ?? null;
+}
+
+/**
+ * Discard assist from existing bot/heuristic logic — same engine as botDrawDiscardIndices.
+ * Maps recommendations back to the caller's hand indices; skips excluded (non-discardable) slots.
+ */
+export function computeRecommendedDiscardIndices(
+  hand: Card[],
+  trumpSuit: Suit,
+  maxDiscards: number,
+  deckReplacementsAvailable: number = Number.POSITIVE_INFINITY,
+  excludedIndices: number[] = [],
+): number[] {
+  if (!hand.length || maxDiscards <= 0) return [];
+  const excluded = new Set(excludedIndices);
+  const eligibleOriginalIndices = hand.map((_, index) => index).filter((index) => !excluded.has(index));
+  if (!eligibleOriginalIndices.length) return [];
+
+  const eligibleHand = eligibleOriginalIndices.map((index) => hand[index]!);
+  const localIndices = botDrawDiscardIndices(
+    eligibleHand,
+    trumpSuit,
+    maxDiscards,
+    deckReplacementsAvailable,
+  );
+  return localIndices.map((localIndex) => eligibleOriginalIndices[localIndex]!);
 }

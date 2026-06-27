@@ -28,7 +28,7 @@ import {
   mapEffectiveIndicesToDisplay,
   resolveHeroHandDisplay,
 } from "./heroHandDisplay";
-import { computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
+import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
@@ -237,6 +237,40 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
+
+  const displayRecommendedDiscardIndices = useMemo(() => {
+    if (session.phase !== "draw" || !heroCards.length) return [];
+    const effectiveHand = heroCards.map(serializedToCard);
+    const excludedEffective =
+      heroHandDisplay.indexMode === "display" && heroHandDisplay.trumpDisabledIndex != null
+        ? mapDisplayIndicesToEffective(
+            [heroHandDisplay.trumpDisabledIndex],
+            heroHandDisplay.trumpDisabledIndex,
+          )
+        : heroHandDisplay.trumpDisabledIndex != null
+          ? [heroHandDisplay.trumpDisabledIndex]
+          : [];
+    const effectiveRecommended = computeRecommendedDiscardIndices(
+      effectiveHand,
+      (session.trumpSuit ?? "clubs") as Suit,
+      session.maxDrawDiscards ?? 4,
+      session.remainingDeckCount ?? Number.POSITIVE_INFINITY,
+      excludedEffective,
+    );
+    if (heroHandDisplay.indexMode === "effective") return effectiveRecommended;
+    return mapEffectiveIndicesToDisplay(
+      effectiveRecommended,
+      heroHandDisplay.trumpDisabledIndex,
+    );
+  }, [
+    session.phase,
+    heroCards,
+    session.trumpSuit,
+    session.maxDrawDiscards,
+    session.remainingDeckCount,
+    heroHandDisplay.indexMode,
+    heroHandDisplay.trumpDisabledIndex,
+  ]);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
@@ -398,6 +432,7 @@ export function TableSessionView({
     currentUserId,
     legalPlayIndices: displayLegalPlayIndices,
     recommendedPlayIndex: displayRecommendedPlayIndex,
+    recommendedDiscardIndices: displayRecommendedDiscardIndices,
     handComplete,
     actionFeedback,
     trickPresentation,
