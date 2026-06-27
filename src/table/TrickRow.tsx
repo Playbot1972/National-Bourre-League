@@ -5,6 +5,7 @@ import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 
 interface TrickRowProps {
   displayPlays: TrickPlay[];
+  leaderPlayerId?: string | null;
   winnerPlayerId?: string | null;
   showWinnerTag?: boolean;
   presentationPhase?: TrickPresentationPhase;
@@ -17,6 +18,7 @@ interface TrickRowProps {
 /** Public trick cards only — never hole cards. */
 export function TrickRow({
   displayPlays = [],
+  leaderPlayerId = null,
   winnerPlayerId = null,
   showWinnerTag = false,
   presentationPhase = "live",
@@ -94,6 +96,7 @@ export function TrickRow({
               presentationPhase={isEcho ? "winnerReveal" : presentationPhase}
               displayCount={displayPlays.length}
               playerName={playerNames[play.playerId] ?? "Player"}
+              leaderPlayerId={leaderPlayerId}
               winnerPlayerId={winnerPlayerId}
               instantPlace={instantTrickPlays}
             />

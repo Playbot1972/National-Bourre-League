@@ -22,6 +22,7 @@ interface TrickPlaySlotProps {
   presentationPhase: TrickPresentationPhase;
   displayCount: number;
   playerName: string;
+  leaderPlayerId?: string | null;
   winnerPlayerId?: string | null;
   /** Skip fly animation (trump UI / layout settling). */
   instantPlace?: boolean;
@@ -49,6 +50,7 @@ export function TrickPlaySlot({
   presentationPhase,
   displayCount,
   playerName,
+  leaderPlayerId = null,
   winnerPlayerId = null,
   instantPlace = false,
 }: TrickPlaySlotProps) {
@@ -58,11 +60,15 @@ export function TrickPlaySlot({
   const [hasLanded, setHasLanded] = useState(false);
   const flightStartedRef = useRef(false);
   const playKey = playFlyKey(play);
+  const isLeading = leaderPlayerId != null && play.playerId === leaderPlayerId;
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   const isLivePhase = presentationPhase === "live";
   const isLanding = index === displayCount - 1 && isLivePhase;
   /** Shift transition only after a completed land — never during fly keyframes. */
   const isSettled = hasLanded;
+  const showLeadingCard =
+    isLeading &&
+    (presentationPhase === "live" || presentationPhase === "trickComplete");
   const showWinnerCard =
     isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
 
@@ -173,6 +179,7 @@ export function TrickPlaySlot({
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",
         flyMode === "settle" ? "btrick__play--settle" : "",
+        showLeadingCard ? "btrick__play--leading" : "",
         isWinner && showWinnerCard ? "btrick__play--winner" : "",
       ]
         .filter(Boolean)
@@ -183,7 +190,13 @@ export function TrickPlaySlot({
       <PlayingCard
         card={serializedToCard(play.card)}
         size="sm"
-        state={showWinnerCard && isWinner ? "winner" : "default"}
+        state={
+          showWinnerCard && isWinner
+            ? "winner"
+            : showLeadingCard && isLeading
+              ? "trick-leading"
+              : "default"
+        }
       />
       <span className="btrick__name muted small">{playerName}</span>
     </div>
