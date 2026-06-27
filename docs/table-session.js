@@ -10520,7 +10520,7 @@ function Ma(e) {
 function Na(e, t, n, r = {}) {
 	ra(n);
 	let i = L(), a = I(F.drawReceive, i), o = i ? .04 : F.drawReceiveStagger, s = [];
-	for (let r of t) {
+	for (let r = 0; r < t.length; r++) {
 		let t = Ma(e);
 		n.appendChild(t), s.push(t);
 	}
@@ -10551,7 +10551,9 @@ function Na(e, t, n, r = {}) {
 				y: m,
 				opacity: .92,
 				duration: Math.min(a, .22),
-				onComplete: () => Qi.set(e, { clearProps: "transform,opacity,willChange" })
+				onComplete: () => {
+					Qi.set(e, { clearProps: "transform,opacity,willChange" });
+				}
 			}, n * o);
 			return;
 		}
@@ -10578,7 +10580,9 @@ function Na(e, t, n, r = {}) {
 			opacity: 1,
 			duration: a,
 			ease: P,
-			onComplete: () => Qi.set(e, { clearProps: "transform,opacity,willChange" })
+			onComplete: () => {
+				Qi.set(e, { clearProps: "transform,opacity,willChange" });
+			}
 		}, n * o);
 	}), c;
 }
