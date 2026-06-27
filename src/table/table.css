@@ -1294,9 +1294,10 @@
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
+  /* Turn ownership shown by countdown ring — no separate glow/scale. */
   box-shadow:
-    0 0 0 2px var(--gold-400, #e6b450),
-    0 0 14px rgba(230, 180, 80, 0.45);
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(244, 213, 141, 0.25);
 }
 
 .bseat__turn-tag {
@@ -1305,6 +1306,59 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--gold-400, #e6b450);
+}
+
+/* 15s turn countdown ring — sole avatar-based turn indicator */
+.bseat__turn-countdown {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+
+.bseat__turn-countdown-track {
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2.5;
+}
+
+.bseat__turn-countdown-progress {
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition:
+    stroke 420ms ease,
+    stroke-dashoffset 180ms linear;
+}
+
+.bseat__turn-countdown-progress--green {
+  stroke: #3ecf6e;
+  filter: drop-shadow(0 0 4px rgba(62, 207, 110, 0.45));
+}
+
+.bseat__turn-countdown-progress--yellow {
+  stroke: #e6b450;
+  filter: drop-shadow(0 0 4px rgba(230, 180, 80, 0.45));
+}
+
+.bseat__turn-countdown-progress--red {
+  stroke: #e74c3c;
+  filter: drop-shadow(0 0 5px rgba(231, 76, 60, 0.5));
+}
+
+.bseat--active-actor .bseat__avatar-wrap {
+  /* Ring carries turn emphasis — keep default avatar pose. */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bseat__turn-countdown-progress {
+    transition: stroke 200ms ease, stroke-dashoffset 300ms linear;
+  }
+
+  .bseat__turn-countdown--reduced .bseat__turn-countdown-progress {
+    transition: stroke 200ms ease;
+  }
 }
 
 .bseat__hole-cards {
@@ -2993,15 +3047,14 @@
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
-  transform: rotateX(4deg) translateZ(18px) scale(1.06);
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+  /* Countdown ring is the turn indicator — no scale lift. */
+  transform: rotateX(10deg) translateZ(8px);
+  filter: none;
 }
 
 .bseat--on-turn .bseat__avatar,
 .bseat--on-turn .bseat__avatar--initials {
-  box-shadow:
-    0 0 0 2px var(--avatar-ring-glow),
-    0 10px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 
 .bseat--leading .bseat__avatar-wrap {
@@ -3708,7 +3761,8 @@
 
 /* Table microinteractions */
 .bseat--turn-handoff .bseat__avatar-wrap {
-  animation: bmicro-turn-handoff 620ms ease;
+  /* Replaced by turn countdown ring — no handoff pulse. */
+  animation: none;
 }
 
 .bseat__dealer--moved {

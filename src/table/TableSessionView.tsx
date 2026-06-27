@@ -11,6 +11,7 @@ import { TableSettingsPanel } from "./TableSettingsPanel";
 import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -266,6 +267,12 @@ export function TableSessionView({
     handComplete,
   });
 
+  const { countdown: turnCountdown } = useTurnCountdown({
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+  });
+
   const showTrumpSuitReminder =
     trumpHolderPresentation.showTrumpSuitReminder ||
     (!session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play");
@@ -397,6 +404,7 @@ export function TableSessionView({
     handPresentation,
     microinteractions,
     instantTrickPlays,
+    turnCountdown,
     ...tableCallbacks,
   };
 

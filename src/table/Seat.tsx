@@ -4,6 +4,7 @@ import { SmartHud } from "./SmartHud";
 import { formatBankroll, initials, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
 import type { Rank, Suit } from "../types";
+import { TurnCountdownRing } from "./TurnCountdownRing";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -59,9 +60,8 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         player.isOut ? "bseat--out" : "",
         player.isDealer ? "bseat--dealer" : "",
         player.trumpMerging ? "bseat--trump-merge" : "",
-        player.isOnTurn ? "bseat--on-turn" : "",
-        player.isOnTurn && player.inHand ? "bseat--play-origin-active" : "",
-        player.turnHandoff ? "bseat--turn-handoff" : "",
+        player.isActiveActor ? "bseat--active-actor" : "",
+        player.isActiveActor && player.inHand ? "bseat--play-origin-active" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
@@ -82,7 +82,7 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
         .join(" ")}
       style={style}
       data-trick-play-origin-active={
-        player.isOnTurn && player.inHand ? player.playerId : undefined
+        player.isActiveActor && player.inHand ? player.playerId : undefined
       }
     >
       {player.inHand && !player.isSelf && (
@@ -225,6 +225,12 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
               )}
               {bourrePulse && !bourrePressure && (
                 <span className="bseat__bourre-ring" aria-hidden="true" />
+              )}
+              {player.turnCountdown && (
+                <TurnCountdownRing
+                  progress={player.turnCountdown.progress}
+                  segment={player.turnCountdown.segment}
+                />
               )}
             </div>
           </div>
