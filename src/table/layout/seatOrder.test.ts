@@ -57,6 +57,18 @@ describe("seat order", () => {
     assert.ok(layouts[1]!.x < layouts[0]!.x, "Bot 1 should sit left of dealer");
   });
 
+  it("prefers authoritative seatedIds over roster join order", () => {
+    const playerIds = ["human", "bot_1", "bot_3", "bot_2"];
+    const session = {
+      dealerId: "human",
+      participantIds: playerIds,
+      handEnrollment: null,
+      seatedIds: ["bot_1", "bot_3", "bot_2", "human"],
+    };
+    const ring = seatRingPlayerIds(playerIds, session);
+    assert.deepEqual(ring, ["bot_1", "bot_3", "bot_2", "human"]);
+  });
+
   it("play order follows the seat ring clockwise, not numeric bot labels", () => {
     const playerIds = ["human", "bot_1", "bot_3", "bot_2"];
     const session = {

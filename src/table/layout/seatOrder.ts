@@ -3,12 +3,12 @@ import type { TablePlayer, TableSessionData } from "../types";
 
 type SeatOrderSession = Pick<
   TableSessionData,
-  "dealerId" | "participantIds" | "handEnrollment"
+  "dealerId" | "participantIds" | "handEnrollment" | "seatedIds"
 >;
 
 /**
  * Clockwise seat ring for all players at the table (dealer-relative game order).
- * Uses enrollment ring when it matches the seated roster; otherwise dealer order.
+ * Prefer authoritative seatedIds from the hand; fall back to enrollment or dealer order.
  */
 export function seatRingPlayerIds(
   playerIds: string[],
@@ -16,6 +16,11 @@ export function seatRingPlayerIds(
 ): string[] {
   const ids = [...new Set(playerIds.filter(Boolean))];
   if (!ids.length) return [];
+
+  const seatedRing = session.seatedIds?.filter((id) => ids.includes(id));
+  if (seatedRing?.length === ids.length) {
+    return seatedRing;
+  }
 
   const enrollmentRing = session.handEnrollment?.orderedPlayerIds?.filter((id) =>
     ids.includes(id),

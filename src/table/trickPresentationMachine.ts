@@ -272,6 +272,11 @@ function reduceTrickPresentationCore(
       if (next.phase === "live" && !next.pendingResolution) return next;
 
       const pending = next.pendingServer;
+      const pendingTricks = pending?.tricksByPlayer ?? {};
+      const pendingHasTricks = Object.values(pendingTricks).some((v) => (v ?? 0) > 0);
+      const displayTricks = pendingHasTricks
+        ? { ...pendingTricks }
+        : { ...next.displayTricksByPlayer };
       const pendingReveal = serializedPlays(pending?.currentTrick).length;
       return {
         ...next,
@@ -282,11 +287,9 @@ function reduceTrickPresentationCore(
         resolvedTricks: null,
         pendingResolution: null,
         pendingServer: null,
-        prevTricks: pending ? { ...pending.tricksByPlayer } : next.prevTricks,
-        prevTrick: pending?.currentTrick ?? null,
-        displayTricksByPlayer: pending
-          ? { ...pending.tricksByPlayer }
-          : next.displayTricksByPlayer,
+        prevTricks: pendingHasTricks ? { ...pendingTricks } : next.prevTricks,
+        prevTrick: pending?.currentTrick ?? next.prevTrick,
+        displayTricksByPlayer: displayTricks,
         peakTrickPlays: serializedPlays(pending?.currentTrick),
         displayRevealFloor: pendingReveal,
       };

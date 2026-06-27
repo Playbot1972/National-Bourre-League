@@ -25,7 +25,6 @@ import { handTimingScale } from "./handPresentationTiming";
 import { useMobileStageFit } from "./hooks/useMobileStageFit";
 import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
-import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -138,12 +137,6 @@ export function MobileCardTable({
     pileIndexRef,
     onDiscardCommitted: commitDiscardCards,
   });
-  useTableDrawReceiveFly({
-    handPresentation,
-    handNumber: session.handNumber,
-    currentUserId,
-    tableRootRef: wrapRef,
-  });
   useWonTrickCollection({
     trickPresentation,
     handNumber: session.handNumber,
@@ -200,7 +193,8 @@ export function MobileCardTable({
             : player.isLeading,
       isTrickCapture: capturingTrick,
       enrollmentPulse,
-      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
+      drawAnimSubPhase:
+        drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
       drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
       turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,

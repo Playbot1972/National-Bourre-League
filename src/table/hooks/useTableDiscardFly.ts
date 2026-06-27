@@ -16,7 +16,6 @@ export function useTableDiscardFly({
   handPresentation,
   handNumber,
   currentUserId,
-  tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
 }: UseTableDiscardFlyInput): void {
@@ -41,7 +40,6 @@ export function useTableDiscardFly({
       handNumber,
       discardCount: count,
       pileStartIndex: pileIndexRef.current,
-      root: tableRootRef.current,
       onComplete: (committed) => {
         pileIndexRef.current += committed.length;
         onDiscardCommitted(committed);
@@ -53,7 +51,6 @@ export function useTableDiscardFly({
     handPresentation.drawDiscardCount,
     handNumber,
     currentUserId,
-    tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
   ]);

@@ -6,11 +6,8 @@ import {
 } from "../discardPileModel";
 import {
   animateCardsToDiscardPile,
-  animateOriginRectsToDiscardPile,
   killDiscardFlights,
-  seatOriginRectsForDiscard,
 } from "../animations/discardPileMotion";
-import { killDrawReceiveFlights } from "../animations/drawSeatMotion";
 import type { SerializedCard } from "../types";
 
 export interface UseDiscardPileStateInput {
@@ -31,7 +28,6 @@ export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPile
     handRef.current = handNumber;
     pileIndexRef.current = 0;
     killDiscardFlights();
-    killDrawReceiveFlights();
     setCards([]);
   }, [handNumber]);
 
@@ -41,7 +37,6 @@ export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPile
     phaseRef.current = phase;
     if (prev === "draw" && phase === "play") {
       killDiscardFlights();
-      killDrawReceiveFlights();
       setCards([]);
     }
   }, [sessionPhase]);
@@ -97,7 +92,6 @@ export interface RunBotDiscardFlyInput {
   handNumber: number;
   discardCount: number;
   pileStartIndex: number;
-  root?: HTMLElement | null;
   onComplete: (committed: { id: string; playerId: string }[]) => void;
 }
 
@@ -106,7 +100,6 @@ export function runBotDiscardFly({
   handNumber,
   discardCount,
   pileStartIndex,
-  root,
   onComplete,
 }: RunBotDiscardFlyInput): void {
   const keys = discardCardKeysForDraw({
@@ -115,22 +108,7 @@ export function runBotDiscardFly({
     discardCount,
     pileStartIndex,
   });
-  const committed = keys.map((id) => ({ id, playerId }));
-
-  if (!root || discardCount <= 0) {
-    onComplete(committed);
-    return;
-  }
-
-  const origins = seatOriginRectsForDiscard(playerId, discardCount, root);
-  if (!origins.length) {
-    onComplete(committed);
-    return;
-  }
-
-  animateOriginRectsToDiscardPile(origins, keys, pileStartIndex, root, {
-    onComplete: () => onComplete(committed),
-  });
+  onComplete(keys.map((id) => ({ id, playerId })));
 }
 
 export function heroDiscardCardKeys(
