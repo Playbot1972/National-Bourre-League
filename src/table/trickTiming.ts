@@ -154,10 +154,24 @@ export function trickWinnerDelta(
   next: Record<string, number>,
   participantIds: string[],
 ): string | null {
-  for (const pid of participantIds) {
+  const roster =
+    participantIds.length > 0
+      ? participantIds
+      : [...new Set([...Object.keys(prev), ...Object.keys(next)])];
+  for (const pid of roster) {
     if ((next[pid] ?? 0) > (prev[pid] ?? 0)) return pid;
   }
   return null;
+}
+
+/** Participant roster for trick resolution when the server clears seats mid-snapshot. */
+export function trickResolutionParticipantIds(
+  participantIds: string[],
+  prevTricks: Record<string, number>,
+  nextTricks: Record<string, number>,
+): string[] {
+  if (participantIds.length > 0) return participantIds;
+  return [...new Set([...Object.keys(prevTricks), ...Object.keys(nextTricks)])];
 }
 
 export function serializedPlays(trick: CurrentTrickState | null | undefined): TrickPlay[] {
@@ -211,7 +225,12 @@ export function detectTrickResolution(input: {
   prevTrick: CurrentTrickState | null | undefined;
   playedCards?: PlayedCardEntry[];
 }): FrozenTrick | null {
-  const { prevTricks, nextTricks, participantIds, prevTrick, playedCards } = input;
+  const { prevTricks, nextTricks, prevTrick, playedCards } = input;
+  const participantIds = trickResolutionParticipantIds(
+    input.participantIds,
+    prevTricks,
+    nextTricks,
+  );
   const prevTotal = totalTricksPlayed(prevTricks, participantIds);
   const nextTotal = totalTricksPlayed(nextTricks, participantIds);
   if (nextTotal <= prevTotal) return null;

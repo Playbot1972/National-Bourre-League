@@ -80,11 +80,8 @@ export function TableSessionView({
     turnPlayerId: session.turnPlayerId,
     handComplete,
   });
-  const instantTrickPlays = useTrumpTrickMotionGate(
-    session.phase,
-    session.trumpUpcard,
-    trickPresentation.displayPlays.length,
-  );
+
+  const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
 
   const handPresentation = useHandPresentation({
     session,
@@ -92,6 +89,7 @@ export function TableSessionView({
     potAmount: potMetrics.currentPot,
     handComplete,
     trickPipelineActive: trickPresentation.isPipelineActive,
+    forceTrickHandEndDrain,
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
@@ -100,6 +98,12 @@ export function TableSessionView({
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
   });
+
+  const instantTrickPlays = useTrumpTrickMotionGate(
+    session.phase,
+    session.trumpUpcard,
+    trickPresentation.displayPlays.length,
+  );
 
   // Server play/draw is authoritative — do not block bots on peer draw animations.
   const handPresentingForBots = handPresentingBlocksBots(
