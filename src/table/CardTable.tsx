@@ -18,6 +18,7 @@ import { handTimingScale } from "./handPresentationTiming";
 import { useStageFit } from "./hooks/useStageFit";
 import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
+import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -116,8 +117,15 @@ export function CardTable({
     handPresentation,
     handNumber: session.handNumber,
     currentUserId,
+    tableRootRef: wrapRef,
     pileIndexRef,
     onDiscardCommitted: commitDiscardCards,
+  });
+  useTableDrawReceiveFly({
+    handPresentation,
+    handNumber: session.handNumber,
+    currentUserId,
+    tableRootRef: wrapRef,
   });
   useWonTrickCollection({
     trickPresentation,
@@ -174,10 +182,9 @@ export function CardTable({
             : player.isLeading,
       isTrickCapture: capturingTrick,
       enrollmentPulse,
-      drawAnimSubPhase:
-        drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
-      drawDiscardCount: drawingNow && player.isSelf ? handPresentation.drawDiscardCount : 0,
-      drawReplaceCount: drawingNow && player.isSelf ? handPresentation.drawReplaceCount : 0,
+      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
+      drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
+      drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
       turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,

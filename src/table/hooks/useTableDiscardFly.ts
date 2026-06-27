@@ -6,15 +6,17 @@ export interface UseTableDiscardFlyInput {
   handPresentation: HandPresentation;
   handNumber: number;
   currentUserId: string | null | undefined;
+  tableRootRef: React.RefObject<HTMLElement | null>;
   pileIndexRef: React.RefObject<number>;
   onDiscardCommitted: (entries: { id: string; playerId: string }[]) => void;
 }
 
-/** Bot draw discard — commits center pile entries without seat-origin card ghosts. */
+/** Bot draw discard — seat-origin card ghosts fly to the center pile. */
 export function useTableDiscardFly({
   handPresentation,
   handNumber,
   currentUserId,
+  tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
 }: UseTableDiscardFlyInput): void {
@@ -39,6 +41,7 @@ export function useTableDiscardFly({
       handNumber,
       discardCount: count,
       pileStartIndex: pileIndexRef.current,
+      root: tableRootRef.current,
       onComplete: (committed) => {
         pileIndexRef.current += committed.length;
         onDiscardCommitted(committed);
@@ -50,6 +53,7 @@ export function useTableDiscardFly({
     handPresentation.drawDiscardCount,
     handNumber,
     currentUserId,
+    tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
   ]);
