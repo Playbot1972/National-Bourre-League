@@ -5,6 +5,7 @@ import {
   prefersReducedMotion,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
+  TRICK_HAND_END_DRAIN_MS,
   type TrickPresentationPhase,
 } from "../trickTiming";
 import {
@@ -58,6 +59,8 @@ export function useTrickPresentation({
   const revealTimerRef = useRef<number | null>(null);
   const targetRevealRef = useRef(0);
   const prevSessionPlayRef = useRef(false);
+  const storeRef = useRef(store);
+  storeRef.current = store;
 
   const pipelineActive =
     store.phase !== "live" || Boolean(store.pendingResolution);
@@ -199,6 +202,60 @@ export function useTrickPresentation({
   useEffect(() => {
     if (store.phase === "live") resolutionKeyRef.current = null;
   }, [store.phase]);
+
+  useEffect(() => {
+    if (sessionPlayActive || !pipelineActive) return;
+
+    const reduced = prefersReducedMotion();
+    const stepMs = reduced ? 60 : 160;
+    const landMs = reduced ? 80 : Math.min(CARD_LAND_MS, 220);
+    const drainTimers: number[] = [];
+    const scheduleDrain = (fn: () => void, ms: number) => {
+      drainTimers.push(window.setTimeout(fn, ms));
+    };
+
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useTrickPresentation", "hand-end-drain-armed", {
+        phase: store.phase,
+        pendingResolution: Boolean(store.pendingResolution),
+      });
+    }
+
+    if (store.phase === "live" && store.pendingResolution) {
+      scheduleDrain(() => dispatch({ type: "commitTrickResolution" }), landMs);
+    }
+
+    let delay = (store.phase === "live" && store.pendingResolution ? landMs : 0) + stepMs;
+    for (let i = 0; i < 6; i++) {
+      scheduleDrain(() => {
+        const current = storeRef.current;
+        if (current.phase === "live" && !current.pendingResolution) return;
+        dispatch({ type: "advancePhase" });
+      }, delay);
+      delay += stepMs;
+    }
+
+    scheduleDrain(() => {
+      const current = storeRef.current;
+      if (current.phase === "live" && !current.pendingResolution) return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "hand-end-drain-force", {
+          phase: current.phase,
+          pendingResolution: Boolean(current.pendingResolution),
+        });
+      }
+      dispatch({ type: "forceHandEndDrain" });
+    }, TRICK_HAND_END_DRAIN_MS);
+
+    return () => {
+      for (const id of drainTimers) window.clearTimeout(id);
+    };
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.pendingResolution,
+  ]);
 
   const targetReveal =
     store.phase === "live"

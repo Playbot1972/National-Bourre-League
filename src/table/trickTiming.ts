@@ -37,6 +37,9 @@ export const TRICK_SWEEP_MS = 520;
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 200;
 
+/** Max wait to drain trick presentation after the server clears the hand. */
+export const TRICK_HAND_END_DRAIN_MS = 4_000;
+
 /** @deprecated Use POST_TRICK_READ_MS — kept for gradual migration. */
 export const POST_TRICK_HOLD_MS = POST_TRICK_READ_MS;
 

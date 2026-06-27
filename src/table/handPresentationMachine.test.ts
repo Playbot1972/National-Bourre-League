@@ -369,6 +369,32 @@ describe("handPresentationMachine", () => {
     assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
   });
 
+  it("latches hand settle when the server clears the hand before handComplete is observed", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      participantIds: ["p1", "p2", "p3"],
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: null,
+        participantIds: [],
+        handComplete: false,
+        enrollmentActive: false,
+        handNumber: 4,
+      },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+    assert.equal(store.handSettleSnapshot?.participantIds.length, 3);
+
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    assert.equal(store.phase, "settle");
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+  });
+
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);

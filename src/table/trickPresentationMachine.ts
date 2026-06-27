@@ -186,7 +186,8 @@ export type TrickPresentationEvent =
   | { type: "revealNextCard" }
   | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
-  | { type: "advancePhase" };
+  | { type: "advancePhase" }
+  | { type: "forceHandEndDrain" };
 
 export function reduceTrickPresentation(
   store: TrickPresentationStore,
@@ -256,6 +257,39 @@ function reduceTrickPresentationCore(
         pending.snapshot.tricksByPlayer,
         pending.snapshot.currentTrick,
       );
+    }
+
+    case "forceHandEndDrain": {
+      let next = store;
+      if (next.phase === "live" && next.pendingResolution) {
+        next = beginTrickResolution(
+          { ...next, pendingResolution: null },
+          next.pendingResolution.frozen,
+          next.pendingResolution.snapshot.tricksByPlayer,
+          next.pendingResolution.snapshot.currentTrick,
+        );
+      }
+      if (next.phase === "live" && !next.pendingResolution) return next;
+
+      const pending = next.pendingServer;
+      const pendingReveal = serializedPlays(pending?.currentTrick).length;
+      return {
+        ...next,
+        phase: "live",
+        frozenTrick: null,
+        showWinnerTag: false,
+        revealedCount: pendingReveal,
+        resolvedTricks: null,
+        pendingResolution: null,
+        pendingServer: null,
+        prevTricks: pending ? { ...pending.tricksByPlayer } : next.prevTricks,
+        prevTrick: pending?.currentTrick ?? null,
+        displayTricksByPlayer: pending
+          ? { ...pending.tricksByPlayer }
+          : next.displayTricksByPlayer,
+        peakTrickPlays: serializedPlays(pending?.currentTrick),
+        displayRevealFloor: pendingReveal,
+      };
     }
 
     case "advancePhase": {
