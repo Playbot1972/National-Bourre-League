@@ -299,7 +299,9 @@
 
 /* --- Draw: discard throw + receive from deck --- */
 .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
-.btable-hero--draw-discard .hand__slot .pcard--draw-selected {
+.btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+.btable-hero--draw-discard .hand__slot--draw-recommended .pcard,
+.btable-hero--draw-discard .hand__slot .pcard--draw-recommended {
   animation: bdraw-fold-away var(--anim-draw-discard-ms) var(--premium-ease-out) forwards;
 }
 
@@ -451,7 +453,7 @@
 }
 
 /* --- Stand pat / fold-out (I'm Out) --- */
-.btable-hero--stand-pat .hand__slot .pcard:not(.pcard--draw-selected):not(.pcard--muted) {
+.btable-hero--stand-pat .hand__slot .pcard:not(.pcard--draw-selected):not(.pcard--draw-recommended):not(.pcard--muted) {
   animation: bstand-pat-glow 680ms var(--premium-ease) ease;
 }
 
@@ -508,6 +510,7 @@
   .btrick__play--settle .pcard,
   .btrick__play--winner .pcard--winner,
   .btable-hero--draw-discard .pcard--draw-selected,
+  .btable-hero--draw-discard .pcard--draw-recommended,
   .btable-hero--draw-receive .hand__slot,
   .btable-hero--draw-receive .hand__slot .pcard,
   .bseat__hole-card,
@@ -523,6 +526,8 @@
 [data-gsap-motion="true"] .btable-hero--dealing .hand__slot .pcard,
 [data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
 [data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-recommended .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-recommended,
 [data-gsap-motion="true"] .bseat--draw-discard .bseat__hole-cards,
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot,
 [data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard,

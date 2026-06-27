@@ -8265,42 +8265,44 @@ function A(e) {
 //#region src/components/Hand.tsx
 var j = (e) => T(e);
 function M({ card: e, index: t, size: n, state: r, badge: i, cardTestId: a, cardInteraction: o, onCardClick: s, onCardPeek: c, peekActive: u, slotClassFor: d, style: f }) {
-	let [p, m] = (0, l.useState)(!1), h = o, v = h?.mode === "play", y = h?.mode === "draw-select", b = h?.mode === "peek", x = h?.isMyTurn === !0, S = !h?.legalPlayIndices || h.legalPlayIndices.includes(t), C = v && x && S && !h?.busy, T = h?.playingIndex === t, E = v && x && !S && !h?.busy && !T, D = y && r === "draw-selected", O = r === "play-recommended", k = !!h?.busy || T || v && !x || y && !x, A = k || v && !S || y && !x, j = w({
-		disabled: k || !C && !y && !b && !E,
+	let [p, m] = (0, l.useState)(!1), h = o, v = h?.mode === "play", y = h?.mode === "draw-select", b = h?.mode === "peek", x = h?.isMyTurn === !0, S = !h?.legalPlayIndices || h.legalPlayIndices.includes(t), C = v && x && S && !h?.busy, T = h?.playingIndex === t, E = v && x && !S && !h?.busy && !T, D = y && r === "draw-selected", O = y && r === "draw-recommended", k = r === "play-recommended", A = !!h?.busy || T || v && !x || y && !x, j = A || v && !S || y && !x, M = w({
+		disabled: A || !C && !y && !b && !E,
 		mode: E ? "draw-select" : h?.mode ?? "none",
 		onPlay: C ? () => h?.onPlayCard?.(t) : void 0,
 		onSelect: y && x ? () => h?.onSelectCard?.(t) : E ? () => h?.onIllegalPlay?.(t) : void 0,
 		onPeekStart: b ? () => c?.(t) : void 0,
 		onPeekEnd: b ? () => c?.(null) : void 0,
 		onPressChange: m
-	}), M = !!h && (h?.mode !== "none" || E), ee = v && x ? C ? a : "play-button-disabled" : a;
+	}), ee = !!h && (h?.mode !== "none" || E), N = v && x ? C ? a : "play-button-disabled" : a;
 	return /* @__PURE__ */ (0, g.jsx)("div", {
 		className: [
 			"hand__slot",
 			u ? "hand__slot--peek" : "",
 			D ? "hand__slot--draw-selected" : "",
-			O ? "hand__slot--play-recommended" : "",
+			O ? "hand__slot--draw-recommended" : "",
+			k ? "hand__slot--play-recommended" : "",
 			d?.(e, t) ?? ""
 		].filter(Boolean).join(" "),
 		style: f,
-		"aria-selected": D ? !0 : void 0,
+		"aria-selected": D || O ? !0 : void 0,
+		"data-draw-hint": O ? "suggested" : D ? "selected" : void 0,
 		"data-trick-play-origin-active": h?.playingIndex === t && h.trickPlayOriginPlayerId ? h.trickPlayOriginPlayerId : void 0,
 		children: /* @__PURE__ */ (0, g.jsx)(_, {
 			card: e,
 			size: n,
-			state: A && v && !E ? "disabled" : r,
+			state: j && v && !E ? "disabled" : r,
 			badge: i,
-			onClick: !M && s ? () => s(e, t) : void 0,
-			onPlayClick: M && C ? () => h?.onPlayCard?.(t) : void 0,
-			pointerHandlers: M ? j : void 0,
+			onClick: !ee && s ? () => s(e, t) : void 0,
+			onPlayClick: ee && C ? () => h?.onPlayCard?.(t) : void 0,
+			pointerHandlers: ee ? M : void 0,
 			pressed: p,
 			playing: T,
 			playable: C,
 			illegalShake: h?.illegalShakeIndex === t,
 			illegalFlash: h?.illegalFlashIndex === t,
 			showPlayableHint: h?.showPlayableHint !== !1,
-			disabled: k && (v || y) && !E,
-			"data-testid": ee,
+			disabled: A && (v || y) && !E,
+			"data-testid": N,
 			"data-card-index": t,
 			"data-playable": v ? C ? "true" : "false" : void 0
 		})
@@ -10531,7 +10533,7 @@ function ja(e, t) {
 function Ma(e, t) {
 	if (!e) return [];
 	let n = [...e.querySelectorAll(".hand__slot .pcard")];
-	return t.length > 0 ? t.map((e) => n[e]).filter((e) => !!e) : [...e.querySelectorAll(".hand__slot--draw-selected .pcard")];
+	return t.length > 0 ? t.map((e) => n[e]).filter((e) => !!e) : [...e.querySelectorAll(".hand__slot--draw-selected .pcard, .hand__slot--draw-recommended .pcard")];
 }
 //#endregion
 //#region src/table/animations/useHeroCardMotion.ts
@@ -11634,7 +11636,7 @@ function Qs({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 		})
 	});
 	if (e.length === 0 && !i) return /* @__PURE__ */ (0, g.jsx)(Zs, { className: x });
-	let Ue = He && U && ce && F === null && d !== null && d >= 0, We = (e, t) => T === t ? "trump" : D === t && (H || U) ? "muted" : te === t || se === t || oe === t ? "default" : H && N.has(t) ? "draw-selected" : U && F === t && o ? "play-preselected" : Ue && d === t ? "play-recommended" : U && !o ? "disabled" : U && u && !u.includes(t) ? "muted" : "default", Ge = Te && r && !(U && o), Ke = "none";
+	let Ue = He && U && ce && F === null && d !== null && d >= 0, We = (e, t) => T === t ? "trump" : D === t && (H || U) ? "muted" : te === t || se === t || oe === t ? "default" : H && N.has(t) ? ce && !Ce.current ? "draw-recommended" : "draw-selected" : U && F === t && o ? "play-preselected" : Ue && d === t ? "play-recommended" : U && !o ? "disabled" : U && u && !u.includes(t) ? "muted" : "default", Ge = Te && r && !(U && o), Ke = "none";
 	U && o ? Ke = "play" : H && o && !s ? Ke = "draw-select" : Ge && (Ke = "peek");
 	let qe = N.size, Je = H && !s && o;
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
@@ -11661,6 +11663,7 @@ function Qs({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 				children: [
 					Ne,
 					H && !s && o && " — tap cards to discard",
+					H && !s && o && ce && f.length > 0 && " — green outline marks suggested discards",
 					U && o && " — tap a legal card to preselect; it plays automatically"
 				]
 			}),

@@ -132,5 +132,7 @@ export function readHeroDiscardCardElements(
       .map((i) => cardEls[i])
       .filter((el): el is HTMLElement => Boolean(el));
   }
-  return [...handRoot.querySelectorAll<HTMLElement>(".hand__slot--draw-selected .pcard")];
+  return [...handRoot.querySelectorAll<HTMLElement>(
+    ".hand__slot--draw-selected .pcard, .hand__slot--draw-recommended .pcard",
+  )];
 }

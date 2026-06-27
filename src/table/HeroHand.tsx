@@ -479,7 +479,12 @@ export function HeroHand({
     if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
     if (playingIndex === i) return "default";
     if (illegalFlashIndex === i || illegalShakeIndex === i) return "default";
-    if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
+    if (inDrawPhase && selectedDraw.has(i)) {
+      if (bestPlayEnabled && !drawSelectionTouchedRef.current) {
+        return "draw-recommended";
+      }
+      return "draw-selected";
+    }
     if (inPlayPhase && selectedPlay === i && isMyTurn) return "play-preselected";
     if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
     if (inPlayPhase && !isMyTurn) return "disabled";
@@ -520,6 +525,12 @@ export function HeroHand({
       <p className="btable-sr-only" aria-live="polite">
         {phaseStatus}
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
+        {inDrawPhase &&
+          !drawCompleted &&
+          isMyTurn &&
+          bestPlayEnabled &&
+          recommendedDiscardIndices.length > 0 &&
+          " — green outline marks suggested discards"}
         {inPlayPhase && isMyTurn && " — tap a legal card to preselect; it plays automatically"}
       </p>
       <div

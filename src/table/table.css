@@ -1225,14 +1225,22 @@
   transform: none;
 }
 
+.btable-hero__hand-row .hand__slot--draw-recommended {
+  transform: translateY(-10px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+  z-index: 20 !important;
+}
+
+.btable-hero__hand-row .hand__slot--draw-recommended .pcard--draw-recommended {
+  transform: none;
+}
+
 .btable-hero__hand-row .hand__slot--draw-selected {
-  transform:
-    translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07)
-    rotateZ(calc(var(--fan-offset, 0) * 5deg));
+  transform: translateY(-14px) rotateX(10deg) rotateY(-6deg) scale(1.04);
 }
 
 .btable-hero__hand-row .hand__slot--draw-selected .pcard--draw-selected {
   transform: none;
+  animation: none;
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
@@ -1291,17 +1299,18 @@
   z-index: 4;
 }
 
-.btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+.btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected):not(.hand__slot--draw-recommended) .pcard:not(.pcard--disabled) {
   filter: grayscale(0.15) brightness(0.9);
   opacity: 0.78;
   transform: none;
 }
 
-.btable-hero--draw-select .btable-hero__hand-row .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+.btable-hero--draw-select .btable-hero__hand-row .hand--fan .hand__slot:not(.hand__slot--draw-selected):not(.hand__slot--draw-recommended) .pcard:not(.pcard--disabled) {
   transform: none;
 }
 
-.btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard {
+.btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard,
+.btable-hero--draw-select .hand--fan .hand__slot--draw-recommended .pcard {
   filter: none;
   opacity: 1;
 }
@@ -3469,7 +3478,9 @@
 }
 
 .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
-.btable-hero--draw-discard .hand__slot .pcard--draw-selected {
+.btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+.btable-hero--draw-discard .hand__slot--draw-recommended .pcard,
+.btable-hero--draw-discard .hand__slot .pcard--draw-recommended {
   animation: bdraw-fold-away 420ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 

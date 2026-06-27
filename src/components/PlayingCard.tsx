@@ -10,6 +10,7 @@ export type CardState =
   | "selected"
   | "play-recommended"
   | "play-preselected"
+  | "draw-recommended"
   | "draw-selected"
   | "disabled";
 
