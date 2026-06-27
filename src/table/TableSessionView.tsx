@@ -78,6 +78,7 @@ export function TableSessionView({
     trumpSuit: session.trumpSuit,
     playedCards: session.playedCards,
     turnPlayerId: session.turnPlayerId,
+    handComplete,
   });
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,

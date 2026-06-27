@@ -31,6 +31,7 @@ interface UseTrickPresentationInput {
   trumpSuit?: string | null;
   playedCards?: PlayedCardEntry[];
   turnPlayerId?: string | null;
+  handComplete?: boolean;
 }
 
 export type TrickPresentation = TrickPresentationModel & {
@@ -45,6 +46,7 @@ export function useTrickPresentation({
   trumpSuit,
   playedCards,
   turnPlayerId,
+  handComplete = false,
 }: UseTrickPresentationInput): TrickPresentation {
   const [store, dispatch] = useReducer(
     reduceTrickPresentation,
@@ -204,7 +206,9 @@ export function useTrickPresentation({
   }, [store.phase]);
 
   useEffect(() => {
-    if (sessionPlayActive || !pipelineActive) return;
+    const handEndedForDrain =
+      handComplete || (phase == null && participantIds.length === 0);
+    if (sessionPlayActive || !pipelineActive || !handEndedForDrain) return;
 
     const reduced = prefersReducedMotion();
     const stepMs = reduced ? 60 : 160;
@@ -255,6 +259,9 @@ export function useTrickPresentation({
     pipelineActive,
     store.phase,
     store.pendingResolution,
+    handComplete,
+    phase,
+    participantIds.length,
   ]);
 
   const targetReveal =
