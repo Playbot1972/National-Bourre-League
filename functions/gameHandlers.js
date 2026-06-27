@@ -533,7 +533,6 @@ function buildDealCompletionPatch(
     },
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
-    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -744,9 +743,6 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
       currentHand: patch.currentHand,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (patch.carryOverPotAdjust > 0) {
-      sessionUpdate.carryOverPot = FieldValue.increment(patch.carryOverPotAdjust);
-    }
     sessionUpdate.nextDealFunding = FieldValue.delete();
     tx.update(ref, sessionUpdate);
     return;

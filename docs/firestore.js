@@ -100,6 +100,7 @@ import {
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
   sessionChipTotal,
+  eligibleIdsForAnteCollection,
 } from "./bourre-rules.js";
 import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
@@ -195,7 +196,6 @@ const {
   arrayUnion,
   arrayRemove,
   deleteField,
-  increment,
   runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
 
@@ -1092,9 +1092,6 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
     handEnrollment: deleteField(),
     updatedAt: serverTimestamp(),
   };
-  if (patch.carryOverPotAdjust > 0) {
-    sessionUpdate.carryOverPot = increment(patch.carryOverPotAdjust);
-  }
   sessionUpdate.nextDealFunding = deleteField();
   tx.update(ref, sessionUpdate);
 }
@@ -1258,9 +1255,14 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     stakeForPlayer: stakeFor,
   });
   if (!settled.ready) {
+    const eligibleForAntes = eligibleIdsForAnteCollection(
+      dealContext.sortedPlayerIds ?? [],
+      scoreById,
+      buyIn,
+    );
     return buildPagatHandStartPatch(
       dealContext.dealerId,
-      dealContext.sortedPlayerIds,
+      eligibleForAntes,
       dealContext.sortedPlayerIds,
       Date.now(),
       null,
@@ -1548,7 +1550,6 @@ function buildPagatHandStartPatch(
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     sortedPlayerIds,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
-    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -2085,9 +2086,16 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
         handCount: dealContext.handCount ?? 0,
       }, dealContext);
     }
+    const buyIn = dealContext?.buyIn ?? 1;
+    const scoreById = dealContext?.scoreById ?? {};
+    const eligibleForAntes = eligibleIdsForAnteCollection(
+      dealContext?.sortedPlayerIds ?? [],
+      scoreById,
+      buyIn,
+    );
     return buildPagatHandStartPatch(
       dealContext?.dealerId ?? null,
-      dealContext?.sortedPlayerIds ?? [],
+      eligibleForAntes,
       dealContext?.sortedPlayerIds ?? [],
       Date.now(),
       dealContext?.dealingRule ?? null,
