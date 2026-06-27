@@ -82,6 +82,12 @@ export interface TablePlayer {
   myHandContribution?: number;
   /** Brief pulse when turn passes to this seat. */
   turnHandoff?: boolean;
+  /** Active 15s turn countdown ring — only on the current required actor. */
+  turnCountdown?: {
+    progress: number;
+    remainingMs: number;
+    segment: "green" | "yellow" | "red";
+  } | null;
   /** Dealer badge just moved to this seat. */
   dealerMoved?: boolean;
   /** Trump reveal merging into dealer hand (presentation only). */

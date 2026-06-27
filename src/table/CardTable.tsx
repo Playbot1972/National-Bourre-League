@@ -25,6 +25,7 @@ import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
+import type { TurnCountdownState } from "./turnCountdown";
 
 interface CardTableProps {
   session: TableSessionData;
@@ -50,6 +51,7 @@ interface CardTableProps {
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
+  turnCountdown?: TurnCountdownState | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -83,6 +85,7 @@ export function CardTable({
   handPresentation,
   microinteractions,
   instantTrickPlays = false,
+  turnCountdown = null,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -179,7 +182,15 @@ export function CardTable({
         drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
       drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
-      turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
+      turnHandoff: false,
+      turnCountdown:
+        turnCountdown?.playerId === player.playerId
+          ? {
+              progress: turnCountdown.progress,
+              remainingMs: turnCountdown.remainingMs,
+              segment: turnCountdown.segment,
+            }
+          : null,
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
