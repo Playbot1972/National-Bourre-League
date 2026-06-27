@@ -105,6 +105,7 @@ import {
   ensureHandEnrollment,
   advanceHandReveal,
   prepareSessionForTableOpen,
+  recoverHandoffBetweenHands,
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
   advanceSessionBots,
@@ -193,6 +194,7 @@ import {
   resolveTableEnrollmentActive,
   resolveCurrentHandChoicePlayerId,
   assertHandFlowConsistent,
+  shouldAutoOpenNextHand,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -992,6 +994,7 @@ const NEXT_HAND_SETTLE_MS = 2_000;
 let nextHandOpenTimer = null;
 let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
+let handoffRecoveryInFlight = false;
 
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
@@ -1003,7 +1006,7 @@ function sessionNeedsEnrollmentDriver(sessionObj) {
 
 function sessionNeedsNextHandEnrollment(sessionObj) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  return isHandoffReadyForEnrollment(buildHandLifecycleContext(sessionObj, { tablePlayOpen }));
+  return shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
 }
 
 function cancelNextHandOpenTimer() {
@@ -1074,8 +1077,27 @@ function maybeRecoverHandLifecycle(sessionObj) {
     return;
   }
 
-  const ctx = buildHandLifecycleContext(sessionObj, { tablePlayOpen });
-  if (!isHandoffReadyForEnrollment(ctx)) {
+  const handoffReady = shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
+  if (!handoffReady) {
+    if (tablePlayOpen && !handoffRecoveryInFlight) {
+      handoffRecoveryInFlight = true;
+      void recoverHandoffBetweenHands(currentRoomId, openSessionId, session?.uid ?? null)
+        .then((result) => {
+          if (result.status === "settlement_recovered" || result.status === "artifacts_cleared") {
+            logHandLifecycleTransition({
+              from: "settle",
+              to: "handoffToNextDeal",
+              reason: `recovered ${result.status} after post-settlement stall`,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("recoverHandoffBetweenHands:", err);
+        })
+        .finally(() => {
+          handoffRecoveryInFlight = false;
+        });
+    }
     cancelNextHandOpenTimer();
     return;
   }

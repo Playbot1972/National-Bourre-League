@@ -320,6 +320,10 @@ function authoritativeCurrentHand(sessionData) {
 
   if (handInProgress(current)) return current;
 
+  if (isClearedPreDealHand(current) && livePublic && !handInProgress(livePublic)) {
+    return emptyPreDealHand();
+  }
+
   if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
     if (handInProgress(livePublic)) {
       const liveTricks = totalTricksPlayed(
@@ -1667,7 +1671,11 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   if (!sessionSnap.exists) return { status: "noop" };
   const sessionData = sessionSnap.data();
-  const currentHand = getSessionCurrentHand(sessionData);
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  if (isClearedPreDealHand(rawHand)) return { status: "already_cleared" };
+
+  const currentHand =
+    (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);

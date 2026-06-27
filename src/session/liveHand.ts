@@ -118,6 +118,11 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   const livePhase = livePublic?.phase ?? null;
 
+  // recordHand clears currentHand but a completed live mirror can linger — never block handoff.
+  if (isClearedPreDealHand(current) && livePublic && !handInProgress(livePublic)) {
+    return emptyPreDealHand();
+  }
+
   if (handInProgress(current) && handInProgress(livePublic)) {
     const currentEarly = current.phase === "reveal" || current.phase === "decision";
     const liveDrawDone = livePublic?.drawCompletedIds?.length ?? 0;

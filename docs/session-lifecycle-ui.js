@@ -4,6 +4,7 @@
  */
 
 import { getSessionCurrentHand, getSessionEnrollment } from "./firestore.js";
+import { isClearedPreDealHand } from "./session-startup.js";
 
 export function logHandLifecycleTransition(transition) {
   if (typeof console !== "undefined" && console.info) {
@@ -30,6 +31,7 @@ export function buildHandLifecycleContext(sessionObj, { tablePlayOpen }) {
     enrollmentActive: enrollment?.active === true,
     handPhase: ch?.phase ?? null,
     participantCount: ch?.participantIds?.length ?? 0,
+    clearedHand: isClearedPreDealHand(ch),
     pendingCoWin: Boolean(sessionObj?.pendingCoWinSettlement),
     tablePlayOpen,
   };
@@ -43,8 +45,7 @@ export function isHandoffReadyForEnrollment(ctx) {
   return (
     ctx.sessionStatus !== "final" &&
     !ctx.enrollmentActive &&
-    !ctx.handPhase &&
-    (ctx.participantCount ?? 0) === 0 &&
+    ctx.clearedHand === true &&
     !ctx.pendingCoWin
   );
 }

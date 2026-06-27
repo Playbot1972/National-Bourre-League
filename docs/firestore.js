@@ -1419,6 +1419,34 @@ async function clearStaleHandoffArtifacts(roomId, sessionId) {
   }
 }
 
+/**
+ * Converge post-settlement limbo into dealer rotation + next-hand enrollment.
+ * Idempotent: skips when already cleared, repairs stale mirrors, or re-runs settlement.
+ */
+export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return { status: "missing" };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { status: "final" };
+  if (sessionData.pendingCoWinSettlement) return { status: "cowin_pending" };
+
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  const participantIds = rawHand.participantIds ?? [];
+  const tricksByPlayer = rawHand.tricksByPlayer ?? {};
+
+  if (participantIds.length > 0 && isHandComplete(tricksByPlayer, participantIds)) {
+    await finalizeHandFromCardPlay(roomId, sessionId, recordedBy);
+    return { status: "settlement_recovered" };
+  }
+
+  if (isClearedPreDealHand(rawHand) && shouldClearOrphanLiveEnrollment(sessionData)) {
+    await clearStaleHandoffArtifacts(roomId, sessionId);
+    return { status: "artifacts_cleared" };
+  }
+
+  return { status: "noop" };
+}
+
 function writeEnrollmentPatch(enrollment) {
   return {
     [LIVE_ENROLLMENT_FIELD]: enrollment,
@@ -1612,7 +1640,11 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
-  const currentHand = getSessionCurrentHand(sessionData);
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  if (isClearedPreDealHand(rawHand)) return;
+
+  const currentHand =
+    (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
