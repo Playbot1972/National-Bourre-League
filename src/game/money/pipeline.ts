@@ -159,6 +159,8 @@ export function recordHandSettlement(
   const canonicalResult = {
     ...phase1,
     ...phase2Plan,
+    rebuyContributionByPlayer: {},
+    splitPayoutByPlayer: phase1.splitPayoutByPlayer,
     nextStartStackByPlayer: Object.fromEntries(
       participants.map((pid) => [
         pid,

@@ -270,9 +270,8 @@ export function sumProjectedHandAntes(scoreById, playerIds, sessionStake, posted
 }
 
 /**
- * Projected next-hand pot: carry + each seated player's next-deal obligation.
- * After settlement, carry holds bourré pot match only; non-bourré players ante as usual.
- * nextHandPot = bourreMatch + (non-bourré seated count × ante), plus any bust remainders.
+ * Projected next-hand pot: carryoverPot + canonical funding contributions only.
+ * Does not include rebuy (bankroll restoration, not pot funding).
  */
 export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionStake, postedAntes = {}) {
   const carry = Math.max(0, Number(carryOverPot) || 0);
@@ -281,10 +280,8 @@ export function projectNextHandPot(carryOverPot, scoreById, playerIds, sessionSt
 }
 
 /**
- * Score-row flags applied after settlement for the next deal's pot funding.
- * Tied leaders skip ante; bourré players skip ante (pot match already paid at settlement).
- * bourreReplacementDue is only for a remainder when a bourré player busted mid-settlement.
- * @param {number} settledPot — final previous-hand pot (use currentPot, not base ante).
+ * @deprecated Prefer canonical buildNextDealFunding. Legacy flag helper.
+ * Bourré players skip normal ante — full completedHandPot penalty funds next hand instead.
  */
 export function nextDealFundingFlags({
   playerId,

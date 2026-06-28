@@ -8,8 +8,12 @@ import {
   buildNextDealFunding,
   computeCarryoverPot,
   computeFundingContributionByPlayer,
+  computeRebuyContributions,
   computeSplitPotPayout,
+  emptyLedgerState,
+  ledgerChipTotal,
   mergeNextDealFundingIntoScoreById,
+  processRebuy,
   recordHandSettlement,
   runCanonicalMoneyFlow,
   runHandMoneyFlow,
@@ -399,5 +403,37 @@ describe("canonical money engine — integration", () => {
     assert.equal(flow.deal.collected.bankrolls.p0, 100);
     assert.equal(flow.deal.collected.bankrolls.p1, 60);
     assert.equal(flow.deal.nextHandPot, 40);
+  });
+
+  it("13. rebuy increases chip total by explicit amount only — not mixed into pot", () => {
+    const before = ledgerChipTotal(emptyLedgerState(BUY_IN));
+
+    const rebuyPlan = computeRebuyContributions({
+      stackByPlayer: { bot: 0 },
+      participantIds: ["bot"],
+      rebuyEnabled: true,
+      rebuyAmount: BUY_IN,
+      rebuyPlayerIds: ["bot"],
+    });
+    assert.equal(rebuyPlan.rebuyContributionByPlayer.bot, BUY_IN);
+
+    const rebuy = processRebuy({
+      actionId: "rebuy:test",
+      playerId: "bot",
+      buyInAmount: BUY_IN,
+      ledger: {
+        ...emptyLedgerState(BUY_IN),
+        bankrolls: { bot: 0 },
+        nets: { bot: -BUY_IN },
+      },
+    });
+    assert.equal(rebuy.newBankrolls.bot, BUY_IN);
+    assert.equal(rebuy.newEvents[0]?.metadata?.fundingReason, "rebuy");
+
+    const after = ledgerChipTotal({
+      ...emptyLedgerState(BUY_IN),
+      bankrolls: rebuy.newBankrolls,
+    });
+    assert.equal(after - before, BUY_IN);
   });
 });

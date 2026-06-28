@@ -62,7 +62,9 @@ export interface NextDealFundingFlags {
     | "bourre_full_pot_penalty"
     | "normal_ante"
     | "tie_carry_exempt"
-    | "explicit_exempt";
+    | "explicit_exempt"
+    | "rebuy";
+  rebuyContribution?: number;
 }
 
 export interface NextDealFundingSnapshot {

@@ -17,15 +17,18 @@ export type FundingReason =
   | "bourre_full_pot_penalty"
   | "normal_ante"
   | "tie_carry_exempt"
-  | "explicit_exempt";
+  | "explicit_exempt"
+  | "rebuy";
 
 export interface CanonicalMoneyResult {
   completedHandPot: number;
   carryoverPot: number;
   payoutByPlayer: Record<string, number>;
+  splitPayoutByPlayer: Record<string, number>;
   settledStackByPlayer: Record<string, number>;
   fundingContributionByPlayer: Record<string, number>;
   fundingReasonByPlayer: Record<string, FundingReason>;
+  rebuyContributionByPlayer: Record<string, number>;
   nextStartStackByPlayer: Record<string, number>;
   nextPot: number;
   splitPot: boolean;
@@ -43,7 +46,9 @@ export interface SettleCompletedHandInput {
   tiedWinnerIds?: string[];
   bourrePlayerIds?: string[];
   splitPot: boolean;
-  /** Seat order for deterministic split remainder (defaults to participants). */
+  /** Canonical seat order for deterministic split remainder. */
+  seatOrder?: string[];
+  /** @deprecated Use seatOrder */
   participantOrder?: string[];
 }
 
@@ -57,10 +62,21 @@ export interface ComputeNextHandFundingInput {
   tiedWinnerIds: string[];
   splitPot: boolean;
   tie: boolean;
-  /** Players exempt from normal ante by explicit table rules. */
+  seatOrder?: string[];
   explicitExemptPlayerIds?: string[];
-  /** Uncollected bourré penalty remainder when a player busted at funding. */
   bourreReplacementRemainderByPlayer?: Record<string, number>;
+  rebuyContributionByPlayer?: Record<string, number>;
+}
+
+export interface ComputeRebuyContributionsInput {
+  stackByPlayer: Record<string, number>;
+  participantIds: string[];
+  rebuyEnabled: boolean;
+  /** Session buy-in — the app’s explicit rebuy top-up amount. */
+  rebuyAmount: number;
+  /** When set, only these players receive rebuy (e.g. bot auto-rebuy plan). */
+  rebuyPlayerIds?: string[];
+  outByPlayer?: Record<string, boolean>;
 }
 
 export interface NextDealFundingSnapshot {
@@ -73,6 +89,7 @@ export interface NextDealFundingSnapshot {
   tie: boolean;
   fundingContributionByPlayer: Record<string, number>;
   fundingReasonByPlayer: Record<string, FundingReason>;
+  rebuyContributionByPlayer?: Record<string, number>;
   byPlayer: Record<
     string,
     {
@@ -80,6 +97,7 @@ export interface NextDealFundingSnapshot {
       fundingReason: FundingReason;
       skipNextAnte: boolean;
       bourreReplacementDue: number | null;
+      rebuyContribution?: number;
     }
   >;
 }
@@ -96,29 +114,70 @@ export function computeCarryoverPot(
   return 0;
 }
 
-/** Divide completedHandPot among tied winners; remainder to earliest seats in order. */
+/** Divide completedHandPot among tied winners; remainder by seat order among tied winners. */
 export function computeSplitPotPayout(
   completedHandPot: number,
   tiedWinnerIds: string[],
-  participantOrder: string[],
+  seatOrder: string[],
 ): Record<string, number> {
   const pot = Math.max(0, Number(completedHandPot) || 0);
-  const winners = tiedWinnerIds.filter((id) => participantOrder.includes(id));
-  const payout: Record<string, number> = {};
+  const winners = tiedWinnerIds.filter((id) => seatOrder.includes(id));
+  const splitPayoutByPlayer: Record<string, number> = {};
   if (!winners.length || pot <= 0) {
-    return payout;
+    return splitPayoutByPlayer;
   }
 
   const base = Math.floor(pot / winners.length);
   let remainder = pot - base * winners.length;
 
-  const orderedWinners = participantOrder.filter((id) => winners.includes(id));
+  const orderedWinners = seatOrder.filter((id) => winners.includes(id));
   for (const pid of orderedWinners) {
     const extra = remainder > 0 ? 1 : 0;
     if (remainder > 0) remainder -= 1;
-    payout[pid] = base + extra;
+    splitPayoutByPlayer[pid] = base + extra;
   }
-  return payout;
+  return splitPayoutByPlayer;
+}
+
+/**
+ * Centralized rebuy — bankroll restoration only (does NOT fund nextPot).
+ * Rebuy amount is session buy-in (existing explicit app rule).
+ */
+export function computeRebuyContributions(input: ComputeRebuyContributionsInput): {
+  rebuyContributionByPlayer: Record<string, number>;
+  rebuyPlayerIds: string[];
+} {
+  const {
+    stackByPlayer,
+    participantIds,
+    rebuyEnabled,
+    rebuyAmount,
+    rebuyPlayerIds,
+    outByPlayer = {},
+  } = input;
+
+  const rebuyContributionByPlayer: Record<string, number> = {};
+  const triggered: string[] = [];
+  const amount = Math.max(0, Number(rebuyAmount) || 0);
+
+  if (!rebuyEnabled || amount <= 0) {
+    return { rebuyContributionByPlayer, rebuyPlayerIds: triggered };
+  }
+
+  const candidates =
+    rebuyPlayerIds != null
+      ? rebuyPlayerIds.filter((pid) => participantIds.includes(pid))
+      : participantIds.filter((pid) => {
+          const stack = Math.max(0, Number(stackByPlayer[pid]) || 0);
+          return stack <= 0 || outByPlayer[pid] === true;
+        });
+
+  for (const pid of candidates) {
+    rebuyContributionByPlayer[pid] = amount;
+    triggered.push(pid);
+  }
+
+  return { rebuyContributionByPlayer, rebuyPlayerIds: triggered };
 }
 
 /**
@@ -130,6 +189,7 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
   | "completedHandPot"
   | "carryoverPot"
   | "payoutByPlayer"
+  | "splitPayoutByPlayer"
   | "settledStackByPlayer"
   | "splitPot"
   | "tie"
@@ -145,17 +205,19 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
     tiedWinnerIds = [],
     bourrePlayerIds = [],
     splitPot,
-    participantOrder = participants,
+    seatOrder = input.participantOrder ?? participants,
   } = input;
 
   const pot = Math.max(0, Number(completedHandPot) || 0);
   const tie = tiedWinnerIds.length >= 2;
   const payoutByPlayer: Record<string, number> = {};
+  const splitPayoutByPlayer: Record<string, number> = {};
   const settledStackByPlayer: Record<string, number> = {};
 
   for (const pid of participants) {
     settledStackByPlayer[pid] = Math.max(0, Number(stackByPlayer[pid]) || 0);
     payoutByPlayer[pid] = 0;
+    splitPayoutByPlayer[pid] = 0;
   }
 
   if (tie && !splitPot) {
@@ -164,6 +226,7 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
       completedHandPot: pot,
       carryoverPot,
       payoutByPlayer,
+      splitPayoutByPlayer,
       settledStackByPlayer,
       splitPot: false,
       tie: true,
@@ -174,8 +237,9 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
   }
 
   if (tie && splitPot) {
-    const splits = computeSplitPotPayout(pot, tiedWinnerIds, participantOrder);
+    const splits = computeSplitPotPayout(pot, tiedWinnerIds, seatOrder);
     for (const [pid, amount] of Object.entries(splits)) {
+      splitPayoutByPlayer[pid] = amount;
       payoutByPlayer[pid] = amount;
       settledStackByPlayer[pid] = (settledStackByPlayer[pid] ?? 0) + amount;
     }
@@ -183,6 +247,7 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
       completedHandPot: pot,
       carryoverPot: 0,
       payoutByPlayer,
+      splitPayoutByPlayer,
       settledStackByPlayer,
       splitPot: true,
       tie: true,
@@ -202,6 +267,7 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
     completedHandPot: pot,
     carryoverPot: 0,
     payoutByPlayer,
+    splitPayoutByPlayer,
     settledStackByPlayer,
     splitPot: false,
     tie: false,
@@ -264,26 +330,34 @@ export function computeFundingContributionByPlayer(
   return { fundingContributionByPlayer, fundingReasonByPlayer };
 }
 
-/** Apply funding contributions to stacks and compute nextPot. */
+/** Apply funding + optional rebuy to stacks. Rebuy does NOT increase nextPot. */
 export function applyNextHandFunding(
   input: ComputeNextHandFundingInput,
 ): Pick<
   CanonicalMoneyResult,
   | "fundingContributionByPlayer"
   | "fundingReasonByPlayer"
+  | "rebuyContributionByPlayer"
   | "nextStartStackByPlayer"
   | "nextPot"
   | "carryoverPot"
 > {
-  const { settledStackByPlayer, carryoverPot, participantIds } = input;
+  const { settledStackByPlayer, carryoverPot, participantIds, rebuyContributionByPlayer = {} } =
+    input;
   const { fundingContributionByPlayer, fundingReasonByPlayer } =
     computeFundingContributionByPlayer(input);
+
+  const rebuyByPlayer: Record<string, number> = {};
+  for (const pid of participantIds) {
+    rebuyByPlayer[pid] = Math.max(0, Number(rebuyContributionByPlayer[pid]) || 0);
+  }
 
   const nextStartStackByPlayer: Record<string, number> = {};
   for (const pid of participantIds) {
     const settled = Math.max(0, Number(settledStackByPlayer[pid]) || 0);
     const contribution = Math.max(0, Number(fundingContributionByPlayer[pid]) || 0);
-    nextStartStackByPlayer[pid] = Math.max(0, settled - contribution);
+    const rebuy = rebuyByPlayer[pid] ?? 0;
+    nextStartStackByPlayer[pid] = Math.max(0, settled - contribution + rebuy);
   }
 
   const contributionSum = participantIds.reduce(
@@ -295,6 +369,7 @@ export function applyNextHandFunding(
   return {
     fundingContributionByPlayer,
     fundingReasonByPlayer,
+    rebuyContributionByPlayer: rebuyByPlayer,
     nextStartStackByPlayer,
     nextPot,
     carryoverPot: Math.max(0, Number(carryoverPot) || 0),
@@ -314,12 +389,14 @@ export function buildNextDealFunding(
     const contribution = phase2.fundingContributionByPlayer[pid] ?? 0;
     const reason = phase2.fundingReasonByPlayer[pid] ?? "normal_ante";
     const remainder = bourreReplacementRemainderByPlayer[pid] ?? null;
+    const rebuy = phase2.rebuyContributionByPlayer?.[pid] ?? 0;
     byPlayer[pid] = {
       fundingContribution: contribution,
       fundingReason: reason,
       skipNextAnte: reason === "tie_carry_exempt" || reason === "explicit_exempt",
       bourreReplacementDue:
         remainder != null && remainder > 0 ? remainder : null,
+      rebuyContribution: rebuy > 0 ? rebuy : undefined,
     };
     if (reason === "bourre_full_pot_penalty") {
       byPlayer[pid].skipNextAnte = true;
@@ -336,6 +413,7 @@ export function buildNextDealFunding(
     tie: phase1.tie,
     fundingContributionByPlayer: { ...phase2.fundingContributionByPlayer },
     fundingReasonByPlayer: { ...phase2.fundingReasonByPlayer },
+    rebuyContributionByPlayer: { ...(phase2.rebuyContributionByPlayer ?? {}) },
     byPlayer,
   };
 }
@@ -425,9 +503,17 @@ export function validateMoneyInvariants(
     if (result.carryoverPot !== 0) {
       errors.push(`split pot: carryoverPot must be 0, got ${result.carryoverPot}`);
     }
-    const splitSum = Object.values(result.payoutByPlayer).reduce((s, n) => s + n, 0);
+    const splitSum = Object.values(result.splitPayoutByPlayer).reduce((s, n) => s + n, 0);
     if (splitSum !== pot) {
-      errors.push(`split pot: payouts ${splitSum} !== completedHandPot ${pot}`);
+      errors.push(`split pot: splitPayoutByPlayer ${splitSum} !== completedHandPot ${pot}`);
+    }
+    for (const pid of result.tiedWinnerIds) {
+      const reason = result.fundingReasonByPlayer[pid];
+      if (reason !== "normal_ante" && reason !== "bourre_full_pot_penalty" && reason !== "explicit_exempt") {
+        if (reason === "tie_carry_exempt") {
+          errors.push(`${pid}: tied split-pot winner must not be tie_carry_exempt`);
+        }
+      }
     }
   }
 
@@ -471,10 +557,21 @@ export function validateMoneyInvariants(
   for (const pid of participantIds) {
     const settled = result.settledStackByPlayer[pid] ?? 0;
     const contrib = result.fundingContributionByPlayer[pid] ?? 0;
+    const rebuy = result.rebuyContributionByPlayer[pid] ?? 0;
     const next = result.nextStartStackByPlayer[pid] ?? 0;
-    if (next !== Math.max(0, settled - contrib)) {
-      errors.push(`${pid}: nextStart ${next} !== settled ${settled} - contrib ${contrib}`);
+    if (next !== Math.max(0, settled - contrib + rebuy)) {
+      errors.push(
+        `${pid}: nextStart ${next} !== settled ${settled} - contrib ${contrib} + rebuy ${rebuy}`,
+      );
     }
+  }
+
+  const rebuySum = participantIds.reduce(
+    (s, pid) => s + (result.rebuyContributionByPlayer[pid] ?? 0),
+    0,
+  );
+  if (rebuySum > 0 && expectedChipTotal != null && stackBeforeSettlement) {
+    void rebuySum;
   }
 
   if (expectedChipTotal != null && stackBeforeSettlement) {

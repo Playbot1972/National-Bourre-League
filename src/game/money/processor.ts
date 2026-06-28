@@ -10,6 +10,7 @@ import { MONEY_ENGINE_VERSION } from "./types";
 import { hasActionBeenApplied, makeEventId } from "./idempotency";
 import { emptyLedgerState, ledgerChipTotal, replayEvents } from "./replay";
 import { recordHandSettlement, startNextHandFunding } from "./pipeline";
+import { computeRebuyContributions } from "./canonical";
 import { scoreBankroll, sessionChipTotal } from "./core";
 
 function nextSequence(state: MoneyLedgerState, events: MoneyEvent[]): number {
@@ -491,6 +492,15 @@ export function processRebuy(input: ProcessRebuyInput): MoneyEngineResult {
     };
   }
 
+  const { rebuyContributionByPlayer } = computeRebuyContributions({
+    stackByPlayer: ledger.bankrolls,
+    participantIds: [playerId],
+    rebuyEnabled: true,
+    rebuyAmount: buyInAmount,
+    rebuyPlayerIds: [playerId],
+  });
+  const rebuyAmount = rebuyContributionByPlayer[playerId] ?? buyInAmount;
+
   const beforeTotal = ledgerChipTotal(ledger);
   let seq = nextSequence(ledger, existingEvents);
   const newEvents: MoneyEvent[] = [
@@ -502,17 +512,17 @@ export function processRebuy(input: ProcessRebuyInput): MoneyEngineResult {
       sequence: seq,
       type: "REBUY_APPLIED",
       playerId,
-      amount: buyInAmount,
-      metadata: {},
+      amount: rebuyAmount,
+      metadata: { fundingReason: "rebuy" },
       timestamp: Date.now(),
     },
   ];
 
   const replayed = replayEvents([...existingEvents, ...newEvents], ledger);
-  const invariants = buildInvariantReport(replayed, beforeTotal + buyInAmount);
+  const invariants = buildInvariantReport(replayed, beforeTotal + rebuyAmount);
 
   return {
-    delta: { [playerId]: buyInAmount },
+    delta: { [playerId]: rebuyAmount },
     newEvents,
     newBankrolls: replayed.bankrolls,
     carryOverPot: replayed.carryOverPot,
