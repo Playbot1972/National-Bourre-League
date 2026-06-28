@@ -45,6 +45,8 @@ interface HeroHandProps {
   tableRootRef?: RefObject<HTMLElement | null>;
   pileIndexRef?: RefObject<number>;
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
+  /** Fired on any local hand interaction (selection, draw/play action). */
+  onUserActivity?: () => void;
 }
 
 function heroShellClass(
@@ -103,6 +105,7 @@ export function HeroHand({
   tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
+  onUserActivity,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -273,10 +276,29 @@ export function HeroHand({
   );
   const phaseStatus = formatHandPhase(phase, enrollmentActive);
 
+  useEffect(() => {
+    if (!onUserActivity) return;
+    if (inDrawPhase && selectedDraw.size > 0) {
+      onUserActivity();
+    }
+  }, [inDrawPhase, selectedDraw.size, onUserActivity]);
+
+  useEffect(() => {
+    if (!onUserActivity) return;
+    if (inPlayPhase && selectedPlay !== null) {
+      onUserActivity();
+    }
+  }, [inPlayPhase, selectedPlay, onUserActivity]);
+
+  const notifyUserActivity = useCallback(() => {
+    onUserActivity?.();
+  }, [onUserActivity]);
+
   const toggleDrawIndex = useCallback(
     (index: number) => {
       if (busy || trumpDisabledIndex === index) return;
       drawSelectionTouchedRef.current = true;
+      notifyUserActivity();
       setLocalError(null);
       setSelectedDraw((prev) => {
         const next = new Set(prev);
@@ -286,7 +308,7 @@ export function HeroHand({
         return next;
       });
     },
-    [busy, maxDrawDiscards, trumpDisabledIndex],
+    [busy, maxDrawDiscards, trumpDisabledIndex, notifyUserActivity],
   );
 
   const executePlay = useCallback(
@@ -344,6 +366,7 @@ export function HeroHand({
       clearPreselectTimer();
       setSelectedPlay(index);
       setLocalError(null);
+      notifyUserActivity();
       pendingPlayIndexRef.current = index;
       if (!isMyTurn) return;
       preselectTimerRef.current = window.setTimeout(() => {
@@ -362,6 +385,7 @@ export function HeroHand({
       legalPlayIndices,
       onPlayCard,
       phase,
+      notifyUserActivity,
     ],
   );
 
@@ -370,6 +394,7 @@ export function HeroHand({
   const runDrawAction = useCallback(
     async (indices: number[]) => {
       if (!onSubmitDraw || busy) return;
+      notifyUserActivity();
       if (indices.length > maxDrawDiscards) {
         setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
         return;
@@ -386,11 +411,12 @@ export function HeroHand({
         setLocalBusy(false);
       }
     },
-    [onSubmitDraw, busy, maxDrawDiscards],
+    [onSubmitDraw, busy, maxDrawDiscards, notifyUserActivity],
   );
 
   const runPassDraw = useCallback(async () => {
     if (!onPassDraw || busy) return;
+    notifyUserActivity();
     setLocalBusy(true);
     setLocalError(null);
     try {
@@ -403,10 +429,11 @@ export function HeroHand({
     } finally {
       setLocalBusy(false);
     }
-  }, [onPassDraw, busy]);
+  }, [onPassDraw, busy, notifyUserActivity]);
 
   const runFoldDraw = useCallback(async () => {
     if (!onFoldDraw || busy) return;
+    notifyUserActivity();
     setFoldOutPulse(true);
     setLocalBusy(true);
     setLocalError(null);
@@ -419,7 +446,7 @@ export function HeroHand({
     } finally {
       setLocalBusy(false);
     }
-  }, [onFoldDraw, busy]);
+  }, [onFoldDraw, busy, notifyUserActivity]);
 
   const handleIllegalPlay = useCallback(
     (index: number) => {

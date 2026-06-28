@@ -131,6 +131,24 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
   }
 });
 
+describe("6-seat preset (hero + 5 bots)", () => {
+  it("lowers seats 1 and 5 toward the hero rail", () => {
+    const map = buildSeatLayoutMap(6, { isMobile: false });
+    const hero = map[0]!;
+    const bot1 = map[1]!;
+    const bot5 = map[5]!;
+
+    assert.equal(map.length, 6);
+    assert.equal(isClockwiseOnScreen(map), true);
+    assert.ok(bot1.y > 85 && bot1.y < hero.y, "Bot 1 sits lower than ellipse default");
+    assert.ok(bot5.y > 85 && bot5.y < hero.y, "Bot 5 sits lower than ellipse default");
+    assert.equal(bot1.region, "bottom");
+    assert.equal(bot5.region, "bottom");
+    assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
+    assert.ok(bot5.x > hero.x, "Bot 5 right of hero");
+  });
+});
+
 describe("7-seat preset", () => {
   it("desktop 7 seats stay clockwise on screen", () => {
     const map = buildSeatLayoutMap(7, { isMobile: false });

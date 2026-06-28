@@ -10,6 +10,19 @@ interface SeatPlacement {
 
 type SeatMap<T extends number> = Record<T, SeatPlacement>;
 
+/**
+ * Desktop 5-bot table (hero + 5 bots, totalPlayers = 6).
+ * Seats 1 and 5 sit lower on the bottom rail — closer to the hero for readability.
+ */
+export const DESKTOP_FIVE_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5> = {
+  0: { x: 50, y: 95, region: "bottom" },
+  1: { x: 10, y: 88, region: "bottom" },
+  2: { x: 9.3, y: 27.5, region: "left" },
+  3: { x: 50, y: 5, region: "top" },
+  4: { x: 90.7, y: 27.5, region: "right" },
+  5: { x: 90, y: 88, region: "bottom" },
+};
+
 /** Desktop 6-bot table (hero + 6 bots, totalPlayers = 7). */
 export const DESKTOP_SIX_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
   0: { x: 50, y: 96, region: "bottom" },

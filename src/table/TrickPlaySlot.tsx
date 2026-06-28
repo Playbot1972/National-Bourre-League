@@ -99,14 +99,10 @@ export function TrickPlaySlot({
     }
 
     if (!isLanding) {
-      if (flightStartedRef.current || flyMode !== "static") {
-        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
       });
-      } else {
-        setHasLanded(true);
-      }
       return;
     }
 
@@ -173,6 +169,7 @@ export function TrickPlaySlot({
       ref={slotRef}
       className={[
         "btrick__play",
+        hasLanded ? "btrick__play--landed" : "",
         isSettled ? "btrick__play--settled" : "",
         hasLanded && flyMode === "static" ? "btrick__play--static-landed" : "",
         flyMode === "travel" ? "btrick__play--fly-from-hand" : "",

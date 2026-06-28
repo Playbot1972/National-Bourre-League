@@ -642,7 +642,7 @@
   justify-content: center;
   min-width: 48px;
   min-height: 74px;
-  --trick-card-overlap: 15px;
+  --trick-card-overlap: calc(var(--trick-card-width) * 0.288461538);
   --trick-card-width: 52px;
   --trick-card-height: 74px;
   --trick-card-step: calc(var(--trick-card-width) - var(--trick-card-overlap));
@@ -700,9 +700,15 @@
   width: var(--trick-card-width);
   transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
   z-index: calc(var(--slot-index, 0) + 1);
+  will-change: transform;
 }
 
-.btrick__play--settled.btrick__play--static-landed {
+.btrick__play--landed {
+  transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
+}
+
+.btrick__play--settled.btrick__play--static-landed,
+.btrick__play--landed.btrick__play--static-landed {
   transition: transform var(--trick-card-shift-ms) var(--trick-ease-shift);
 }
 
@@ -1054,6 +1060,24 @@
   font-size: 14px;
   font-weight: 500;
   color: var(--text-muted, rgba(244, 213, 141, 0.55));
+}
+
+.btable-session__inactivity-helper {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--gold-300, #f4d58d);
+  background: rgba(20, 17, 15, 0.55);
+  border: 1px solid rgba(244, 213, 141, 0.35);
+  opacity: 0.35;
+  transition: opacity 0.45s ease;
+}
+
+.btable-session__inactivity-helper--on {
+  opacity: 1;
 }
 
 .btable-session__action-cue {
@@ -2611,9 +2635,12 @@
 
   .center-play .btrick__play .pcard--sm,
   .deck-stack .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(48px, 11vmin, 72px);
-    height: calc(clamp(48px, 11vmin, 72px) * 1.423);
   }
 
   .hand-panel {
@@ -2636,11 +2663,19 @@
     max-width: 152px;
   }
 
+  .center-play .btrick {
+    --trick-card-width: clamp(42px, 10vw, 56px);
+    --trick-card-height: calc(clamp(42px, 10vw, 56px) * 1.423);
+  }
+
   .deck-stack .pcard--sm,
   .center-play .btrick__play .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(42px, 10vw, 56px);
-    height: calc(clamp(42px, 10vw, 56px) * 1.423);
   }
 }
 
@@ -2724,11 +2759,19 @@
     width: min(68%, clamp(180px, 38vw, 280px));
   }
 
+  .center-play .btrick {
+    --trick-card-width: clamp(44px, 10vh, 68px);
+    --trick-card-height: calc(clamp(44px, 10vh, 68px) * 1.423);
+  }
+
   .center-play .btrick__play .pcard--sm,
   .deck-stack .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(44px, 10vh, 68px);
-    height: calc(clamp(44px, 10vh, 68px) * 1.423);
   }
 
   .btable-wrap {
