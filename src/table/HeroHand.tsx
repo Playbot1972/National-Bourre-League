@@ -584,8 +584,8 @@ export function HeroHand({
     >
       <p className="btable-sr-only" aria-live="polite">
         {phaseStatus}
-        {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard"}
-        {inPlayPhase && isMyTurn && " — tap a legal card to preselect; it plays automatically"}
+        {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard; red border marks your selection"}
+        {inPlayPhase && isMyTurn && " — tap a legal card to play"}
         {bestPlayEnabled &&
           (inDrawPhase || inPlayPhase) &&
           " — green outline marks suggested cards"}
@@ -631,6 +631,11 @@ export function HeroHand({
         </div>
         {renderBestPlayCheckbox()}
       </div>
+      {inPlayPhase && !isMyTurn && selectedPlay !== null && (
+        <p className="btable-hero__hint" data-testid="play-preselect-hint">
+          Your selected card will play on your turn
+        </p>
+      )}
       {feedbackError && (
         <p className="btable-hero__error" role="alert">
           {feedbackError}
@@ -654,7 +659,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm"
+              className="btn btn--sm btn--secondary-muted"
               data-testid="pass-draw-button"
               disabled={busy}
               onClick={() => runPassDraw()}
@@ -663,7 +668,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm"
+              className="btn btn--sm btn--secondary-muted"
               data-testid="im-out-button"
               disabled={busy}
               onClick={() => runFoldDraw()}

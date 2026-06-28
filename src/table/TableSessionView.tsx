@@ -8,7 +8,16 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
+import {
+  formatHandPhase,
+  formatLocalActionCue,
+  formatWaitingCue,
+  isCardsDealtPhase,
+  isDecisionPhase,
+  isRevealPhase,
+  serializedToCard,
+  turnIndicatorLabel,
+} from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
@@ -303,6 +312,22 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
+  const actionCue =
+    localActionRequired && !handComplete
+      ? formatLocalActionCue(session.phase, enrollmentActive)
+      : null;
+  const waitingCue =
+    !actionCue &&
+    !suppressTurn &&
+    !(turnLabel && cardsDealt && trickPresentation.phase === "live")
+      ? formatWaitingCue({
+          phase: session.phase,
+          enrollmentActive,
+          isMyTurn,
+          handComplete,
+          cardsDealt,
+        })
+      : null;
 
   const turnReminderActivityKey = localActionActivityKey({
     currentUserId,
@@ -599,18 +624,35 @@ export function TableSessionView({
           )}
         </div>
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
+          <p
+            className={[
+              "btable-session__turn",
+              isMyTurn ? "btable-session__turn--yours" : "btable-session__turn--waiting",
+            ].join(" ")}
+            aria-live="polite"
+            data-testid="turn-indicator"
+          >
             {turnLabel}
+          </p>
+        )}
+        {actionCue && (
+          <p className="btable-session__action-cue" data-testid="action-cue" aria-live="polite">
+            {actionCue}
+          </p>
+        )}
+        {waitingCue && (
+          <p className="btable-session__hint btable-session__hint--waiting" data-testid="waiting-cue">
+            {waitingCue}
           </p>
         )}
         {session.phase === "draw" && isMyTurn && (
           <p className="btable-session__hint muted small">
-            Select cards to discard (up to 5), then Draw — Stand pat — or I&apos;m Out
+            Choose cards to discard — selected cards show a red border
           </p>
         )}
-        {session.phase === "play" && (
+        {session.phase === "play" && isMyTurn && (
           <p className="btable-session__hint muted small">
-            Follow suit · trump when void · beat the trick when you can
+            Tap a legal card to play
           </p>
         )}
         {isRevealPhase(session.phase) && (
@@ -620,7 +662,7 @@ export function TableSessionView({
         )}
         {enrollmentActive && !isRevealPhase(session.phase) && (
           <p className="btable-session__enroll muted small">
-            Play or pass · clockwise from dealer
+            Tap I&apos;m in or Pass at your seat — clockwise from dealer
           </p>
         )}
       </header>

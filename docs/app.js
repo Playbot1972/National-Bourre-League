@@ -176,6 +176,7 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
+import { gameSetupStepLabel } from "./game-setup-ui.js";
 import {
   formatAnteStake,
   formatRiskStake,
@@ -3876,6 +3877,8 @@ function buildUnifiedGameSetupHtml({
     ? "Open the live card table"
     : "Add at least one more player (you count as player 1), then tap Play";
 
+  const stepLabel = gameSetupStepLabel({ hasActiveSession, ready, isOwner });
+
   const openTableBtn = isOwner
     ? `<button class="btn btn--primary" id="new-session" type="button" data-testid="open-table-btn" ${
         canCreateSession ? "" : 'disabled aria-disabled="true"'
@@ -3888,9 +3891,7 @@ function buildUnifiedGameSetupHtml({
 
   const sessionMeta = hasActiveSession
     ? `<p class="game-setup-panel__table-name"><strong>${escapeHtml(openSessionObj.sessionName || "Table")}</strong> · ante ${escapeHtml(formatAnteStake(openSessionObj.handStake ?? roomAnteAmount))}</p>`
-    : isOwner
-      ? `<p class="muted small game-setup-panel__hint">Set buy-in and ante, tap <strong>Open table</strong>, then add players or robots.</p>`
-      : `<p class="muted small game-setup-panel__hint">Waiting for the host to open a table.</p>`;
+    : "";
 
   const capNote =
     isOwner && currentSessionsLength > 0
@@ -3930,8 +3931,8 @@ function buildUnifiedGameSetupHtml({
   return `<section class="game-setup-panel" data-testid="game-setup-panel">
     <div class="session-setup-window" data-testid="session-setup-window">
       <header class="game-setup-panel__head">
-        <h4>Table setup</h4>
-        <p class="muted small">One place to set stakes, build your roster, and start play.</p>
+        <h4>Get ready to play</h4>
+        <p class="game-setup-panel__step" data-testid="game-setup-step">${escapeHtml(stepLabel)}</p>
       </header>
       ${stakesPanelHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
       ${sessionMeta}
