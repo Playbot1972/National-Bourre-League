@@ -179,6 +179,8 @@ export function recordHandSettlement(
     participantIds: participants,
     anteAmount: sessionStake,
     stackBeforeSettlement: stackByPlayer,
+    carryInBeforeSettlement: carryIn,
+    postedAntesBeforeSettlement: postedAntes,
   });
 
   const nominalDeltas = { ...appliedDeltas };

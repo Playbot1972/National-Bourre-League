@@ -12,6 +12,12 @@ import {
   computeHandPotState,
   scoreBankroll,
 } from "./core";
+import {
+  tableChipTotal,
+  validateChipGrowthInvariant,
+  type MoneyInvariantResult,
+  type TableChipSnapshot,
+} from "./conservation";
 
 export type FundingReason =
   | "bourre_full_pot_penalty"
@@ -463,19 +469,48 @@ export interface ValidateMoneyInvariantsInput {
   anteAmount: number;
   expectedChipTotal?: number;
   stackBeforeSettlement?: Record<string, number>;
+  /** Active pot before settlement (carry + posted antes this hand). */
+  carryInBeforeSettlement?: number;
+  postedAntesBeforeSettlement?: Record<string, number>;
 }
 
-export interface MoneyInvariantResult {
-  ok: boolean;
-  errors: string[];
+export type { MoneyInvariantResult, TableChipSnapshot };
+
+/** Bourré penalty posted to pot minus bankroll actually collected (mint if positive). */
+export function bourrePotMintByPlayer(
+  settledStackByPlayer: Record<string, number>,
+  nextStartStackByPlayer: Record<string, number>,
+  fundingReasonByPlayer: Record<string, FundingReason>,
+  postedToPotByPlayer: Record<string, number>,
+  rebuyContributionByPlayer: Record<string, number> = {},
+): Record<string, number> {
+  const mintByPlayer: Record<string, number> = {};
+  for (const [pid, reason] of Object.entries(fundingReasonByPlayer)) {
+    if (reason !== "bourre_full_pot_penalty") continue;
+    const posted = Math.max(0, Number(postedToPotByPlayer[pid]) || 0);
+    const settled = Math.max(0, Number(settledStackByPlayer[pid]) || 0);
+    const next = Math.max(0, Number(nextStartStackByPlayer[pid]) || 0);
+    const rebuy = Math.max(0, Number(rebuyContributionByPlayer[pid]) || 0);
+    const bankrollPaid = Math.max(0, settled - next + rebuy);
+    const mint = posted - bankrollPaid;
+    if (mint > 0) mintByPlayer[pid] = mint;
+  }
+  return mintByPlayer;
 }
 
 /** Assert canonical money invariants from the prompt. */
 export function validateMoneyInvariants(
   input: ValidateMoneyInvariantsInput,
 ): MoneyInvariantResult {
-  const { result, participantIds, anteAmount, expectedChipTotal, stackBeforeSettlement } =
-    input;
+  const {
+    result,
+    participantIds,
+    anteAmount,
+    expectedChipTotal,
+    stackBeforeSettlement,
+    carryInBeforeSettlement = 0,
+    postedAntesBeforeSettlement = {},
+  } = input;
   const errors: string[] = [];
   const pot = result.completedHandPot;
 
@@ -566,28 +601,100 @@ export function validateMoneyInvariants(
     }
   }
 
-  const rebuySum = participantIds.reduce(
-    (s, pid) => s + (result.rebuyContributionByPlayer[pid] ?? 0),
-    0,
+  const rebuyByPlayer = Object.fromEntries(
+    participantIds.map((pid) => [pid, result.rebuyContributionByPlayer[pid] ?? 0]),
   );
-  if (rebuySum > 0 && expectedChipTotal != null && stackBeforeSettlement) {
-    void rebuySum;
-  }
+  const rebuySum = Object.values(rebuyByPlayer).reduce((s, n) => s + n, 0);
 
-  if (expectedChipTotal != null && stackBeforeSettlement) {
-    const before =
-      Object.values(stackBeforeSettlement).reduce((s, n) => s + n, 0) + result.carryoverPot;
-    const after =
-      Object.values(result.settledStackByPlayer).reduce((s, n) => s + n, 0) +
-      result.carryoverPot;
+  if (stackBeforeSettlement) {
+    const settlementBefore: TableChipSnapshot = {
+      bankrolls: stackBeforeSettlement,
+      carryOverPot: carryInBeforeSettlement,
+      postedAntes: postedAntesBeforeSettlement,
+    };
+    const settlementAfter: TableChipSnapshot = {
+      bankrolls: result.settledStackByPlayer,
+      carryOverPot: result.carryoverPot,
+      postedAntes: {},
+    };
+    const settlementGrowth = validateChipGrowthInvariant({
+      before: settlementBefore,
+      after: settlementAfter,
+      label: "settlement",
+    });
+    errors.push(...settlementGrowth.errors);
+
+    const postedToPot = Object.fromEntries(
+      participantIds.map((pid) => [pid, result.fundingContributionByPlayer[pid] ?? 0]),
+    );
+    const bourreMint = bourrePotMintByPlayer(
+      result.settledStackByPlayer,
+      result.nextStartStackByPlayer,
+      result.fundingReasonByPlayer,
+      postedToPot,
+      rebuyByPlayer,
+    );
+    const bourreMintSum = Object.values(bourreMint).reduce((s, n) => s + n, 0);
+
+    const fundingBefore: TableChipSnapshot = settlementAfter;
+    const fundingAfter: TableChipSnapshot = {
+      bankrolls: result.nextStartStackByPlayer,
+      carryOverPot: result.nextPot,
+      postedAntes: {},
+    };
+    const fundingGrowth = validateChipGrowthInvariant({
+      before: fundingBefore,
+      after: fundingAfter,
+      rebuyContributionByPlayer: rebuyByPlayer,
+      label: "next-hand funding",
+    });
+    errors.push(...fundingGrowth.errors);
+
+    if (bourreMintSum > 0.001) {
+      errors.push(
+        `bourré penalty minted ${bourreMintSum} chips without bankroll deduction (only explicit rebuy may mint)`,
+      );
+    }
+
     const payoutDelta = Object.values(result.payoutByPlayer).reduce((s, n) => s + n, 0);
-    if (Math.abs(after - before - payoutDelta) > 0.001) {
+    const settleBankrollDelta =
+      Object.values(result.settledStackByPlayer).reduce((s, n) => s + n, 0) -
+      Object.values(stackBeforeSettlement).reduce((s, n) => s + n, 0);
+    const potBefore =
+      Math.max(0, Number(carryInBeforeSettlement) || 0) +
+      Object.values(postedAntesBeforeSettlement).reduce((s, n) => s + Math.max(0, Number(n) || 0), 0);
+    const potAfter = Math.max(0, Number(result.carryoverPot) || 0);
+    const potDelta = potAfter - potBefore;
+    if (Math.abs(settleBankrollDelta + potDelta) > 0.001) {
+      errors.push("settlement must be zero-sum (bankroll + pot unchanged)");
+    }
+    if (Math.abs(settleBankrollDelta - payoutDelta) > 0.001 && potBefore > 0) {
       errors.push("settlement payout does not reconcile with stack deltas");
     }
   }
 
+  if (expectedChipTotal != null && stackBeforeSettlement) {
+    const endTotal = tableChipTotal({
+      bankrolls: result.nextStartStackByPlayer,
+      carryOverPot: result.carryoverPot,
+      postedAntes: Object.fromEntries(
+        participantIds.map((pid) => [pid, result.fundingContributionByPlayer[pid] ?? 0]),
+      ),
+    });
+    const startTotal = tableChipTotal({
+      bankrolls: stackBeforeSettlement,
+      carryOverPot: carryInBeforeSettlement,
+      postedAntes: postedAntesBeforeSettlement,
+    });
+    const allowedEnd = expectedChipTotal + rebuySum;
+    if (Math.abs(endTotal - allowedEnd) > 0.001 && Math.abs(endTotal - startTotal - rebuySum) > 0.001) {
+      errors.push(
+        `session chip total ${endTotal} !== start ${startTotal} + rebuy ${rebuySum}`,
+      );
+    }
+  }
+
   void anteAmount;
-  void expectedChipTotal;
 
   return { ok: errors.length === 0, errors };
 }

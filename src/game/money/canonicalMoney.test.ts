@@ -21,6 +21,8 @@ import {
   settleCompletedHand,
   startNextHandFunding,
   validateMoneyInvariants,
+  validateChipGrowthInvariant,
+  tableChipTotal,
 } from "./index";
 
 const BUY_IN = 100;
@@ -435,5 +437,73 @@ describe("canonical money engine — integration", () => {
       bankrolls: rebuy.newBankrolls,
     });
     assert.equal(after - before, BUY_IN);
+  });
+
+  it("14. chip total only grows via rebuy — settlement and funding are zero-sum", () => {
+    const participants = ids(2);
+    const postedAntes = { p0: ANTE, p1: ANTE };
+    const stackBefore = { p0: 80, p1: 80 };
+
+    const flow = runCanonicalMoneyFlow({
+      mode: "win",
+      winners: ["p0"],
+      participants,
+      tricksByPlayer: { p0: 5, p1: 0 },
+      scoreById: Object.fromEntries(
+        participants.map((pid) => [pid, { bankroll: 80, net: -20 }]),
+      ),
+      sessionStake: ANTE,
+      postedAntes,
+      buyInFallback: BUY_IN,
+    });
+
+    const beforeSettle = tableChipTotal({
+      bankrolls: stackBefore,
+      carryOverPot: 0,
+      postedAntes,
+    });
+    const afterSettle = tableChipTotal({
+      bankrolls: flow.settledStackByPlayer,
+      carryOverPot: flow.carryoverPot,
+      postedAntes: {},
+    });
+    assert.equal(
+      validateChipGrowthInvariant({ before: beforeSettle, after: afterSettle, label: "settlement" }).ok,
+      true,
+    );
+
+    const afterFunding = tableChipTotal({
+      bankrolls: flow.nextStartStackByPlayer,
+      carryOverPot: flow.nextPot,
+      postedAntes: {},
+    });
+    assert.equal(
+      validateChipGrowthInvariant({
+        before: afterSettle,
+        after: afterFunding,
+        label: "funding",
+      }).ok,
+      true,
+    );
+    assert.equal(afterFunding, beforeSettle);
+
+    const inv = validateMoneyInvariants({
+      result: flow,
+      participantIds: participants,
+      anteAmount: ANTE,
+      stackBeforeSettlement: stackBefore,
+      postedAntesBeforeSettlement: postedAntes,
+    });
+    assert.equal(inv.ok, true, inv.errors.join("; "));
+
+    const rebuyBefore = ledgerChipTotal(emptyLedgerState(BUY_IN));
+    const rebuy = processRebuy({
+      actionId: "rebuy:growth-test",
+      playerId: "bot",
+      buyInAmount: BUY_IN,
+      ledger: { ...emptyLedgerState(BUY_IN), bankrolls: { bot: 0 }, nets: { bot: -BUY_IN } },
+    });
+    assert.equal(rebuy.invariants.ok, true, rebuy.invariants.errors.join("; "));
+    assert.equal(ledgerChipTotal({ ...emptyLedgerState(BUY_IN), bankrolls: rebuy.newBankrolls }) - rebuyBefore, BUY_IN);
   });
 });
