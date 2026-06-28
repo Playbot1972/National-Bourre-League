@@ -277,6 +277,60 @@ describe("bankroll solvency", () => {
     assert.equal(canEnrollWithBankroll(1), true);
   });
 
+  it("winner bankroll increases correctly with posted antes (2×$100, $20 ante)", () => {
+    const buyIn = 100;
+    const ante = 20;
+    const participants = ["p1", "p2"];
+    const scoreById = {
+      p1: { bankroll: buyIn, net: 0 },
+      p2: { bankroll: buyIn, net: 0 },
+    };
+    const collected = collectHandAntes({
+      participants,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: () => ante,
+    });
+    assert.equal(collected.bankrolls.p1, 80);
+    assert.equal(collected.bankrolls.p2, 80);
+    const postedAntes = collected.postedAntes;
+    const nominal = settleHandDeltas({
+      mode: "win",
+      winners: ["p1"],
+      participants,
+      tricksByPlayer: { p1: 3, p2: 2 },
+      anteAmount: ante,
+      limEnabled: false,
+      carryIn: 0,
+      antePot: ante * 2,
+      stakeForPlayer: () => 0,
+    });
+    const solvent = applySolventSettlement({
+      mode: "win",
+      winners: ["p1"],
+      participants,
+      nominalDeltas: nominal.deltas,
+      scoreById: Object.fromEntries(
+        participants.map((pid) => [pid, { ...scoreById[pid], bankroll: collected.bankrolls[pid] }]),
+      ),
+      carryOverPot: nominal.carryOverPot,
+      buyInFallback: buyIn,
+      stakeForPlayer: () => 0,
+    });
+    assert.equal(solvent.bankrolls.p1, 120);
+    assert.equal(solvent.bankrolls.p2, 80);
+    const chipTotal = sessionChipTotal(
+      Object.fromEntries(
+        participants.map((pid) => [
+          pid,
+          { ...scoreById[pid], bankroll: solvent.bankrolls[pid] },
+        ]),
+      ),
+      { carryOverPot: solvent.carryOverPot, postedAntes: {}, buyInFallback: buyIn },
+    );
+    assert.equal(chipTotal, 200);
+  });
+
   it("scoreBankroll recovers from stale create-time buy-in when net moved", () => {
     const buyIn = 20;
     assert.equal(scoreBankroll({ bankroll: 20, net: 5 }, buyIn), 25);

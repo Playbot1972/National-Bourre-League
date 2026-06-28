@@ -46,6 +46,7 @@ export function TableSessionView({
   leaderLabel,
   showCoWinSettlement,
   splitPotEnabled = false,
+  rebuyEnabled = false,
   splitSharePerWinner = 0,
   enrollmentActive = false,
   currentUserId,
@@ -279,6 +280,17 @@ export function TableSessionView({
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
   const selfPlayer = players.find((p) => p.isSelf);
+  const lockedInLiveHand =
+    currentUserId != null &&
+    session.participantIds.includes(currentUserId) &&
+    (session.phase === "draw" || session.phase === "play");
+  const showRebuyOffer =
+    rebuyEnabled &&
+    !session.isFinal &&
+    !lockedInLiveHand &&
+    !showCoWinSettlement &&
+    selfPlayer?.isOut === true &&
+    Boolean(actions.onRebuy);
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
@@ -646,6 +658,19 @@ export function TableSessionView({
 
       <footer className="btable-session__foot muted small">
         <FeedbackSettings compact />
+        {showRebuyOffer && (
+          <div className="btable-session__rebuy-offer">
+            <p className="btable-session__rebuy-copy">You&apos;re out — rebuy to join the next hand.</p>
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              data-testid="rebuy-button"
+              onClick={() => void actions.onRebuy?.()}
+            >
+              Rebuy
+            </button>
+          </div>
+        )}
         {mySessionNet != null ? (
           <>Your session profit/loss {formatNet(mySessionNet)}</>
         ) : (

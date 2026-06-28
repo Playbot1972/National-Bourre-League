@@ -254,6 +254,10 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
   const isSelf = sc.playerId === myUid;
   const rating = ratingsByPlayerId[sc.playerId];
   const apeScoreVal = rating?.apeScore;
+  const lockedInLiveHand =
+    handParticipantIds.includes(sc.playerId) &&
+    (currentHand?.phase === "draw" || currentHand?.phase === "play");
+  const bankroll = scoreBankroll(sc, sessionBuyIn);
   const playerFlags = {
     playerId: sc.playerId,
     displayName: sc.displayName,
@@ -268,8 +272,8 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
         }
       : {}),
     ...(isSelf ? { net: sc.net ?? 0 } : {}),
-    bankroll: scoreBankroll(sc, sessionBuyIn),
-    isOut: sc.out === true || scoreBankroll(sc, sessionBuyIn) <= 0,
+    bankroll,
+    isOut: lockedInLiveHand ? false : sc.out === true || bankroll <= 0,
     ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
     inHand:
       handParticipantIds.includes(sc.playerId) || enrolledDuringSignup.includes(sc.playerId),

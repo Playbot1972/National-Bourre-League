@@ -159,6 +159,7 @@ export interface TableSessionActions {
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
   onSettleCarryover?: () => void | Promise<void>;
+  onRebuy?: () => void | Promise<void>;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onFoldDraw?: () => void | Promise<void>;
@@ -182,6 +183,8 @@ export interface TableSessionViewProps {
   showCoWinSettlement: boolean;
   /** When true, co-win uses compact split-pot vote instead of carryover-only. */
   splitPotEnabled?: boolean;
+  /** When true, broke players may rebuy between hands. */
+  rebuyEnabled?: boolean;
   splitSharePerWinner?: number;
   voteStatus: string;
   enrollmentActive?: boolean;

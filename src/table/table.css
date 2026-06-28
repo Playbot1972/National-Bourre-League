@@ -2385,6 +2385,20 @@
   font-size: 11px;
 }
 
+.btable-session__rebuy-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.btable-session__rebuy-copy {
+  margin: 0;
+  font-size: 13px;
+}
+
 .btable-session__foot {
   text-align: center;
 }

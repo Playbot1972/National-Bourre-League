@@ -41,6 +41,7 @@ describe("isLocalActionRequiredNow", () => {
           phase: "draw",
           turnPlayerId: "me",
           drawCompletedIds: [],
+          participantIds: ["me", "p2"],
         },
         suppressTurn: false,
         handComplete: false,
@@ -59,6 +60,7 @@ describe("isLocalActionRequiredNow", () => {
           phase: "draw",
           turnPlayerId: "me",
           drawCompletedIds: [],
+          participantIds: ["me", "p2"],
         },
         suppressTurn: false,
         handComplete: false,
@@ -91,7 +93,7 @@ describe("isLocalActionRequiredNow", () => {
         currentUserId: "me",
         enrollmentActive: false,
         selfPlayer: self,
-        session: { phase: "play", turnPlayerId: "me" },
+        session: { phase: "play", turnPlayerId: "me", participantIds: ["me", "p2"] },
         suppressTurn: false,
         handComplete: false,
       }),
@@ -99,17 +101,35 @@ describe("isLocalActionRequiredNow", () => {
     );
   });
 
-  it("ignores broke/out local players", () => {
+  it("ignores broke/out local players between hands", () => {
     assert.equal(
       isLocalActionRequiredNow({
         currentUserId: "me",
         enrollmentActive: true,
         selfPlayer: { ...self, isOut: true, canToggleInHand: true },
-        session: { phase: null },
+        session: { phase: null, participantIds: [] },
         suppressTurn: false,
         handComplete: false,
       }),
       false,
+    );
+  });
+
+  it("still requires action when marked out but locked in live hand", () => {
+    assert.equal(
+      isLocalActionRequiredNow({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: { ...self, isOut: true },
+        session: {
+          phase: "play",
+          turnPlayerId: "me",
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      true,
     );
   });
 });

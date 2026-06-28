@@ -6,6 +6,7 @@ import {
   sessionHandDealStarted,
   handPhaseStarted,
   isClearedPreDealHand,
+  isPlayerLockedInLiveHand,
 } from "./liveHand";
 
 describe("live enrollment hand view", () => {
@@ -235,5 +236,42 @@ describe("live enrollment hand view", () => {
     };
     assert.equal(sessionHandDealStarted(session), true);
     assert.equal(handPhaseStarted(getSessionCurrentHand(session)), true);
+  });
+});
+
+describe("isPlayerLockedInLiveHand", () => {
+  it("locks enrolled players during draw and play only", () => {
+    assert.equal(
+      isPlayerLockedInLiveHand({
+        phase: "draw",
+        participantIds: ["p1", "p2"],
+        playerId: "p1",
+      }),
+      true,
+    );
+    assert.equal(
+      isPlayerLockedInLiveHand({
+        phase: "play",
+        participantIds: ["p1", "p2"],
+        playerId: "p2",
+      }),
+      true,
+    );
+    assert.equal(
+      isPlayerLockedInLiveHand({
+        phase: "reveal",
+        participantIds: ["p1", "p2"],
+        playerId: "p1",
+      }),
+      false,
+    );
+    assert.equal(
+      isPlayerLockedInLiveHand({
+        phase: "play",
+        participantIds: ["p1", "p2"],
+        playerId: "p3",
+      }),
+      false,
+    );
   });
 });

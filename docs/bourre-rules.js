@@ -566,17 +566,6 @@ export function applySolventSettlement({
     }
   }
 
-  for (const pid of participants) {
-    const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
-    if (stake <= 0) continue;
-    if ((nominalDeltas[pid] ?? 0) < 0) continue;
-    const br = bankrolls[pid] ?? scoreBankroll(scoreById[pid], buyInFallback);
-    const result = applyBankrollDelta(br, -stake);
-    appliedDeltas[pid] = (appliedDeltas[pid] ?? 0) + result.appliedDelta;
-    bankrolls[pid] = result.newBankroll;
-    if (result.busted) bustedIds.push(pid);
-  }
-
   let shortfall = 0;
   for (const pid of participants) {
     shortfall += settlementShortfall(nominalDeltas[pid] ?? 0, appliedDeltas[pid] ?? 0);
@@ -598,7 +587,7 @@ export function applySolventSettlement({
         : totalPool > 0
           ? totalPool
           : 0;
-    const br = scoreBankroll(scoreById[winner], buyInFallback);
+    const br = bankrolls[winner] ?? scoreBankroll(scoreById[winner], buyInFallback);
     bankrolls[winner] = br + winDelta;
     appliedDeltas[winner] = (appliedDeltas[winner] ?? 0) + winDelta;
   } else if (mode === "split" && winners.length >= 2) {
@@ -608,7 +597,7 @@ export function applySolventSettlement({
         : winners.reduce((sum, wid) => sum + Math.max(0, nominalDeltas[wid] ?? 0), 0);
     const share = poolWin / winners.length;
     for (const winner of winners) {
-      const br = scoreBankroll(scoreById[winner], buyInFallback);
+      const br = bankrolls[winner] ?? scoreBankroll(scoreById[winner], buyInFallback);
       const already = appliedDeltas[winner] ?? 0;
       bankrolls[winner] = br + share;
       appliedDeltas[winner] = already + share;
