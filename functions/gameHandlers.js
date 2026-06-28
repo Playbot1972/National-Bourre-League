@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
 import {
   MONEY_EVENTS_COLLECTION,
   moneyEventsFromFirestoreDocs,
@@ -139,7 +139,7 @@ function assertRecordHandChipConservation({
     afterScores[pid] = {
       ...afterScores[pid],
       bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
-      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+      net: deriveScoreNet(solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn), buyIn),
     };
   }
   const afterTotal = sessionChipTotal(afterScores, {
@@ -1943,9 +1943,10 @@ export async function handleRecordHand(
     const tricksWon =
       (current.tricksWon || 0) +
       (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
+    const bankroll = solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn);
     const patch = {
-      net: (current.net || 0) + deltas[pid],
-      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
+      net: deriveScoreNet(bankroll, buyIn),
+      bankroll,
       updatedAt: FieldValue.serverTimestamp(),
     };
     if ((solvent.bankrolls[pid] ?? 0) <= 0) {

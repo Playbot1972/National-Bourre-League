@@ -13,6 +13,7 @@ import {
   collectNextHandAntes,
   handAnteContribution,
   mergeNextDealFundingIntoScoreById,
+  deriveScoreNet,
   scoreBankroll,
   settleHandDeltas,
 } from "./core";
@@ -95,10 +96,12 @@ export function recordHandSettlement(
 
   const bankrolled: ScoreById = { ...scoreById };
   for (const pid of participants) {
+    const bankroll =
+      solvent.bankrolls[pid] ?? scoreBankroll(bankrolled[pid], buyInFallback);
     bankrolled[pid] = {
       ...bankrolled[pid],
-      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(bankrolled[pid], buyInFallback),
-      net: (bankrolled[pid]?.net || 0) + (solvent.appliedDeltas[pid] ?? 0),
+      bankroll,
+      net: deriveScoreNet(bankroll, buyInFallback),
     };
   }
 

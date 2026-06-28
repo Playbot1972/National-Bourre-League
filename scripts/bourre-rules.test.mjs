@@ -331,12 +331,13 @@ describe("bankroll solvency", () => {
     assert.equal(chipTotal, 200);
   });
 
-  it("scoreBankroll recovers from stale create-time buy-in when net moved", () => {
-    const buyIn = 20;
-    assert.equal(scoreBankroll({ bankroll: 20, net: 5 }, buyIn), 25);
-    assert.equal(scoreBankroll({ bankroll: 20, net: -8 }, buyIn), 12);
-    assert.equal(scoreBankroll({ bankroll: 25, net: 5 }, buyIn), 25);
+  it("scoreBankroll uses stored bankroll when present (v1 authoritative stack)", () => {
+    const buyIn = 100;
+    assert.equal(scoreBankroll({ bankroll: 100, net: 40 }, buyIn), 100);
+    assert.equal(scoreBankroll({ bankroll: 120, net: 40 }, buyIn), 120);
     assert.equal(scoreBankroll({ bankroll: 0, net: -20 }, buyIn), 0);
+    assert.equal(scoreBankroll({ net: 5 }, 20), 25);
+    assert.equal(scoreBankroll({ net: -8 }, 20), 12);
   });
 
   it("handAnteContribution charges bourré replacement without normal ante", () => {

@@ -22,6 +22,9 @@ import {
   isMoneyEngineV1,
   MONEY_ENGINE_VERSION,
   ledgerFromScoreById,
+  scoreBankroll,
+  ledgerChipTotal,
+  replayEvents,
 } from "./index";
 
 const buyIn = 100;
@@ -381,6 +384,94 @@ describe("money engine — event sourcing", () => {
     assert.equal(isMoneyEngineV1({ moneyEngineVersion: MONEY_ENGINE_VERSION }), true);
     assert.equal(isMoneyEngineV1({}), false);
     assert.equal(isMoneyEngineV1(null), false);
+  });
+});
+
+describe("money engine — 2-player simple hand (no bourré)", () => {
+  const two = ["human", "bot"];
+
+  it("hand 1 win then hand 2 ante: 100/60 pot 40 — not 140/60/40", () => {
+    const buyInEvents = processBuyIn({
+      actionId: "buyin",
+      playerIds: two,
+      buyInAmount: buyIn,
+    });
+    let events = [...buyInEvents.newEvents];
+    let scoreById = Object.fromEntries(two.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+
+    const ante1 = processAnte({
+      actionId: "ante:1",
+      handId: "1",
+      carryOverPot: 0,
+      participantIds: two,
+      scoreById,
+      sessionStake: ante,
+      buyInFallback: buyIn,
+      existingEvents: events,
+    });
+    events.push(...ante1.newEvents);
+    const bankrolled1 = Object.fromEntries(
+      two.map((pid) => [
+        pid,
+        { ...scoreById[pid], bankroll: ante1.newBankrolls[pid] },
+      ]),
+    );
+
+    const settle1 = processHandSettlement({
+      actionId: "settle:1",
+      handId: "1",
+      mode: "win",
+      winners: ["human"],
+      participants: two,
+      tricksByPlayer: { human: 4, bot: 1 },
+      scoreById: bankrolled1,
+      sessionStake: ante,
+      carryIn: 0,
+      postedAntes: ante1.postedAntes,
+      buyInFallback: buyIn,
+      existingEvents: events,
+    });
+    events.push(...settle1.newEvents);
+
+    assert.equal(settle1.newBankrolls.human, 120);
+    assert.equal(settle1.newBankrolls.bot, 80);
+    assert.equal(settle1.carryOverPot, 0);
+    assert.equal(scoreBankroll(settle1.settlement.scoreById.human, buyIn), 120);
+    assert.equal(settle1.settlement.scoreById.human.net, 20);
+
+    const ante2 = processAnte({
+      actionId: "ante:2",
+      handId: "2",
+      carryOverPot: settle1.carryOverPot,
+      participantIds: two,
+      scoreById: settle1.settlement.scoreById,
+      sessionStake: ante,
+      buyInFallback: buyIn,
+      nextDealFunding: settle1.settlement.nextDealFunding,
+      existingEvents: events,
+    });
+    events.push(...ante2.newEvents);
+
+    const init = {
+      version: MONEY_ENGINE_VERSION,
+      buyInFallback: buyIn,
+      bankrolls: {},
+      nets: {},
+      carryOverPot: 0,
+      postedAntes: {},
+      scoreFlags: {},
+      sequence: 0,
+    };
+    const replayed = replayEvents(events, init);
+    const pot =
+      replayed.carryOverPot +
+      Object.values(replayed.postedAntes).reduce((s, n) => s + n, 0);
+
+    assert.equal(replayed.bankrolls.human, 100);
+    assert.equal(replayed.bankrolls.bot, 60);
+    assert.equal(pot, 40);
+    assert.equal(scoreBankroll({ bankroll: 100, net: 20 }, buyIn), 100);
+    assert.equal(ledgerChipTotal(replayed), 200);
   });
 });
 

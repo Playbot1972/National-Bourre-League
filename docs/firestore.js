@@ -98,6 +98,7 @@ import {
   eligibleIdsForAnteCollection,
   splitPotVoteAllowed,
   recordHandSettlement,
+  deriveScoreNet,
 } from "./bourre-rules.js";
 import {
   MONEY_ENGINE_VERSION,
@@ -1663,7 +1664,7 @@ function buildPagatHandStartPatch(
       handEnrollment: deleteField(),
       [LIVE_ENROLLMENT_FIELD]: deleteField(),
       currentHand: emptyPreDealHand(),
-      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds, buyIn),
     };
   }
 
@@ -1688,7 +1689,7 @@ function buildPagatHandStartPatch(
     },
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     sortedPlayerIds,
-    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds, buyIn),
   };
 }
 
@@ -1710,12 +1711,13 @@ function buildDealCompletionPatch(
   );
 }
 
-function buildScorePatchesFromAnteCollection(collected, dealIds) {
+function buildScorePatchesFromAnteCollection(collected, dealIds, buyIn = 100) {
   const patches = {};
   const touched = new Set([...collected.outIds, ...dealIds]);
   for (const pid of touched) {
     if (collected.bankrolls[pid] == null) continue;
-    const patch = { bankroll: collected.bankrolls[pid] };
+    const bankroll = collected.bankrolls[pid];
+    const patch = { bankroll, net: deriveScoreNet(bankroll, buyIn) };
     if (collected.outIds.includes(pid)) {
       patch.out = true;
     } else if (dealIds.includes(pid)) {
@@ -1858,7 +1860,7 @@ function assertRecordHandChipConservation({
     afterScores[pid] = {
       ...afterScores[pid],
       bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
-      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+      net: deriveScoreNet(solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn), buyIn),
     };
   }
   const afterTotal = sessionChipTotal(afterScores, {
@@ -2809,6 +2811,7 @@ async function recordHandClient(
       bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
       updatedAt: serverTimestamp(),
     };
+    patch.net = deriveScoreNet(patch.bankroll, buyIn);
     if ((solvent.bankrolls[pid] ?? 0) <= 0) {
       patch.out = true;
     } else {
