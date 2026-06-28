@@ -207,19 +207,25 @@ export function settleHandDeltas({
   };
 }
 
-/** Live stack for a score row — bankroll field when current; else buy-in + session net. */
+/** Session net relative to table buy-in for a live stack. */
+export function deriveScoreNet(bankroll, buyInFallback = 0) {
+  const buyIn = Math.max(0, Number(buyInFallback) || 0);
+  const br = Math.max(0, Number(bankroll) || 0);
+  return br - buyIn;
+}
+
+/**
+ * Live stack for a score row.
+ * When `bankroll` is stored it is authoritative (v1 replay + modern settlement).
+ * Fall back to buy-in + net only for legacy rows without a bankroll field.
+ */
 export function scoreBankroll(score, buyInFallback = 0) {
+  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
+    return Math.max(0, Number(score.bankroll));
+  }
   const buyIn = Math.max(0, Number(buyInFallback) || 0);
   const net = Number(score?.net) || 0;
-  const fromLedger = buyIn > 0 ? Math.max(0, buyIn + net) : Math.max(0, net);
-
-  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
-    const stored = Math.max(0, Number(score.bankroll));
-    // Recover when settlement updated net but bankroll stayed at create-time buy-in.
-    if (net !== 0 && buyIn > 0 && stored === buyIn) return fromLedger;
-    return stored;
-  }
-  return fromLedger;
+  return buyIn > 0 ? Math.max(0, buyIn + net) : Math.max(0, net);
 }
 
 /**
