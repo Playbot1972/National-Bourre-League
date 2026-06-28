@@ -8,7 +8,11 @@ import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
-import { isLegalPlayIndex } from "./heroHandPlayPreselect";
+import {
+  effectiveDrawDiscardIndices,
+  isDrawRecommendationIndex,
+  isLegalPlayIndex,
+} from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
@@ -126,7 +130,7 @@ export function HeroHand({
   const playLockRef = useRef(false);
   const preselectTimerRef = useRef<number | null>(null);
   const pendingPlayIndexRef = useRef<number | null>(null);
-  const drawSelectionTouchedRef = useRef(false);
+  const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
   const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
@@ -203,7 +207,7 @@ export function HeroHand({
     clearPreselectTimer();
     setSelectedPlay(null);
     setSelectedDraw(new Set());
-    drawSelectionTouchedRef.current = false;
+    setDrawSelectionTouched(false);
     setPeekIndex(null);
     setIllegalShakeIndex(null);
     setIllegalFlashIndex(null);
@@ -221,24 +225,6 @@ export function HeroHand({
 
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
-
-  useEffect(() => {
-    if (
-      !bestPlayEnabled ||
-      !inDrawPhase ||
-      drawCompleted ||
-      drawSelectionTouchedRef.current
-    ) {
-      return;
-    }
-    setSelectedDraw(new Set(recommendedDiscardIndices));
-  }, [
-    bestPlayEnabled,
-    inDrawPhase,
-    drawCompleted,
-    recommendedDiscardKey,
-    recommendedDiscardIndices,
-  ]);
 
   useEffect(() => {
     if (!inPlayPhase || !isMyTurn || selectedPlay === null || playLockRef.current || busy) {
@@ -297,7 +283,7 @@ export function HeroHand({
   const toggleDrawIndex = useCallback(
     (index: number) => {
       if (busy || trumpDisabledIndex === index) return;
-      drawSelectionTouchedRef.current = true;
+      setDrawSelectionTouched(true);
       notifyUserActivity();
       setLocalError(null);
       setSelectedDraw((prev) => {
@@ -469,21 +455,45 @@ export function HeroHand({
       setBestPlayEnabled(enabled);
       saveBestPlayEnabled(enabled);
       if (enabled) {
-        drawSelectionTouchedRef.current = false;
-        if (inDrawPhase && !drawCompleted) {
-          setSelectedDraw(new Set(recommendedDiscardIndices));
-        }
+        setDrawSelectionTouched(false);
         return;
       }
-      if (!drawSelectionTouchedRef.current) {
+      if (!drawSelectionTouched) {
         setSelectedDraw(new Set());
       }
     },
-    [inDrawPhase, drawCompleted, recommendedDiscardIndices],
+    [drawSelectionTouched],
   );
 
   const showBestPlayControl =
     signedIn && isInHand && (inDrawPhase || inPlayPhase);
+
+  const drawRecommendationInput = {
+    showBestPlayControl,
+    inDrawPhase,
+    drawCompleted,
+    bestPlayEnabled,
+    drawSelectionTouched,
+    recommendedDiscardIndices,
+    selectedDraw,
+  };
+
+  const drawSubmitIndices = useMemo(
+    () =>
+      effectiveDrawDiscardIndices({
+        selectedDraw,
+        drawSelectionTouched,
+        bestPlayEnabled,
+        recommendedDiscardIndices,
+      }),
+    [
+      selectedDraw,
+      drawSelectionTouched,
+      bestPlayEnabled,
+      recommendedDiscardKey,
+      recommendedDiscardIndices,
+    ],
+  );
 
   const renderBestPlayCheckbox = () =>
     showBestPlayControl ? (
@@ -568,10 +578,10 @@ export function HeroHand({
     if (playingIndex === i) return "default";
     if (illegalFlashIndex === i || illegalShakeIndex === i) return "default";
     if (inDrawPhase && selectedDraw.has(i)) {
-      if (bestPlayEnabled && !drawSelectionTouchedRef.current) {
-        return "draw-recommended";
-      }
       return "draw-selected";
+    }
+    if (isDrawRecommendationIndex(i, drawRecommendationInput)) {
+      return "draw-recommended";
     }
     if (inPlayPhase && selectedPlay === i) return "play-preselected";
     if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
@@ -585,7 +595,7 @@ export function HeroHand({
   else if (inDrawPhase && isInHand && !drawCompleted) gestureMode = "draw-select";
   else if (enablePeek) gestureMode = "peek";
 
-  const selectedCount = selectedDraw.size;
+  const selectedCount = drawSubmitIndices.length;
   const showDrawActions = inDrawPhase && !drawCompleted && isMyTurn;
 
   return (
@@ -614,8 +624,12 @@ export function HeroHand({
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard; red border marks your selection"}
         {inPlayPhase && isMyTurn && " — tap a legal card to play"}
         {bestPlayEnabled &&
-          (inDrawPhase || inPlayPhase) &&
-          " — green outline marks suggested cards"}
+          inDrawPhase &&
+          !drawCompleted &&
+          " — green outline marks Best Play suggestions"}
+        {bestPlayEnabled &&
+          inPlayPhase &&
+          " — green outline marks Best Play suggestions"}
       </p>
       <div
         ref={handRootRef}
@@ -680,7 +694,7 @@ export function HeroHand({
               data-testid="draw-button"
               disabled={busy}
               aria-busy={busy}
-              onClick={() => runDrawAction([...selectedDraw].sort((a, b) => a - b))}
+              onClick={() => runDrawAction(drawSubmitIndices)}
             >
               {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
             </button>

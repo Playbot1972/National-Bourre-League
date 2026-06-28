@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   computeRecommendedDiscardIndices,
   computeRecommendedPlayIndex,
+  effectiveDrawDiscardIndices,
+  isDrawRecommendationIndex,
   isLegalPlayIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
@@ -71,4 +73,56 @@ test("computeRecommendedDiscardIndices respects deck remainder and exclusions", 
   assert.deepEqual(computeRecommendedDiscardIndices(hand, "hearts", 2, 0), []);
   assert.deepEqual(computeRecommendedDiscardIndices(hand, "hearts", 2, 1), [0]);
   assert.deepEqual(computeRecommendedDiscardIndices(hand, "hearts", 2, 1, [0]), [1]);
+});
+
+test("effectiveDrawDiscardIndices prefers manual picks over Best Play hints", () => {
+  assert.deepEqual(
+    effectiveDrawDiscardIndices({
+      selectedDraw: new Set([1]),
+      drawSelectionTouched: true,
+      bestPlayEnabled: true,
+      recommendedDiscardIndices: [2, 3],
+    }),
+    [1],
+  );
+  assert.deepEqual(
+    effectiveDrawDiscardIndices({
+      selectedDraw: new Set(),
+      drawSelectionTouched: false,
+      bestPlayEnabled: true,
+      recommendedDiscardIndices: [2, 3],
+    }),
+    [2, 3],
+  );
+  assert.deepEqual(
+    effectiveDrawDiscardIndices({
+      selectedDraw: new Set(),
+      drawSelectionTouched: false,
+      bestPlayEnabled: false,
+      recommendedDiscardIndices: [2, 3],
+    }),
+    [],
+  );
+});
+
+test("isDrawRecommendationIndex shows Best Play hints without user selection styling", () => {
+  const base = {
+    showBestPlayControl: true,
+    inDrawPhase: true,
+    drawCompleted: false,
+    bestPlayEnabled: true,
+    drawSelectionTouched: false,
+    recommendedDiscardIndices: [1, 2],
+    selectedDraw: new Set<number>(),
+  };
+  assert.equal(isDrawRecommendationIndex(1, base), true);
+  assert.equal(isDrawRecommendationIndex(0, base), false);
+  assert.equal(
+    isDrawRecommendationIndex(1, { ...base, selectedDraw: new Set([1]) }),
+    false,
+  );
+  assert.equal(
+    isDrawRecommendationIndex(1, { ...base, drawSelectionTouched: true }),
+    false,
+  );
 });
