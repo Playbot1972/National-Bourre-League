@@ -47,6 +47,11 @@ import {
   checkInvariant,
 } from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
+import {
+  planBotAutoRebuys,
+  patchSessionPlayersWithRebuyNames,
+  sessionHasRobotScores,
+} from "./vendor/bot-rebuy.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
@@ -1972,8 +1977,56 @@ export async function handleRecordHand(
   });
 
   await batch.commit();
+  try {
+    await applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn });
+  } catch (err) {
+    console.warn("handleRecordHand: bot auto-rebuy deferred", err);
+  }
   await recomputeSessionTotals(db, roomId, sessionId);
   return { status: "settled", settlement: mode, handNumber };
+}
+
+async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn }) {
+  const sessionRefDoc = sessionRef(db, roomId, sessionId);
+  const [sessionSnap, scoreSnap] = await Promise.all([
+    sessionRefDoc.get(),
+    scoresCol(db, roomId, sessionId).get(),
+  ]);
+  if (!sessionSnap.exists) return { applied: [] };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { applied: [] };
+
+  const scoreRows = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  if (!sessionHasRobotScores(scoreRows)) return { applied: [] };
+
+  const plan = planBotAutoRebuys({ scoreRows, buyIn });
+  if (plan.length === 0) return { applied: [] };
+
+  const optInIds = new Set(sessionData.tableOptInIds || []);
+  const batch = db.batch();
+  for (const item of plan) {
+    optInIds.add(item.playerId);
+    batch.update(scoresCol(db, roomId, sessionId).doc(item.playerId), {
+      bankroll: buyIn,
+      out: FieldValue.delete(),
+      displayName: item.displayName,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  batch.update(sessionRefDoc, {
+    players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+    tableOptInIds: [...optInIds],
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  logBourreAccounting("bot-auto-rebuy", {
+    roomId,
+    sessionId,
+    playerIds: plan.map((p) => p.playerId),
+    names: plan.map((p) => p.displayName),
+    buyIn,
+  });
+  return { applied: plan.map((p) => p.playerId) };
 }
 
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {

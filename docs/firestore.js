@@ -103,6 +103,11 @@ import {
   eligibleIdsForAnteCollection,
   splitPotVoteAllowed,
 } from "./bourre-rules.js";
+import {
+  planBotAutoRebuys,
+  patchSessionPlayersWithRebuyNames,
+  sessionHasRobotScores,
+} from "./bot-rebuy.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -841,6 +846,52 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
     out: deleteField(),
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * After full hand settlement, auto-rebuy busted bots (not humans).
+ * Assigns a fresh random display name; keeps the same bot_* player id.
+ */
+async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn }) {
+  const [sessionSnap, scoreSnap] = await Promise.all([
+    getDoc(sessionDoc(roomId, sessionId)),
+    getDocs(scoresCol(roomId, sessionId)),
+  ]);
+  if (!sessionSnap.exists()) return { applied: [] };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { applied: [] };
+
+  const scoreRows = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  if (!sessionHasRobotScores(scoreRows)) return { applied: [] };
+
+  const plan = planBotAutoRebuys({ scoreRows, buyIn });
+  if (plan.length === 0) return { applied: [] };
+
+  const optInIds = new Set(sessionData.tableOptInIds || []);
+  const batch = writeBatch(db);
+  for (const item of plan) {
+    optInIds.add(item.playerId);
+    batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+      bankroll: buyIn,
+      out: deleteField(),
+      displayName: item.displayName,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  batch.update(sessionDoc(roomId, sessionId), {
+    players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+    tableOptInIds: [...optInIds],
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+  logBourreAccounting("bot-auto-rebuy", {
+    roomId,
+    sessionId,
+    playerIds: plan.map((p) => p.playerId),
+    names: plan.map((p) => p.displayName),
+    buyIn,
+  });
+  return { applied: plan.map((p) => p.playerId) };
 }
 
 /**
@@ -2718,6 +2769,12 @@ async function recordHandClient(
     await batch.commit();
   } catch (err) {
     throw settlementError(err, "client-batch");
+  }
+
+  try {
+    await applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn });
+  } catch (err) {
+    console.warn("recordHand: bot auto-rebuy deferred", err);
   }
 
   try {
