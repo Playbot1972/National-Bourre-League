@@ -27,7 +27,7 @@ function logIntegrationCase(label, result) {
 }
 
 describe("production settlement → deal funding integration", () => {
-  it("single bourré player pays full prior pot at settlement and skips next ante", () => {
+  it("single bourré player pays full prior pot at next deal and skips next ante", () => {
     const scoreById = freshScores(four);
     const postedAntes = { p1: 1, p2: 1, p3: 1, p4: 1 };
     const result = runProductionSettlementDealFlow({
@@ -46,15 +46,15 @@ describe("production settlement → deal funding integration", () => {
     const settledPot = 4;
     assert.equal(result.debug.settledHandPot, settledPot);
     assert.deepEqual(result.debug.bourrePlayers, ["p3"]);
-    assert.equal(result.settlement.carryOverPot, settledPot);
+    assert.equal(result.settlement.carryOverPot, 0);
     assert.equal(result.settlement.scoreById.p3.skipNextAnte, true);
     assert.equal(result.debug.bourreReplacementDuePersisted.p3, undefined);
-    assert.equal(result.deal.collected.postedAntes.p3, 0);
+    assert.equal(result.deal.collected.postedAntes.p3, settledPot);
     assert.equal(result.deal.collected.postedAntes.p1, handAnte);
     assert.equal(result.deal.collected.nextHandPot, settledPot + handAnte * 3);
   });
 
-  it("multiple bourré players each pay full prior pot at settlement", () => {
+  it("multiple bourré players each pay full prior pot at next deal", () => {
     const previousPot = 250;
     const carryIn = previousPot - handAnte * four.length;
     const scoreById = freshScores(four);
@@ -74,9 +74,9 @@ describe("production settlement → deal funding integration", () => {
 
     assert.equal(result.debug.settledHandPot, previousPot);
     assert.deepEqual(result.debug.bourrePlayers, ["p3", "p4"]);
-    assert.equal(result.settlement.carryOverPot, previousPot * 2);
-    assert.equal(result.deal.collected.postedAntes.p3, 0);
-    assert.equal(result.deal.collected.postedAntes.p4, 0);
+    assert.equal(result.settlement.carryOverPot, 0);
+    assert.equal(result.deal.collected.postedAntes.p3, previousPot);
+    assert.equal(result.deal.collected.postedAntes.p4, previousPot);
     assert.equal(result.deal.collected.postedAntes.p1, handAnte);
     assert.equal(result.deal.collected.postedAntes.p2, handAnte);
     assert.equal(
@@ -142,9 +142,9 @@ describe("production settlement → deal funding integration", () => {
     );
     logIntegrationCase("stale-read-recovery", stale);
 
-    assert.equal(stale.deal.collected.postedAntes.p3, 0);
-    assert.equal(stale.deal.collected.postedAntes.p4, 0);
-    assert.equal(fresh.deal.collected.postedAntes.p3, 0);
+    assert.equal(stale.deal.collected.postedAntes.p3, 4);
+    assert.equal(stale.deal.collected.postedAntes.p4, 4);
+    assert.equal(fresh.deal.collected.postedAntes.p3, 4);
     assert.equal(stale.debug.staleReadRecovered, true);
   });
 
@@ -167,6 +167,7 @@ describe("production settlement → deal funding integration", () => {
         const row = { ...settlement.scoreById[pid] };
         delete row.skipNextAnte;
         delete row.bourreReplacementDue;
+        delete row.fundingContribution;
         return [pid, row];
       }),
     );
@@ -201,13 +202,13 @@ describe("production settlement → deal funding integration", () => {
     });
 
     assert.equal(withoutSnapshot.collected.postedAntes.p3, handAnte);
-    assert.equal(withSnapshot.collected.postedAntes.p3, 0);
+    assert.equal(withSnapshot.collected.postedAntes.p3, settledPot);
     assert.equal(
       handAnteContribution(staleRows.p3, handAnte),
       handAnte,
       "stale row alone charges base ante",
     );
-    assert.equal(settlement.carryOverPot, settledPot);
+    assert.equal(settlement.carryOverPot, 0);
   });
 
   it("no bourré: normal antes only, no replacement flags", () => {
