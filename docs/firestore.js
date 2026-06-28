@@ -106,6 +106,8 @@ import {
   buildSessionBuyInMoney,
   runV1HandSettlement,
   runV1Rebuy,
+  runV1AnteCollection,
+  appendMoneyEventsToWriter,
   finalizeSessionBankrolls,
   moneyEventsFromFirestoreDocs,
   nextMoneySequence,
@@ -1219,6 +1221,17 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
       });
     }
   }
+  if (patch.moneyEvents?.length) {
+    appendMoneyEventsToWriter(tx, {
+      db,
+      roomId,
+      sessionId,
+      events: patch.moneyEvents,
+      nextSequence: patch.moneyNextSequence,
+      doc,
+      serverTimestamp,
+    });
+  }
   const sessionUpdate = {
     [LIVE_ENROLLMENT_FIELD]: {
       active: false,
@@ -1234,6 +1247,45 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
   };
   sessionUpdate.nextDealFunding = deleteField();
   tx.update(ref, sessionUpdate);
+}
+
+/** Attach v1 ANTE_DEDUCTED events when a deal patch collected antes without money log entries. */
+function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existingEvents, buyIn, sessionStake) {
+  if (!isMoneyEngineV1(sessionData) || patch?.soloWin || !patch?.scorePatches) {
+    return patch;
+  }
+  const handNumber = (sessionData.handCount || 0) + 1;
+  const participantIds = Object.keys(patch.scorePatches);
+  const anteResult = runV1AnteCollection({
+    sessionId,
+    handNumber,
+    carryOverPot: sessionData.carryOverPot || 0,
+    participantIds,
+    scoreById,
+    sessionStake,
+    buyInFallback: buyIn,
+    nextDealFunding: sessionData.nextDealFunding ?? null,
+    existingEvents,
+  });
+  if (!anteResult.newEvents.length) return patch;
+
+  const scorePatches = { ...patch.scorePatches };
+  for (const pid of participantIds) {
+    const bankroll = anteResult.newBankrolls[pid];
+    if (bankroll == null) continue;
+    scorePatches[pid] = {
+      ...scorePatches[pid],
+      bankroll,
+      net: deriveScoreNet(bankroll, buyIn),
+    };
+  }
+
+  return {
+    ...patch,
+    scorePatches,
+    moneyEvents: anteResult.newEvents,
+    moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+  };
 }
 
 /** Firestore transactions require every read before any write on touched docs. */
@@ -1329,6 +1381,7 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
   let dealPrivateHands = null;
   let dealPublicHand = null;
   let applied = false;
+  const existingMoneyEvents = await loadSessionMoneyEvents(roomId, sessionId);
 
   async function attempt(mode) {
     await runTransaction(db, async (tx) => {
@@ -1339,11 +1392,23 @@ async function runEnrollmentStepTransaction(roomId, sessionId, buildPatch, { req
         await readScoreByIdInTransaction(tx, roomId, sessionId),
         sessionData.nextDealFunding,
       );
-      const patch = buildPatch(sessionData, scoreById);
+      const roomSnap = await tx.get(doc(db, "rooms", roomId));
+      const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+      const sessionStake = sessionData.handStake ?? 1;
+      let patch = buildPatch(sessionData, scoreById);
       if (!patch) {
         if (requirePatch) throw new Error("Enrollment step did not apply");
         return;
       }
+      patch = enrichV1DealPatchMoney(
+        patch,
+        sessionData,
+        sessionId,
+        scoreById,
+        existingMoneyEvents,
+        buyIn,
+        sessionStake,
+      );
       applied = true;
       if (patch.privateHandsByPlayer) {
         dealPrivateHands = patch.privateHandsByPlayer;
@@ -1422,10 +1487,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   const br = settled.bankrolls[winnerId];
   scorePatches[winnerId] = {
     bankroll: br,
-    net:
-      (scoreById[winnerId]?.net || 0) +
-      settled.pot -
-      (settled.postedAntes[winnerId] ?? 0),
+    net: deriveScoreNet(br, buyIn),
     handsWon: (scoreById[winnerId]?.handsWon || 0) + 1,
     tricksWon: scoreById[winnerId]?.tricksWon || 0,
     out: br <= 0 ? true : deleteField(),

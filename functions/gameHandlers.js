@@ -41,6 +41,7 @@ import {
   nextMoneySequence,
   runV1HandSettlement,
   runV1Rebuy,
+  runV1AnteCollection,
 } from "./vendor/money-persistence.js";
 import {
   buildHandFlowSnapshot,
@@ -480,12 +481,15 @@ export function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, b
   };
 }
 
-function buildScorePatchesFromAnteCollection(collected, dealIds) {
+function buildScorePatchesFromAnteCollection(collected, dealIds, buyIn = 100) {
   const patches = {};
   const touched = new Set([...collected.outIds, ...dealIds]);
   for (const pid of touched) {
     if (collected.bankrolls[pid] == null) continue;
-    const patch = { bankroll: collected.bankrolls[pid] };
+    const patch = {
+      bankroll: collected.bankrolls[pid],
+      net: deriveScoreNet(collected.bankrolls[pid], buyIn),
+    };
     if (collected.outIds.includes(pid)) {
       patch.out = true;
     } else if (dealIds.includes(pid)) {
@@ -547,7 +551,7 @@ function buildDealCompletionPatch(
       handEnrollment: FieldValue.delete(),
       liveEnrollment: FieldValue.delete(),
       currentHand: emptyPreDealHand(),
-      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+      scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds, buyIn),
     };
   }
 
@@ -571,7 +575,7 @@ function buildDealCompletionPatch(
       postedAntes: collected.postedAntes,
     },
     privateHandsByPlayer: bundle.privateHandsByPlayer,
-    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
+    scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds, buyIn),
   };
 }
 
@@ -616,10 +620,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   const scorePatches = {
     [winnerId]: {
       bankroll: br,
-      net:
-        (scoreById[winnerId]?.net || 0) +
-        settled.pot -
-        (settled.postedAntes[winnerId] ?? 0),
+      net: deriveScoreNet(br, buyIn),
       handsWon: (scoreById[winnerId]?.handsWon || 0) + 1,
       tricksWon: scoreById[winnerId]?.tricksWon || 0,
       out: br <= 0 ? true : FieldValue.delete(),
@@ -759,6 +760,61 @@ async function primeDealPatchReads(tx, db, roomId, sessionId, patch) {
   }
 }
 
+function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existingEvents, buyIn, sessionStake) {
+  if (!isMoneyEngineV1(sessionData) || patch?.soloWin || !patch?.scorePatches) {
+    return patch;
+  }
+  const handNumber = (sessionData.handCount || 0) + 1;
+  const participantIds = Object.keys(patch.scorePatches);
+  const anteResult = runV1AnteCollection({
+    sessionId,
+    handNumber,
+    carryOverPot: sessionData.carryOverPot || 0,
+    participantIds,
+    scoreById,
+    sessionStake,
+    buyInFallback: buyIn,
+    nextDealFunding: sessionData.nextDealFunding ?? null,
+    existingEvents,
+  });
+  if (!anteResult.newEvents.length) return patch;
+
+  const scorePatches = { ...patch.scorePatches };
+  for (const pid of participantIds) {
+    const bankroll = anteResult.newBankrolls[pid];
+    if (bankroll == null) continue;
+    scorePatches[pid] = {
+      ...scorePatches[pid],
+      bankroll,
+      net: deriveScoreNet(bankroll, buyIn),
+    };
+  }
+
+  return {
+    ...patch,
+    scorePatches,
+    moneyEvents: anteResult.newEvents,
+    moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+  };
+}
+
+function appendMoneyEventsInTransaction(tx, db, { roomId, sessionId, events, nextSequence }) {
+  if (!events?.length) return;
+  const col = moneyEventsCol(db, roomId, sessionId);
+  for (const event of events) {
+    tx.set(col.doc(event.eventId), {
+      ...event,
+      metadata: event.metadata || {},
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  tx.update(sessionRef(db, roomId, sessionId), {
+    moneyEngineVersion: MONEY_ENGINE_VERSION,
+    moneySequence: nextSequence,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 /** Keep liveEnrollment in sync with enrollment steps (client reads liveEnrollment first). */
 function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch) {
   if (patch.scorePatches) {
@@ -768,6 +824,14 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+  }
+  if (patch.moneyEvents?.length) {
+    appendMoneyEventsInTransaction(tx, db, {
+      roomId,
+      sessionId,
+      events: patch.moneyEvents,
+      nextSequence: patch.moneyNextSequence,
+    });
   }
   if (patch.privateHandsByPlayer) {
     const sessionUpdate = {
@@ -1133,6 +1197,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   const dealExtras = { sessionStake, buyIn, dealingRule, sortedIds };
 
   let dealResult = { status: "noop" };
+  const existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
   await db.runTransaction(async (tx) => {
     const sessionSnap = await tx.get(ref);
     if (!sessionSnap.exists) return;
@@ -1148,7 +1213,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       dealExtras.buyIn,
     );
     if (eligibleIds.length < 1) return;
-    const autoPatch = buildDealCompletionPatch(
+    let autoPatch = buildDealCompletionPatch(
       freshData.dealerId,
       eligibleIds,
       dealExtras.sortedIds,
@@ -1163,6 +1228,15 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       },
     );
     if (!autoPatch) return;
+    autoPatch = enrichV1DealPatchMoney(
+      autoPatch,
+      freshData,
+      sessionId,
+      freshScoreById,
+      existingMoneyEvents,
+      dealExtras.buyIn,
+      dealExtras.sessionStake,
+    );
     if (autoPatch?.soloWin) {
       await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
       applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch);

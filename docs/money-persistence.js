@@ -12,6 +12,7 @@ import {
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
+  deriveScoreNet,
 } from "./money-engine.js";
 
 export {
@@ -25,6 +26,8 @@ export {
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
+  runV1AnteCollection,
+  buildV1DealScorePatches,
 };
 
 /** Subcollection path segment for immutable money events. */
@@ -121,6 +124,7 @@ export function runV1HandSettlement(input) {
   return processHandSettlement({
     actionId: `settle:${sessionId}:${handNumber}`,
     handId: String(handNumber),
+    sessionId,
     mode,
     winners,
     participants,
@@ -162,6 +166,32 @@ export function runV1AnteCollection(input) {
     nextDealFunding,
     existingEvents,
   });
+}
+
+/**
+ * V1 deal start: ante collection + score row patches (bankroll + net).
+ * @param {object} input
+ * @param {import('./money-engine.js').CollectAntesResult} input.collected
+ * @param {string[]} input.dealIds
+ * @param {number} input.buyIn
+ */
+export function buildV1DealScorePatches(collected, dealIds, buyIn = 100) {
+  const patches = {};
+  const touched = new Set([...(collected.outIds || []), ...dealIds]);
+  for (const pid of touched) {
+    if (collected.bankrolls[pid] == null) continue;
+    const bankroll = collected.bankrolls[pid];
+    const patch = { bankroll, net: deriveScoreNet(bankroll, buyIn) };
+    if (collected.outIds?.includes(pid)) {
+      patch.out = true;
+    }
+    if (collected.postedAntes[pid] != null) {
+      patch.bourreReplacementDue = null;
+      patch.skipNextAnte = null;
+    }
+    patches[pid] = patch;
+  }
+  return patches;
 }
 
 /**

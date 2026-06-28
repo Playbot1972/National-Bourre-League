@@ -431,8 +431,8 @@ function F(e) {
 		}
 	};
 }
-var I = F;
-function L(e, t = {}) {
+var re = F;
+function I(e, t = {}) {
 	let n = P(e), r = t.staleDealRead ? Object.fromEntries(e.participants.map((e) => {
 		let t = { ...n.scoreById[e] };
 		return delete t.bourreReplacementDue, delete t.skipNextAnte, [e, t];
@@ -461,31 +461,31 @@ function L(e, t = {}) {
 		}
 	};
 }
-var R = L;
-function re(e, t) {
+var ie = I;
+function ae(e, t) {
 	return f(e, t);
 }
 //#endregion
 //#region src/game/money/idempotency.ts
-function z(e, t, n, r = "") {
+function L(e, t, n, r = "") {
 	return `${e}:${t}:${n ?? "_session"}${r ? `:${r}` : ""}`;
 }
-function B(e, t) {
+function R(e, t) {
 	return e.some((e) => e.actionId === t);
 }
-function V(e) {
+function z(e) {
 	let t = /* @__PURE__ */ new Set(), n = [];
 	for (let r of e) t.has(r.eventId) || (t.add(r.eventId), n.push(r));
 	return n;
 }
-function ie(e) {
+function oe(e) {
 	let t = /* @__PURE__ */ new Set(), n = [];
 	for (let r of e) t.has(r.actionId) || (t.add(r.actionId), n.push(r));
 	return n;
 }
 //#endregion
 //#region src/game/money/replay.ts
-var H = {
+var B = {
 	session_start: 0,
 	ante_collect: 1,
 	hand_settlement: 2,
@@ -493,20 +493,20 @@ var H = {
 	next_deal: 4,
 	session_finalize: 5
 };
-function U(e) {
+function V(e) {
 	if (e == null) return "00000000";
 	let t = Number(e);
 	return Number.isFinite(t) ? String(t).padStart(8, "0") : e;
 }
-function W(e) {
+function H(e) {
 	return [...e].sort((e, t) => {
-		let n = U(e.handId), r = U(t.handId);
+		let n = V(e.handId), r = V(t.handId);
 		if (n !== r) return n.localeCompare(r);
-		let i = H[e.phase] ?? 99, a = H[t.phase] ?? 99;
+		let i = B[e.phase] ?? 99, a = B[t.phase] ?? 99;
 		return i === a ? e.sequence - t.sequence : i - a;
 	});
 }
-function ae(e = 100) {
+function U(e = 100) {
 	return {
 		version: "v1",
 		buyInFallback: e,
@@ -518,7 +518,7 @@ function ae(e = 100) {
 		sequence: 0
 	};
 }
-function G(e, t = {}) {
+function W(e, t = {}) {
 	let n = t.buyInFallback ?? 100, r = {}, i = {}, a = {};
 	for (let [t, o] of Object.entries(e || {})) r[t] = h(o, n), i[t] = Number(o?.net) || 0, a[t] = {
 		skipNextAnte: o?.skipNextAnte === !0,
@@ -537,7 +537,7 @@ function G(e, t = {}) {
 		sequence: 0
 	};
 }
-function oe(e, t) {
+function se(e, t) {
 	let n = {
 		...e,
 		bankrolls: { ...e.bankrolls },
@@ -603,21 +603,21 @@ function oe(e, t) {
 	}
 	return n;
 }
-function K(e, t) {
-	return W(V(e)).reduce(oe, t);
+function G(e, t) {
+	return H(z(e)).reduce(se, t);
 }
-function q(e) {
+function K(e) {
 	let t = Object.values(e.bankrolls).reduce((e, t) => e + t, 0), n = Object.values(e.postedAntes).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
 	return t + e.carryOverPot + n;
 }
 //#endregion
 //#region src/game/money/processor.ts
-function J(e, t) {
+function q(e, t) {
 	let n = t.reduce((e, t) => Math.max(e, t.sequence), 0);
 	return Math.max(e.sequence, n) + 1;
 }
-function Y(e, t) {
-	let n = q(e), r = [], i = [];
+function J(e, t) {
+	let n = K(e), r = [], i = [];
 	t != null && n !== t && r.push(`chip total ${n} !== expected ${t}`);
 	for (let [t, n] of Object.entries(e.bankrolls)) n < 0 && r.push(`negative bankroll for ${t}: ${n}`);
 	return {
@@ -628,7 +628,7 @@ function Y(e, t) {
 		warnings: i
 	};
 }
-function se(e) {
+function ce(e) {
 	let { actionId: t, playerIds: n, buyInAmount: r, existingEvents: i = [], ledger: a = {
 		version: "v1",
 		buyInFallback: r,
@@ -639,20 +639,20 @@ function se(e) {
 		scoreFlags: {},
 		sequence: 0
 	} } = e;
-	if (B(i, t)) {
-		let e = K(i, a);
+	if (R(i, t)) {
+		let e = G(i, a);
 		return {
 			delta: {},
 			newEvents: [],
 			newBankrolls: e.bankrolls,
 			carryOverPot: e.carryOverPot,
 			postedAntes: e.postedAntes,
-			invariants: Y(e, n.length * r),
+			invariants: J(e, n.length * r),
 			version: "v1"
 		};
 	}
-	let o = J(a, i), s = n.map((e) => ({
-		eventId: z(t, "BUY_IN_APPLIED", e),
+	let o = q(a, i), s = n.map((e) => ({
+		eventId: L(t, "BUY_IN_APPLIED", e),
 		actionId: t,
 		handId: null,
 		phase: "session_start",
@@ -662,18 +662,18 @@ function se(e) {
 		amount: r,
 		metadata: {},
 		timestamp: Date.now()
-	})), c = K([...i, ...s], a), l = n.length * r;
+	})), c = G([...i, ...s], a), l = n.length * r;
 	return {
 		delta: Object.fromEntries(n.map((e) => [e, r])),
 		newEvents: s,
 		newBankrolls: c.bankrolls,
 		carryOverPot: 0,
 		postedAntes: {},
-		invariants: Y(c, l),
+		invariants: J(c, l),
 		version: "v1"
 	};
 }
-function X(e) {
+function Y(e) {
 	let { actionId: t, handId: n, carryOverPot: r, participantIds: i, scoreById: a, sessionStake: o, buyInFallback: c, nextDealFunding: l = null, existingEvents: u = [], ledger: d = {
 		version: "v1",
 		buyInFallback: c,
@@ -684,7 +684,7 @@ function X(e) {
 		scoreFlags: {},
 		sequence: 0
 	} } = e;
-	if (B(u, t)) {
+	if (R(u, t)) {
 		let e = F({
 			scoreById: a,
 			nextDealFunding: l,
@@ -692,14 +692,14 @@ function X(e) {
 			participantIds: i,
 			sessionStake: o,
 			buyInFallback: c
-		}), t = K(u, d);
+		}), t = G(u, d);
 		return {
 			delta: {},
 			newEvents: [],
 			newBankrolls: t.bankrolls,
 			carryOverPot: t.carryOverPot,
 			postedAntes: t.postedAntes,
-			invariants: Y(t),
+			invariants: J(t),
 			version: "v1",
 			collected: e.collected
 		};
@@ -718,11 +718,11 @@ function X(e) {
 		participantIds: i,
 		sessionStake: o,
 		buyInFallback: c
-	}), m = J(d, u), g = [];
+	}), m = q(d, u), g = [];
 	for (let [e, r] of Object.entries(p.collected.postedAntes)) {
 		let i = Math.max(0, Number(r) || 0);
 		i > 0 && g.push({
-			eventId: z(t, "ANTE_DEDUCTED", e),
+			eventId: L(t, "ANTE_DEDUCTED", e),
 			actionId: t,
 			handId: n,
 			phase: "ante_collect",
@@ -734,7 +734,7 @@ function X(e) {
 			timestamp: Date.now()
 		});
 	}
-	let _ = Y(K([...u, ...g], {
+	let _ = J(G([...u, ...g], {
 		...d,
 		carryOverPot: r
 	}), f);
@@ -749,107 +749,126 @@ function X(e) {
 		collected: p.collected
 	};
 }
-function Z(e) {
-	let { actionId: t, handId: n, existingEvents: r = [], ledger: i, ...a } = e, o = a.buyInFallback ?? 100;
-	if (B(r, t)) {
-		let e = P(a), t = K(r, i ?? {
-			version: "v1",
-			buyInFallback: o,
-			bankrolls: {},
-			nets: {},
-			carryOverPot: a.carryIn ?? 0,
-			postedAntes: a.postedAntes ?? {},
-			scoreFlags: {},
-			sequence: 0
+function X(e, t) {
+	return e ? `ante:${e}:${t}` : `ante:${t}`;
+}
+function Z(e, t) {
+	let { sessionId: n, handId: r, postedAntes: i, sessionStake: a, startSequence: o } = t, s = X(n, r);
+	if (R(e, s) || Object.values(i || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0) <= 0 || e.filter((e) => e.type === "ANTE_DEDUCTED" && e.handId === r).length > 0) return [];
+	let c = [], l = o;
+	for (let [t, n] of Object.entries(i || {})) {
+		let i = Math.max(0, Number(n) || 0);
+		if (i <= 0) continue;
+		let o = L(s, "ANTE_DEDUCTED", t);
+		e.some((e) => e.eventId === o) || c.push({
+			eventId: o,
+			actionId: s,
+			handId: r,
+			phase: "ante_collect",
+			sequence: l++,
+			type: "ANTE_DEDUCTED",
+			playerId: t,
+			amount: i,
+			metadata: {
+				sessionStake: a,
+				source: "settlement_sync"
+			},
+			timestamp: Date.now()
 		});
+	}
+	return c;
+}
+function Q(e) {
+	let { actionId: t, handId: n, sessionId: r, existingEvents: i = [], ledger: a, ...o } = e, c = o.buyInFallback ?? 100, l = a ?? U(c);
+	if (R(i, t)) {
+		let e = P(o), t = G(i, l);
 		return {
 			delta: {},
 			newEvents: [],
 			newBankrolls: t.bankrolls,
 			carryOverPot: t.carryOverPot,
 			postedAntes: {},
-			invariants: Y(t),
+			invariants: J(t),
 			version: "v1",
 			settlement: e
 		};
 	}
-	let c = s(a.scoreById, {
-		carryOverPot: a.carryIn ?? 0,
-		postedAntes: a.postedAntes ?? {},
-		buyInFallback: o
-	}), l = P(a), u = J(i ?? {
-		version: "v1",
-		buyInFallback: o,
-		bankrolls: {},
-		nets: {},
-		carryOverPot: 0,
-		postedAntes: {},
-		scoreFlags: {},
-		sequence: 0
-	}, r), d = [];
-	for (let e of l.participants) {
-		let r = l.appliedDeltas[e] ?? 0, i = l.bourreIds.includes(e);
+	let u = s(o.scoreById, {
+		carryOverPot: o.carryIn ?? 0,
+		postedAntes: o.postedAntes ?? {},
+		buyInFallback: c
+	}), d = P(o), f = q(l, i), p = Z(i, {
+		sessionId: r,
+		handId: n,
+		postedAntes: o.postedAntes ?? {},
+		sessionStake: o.sessionStake ?? 1,
+		startSequence: f
+	});
+	f += p.length;
+	let m = [...p];
+	for (let e of d.participants) {
+		let r = d.appliedDeltas[e] ?? 0, i = d.bourreIds.includes(e);
 		if (r < 0) {
 			let a = Math.abs(r);
-			i ? d.push({
-				eventId: z(t, "BOURRE_LIABILITY", e),
+			i ? m.push({
+				eventId: L(t, "BOURRE_LIABILITY", e),
 				actionId: t,
 				handId: n,
 				phase: "hand_settlement",
-				sequence: u++,
+				sequence: f++,
 				type: "BOURRE_LIABILITY",
 				playerId: e,
 				amount: a,
-				metadata: { mode: l.mode },
+				metadata: { mode: d.mode },
 				timestamp: Date.now()
-			}) : d.push({
-				eventId: z(t, "SETTLEMENT_DEBIT", e),
+			}) : m.push({
+				eventId: L(t, "SETTLEMENT_DEBIT", e),
 				actionId: t,
 				handId: n,
 				phase: "hand_settlement",
-				sequence: u++,
+				sequence: f++,
 				type: "SETTLEMENT_DEBIT",
 				playerId: e,
 				amount: a,
-				metadata: { mode: l.mode },
+				metadata: { mode: d.mode },
 				timestamp: Date.now()
 			});
 		} else if (r > 0) {
-			let i = l.mode === "split" ? "SPLIT_POT_APPLIED" : "WINNER_CREDITED";
-			d.push({
-				eventId: z(t, i, e),
+			let i = d.mode === "split" ? "SPLIT_POT_APPLIED" : "WINNER_CREDITED";
+			m.push({
+				eventId: L(t, i, e),
 				actionId: t,
 				handId: n,
 				phase: "hand_settlement",
-				sequence: u++,
+				sequence: f++,
 				type: i,
 				playerId: e,
 				amount: r,
-				metadata: { mode: l.mode },
+				metadata: { mode: d.mode },
 				timestamp: Date.now()
 			});
 		}
 	}
-	d.push({
-		eventId: z(t, "CARRY_OVER_SET", null),
+	m.push({
+		eventId: L(t, "CARRY_OVER_SET", null),
 		actionId: t,
 		handId: n,
 		phase: "hand_settlement",
-		sequence: u++,
+		sequence: f++,
 		type: "CARRY_OVER_SET",
 		playerId: null,
-		amount: l.carryOverPot,
-		metadata: { bourreMatch: l.bourreMatch },
+		amount: d.carryOverPot,
+		metadata: { bourreMatch: d.bourreMatch },
 		timestamp: Date.now()
 	});
-	for (let e of l.participants) {
-		let r = l.nextDealFunding.byPlayer[e];
-		r && d.push({
-			eventId: z(t, "NEXT_DEAL_FUNDING", e),
+	for (let e of d.participants) {
+		let r = d.nextDealFunding.byPlayer[e];
+		r && m.push({
+			eventId: L(t, "NEXT_DEAL_FUNDING", e),
 			actionId: t,
 			handId: n,
 			phase: "next_deal",
-			sequence: u++,
+			sequence: f++,
 			type: "NEXT_DEAL_FUNDING",
 			playerId: e,
 			amount: 0,
@@ -860,28 +879,19 @@ function Z(e) {
 			timestamp: Date.now()
 		});
 	}
-	let f = i ?? {
-		version: "v1",
-		buyInFallback: o,
-		bankrolls: Object.fromEntries(l.participants.map((e) => [e, h(a.scoreById[e], o)])),
-		nets: Object.fromEntries(l.participants.map((e) => [e, Number(a.scoreById[e]?.net) || 0])),
-		carryOverPot: a.carryIn ?? 0,
-		postedAntes: { ...a.postedAntes ?? {} },
-		scoreFlags: {},
-		sequence: 0
-	}, p = Y(K([...r, ...d], f), c);
+	let h = J(G([...i, ...m], l), u);
 	return {
-		delta: l.appliedDeltas,
-		newEvents: d,
-		newBankrolls: l.bankrolls,
-		carryOverPot: l.carryOverPot,
+		delta: d.appliedDeltas,
+		newEvents: m,
+		newBankrolls: d.bankrolls,
+		carryOverPot: d.carryOverPot,
 		postedAntes: {},
-		invariants: p,
+		invariants: h,
 		version: "v1",
-		settlement: l
+		settlement: d
 	};
 }
-function ce(e) {
+function le(e) {
 	let { actionId: t, playerId: n, buyInAmount: r, handId: i = null, existingEvents: a = [], ledger: o = {
 		version: "v1",
 		buyInFallback: r,
@@ -892,20 +902,20 @@ function ce(e) {
 		scoreFlags: {},
 		sequence: 0
 	} } = e;
-	if (B(a, t)) {
-		let e = K(a, o);
+	if (R(a, t)) {
+		let e = G(a, o);
 		return {
 			delta: {},
 			newEvents: [],
 			newBankrolls: e.bankrolls,
 			carryOverPot: e.carryOverPot,
 			postedAntes: e.postedAntes,
-			invariants: Y(e),
+			invariants: J(e),
 			version: "v1"
 		};
 	}
-	let s = q(o), c = J(o, a), l = [{
-		eventId: z(t, "REBUY_APPLIED", n),
+	let s = K(o), c = q(o, a), l = [{
+		eventId: L(t, "REBUY_APPLIED", n),
 		actionId: t,
 		handId: i,
 		phase: "rebuy",
@@ -915,7 +925,7 @@ function ce(e) {
 		amount: r,
 		metadata: {},
 		timestamp: Date.now()
-	}], u = K([...a, ...l], o), d = Y(u, s + r);
+	}], u = G([...a, ...l], o), d = J(u, s + r);
 	return {
 		delta: { [n]: r },
 		newEvents: l,
@@ -926,11 +936,11 @@ function ce(e) {
 		version: "v1"
 	};
 }
-var le = X, ue = Z;
+var ue = Y, de = Q;
 //#endregion
 //#region src/game/money/explain.ts
-function Q(e, t = 100) {
-	let n = W(e), r = [`Money event log (${n.length} events, buy-in ${t})`, ""], i = null;
+function $(e, t = 100) {
+	let n = H(e), r = [`Money event log (${n.length} events, buy-in ${t})`, ""], i = null;
 	for (let e of n) {
 		e.handId !== i && (i = e.handId, r.push(i == null ? "--- Session ---" : `--- Hand ${i} ---`));
 		let t = e.playerId ?? "table", n = e.amount >= 0 ? "+" : "", a = Object.keys(e.metadata || {}).length > 0 ? ` ${JSON.stringify(e.metadata)}` : "";
@@ -940,12 +950,12 @@ function Q(e, t = 100) {
 }
 //#endregion
 //#region src/game/money/finalize.ts
-function $(e) {
-	let t = e.buyInFallback ?? 100, n = e.initialLedger ?? G(e.scoreById ?? {}, {
+function fe(e) {
+	let t = e.buyInFallback ?? 100, n = e.initialLedger ?? W(e.scoreById ?? {}, {
 		buyInFallback: t,
 		carryOverPot: e.carryOverPot ?? 0,
 		postedAntes: e.postedAntes ?? {}
-	}), r = K(e.events, n), i = q(r), a = [], o = [];
+	}), r = G(e.events, n), i = K(r), a = [], o = [];
 	if (e.scoreById) for (let [n, i] of Object.entries(e.scoreById)) {
 		let e = h(i, t), o = r.bankrolls[n];
 		o != null && e !== o && a.push(`bankroll drift for ${n}: stored=${e}, replay=${o}`);
@@ -956,7 +966,7 @@ function $(e) {
 		buyInFallback: t
 	}) : void 0 : e.playerCount * t;
 	c != null && i !== c && o.push(`chip total ${i} differs from session snapshot ${c} (may include rebuys)`);
-	let l = Q(e.events, t);
+	let l = $(e.events, t);
 	return {
 		bankrolls: r.bankrolls,
 		nets: r.nets,
@@ -972,16 +982,16 @@ function $(e) {
 		explanation: l
 	};
 }
-function de(e) {
+function pe(e) {
 	return e?.moneyEngineVersion === "v1";
 }
-function fe(e, t) {
+function me(e, t) {
 	if (!e) throw Error("Session not found");
 	if (e.status === "final") throw Error("Session is final");
 	if (e.moneyEngineVersion && e.moneyEngineVersion !== "v1") throw Error(`Session uses money engine ${e.moneyEngineVersion}; cannot ${t} with v1`);
 }
-function pe(e, t, n = {}) {
-	let r = $({
+function he(e, t, n = {}) {
+	let r = fe({
 		events: e,
 		scoreById: t,
 		buyInFallback: n.buyInFallback ?? 100,
@@ -994,4 +1004,4 @@ function pe(e, t, n = {}) {
 	};
 }
 //#endregion
-export { r as DEFAULT_BOURRE_SETTINGS, n as DEFAULT_HAND_ANTE, l as MAX_TRICKS_PER_HAND, e as MONEY_ENGINE_VERSION, t as POT_CAP_MULTIPLIER, k as anteAlreadyPosted, w as applyBankrollDelta, N as applyRecordHandFundingToScores, M as applySolventSettlement, ee as assertChipConservation, fe as assertMoneyEngineCompatible, re as bourreIdsFromTricks, f as bourrePlayerIds, A as bourreRemaindersFromSettlement, b as buildNextDealFundingSnapshot, T as canEnrollWithBankroll, O as collectHandAntes, S as collectNextHandAntes, $ as computeFinalBankrolls, c as computeHandPotState, ie as dedupeEventsByActionId, V as dedupeEventsById, m as deriveScoreNet, E as eligibleIdsForAnteCollection, ae as emptyLedgerState, Q as explainMoneyEvents, g as handAnteContribution, B as hasActionBeenApplied, te as isChipConserved, d as isHandComplete, de as isMoneyEngineV1, q as ledgerChipTotal, G as ledgerFromScoreById, C as logBourreAccounting, z as makeEventId, x as mergeNextDealFundingIntoScoreById, y as nextDealFundingFlags, i as normalizeBourreSettings, X as processAnte, ue as processBourreLiability, se as processBuyIn, Z as processHandSettlement, le as processNextDealFunding, ce as processRebuy, v as projectNextHandPot, P as recordHandSettlement, K as replayEvents, o as resolveSessionBuyIn, L as runHandMoneyFlow, R as runProductionSettlementDealFlow, h as scoreBankroll, s as sessionChipTotal, p as settleHandDeltas, D as settleSoloDefaultWin, j as settlementShortfall, I as simulatePagatHandStartFunding, ne as simulateRecordHandSettlement, W as sortMoneyEvents, a as splitPotVoteAllowed, F as startNextHandFunding, _ as sumProjectedHandAntes, u as totalTricksPlayed, pe as validateReplayMatchesDerived };
+export { r as DEFAULT_BOURRE_SETTINGS, n as DEFAULT_HAND_ANTE, l as MAX_TRICKS_PER_HAND, e as MONEY_ENGINE_VERSION, t as POT_CAP_MULTIPLIER, k as anteAlreadyPosted, w as applyBankrollDelta, N as applyRecordHandFundingToScores, M as applySolventSettlement, ee as assertChipConservation, me as assertMoneyEngineCompatible, ae as bourreIdsFromTricks, f as bourrePlayerIds, A as bourreRemaindersFromSettlement, Z as buildMissingDealAnteEvents, b as buildNextDealFundingSnapshot, T as canEnrollWithBankroll, O as collectHandAntes, S as collectNextHandAntes, fe as computeFinalBankrolls, c as computeHandPotState, X as dealAnteActionId, oe as dedupeEventsByActionId, z as dedupeEventsById, m as deriveScoreNet, E as eligibleIdsForAnteCollection, U as emptyLedgerState, $ as explainMoneyEvents, g as handAnteContribution, R as hasActionBeenApplied, te as isChipConserved, d as isHandComplete, pe as isMoneyEngineV1, K as ledgerChipTotal, W as ledgerFromScoreById, C as logBourreAccounting, L as makeEventId, x as mergeNextDealFundingIntoScoreById, y as nextDealFundingFlags, i as normalizeBourreSettings, Y as processAnte, de as processBourreLiability, ce as processBuyIn, Q as processHandSettlement, ue as processNextDealFunding, le as processRebuy, v as projectNextHandPot, P as recordHandSettlement, G as replayEvents, o as resolveSessionBuyIn, I as runHandMoneyFlow, ie as runProductionSettlementDealFlow, h as scoreBankroll, s as sessionChipTotal, p as settleHandDeltas, D as settleSoloDefaultWin, j as settlementShortfall, re as simulatePagatHandStartFunding, ne as simulateRecordHandSettlement, H as sortMoneyEvents, a as splitPotVoteAllowed, F as startNextHandFunding, _ as sumProjectedHandAntes, u as totalTricksPlayed, he as validateReplayMatchesDerived };

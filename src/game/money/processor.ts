@@ -8,7 +8,7 @@ import type {
 } from "./types";
 import { MONEY_ENGINE_VERSION } from "./types";
 import { hasActionBeenApplied, makeEventId } from "./idempotency";
-import { ledgerChipTotal, replayEvents } from "./replay";
+import { emptyLedgerState, ledgerChipTotal, replayEvents } from "./replay";
 import { recordHandSettlement, startNextHandFunding } from "./pipeline";
 import { scoreBankroll, sessionChipTotal } from "./core";
 
@@ -233,8 +233,73 @@ export function processAnte(input: ProcessAnteInput): MoneyEngineResult & {
 export interface ProcessHandSettlementInput extends RecordHandSettlementInput {
   actionId: string;
   handId: string;
+  /** Session id — used to align deal-ante and settlement-ante action ids. */
+  sessionId?: string;
   existingEvents?: MoneyEvent[];
   ledger?: MoneyLedgerState;
+}
+
+/** Same action id as runV1AnteCollection / deal start. */
+export function dealAnteActionId(sessionId: string | undefined, handId: string): string {
+  return sessionId ? `ante:${sessionId}:${handId}` : `ante:${handId}`;
+}
+
+/**
+ * When antes were collected at deal time without v1 events, backfill ANTE_DEDUCTED
+ * before settlement credits so replay matches stored bankrolls (symmetric for all winners).
+ */
+export function buildMissingDealAnteEvents(
+  existingEvents: MoneyEvent[],
+  opts: {
+    sessionId?: string;
+    handId: string;
+    postedAntes: Record<string, number>;
+    sessionStake: number;
+    startSequence: number;
+  },
+): MoneyEvent[] {
+  const { sessionId, handId, postedAntes, sessionStake, startSequence } = opts;
+  const anteActionId = dealAnteActionId(sessionId, handId);
+  if (hasActionBeenApplied(existingEvents, anteActionId)) {
+    return [];
+  }
+
+  const postedTotal = Object.values(postedAntes || {}).reduce(
+    (sum, raw) => sum + Math.max(0, Number(raw) || 0),
+    0,
+  );
+  if (postedTotal <= 0) {
+    return [];
+  }
+
+  const loggedForHand = existingEvents.filter(
+    (e) => e.type === "ANTE_DEDUCTED" && e.handId === handId,
+  );
+  if (loggedForHand.length > 0) {
+    return [];
+  }
+
+  const events: MoneyEvent[] = [];
+  let seq = startSequence;
+  for (const [pid, raw] of Object.entries(postedAntes || {})) {
+    const amt = Math.max(0, Number(raw) || 0);
+    if (amt <= 0) continue;
+    const eventId = makeEventId(anteActionId, "ANTE_DEDUCTED", pid);
+    if (existingEvents.some((e) => e.eventId === eventId)) continue;
+    events.push({
+      eventId,
+      actionId: anteActionId,
+      handId,
+      phase: "ante_collect",
+      sequence: seq++,
+      type: "ANTE_DEDUCTED",
+      playerId: pid,
+      amount: amt,
+      metadata: { sessionStake, source: "settlement_sync" },
+      timestamp: Date.now(),
+    });
+  }
+  return events;
 }
 
 /** Hand end — settlement, bourré liability, winner credit, carry, next-deal flags. */
@@ -244,27 +309,17 @@ export function processHandSettlement(
   const {
     actionId,
     handId,
+    sessionId,
     existingEvents = [],
     ledger,
     ...settlementInput
   } = input;
   const buyInFallback = settlementInput.buyInFallback ?? 100;
+  const replayBase = ledger ?? emptyLedgerState(buyInFallback);
 
   if (hasActionBeenApplied(existingEvents, actionId)) {
     const settlement = recordHandSettlement(settlementInput);
-    const base =
-      ledger ??
-      ({
-        version: MONEY_ENGINE_VERSION,
-        buyInFallback,
-        bankrolls: {},
-        nets: {},
-        carryOverPot: settlementInput.carryIn ?? 0,
-        postedAntes: settlementInput.postedAntes ?? {},
-        scoreFlags: {},
-        sequence: 0,
-      } satisfies MoneyLedgerState);
-    const replayed = replayEvents(existingEvents, base);
+    const replayed = replayEvents(existingEvents, replayBase);
     return {
       delta: {},
       newEvents: [],
@@ -284,21 +339,18 @@ export function processHandSettlement(
   });
 
   const settlement = recordHandSettlement(settlementInput);
-  let seq = nextSequence(
-    ledger ?? {
-      version: MONEY_ENGINE_VERSION,
-      buyInFallback,
-      bankrolls: {},
-      nets: {},
-      carryOverPot: 0,
-      postedAntes: {},
-      scoreFlags: {},
-      sequence: 0,
-    },
-    existingEvents,
-  );
+  let seq = nextSequence(replayBase, existingEvents);
 
-  const newEvents: MoneyEvent[] = [];
+  const anteSyncEvents = buildMissingDealAnteEvents(existingEvents, {
+    sessionId,
+    handId,
+    postedAntes: settlementInput.postedAntes ?? {},
+    sessionStake: settlementInput.sessionStake ?? 1,
+    startSequence: seq,
+  });
+  seq += anteSyncEvents.length;
+
+  const newEvents: MoneyEvent[] = [...anteSyncEvents];
 
   for (const pid of settlement.participants) {
     const applied = settlement.appliedDeltas[pid] ?? 0;
@@ -383,30 +435,7 @@ export function processHandSettlement(
     });
   }
 
-  const baseLedger =
-    ledger ??
-    ({
-      version: MONEY_ENGINE_VERSION,
-      buyInFallback,
-      bankrolls: Object.fromEntries(
-        settlement.participants.map((pid) => [
-          pid,
-          scoreBankroll(settlementInput.scoreById[pid], buyInFallback),
-        ]),
-      ),
-      nets: Object.fromEntries(
-        settlement.participants.map((pid) => [
-          pid,
-          Number(settlementInput.scoreById[pid]?.net) || 0,
-        ]),
-      ),
-      carryOverPot: settlementInput.carryIn ?? 0,
-      postedAntes: { ...(settlementInput.postedAntes ?? {}) },
-      scoreFlags: {},
-      sequence: 0,
-    } satisfies MoneyLedgerState);
-
-  const replayed = replayEvents([...existingEvents, ...newEvents], baseLedger);
+  const replayed = replayEvents([...existingEvents, ...newEvents], replayBase);
   const invariants = buildInvariantReport(replayed, beforeTotal);
 
   return {

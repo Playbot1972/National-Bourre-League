@@ -238,6 +238,12 @@ describe("money engine — event sourcing", () => {
       three.map((pid) => [pid, { ...scoreById[pid], bankroll: deal.bankrolls[pid] }]),
     );
 
+    const buyInResult = processBuyIn({
+      actionId: "buyin:settle-replay",
+      playerIds: three,
+      buyInAmount: buyIn,
+    });
+
     const actionId = "settle:hand:1";
     const r = processHandSettlement({
       actionId,
@@ -251,14 +257,17 @@ describe("money engine — event sourcing", () => {
       carryIn: 0,
       postedAntes: deal.postedAntes,
       buyInFallback: buyIn,
+      existingEvents: buyInResult.newEvents,
     });
 
     assert.ok(r.newEvents.length > 0);
     assert.equal(r.settlement.scoreById.human.bankroll, 140);
     assert.equal(r.invariants.ok, true);
 
-    const ledger = ledgerFromScoreById(bankrolled, { buyInFallback: buyIn });
-    const replayed = replayEvents(r.newEvents, ledger);
+    const replayed = replayEvents(
+      [...buyInResult.newEvents, ...r.newEvents],
+      { version: MONEY_ENGINE_VERSION, buyInFallback: buyIn, bankrolls: {}, nets: {}, carryOverPot: 0, postedAntes: {}, scoreFlags: {}, sequence: 0 },
+    );
     assert.equal(replayed.bankrolls.human, r.newBankrolls.human);
     assert.equal(replayed.carryOverPot, 60);
   });
