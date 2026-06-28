@@ -360,6 +360,28 @@ export function startNextHandFunding(input: StartNextHandFundingInput) {
 /** @deprecated Use startNextHandFunding */
 export const simulatePagatHandStartFunding = startNextHandFunding;
 
+/** Deal-time funding: always routes through startNextHandFunding (canonical or legacy fallback). */
+export function collectFundingForHandStart(input: StartNextHandFundingInput) {
+  const carryIn = input.carryOverPot ?? 0;
+  const funding = startNextHandFunding(input);
+  const collected = funding.collected;
+  const antePot =
+    collected.antePot ??
+    Object.values(collected.postedAntes ?? {}).reduce(
+      (sum, raw) => sum + Math.max(0, Number(raw) || 0),
+      0,
+    );
+  return {
+    bankrolls: collected.bankrolls,
+    postedAntes: collected.postedAntes,
+    activeParticipants: collected.activeParticipants,
+    outIds: collected.outIds,
+    nextHandPot: funding.nextHandPot,
+    carryIn,
+    antePot,
+  };
+}
+
 export function runHandMoneyFlow(
   input: RecordHandSettlementInput,
   options: { staleDealRead?: boolean } = {},
