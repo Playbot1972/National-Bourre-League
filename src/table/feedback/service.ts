@@ -5,7 +5,6 @@ import {
   playGameStartSound,
   playShuffleSound,
   playTrickWinSound,
-  resetSoundAssetCache,
   unlockAudio,
 } from "./audio";
 import { triggerHaptic } from "./haptics";
@@ -15,7 +14,6 @@ import {
   shouldPlaySoundEvent,
   shouldUseHaptics,
   type FeedbackPrefs,
-  type SoundMode,
 } from "./prefs";
 import type { SoundEventKey } from "./soundPacks";
 
