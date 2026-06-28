@@ -5,6 +5,7 @@ import {
   prefersReducedMotion,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
+  TRICK_HAND_END_DRAIN_MS,
   type TrickPresentationPhase,
 } from "../trickTiming";
 import {
@@ -30,10 +31,12 @@ interface UseTrickPresentationInput {
   trumpSuit?: string | null;
   playedCards?: PlayedCardEntry[];
   turnPlayerId?: string | null;
+  handComplete?: boolean;
 }
 
 export type TrickPresentation = TrickPresentationModel & {
   phase: TrickPresentationPhase;
+  forceHandEndDrain: () => void;
 };
 
 export function useTrickPresentation({
@@ -44,6 +47,7 @@ export function useTrickPresentation({
   trumpSuit,
   playedCards,
   turnPlayerId,
+  handComplete = false,
 }: UseTrickPresentationInput): TrickPresentation {
   const [store, dispatch] = useReducer(
     reduceTrickPresentation,
@@ -58,6 +62,8 @@ export function useTrickPresentation({
   const revealTimerRef = useRef<number | null>(null);
   const targetRevealRef = useRef(0);
   const prevSessionPlayRef = useRef(false);
+  const storeRef = useRef(store);
+  storeRef.current = store;
 
   const pipelineActive =
     store.phase !== "live" || Boolean(store.pendingResolution);
@@ -89,7 +95,10 @@ export function useTrickPresentation({
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
 
-    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current)) {
+    const handEnding =
+      handComplete || (phase == null && participantIds.length === 0);
+
+    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current && !handEnding)) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -130,6 +139,8 @@ export function useTrickPresentation({
     trumpSuit,
     playedCards,
     sessionPlayActive,
+    handComplete,
+    participantIds.length,
   ]);
 
   useLayoutEffect(() => {
@@ -200,6 +211,66 @@ export function useTrickPresentation({
     if (store.phase === "live") resolutionKeyRef.current = null;
   }, [store.phase]);
 
+  useEffect(() => {
+    const handEndedForDrain =
+      handComplete || (phase == null && participantIds.length === 0);
+    if (!pipelineActive || !handEndedForDrain) return;
+    if (sessionPlayActive && !handComplete) return;
+
+    const reduced = prefersReducedMotion();
+    const stepMs = reduced ? 60 : 160;
+    const landMs = reduced ? 80 : Math.min(CARD_LAND_MS, 220);
+    const drainTimers: number[] = [];
+    const scheduleDrain = (fn: () => void, ms: number) => {
+      drainTimers.push(window.setTimeout(fn, ms));
+    };
+
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useTrickPresentation", "hand-end-drain-armed", {
+        phase: store.phase,
+        pendingResolution: Boolean(store.pendingResolution),
+      });
+    }
+
+    if (store.phase === "live" && store.pendingResolution) {
+      scheduleDrain(() => dispatch({ type: "commitTrickResolution" }), landMs);
+    }
+
+    let delay = (store.phase === "live" && store.pendingResolution ? landMs : 0) + stepMs;
+    for (let i = 0; i < 6; i++) {
+      scheduleDrain(() => {
+        const current = storeRef.current;
+        if (current.phase === "live" && !current.pendingResolution) return;
+        dispatch({ type: "advancePhase" });
+      }, delay);
+      delay += stepMs;
+    }
+
+    scheduleDrain(() => {
+      const current = storeRef.current;
+      if (current.phase === "live" && !current.pendingResolution) return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "hand-end-drain-force", {
+          phase: current.phase,
+          pendingResolution: Boolean(current.pendingResolution),
+        });
+      }
+      dispatch({ type: "forceHandEndDrain" });
+    }, TRICK_HAND_END_DRAIN_MS);
+
+    return () => {
+      for (const id of drainTimers) window.clearTimeout(id);
+    };
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.pendingResolution,
+    handComplete,
+    phase,
+    participantIds.length,
+  ]);
+
   const targetReveal =
     store.phase === "live"
       ? Math.max(
@@ -269,5 +340,8 @@ export function useTrickPresentation({
   ]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
-  return model;
+  return {
+    ...model,
+    forceHandEndDrain: () => dispatch({ type: "forceHandEndDrain" }),
+  };
 }

@@ -11,12 +11,11 @@ export interface UseTableDiscardFlyInput {
   onDiscardCommitted: (entries: { id: string; playerId: string }[]) => void;
 }
 
-/** Bot / opponent discard flights — same pile path as hero (non-blocking presentation). */
+/** Bot draw discard — seat-origin card ghosts fly to the center pile. */
 export function useTableDiscardFly({
   handPresentation,
   handNumber,
   currentUserId,
-  tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
 }: UseTableDiscardFlyInput): void {
@@ -36,15 +35,11 @@ export function useTableDiscardFly({
     if (lastFlyKeyRef.current === flyKey) return;
     lastFlyKeyRef.current = flyKey;
 
-    const root = tableRootRef.current;
-    if (!root) return;
-
     runBotDiscardFly({
       playerId,
       handNumber,
       discardCount: count,
       pileStartIndex: pileIndexRef.current,
-      root,
       onComplete: (committed) => {
         pileIndexRef.current += committed.length;
         onDiscardCommitted(committed);
@@ -56,7 +51,6 @@ export function useTableDiscardFly({
     handPresentation.drawDiscardCount,
     handNumber,
     currentUserId,
-    tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
   ]);

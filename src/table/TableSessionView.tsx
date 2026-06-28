@@ -8,18 +8,29 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
-import { formatHandPhase, isCardsDealtPhase, isDecisionPhase, isRevealPhase, serializedToCard, turnIndicatorLabel } from "./handUi";
+import {
+  formatHandPhase,
+  formatLocalActionCue,
+  formatWaitingCue,
+  isCardsDealtPhase,
+  isDecisionPhase,
+  isRevealPhase,
+  serializedToCard,
+  turnIndicatorLabel,
+} from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
+import { InactivityHelper } from "./InactivityHelper";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
-import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
+import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
 import { useTableTheme } from "./theme/useTableTheme";
 import { useMobileTable } from "./useMobileTable";
 import {
@@ -27,11 +38,10 @@ import {
   mapEffectiveIndicesToDisplay,
   resolveHeroHandDisplay,
 } from "./heroHandDisplay";
-import { computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
+import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
-import type { PotSnapshot } from "./settlementCopy";
 
 /** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
 const EMPTY_ENROLLMENT_IDS: string[] = [];
@@ -45,6 +55,8 @@ export function TableSessionView({
   mySessionNet,
   leaderLabel,
   showCoWinSettlement,
+  splitPotEnabled = false,
+  rebuyEnabled = false,
   splitSharePerWinner = 0,
   enrollmentActive = false,
   currentUserId,
@@ -78,12 +90,10 @@ export function TableSessionView({
     trumpSuit: session.trumpSuit,
     playedCards: session.playedCards,
     turnPlayerId: session.turnPlayerId,
+    handComplete,
   });
-  const instantTrickPlays = useTrumpTrickMotionGate(
-    session.phase,
-    session.trumpUpcard,
-    trickPresentation.displayPlays.length,
-  );
+
+  const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
 
   const handPresentation = useHandPresentation({
     session,
@@ -91,6 +101,7 @@ export function TableSessionView({
     potAmount: potMetrics.currentPot,
     handComplete,
     trickPipelineActive: trickPresentation.isPipelineActive,
+    forceTrickHandEndDrain,
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
     declinedIds: session.handEnrollment?.declinedIds ?? EMPTY_ENROLLMENT_IDS,
@@ -99,6 +110,12 @@ export function TableSessionView({
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
   });
+
+  const instantTrickPlays = useTrumpTrickMotionGate(
+    session.phase,
+    session.trumpUpcard,
+    trickPresentation.displayPlays.length,
+  );
 
   // Server play/draw is authoritative — do not block bots on peer draw animations.
   const handPresentingForBots = handPresentingBlocksBots(
@@ -231,6 +248,40 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
+
+  const displayRecommendedDiscardIndices = useMemo(() => {
+    if (session.phase !== "draw" || !heroCards.length) return [];
+    const effectiveHand = heroCards.map(serializedToCard);
+    const excludedEffective =
+      heroHandDisplay.indexMode === "display" && heroHandDisplay.trumpDisabledIndex != null
+        ? mapDisplayIndicesToEffective(
+            [heroHandDisplay.trumpDisabledIndex],
+            heroHandDisplay.trumpDisabledIndex,
+          )
+        : heroHandDisplay.trumpDisabledIndex != null
+          ? [heroHandDisplay.trumpDisabledIndex]
+          : [];
+    const effectiveRecommended = computeRecommendedDiscardIndices(
+      effectiveHand,
+      (session.trumpSuit ?? "clubs") as Suit,
+      session.maxDrawDiscards ?? 4,
+      session.remainingDeckCount ?? Number.POSITIVE_INFINITY,
+      excludedEffective,
+    );
+    if (heroHandDisplay.indexMode === "effective") return effectiveRecommended;
+    return mapEffectiveIndicesToDisplay(
+      effectiveRecommended,
+      heroHandDisplay.trumpDisabledIndex,
+    );
+  }, [
+    session.phase,
+    heroCards,
+    session.trumpSuit,
+    session.maxDrawDiscards,
+    session.remainingDeckCount,
+    heroHandDisplay.indexMode,
+    heroHandDisplay.trumpDisabledIndex,
+  ]);
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
@@ -239,6 +290,17 @@ export function TableSessionView({
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
   const selfPlayer = players.find((p) => p.isSelf);
+  const lockedInLiveHand =
+    currentUserId != null &&
+    session.participantIds.includes(currentUserId) &&
+    (session.phase === "draw" || session.phase === "play");
+  const showRebuyOffer =
+    rebuyEnabled &&
+    !session.isFinal &&
+    !lockedInLiveHand &&
+    !showCoWinSettlement &&
+    selfPlayer?.isOut === true &&
+    Boolean(actions.onRebuy);
   const isMyTurn =
     Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
     !suppressTurn;
@@ -251,11 +313,50 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
+  const actionCue =
+    localActionRequired &&
+    !handComplete &&
+    (enrollmentActive || session.phase === "decision")
+      ? formatLocalActionCue(session.phase, enrollmentActive)
+      : null;
+  const waitingCue =
+    !actionCue &&
+    !suppressTurn &&
+    !(turnLabel && cardsDealt && trickPresentation.phase === "live")
+      ? formatWaitingCue({
+          phase: session.phase,
+          enrollmentActive,
+          isMyTurn,
+          handComplete,
+          cardsDealt,
+        })
+      : null;
 
   const turnReminderActivityKey = localActionActivityKey({
     currentUserId,
     enrollmentActive,
     selfPlayer,
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+  });
+
+  const [heroHasInteracted, setHeroHasInteracted] = useState(false);
+  useEffect(() => {
+    setHeroHasInteracted(false);
+  }, [turnReminderActivityKey]);
+
+  const handleHeroUserActivity = useCallback(() => {
+    setHeroHasInteracted(true);
+  }, []);
+
+  const inactivityHelperRequired =
+    localActionRequired &&
+    !handComplete &&
+    !heroHasInteracted &&
+    (session.phase === "draw" || session.phase === "play");
+
+  const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
@@ -310,14 +411,6 @@ export function TableSessionView({
     prevSuccessPulseRef.current = microinteractions.feedbackSuccessPulse;
   }, [microinteractions.feedbackSuccessPulse]);
 
-  const settlementPotMetrics: PotSnapshot = {
-    currentPot: potMetrics.currentPot,
-    maxWinThisHand: potMetrics.maxWinThisHand,
-    limEnabled: potMetrics.limEnabled,
-    overflow: potMetrics.overflow,
-    carryIn: session.carryOverPot ?? 0,
-  };
-
   const handleReaction = useCallback(
     (emoji: string) => {
       pushReaction(emoji, currentUserId ?? undefined);
@@ -365,8 +458,9 @@ export function TableSessionView({
         return actions.onPlayCard(effective);
       },
       onReaction: handleReaction,
+      onHeroUserActivity: handleHeroUserActivity,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, handleHeroUserActivity],
   );
 
   const sharedTableProps = {
@@ -386,12 +480,14 @@ export function TableSessionView({
     currentUserId,
     legalPlayIndices: displayLegalPlayIndices,
     recommendedPlayIndex: displayRecommendedPlayIndex,
+    recommendedDiscardIndices: displayRecommendedDiscardIndices,
     handComplete,
     actionFeedback,
     trickPresentation,
     handPresentation,
     microinteractions,
     instantTrickPlays,
+    turnCountdown,
     ...tableCallbacks,
   };
 
@@ -547,18 +643,31 @@ export function TableSessionView({
           )}
         </div>
         {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
+          <p
+            className={[
+              "btable-session__turn",
+              isMyTurn ? "btable-session__turn--yours" : "btable-session__turn--waiting",
+            ].join(" ")}
+            aria-live="polite"
+            data-testid="turn-indicator"
+          >
             {turnLabel}
           </p>
         )}
-        {session.phase === "draw" && isMyTurn && (
-          <p className="btable-session__hint muted small">
-            Select cards to discard (up to 5), then Draw — Stand pat — or I&apos;m Out
+        {actionCue && (
+          <p className="btable-session__action-cue" data-testid="action-cue" aria-live="polite">
+            {actionCue}
           </p>
         )}
-        {session.phase === "play" && (
-          <p className="btable-session__hint muted small">
-            Follow suit · trump when void · beat the trick when you can
+        <InactivityHelper
+          actionRequired={inactivityHelperRequired}
+          activityKey={turnReminderActivityKey}
+          phase={session.phase}
+          hasUserInteracted={heroHasInteracted}
+        />
+        {waitingCue && (
+          <p className="btable-session__hint btable-session__hint--waiting" data-testid="waiting-cue">
+            {waitingCue}
           </p>
         )}
         {isRevealPhase(session.phase) && (
@@ -568,7 +677,7 @@ export function TableSessionView({
         )}
         {enrollmentActive && !isRevealPhase(session.phase) && (
           <p className="btable-session__enroll muted small">
-            Play or pass · clockwise from dealer
+            Tap I&apos;m in or Pass at your seat — clockwise from dealer
           </p>
         )}
       </header>
@@ -591,20 +700,34 @@ export function TableSessionView({
 
       <TableSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {showCoWinSettlement && !session.isFinal && (
-        <SettlementCoWinPanel
+      {showCoWinSettlement && !session.isFinal && splitPotEnabled && (
+        <SplitPotDecisionToast
           session={session}
           players={players}
-          potMetrics={settlementPotMetrics}
           splitSharePerWinner={splitSharePerWinner}
           currentUserId={currentUserId}
           isCoWinner={isCoWinner}
-          onSettle={actions.onSettle}
+          onAgreeSplit={() => actions.onSettle("split")}
+          onDeclineSplit={() => actions.onSettle("push")}
+          onCarryover={() => actions.onSettleCarryover?.()}
         />
       )}
 
       <footer className="btable-session__foot muted small">
         <FeedbackSettings compact />
+        {showRebuyOffer && (
+          <div className="btable-session__rebuy-offer">
+            <p className="btable-session__rebuy-copy">You&apos;re out — rebuy to join the next hand.</p>
+            <button
+              type="button"
+              className="btn btn--sm btn--primary"
+              data-testid="rebuy-button"
+              onClick={() => void actions.onRebuy?.()}
+            >
+              Rebuy
+            </button>
+          </div>
+        )}
         {mySessionNet != null ? (
           <>Your session profit/loss {formatNet(mySessionNet)}</>
         ) : (

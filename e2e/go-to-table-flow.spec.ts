@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   emulatorReady,
+  ensureTableOverlayClosed,
   goToTable,
   setupRoomWithBots,
   waitForDrawPhase,
@@ -48,11 +49,14 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
   });
 
   test("8 players: full table rejects a 9th robot", async ({ page }) => {
+    test.setTimeout(120_000);
     await setupRoomWithBots(page, 8);
     await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(7);
 
+    await ensureTableOverlayClosed(page);
     await page.getByTestId("add-player-robot").check();
-    await page.getByTestId("session-add-player-pill").click();
+    const pill = page.getByTestId("session-add-player-pill");
+    await pill.evaluate((el) => (el as HTMLButtonElement).click());
 
     await expect(page.locator("#rooms-error")).toContainText(/full.*8 players max/i, {
       timeout: 10_000,

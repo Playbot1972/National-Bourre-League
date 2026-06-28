@@ -42,6 +42,10 @@ error handling, and logging.
 
 Same split as `recordHandClient` (server-authoritative path).
 
+**Bot rebuy (#378):** `buildBotRebuySettlementPlan` runs after `recordHandSettlement`,
+applying busted-bot rebuys in the **same settlement batch** (bankroll + roster patches).
+`applyBotAutoRebuysAfterSettlement` remains as a deferred fallback only.
+
 ### `docs/bourre-settlement-flow.js`
 
 **Removed:** ~250 lines duplicating `recordHandSettlement`, funding simulation,

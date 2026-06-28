@@ -10,7 +10,9 @@ export type CardState =
   | "selected"
   | "play-recommended"
   | "play-preselected"
+  | "draw-recommended"
   | "draw-selected"
+  | "trick-leading"
   | "disabled";
 
 interface PlayingCardProps {

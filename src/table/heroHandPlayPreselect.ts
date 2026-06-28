@@ -1,4 +1,5 @@
-import { botPlayCardIndex } from "../game/play";
+import { botDrawDiscardIndices, botPlayCardIndex } from "../game/play";
+import { isTrump } from "../game/cardUtils";
 import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";
 import type { Card, Suit } from "../types";
@@ -42,4 +43,51 @@ export function computeRecommendedPlayIndex(
   const idx = botPlayCardIndex(hand, ctx);
   if (legalPlayIndices.includes(idx)) return idx;
   return legalPlayIndices[0] ?? null;
+}
+
+/**
+ * Discard assist from existing bot/heuristic logic — same engine as botDrawDiscardIndices.
+ * Maps recommendations back to the caller's hand indices; skips excluded (non-discardable) slots.
+ */
+export function computeRecommendedDiscardIndices(
+  hand: Card[],
+  trumpSuit: Suit,
+  maxDiscards: number,
+  deckReplacementsAvailable: number = Number.POSITIVE_INFINITY,
+  excludedIndices: number[] = [],
+): number[] {
+  if (!hand.length || maxDiscards <= 0) return [];
+  const excluded = new Set(excludedIndices);
+  const eligibleOriginalIndices = hand
+    .map((_, index) => index)
+    .filter((index) => !excluded.has(index))
+    .filter((index) => !isTrump(hand[index]!, trumpSuit))
+    .filter((index) => hand[index]!.rank !== "A");
+  if (!eligibleOriginalIndices.length) return [];
+
+  const eligibleHand = eligibleOriginalIndices.map((index) => hand[index]!);
+  const localIndices = botDrawDiscardIndices(
+    eligibleHand,
+    trumpSuit,
+    maxDiscards,
+    deckReplacementsAvailable,
+  );
+  return localIndices.map((localIndex) => eligibleOriginalIndices[localIndex]!);
+}
+
+export interface DrawDiscardSelectionInput {
+  selectedDraw: ReadonlySet<number>;
+  drawSelectionTouched: boolean;
+  bestPlayEnabled: boolean;
+  recommendedDiscardIndices: number[];
+}
+
+/** Indices submitted on Draw — uses selectedDraw (including Best Play preselection). */
+export function effectiveDrawDiscardIndices(input: DrawDiscardSelectionInput): number[] {
+  const manual = [...input.selectedDraw].sort((a, b) => a - b);
+  if (input.drawSelectionTouched || manual.length > 0) return manual;
+  if (input.bestPlayEnabled) {
+    return [...input.recommendedDiscardIndices].sort((a, b) => a - b);
+  }
+  return [];
 }

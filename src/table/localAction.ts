@@ -1,4 +1,10 @@
 import type { TablePlayer, TableSessionData } from "./types";
+import {
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  HAND_FLOW_PHASE,
+} from "../session/handPhaseMachine";
+import { isPlayerLockedInLiveHand } from "../session/liveHand";
 
 export interface LocalActionInput {
   currentUserId: string | null | undefined;
@@ -6,7 +12,7 @@ export interface LocalActionInput {
   selfPlayer: TablePlayer | null | undefined;
   session: Pick<
     TableSessionData,
-    "phase" | "turnPlayerId" | "drawCompletedIds" | "handEnrollment"
+    "phase" | "turnPlayerId" | "drawCompletedIds" | "handEnrollment" | "participantIds"
   >;
   suppressTurn: boolean;
   handComplete: boolean;
@@ -21,26 +27,60 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   if (!uid || input.handComplete) return false;
 
   const self = input.selfPlayer;
-  if (!self || self.isOut) return false;
+  const lockedInLiveHand = isPlayerLockedInLiveHand({
+      phase: input.session.phase,
+      participantIds: input.session.participantIds,
+      playerId: uid,
+    });
+  if (!self || (!lockedInLiveHand && self.isOut)) return false;
   if (self.actionDeclared) return false;
 
-  if (input.enrollmentActive || input.session.phase === "decision") {
+  const snapshot = buildHandFlowSnapshot({
+    session: {
+      currentHand: {
+        phase: input.session.phase ?? undefined,
+        turnPlayerId: input.session.turnPlayerId ?? undefined,
+        drawCompletedIds: input.session.drawCompletedIds,
+        participantIds: input.session.participantIds ?? [],
+        tricksByPlayer: {},
+      },
+      handEnrollment: input.session.handEnrollment ?? null,
+    },
+    suppressTurn: input.suppressTurn,
+  });
+
+  if (
+    snapshot.phase === HAND_FLOW_PHASE.ENROLLMENT ||
+    input.enrollmentActive
+  ) {
     return Boolean(self.canToggleInHand || self.canPassEnrollment);
   }
 
-  if (input.session.phase === "reveal") {
+  if (snapshot.phase === HAND_FLOW_PHASE.DEAL) {
     return false;
   }
 
-  if (input.session.phase === "draw") {
-    const drawDone = input.session.drawCompletedIds?.includes(uid) ?? false;
-    return (
-      input.session.turnPlayerId === uid && !input.suppressTurn && !drawDone
-    );
+  const drawAction = canSubmitHandAction({
+    snapshot,
+    action: "submit_draw",
+    playerId: uid,
+    actorId: uid,
+    suppressTurn: input.suppressTurn,
+    drawCompletedIds: input.session.drawCompletedIds,
+  });
+  if (snapshot.phase === HAND_FLOW_PHASE.DRAW && drawAction.ok) {
+    return true;
   }
 
-  if (input.session.phase === "play") {
-    return input.session.turnPlayerId === uid && !input.suppressTurn;
+  const playAction = canSubmitHandAction({
+    snapshot,
+    action: "play_card",
+    playerId: uid,
+    actorId: uid,
+    suppressTurn: input.suppressTurn,
+  });
+  if (snapshot.phase === HAND_FLOW_PHASE.PLAY && playAction.ok) {
+    return true;
   }
 
   return false;

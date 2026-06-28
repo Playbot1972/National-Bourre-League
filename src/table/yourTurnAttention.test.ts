@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { TURN_COUNTDOWN_MS } from "./turnCountdown";
 import {
-  YOUR_TURN_HANDOFF_MS,
+  YOUR_TURN_FIRST_REMINDER_MS,
   YOUR_TURN_REPEAT_MS,
   YOUR_TURN_EXIT_MS,
   YOUR_TURN_HOLD_MS,
@@ -9,8 +10,9 @@ import {
 } from "./hooks/useYourTurnAttention";
 
 describe("your turn attention timing", () => {
-  it("handoff cue is immediate on turn change", () => {
-    assert.equal(YOUR_TURN_HANDOFF_MS, 0);
+  it("first graphic reminder is delayed to match turn countdown (15s)", () => {
+    assert.equal(YOUR_TURN_FIRST_REMINDER_MS, TURN_COUNTDOWN_MS);
+    assert.equal(YOUR_TURN_FIRST_REMINDER_MS, 15_000);
   });
 
   it("repeats on gentle 12s / 18s / 24s cadence if still idle", () => {

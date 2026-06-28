@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TURN_COUNTDOWN_MS } from "../turnCountdown";
 import { prefersReducedMotion } from "../trickTiming";
 
-/** Handoff cue fires immediately when turn/phase ownership changes. */
-export const YOUR_TURN_HANDOFF_MS = 0;
+/** First "Your Turn" graphic — only after idle wait (matches turn countdown duration). */
+export const YOUR_TURN_FIRST_REMINDER_MS = TURN_COUNTDOWN_MS;
 
 /** Gentle nudges if the local player still has not acted. */
 export const YOUR_TURN_REPEAT_MS = [12_000, 18_000, 24_000] as const;
@@ -16,8 +17,8 @@ export const YOUR_TURN_HOLD_MS = 420;
 /** Float up + fade off-screen. */
 export const YOUR_TURN_EXIT_MS = 620;
 
-/** @deprecated Use YOUR_TURN_HANDOFF_MS — kept for test imports during transition. */
-export const YOUR_TURN_FIRST_MS = YOUR_TURN_HANDOFF_MS;
+/** @deprecated Use YOUR_TURN_FIRST_REMINDER_MS — kept for e2e imports. */
+export const YOUR_TURN_FIRST_MS = YOUR_TURN_FIRST_REMINDER_MS;
 
 export type YourTurnAttentionPhase = "hidden" | "pop" | "exit";
 
@@ -63,13 +64,6 @@ export function useYourTurnAttention(input: {
     }, delay);
   }, []);
 
-  const showHandoffCue = useCallback(() => {
-    if (!actionRequiredRef.current) return;
-    setBeat(0);
-    setAttentionPhase("pop");
-    repeatIndexRef.current = 1;
-  }, []);
-
   useEffect(() => {
     clearTimers();
     repeatIndexRef.current = 0;
@@ -80,16 +74,16 @@ export function useYourTurnAttention(input: {
       return clearTimers;
     }
 
-    const handoffTimer = window.setTimeout(() => {
+    delayTimerRef.current = window.setTimeout(() => {
+      delayTimerRef.current = null;
       if (!actionRequiredRef.current) return;
-      showHandoffCue();
-    }, YOUR_TURN_HANDOFF_MS);
+      setBeat(0);
+      setAttentionPhase("pop");
+      repeatIndexRef.current = 1;
+    }, YOUR_TURN_FIRST_REMINDER_MS);
 
-    return () => {
-      window.clearTimeout(handoffTimer);
-      clearTimers();
-    };
-  }, [input.activityKey, input.actionRequired, showHandoffCue]);
+    return clearTimers;
+  }, [input.activityKey, input.actionRequired]);
 
   useEffect(() => {
     if (attentionPhase !== "pop") return;

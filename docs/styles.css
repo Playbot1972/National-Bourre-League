@@ -852,6 +852,42 @@ body.room-detail-open .room-actions {
   min-width: 0;
 }
 
+.room-actions--join-mode .room-actions__primary .btn:disabled {
+  background: transparent;
+  border-color: var(--border-default);
+  color: var(--text-muted, var(--text-light));
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
+.room-actions--join-mode .join-form [type="submit"] {
+  font-weight: 600;
+}
+
+.rooms-intro__lead {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.game-setup-panel__step {
+  margin: 0 0 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--gold-300, #f4d58d);
+  background: rgba(244, 213, 141, 0.1);
+  border: 1px solid rgba(244, 213, 141, 0.22);
+}
+
+.game-setup-panel__actions .btn--sm:not(.btn--primary) {
+  opacity: 0.85;
+}
+
 .form-feedback {
   margin: 0 0 12px;
   padding: 10px 12px;

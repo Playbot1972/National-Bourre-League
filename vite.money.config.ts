@@ -9,7 +9,7 @@ export default defineConfig({
     lib: {
       entry: resolve(__dirname, "src/game/money/index.ts"),
       formats: ["es"],
-      fileName: "bourre-rules",
+      fileName: "money-engine",
     },
     rollupOptions: {
       output: {

@@ -16,12 +16,11 @@ test.describe("Turn clarity visuals", () => {
     await expect(page.getByTestId("table-root")).toHaveClass(/btable-wrap--has-active-turn/);
   });
 
-  test("play phase shows immediate Your Turn handoff cue", async ({ page }) => {
+  test("play phase does not show immediate Your Turn graphic", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-06-19T12:00:00Z") });
     await page.goto("/e2e-fixtures/table-flows?scenario=your-turn&phase=play");
 
-    await expect(page.getByTestId("your-turn-attention")).toBeVisible();
-    await expect(page.getByTestId("your-turn-attention")).toContainText("Your Turn");
+    await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
     await expect(page.getByTestId("phase-tag")).toHaveText(/playing/i);
   });
 

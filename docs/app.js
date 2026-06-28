@@ -18,9 +18,51 @@ import {
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
-  shouldClientDriveRobotDraw,
-  shouldUseServerBotAdvanceForDraw,
-} from "./robot-draw-authority.js";
+  SESSION_ORCHESTRATION_DEBOUNCE_MS,
+  logSessionOrchestrator,
+} from "./session-orchestrator.js";
+import {
+  buildHeroCardsForTable,
+  computeLegalPlayIndices,
+  buildTableFeedbackSnapshot,
+  isHandCardsDealtPhase,
+  activeSeatedPlayerIds,
+  buildTablePotMetrics,
+  buildTablePlayerSeatFlags,
+  buildEnrollmentLeaderLabel,
+  buildTableLeaderLabel,
+  totalTricksPlayed,
+  isHandComplete,
+  deriveWinnersFromTricks,
+} from "./table-view-model.js";
+import { applyTableFeedbackDiff } from "./table-feedback.js";
+import { createTableIntentHandlers } from "./table-intents.js";
+import {
+  isBenignTableActionError,
+  isStaleTableActionError,
+  scrubRawInternalMessage,
+} from "./table-action-feedback.js";
+import {
+  shouldClientDriveBotsDirectly,
+  shouldRequestServerBotAdvance,
+  logBotOrchestrator,
+} from "./bot-orchestrator.js";
+import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
+import {
+  logHandLifecycleTransition,
+  isPagatHandClock,
+  buildHandLifecycleContext,
+  isHandoffReadyForEnrollment,
+  isSessionAutoDealtNextHand,
+  nextHandOpenFeedbackMessage,
+} from "./session-lifecycle-ui.js";
+import {
+  buildAddPlayerFormHtml,
+  buildSessionResultsHtml,
+  buildGameSetupStakesHtml,
+  buildSetupRosterHtml,
+  buildSessionLiveStatusHtml,
+} from "./room-detail-view.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   clearSessionSetupSheetSnap,
@@ -55,6 +97,7 @@ import {
   robotSubmitDraw,
   robotPlayCard,
   voteCoWinSettlement,
+  settleCoWinCarryover,
   addSessionPlayer,
   addSessionRobot,
   removeSessionPlayer,
@@ -64,6 +107,7 @@ import {
   ensureHandEnrollment,
   advanceHandReveal,
   prepareSessionForTableOpen,
+  recoverHandoffBetweenHands,
   timeoutHandEnrollmentTurn,
   ensureCurrentHandParticipants,
   advanceSessionBots,
@@ -77,7 +121,6 @@ import {
   finalizeSession,
   getSession,
   getSessionScores,
-  computeHandPotState,
   normalizeBourreSettings,
   updateRoomBourreSettings,
   updateRoomHouseRules,
@@ -86,18 +129,13 @@ import {
   HOUSE_RULE_FIELDS,
   normalizeHouseRules,
   readHouseRulesFromForm,
-  deriveWinnersFromTricks,
-  tricksToWinHint,
   playerHandStake,
-  sumProjectedHandAntes,
   scoreBankroll,
   resolveSessionBuyIn,
   rebuySessionPlayer,
   MAX_TRICKS_PER_HAND,
   MAX_TABLE_PLAYERS,
   formatClientGameError,
-  totalTricksPlayed,
-  isHandComplete,
   isRobotPlayerId,
   getSessionEnrollment,
   getSessionHandDecision,
@@ -106,7 +144,6 @@ import {
   enrollmentDeadlineMs,
   tricksForPlayer,
   resolveActionOrder,
-  projectNextHandPot,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -116,16 +153,9 @@ import {
   sessionTabLabel,
 } from "./session-presets.js";
 import {
-  getLegalPlayIndices,
-  deserializeCards,
-  effectivePlayerHand,
-  serializeCards,
   cardsRemainingInHand,
-  displayHoleCardCount,
-  buildPlayValidationState,
 } from "./game-engine.js";
 import {
-  bourrePlayerIds,
   formatHandHistoryPublicLine,
   formatVoteRecordedMessage,
 } from "./settlement-copy.js";
@@ -146,6 +176,8 @@ import {
   pickUniqueRobotNames,
   playNowBourreSettings,
 } from "./play-now.js";
+import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
+import { gameSetupStepLabel } from "./game-setup-ui.js";
 import {
   formatAnteStake,
   formatRiskStake,
@@ -165,7 +197,8 @@ import {
   isPagatDecisionActive,
   resolveTableEnrollmentActive,
   resolveCurrentHandChoicePlayerId,
-  canPlayerShowHandChoice,
+  assertHandFlowConsistent,
+  shouldAutoOpenNextHand,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -769,7 +802,7 @@ function bindRoomDetailDelegatedControls() {
       return;
     }
 
-    if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled") {
+    if (el.id === "room-buy-in-amount" || el.id === "room-ante-amount" || el.id === "room-lim-enabled" || el.id === "room-rebuy-enabled" || el.id === "room-split-pot-enabled") {
       if (el.id === "room-ante-amount") {
         pendingRoomAnteOverride = parseAnteAmount(el.value);
       }
@@ -910,6 +943,7 @@ let openPrivateHand = null;
 let privateHandSnapSeen = false;
 let openPlayerRatings = {};
 let tableActionFeedback = null;
+let tableActionFeedbackContext = null;
 let tableFeedbackTimer = null;
 let tableFeedbackSnapshot = null;
 /** Local participation/action overlay until Firestore confirms (see local-hand-commit.js). */
@@ -918,11 +952,37 @@ let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
-let botAdvanceInFlight = false;
 let lastRobotTrickAt = 0;
+let sessionOrchestrationTimer = null;
+let sessionOrchestrationCoalesce = false;
 const ROBOT_PRESENTATION_SOFT_MS = 3_500;
 const ROBOT_PRESENTATION_FORCE_MS = 4_000;
 let robotPresentationBlockEpisode = null;
+
+/** Server bot-advance request controller (execute path is Cloud Functions only). */
+let serverBotAdvance = null;
+
+function getServerBotAdvance() {
+  if (!serverBotAdvance) {
+    serverBotAdvance = createServerBotAdvanceRuntime({
+      shouldRequestAdvance: () => shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen),
+      sessionNeedsBotDriver,
+      shouldBlockForPresentation: shouldBlockRobotForPresentation,
+      snapshotContext: snapshotBotOrchestratorContext,
+      getRoomId: () => currentRoomId,
+      getSessionId: () => openSessionId,
+      getHandPhase: (s) => getSessionCurrentHand(s)?.phase ?? null,
+      advanceSessionBots,
+      findSession: (id) => currentSessions.find((x) => x.id === id),
+      getScores: () => openScores,
+      onWake: (latest, scores, actorId, opts) => scheduleServerBotAdvance(latest, scores, actorId, opts),
+      onAdvanceError: (latest, scores, actorId) =>
+        driveClientBotsForCurrentTurn(latest, scores, actorId, { reason: "advance-error-fallback" }),
+      trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
+    });
+  }
+  return serverBotAdvance;
+}
 let pendingRobotWake = false;
 let robotPresentationUnsub = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
@@ -938,32 +998,7 @@ const NEXT_HAND_SETTLE_MS = 2_000;
 let nextHandOpenTimer = null;
 let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
-
-function shouldOpenEnrollmentAfterSettle(ctx) {
-  return (
-    ctx.sessionStatus !== "final" &&
-    !ctx.enrollmentActive &&
-    !ctx.handPhase &&
-    (ctx.participantCount ?? 0) === 0 &&
-    !ctx.pendingCoWin
-  );
-}
-
-function logHandLifecycleTransition(transition) {
-  if (typeof console !== "undefined" && console.info) {
-    console.info(
-      `[hand-lifecycle] ${transition.from} → ${transition.to}: ${transition.reason}${
-        transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
-      }`,
-    );
-  }
-}
-
-/** Pagat reveal/decision clock — bots and timers must run even without legacy enrollment. */
-function isPagatHandClock(sessionObj) {
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
-  return phase === "reveal" || phase === "decision";
-}
+let handoffRecoveryInFlight = false;
 
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
@@ -973,23 +1008,9 @@ function sessionNeedsEnrollmentDriver(sessionObj) {
   );
 }
 
-function sessionHandLifecycleContext(sessionObj) {
-  const ch = getSessionCurrentHand(sessionObj);
-  const enrollment = getSessionEnrollment(sessionObj);
-  return {
-    sessionStatus: sessionObj?.status ?? null,
-    enrollmentActive: enrollment?.active === true,
-    handPhase: ch?.phase ?? null,
-    participantCount: ch?.participantIds?.length ?? 0,
-    pendingCoWin: Boolean(sessionObj?.pendingCoWinSettlement),
-    tablePlayOpen,
-  };
-}
-
 function sessionNeedsNextHandEnrollment(sessionObj) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  const ctx = sessionHandLifecycleContext(sessionObj);
-  return shouldOpenEnrollmentAfterSettle(ctx);
+  return shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
 }
 
 function cancelNextHandOpenTimer() {
@@ -998,29 +1019,6 @@ function cancelNextHandOpenTimer() {
     nextHandOpenTimer = null;
   }
   nextHandOpenStartedAt = 0;
-}
-
-function sessionAutoDealtNextHand(sessionObj) {
-  if (getSessionEnrollment(sessionObj)?.active) return false;
-  const phase = getSessionCurrentHand(sessionObj)?.phase;
-  return (
-    phase === "reveal" ||
-    phase === "decision" ||
-    phase === "draw" ||
-    phase === "play"
-  );
-}
-
-function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
-  const handNum = (sessionObj?.handCount ?? 0) + 1;
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
-  if (sessionAutoDealtNextHand(sessionObj)) {
-    if (phase === "reveal" || phase === "decision") {
-      return `Hand #${handNum} — see your cards, then play or pass`;
-    }
-    return `Hand #${handNum} — dealing next hand…`;
-  }
-  return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
 }
 
 async function openNextHandEnrollment(sessionObj) {
@@ -1043,11 +1041,8 @@ async function openNextHandEnrollment(sessionObj) {
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
     await syncTableSession(refreshed);
-    const autoDealt = sessionAutoDealtNextHand(refreshed);
-    if (sessionNeedsEnrollmentDriver(refreshed)) {
-      startEnrollmentTimer();
-    }
-    processRobotActions(refreshed, openScores);
+    const autoDealt = isSessionAutoDealtNextHand(refreshed);
+    scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
     const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
     const dealerLabel = dealerSc?.displayName ?? "dealer";
     setTableActionFeedback({
@@ -1065,11 +1060,12 @@ async function openNextHandEnrollment(sessionObj) {
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
-    setTableActionFeedback({
-      status: "error",
-      message: err?.message || "Could not open the next join window",
-    });
-    showRoomsError(err?.message || "Could not open the next join window");
+    const message = formatClientGameError(err, "Could not open the next join window");
+    setTableActionFeedback(
+      { status: "error", message },
+      getActionErrorContext("settlement"),
+    );
+    showRoomsError(message);
   } finally {
     nextHandOpenInFlight = false;
   }
@@ -1085,8 +1081,27 @@ function maybeRecoverHandLifecycle(sessionObj) {
     return;
   }
 
-  const ctx = sessionHandLifecycleContext(sessionObj);
-  if (!shouldOpenEnrollmentAfterSettle(ctx)) {
+  const handoffReady = shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
+  if (!handoffReady) {
+    if (tablePlayOpen && !handoffRecoveryInFlight) {
+      handoffRecoveryInFlight = true;
+      void recoverHandoffBetweenHands(currentRoomId, openSessionId, session?.uid ?? null)
+        .then((result) => {
+          if (result.status === "settlement_recovered" || result.status === "artifacts_cleared") {
+            logHandLifecycleTransition({
+              from: "settle",
+              to: "handoffToNextDeal",
+              reason: `recovered ${result.status} after post-settlement stall`,
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("recoverHandoffBetweenHands:", err);
+        })
+        .finally(() => {
+          handoffRecoveryInFlight = false;
+        });
+    }
     cancelNextHandOpenTimer();
     return;
   }
@@ -1110,32 +1125,68 @@ function maybeRecoverHandLifecycle(sessionObj) {
   }, delay);
 }
 
-function cardKeyFromSerialized(card) {
-  if (!card?.rank || !card?.suit) return null;
-  return `${card.rank}-${card.suit}`;
+let tableIntentHandlers = null;
+
+/** Intent submission — wired once; reads live app state via getters. */
+function getTableIntentHandlers() {
+  if (!tableIntentHandlers) {
+    tableIntentHandlers = createTableIntentHandlers({
+      getAuth: () => session,
+      getRoomId: () => currentRoomId,
+      getSessionId: () => openSessionId,
+      getCurrentSessions: () => currentSessions,
+      getHandPhase: () => getSessionCurrentHand(resolveActiveSession())?.phase ?? null,
+      getCurrentHand: () => getSessionCurrentHand(resolveActiveSession()),
+      getSessionCurrentHand,
+      setTableActionFeedback,
+      showRoomsError,
+      commitLocalHandAction,
+      clearLocalHandCommit,
+      markPendingDrawShuffle: () => {
+        pendingDrawShuffle = true;
+      },
+      scheduleTableSessionSync,
+      wakeBotsAfterHandAction: (sessionObj) => {
+        scheduleSessionOrchestration(sessionObj, openScores, { reason: "post-hand-action" });
+      },
+      setHandParticipation,
+      submitHandDraw,
+      foldHandDraw,
+      playHandCard,
+      advanceHandReveal,
+      updateHandTrick,
+      onSettleHand,
+      onSettleCarryover: onSettleCoWinCarryover,
+      onRebuy: onRebuySession,
+      formatClientGameError,
+      getActionErrorContext,
+    });
+  }
+  return tableIntentHandlers;
 }
 
-function buildTableFeedbackSnapshot(sessionObj) {
-  const ch = getSessionCurrentHand(sessionObj);
+async function processTableFeedbackEvents(sessionObj) {
+  const api = await ensureTableFeedbackApi();
+  if (!api || !sessionObj) return;
+
   const myUid = session?.uid ?? null;
-  const participantIds = ch?.participantIds ?? [];
-  const tricks = ch?.tricksByPlayer ?? {};
-  const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
-  const handComplete = isHandComplete(tricks, participantIds);
-  return {
-    sessionId: sessionObj?.id ?? null,
-    phase: ch?.phase ?? null,
-    trumpKey: cardKeyFromSerialized(ch?.trumpUpcard),
-    drawCompletedIds: [...(ch?.drawCompletedIds ?? [])],
-    myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
-    handComplete,
-    myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
-    heroCardKeys: (openPrivateHand?.cards ?? [])
-      .map(cardKeyFromSerialized)
-      .filter(Boolean)
-      .sort()
-      .join(","),
-  };
+  const lastHand = openHands[0];
+  const recentBourreIds =
+    lastHand && lastHand.handNumber === (sessionObj.handCount ?? 0)
+      ? (lastHand.bourreIds || []).filter(Boolean)
+      : [];
+  const next = buildTableFeedbackSnapshot(sessionObj, {
+    myUid,
+    privateHandCards: openPrivateHand?.cards ?? [],
+    recentBourreIds,
+  });
+  const { snapshot, clearPendingDrawShuffle } = applyTableFeedbackDiff(
+    tableFeedbackSnapshot,
+    next,
+    { api, myUid, pendingDrawShuffle },
+  );
+  tableFeedbackSnapshot = snapshot;
+  if (clearPendingDrawShuffle) pendingDrawShuffle = false;
 }
 
 async function ensureTableFeedbackApi() {
@@ -1149,81 +1200,52 @@ async function ensureTableFeedbackApi() {
   return tableFeedbackApi;
 }
 
-async function processTableFeedbackEvents(sessionObj) {
-  const api = await ensureTableFeedbackApi();
-  if (!api || !sessionObj) return;
-
-  const next = buildTableFeedbackSnapshot(sessionObj);
-  const prev = tableFeedbackSnapshot;
-  const myUid = session?.uid ?? null;
-
-  if (!prev || prev.sessionId !== next.sessionId) {
-    tableFeedbackSnapshot = next;
-    if (next.trumpKey && next.phase === "draw") {
-      api.playShuffleFeedback?.({ delayMs: 80 });
-    }
-    return;
-  }
-
-  if (!prev.trumpKey && next.trumpKey) {
-    api.playShuffleFeedback?.({ delayMs: 80 });
-  }
-
-  if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
-    if (next.heroCardKeys !== prev.heroCardKeys) {
-      pendingDrawShuffle = false;
-      api.playShuffleFeedback?.({ delayMs: 120 });
-    }
-  }
-
-  if (myUid && next.myTricks > prev.myTricks) {
-    api.playTrickWinFeedback?.();
-  }
-
-  if (next.handComplete && !prev.handComplete && next.myIsWinner) {
-    api.playBigWinFeedback?.();
-  }
-
-  tableFeedbackSnapshot = next;
+function getActionErrorContext(actionKind) {
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  const currentHand = sessionObj ? getSessionCurrentHand(sessionObj) : null;
+  return {
+    handNumber: sessionObj ? sessionHandNumber(sessionObj) : null,
+    phase: currentHand?.phase ?? null,
+    turnPlayerId: currentHand?.turnPlayerId ?? null,
+    actionKind: actionKind ?? null,
+    atMs: Date.now(),
+  };
 }
 
-function buildHeroCardsForTable(currentHand, privateCardList, playerId, handPhase) {
-  const privateCards = privateCardList ?? [];
-  if ((handPhase !== "draw" && handPhase !== "play") || !currentHand || !playerId) {
-    return privateCards;
-  }
-  const effective = effectivePlayerHand(
-    playerId,
-    deserializeCards(privateCards),
-    currentHand,
-  );
-  return serializeCards(effective);
+function normalizeTableActionFeedback(feedback) {
+  if (!feedback?.message) return feedback;
+  const message = scrubRawInternalMessage(feedback.message);
+  return message === feedback.message ? feedback : { ...feedback, message };
 }
 
-function computeLegalPlayIndices(currentHand, heroCards, playerId) {
-  if (!currentHand || currentHand.phase !== "play" || !heroCards?.length || !playerId) {
-    return null;
-  }
-  const privateHand = deserializeCards(heroCards);
-  const hand = effectivePlayerHand(playerId, privateHand, currentHand);
-  const ctx = buildPlayValidationState({ hand, publicHand: currentHand });
-  return getLegalPlayIndices(ctx, {
-    dealerSeat: currentHand.dealerId ?? null,
-    leaderSeat: currentHand.currentTrick?.leadPlayerId ?? null,
-    currentTurnSeat: currentHand.turnPlayerId ?? null,
-    trickIndex: currentHand.currentTrick?.trickNumber ?? 0,
-  });
-}
-
-function setTableActionFeedback(feedback) {
-  tableActionFeedback = feedback;
+function clearStaleTableActionFeedback(sessionState) {
+  if (!tableActionFeedback || tableActionFeedback.status !== "error") return false;
+  if (!isStaleTableActionError(tableActionFeedbackContext, sessionState)) return false;
+  tableActionFeedback = null;
+  tableActionFeedbackContext = null;
   if (tableFeedbackTimer) {
     clearTimeout(tableFeedbackTimer);
     tableFeedbackTimer = null;
   }
-  if (feedback?.status === "success") {
+  return true;
+}
+
+function setTableActionFeedback(feedback, context) {
+  const normalized = feedback ? normalizeTableActionFeedback(feedback) : null;
+  tableActionFeedback = normalized;
+  if (normalized?.status === "error") {
+    tableActionFeedbackContext = context ?? getActionErrorContext(null);
+  } else {
+    tableActionFeedbackContext = null;
+  }
+  if (tableFeedbackTimer) {
+    clearTimeout(tableFeedbackTimer);
+    tableFeedbackTimer = null;
+  }
+  if (normalized?.status === "success") {
     tableFeedbackTimer = setTimeout(() => {
       tableActionFeedback = null;
+      tableActionFeedbackContext = null;
       tableFeedbackTimer = null;
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
@@ -1276,11 +1298,17 @@ function stopEnrollmentTimer() {
     clearInterval(enrollmentTimer);
     enrollmentTimer = null;
   }
+}
+
+function stopTablePlaySideEffects() {
+  stopEnrollmentTimer();
+  clearBotAdvanceSchedule();
+  clearSessionOrchestrationSchedule();
   stopRobotPresentationSubscription();
 }
 
 function startEnrollmentTimer() {
-  stopEnrollmentTimer();
+  if (enrollmentTimer) return;
   if (!tablePlayOpen) return;
   const s = currentSessions.find((x) => x.id === openSessionId);
   if (!s || s.status === "final") return;
@@ -1295,16 +1323,29 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
+    if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
+      scheduleSessionOrchestration(sessionObj, openScores, { reason: "enrollment-tick" });
+      return;
+    }
     if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
+        if (isBenignTableActionError(e)) {
+          console.warn("enrollment timeout benign race:", e?.message ?? e);
+          return;
+        }
         console.warn("enrollment timeout:", e);
-        setTableActionFeedback({
-          status: "error",
-          message: e.message || "Enrollment timer could not advance — check connection.",
-        });
+        const message = formatClientGameError(
+          e,
+          "Enrollment timer could not advance — check connection.",
+        );
+        setTableActionFeedback(
+          { status: "error", message },
+          getActionErrorContext("enrollment"),
+        );
       });
+      return;
     }
-    processRobotActions(sessionObj, openScores);
+    scheduleSessionOrchestration(sessionObj, openScores, { reason: "enrollment-tick" });
   }, 500);
 }
 let tablePlayOpen = false;
@@ -1871,16 +1912,19 @@ function saveRoomBourreSettingsFromForm() {
   const anteEl = $("#room-ante-amount", roomDetailView);
   const limEl = $("#room-lim-enabled", roomDetailView);
   const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
+  const splitPotEl = $("#room-split-pot-enabled", roomDetailView);
   if (!buyInEl || !anteEl || !limEl || !currentRoomId) return;
   pendingRoomBuyInOverride = parseBuyInAmount(buyInEl.value);
   pendingRoomAnteOverride = parseAnteAmount(anteEl.value);
   const limEnabled = limEl.checked;
   const rebuyEnabled = rebuyEl?.checked === true;
+  const splitPotEnabled = splitPotEl?.checked === true;
   updateRoomBourreSettings(currentRoomId, {
     buyInAmount: pendingRoomBuyInOverride,
     anteAmount: pendingRoomAnteOverride,
     limEnabled,
     rebuyEnabled,
+    splitPotEnabled,
   })
     .then(() => {
       pendingRoomBuyInOverride = null;
@@ -1906,6 +1950,7 @@ function readBourreSettingsFromCreateForm(form) {
     anteAmount: parseAnteAmount($("#create-room-ante", form)?.value),
     limEnabled: $("#create-room-lim-enabled", form)?.checked === true,
     rebuyEnabled: $("#create-room-rebuy-enabled", form)?.checked === true,
+    splitPotEnabled: $("#create-room-split-pot-enabled", form)?.checked === true,
   });
 }
 
@@ -1922,6 +1967,8 @@ function openCreateRoomModal() {
   if (limEl) limEl.checked = defaults.limEnabled;
   const rebuyEl = $("#create-room-rebuy-enabled", createRoomForm);
   if (rebuyEl) rebuyEl.checked = defaults.rebuyEnabled;
+  const splitPotEl = $("#create-room-split-pot-enabled", createRoomForm);
+  if (splitPotEl) splitPotEl.checked = defaults.splitPotEnabled;
   for (const { id } of HOUSE_RULE_FIELDS) {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
@@ -1937,12 +1984,42 @@ function closeCreateRoomModal() {
   document.body.classList.remove("modal-open");
 }
 
+const joinCodeInput = $("#join-code");
+const joinSubmitBtn = $("[data-testid='join-code-submit']");
+const createRoomBtn = $("#create-room");
+const playNowBtn = $("#play-now");
+
+/** Sync Create / Play Now / Join styling from invite-code input (join mode). */
+function syncJoinRoomActionUi() {
+  const joinMode = isJoinModeActive(joinCodeInput?.value);
+  const roomActions = $("#join-form")?.closest(".room-actions");
+  const joinBusy = joinSubmitBtn?.dataset.busy === "true";
+
+  roomActions?.classList.toggle(JOIN_MODE_CLASS, joinMode);
+
+  if (joinSubmitBtn) {
+    joinSubmitBtn.classList.toggle("btn--primary", joinMode);
+    joinSubmitBtn.disabled = joinBusy;
+  }
+  if (createRoomBtn) {
+    createRoomBtn.disabled = joinMode;
+  }
+  if (playNowBtn) {
+    playNowBtn.disabled = joinMode || playNowInFlight;
+  }
+}
+
+if (joinCodeInput) {
+  joinCodeInput.addEventListener("input", syncJoinRoomActionUi);
+  joinCodeInput.addEventListener("change", syncJoinRoomActionUi);
+}
+syncJoinRoomActionUi();
+
 $("#create-room").addEventListener("click", () => {
-  if (!session) return;
+  if (!session || createRoomBtn?.disabled) return;
   openCreateRoomModal();
 });
 
-const playNowBtn = $("#play-now");
 if (playNowBtn) {
   playNowBtn.addEventListener("click", () => {
     void runPlayNowFlow();
@@ -1952,7 +2029,7 @@ if (playNowBtn) {
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");
   if (!btn) return;
-  btn.disabled = busy;
+  btn.disabled = busy || isJoinModeActive(joinCodeInput?.value);
   btn.setAttribute("aria-busy", busy ? "true" : "false");
   btn.textContent = busy ? "Setting up…" : "Play Now";
 }
@@ -2164,10 +2241,10 @@ $("#join-form").addEventListener("submit", async (e) => {
     );
     return;
   }
-  const joinBtn = $("#join-form button[type='submit']");
+  const joinBtn = joinSubmitBtn;
   if (joinBtn) {
-    joinBtn.disabled = true;
     joinBtn.dataset.busy = "true";
+    syncJoinRoomActionUi();
   }
   try {
     await ensureUserDoc(session);
@@ -2205,9 +2282,9 @@ $("#join-form").addEventListener("submit", async (e) => {
     }
   } finally {
     if (joinBtn) {
-      joinBtn.disabled = false;
       joinBtn.dataset.busy = "false";
     }
+    syncJoinRoomActionUi();
   }
 });
 
@@ -2509,10 +2586,9 @@ async function openTablePlay() {
     currentSessions.find((s) => s.id === openSessionId) ??
     openSessionObj;
   await syncTableSession(refreshed);
-  if (sessionNeedsEnrollmentDriver(refreshed)) {
-    startEnrollmentTimer();
-  }
-  processRobotActions(refreshed, openScores);
+  scheduleSessionOrchestration(refreshed, openScores, { reason: "open-table-play" });
+  const feedbackApi = await ensureTableFeedbackApi();
+  feedbackApi?.playGameStartFeedback?.();
   try {
     await overlay.requestFullscreen?.();
   } catch {
@@ -2565,7 +2641,7 @@ function closeTablePlay() {
   tablePlayOpen = false;
   localHandActionCommit = null;
   cancelNextHandOpenTimer();
-  stopEnrollmentTimer();
+  stopTablePlaySideEffects();
   const overlay = $("#table-play-overlay");
   if (overlay) overlay.hidden = true;
   document.body.classList.remove("table-play-active");
@@ -2618,6 +2694,100 @@ function processRobotActions(s, scores) {
   }
 }
 
+function clearBotAdvanceSchedule() {
+  getServerBotAdvance().clearSchedule();
+}
+
+function scheduleServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
+  getServerBotAdvance().schedule(s, scores, actorId, { reason });
+}
+
+async function executeServerBotAdvance(s, scores, actorId, { reason = "snapshot" } = {}) {
+  await getServerBotAdvance().execute(s, scores, actorId, { reason });
+}
+
+/**
+ * Non-render orchestration: lifecycle recovery, enrollment tick wiring, bot requests.
+ * Called from debounced scheduleSessionOrchestration — not from renderRoomDetail.
+ */
+function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {}) {
+  if (!sessionObj || sessionObj.id !== openSessionId || sessionObj.status === "final") {
+    stopEnrollmentTimer();
+    return;
+  }
+
+  if (isGameFlowDebugEnabled()) {
+    try {
+      assertHandFlowConsistent(sessionObj);
+    } catch (err) {
+      console.warn("[nbl-invariant]", err?.code ?? "hand_flow", err?.message ?? err);
+    }
+  }
+
+  maybeRecoverHandLifecycle(sessionObj);
+
+  const enrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
+  const pagatClock = isPagatHandClock(sessionObj);
+  const needsDriver = sessionNeedsBotDriver(sessionObj, scores);
+  const needsEnrollment = sessionNeedsEnrollmentDriver(sessionObj);
+
+  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver || needsEnrollment)) {
+    startEnrollmentTimer();
+  } else if (!enrollmentActive && !pagatClock && !needsDriver) {
+    stopEnrollmentTimer();
+  }
+
+  if (needsDriver || needsEnrollment || enrollmentActive || pagatClock) {
+    processRobotActions(sessionObj, scores);
+  }
+}
+
+function scheduleSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {}) {
+  if (!sessionObj || sessionObj.status === "final") return;
+
+  if (sessionOrchestrationTimer) {
+    sessionOrchestrationCoalesce = true;
+    logSessionOrchestrator("coalesce", {
+      reason,
+      sessionId: sessionObj.id,
+      trigger: reason,
+    });
+    return;
+  }
+
+  logSessionOrchestrator("schedule", {
+    reason,
+    sessionId: sessionObj.id,
+    debounceMs: SESSION_ORCHESTRATION_DEBOUNCE_MS,
+  });
+
+  sessionOrchestrationTimer = setTimeout(() => {
+    sessionOrchestrationTimer = null;
+    const latest = currentSessions.find((s) => s.id === sessionObj.id) ?? sessionObj;
+    if (!latest || latest.status === "final") return;
+
+    logSessionOrchestrator("run", {
+      reason,
+      sessionId: latest.id,
+      trigger: reason,
+    });
+    runSessionOrchestration(latest, scores ?? openScores, { reason });
+
+    if (sessionOrchestrationCoalesce) {
+      sessionOrchestrationCoalesce = false;
+      scheduleSessionOrchestration(latest, openScores, { reason: "coalesce-wake" });
+    }
+  }, SESSION_ORCHESTRATION_DEBOUNCE_MS);
+}
+
+function clearSessionOrchestrationSchedule() {
+  if (sessionOrchestrationTimer) {
+    clearTimeout(sessionOrchestrationTimer);
+    sessionOrchestrationTimer = null;
+  }
+  sessionOrchestrationCoalesce = false;
+}
+
 function stopRobotPresentationSubscription() {
   if (robotPresentationUnsub) {
     robotPresentationUnsub();
@@ -2633,7 +2803,7 @@ function wakeRobotActions() {
     pendingRobotWake = true;
     return;
   }
-  processRobotActions(sessionObj, openScores);
+  scheduleSessionOrchestration(sessionObj, openScores, { reason: "presentation-wake" });
 }
 
 function ensureRobotPresentationSubscription(api) {
@@ -2665,6 +2835,9 @@ function robotTurnPresentationKey(s) {
 
 function isRawTablePresentationBusy() {
   try {
+    if (typeof tableMountApi?.isTablePresentationBusyForBots === "function") {
+      return tableMountApi.isTablePresentationBusyForBots() === true;
+    }
     return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
     return false;
@@ -2797,30 +2970,40 @@ function snapshotGameFlowContext(s, scores) {
   };
 }
 
-function processRobotActionsInner(s, scores) {
+function snapshotBotOrchestratorContext(s, scores, extra = {}) {
+  return {
+    ...snapshotGameFlowContext(s, scores),
+    ...extra,
+    pendingCoWin: Boolean(s?.pendingCoWinSettlement),
+    enrollmentActive: Boolean(getSessionEnrollment(s)?.active),
+    needsBotDriver: sessionNeedsBotDriver(s, scores),
+  };
+}
+
+function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}) {
   if (!currentRoomId || !openSessionId || !s || s.status === "final") return;
   const actorId = session?.uid;
-  if (!actorId || robotActionInFlight) return;
+  if (!actorId) return;
 
   const robotScores = scores.filter(
     (sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId),
   );
   if (!robotScores.length) return;
 
+  // Single-owner path: client requests; server executes all bot phases.
+  if (
+    shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen) &&
+    !clientFallbackOnly
+  ) {
+    scheduleServerBotAdvance(s, scores, actorId, { reason: "processRobotActions" });
+    return;
+  }
+
+  if (robotActionInFlight) return;
+
   const now = Date.now();
   const enrollment = getSessionEnrollment(s);
   if (enrollment?.active) {
-    if (SERVER_HAND_AUTHORITY && tablePlayOpen) {
-      if (!botAdvanceInFlight) {
-        botAdvanceInFlight = true;
-        advanceSessionBots(currentRoomId, openSessionId)
-          .catch((e) => console.warn("advanceSessionBots:", e))
-          .finally(() => {
-            botAdvanceInFlight = false;
-          });
-      }
-      return;
-    }
     if (!tablePlayOpen) return;
     if (enrollmentHasExpired(enrollment)) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) =>
@@ -2830,8 +3013,8 @@ function processRobotActionsInner(s, scores) {
     }
     const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
     const committedIds = enrollment.enrolledIds || [];
-  const handPhase = getSessionCurrentHand(s)?.phase;
-  const isPagatDecision = handPhase === "decision";
+    const handPhase = getSessionCurrentHand(s)?.phase;
+    const isPagatDecision = handPhase === "decision";
     if (
       currentId &&
       isRobotPlayerId(currentId) &&
@@ -2884,22 +3067,9 @@ function processRobotActionsInner(s, scores) {
   if (!participants.length) return;
 
   const handPhase = currentHand.phase;
-  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
 
   if (handPhase === "draw") {
-    if (shouldUseServerBotAdvanceForDraw(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
-      if (!botAdvanceInFlight) {
-        botAdvanceInFlight = true;
-        advanceSessionBots(currentRoomId, openSessionId)
-          .catch((e) => console.warn("advanceSessionBots:", e))
-          .finally(() => {
-            botAdvanceInFlight = false;
-          });
-      }
-      return;
-    }
-
-    if (!shouldClientDriveRobotDraw(SERVER_HAND_AUTHORITY)) {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY) && !clientFallbackOnly) {
       return;
     }
 
@@ -2934,6 +3104,10 @@ function processRobotActionsInner(s, scores) {
   }
 
   if (handPhase === "play") {
+    if (!shouldClientDriveBotsDirectly(SERVER_HAND_AUTHORITY) && !clientFallbackOnly) {
+      return;
+    }
+
     if (shouldBlockRobotForPresentation(s, scores)) {
       return;
     }
@@ -2946,7 +3120,6 @@ function processRobotActionsInner(s, scores) {
     const total = totalTricksPlayed(tricks, participants);
     if (total >= MAX_TRICKS_PER_HAND) return;
 
-    // Bots only: auto-lead trick 5 so the final trick does not stall on a robot seat.
     if (
       trickNum === 5 &&
       trickPlays === 0 &&
@@ -3029,88 +3202,21 @@ function processRobotActionsInner(s, scores) {
     });
 }
 
-function buildEnrollmentLeaderLabel(displayScores, enrollment, myUid, pagatDecision = false) {
-  const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
-  const name = displayScores.find((sc) => sc.playerId === currentId)?.displayName || "Player";
-  if (currentId === myUid) {
-    return pagatDecision
-      ? "Your turn — pass or play"
-      : "Your turn — tap I'm in";
+/** Honor-system fallback when gameAdvanceBots is unavailable or fails. */
+function driveClientBotsForCurrentTurn(s, scores, actorId, { reason = "fallback" } = {}) {
+  if (!shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) return;
+  if (!sessionNeedsBotDriver(s, scores)) return;
+  if (shouldBlockRobotForPresentation(s, scores)) {
+    getServerBotAdvance().markPendingWake();
+    return;
   }
-  return pagatDecision
-    ? `Waiting for ${name} — pass or play clockwise from dealer`
-    : `Waiting for ${name} — clockwise from dealer`;
-}
-
-function buildTableLeaderLabel(
-  displayScores,
-  participantIds,
-  tricksThisHand,
-  activeWinnerIds,
-  handReady,
-  maxTricks,
-  handComplete,
-  totalTricks,
-  phase,
-  trumpSuit,
-) {
-  const suitNames = {
-    spades: "Spades",
-    hearts: "Hearts",
-    diamonds: "Diamonds",
-    clubs: "Clubs",
-  };
-  if (phase === "draw") {
-    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · draw round — discard up to 5 cards or stand pat`;
-  }
-  if (phase === "play") {
-    const suitLabel = suitNames[trumpSuit] || trumpSuit || "—";
-    return `Trump ${suitLabel} · tap a legal card to play (${totalTricks}/5 tricks)`;
-  }
-  if (!participantIds.length) return "Tap I'm in when you're ready to play.";
-  if (handComplete && handReady && activeWinnerIds.length === 1) {
-    const name =
-      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Winner";
-    const bourreIds = bourrePlayerIds(tricksThisHand, participantIds);
-    if (bourreIds.length) {
-      const bourreNames = bourreIds
-        .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-        .join(" & ");
-      return `${name} wins (${maxTricks} tricks) · Bourré: ${bourreNames}`;
-    }
-    return `${name} wins (${maxTricks} tricks)`;
-  }
-  if (handComplete && handReady && activeWinnerIds.length >= 2) {
-    const names = activeWinnerIds
-      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-      .join(" & ");
-    return `Tie — ${names} (${maxTricks} tricks each) · pot carries (no split)`;
-  }
-  if (handReady && activeWinnerIds.length === 1) {
-    const name =
-      displayScores.find((sc) => sc.playerId === activeWinnerIds[0])?.displayName || "Leader";
-    return `${name} leads (${maxTricks} tricks) — play out to 5 (${totalTricks}/5 played)`;
-  }
-  if (handReady && activeWinnerIds.length >= 2) {
-    const names = activeWinnerIds
-      .map((id) => displayScores.find((sc) => sc.playerId === id)?.displayName || id)
-      .join(" & ");
-    return `Tie at ${maxTricks} — finish all 5 tricks (${totalTricks}/5 played)`;
-  }
-  const winHint = tricksToWinHint(participantIds.length);
-  return `Tap + when you take a trick (${totalTricks}/5 played · most tricks wins, can be ${winHint} with ${participantIds.length} in)`;
-}
-
-function activeSeatedPlayerIds(sessionPlayers, displayScores) {
-  const fromSession = (sessionPlayers || []).map((p) => p.playerId).filter(Boolean);
-  const pool = fromSession.length
-    ? fromSession
-    : displayScores.map((sc) => sc.playerId).filter(Boolean);
-  return pool.filter((pid) => {
-    const row = displayScores.find((sc) => sc.playerId === pid);
-    return row?.out !== true;
+  logBotOrchestrator("client-fallback", {
+    reason,
+    requester: actorId,
+    owner: "client",
+    ...snapshotBotOrchestratorContext(s, scores),
   });
+  processRobotActionsInner(s, scores, { clientFallbackOnly: true });
 }
 
 function buildTableSessionProps(s) {
@@ -3139,11 +3245,7 @@ function buildTableSessionProps(s) {
   const trumpSuit = currentHand?.trumpSuit ?? null;
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
   const tricksThisHand = currentHand?.tricksByPlayer || {};
-  const cardsDealt =
-    handPhase === "reveal" ||
-    handPhase === "decision" ||
-    handPhase === "draw" ||
-    handPhase === "play";
+  const cardsDealt = isHandCardsDealtPhase(handPhase);
   const privateHeroCards = openPrivateHand?.cards ?? [];
   const heroCardList =
     myUid && cardsDealt
@@ -3167,6 +3269,24 @@ function buildTableSessionProps(s) {
     handPhase,
     currentHand,
   });
+  if (
+    localHandActionCommit &&
+    myUid &&
+    localHandActionCommit.kind === LOCAL_HAND_ACTION.DRAW &&
+    Date.now() - (localHandActionCommit.atMs ?? 0) > 12_000 &&
+    !(currentHand?.drawCompletedIds ?? []).includes(myUid)
+  ) {
+    clearLocalHandCommit();
+    if (!tableActionFeedback || tableActionFeedback.status === "loading") {
+      setTableActionFeedback(
+        {
+          status: "error",
+          message: "Draw could not complete — check connection and try again.",
+        },
+        getActionErrorContext("draw"),
+      );
+    }
+  }
   let enrollment = serverEnrollment;
   const pagatHandDecision = currentHand?.handDecision;
   const pagatDecisionActive = isPagatDecisionActive(handPhase, pagatHandDecision);
@@ -3216,6 +3336,21 @@ function buildTableSessionProps(s) {
   );
   const totalTricks = totalTricksPlayed(tricksThisHand, handParticipantIds);
   const handComplete = isHandComplete(tricksThisHand, handParticipantIds);
+  clearStaleTableActionFeedback({
+    handNumber,
+    phase: handPhase,
+    turnPlayerId: currentHand?.turnPlayerId ?? null,
+    handComplete,
+  });
+  if (
+    tableActionFeedback?.status === "error" &&
+    tableActionFeedbackContext?.actionKind === "private_hand" &&
+    privateHandSnapSeen &&
+    privateHeroCards.length > 0
+  ) {
+    tableActionFeedback = null;
+    tableActionFeedbackContext = null;
+  }
   const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
   const activeWinnerIds =
     handReady && derivedWinnerIds.length > 0
@@ -3224,7 +3359,6 @@ function buildTableSessionProps(s) {
         ? pendingWinners
         : [];
 
-  const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
   const postedAntes = currentHand?.postedAntes ?? {};
   const seatedIds =
     currentHand?.seatedIds?.length > 0
@@ -3242,44 +3376,20 @@ function buildTableSessionProps(s) {
           seatedIds,
         )
       : null;
-  const potFundingPlayerIds =
-    handParticipantIds.length > 0
-      ? handParticipantIds
-      : activeSeatedPlayerIds(s.players, displayScores);
-  const antePot = sumProjectedHandAntes(
-    scoreById,
-    potFundingPlayerIds,
-    handStake,
-    postedAntes,
-  );
   const limEnabled = s.limEnabled === true;
+  const splitPotEnabled = normalizeBourreSettings(currentRoom?.bourreSettings).splitPotEnabled === true;
+  const rebuyEnabled = normalizeBourreSettings(currentRoom?.bourreSettings).rebuyEnabled === true;
   const carryOver = s.carryOverPot ?? 0;
-  const potState = computeHandPotState({
-    anteAmount: handStake,
-    limEnabled,
-    carryIn: carryOver,
-    antePot,
-  });
-  const projectedNextPot = projectNextHandPot(
-    carryOver,
-    scoreById,
-    potFundingPlayerIds,
+  const { potMetrics } = buildTablePotMetrics({
+    handParticipantIds,
+    sessionPlayers: s.players,
+    displayScores,
     handStake,
+    limEnabled,
+    carryOver,
     postedAntes,
-  );
-  const potMetrics = {
-    anteAmount: potState.anteAmount,
-    potCap: potState.potCap,
-    currentPot: handParticipantIds.length > 0 ? potState.currentPot : projectedNextPot,
-    maxWinThisHand:
-      handParticipantIds.length > 0
-        ? potState.maxWinThisHand
-        : limEnabled
-          ? Math.min(projectedNextPot, potState.potCap)
-          : projectedNextPot,
-    limEnabled: potState.limEnabled,
-    overflow: potState.overflow,
-  };
+  });
+  const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
 
   const showCoWinSettlement =
     handComplete &&
@@ -3297,6 +3407,30 @@ function buildTableSessionProps(s) {
         : null;
 
   const sessionBuyIn = s.buyInAmount ?? normalizeBourreSettings(currentRoom?.bourreSettings).buyInAmount;
+  const seatFlagCtx = {
+    myUid,
+    myPhotoUrl: session?.photoURL ?? null,
+    sessionBuyIn,
+    dealerId,
+    handParticipantIds,
+    tricksThisHand,
+    cardsDealt,
+    currentHand,
+    handComplete,
+    handReady,
+    activeWinnerIds,
+    enrolledDuringSignup,
+    declinedEnrollmentIds,
+    plannedDiscards,
+    enrollmentActive,
+    pagatDecisionActive,
+    currentEnrollmentPlayerId,
+    isFinal,
+    totalTricks,
+    ratingsByPlayerId: openPlayerRatings,
+    applyLocalCommitToPlayerFlags,
+    localHandActionCommit,
+  };
   const lastHand = openHands[0];
   const recentBourreIds =
     lastHand && lastHand.handNumber === (s.handCount ?? 0)
@@ -3342,81 +3476,7 @@ function buildTableSessionProps(s) {
     handComplete,
     legalPlayIndices,
     actionFeedback: tableActionFeedback,
-    players: displayScores.map((sc) => {
-      const isSelf = sc.playerId === myUid;
-      const rating = openPlayerRatings[sc.playerId];
-      const apeScoreVal = rating?.apeScore;
-      const playerFlags = {
-        playerId: sc.playerId,
-        displayName: sc.displayName,
-        photoURL: isSelf ? session?.photoURL : null,
-        handsWon: sc.handsWon ?? 0,
-        sessionStreak: sc.handsWon ?? 0,
-        ...(rating && !isRobotPlayerId(sc.playerId)
-          ? {
-              apeScore: apeScoreVal ?? 0,
-              apeClass: rating.apeClass ?? apeClass(apeScoreVal ?? 0),
-              apeStatus: rating.apeStatus ?? apeStatus(rating),
-            }
-          : {}),
-        ...(isSelf ? { net: sc.net ?? 0 } : {}),
-        bankroll: scoreBankroll(sc, sessionBuyIn),
-        isOut: sc.out === true || scoreBankroll(sc, sessionBuyIn) <= 0,
-        ...(isSelf && sc.perHandStake != null ? { perHandStake: sc.perHandStake } : {}),
-        inHand:
-          handParticipantIds.includes(sc.playerId) ||
-          enrolledDuringSignup.includes(sc.playerId),
-        tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
-        isSelf,
-        isDealer: sc.playerId === dealerId,
-        isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-        enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
-        enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
-        decisionPlannedDiscards: plannedDiscards[sc.playerId],
-        isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
-        showHoleCards:
-          cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
-        holeCardCount: cardsDealt
-          ? displayHoleCardCount(currentHand || {}, sc.playerId, false)
-          : 0,
-        isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
-        isActiveActor:
-          (enrollmentActive || pagatDecisionActive) &&
-          currentEnrollmentPlayerId === sc.playerId
-            ? true
-            : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
-        canToggleInHand: canPlayerShowHandChoice({
-          enrollmentGateActive: enrollmentActive,
-          isSelf,
-          playerId: sc.playerId,
-          currentChoicePlayerId: currentEnrollmentPlayerId,
-          isFinal,
-          bankroll: scoreBankroll(sc, sessionBuyIn),
-          isOut: sc.out === true,
-        }),
-        canPassEnrollment:
-          canPlayerShowHandChoice({
-            enrollmentGateActive: enrollmentActive,
-            isSelf,
-            playerId: sc.playerId,
-            currentChoicePlayerId: currentEnrollmentPlayerId,
-            isFinal,
-            bankroll: scoreBankroll(sc, sessionBuyIn),
-            isOut: sc.out === true,
-          }) && !declinedEnrollmentIds.includes(sc.playerId),
-        canEditTricks:
-          !cardsDealt &&
-          !isFinal &&
-          handParticipantIds.includes(sc.playerId) &&
-          isSelf &&
-          !handComplete &&
-          totalTricks < MAX_TRICKS_PER_HAND,
-      };
-      return isSelf && localHandActionCommit
-        ? applyLocalCommitToPlayerFlags(localHandActionCommit, playerFlags, myUid)
-        : playerFlags;
-    }),
+    players: displayScores.map((sc) => buildTablePlayerSeatFlags(sc, seatFlagCtx)),
     potMetrics,
     mySessionNet:
       myUid != null
@@ -3439,260 +3499,13 @@ function buildTableSessionProps(s) {
         ),
     enrollmentActive,
     showCoWinSettlement,
+    splitPotEnabled,
+    rebuyEnabled,
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
-    actions: {
-      onToggleInHand: (inHand) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to join the hand." });
-          return;
-        }
-        const liveHand = getSessionCurrentHand(
-          currentSessions.find((x) => x.id === openSessionId),
-        );
-        const livePhase = liveHand?.phase ?? null;
-        const cardsAlreadyDealt =
-          livePhase === "reveal" ||
-          livePhase === "decision" ||
-          livePhase === "draw" ||
-          livePhase === "play";
-        if (cardsAlreadyDealt && inHand) {
-          commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount: 0 });
-          setTableActionFeedback({ status: "loading", message: "Joining hand…" });
-          setHandParticipation(currentRoomId, openSessionId, {
-            playerId: session.uid,
-            inHand: true,
-            discardCount: 0,
-            actorId: session.uid,
-          })
-            .then(() => {
-              setTableActionFeedback({
-                status: "success",
-                message: "You're in this hand.",
-              });
-            })
-            .catch((e) => {
-              clearLocalHandCommit();
-              const message = e.message || "Could not play this hand";
-              setTableActionFeedback({ status: "error", message });
-              showRoomsError(message);
-            });
-          return;
-        }
-        commitLocalHandAction(
-          inHand ? LOCAL_HAND_ACTION.ENROLL_PLAY : LOCAL_HAND_ACTION.ENROLL_PASS,
-        );
-        setTableActionFeedback({ status: "loading", message: inHand ? "Joining hand…" : "Passing hand…" });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: inHand ? "You're in this hand." : "You passed this hand.",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not update hand participation";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onPassEnrollment: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to pass." });
-          return;
-        }
-        const kind = handPhase === "decision"
-          ? LOCAL_HAND_ACTION.DECISION_PASS
-          : LOCAL_HAND_ACTION.ENROLL_PASS;
-        commitLocalHandAction(kind);
-        setTableActionFeedback({ status: "loading", message: "Passing hand…" });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand: false,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({ status: "success", message: "You passed this hand." });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not pass this hand";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onDecisionPlay: (discardCount) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          setTableActionFeedback({ status: "error", message: "Sign in to play." });
-          return;
-        }
-        const label =
-          discardCount > 0 ? `Playing — will draw ${discardCount}` : "Staying pat";
-        commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount });
-        setTableActionFeedback({ status: "loading", message: `${label}…` });
-        setHandParticipation(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          inHand: true,
-          discardCount,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: discardCount > 0 ? `You're in — draw ${discardCount}` : "You're in — standing pat",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            const message = e.message || "Could not play this hand";
-            setTableActionFeedback({ status: "error", message });
-            showRoomsError(message);
-          });
-      },
-      onAdvanceReveal: () => {
-        if (!currentRoomId || !openSessionId) return Promise.resolve();
-        return advanceHandReveal(currentRoomId, openSessionId).catch((e) => {
-          const lower = String(e?.message ?? "").toLowerCase();
-          if (lower.includes("not in reveal")) {
-            return;
-          }
-          console.warn("advanceHandReveal:", e);
-          const message = formatClientGameError(e, "Could not open draw phase");
-          setTableActionFeedback({ status: "error", message });
-          showRoomsError(message);
-        });
-      },
-      onTrickDelta: (delta) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) return;
-        updateHandTrick(currentRoomId, openSessionId, session.uid, delta, session.uid).catch(
-          (e) => showRoomsError(e.message || "Could not update tricks"),
-        );
-      },
-      onSubmitDraw: (discardIndices) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to draw"));
-        }
-        const maxDraw = currentHand?.maxDrawDiscards ?? 5;
-        if (discardIndices.length > maxDraw) {
-          const err = new Error(`You may discard at most ${maxDraw} cards`);
-          setTableActionFeedback({ status: "error", message: err.message });
-          return Promise.reject(err);
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({
-          status: "loading",
-          message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
-        });
-        return submitHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          discardIndices,
-          actorId: session.uid,
-        })
-          .then(() => {
-            if (discardIndices.length > 0) {
-              pendingDrawShuffle = true;
-            }
-            setTableActionFeedback({
-              status: "success",
-              message: discardIndices.length
-                ? `Drew ${discardIndices.length} replacement card(s)`
-                : "Standing pat",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not submit draw",
-            });
-            throw e;
-          });
-      },
-      onPassDraw: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to draw"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({ status: "loading", message: "Standing pat…" });
-        return submitHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          discardIndices: [],
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({ status: "success", message: "Standing pat" });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not stand pat",
-            });
-            throw e;
-          });
-      },
-      onFoldDraw: () => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to fold"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-        setTableActionFeedback({ status: "loading", message: "Folding out…" });
-        return foldHandDraw(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          actorId: session.uid,
-        })
-          .then(() => {
-            setTableActionFeedback({
-              status: "success",
-              message: "You're out this hand — ante forfeited",
-            });
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not fold out",
-            });
-            throw e;
-          });
-      },
-      onPlayCard: (cardIndex) => {
-        if (!session?.uid || !currentRoomId || !openSessionId) {
-          return Promise.reject(new Error("Sign in to play"));
-        }
-        commitLocalHandAction(LOCAL_HAND_ACTION.PLAY_CARD);
-        setTableActionFeedback({ status: "loading", message: "Playing card…" });
-        return playHandCard(currentRoomId, openSessionId, {
-          playerId: session.uid,
-          cardIndex,
-          actorId: session.uid,
-        })
-          .then(() => {
-            tableActionFeedback = null;
-            const sessionObj = currentSessions.find((x) => x.id === openSessionId);
-            if (sessionObj) {
-              scheduleTableSessionSync(sessionObj);
-              processRobotActions(sessionObj, openScores);
-            }
-          })
-          .catch((e) => {
-            clearLocalHandCommit();
-            setTableActionFeedback({
-              status: "error",
-              message: e.message || "Could not play card",
-            });
-            throw e;
-          });
-      },
-      onSettle: (choice) => onSettleHand(choice),
-    },
+    actions: getTableIntentHandlers(),
   };
 }
 
@@ -3740,13 +3553,6 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
     api.mountTableSession(liveHost, buildTableSessionProps(sessionObj));
     ensureRobotPresentationSubscription(api);
     void processTableFeedbackEvents(sessionObj);
-    if (getSessionEnrollment(sessionObj)?.active || sessionNeedsEnrollmentDriver(sessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
-    } else {
-      stopEnrollmentTimer();
-    }
-    maybeRecoverHandLifecycle(sessionObj);
   } catch (err) {
     console.error("table-session mount:", err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -3791,11 +3597,16 @@ function startPrivateHandSubscription() {
     },
     (err) => {
       privateHandSnapSeen = true;
+      if (isBenignTableActionError(err)) {
+        console.warn("privateHand subscription benign race:", err?.message ?? err);
+        return;
+      }
       console.error("privateHand subscription:", err);
-      setTableActionFeedback({
-        status: "error",
-        message: err?.message || "Could not load your private hand",
-      });
+      const message = formatClientGameError(err, "Could not load your private hand");
+      setTableActionFeedback(
+        { status: "error", message },
+        getActionErrorContext("private_hand"),
+      );
       const sessionObj = currentSessions.find((x) => x.id === openSessionId);
       if (sessionObj) scheduleTableSessionSync(sessionObj);
     },
@@ -3849,7 +3660,7 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
 
 function scheduleRenderRoomDetail() {
   const open = currentSessions.find((s) => s.id === openSessionId);
-  if (open) maybeRecoverHandLifecycle(open);
+  if (open) scheduleSessionOrchestration(open, openScores, { reason: "snapshot" });
   if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
   renderRoomDetailTimer = window.setTimeout(() => {
     renderRoomDetailTimer = 0;
@@ -3995,13 +3806,6 @@ function renderRoomDetail() {
     mountSessionPanel(openSessionObj, isOwner);
   }
   scheduleTableSessionSync(openSessionObj);
-  if (openSessionObj && openSessionObj.status !== "final") {
-    processRobotActions(openSessionObj, openScores);
-    if (sessionNeedsEnrollmentDriver(openSessionObj)) {
-      if (tablePlayOpen) startEnrollmentTimer();
-      else stopEnrollmentTimer();
-    }
-  }
   if (editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
@@ -4038,99 +3842,40 @@ function renderRoomDetail() {
   applyRoomSetupFocus();
 }
 
-function buildAddPlayerFormHtml() {
-  return `<form class="add-player-form" id="add-player-form" data-testid="add-player-form">
-         <input class="text-input" id="add-player-name" placeholder="Guest name (optional for robots)" aria-label="Add player name" data-testid="add-player-name" />
-         <label class="add-player-robot">
-           <input type="checkbox" id="add-player-robot" data-testid="add-player-robot" checked />
-           Robot — auto I&apos;m in &amp; play to win (name optional)
-         </label>
-         <button type="submit" class="btn btn--sm" id="session-add-player-pill" data-testid="session-add-player-pill">Add to roster</button>
-       </form>`;
-}
-
-function buildSetupRosterHtml(sessionObj, isOwner) {
-  if (!sessionObj || sessionObj.status === "final") {
-    return `<p class="muted small game-setup-roster__empty">Open a table to build your roster.</p>`;
-  }
-  const roster = tableReadyRoster(sessionObj);
-  if (roster.length === 0) {
-    return `<p class="muted small game-setup-roster__empty">No players yet — add guests or robots below.</p>`;
-  }
+function rosterPanelHtml(sessionObj, isOwner) {
   const buyIn = resolveSessionBuyIn(sessionObj, normalizeBourreSettings(currentRoom?.bourreSettings));
-  return `<ul class="game-setup-roster" data-testid="game-setup-roster">
-    ${roster
-      .map((entry) => {
-        const sc = openScores.find((s) => s.playerId === entry.playerId);
-        const robot = entry.isRobot;
-        const guest = !robot && !currentMembers.some((m) => m.userId === entry.playerId);
-        const roleLabel = robot ? "robot" : guest ? "guest" : "player";
-        const chips =
-          sc != null
-            ? formatRiskStake(scoreBankroll(sc, buyIn))
-            : null;
-        const canRemove =
-          isOwner &&
-          sessionObj.status !== "final" &&
-          (robot || guest) &&
-          entry.playerId;
-        return `<li class="game-setup-roster__row" data-testid="setup-roster-entry">
-          <span class="dot${robot ? " dot--robot" : guest ? " dot--guest" : ""}"></span>
-          <span class="game-setup-roster__name">${escapeHtml(entry.displayName)}</span>
-          <em class="game-setup-roster__role">${escapeHtml(roleLabel)}</em>
-          ${chips ? `<span class="game-setup-roster__chips muted small">${escapeHtml(chips)}</span>` : ""}
-          ${
-            canRemove
-              ? `<button type="button" class="btn btn--sm btn--danger game-setup-roster__remove" data-remove-session-player="${escapeHtml(entry.playerId)}" data-remove-session-name="${escapeHtml(entry.displayName)}" aria-label="Remove ${escapeHtml(entry.displayName)}">Remove</button>`
-              : ""
-          }
-        </li>`;
-      })
-      .join("")}
-  </ul>`;
+  return buildSetupRosterHtml(sessionObj, isOwner, {
+    roster: tableReadyRoster(sessionObj),
+    scores: openScores,
+    members: currentMembers,
+    buyIn,
+    escapeHtml,
+    formatRiskStake,
+    scoreBankroll,
+  });
 }
 
-function buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings) {
-  if (isOwner) {
-    return `<div class="game-setup-stakes bourre-settings-form" data-testid="game-setup-stakes">
-      <label class="bourre-settings__row">
-        <span class="bourre-settings__label">Buy-in</span>
-        <input
-          type="number"
-          class="text-input bourre-settings__amount"
-          id="room-buy-in-amount"
-          min="1"
-          step="1"
-          value="${roomBuyInAmount}"
-          aria-label="Room buy-in amount"
-        />
-      </label>
-      <label class="bourre-settings__row">
-        <span class="bourre-settings__label">Ante</span>
-        <select class="num-select" id="room-ante-amount" aria-label="Per-hand ante amount">
-          ${renderAnteSelectOptionsHtml(roomAnteAmount, escapeHtml)}
-        </select>
-      </label>
-      <label class="bourre-settings__row bourre-settings__lim">
-        <input type="checkbox" id="room-lim-enabled" ${bourreSettings.limEnabled ? "checked" : ""} />
-        <span>LmT</span>
-        <span class="muted small">Pot cap 20× ante</span>
-      </label>
-      <label class="bourre-settings__row bourre-settings__lim">
-        <input type="checkbox" id="room-rebuy-enabled" ${bourreSettings.rebuyEnabled ? "checked" : ""} />
-        <span>Rebuy</span>
-        <span class="muted small">Top-up when bankroll hits zero</span>
-      </label>
-      <p class="muted small">Buy-in is each player&apos;s starting stack; ante feeds the pot each hand.</p>
-    </div>`;
-  }
-  return `<ul class="kv game-setup-stakes game-setup-stakes--readonly">
-    <li><span>Buy-in</span><span>${escapeHtml(formatRiskStake(bourreSettings.buyInAmount))}</span></li>
-    <li><span>Ante</span><span>${escapeHtml(formatAnteStake(bourreSettings.anteAmount))}</span></li>
-    <li><span>LmT</span><span>${bourreSettings.limEnabled ? "On" : "Off"}</span></li>
-  </ul>`;
+function stakesPanelHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings) {
+  return buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings, {
+    escapeHtml,
+    renderAnteSelectOptionsHtml,
+    formatRiskStake,
+    formatAnteStake,
+  });
 }
 
+function sessionLiveCardHtml(s) {
+  return buildSessionLiveStatusHtml(s, {
+    tableReadyPlayerCount,
+    tablePlayOpen,
+    formatAnteStake,
+    escapeHtml,
+    getSessionEnrollment,
+    getSessionCurrentHand,
+  });
+}
+
+/** Unified game setup panel (stakes, roster, play CTA). */
 function buildUnifiedGameSetupHtml({
   openSessionObj,
   isOwner,
@@ -4149,6 +3894,8 @@ function buildUnifiedGameSetupHtml({
     ? "Open the live card table"
     : "Add at least one more player (you count as player 1), then tap Play";
 
+  const stepLabel = gameSetupStepLabel({ hasActiveSession, ready, isOwner });
+
   const openTableBtn = isOwner
     ? `<button class="btn btn--primary" id="new-session" type="button" data-testid="open-table-btn" ${
         canCreateSession ? "" : 'disabled aria-disabled="true"'
@@ -4161,9 +3908,7 @@ function buildUnifiedGameSetupHtml({
 
   const sessionMeta = hasActiveSession
     ? `<p class="game-setup-panel__table-name"><strong>${escapeHtml(openSessionObj.sessionName || "Table")}</strong> · ante ${escapeHtml(formatAnteStake(openSessionObj.handStake ?? roomAnteAmount))}</p>`
-    : isOwner
-      ? `<p class="muted small game-setup-panel__hint">Set buy-in and ante, tap <strong>Open table</strong>, then add players or robots.</p>`
-      : `<p class="muted small game-setup-panel__hint">Waiting for the host to open a table.</p>`;
+    : "";
 
   const capNote =
     isOwner && currentSessionsLength > 0
@@ -4203,41 +3948,20 @@ function buildUnifiedGameSetupHtml({
   return `<section class="game-setup-panel" data-testid="game-setup-panel">
     <div class="session-setup-window" data-testid="session-setup-window">
       <header class="game-setup-panel__head">
-        <h4>Table setup</h4>
-        <p class="muted small">One place to set stakes, build your roster, and start play.</p>
+        <h4>Get ready to play</h4>
+        <p class="game-setup-panel__step" data-testid="game-setup-step">${escapeHtml(stepLabel)}</p>
       </header>
-      ${buildGameSetupStakesHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
+      ${stakesPanelHtml(isOwner, roomBuyInAmount, roomAnteAmount, bourreSettings)}
       ${sessionMeta}
       <div class="game-setup-panel__roster">
         <h5>Roster</h5>
-        ${buildSetupRosterHtml(openSessionObj, isOwner)}
+        ${rosterPanelHtml(openSessionObj, isOwner)}
       </div>
       ${addSection}
       ${actions}
       ${hasActiveSession && isOwner && canCreateSession && !sessionHardCap ? `<div class="game-setup-panel__secondary">${openTableBtn}${capNote}</div>` : ""}
     </div>
   </section>`;
-}
-
-function buildSessionLiveStatusHtml(s) {
-  if (!s || s.status === "final" || tableReadyPlayerCount(s) < 2) return "";
-  const enrollment = getSessionEnrollment(s);
-  const handNum = (s.handCount ?? 0) + 1;
-  let status = `Hand #${handNum} · ante ${formatAnteStake(s.handStake ?? 1)}`;
-  if (enrollment?.active) {
-    status += tablePlayOpen ? " · join window open" : " · join window open — return to table";
-  } else {
-    const phase = getSessionCurrentHand(s)?.phase;
-    if (phase === "draw") status += " · draw phase";
-    else if (phase === "play") status += " · live play";
-    else status += " · tap Play to deal";
-  }
-  return `<div class="session-live-card">
-      <p class="session-live-card__status">${escapeHtml(status)}</p>
-      <p class="muted small session-live-card__hint">
-        Cards and enrollment are in the table view. Hand results and session controls stay here.
-      </p>
-    </div>`;
 }
 
 function buildSessionSidebarHtml(s) {
@@ -4294,24 +4018,6 @@ function buildSessionSidebarHtml(s) {
         ${renderFeedbackSettingsHtml()}`;
 }
 
-function buildSessionResultsHtml(s) {
-  if (!Array.isArray(s.results)) return "";
-  return `<div class="session-results">
-           <h5>Ape Score results</h5>
-           <ul>
-             ${[...s.results]
-               .sort((a, b) => a.placement - b.placement)
-               .map(
-                 (r) =>
-                   `<li><span class="place">#${r.placement}</span> ${escapeHtml(r.displayName)}
-                      → Ape Score <strong>${r.apeScore}</strong>
-                      <span class="momentum ${r.momentum >= 0 ? "up" : "down"}">${r.momentum >= 0 ? "▲" : "▼"} ${Math.abs(r.momentum)}</span></li>`,
-               )
-               .join("")}
-           </ul>
-         </div>`;
-}
-
 /** Session ledger panel — add players inline while waiting; notes/results here. */
 function mountSessionPanel(s, isOwner) {
   const mount = $("#session-panel-mount", roomDetailView);
@@ -4320,13 +4026,13 @@ function mountSessionPanel(s, isOwner) {
   const isFinal = s.status === "final";
   const playerCount = tableReadyPlayerCount(s);
   const sidebarHtml = buildSessionSidebarHtml(s);
-  const liveCardHtml = buildSessionLiveStatusHtml(s);
+  const liveCardHtml = sessionLiveCardHtml(s);
 
   if (isFinal) {
     resetSessionPanelTableHost();
     mount.innerHTML = `
       <div class="session session--stack">
-        ${buildSessionResultsHtml(s)}
+        ${buildSessionResultsHtml(s, escapeHtml)}
         <aside class="session-sidebar">${sidebarHtml}</aside>
       </div>`;
     return;
@@ -4364,7 +4070,7 @@ function renderSessionPanel(s) {
   if (isFinal) {
     return `
     <div class="session session--table">
-      ${buildSessionResultsHtml(s)}
+      ${buildSessionResultsHtml(s, escapeHtml)}
       <aside class="session-sidebar">${sidebarHtml}</aside>
     </div>`;
   }
@@ -4583,6 +4289,34 @@ async function onSettleHand(choice) {
   }
 }
 
+async function onSettleCoWinCarryover() {
+  if (!currentRoomId || !openSessionId || !session) return;
+  try {
+    await settleCoWinCarryover(currentRoomId, openSessionId, {
+      recordedBy: session.uid,
+    });
+  } catch (err) {
+    if (String(err?.message || "").includes("No pending")) return;
+    console.error("settleCoWinCarryover:", err);
+  }
+}
+
+async function onRebuySession() {
+  if (!currentRoomId || !openSessionId || !session?.uid) return;
+  try {
+    await rebuySessionPlayer(currentRoomId, openSessionId, {
+      playerId: session.uid,
+      actorId: session.uid,
+    });
+    const refreshed = await refreshOpenSessionFromServer(currentRoomId, openSessionId);
+    if (refreshed) await syncTableSession(refreshed);
+    showRoomsError("Rebuy complete — you can join the next hand.", "success");
+  } catch (err) {
+    console.error("rebuySessionPlayer:", err);
+    showRoomsError(err.message || "Could not rebuy");
+  }
+}
+
 async function onCompleteSession() {
   if (!currentRoomId || !openSessionId) return;
   const sObj = currentSessions.find((s) => s.id === openSessionId);
@@ -4753,4 +4487,26 @@ setSession(currentUser());
 if (session) {
   startRoomsSubscription();
   startLeaderboardSubscription();
+}
+
+/** Local emulator E2E: explicit bot-advance nudge when draw stalls (no-op in production). */
+if (typeof globalThis !== "undefined") {
+  const host = globalThis.location?.hostname ?? "";
+  if (host === "localhost" || host === "127.0.0.1") {
+    globalThis.__nblE2E = {
+      nudgeBots() {
+        if (!currentRoomId || !openSessionId) {
+          return Promise.resolve({ ok: false, reason: "no-session" });
+        }
+        const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+        if (!sessionObj) {
+          return Promise.resolve({ ok: false, reason: "no-session" });
+        }
+        const actorId = session?.uid ?? "e2e-nudge";
+        return executeServerBotAdvance(sessionObj, openScores, actorId, {
+          reason: "e2e-nudge",
+        }).then(() => ({ ok: true }));
+      },
+    };
+  }
 }

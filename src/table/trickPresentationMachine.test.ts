@@ -391,4 +391,24 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, { ...fullTrick, plays: [plays[0]] });
     assert.equal(model.displayPlays.length, 2);
   });
+
+  it("forceHandEndDrain clears a stuck trick pipeline after settlement", () => {
+    let store = createTrickPresentationStore({ p1: 3, p2: 1, p3: 0, p4: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 4, p2: 1, p3: 0, p4: 0 } },
+      participantIds: participants,
+    });
+    assert.ok(store.pendingResolution);
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(store.phase, "trickComplete");
+
+    store = reduceTrickPresentation(store, { type: "forceHandEndDrain" });
+    assert.equal(store.phase, "live");
+    assert.equal(store.pendingResolution, null);
+    assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
+  });
 });

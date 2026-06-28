@@ -42,12 +42,32 @@ import {
   collectNextHandAntes,
   anteAlreadyPosted,
   canEnrollWithBankroll,
+  eligibleIdsForAnteCollection,
   settleSoloDefaultWin,
   handAnteContribution,
   mergeNextDealFundingIntoScoreById,
   logBourreAccounting,
+  sessionChipTotal,
+  splitPotVoteAllowed,
 } from "./vendor/bourre-rules.js";
+import {
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canActForPlayer,
+  enrollmentDeadlineMs,
+  resolveBotAdvanceHint,
+  assertHandActionAllowed,
+  assertSettlementEntryAllowed,
+  assertSessionChipConserved,
+  checkInvariant,
+} from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
+import {
+  buildBotRebuySettlementPlan,
+  planBotAutoRebuys,
+  patchSessionPlayersWithRebuyNames,
+  sessionHasRobotScores,
+} from "./vendor/bot-rebuy.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
@@ -60,11 +80,88 @@ export function isRobotPlayerId(playerId) {
   return typeof playerId === "string" && playerId.startsWith("bot_");
 }
 
-export function canActForPlayer(playerId, actorId) {
-  if (!playerId || !actorId) return false;
-  if (playerId === actorId) return true;
-  return isRobotPlayerId(playerId);
+function handActionHttpsError(action, reason) {
+  if (reason === "actor_mismatch") {
+    const msg =
+      action === "play_card"
+        ? "You can only play for yourself (or drive a robot)"
+        : action === "draw_fold"
+          ? "You can only fold for yourself (or drive a robot)"
+          : "You can only draw for yourself (or drive a robot)";
+    return new HttpsError("permission-denied", msg);
+  }
+  if (reason === "not_draw") return new HttpsError("failed-precondition", "Not in draw phase");
+  if (reason === "not_play") return new HttpsError("failed-precondition", "Not in trick-play phase");
+  if (reason === "not_your_turn") {
+    return new HttpsError(
+      "failed-precondition",
+      action === "play_card" ? "Not your turn" : "Not your turn to draw",
+    );
+  }
+  if (reason === "draw_already_complete") {
+    return new HttpsError("failed-precondition", "Draw already completed");
+  }
+  return new HttpsError("failed-precondition", `Action blocked (${reason})`);
 }
+
+function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
+  const currentHand = getSessionCurrentHand(sessionData);
+  try {
+    assertHandActionAllowed(
+      sessionData,
+      action,
+      playerId,
+      actorId,
+      currentHand.drawCompletedIds ?? [],
+    );
+  } catch (err) {
+    if (err?.name === "HandInvariantError" && err.code === "action_blocked") {
+      throw handActionHttpsError(action, err.context?.reason ?? "blocked");
+    }
+    if (err?.name === "HandInvariantError" && err.code === "illegal_transition") {
+      throw new HttpsError("failed-precondition", `Action blocked (illegal phase transition: ${action})`);
+    }
+    if (err?.name === "HandInvariantError") {
+      throw new HttpsError("failed-precondition", err.message);
+    }
+    throw err;
+  }
+}
+
+function assertRecordHandChipConservation({
+  scoreById,
+  carryOverPot,
+  postedAntes,
+  buyIn,
+  solvent,
+  participants,
+  deltas,
+}) {
+  const beforeTotal = sessionChipTotal(scoreById, {
+    carryOverPot,
+    postedAntes,
+    buyInFallback: buyIn,
+  });
+  const afterScores = { ...scoreById };
+  for (const pid of participants) {
+    afterScores[pid] = {
+      ...afterScores[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
+      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+    };
+  }
+  const afterTotal = sessionChipTotal(afterScores, {
+    carryOverPot: solvent.carryOverPot,
+    postedAntes: {},
+    buyInFallback: buyIn,
+  });
+  assertSessionChipConserved(beforeTotal, afterTotal, {
+    boundary: "handleRecordHand",
+    participantCount: participants.length,
+  });
+}
+
+export { canActForPlayer } from "./vendor/session-startup.js";
 
 export function sessionRef(db, roomId, sessionId) {
   return db.collection("rooms").doc(roomId).collection("sessions").doc(sessionId);
@@ -208,17 +305,6 @@ function preferInProgressHand(current, livePublic) {
   return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic : current;
 }
 
-function enrollmentDeadlineMs(enrollment) {
-  const raw = enrollment?.turnDeadlineMs;
-  if (raw == null) return 0;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw.toMillis === "function") return raw.toMillis();
-  if (typeof raw === "object" && typeof raw.seconds === "number") {
-    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
-  }
-  return 0;
-}
-
 function authoritativeCurrentHand(sessionData) {
   const current = sessionData?.currentHand ?? emptyPreDealHand();
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
@@ -254,6 +340,10 @@ function authoritativeCurrentHand(sessionData) {
   }
 
   if (handInProgress(current)) return current;
+
+  if (isClearedPreDealHand(current) && livePublic && !handInProgress(livePublic)) {
+    return emptyPreDealHand();
+  }
 
   if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
     if (handInProgress(livePublic)) {
@@ -464,7 +554,6 @@ function buildDealCompletionPatch(
     },
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
-    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -675,9 +764,6 @@ function applyEnrollmentPatchInTransaction(tx, ref, db, roomId, sessionId, patch
       currentHand: patch.currentHand,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if (patch.carryOverPotAdjust > 0) {
-      sessionUpdate.carryOverPot = FieldValue.increment(patch.carryOverPotAdjust);
-    }
     sessionUpdate.nextDealFunding = FieldValue.delete();
     tx.update(ref, sessionUpdate);
     return;
@@ -780,13 +866,6 @@ async function getDealingRule(db, roomId) {
   return roomSnap.data()?.houseRules?.dealing ?? null;
 }
 
-function tiesHouseRuleAllowsSplit(houseRules) {
-  const text = String(houseRules?.ties ?? "").toLowerCase();
-  if (!text) return false;
-  if (text.includes("no split") || text.includes("carries")) return false;
-  return text.includes("split evenly") || /\bsplit\b/.test(text);
-}
-
 const BOT_ADVANCE_MAX_STEPS = 64;
 
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
@@ -841,120 +920,111 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
 /** Chain bot enrollment, draw, play, and co-win votes until a human must act. */
 export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
   const dealingRule = await getDealingRule(db, roomId);
+  const steps = [];
   for (let step = 0; step < BOT_ADVANCE_MAX_STEPS; step += 1) {
     const snap = await sessionRef(db, roomId, sessionId).get();
     const sessionData = snap.data();
-    if (!sessionData || sessionData.status === "final") return;
+    if (!sessionData || sessionData.status === "final") {
+      return { status: "noop", steps, reason: "session_final_or_missing" };
+    }
 
-    const pending = sessionData.pendingCoWinSettlement;
-    if (pending?.winnerIds?.length >= 2) {
-      const votes = pending.votes || {};
-      const botWinner = pending.winnerIds.find(
-        (id) => isRobotPlayerId(id) && votes[id] !== "split" && votes[id] !== "push",
-      );
-      if (botWinner) {
+    const snapshot = buildHandFlowSnapshot({ session: sessionData });
+    const hint = resolveBotAdvanceHint({
+      snapshot,
+      session: sessionData,
+      nowMs: Date.now(),
+    });
+    if (!hint) {
+      if (step === 0) {
+        console.info(
+          "[bot-advance]",
+          "skip",
+          JSON.stringify({
+            requester: actorId,
+            owner: "server",
+            roomId,
+            sessionId,
+            phase: snapshot.phase,
+            reason: "no_bot_hint",
+          }),
+        );
+      }
+      return { status: "ok", steps };
+    }
+
+    console.info(
+      "[bot-advance]",
+      "execute",
+      JSON.stringify({
+        requester: actorId,
+        owner: "server",
+        roomId,
+        sessionId,
+        step,
+        phase: snapshot.phase,
+        kind: hint.kind,
+        turnPlayerId: hint.turnPlayerId,
+      }),
+    );
+    steps.push({ kind: hint.kind, turnPlayerId: hint.turnPlayerId, phase: snapshot.phase });
+
+    switch (hint.kind) {
+      case "cowin": {
+        const pending = sessionData.pendingCoWinSettlement;
         await handleVoteCoWinSettlement(db, {
           roomId,
           sessionId,
           participantIds: pending.participantIds || sessionData.currentHand?.participantIds || [],
           winnerIds: pending.winnerIds,
-          voterId: botWinner,
+          voterId: hint.turnPlayerId,
           choice: "push",
           recordedBy: actorId,
           actorId,
         });
-        continue;
+        break;
       }
-      return;
-    }
-
-    const enrollment = getSessionEnrollment(sessionData);
-    if (enrollment?.active) {
-      if (Date.now() >= enrollmentDeadlineMs(enrollment)) {
+      case "enrollment_timeout":
         await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
-        continue;
-      }
-      const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
-      if (
-        currentId &&
-        isRobotPlayerId(currentId) &&
-        !(enrollment.enrolledIds || []).includes(currentId) &&
-        !(enrollment.declinedIds || []).includes(currentId)
-      ) {
+        break;
+      case "enrollment":
         await handleSetHandParticipation(db, {
           roomId,
           sessionId,
-          playerId: currentId,
+          playerId: hint.turnPlayerId,
           inHand: true,
           actorId,
         });
-        continue;
-      }
-      return;
+        break;
+      case "decision_timeout":
+        await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
+        break;
+      case "decision":
+        await handleSetHandParticipation(db, {
+          roomId,
+          sessionId,
+          playerId: hint.turnPlayerId,
+          inHand: true,
+          actorId,
+          discardCount: 0,
+        });
+        break;
+      case "draw":
+        await executeBotDraw(db, roomId, sessionId, hint.turnPlayerId, actorId, dealingRule);
+        break;
+      case "play":
+        await executeBotPlay(db, roomId, sessionId, hint.turnPlayerId, actorId);
+        break;
+      default:
+        return { status: "ok", steps, reason: "unknown_hint" };
     }
-
-    const currentHand = getSessionCurrentHand(sessionData);
-    const participants = currentHand.participantIds || [];
-    if (!participants.length) return;
-
-    if (currentHand.phase === HAND_PHASE.DECISION) {
-      const decision = getSessionHandDecision(sessionData);
-      if (decision?.active) {
-        if (Date.now() >= enrollmentDeadlineMs(decision)) {
-          await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
-          continue;
-        }
-        const turnId = currentDecisionPlayer(decision);
-        const playingIds = decision.playingIds || [];
-        const passedIds = decision.passedIds || [];
-        if (
-          turnId &&
-          isRobotPlayerId(turnId) &&
-          !playingIds.includes(turnId) &&
-          !passedIds.includes(turnId)
-        ) {
-          await handleSetHandParticipation(db, {
-            roomId,
-            sessionId,
-            playerId: turnId,
-            inHand: true,
-            actorId,
-            discardCount: 0,
-          });
-          continue;
-        }
-      }
-      return;
-    }
-
-    if (currentHand.phase === HAND_PHASE.DRAW) {
-      const turnId = currentHand.turnPlayerId;
-      const drawDone = currentHand.drawCompletedIds || [];
-      if (
-        turnId &&
-        isRobotPlayerId(turnId) &&
-        participants.includes(turnId) &&
-        !drawDone.includes(turnId)
-      ) {
-        await executeBotDraw(db, roomId, sessionId, turnId, actorId, dealingRule);
-        continue;
-      }
-      return;
-    }
-
-    if (currentHand.phase === HAND_PHASE.PLAY) {
-      const turnId = currentHand.turnPlayerId;
-      const tricks = currentHand.tricksByPlayer || {};
-      if (totalTricksPlayed(tricks, participants) >= MAX_TRICKS_PER_HAND) return;
-      if (turnId && isRobotPlayerId(turnId) && participants.includes(turnId)) {
-        await executeBotPlay(db, roomId, sessionId, turnId, actorId);
-        continue;
-      }
-      return;
-    }
-
-    return;
   }
+  checkInvariant(
+    false,
+    "bot_advance_step_cap",
+    `Bot advance hit ${BOT_ADVANCE_MAX_STEPS} steps without human pause`,
+    { roomId, sessionId, actorId },
+  );
+  return { status: "ok", steps, capped: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,16 +1111,8 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = data.handStake ?? 1;
-  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
 
-  const eligibleIds = sortedIds.filter((id) => {
-    const row = scoreById[id];
-    if (row?.out === true) return false;
-    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
-  });
-  if (eligibleIds.length < 1) return { status: "noop" };
-
-  const dealExtras = { sessionStake, buyIn, dealingRule, eligibleIds, sortedIds };
+  const dealExtras = { sessionStake, buyIn, dealingRule, sortedIds };
 
   let dealResult = { status: "noop" };
   await db.runTransaction(async (tx) => {
@@ -1062,9 +1124,15 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()])),
       freshData.nextDealFunding,
     );
+    const eligibleIds = eligibleIdsForAnteCollection(
+      dealExtras.sortedIds,
+      freshScoreById,
+      dealExtras.buyIn,
+    );
+    if (eligibleIds.length < 1) return;
     const autoPatch = buildDealCompletionPatch(
       freshData.dealerId,
-      dealExtras.eligibleIds,
+      eligibleIds,
       dealExtras.sortedIds,
       Date.now(),
       dealExtras.dealingRule,
@@ -1405,16 +1473,9 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "submit_draw", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) {
-      throw new HttpsError("failed-precondition", "Not in draw phase");
-    }
-    if (currentHand.turnPlayerId !== playerId) {
-      throw new HttpsError("failed-precondition", "Not your turn to draw");
-    }
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new HttpsError("failed-precondition", "Draw already completed");
-    }
 
     const handData = await readPrivateHandInTransaction(
       tx,
@@ -1504,16 +1565,9 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "draw_fold", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) {
-      throw new HttpsError("failed-precondition", "Not in draw phase");
-    }
-    if (currentHand.turnPlayerId !== playerId) {
-      throw new HttpsError("failed-precondition", "Not your turn to draw");
-    }
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new HttpsError("failed-precondition", "Draw already completed");
-    }
 
     const foldResult = applyDrawFold(
       currentHand,
@@ -1579,10 +1633,9 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+    assertCanSubmitHandAction(sessionData, "play_card", playerId, playerId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.PLAY) {
-      throw new HttpsError("failed-precondition", "Not in trick-play phase");
-    }
 
     const handData = await readPrivateHandInTransaction(
       tx,
@@ -1626,12 +1679,17 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   if (!sessionSnap.exists) return { status: "noop" };
   const sessionData = sessionSnap.data();
-  const currentHand = getSessionCurrentHand(sessionData);
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  if (isClearedPreDealHand(rawHand)) return { status: "already_cleared" };
+
+  const currentHand =
+    (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
 
   if (!ready) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "push" });
     await handleRecordHand(db, {
       roomId,
       sessionId,
@@ -1645,6 +1703,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   }
 
   if (winnerIds.length === 1) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "win" });
     await handleRecordHand(db, {
       roomId,
       sessionId,
@@ -1658,7 +1717,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   }
 
   const roomSnap = await getRoomSnap(db, roomId);
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };
@@ -1753,6 +1812,8 @@ export async function handleRecordHand(
     }
   }
 
+  assertSettlementEntryAllowed(sessionData, { settlement: mode });
+
   const stake = sessionData.handStake ?? 1;
   const limEnabled = sessionData.limEnabled === true;
   const carryIn = sessionData.carryOverPot || 0;
@@ -1799,7 +1860,18 @@ export async function handleRecordHand(
     nextDealFunding,
     bankrolls: solventBankrolls,
     scoreById: fundedScoreById,
+    solvent,
   } = money;
+
+  assertRecordHandChipConservation({
+    scoreById,
+    carryOverPot: carryIn,
+    postedAntes,
+    buyIn,
+    solvent,
+    participants,
+    deltas,
+  });
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
@@ -1876,8 +1948,37 @@ export async function handleRecordHand(
 
   const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap.docs);
+
+  const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  const botRebuyPlan = buildBotRebuySettlementPlan({
+    scoreRows: scoreRowsForRebuy,
+    solventBankrolls,
+    buyIn,
+    rebuyEnabled: roomBourre.rebuyEnabled === true,
+    players: sessionData.players,
+    tableOptInIds: sessionData.tableOptInIds || [],
+  });
+  if (botRebuyPlan) {
+    for (const item of botRebuyPlan.plan) {
+      batch.update(scoresCol(db, roomId, sessionId).doc(item.playerId), {
+        bankroll: buyIn,
+        out: FieldValue.delete(),
+        displayName: item.displayName,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: botRebuyPlan.plan.map((p) => p.playerId),
+      names: botRebuyPlan.plan.map((p) => p.displayName),
+      buyIn,
+      phase: "settlement-batch",
+    });
+  }
+
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
-  batch.update(sessionRef(db, roomId, sessionId), {
+  const sessionUpdate = {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
@@ -1888,17 +1989,84 @@ export async function handleRecordHand(
     liveEnrollment: FieldValue.delete(),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (botRebuyPlan) {
+    sessionUpdate.players = botRebuyPlan.players;
+    sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
+  }
+  batch.update(sessionRef(db, roomId, sessionId), sessionUpdate);
 
   await batch.commit();
+  try {
+    await applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, {
+      buyIn,
+      rebuyEnabled: roomBourre.rebuyEnabled === true,
+    });
+  } catch (err) {
+    console.warn("handleRecordHand: bot auto-rebuy deferred", err);
+  }
   await recomputeSessionTotals(db, roomId, sessionId);
   return { status: "settled", settlement: mode, handNumber };
 }
 
+async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn, rebuyEnabled = true }) {
+  if (!rebuyEnabled) return { applied: [] };
+  const sessionRefDoc = sessionRef(db, roomId, sessionId);
+  const [sessionSnap, scoreSnap] = await Promise.all([
+    sessionRefDoc.get(),
+    scoresCol(db, roomId, sessionId).get(),
+  ]);
+  if (!sessionSnap.exists) return { applied: [] };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { applied: [] };
+
+  const scoreRows = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  if (!sessionHasRobotScores(scoreRows)) return { applied: [] };
+
+  const plan = planBotAutoRebuys({ scoreRows, buyIn });
+  if (plan.length === 0) return { applied: [] };
+
+  const optInIds = new Set(sessionData.tableOptInIds || []);
+  const batch = db.batch();
+  for (const item of plan) {
+    optInIds.add(item.playerId);
+    batch.update(scoresCol(db, roomId, sessionId).doc(item.playerId), {
+      bankroll: buyIn,
+      out: FieldValue.delete(),
+      displayName: item.displayName,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  batch.update(sessionRefDoc, {
+    players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+    tableOptInIds: [...optInIds],
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+  logBourreAccounting("bot-auto-rebuy", {
+    roomId,
+    sessionId,
+    playerIds: plan.map((p) => p.playerId),
+    names: plan.map((p) => p.displayName),
+    buyIn,
+  });
+  return { applied: plan.map((p) => p.playerId) };
+}
+
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
+  console.info(
+    "[bot-advance]",
+    "request",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId }),
+  );
   await assertRoomMember(db, roomId, actorId);
-  await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  return { status: "ok" };
+  const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  console.info(
+    "[bot-advance]",
+    "complete",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
+  );
+  return { status: "ok", ...result };
 }
 
 export async function handleVoteCoWinSettlement(

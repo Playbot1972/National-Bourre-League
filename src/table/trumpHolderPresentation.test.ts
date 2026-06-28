@@ -9,7 +9,7 @@ import {
 const trumpUpcard = { rank: "A", suit: "hearts" };
 
 describe("trumpHolderPresentation", () => {
-  it("hides center trump while holder presentation is active", () => {
+  it("keeps center trump visible while holder presentation is active", () => {
     const state = resolveTrumpHolderPresentation({
       trumpHolderId: "bot_1",
       trumpUpcard,
@@ -21,14 +21,14 @@ describe("trumpHolderPresentation", () => {
         trumpMergedIntoHand: false,
       },
     });
-    assert.equal(state.hideCenterTrump, true);
-    assert.equal(state.showRevealedTrumpAtHolder, true);
+    assert.equal(state.hideCenterTrump, false);
+    assert.equal(state.showRevealedTrumpAtHolder, false);
   });
 
-  it("shows suit reminder after merge during draw", () => {
+  it("shows suit reminder after merge when upcard cleared during draw", () => {
     const state = resolveTrumpHolderPresentation({
       trumpHolderId: "bot_1",
-      trumpUpcard,
+      trumpUpcard: null,
       trumpSuit: "hearts",
       phase: "draw",
       handPresentation: {
@@ -37,12 +37,29 @@ describe("trumpHolderPresentation", () => {
         trumpMergedIntoHand: true,
       },
     });
-    assert.equal(state.hideCenterTrump, true);
+    assert.equal(state.hideCenterTrump, false);
     assert.equal(state.showTrumpSuitReminder, true);
     assert.equal(state.showRevealedTrumpAtHolder, false);
   });
 
-  it("reveals trump on bot dealer seat as fifth card", () => {
+  it("keeps center trump visible after merge latch while upcard remains", () => {
+    const state = resolveTrumpHolderPresentation({
+      trumpHolderId: "bot_1",
+      trumpUpcard,
+      trumpSuit: "hearts",
+      phase: "reveal",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
+      },
+    });
+    assert.equal(state.hideCenterTrump, false);
+    assert.equal(state.showTrumpSuitReminder, false);
+    assert.equal(state.showRevealedTrumpAtHolder, false);
+  });
+
+  it("does not reveal trump on opponent seat while upcard is in center", () => {
     const presentation = resolveTrumpHolderPresentation({
       trumpHolderId: "bot_1",
       trumpUpcard,
@@ -54,10 +71,10 @@ describe("trumpHolderPresentation", () => {
         trumpMergedIntoHand: false,
       },
     });
-    assert.equal(trumpHolderSeatIndex(5), 4);
-    const seat = resolveSeatTrumpDisplay("bot_1", presentation, trumpUpcard, 5, false);
-    assert.equal(seat.revealedTrumpIndex, 4);
-    assert.deepEqual(seat.revealedTrumpUpcard, trumpUpcard);
+    assert.equal(trumpHolderSeatIndex(4), 3);
+    const seat = resolveSeatTrumpDisplay("bot_1", presentation, trumpUpcard, 4, false);
+    assert.equal(seat.revealedTrumpIndex, null);
+    assert.equal(seat.revealedTrumpUpcard, null);
   });
 
   it("does not duplicate trump on self seat (hero hand handles local holder)", () => {
@@ -72,7 +89,7 @@ describe("trumpHolderPresentation", () => {
         trumpMergedIntoHand: false,
       },
     });
-    const seat = resolveSeatTrumpDisplay("user_1", presentation, trumpUpcard, 5, true);
+    const seat = resolveSeatTrumpDisplay("user_1", presentation, trumpUpcard, 4, true);
     assert.equal(seat.revealedTrumpIndex, null);
   });
 });

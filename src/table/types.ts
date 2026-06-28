@@ -82,6 +82,12 @@ export interface TablePlayer {
   myHandContribution?: number;
   /** Brief pulse when turn passes to this seat. */
   turnHandoff?: boolean;
+  /** Active 15s turn countdown ring — only on the current required actor. */
+  turnCountdown?: {
+    progress: number;
+    remainingMs: number;
+    segment: "green" | "yellow" | "red";
+  } | null;
   /** Dealer badge just moved to this seat. */
   dealerMoved?: boolean;
   /** Trump reveal merging into dealer hand (presentation only). */
@@ -152,6 +158,8 @@ export interface TableSessionActions {
   onAdvanceReveal?: () => void | Promise<void>;
   onTrickDelta: (delta: number) => void;
   onSettle: (choice: "push" | "split") => void;
+  onSettleCarryover?: () => void | Promise<void>;
+  onRebuy?: () => void | Promise<void>;
   onSubmitDraw?: (discardIndices: number[]) => void | Promise<void>;
   onPassDraw?: () => void | Promise<void>;
   onFoldDraw?: () => void | Promise<void>;
@@ -173,6 +181,10 @@ export interface TableSessionViewProps {
   myHandContribution: number | null;
   leaderLabel: string;
   showCoWinSettlement: boolean;
+  /** When true, co-win uses compact split-pot vote instead of carryover-only. */
+  splitPotEnabled?: boolean;
+  /** When true, broke players may rebuy between hands. */
+  rebuyEnabled?: boolean;
   splitSharePerWinner?: number;
   voteStatus: string;
   enrollmentActive?: boolean;

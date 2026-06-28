@@ -18,6 +18,7 @@ export interface PublicHandView {
   participantIds?: string[];
   tricksByPlayer?: Record<string, number>;
   drawCompletedIds?: string[];
+  turnPlayerId?: string | null;
   handDecision?: HandDecision | null;
 }
 
@@ -117,6 +118,11 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   const livePhase = livePublic?.phase ?? null;
 
+  // recordHand clears currentHand but a completed live mirror can linger — never block handoff.
+  if (isClearedPreDealHand(current) && livePublic && !handInProgress(livePublic)) {
+    return emptyPreDealHand();
+  }
+
   if (handInProgress(current) && handInProgress(livePublic)) {
     const currentEarly = current.phase === "reveal" || current.phase === "decision";
     const liveDrawDone = livePublic?.drawCompletedIds?.length ?? 0;
@@ -171,7 +177,22 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   return current;
 }
 
-export function getSessionEnrollment(sessionData: SessionHandView | null | undefined) {
+/** True when enrollment has roster fields (handEnrollment / decision view), not liveEnrollment-only. */
+export function isHandEnrollmentView(
+  enrollment: unknown,
+): enrollment is HandEnrollmentView {
+  return (
+    enrollment != null &&
+    typeof enrollment === "object" &&
+    ("orderedPlayerIds" in enrollment ||
+      "enrolledIds" in enrollment ||
+      "currentIndex" in enrollment)
+  );
+}
+
+export function getSessionEnrollment(
+  sessionData: SessionHandView | null | undefined,
+): HandEnrollmentView | null {
   const hand = authoritativeCurrentHand(sessionData);
   const phase = hand?.phase ?? null;
   if (phase === "reveal" || phase === "draw" || phase === "play") {
@@ -183,7 +204,7 @@ export function getSessionEnrollment(sessionData: SessionHandView | null | undef
   }
   const live = sessionData?.liveEnrollment;
   const livePhase = live?.deal?.publicHand?.phase ?? null;
-  if (live?.active) return live;
+  if (live?.active) return live as HandEnrollmentView;
   if (
     livePhase === "draw" ||
     livePhase === "play" ||
@@ -247,6 +268,17 @@ export function resolveCurrentHandChoicePlayerId(input: {
     return ids[idx] ?? null;
   }
   return null;
+}
+
+/** True while a player is locked into the current deal (draw/play). */
+export function isPlayerLockedInLiveHand(input: {
+  phase?: string | null;
+  participantIds?: string[];
+  playerId: string;
+}): boolean {
+  if (!input.participantIds?.includes(input.playerId)) return false;
+  const phase = input.phase ?? null;
+  return phase === "draw" || phase === "play";
 }
 
 export function canPlayerShowHandChoice(input: {

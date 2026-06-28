@@ -22,9 +22,10 @@ import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
+import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
+import type { TurnCountdownState } from "./turnCountdown";
 
 interface CardTableProps {
   session: TableSessionData;
@@ -44,12 +45,15 @@ interface CardTableProps {
   legalPlayIndices?: number[] | null;
   /** Bot-heuristic best play index for the viewing player (display hand space). */
   recommendedPlayIndex?: number | null;
+  /** Bot-heuristic discard indices for the viewing player (display hand space). */
+  recommendedDiscardIndices?: number[];
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
   trickPresentation: TrickPresentation;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
+  turnCountdown?: TurnCountdownState | null;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -58,6 +62,7 @@ interface CardTableProps {
   onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
   onReaction?: (emoji: string) => void;
+  onHeroUserActivity?: () => void;
 }
 
 export function CardTable({
@@ -77,12 +82,14 @@ export function CardTable({
   currentUserId = null,
   legalPlayIndices,
   recommendedPlayIndex,
+  recommendedDiscardIndices = [],
   handComplete = false,
   actionFeedback,
   trickPresentation,
   handPresentation,
   microinteractions,
   instantTrickPlays = false,
+  turnCountdown = null,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -91,6 +98,7 @@ export function CardTable({
   onFoldDraw,
   onPlayCard,
   onReaction,
+  onHeroUserActivity,
 }: CardTableProps) {
   const feltPlayers = players.map((player) => ({
     ...player,
@@ -109,6 +117,7 @@ export function CardTable({
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
   const { cards: discardPileCards, pileIndexRef, commitDiscardCards } = useDiscardPileState({
     handNumber: session.handNumber,
+    sessionPhase: session.phase,
     tableRootRef: wrapRef,
   });
   useTableDiscardFly({
@@ -174,10 +183,19 @@ export function CardTable({
             : player.isLeading,
       isTrickCapture: capturingTrick,
       enrollmentPulse,
-      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
+      drawAnimSubPhase:
+        drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
       drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
-      turnHandoff: microinteractions.turnHandoffPlayerId === player.playerId,
+      turnHandoff: false,
+      turnCountdown:
+        turnCountdown?.playerId === player.playerId
+          ? {
+              progress: turnCountdown.progress,
+              remainingMs: turnCountdown.remainingMs,
+              segment: turnCountdown.segment,
+            }
+          : null,
       dealerMoved: microinteractions.dealerMovedPlayerId === player.playerId,
       winnerFlash: microinteractions.winnerFlashPlayerId === player.playerId,
       bankrollTick: microinteractions.bankrollTicks[player.playerId] ?? null,
@@ -247,6 +265,7 @@ export function CardTable({
             enrollmentActive={enrollmentActive}
             remainingDeckCount={session.remainingDeckCount}
             trickDisplayPlays={trickPresentation.displayPlays}
+            trickLeadSuit={session.currentTrick?.leadSuit ?? session.leadSuit ?? null}
             trickWinnerPlayerId={trickPresentation.winnerPlayerId}
             trickShowWinnerTag={trickPresentation.showWinnerTag}
             trickPresentationPhase={trickPresentation.phase}
@@ -338,6 +357,7 @@ export function CardTable({
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
         legalPlayIndices={legalPlayIndices ?? undefined}
         recommendedPlayIndex={recommendedPlayIndex ?? undefined}
+        recommendedDiscardIndices={recommendedDiscardIndices}
         handComplete={handComplete}
         actionFeedback={actionFeedback}
         onSubmitDraw={onSubmitDraw}
@@ -352,6 +372,7 @@ export function CardTable({
         tableRootRef={wrapRef}
         pileIndexRef={pileIndexRef}
         onDiscardCommitted={commitDiscardCards}
+        onUserActivity={onHeroUserActivity}
       />
     </div>
   );

@@ -1,23 +1,17 @@
 /**
- * Table feedback audio — asset-first with procedural fallback.
+ * Table feedback audio — pack-aware, asset-first with procedural fallback.
  *
- * Final assets (not yet checked in):
- *   docs/sounds/shuffle.mp3
- *   docs/sounds/trick-win.mp3
- *   docs/sounds/big-win.mp3
- *
- * TODO(sound): Drop art-directed MP3s into docs/sounds/ — the loader below will
- * pick them up automatically. Procedural synthesis remains the fallback until then.
+ * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
+ * Procedural synthesis remains the fallback when files are missing.
  */
 
-/** Relative to social app root (docs/ → /social/ after deploy). */
-export const SOUND_ASSET_PATHS = {
-  shuffle: "./sounds/shuffle.mp3",
-  trickWin: "./sounds/trick-win.mp3",
-  bigWin: "./sounds/big-win.mp3",
-} as const;
-
-export type SoundAssetKey = keyof typeof SOUND_ASSET_PATHS;
+import { getFeedbackPrefs } from "./prefs";
+import {
+  allSoundAssetPaths,
+  soundAssetPath,
+  type SoundEventKey,
+  type SoundPackId,
+} from "./soundPacks";
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
@@ -25,6 +19,10 @@ let userGestureUnlocked = false;
 
 const clipCache = new Map<string, HTMLAudioElement>();
 const assetAvailability = new Map<string, boolean>();
+
+function getActivePackId(): SoundPackId {
+  return getFeedbackPrefs().soundPackId;
+}
 
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -90,10 +88,11 @@ async function probeAsset(src: string): Promise<boolean> {
   }
 }
 
-export async function preloadSoundAssets(): Promise<void> {
+export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
   if (!userGestureUnlocked) return;
+  const pack = packId ?? getActivePackId();
   await Promise.all(
-    Object.values(SOUND_ASSET_PATHS).map(async (src) => {
+    allSoundAssetPaths(pack).map(async (src) => {
       if (!(await probeAsset(src))) return;
       const clip = getClip(src);
       if (!clip) return;
@@ -149,6 +148,7 @@ function scheduleNoiseBurst(
   start: number,
   duration: number,
   gainPeak: number,
+  centerFreq = 1400,
 ): void {
   const bufferSize = Math.max(256, Math.floor(ctx.sampleRate * duration));
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -160,7 +160,7 @@ function scheduleNoiseBurst(
   src.buffer = buffer;
   const filter = ctx.createBiquadFilter();
   filter.type = "bandpass";
-  filter.frequency.value = 1400;
+  filter.frequency.value = centerFreq;
   filter.Q.value = 0.6;
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(gainPeak, start);
@@ -172,74 +172,160 @@ function scheduleNoiseBurst(
   src.stop(start + duration + 0.01);
 }
 
-function playProceduralShuffle(): void {
+type ProceduralFn = (packId: SoundPackId) => void;
+
+function playProceduralShuffle(packId: SoundPackId): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
   const t0 = ctx.currentTime;
-  const bursts = [0, 0.06, 0.12, 0.2, 0.28];
+  const bursts = packId === "arcade" ? [0, 0.04, 0.08, 0.14] : [0, 0.06, 0.12, 0.2, 0.28];
+  const freq = packId === "wood" ? 900 : 1400;
   for (const offset of bursts) {
-    scheduleNoiseBurst(ctx, masterGain, t0 + offset, 0.05, 0.08 + Math.random() * 0.04);
+    scheduleNoiseBurst(ctx, masterGain, t0 + offset, 0.05, 0.08 + Math.random() * 0.04, freq);
   }
 }
 
-function playProceduralTrickWin(): void {
+function playProceduralDraw(packId: SoundPackId): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
   const t0 = ctx.currentTime;
-  scheduleTone(ctx, masterGain, 880, t0, 0.12, 0.09, "sine");
-  scheduleTone(ctx, masterGain, 1174.66, t0 + 0.07, 0.16, 0.07, "triangle");
-  scheduleTone(ctx, masterGain, 1760, t0 + 0.14, 0.1, 0.04, "sine");
+  scheduleNoiseBurst(ctx, masterGain, t0, 0.04, 0.06, packId === "wood" ? 700 : 1200);
+  scheduleTone(ctx, masterGain, packId === "arcade" ? 660 : 520, t0 + 0.05, 0.08, 0.05, "triangle");
 }
 
-function playProceduralBigWin(): void {
+function playProceduralTrickWin(packId: SoundPackId): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
   const t0 = ctx.currentTime;
-  scheduleTone(ctx, masterGain, 659.25, t0, 0.14, 0.08, "sine");
-  scheduleTone(ctx, masterGain, 830.61, t0 + 0.1, 0.18, 0.09, "triangle");
-  scheduleTone(ctx, masterGain, 987.77, t0 + 0.22, 0.22, 0.1, "sine");
-  scheduleTone(ctx, masterGain, 1318.51, t0 + 0.34, 0.28, 0.06, "triangle");
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 1046.5, t0, 0.1, 0.1, "square");
+    scheduleTone(ctx, masterGain, 1318.51, t0 + 0.08, 0.14, 0.08, "square");
+    return;
+  }
+  const base = packId === "wood" ? 740 : 880;
+  scheduleTone(ctx, masterGain, base, t0, 0.12, 0.09, "sine");
+  scheduleTone(ctx, masterGain, base * 1.335, t0 + 0.07, 0.16, 0.07, "triangle");
+  scheduleTone(ctx, masterGain, base * 2, t0 + 0.14, 0.1, 0.04, "sine");
 }
 
-async function playSound(
-  assetSrc: string,
-  procedural: () => void,
-  playingFlag: { current: boolean },
-  resetMs: number,
-): Promise<void> {
-  if (playingFlag.current) return;
-  playingFlag.current = true;
+function playProceduralBigWin(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 523.25, t0, 0.12, 0.09, "square");
+    scheduleTone(ctx, masterGain, 659.25, t0 + 0.1, 0.16, 0.1, "square");
+    scheduleTone(ctx, masterGain, 783.99, t0 + 0.22, 0.2, 0.1, "square");
+    scheduleTone(ctx, masterGain, 1046.5, t0 + 0.34, 0.24, 0.07, "square");
+    return;
+  }
+  const scale = packId === "wood" ? 0.92 : 1;
+  scheduleTone(ctx, masterGain, 659.25 * scale, t0, 0.14, 0.08, "sine");
+  scheduleTone(ctx, masterGain, 830.61 * scale, t0 + 0.1, 0.18, 0.09, "triangle");
+  scheduleTone(ctx, masterGain, 987.77 * scale, t0 + 0.22, 0.22, 0.1, "sine");
+  scheduleTone(ctx, masterGain, 1318.51 * scale, t0 + 0.34, 0.28, 0.06, "triangle");
+}
+
+function playProceduralBourre(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  const type: OscillatorType = packId === "arcade" ? "sawtooth" : "triangle";
+  scheduleTone(ctx, masterGain, packId === "wood" ? 180 : 220, t0, 0.28, 0.1, type);
+  scheduleTone(ctx, masterGain, packId === "wood" ? 140 : 165, t0 + 0.18, 0.32, 0.08, type);
+}
+
+function playProceduralGameStart(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 440, t0, 0.08, 0.07, "square");
+    scheduleTone(ctx, masterGain, 554.37, t0 + 0.1, 0.12, 0.08, "square");
+    return;
+  }
+  scheduleTone(ctx, masterGain, packId === "wood" ? 392 : 440, t0, 0.1, 0.07, "sine");
+  scheduleTone(ctx, masterGain, packId === "wood" ? 523.25 : 554.37, t0 + 0.12, 0.16, 0.08, "triangle");
+}
+
+const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
+  shuffle: playProceduralShuffle,
+  draw: playProceduralDraw,
+  trickWin: playProceduralTrickWin,
+  bigWin: playProceduralBigWin,
+  bourre: playProceduralBourre,
+  gameStart: playProceduralGameStart,
+};
+
+const playingFlags: Record<SoundEventKey, { current: boolean }> = {
+  shuffle: { current: false },
+  draw: { current: false },
+  trickWin: { current: false },
+  bigWin: { current: false },
+  bourre: { current: false },
+  gameStart: { current: false },
+};
+
+const RESET_MS: Record<SoundEventKey, number> = {
+  shuffle: 360,
+  draw: 280,
+  trickWin: 320,
+  bigWin: 580,
+  bourre: 520,
+  gameStart: 320,
+};
+
+const VOLUME: Record<SoundEventKey, number> = {
+  shuffle: 0.55,
+  draw: 0.45,
+  trickWin: 0.55,
+  bigWin: 0.6,
+  bourre: 0.5,
+  gameStart: 0.42,
+};
+
+async function playSoundEvent(event: SoundEventKey): Promise<void> {
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetSrc = soundAssetPath(packId, event);
   try {
-    const played = await tryPlayAsset(assetSrc);
-    if (!played) {
-      if (userGestureUnlocked) procedural();
+    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
+    if (!played && userGestureUnlocked) {
+      PROCEDURAL_BY_EVENT[event](packId);
     }
   } catch {
     /* never block gameplay */
   } finally {
     window.setTimeout(() => {
-      playingFlag.current = false;
-    }, resetMs);
+      flag.current = false;
+    }, RESET_MS[event]);
   }
 }
 
-const shuffleFlag = { current: false };
-const trickWinFlag = { current: false };
-const bigWinFlag = { current: false };
-
-/** Short card-riffle — asset-first, procedural fallback (~320ms). */
 export function playShuffleSound(): void {
-  void playSound(SOUND_ASSET_PATHS.shuffle, playProceduralShuffle, shuffleFlag, 360);
+  void playSoundEvent("shuffle");
 }
 
-/** Crisp slot-like chime — asset-first, procedural fallback (~280ms). */
+export function playDrawSound(): void {
+  void playSoundEvent("draw");
+}
+
 export function playTrickWinSound(): void {
-  void playSound(SOUND_ASSET_PATHS.trickWin, playProceduralTrickWin, trickWinFlag, 320);
+  void playSoundEvent("trickWin");
 }
 
-/** Richer hand/pot win — asset-first, procedural fallback (~520ms). */
 export function playBigWinSound(): void {
-  void playSound(SOUND_ASSET_PATHS.bigWin, playProceduralBigWin, bigWinFlag, 580);
+  void playSoundEvent("bigWin");
+}
+
+export function playBourreSound(): void {
+  void playSoundEvent("bourre");
+}
+
+export function playGameStartSound(): void {
+  void playSoundEvent("gameStart");
 }
 
 export function audioSupported(): boolean {
@@ -255,4 +341,9 @@ export function audioSupported(): boolean {
 
 export function isAudioUnlocked(): boolean {
   return userGestureUnlocked;
+}
+
+/** Clear asset probe cache when user switches sound packs. */
+export function resetSoundAssetCache(): void {
+  assetAvailability.clear();
 }

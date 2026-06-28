@@ -37,6 +37,9 @@ export const TRICK_SWEEP_MS = 520;
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 200;
 
+/** Max wait to drain trick presentation after the server clears the hand. */
+export const TRICK_HAND_END_DRAIN_MS = 4_000;
+
 /** @deprecated Use POST_TRICK_READ_MS — kept for gradual migration. */
 export const POST_TRICK_HOLD_MS = POST_TRICK_READ_MS;
 
@@ -151,14 +154,47 @@ export function trickWinnerDelta(
   next: Record<string, number>,
   participantIds: string[],
 ): string | null {
-  for (const pid of participantIds) {
+  const roster =
+    participantIds.length > 0
+      ? participantIds
+      : [...new Set([...Object.keys(prev), ...Object.keys(next)])];
+  for (const pid of roster) {
     if ((next[pid] ?? 0) > (prev[pid] ?? 0)) return pid;
   }
   return null;
 }
 
+/** Participant roster for trick resolution when the server clears seats mid-snapshot. */
+export function trickResolutionParticipantIds(
+  participantIds: string[],
+  prevTricks: Record<string, number>,
+  nextTricks: Record<string, number>,
+): string[] {
+  if (participantIds.length > 0) return participantIds;
+  return [...new Set([...Object.keys(prevTricks), ...Object.keys(nextTricks)])];
+}
+
 export function serializedPlays(trick: CurrentTrickState | null | undefined): TrickPlay[] {
   return trick?.plays?.map((p) => ({ playerId: p.playerId, card: p.card })) ?? [];
+}
+
+/** Current trick leader from cards played so far (updates as each card lands). */
+export function currentTrickLeaderId(
+  plays: TrickPlay[],
+  leadSuit: string | null | undefined,
+  trumpSuit: string | null | undefined,
+): string | null {
+  if (!plays.length) return null;
+  if (plays.length === 1) return plays[0]!.playerId;
+  if (!leadSuit || !trumpSuit) return plays[plays.length - 1]!.playerId;
+  return resolveTrickWinner(
+    plays.map((p) => ({
+      playerId: p.playerId,
+      card: { rank: p.card.rank as Rank, suit: p.card.suit as Suit },
+    })),
+    leadSuit as Suit,
+    trumpSuit as Suit,
+  );
 }
 
 /** Recover full trick plays when the server resolves atomically (last card not in prevTrick). */
@@ -208,7 +244,12 @@ export function detectTrickResolution(input: {
   prevTrick: CurrentTrickState | null | undefined;
   playedCards?: PlayedCardEntry[];
 }): FrozenTrick | null {
-  const { prevTricks, nextTricks, participantIds, prevTrick, playedCards } = input;
+  const { prevTricks, nextTricks, prevTrick, playedCards } = input;
+  const participantIds = trickResolutionParticipantIds(
+    input.participantIds,
+    prevTricks,
+    nextTricks,
+  );
   const prevTotal = totalTricksPlayed(prevTricks, participantIds);
   const nextTotal = totalTricksPlayed(nextTricks, participantIds);
   if (nextTotal <= prevTotal) return null;

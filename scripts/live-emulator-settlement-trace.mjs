@@ -42,8 +42,10 @@ const SCENARIOS = {
     verify: (posted, ids, bourrePlayers, settledPot) => ({
       bourreCharges: { C: posted[ids.P3] },
       foldedDChargedNormalAnte: posted[ids.P4] === ANTE,
+      bourreSkipsNextDealAnte: posted[ids.P3] === 0,
+      notHistoricalNormalAnteOnBourre: posted[ids.P3] !== ANTE,
       allPassed:
-        posted[ids.P3] === settledPot &&
+        posted[ids.P3] === 0 &&
         posted[ids.P3] !== ANTE &&
         posted[ids.P4] === ANTE &&
         !bourrePlayers.includes(ids.P4),
@@ -68,10 +70,13 @@ const SCENARIOS = {
       bourreCharges: { B: posted[ids.P2], C: posted[ids.P3] },
       foldedDChargedNormalAnte: posted[ids.P4] === ANTE,
       foldedDNotBourre: !bourrePlayers.includes(ids.P4),
-      nextHandPotExpected: settledPot + settledPot + settledPot + ANTE + ANTE,
+      bourreSkipsNextDealAnte:
+        posted[ids.P2] === 0 && posted[ids.P3] === 0,
+      notHistoricalNormalAnteOnBourre:
+        posted[ids.P2] !== ANTE && posted[ids.P3] !== ANTE,
       allPassed:
-        posted[ids.P2] === settledPot &&
-        posted[ids.P3] === settledPot &&
+        posted[ids.P2] === 0 &&
+        posted[ids.P3] === 0 &&
         posted[ids.P2] !== ANTE &&
         posted[ids.P3] !== ANTE &&
         posted[ids.P4] === ANTE &&
@@ -271,7 +276,8 @@ async function runScenario(scenarioKey) {
       carryIn: scenario.carryIn,
       bourreExpected: scenario.bourreExpected,
       historicalBugWouldCharge: scenario.historicalBugCharges,
-      fixedFlowShouldChargeEachBourre: scenario.settledPot,
+      bourreModel:
+        "pot match collected at settlement into carryOverPot; bourré players skip next-deal ante (postedAntes 0)",
     },
     checkpoints: {},
   };

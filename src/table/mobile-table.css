@@ -191,7 +191,7 @@
 }
 
 .btable-mobile-wrap .bseat:not(.bseat--self) .bseat__hole-cards--crown {
-  transform: translate(-50%, -58%) scale(var(--hole-crown-scale, 0.67));
+  transform: translate(-50%, -93%) scale(var(--hole-crown-scale, 0.67));
 }
 
 .btable-mobile-oval {
@@ -296,19 +296,41 @@
   transform: translateY(-12px) rotateX(8deg) rotateY(-4deg) scale(1.03);
 }
 
-.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--play-recommended,
-.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--play-recommended {
-  transform: translateY(-7px) rotateX(5deg) rotateY(-2deg) scale(1.02);
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--play-recommended {
+  transform:
+    translateY(-7px) rotateX(5deg) rotateY(-2deg) scale(1.02)
+    rotateZ(calc(var(--fan-offset, 0) * 5deg));
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--play-recommended .pcard--play-recommended,
+.btable-mobile-hero-dock .btable-hero .hand__slot--play-recommended .pcard--play-recommended {
+  transform: none;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--draw-recommended,
+.btable-mobile-hero-dock .btable-hero .hand__slot--draw-recommended {
+  transform: translateY(-10px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--draw-recommended .pcard--draw-recommended,
+.btable-mobile-hero-dock .btable-hero .hand__slot--draw-recommended .pcard--draw-recommended {
+  transform: none;
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--draw-selected,
+.btable-mobile-hero-dock .btable-hero .hand__slot--draw-selected {
+  transform: translateY(-14px) rotateX(10deg) rotateY(-6deg) scale(1.04);
+}
+
+.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot--draw-selected .pcard--draw-selected,
+.btable-mobile-hero-dock .btable-hero .hand__slot--draw-selected .pcard--draw-selected {
+  transform: none;
+  animation: none;
 }
 
 .btable-mobile-hero-dock .btable-hero__best-play {
   margin-top: 4px;
   font-size: 10px;
-}
-
-.btable-mobile-hero-dock .btable-hero__hand-row .hand__slot .pcard--draw-selected,
-.btable-mobile-hero-dock .btable-hero .hand__slot .pcard--draw-selected {
-  transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
 }
 
 .btable-mobile-hero-dock .btable-hero__hand-row .hand--fan .hand__slot:not(:first-child) {
@@ -560,72 +582,30 @@
   max-width: clamp(60px, 14vw, 72px);
 }
 
-/* 4 / 6 / 7 player mobile — right trick counter for seat indices 1–3 only */
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge {
+/* Opponents (seat index 1+) — right trick counter; hero keeps left */
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat__trick-badge {
   left: 100%;
   right: auto;
   --trick-badge-x: clamp(3px, 0.9vmin, 5px);
 }
 
-/* Won-trick pile — opposite side from trick badge (mobile) */
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile {
+/* Won-trick pile — opposite side from trick badge (mobile opponents) */
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat__won-trick-pile {
   left: 0;
   right: auto;
   --trick-pile-x: calc(-100% - clamp(6px, 1.4vmin, 8px));
 }
 
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile {
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__won-trick-pile {
   --trick-pile-x: -4px;
 }
 
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge {
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge {
   --trick-badge-x: -2px;
 }
 
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge {
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--top .bseat__trick-badge,
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--bottom .bseat__trick-badge {
   --trick-badge-x: clamp(4px, 1vmin, 6px);
 }
 
@@ -694,13 +674,10 @@
     max-height: 100%;
   }
 
-  /* Landscape: tighter right-rail tuck on dense rings (seats 1–3) */
-  .btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-  .btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-  .btable-mobile-wrap.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-  .btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-  .btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-  .btable-mobile-wrap.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge {
+  /* Landscape: tighter right-rail tuck on dense rings (all opponents) */
+  .btable-mobile-wrap.btable--p6 .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge,
+  .btable-mobile-wrap.btable--p7 .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge,
+  .btable-mobile-wrap.btable--p8 .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge {
     --trick-badge-x: -3px;
   }
 }

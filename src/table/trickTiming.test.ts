@@ -5,6 +5,7 @@ import {
   CARD_LAND_MS,
   CARD_REVEAL_STAGGER_MS,
   completedTrickPlays,
+  currentTrickLeaderId,
   detectTrickResolution,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
@@ -21,6 +22,18 @@ describe("trickTiming", () => {
       "b",
     );
     assert.equal(trickWinnerDelta({ a: 2 }, { a: 2 }, ["a", "b"]), null);
+  });
+
+  it("currentTrickLeaderId updates as each card is played", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "7", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+    ];
+    assert.equal(
+      currentTrickLeaderId([plays[0]!], "hearts", "clubs"),
+      "p1",
+    );
+    assert.equal(currentTrickLeaderId(plays, "hearts", "clubs"), "p2");
   });
 
   it("detects completed trick from prior trick snapshot", () => {
@@ -76,6 +89,31 @@ describe("trickTiming", () => {
     assert.ok(frozen);
     assert.equal(frozen!.plays.length, 4);
     assert.equal(frozen!.plays[3]?.playerId, "p4");
+  });
+
+  it("detects fifth trick when participantIds clear before tricks snapshot", () => {
+    const frozen = detectTrickResolution({
+      prevTricks: { p1: 2, p2: 1, p3: 1 },
+      nextTricks: { p1: 2, p2: 2, p3: 1 },
+      participantIds: [],
+      prevTrick: {
+        trickNumber: 5,
+        leadPlayerId: "p2",
+        leadSuit: "clubs",
+        plays: [
+          { playerId: "p2", card: { rank: "A", suit: "clubs" } },
+          { playerId: "p3", card: { rank: "K", suit: "clubs" } },
+        ],
+      },
+      playedCards: [
+        { playerId: "p2", card: { rank: "A", suit: "clubs" }, trickNumber: 5 },
+        { playerId: "p3", card: { rank: "K", suit: "clubs" }, trickNumber: 5 },
+        { playerId: "p1", card: { rank: "Q", suit: "clubs" }, trickNumber: 5 },
+      ],
+    });
+    assert.ok(frozen);
+    assert.equal(frozen!.winnerId, "p2");
+    assert.equal(frozen!.trickNumber, 5);
   });
 
   it("returns null when trick count unchanged", () => {

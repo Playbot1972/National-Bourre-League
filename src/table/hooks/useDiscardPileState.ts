@@ -6,22 +6,22 @@ import {
 } from "../discardPileModel";
 import {
   animateCardsToDiscardPile,
-  animateOriginRectsToDiscardPile,
   killDiscardFlights,
-  seatOriginRectsForDiscard,
 } from "../animations/discardPileMotion";
-import { readSeatPlayOrigin } from "../trickPlayFly";
 import type { SerializedCard } from "../types";
 
 export interface UseDiscardPileStateInput {
   handNumber: number;
+  /** Server hand phase — pile clears when draw ends (before trick play). */
+  sessionPhase?: string | null;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
-export function useDiscardPileState({ handNumber }: UseDiscardPileStateInput) {
+export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPileStateInput) {
   const [cards, setCards] = useState<DiscardPileCard[]>([]);
   const pileIndexRef = useRef(0);
   const handRef = useRef(handNumber);
+  const phaseRef = useRef(sessionPhase ?? null);
 
   useEffect(() => {
     if (handRef.current === handNumber) return;
@@ -30,6 +30,16 @@ export function useDiscardPileState({ handNumber }: UseDiscardPileStateInput) {
     killDiscardFlights();
     setCards([]);
   }, [handNumber]);
+
+  useEffect(() => {
+    const phase = sessionPhase ?? null;
+    const prev = phaseRef.current;
+    phaseRef.current = phase;
+    if (prev === "draw" && phase === "play") {
+      killDiscardFlights();
+      setCards([]);
+    }
+  }, [sessionPhase]);
 
   const commitDiscardCards = useCallback(
     (entries: { id: string; playerId: string }[]) => {
@@ -82,7 +92,6 @@ export interface RunBotDiscardFlyInput {
   handNumber: number;
   discardCount: number;
   pileStartIndex: number;
-  root: HTMLElement;
   onComplete: (committed: { id: string; playerId: string }[]) => void;
 }
 
@@ -91,7 +100,6 @@ export function runBotDiscardFly({
   handNumber,
   discardCount,
   pileStartIndex,
-  root,
   onComplete,
 }: RunBotDiscardFlyInput): void {
   const keys = discardCardKeysForDraw({
@@ -100,26 +108,7 @@ export function runBotDiscardFly({
     discardCount,
     pileStartIndex,
   });
-  const origins = seatOriginRectsForDiscard(playerId, discardCount, root);
-  if (!origins.length) {
-    const seat = readSeatPlayOrigin(playerId);
-    if (seat) {
-      origins.push(
-        ...Array.from({ length: discardCount }, (_, i) => ({
-          ...seat,
-          left: seat.left + i * 3,
-          top: seat.top - i * 2,
-        })),
-      );
-    }
-  }
-  if (!origins.length) {
-    onComplete(keys.map((id) => ({ id, playerId })));
-    return;
-  }
-  animateOriginRectsToDiscardPile(origins, keys, pileStartIndex, root, {
-    onComplete: () => onComplete(keys.map((id) => ({ id, playerId }))),
-  });
+  onComplete(keys.map((id) => ({ id, playerId })));
 }
 
 export function heroDiscardCardKeys(
@@ -143,5 +132,7 @@ export function readHeroDiscardCardElements(
       .map((i) => cardEls[i])
       .filter((el): el is HTMLElement => Boolean(el));
   }
-  return [...handRoot.querySelectorAll<HTMLElement>(".hand__slot--draw-selected .pcard")];
+  return [...handRoot.querySelectorAll<HTMLElement>(
+    ".hand__slot--draw-selected .pcard, .hand__slot--draw-recommended .pcard",
+  )];
 }

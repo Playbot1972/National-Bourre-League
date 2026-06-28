@@ -2,8 +2,31 @@
  * Session hand lifecycle — maps Firestore session snapshots to explicit phases.
  * Authoritative transitions remain in docs/firestore.js; this module is for
  * guards, logging, and tests.
+ *
+ * @deprecated Prefer `handPhaseMachine` (`HAND_FLOW_PHASE`) for new code.
  */
 
+export {
+  HAND_FLOW_PHASE,
+  HAND_FLOW_TRANSITIONS,
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canAdvanceBots,
+  resolveBotAdvanceHint,
+  resolveHandFlowTurnPlayerId,
+  deriveHandFlowPhase,
+  isHandFlowTransitionAllowed,
+  nextHandFlowPhase,
+  enrollmentDeadlineMs,
+  canActForPlayer,
+  isRobotPlayerId,
+} from "./handPhaseMachine";
+
+export type HandFlowPhase = import("./handPhaseMachine").HandFlowPhase;
+export type HandFlowEvent = import("./handPhaseMachine").HandFlowEvent;
+export type HandFlowAction = import("./handPhaseMachine").HandFlowAction;
+
+/** @deprecated Use `HandFlowPhase` / `HAND_FLOW_PHASE` */
 export type HandLifecyclePhase =
   | "waitingForPlayers"
   | "opening"
@@ -34,12 +57,14 @@ export interface HandLifecycleTransition {
 
 const MAX_TRICKS = 5;
 
+/** @deprecated Use `deriveHandFlowPhase` with full session snapshot */
 export function deriveHandLifecyclePhase(ctx: HandLifecycleContext): HandLifecyclePhase {
   if (ctx.sessionStatus === "final") return "waitingForPlayers";
   if (ctx.pendingCoWin) return "settle";
   if (ctx.handPhase === "draw") return "draw";
+  if (ctx.handPhase === "reveal") return "deal";
   if (ctx.handPhase === "play") {
-    if (ctx.handComplete || (ctx.trickCount ?? 0) >= (ctx.maxTricks ?? MAX_TRICKS)) {
+    if (ctx.handComplete || (ctx.trickCount ?? 0) >= MAX_TRICKS) {
       return "settle";
     }
     return "play";
@@ -49,18 +74,16 @@ export function deriveHandLifecyclePhase(ctx: HandLifecycleContext): HandLifecyc
   return "waitingForPlayers";
 }
 
+/** @deprecated Use `shouldOpenEnrollmentAfterSettle` from handPhaseMachine */
 export function shouldOpenEnrollmentAfterSettle(ctx: HandLifecycleContext): boolean {
-  /** Hand is ready for enrollment once settlement cleared participants and enrollment. */
-  return (
-    ctx.sessionStatus !== "final" &&
-    !ctx.enrollmentActive &&
-    !ctx.handPhase &&
-    (ctx.participantCount ?? 0) === 0 &&
-    !ctx.pendingCoWin
-  );
+  if (ctx.sessionStatus === "final") return false;
+  if (ctx.pendingCoWin) return false;
+  if (ctx.enrollmentActive) return false;
+  if (ctx.handPhase) return false;
+  return (ctx.participantCount ?? 0) === 0;
 }
 
-/** When the live table overlay is open, auto-start the next join window after settle. */
+/** @deprecated Use `shouldAutoOpenNextHand` from handPhaseMachine */
 export function shouldAutoOpenNextHand(ctx: HandLifecycleContext): boolean {
   return ctx.tablePlayOpen === true && shouldOpenEnrollmentAfterSettle(ctx);
 }

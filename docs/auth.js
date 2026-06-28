@@ -71,9 +71,18 @@ export const usingEmulator = Boolean(AUTH_EMULATOR_URL);
 if (usingEmulator) {
   try {
     connectAuthEmulator(auth, AUTH_EMULATOR_URL, { disableWarnings: true });
+    console.info("[nbl-dev] Auth emulator connected:", AUTH_EMULATOR_URL);
   } catch (err) {
-    console.warn("Could not connect to the Auth emulator:", err);
+    console.warn(
+      "[nbl-dev] Could not connect to the Auth emulator:",
+      AUTH_EMULATOR_URL,
+      err,
+    );
   }
+} else if (typeof location !== "undefined" && (location.port === "8080" || location.port === "")) {
+  console.warn(
+    "[nbl-dev] Auth emulator not configured — sign-in will hit production and may fail offline. Use http://localhost:8080 or ?emulators=1",
+  );
 }
 
 const googleProvider = new GoogleAuthProvider();

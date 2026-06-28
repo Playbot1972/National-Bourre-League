@@ -34,28 +34,17 @@ export function resolveTrumpHolderPresentation(
 ): TrumpHolderPresentation {
   const trumpHolderId = input.trumpHolderId;
   const hasTrumpOnTable = Boolean(input.trumpUpcard);
-  const { trumpRevealActive, trumpMergeActive, trumpMergedIntoHand } =
-    input.handPresentation;
-
-  const holderPresentationActive =
-    hasTrumpOnTable &&
-    Boolean(trumpHolderId) &&
-    (trumpRevealActive ||
-      trumpMergeActive ||
-      (trumpMergedIntoHand &&
-        (input.phase === "reveal" ||
-          input.phase === "decision" ||
-          input.phase === "draw" ||
-          input.phase === "play")));
+  const { trumpMergeActive, trumpMergedIntoHand } = input.handPresentation;
 
   return {
     trumpHolderId,
     hasTrumpOnTable,
-    hideCenterTrump: holderPresentationActive,
-    showRevealedTrumpAtHolder: hasTrumpOnTable && (trumpRevealActive || trumpMergeActive),
+    hideCenterTrump: false,
+    showRevealedTrumpAtHolder: false,
     showTrumpSuitReminder:
       trumpMergedIntoHand &&
-      hasTrumpOnTable &&
+      Boolean(input.trumpSuit) &&
+      !input.trumpUpcard &&
       (input.phase === "decision" ||
         input.phase === "draw" ||
         input.phase === "play"),

@@ -642,7 +642,7 @@
   justify-content: center;
   min-width: 48px;
   min-height: 74px;
-  --trick-card-overlap: 15px;
+  --trick-card-overlap: calc(var(--trick-card-width) * 0.288461538);
   --trick-card-width: 52px;
   --trick-card-height: 74px;
   --trick-card-step: calc(var(--trick-card-width) - var(--trick-card-overlap));
@@ -700,9 +700,15 @@
   width: var(--trick-card-width);
   transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
   z-index: calc(var(--slot-index, 0) + 1);
+  will-change: transform;
 }
 
-.btrick__play--settled.btrick__play--static-landed {
+.btrick__play--landed {
+  transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
+}
+
+.btrick__play--settled.btrick__play--static-landed,
+.btrick__play--landed.btrick__play--static-landed {
   transition: transform var(--trick-card-shift-ms) var(--trick-ease-shift);
 }
 
@@ -716,12 +722,13 @@
 
 .btrick__winner-tag {
   position: absolute;
-  top: -18px;
+  top: auto;
+  bottom: calc(100% + 10px);
   left: 50%;
   transform: translateX(-50%);
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -730,7 +737,8 @@
   box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
   white-space: nowrap;
   animation: btrick-winner-tag var(--trick-winner-highlight-ms, 1600ms) ease;
-  z-index: 2;
+  z-index: 30;
+  pointer-events: none;
 }
 
 .btrick__play--fly-pending .pcard {
@@ -785,6 +793,14 @@
   100% {
     transform: scale(1);
   }
+}
+
+.btrick__play--leading {
+  z-index: 11;
+}
+
+.btrick__play--leading .pcard--trick-leading {
+  transform: translateY(-2px) scale(1.01);
 }
 
 .btrick__play--winner .pcard--winner {
@@ -1008,9 +1024,9 @@
 
 .btable-session__phase-tag {
   display: inline-block;
-  padding: 2px 10px;
+  padding: 4px 12px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1028,13 +1044,64 @@
 }
 
 .btable-session__turn {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   color: var(--gold-400, #e6b450);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.btable-session__turn--yours {
+  color: var(--gold-300, #f4d58d);
+  font-size: 18px;
+  letter-spacing: 0.02em;
+}
+
+.btable-session__turn--waiting {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-muted, rgba(244, 213, 141, 0.55));
+}
+
+.btable-session__inactivity-helper {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--gold-300, #f4d58d);
+  background: rgba(20, 17, 15, 0.55);
+  border: 1px solid rgba(244, 213, 141, 0.35);
+  opacity: 0.35;
+  transition: opacity 0.45s ease;
+}
+
+.btable-session__inactivity-helper--on {
+  opacity: 1;
+}
+
+.btable-session__action-cue {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-900, #14110f);
+  background: linear-gradient(160deg, var(--gold-300, #e6b450), var(--gold-400, #d4af37));
+  border: 1px solid rgba(244, 213, 141, 0.45);
 }
 
 .btable-session__hint {
-  margin: 4px 0 0;
-  font-size: 11px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.btable-session__hint--waiting {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--text-muted, rgba(244, 213, 141, 0.65));
 }
 
 .btable-wrap__hero,
@@ -1082,7 +1149,9 @@
 
 .btable-hero__hint {
   margin: 8px 0 0;
-  font-size: 11px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--gold-300, #f4d58d);
 }
 
 .btable-hero__error {
@@ -1147,6 +1216,16 @@
 .btable-hero__actions .btn {
   min-height: 44px;
   min-width: 44px;
+}
+
+.btable-hero__actions .btn--secondary-muted {
+  opacity: 0.78;
+  border-color: var(--border-faint, rgba(244, 213, 141, 0.22));
+  color: var(--text-muted, rgba(244, 213, 141, 0.72));
+}
+
+.btable-hero__actions .btn--secondary-muted:hover:not(:disabled) {
+  opacity: 1;
 }
 
 .btable-hero__actions {
@@ -1214,12 +1293,51 @@
   transform: translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04);
 }
 
-.btable-hero__hand-row .hand__slot .pcard--play-recommended {
-  transform: translateY(-8px) rotateX(6deg) rotateY(-2deg) scale(1.02);
+.btable-hero__hand-row .hand__slot--play-recommended {
+  transform:
+    translateY(-8px) rotateX(6deg) rotateY(-2deg) scale(1.02)
+    rotateZ(calc(var(--fan-offset, 0) * 5deg));
+  z-index: 18 !important;
 }
 
-.btable-hero__hand-row .hand__slot .pcard--draw-selected {
-  transform: translateY(-22px) rotateX(12deg) rotateY(-8deg) scale(1.07);
+.btable-hero__hand-row .hand__slot--play-recommended .pcard--play-recommended {
+  transform: none;
+}
+
+.btable-hero__hand-row .hand__slot--draw-recommended {
+  transform: translateY(-10px) rotateX(8deg) rotateY(-4deg) scale(1.03);
+  z-index: 20 !important;
+}
+
+.btable-hero__hand-row .hand__slot--draw-recommended .pcard--draw-recommended {
+  transform: none;
+}
+
+.btable-hero__hand-row .hand__slot--draw-recommended .pcard--draw-recommended .pcard__surface {
+  border-color: rgba(54, 185, 124, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 2px rgba(54, 185, 124, 0.5),
+    0 10px 20px rgba(0, 0, 0, 0.28);
+}
+
+.btable-hero__hand-row .hand__slot--draw-selected .pcard--draw-selected .pcard__surface {
+  border-color: #e8344a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 0 0 3px #e8344a,
+    0 0 0 5px rgba(232, 52, 74, 0.35),
+    0 0 24px rgba(232, 52, 74, 0.45),
+    0 22px 40px rgba(0, 0, 0, 0.48);
+}
+
+.btable-hero__hand-row .hand__slot--draw-selected {
+  transform: translateY(-14px) rotateX(10deg) rotateY(-6deg) scale(1.04);
+}
+
+.btable-hero__hand-row .hand__slot--draw-selected .pcard--draw-selected {
+  transform: none;
+  animation: none;
 }
 
 .btable-hero__hand-row .hand--fan .hand__slot:hover,
@@ -1274,29 +1392,36 @@
   letter-spacing: 0.01em;
 }
 
+.btable-hero__hand-3d--chrome-only {
+  min-height: 0;
+  justify-content: flex-end;
+}
+
 .btable-hero .hand--fan .hand__slot:hover {
   z-index: 4;
 }
 
-.btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+.btable-hero--draw-select .hand--fan .hand__slot:not(.hand__slot--draw-selected):not(.hand__slot--draw-recommended) .pcard:not(.pcard--disabled) {
   filter: grayscale(0.15) brightness(0.9);
   opacity: 0.78;
   transform: none;
 }
 
-.btable-hero--draw-select .btable-hero__hand-row .hand--fan .hand__slot:not(.hand__slot--draw-selected) .pcard:not(.pcard--disabled) {
+.btable-hero--draw-select .btable-hero__hand-row .hand--fan .hand__slot:not(.hand__slot--draw-selected):not(.hand__slot--draw-recommended) .pcard:not(.pcard--disabled) {
   transform: none;
 }
 
-.btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard {
+.btable-hero--draw-select .hand--fan .hand__slot--draw-selected .pcard,
+.btable-hero--draw-select .hand--fan .hand__slot--draw-recommended .pcard {
   filter: none;
   opacity: 1;
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
+  /* Turn ownership shown by countdown ring — no separate glow/scale. */
   box-shadow:
-    0 0 0 2px var(--gold-400, #e6b450),
-    0 0 14px rgba(230, 180, 80, 0.45);
+    0 2px 8px rgba(0, 0, 0, 0.45),
+    0 0 0 2px rgba(244, 213, 141, 0.25);
 }
 
 .bseat__turn-tag {
@@ -1305,6 +1430,59 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--gold-400, #e6b450);
+}
+
+/* 15s turn countdown ring — sole avatar-based turn indicator */
+.bseat__turn-countdown {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+
+.bseat__turn-countdown-track {
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 2.5;
+}
+
+.bseat__turn-countdown-progress {
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition:
+    stroke 420ms ease,
+    stroke-dashoffset 180ms linear;
+}
+
+.bseat__turn-countdown-progress--green {
+  stroke: #3ecf6e;
+  filter: drop-shadow(0 0 4px rgba(62, 207, 110, 0.45));
+}
+
+.bseat__turn-countdown-progress--yellow {
+  stroke: #e6b450;
+  filter: drop-shadow(0 0 4px rgba(230, 180, 80, 0.45));
+}
+
+.bseat__turn-countdown-progress--red {
+  stroke: #e74c3c;
+  filter: drop-shadow(0 0 5px rgba(231, 76, 60, 0.5));
+}
+
+.bseat--active-actor .bseat__avatar-wrap {
+  /* Ring carries turn emphasis — keep default avatar pose. */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bseat__turn-countdown-progress {
+    transition: stroke 200ms ease, stroke-dashoffset 300ms linear;
+  }
+
+  .bseat__turn-countdown--reduced .bseat__turn-countdown-progress {
+    transition: stroke 200ms ease;
+  }
 }
 
 .bseat__hole-cards {
@@ -1351,8 +1529,13 @@
   right: auto;
   bottom: auto;
   width: max-content;
-  transform: translate(-50%, -62%) scale(var(--hole-crown-scale));
+  transform: translate(-50%, -115%) scale(var(--hole-crown-scale));
   transform-origin: 50% 100%;
+}
+
+/* Seat crown keeps classic red backs — not four-color blue deck backs. */
+.btable-room[data-deck-mode="four-color"] .bseat__hole-cards--crown .pcard--back {
+  background: none;
 }
 
 .bseat__hole-card {
@@ -1369,7 +1552,7 @@
 }
 
 .bseat--trump-reveal .bseat__hole-card--trump-revealed {
-  z-index: 4;
+  z-index: 1;
 }
 
 .bseat--trump-reveal .bseat__hole-card--trump-revealed .pcard--trump {
@@ -1548,7 +1731,7 @@
   box-shadow:
     0 2px 8px rgba(0, 0, 0, 0.45),
     0 0 0 2px rgba(244, 213, 141, 0.25);
-  z-index: 2;
+  z-index: 5;
   min-width: 44px;
   min-height: 44px;
   display: grid;
@@ -1602,49 +1785,23 @@
 }
 
 /*
- * 4 / 6 / 7 player — trick counter on the right for seat indices 1–3 only
- * (first three opponents clockwise from hero). All other seats keep left placement.
+ * Opponents (seat index 1+, players 2–8) — trick counter on the right edge of the avatar.
+ * Hero seat (index 0) keeps the default left placement.
  */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__trick-badge {
+.btable__seat-slot:not([data-seat-index="0"]) .bseat__trick-badge {
   left: 100%;
   right: auto;
   --trick-badge-x: 5px;
 }
 
-/* Right-rail among seats 1–3: tuck inward so the badge stays on-screen */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__trick-badge {
+/* Right-rail opponents: tuck inward so the badge stays on-screen */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__trick-badge {
   --trick-badge-x: -2px;
 }
 
-/* Top/bottom among seats 1–3 on dense rings: clear hole-card crown */
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--top .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--bottom .bseat__trick-badge,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--bottom .bseat__trick-badge {
+/* Top/bottom opponents on dense rings: clear hole-card crown */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--top .bseat__trick-badge,
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--bottom .bseat__trick-badge {
   --trick-badge-x: 6px;
 }
 
@@ -1797,30 +1954,14 @@
   opacity: 0;
 }
 
-/* Default: badge left → pile right. Seats 1–3 (p4/p6/p7): badge right → pile left. */
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat__won-trick-pile {
+/* Default: badge left → pile right. Opponents: badge right → pile left. */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat__won-trick-pile {
   left: 0;
   right: auto;
   --trick-pile-x: calc(-100% - 8px);
 }
 
-.btable--p4 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p4 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p6 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="1"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="2"] .bseat--right .bseat__won-trick-pile,
-.btable--p7 .btable__seat-slot[data-seat-index="3"] .bseat--right .bseat__won-trick-pile {
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__won-trick-pile {
   --trick-pile-x: -4px;
 }
 
@@ -2222,10 +2363,10 @@
 }
 
 .bseat__opt-in {
-  font-size: 11px;
-  padding: 4px 10px;
-  min-height: 36px;
-  min-width: 72px;
+  font-size: 12px;
+  padding: 8px 14px;
+  min-height: 44px;
+  min-width: 80px;
 }
 
 .bseat__controls {
@@ -2283,6 +2424,66 @@
   justify-content: center;
   flex-wrap: wrap;
   margin: 8px 0;
+}
+
+.btable-split-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 120;
+  max-width: min(92vw, 360px);
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(12, 18, 14, 0.94);
+  border: 1px solid rgba(54, 185, 124, 0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
+.btable-split-toast__title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold, #f4d58d);
+}
+
+.btable-split-toast__names {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.btable-split-toast__share {
+  margin: 0 0 8px;
+}
+
+.btable-split-toast__choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btable-split-toast__timer {
+  margin: 0;
+  font-size: 11px;
+}
+
+.btable-session__rebuy-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+
+.btable-session__rebuy-copy {
+  margin: 0;
+  font-size: 13px;
 }
 
 .btable-session__foot {
@@ -2452,9 +2653,12 @@
 
   .center-play .btrick__play .pcard--sm,
   .deck-stack .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(48px, 11vmin, 72px);
-    height: calc(clamp(48px, 11vmin, 72px) * 1.423);
   }
 
   .hand-panel {
@@ -2477,11 +2681,19 @@
     max-width: 152px;
   }
 
+  .center-play .btrick {
+    --trick-card-width: clamp(42px, 10vw, 56px);
+    --trick-card-height: calc(clamp(42px, 10vw, 56px) * 1.423);
+  }
+
   .deck-stack .pcard--sm,
   .center-play .btrick__play .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(42px, 10vw, 56px);
-    height: calc(clamp(42px, 10vw, 56px) * 1.423);
   }
 }
 
@@ -2565,11 +2777,19 @@
     width: min(68%, clamp(180px, 38vw, 280px));
   }
 
+  .center-play .btrick {
+    --trick-card-width: clamp(44px, 10vh, 68px);
+    --trick-card-height: calc(clamp(44px, 10vh, 68px) * 1.423);
+  }
+
   .center-play .btrick__play .pcard--sm,
   .deck-stack .pcard--sm {
+    width: var(--trick-card-width);
+    height: var(--trick-card-height);
+  }
+
+  .center-play .btrick__play--static-landed .pcard--sm {
     transform: none;
-    width: clamp(44px, 10vh, 68px);
-    height: calc(clamp(44px, 10vh, 68px) * 1.423);
   }
 
   .btable-wrap {
@@ -3030,15 +3250,14 @@
 }
 
 .bseat--on-turn .bseat__avatar-wrap {
-  transform: rotateX(4deg) translateZ(18px) scale(1.06);
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.45));
+  /* Countdown ring is the turn indicator — no scale lift. */
+  transform: rotateX(10deg) translateZ(8px);
+  filter: none;
 }
 
 .bseat--on-turn .bseat__avatar,
 .bseat--on-turn .bseat__avatar--initials {
-  box-shadow:
-    0 0 0 2px var(--avatar-ring-glow),
-    0 10px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: none;
 }
 
 .bseat--leading .bseat__avatar-wrap {
@@ -3440,7 +3659,9 @@
 }
 
 .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
-.btable-hero--draw-discard .hand__slot .pcard--draw-selected {
+.btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+.btable-hero--draw-discard .hand__slot--draw-recommended .pcard,
+.btable-hero--draw-discard .hand__slot .pcard--draw-recommended {
   animation: bdraw-fold-away 420ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
@@ -3600,7 +3821,8 @@
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.discard-fly-ghost {
+.discard-fly-ghost,
+.draw-receive-fly-ghost {
   border-radius: 6px;
   background:
     linear-gradient(148deg, rgba(255, 255, 255, 0.15) 0%, transparent 40%),
@@ -3624,6 +3846,10 @@
 }
 
 [data-gsap-motion="true"] .bseat--draw-discard .bseat__hole-cards {
+  animation: none;
+}
+
+[data-gsap-motion="true"] .bseat--draw-receive .bseat__hole-cards {
   animation: none;
 }
 
@@ -3740,7 +3966,8 @@
 
 /* Table microinteractions */
 .bseat--turn-handoff .bseat__avatar-wrap {
-  animation: bmicro-turn-handoff 620ms ease;
+  /* Replaced by turn countdown ring — no handoff pulse. */
+  animation: none;
 }
 
 .bseat__dealer--moved {
@@ -4086,6 +4313,10 @@
 
 .bseat__pass {
   margin-top: 4px;
+  min-height: 44px;
+  min-width: 72px;
+  padding: 8px 14px;
+  font-size: 12px;
 }
 
 .btable-session__discard-pick {

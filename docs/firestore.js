@@ -95,8 +95,16 @@ import {
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
+  sessionChipTotal,
+  eligibleIdsForAnteCollection,
+  splitPotVoteAllowed,
 } from "./bourre-rules.js";
-import { tiesHouseRuleAllowsSplit } from "./house-rules.js";
+import {
+  buildBotRebuySettlementPlan,
+  planBotAutoRebuys,
+  patchSessionPlayersWithRebuyNames,
+  sessionHasRobotScores,
+} from "./bot-rebuy.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -111,6 +119,7 @@ import {
   gameVoteCoWinSettlement,
   gameAdvanceBots,
 } from "./game-functions.js";
+import { isBenignTableActionError } from "./table-action-feedback.js";
 import { removePlayerFromEnrollment } from "./enrollment-roster.js";
 import {
   dealInitialHand,
@@ -157,6 +166,16 @@ import {
   sessionHandDealStarted,
   shouldClearOrphanLiveEnrollment,
   tableStartupUserMessage,
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  canActForPlayer,
+  enrollmentDeadlineMs,
+  resolveBotAdvanceHint,
+  assertHandActionAllowed,
+  assertSettlementEntryAllowed,
+  assertSessionChipConserved,
+  assertHandFlowConsistent,
+  assertBotAdvanceNotInFlight,
 } from "./session-startup.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -180,7 +199,6 @@ const {
   arrayUnion,
   arrayRemove,
   deleteField,
-  increment,
   runTransaction,
 } = await import(`${CDN}/firebase-firestore.js`);
 
@@ -242,18 +260,15 @@ function isCloudFunctionUnavailable(err) {
   );
 }
 
-/** Normalize enrollment deadline (Firestore may return Timestamp objects). */
-export function enrollmentDeadlineMs(enrollment) {
-  const raw = enrollment?.turnDeadlineMs;
-  if (raw == null) return 0;
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw.toMillis === "function") return raw.toMillis();
-  if (typeof raw === "object" && typeof raw.seconds === "number") {
-    return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1e6);
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
+function logBenignTableActionRace(source, serverErr, clientErr = null) {
+  console.warn(
+    `[table-action] benign race suppressed (${source})`,
+    clientErr?.message ?? clientErr ?? serverErr?.message ?? serverErr,
+  );
 }
+
+/** Normalize enrollment deadline — re-exported from session-startup (hand phase machine). */
+export { enrollmentDeadlineMs, canActForPlayer } from "./session-startup.js";
 
 /** Enrollment — server Cloud Functions first when SERVER_HAND_AUTHORITY is on. */
 async function callEnrollmentAction(clientFn, serverFn) {
@@ -269,10 +284,18 @@ async function callEnrollmentAction(clientFn, serverFn) {
         try {
           return await clientFn();
         } catch (clientErr) {
+          if (isBenignTableActionError(clientErr) || isBenignTableActionError(serverErr)) {
+            logBenignTableActionRace("enrollment", serverErr, clientErr);
+            return undefined;
+          }
           throw describeEnrollmentStartError(
             isEnrollmentPermissionError(clientErr) ? clientErr : serverErr,
           );
         }
+      }
+      if (isBenignTableActionError(serverErr)) {
+        logBenignTableActionRace("enrollment", serverErr);
+        return undefined;
       }
       throw describeEnrollmentStartError(
         isEnrollmentPermissionError(serverErr) ? serverErr : serverErr,
@@ -300,9 +323,47 @@ async function callGameOrClient(clientFn, serverFn) {
       return await serverFn();
     } catch (serverErr) {
       if (isCloudFunctionUnavailable(serverErr)) throw clientErr;
+      if (isBenignTableActionError(serverErr) || isBenignTableActionError(clientErr)) {
+        logBenignTableActionRace("game-client", serverErr, clientErr);
+        return undefined;
+      }
       throw serverErr;
     }
   }
+}
+
+/**
+ * Draw/fold — Cloud Functions first when SERVER_HAND_AUTHORITY is on so the server
+ * chains advanceBotsAfterAction after the human draw (client-only writes skip that).
+ */
+async function callGameServerOrClient(clientFn, serverFn) {
+  if (SERVER_HAND_AUTHORITY) {
+    try {
+      return await serverFn();
+    } catch (serverErr) {
+      if (isCloudFunctionUnavailable(serverErr)) {
+        console.warn(
+          "Game Cloud Function unavailable, trying client write.",
+          serverErr?.code || serverErr?.message || serverErr,
+        );
+        try {
+          return await clientFn();
+        } catch (clientErr) {
+          if (isBenignTableActionError(clientErr) || isBenignTableActionError(serverErr)) {
+            logBenignTableActionRace("game-server", serverErr, clientErr);
+            return undefined;
+          }
+          throw serverErr;
+        }
+      }
+      if (isBenignTableActionError(serverErr)) {
+        logBenignTableActionRace("game-server", serverErr);
+        return undefined;
+      }
+      throw serverErr;
+    }
+  }
+  return callGameOrClient(clientFn, serverFn);
 }
 
 /** Settlement — Cloud Functions first when enabled; client batch is the fallback. */
@@ -779,6 +840,7 @@ export async function updateRoomBourreSettings(roomId, bourreSettings) {
       anteAmount: normalized.anteAmount,
       limEnabled: normalized.limEnabled,
       rebuyEnabled: normalized.rebuyEnabled,
+      splitPotEnabled: normalized.splitPotEnabled,
     },
     updatedAt: serverTimestamp(),
   });
@@ -809,6 +871,53 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
     out: deleteField(),
     updatedAt: serverTimestamp(),
   });
+}
+
+/**
+ * After full hand settlement, auto-rebuy busted bots (not humans).
+ * Assigns a fresh random display name; keeps the same bot_* player id.
+ */
+async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, rebuyEnabled = true }) {
+  if (!rebuyEnabled) return { applied: [] };
+  const [sessionSnap, scoreSnap] = await Promise.all([
+    getDoc(sessionDoc(roomId, sessionId)),
+    getDocs(scoresCol(roomId, sessionId)),
+  ]);
+  if (!sessionSnap.exists()) return { applied: [] };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { applied: [] };
+
+  const scoreRows = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  if (!sessionHasRobotScores(scoreRows)) return { applied: [] };
+
+  const plan = planBotAutoRebuys({ scoreRows, buyIn });
+  if (plan.length === 0) return { applied: [] };
+
+  const optInIds = new Set(sessionData.tableOptInIds || []);
+  const batch = writeBatch(db);
+  for (const item of plan) {
+    optInIds.add(item.playerId);
+    batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+      bankroll: buyIn,
+      out: deleteField(),
+      displayName: item.displayName,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  batch.update(sessionDoc(roomId, sessionId), {
+    players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+    tableOptInIds: [...optInIds],
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+  logBourreAccounting("bot-auto-rebuy", {
+    roomId,
+    sessionId,
+    playerIds: plan.map((p) => p.playerId),
+    names: plan.map((p) => p.displayName),
+    buyIn,
+  });
+  return { applied: plan.map((p) => p.playerId) };
 }
 
 /**
@@ -1061,9 +1170,6 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
     handEnrollment: deleteField(),
     updatedAt: serverTimestamp(),
   };
-  if (patch.carryOverPotAdjust > 0) {
-    sessionUpdate.carryOverPot = increment(patch.carryOverPotAdjust);
-  }
   sessionUpdate.nextDealFunding = deleteField();
   tx.update(ref, sessionUpdate);
 }
@@ -1227,9 +1333,14 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     stakeForPlayer: stakeFor,
   });
   if (!settled.ready) {
+    const eligibleForAntes = eligibleIdsForAnteCollection(
+      dealContext.sortedPlayerIds ?? [],
+      scoreById,
+      buyIn,
+    );
     return buildPagatHandStartPatch(
       dealContext.dealerId,
-      dealContext.sortedPlayerIds,
+      eligibleForAntes,
       dealContext.sortedPlayerIds,
       Date.now(),
       null,
@@ -1388,6 +1499,34 @@ async function clearStaleHandoffArtifacts(roomId, sessionId) {
   }
 }
 
+/**
+ * Converge post-settlement limbo into dealer rotation + next-hand enrollment.
+ * Idempotent: skips when already cleared, repairs stale mirrors, or re-runs settlement.
+ */
+export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) return { status: "missing" };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { status: "final" };
+  if (sessionData.pendingCoWinSettlement) return { status: "cowin_pending" };
+
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  const participantIds = rawHand.participantIds ?? [];
+  const tricksByPlayer = rawHand.tricksByPlayer ?? {};
+
+  if (participantIds.length > 0 && isHandComplete(tricksByPlayer, participantIds)) {
+    await finalizeHandFromCardPlay(roomId, sessionId, recordedBy);
+    return { status: "settlement_recovered" };
+  }
+
+  if (isClearedPreDealHand(rawHand) && shouldClearOrphanLiveEnrollment(sessionData)) {
+    await clearStaleHandoffArtifacts(roomId, sessionId);
+    return { status: "artifacts_cleared" };
+  }
+
+  return { status: "noop" };
+}
+
 function writeEnrollmentPatch(enrollment) {
   return {
     [LIVE_ENROLLMENT_FIELD]: enrollment,
@@ -1489,7 +1628,6 @@ function buildPagatHandStartPatch(
     privateHandsByPlayer: bundle.privateHandsByPlayer,
     sortedPlayerIds,
     scorePatches: buildScorePatchesFromAnteCollection(collected, dealIds),
-    carryOverPotAdjust: collected.uncollectedPenalties ?? 0,
   };
 }
 
@@ -1531,10 +1669,40 @@ function buildScorePatchesFromAnteCollection(collected, dealIds) {
   return patches;
 }
 
-function canActForPlayer(playerId, actorId) {
-  if (!playerId || !actorId) return false;
-  if (playerId === actorId) return true;
-  return isRobotPlayerId(playerId);
+function handActionBlockedMessage(action, reason) {
+  if (reason === "actor_mismatch") {
+    if (action === "play_card") return "You can only play for yourself (or drive a robot)";
+    if (action === "draw_fold") return "You can only fold for yourself (or drive a robot)";
+    return "You can only draw for yourself (or drive a robot)";
+  }
+  if (reason === "not_draw") return "Not in draw phase";
+  if (reason === "not_play") return "Not in trick-play phase";
+  if (reason === "not_your_turn") {
+    return action === "play_card" ? "Not your turn" : "Not your turn to draw";
+  }
+  if (reason === "draw_already_complete") return "Draw already completed";
+  return `Action blocked (${reason})`;
+}
+
+function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
+  const currentHand = getSessionCurrentHand(sessionData);
+  try {
+    assertHandActionAllowed(
+      sessionData,
+      action,
+      playerId,
+      actorId,
+      currentHand.drawCompletedIds ?? [],
+    );
+  } catch (err) {
+    if (err?.name === "HandInvariantError" && err.code === "action_blocked") {
+      throw new Error(handActionBlockedMessage(action, err.context?.reason ?? "blocked"));
+    }
+    if (err?.name === "HandInvariantError" && err.code === "illegal_transition") {
+      throw new Error(`Action blocked (illegal phase transition: ${action})`);
+    }
+    throw err;
+  }
 }
 
 function actionOrderFromHand(currentHand, sortedPlayerIds) {
@@ -1551,12 +1719,17 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
-  const currentHand = getSessionCurrentHand(sessionData);
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
+  if (isClearedPreDealHand(rawHand)) return;
+
+  const currentHand =
+    (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
 
   if (!ready) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "push" });
     await recordHand(roomId, sessionId, {
       winnerIds: [],
       participantIds,
@@ -1568,6 +1741,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   }
 
   if (winnerIds.length === 1) {
+    assertSettlementEntryAllowed(sessionData, { settlement: "win" });
     await recordHand(roomId, sessionId, {
       winnerIds,
       participantIds,
@@ -1579,7 +1753,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };
@@ -1603,19 +1777,49 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   });
 }
 
+/** Chip conservation at settlement boundary (bankrolls + carry + posted antes). */
+function assertRecordHandChipConservation({
+  scoreById,
+  carryOverPot,
+  postedAntes,
+  buyIn,
+  solvent,
+  participants,
+  deltas,
+}) {
+  const beforeTotal = sessionChipTotal(scoreById, {
+    carryOverPot,
+    postedAntes,
+    buyInFallback: buyIn,
+  });
+  const afterScores = { ...scoreById };
+  for (const pid of participants) {
+    afterScores[pid] = {
+      ...afterScores[pid],
+      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(afterScores[pid], buyIn),
+      net: (afterScores[pid].net || 0) + (deltas[pid] ?? 0),
+    };
+  }
+  const afterTotal = sessionChipTotal(afterScores, {
+    carryOverPot: solvent.carryOverPot,
+    postedAntes: {},
+    buyInFallback: buyIn,
+  });
+  assertSessionChipConserved(beforeTotal, afterTotal, {
+    boundary: "recordHand",
+    participantCount: participants.length,
+  });
+}
+
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  return callGameOrClient(
+  return callGameServerOrClient(
     () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
     () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
   );
 }
 
 async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only draw for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
@@ -1623,12 +1827,9 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "submit_draw", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
-    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new Error("Draw already completed");
-    }
 
     const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
     if (!handData) throw new Error("Private hand not found");
@@ -1671,17 +1872,13 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
 
 /** Fold out during draw — forfeit ante, skip trick play for this hand. */
 export async function foldHandDraw(roomId, sessionId, { playerId, actorId }) {
-  return callGameOrClient(
+  return callGameServerOrClient(
     () => foldHandDrawClient(roomId, sessionId, { playerId, actorId }),
     () => gameFoldDraw(roomId, sessionId, { playerId, actorId }),
   );
 }
 
 async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only fold for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
@@ -1693,12 +1890,9 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "draw_fold", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.DRAW) throw new Error("Not in draw phase");
-    if (currentHand.turnPlayerId !== playerId) throw new Error("Not your turn to draw");
-    if ((currentHand.drawCompletedIds || []).includes(playerId)) {
-      throw new Error("Draw already completed");
-    }
 
     const foldResult = applyDrawFold(
       currentHand,
@@ -1739,10 +1933,6 @@ export async function playHandCard(roomId, sessionId, { playerId, cardIndex, act
 }
 
 async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  if (!canActForPlayer(playerId, actorId)) {
-    throw new Error("You can only play for yourself (or drive a robot)");
-  }
-
   const ref = sessionDoc(roomId, sessionId);
   let handComplete = false;
 
@@ -1752,8 +1942,9 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
     const sessionData = snap.data();
     if (sessionData.status === "final") throw new Error("Session is final");
 
+    assertCanSubmitHandAction(sessionData, "play_card", playerId, actorId);
+
     const currentHand = getSessionCurrentHand(sessionData);
-    if (currentHand.phase !== HAND_PHASE.PLAY) throw new Error("Not in trick-play phase");
 
     const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
     if (!handData) throw new Error("Private hand not found");
@@ -1973,9 +2164,16 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
         handCount: dealContext.handCount ?? 0,
       }, dealContext);
     }
+    const buyIn = dealContext?.buyIn ?? 1;
+    const scoreById = dealContext?.scoreById ?? {};
+    const eligibleForAntes = eligibleIdsForAnteCollection(
+      dealContext?.sortedPlayerIds ?? [],
+      scoreById,
+      buyIn,
+    );
     return buildPagatHandStartPatch(
       dealContext?.dealerId ?? null,
-      dealContext?.sortedPlayerIds ?? [],
+      eligibleForAntes,
       dealContext?.sortedPlayerIds ?? [],
       Date.now(),
       dealContext?.dealingRule ?? null,
@@ -2399,6 +2597,8 @@ async function recordHandClient(
     if (!participants.includes(wid)) throw new Error("Every winner must be in the hand");
   }
 
+  assertSettlementEntryAllowed(sessionData, { settlement: mode });
+
   const stake = sessionData.handStake ?? 1;
   const limEnabled = sessionData.limEnabled === true;
   const carryIn = sessionData.carryOverPot || 0;
@@ -2446,7 +2646,18 @@ async function recordHandClient(
     nextDealFunding,
     bankrolls: solventBankrolls,
     scoreById: fundedScoreById,
+    solvent,
   } = money;
+
+  assertRecordHandChipConservation({
+    scoreById,
+    carryOverPot: carryIn,
+    postedAntes,
+    buyIn,
+    solvent,
+    participants,
+    deltas,
+  });
 
   logBourreSettlementTrace("hand-settled", {
     handNumber,
@@ -2541,7 +2752,36 @@ async function recordHandClient(
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap);
-  batch.update(sessionDoc(roomId, sessionId), {
+
+  const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  const botRebuyPlan = buildBotRebuySettlementPlan({
+    scoreRows: scoreRowsForRebuy,
+    solventBankrolls,
+    buyIn,
+    rebuyEnabled: roomBourre.rebuyEnabled === true,
+    players: sessionData.players,
+    tableOptInIds: sessionData.tableOptInIds || [],
+  });
+  if (botRebuyPlan) {
+    for (const item of botRebuyPlan.plan) {
+      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+        bankroll: buyIn,
+        out: deleteField(),
+        displayName: item.displayName,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: botRebuyPlan.plan.map((p) => p.playerId),
+      names: botRebuyPlan.plan.map((p) => p.displayName),
+      buyIn,
+      phase: "settlement-batch",
+    });
+  }
+
+  const sessionUpdate = {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
@@ -2551,12 +2791,26 @@ async function recordHandClient(
     ...clearedEnrollmentBetweenHands(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (botRebuyPlan) {
+    sessionUpdate.players = botRebuyPlan.players;
+    sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
+  }
+  batch.update(sessionDoc(roomId, sessionId), sessionUpdate);
 
   try {
     await batch.commit();
   } catch (err) {
     throw settlementError(err, "client-batch");
+  }
+
+  try {
+    await applyBotAutoRebuysAfterSettlement(roomId, sessionId, {
+      buyIn,
+      rebuyEnabled: roomBourre.rebuyEnabled === true,
+    });
+  } catch (err) {
+    console.warn("recordHand: bot auto-rebuy deferred", err);
   }
 
   try {
@@ -2584,6 +2838,42 @@ async function recordHandClient(
     to: "handoffToNextDeal",
     reason: "recordHand cleared hand; next join window opens on live table or Go to Table",
   });
+}
+
+/**
+ * Auto-settle a pending co-win as Pagat carryover when the split vote window expires
+ * without unanimous agreement.
+ */
+export async function settleCoWinCarryover(roomId, sessionId, { recordedBy } = {}) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") throw new Error("Session is final");
+
+  const pending = sessionData.pendingCoWinSettlement;
+  if (!pending?.winnerIds?.length || pending.winnerIds.length < 2) {
+    throw new Error("No pending co-win settlement");
+  }
+
+  const votes = pending.votes || {};
+  if (pending.winnerIds.every((w) => votes[w] === "split")) {
+    return { status: "already_split" };
+  }
+
+  const currentHand = getSessionCurrentHand(sessionData);
+  const tricksByPlayer = currentHand?.tricksByPlayer || {};
+  const participantIds = pending.participantIds?.length
+    ? pending.participantIds
+    : currentHand?.participantIds || [];
+
+  await recordHand(roomId, sessionId, {
+    winnerIds: pending.winnerIds,
+    participantIds,
+    settlement: "co_win_carry",
+    recordedBy,
+    tricksByPlayer,
+  });
+  return { status: "settled", settlement: "co_win_carry" };
 }
 
 /**
@@ -2765,7 +3055,7 @@ export async function updateHandTrick(roomId, sessionId, playerId, delta, record
   }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  const allowSplitVote = tiesHouseRuleAllowsSplit(roomSnap.data()?.houseRules);
+  const allowSplitVote = splitPotVoteAllowed(roomSnap.data()?.bourreSettings);
   if (allowSplitVote) {
     const pending = sessionData.pendingCoWinSettlement;
     const proposal = { participantIds, winnerIds };
@@ -3442,20 +3732,12 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings);
   const sessionStake = data.handStake ?? 1;
-  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
-
-  const eligibleIds = sortedIds.filter((id) => {
-    const row = scoreById[id];
-    if (row?.out === true) return false;
-    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
-  });
-  if (eligibleIds.length < 1) {
-    throw enrollmentStartFailure(data, scoreSnap, "enrollment_failed");
-  }
 
   const dealContextBase = {
     sessionStake,
     buyIn,
+    sortedIds,
+    dealingRule,
   };
   await runEnrollmentStepTransaction(
     roomId,
@@ -3469,6 +3751,12 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       const freshTrickProgress = Object.values(freshTricks).some((n) => (n || 0) > 0);
       if (freshPids.length > 0 && !freshPhase && !freshTrickProgress) return null;
       if (freshPids.length > 0 && handPhaseStarted(freshHand)) return null;
+      const eligibleIds = eligibleIdsForAnteCollection(
+        sortedIds,
+        freshScoreById,
+        buyIn,
+      );
+      if (eligibleIds.length < 1) return null;
       return buildDealCompletionPatch(
         freshData.dealerId,
         eligibleIds,
@@ -3853,9 +4141,33 @@ export async function applyRankingResults(roomId, sessionId, results) {
 }
 
 /** Ask Cloud Functions to run bot enrollment / draw / play through robot turns. */
-export async function advanceSessionBots(roomId, sessionId) {
-  if (!SERVER_HAND_AUTHORITY) return { status: "skipped" };
-  return gameAdvanceBots(roomId, sessionId);
+export async function advanceSessionBots(roomId, sessionId, meta = {}) {
+  if (!SERVER_HAND_AUTHORITY) {
+    console.info(
+      "[bot-orchestrator]",
+      "skip-call",
+      JSON.stringify({ reason: "server_authority_disabled", roomId, sessionId, ...meta }),
+    );
+    return { status: "skipped", reason: "server_authority_disabled" };
+  }
+  console.info(
+    "[bot-orchestrator]",
+    "invoke-gameAdvanceBots",
+    JSON.stringify({
+      requester: meta.requester ?? null,
+      owner: "server",
+      trigger: meta.trigger ?? "client",
+      roomId,
+      sessionId,
+    }),
+  );
+  const result = await gameAdvanceBots(roomId, sessionId);
+  console.info(
+    "[bot-orchestrator]",
+    "gameAdvanceBots-result",
+    JSON.stringify({ roomId, sessionId, requester: meta.requester ?? null, result }),
+  );
+  return result;
 }
 
 // Firestore Timestamp | server placeholder | undefined → comparable seconds.

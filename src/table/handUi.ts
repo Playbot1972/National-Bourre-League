@@ -11,18 +11,18 @@ export function formatHandPhase(
   phase: string | null | undefined,
   enrollmentActive: boolean,
 ): string {
-  if (enrollmentActive) return "Choosing";
+  if (enrollmentActive) return "Join hand";
   switch (phase) {
     case "reveal":
-      return "Dealing";
+      return "Deal";
     case "decision":
-      return "Choosing";
+      return "Join hand";
     case "draw":
-      return "Drawing";
+      return "Draw";
     case "play":
-      return "Playing";
+      return "Play card";
     default:
-      return "Waiting to deal";
+      return "Waiting";
   }
 }
 
@@ -32,10 +32,30 @@ export function formatLocalActionCue(
   enrollmentActive: boolean,
 ): string | null {
   if (enrollmentActive || phase === "decision") {
-    return "Tap I'm in or Pass on your seat";
+    return "Tap I'm in or Pass at your seat";
   }
-  if (phase === "draw") return "Draw, Stand pat, or I'm Out";
-  if (phase === "play") return "Tap a legal card to play";
+  if (phase === "draw") return "Choose cards to discard, then tap Draw";
+  if (phase === "play") return "Tap a card to play";
+  return null;
+}
+
+/** Plain cue when the local player is waiting on others. */
+export function formatWaitingCue(input: {
+  phase?: string | null;
+  enrollmentActive?: boolean;
+  isMyTurn?: boolean;
+  handComplete?: boolean;
+  cardsDealt?: boolean;
+}): string | null {
+  if (input.handComplete) return "Hand result — next hand coming up";
+  if (!input.cardsDealt && !input.enrollmentActive) return null;
+  if (input.isMyTurn) return null;
+  if (input.enrollmentActive || input.phase === "decision") {
+    return "Waiting for other players";
+  }
+  if (input.phase === "draw" || input.phase === "play" || input.phase === "reveal") {
+    return "Waiting for other players";
+  }
   return null;
 }
 

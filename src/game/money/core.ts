@@ -12,6 +12,8 @@ export const DEFAULT_BOURRE_SETTINGS = {
   limEnabled: false,
   /** Optional house rule — manual top-up when bankroll hits zero (off by default). */
   rebuyEnabled: false,
+  /** Optional house rule — tied leaders may vote to split the pot (off by default). */
+  splitPotEnabled: false,
 };
 
 /**
@@ -37,7 +39,13 @@ export function normalizeBourreSettings(raw = {}) {
     potCap: anteAmount * POT_CAP_MULTIPLIER,
     limEnabled: raw.limEnabled === true,
     rebuyEnabled: raw.rebuyEnabled === true,
+    splitPotEnabled: raw.splitPotEnabled === true,
   };
+}
+
+/** True when room Bourré settings opt into tied-leader split-pot vote. */
+export function splitPotVoteAllowed(bourreSettings) {
+  return normalizeBourreSettings(bourreSettings).splitPotEnabled === true;
 }
 
 /** Starting stack for a session — prefers session buy-in, then room settings. */
@@ -276,7 +284,7 @@ export function nextDealFundingFlags({
   const tiedLeader =
     winners.includes(playerId) &&
     winners.length >= 2 &&
-    (mode === "co_win_carry" || mode === "non_winner_ante_up" || mode === "split");
+    (mode === "co_win_carry" || mode === "non_winner_ante_up");
   const isBourre = bourreIds.includes(playerId);
   const remainder =
     isBourre && bourreReplacementRemainder != null && bourreReplacementRemainder > 0
@@ -346,14 +354,18 @@ export function collectNextHandAntes({
   sessionStake,
   buyInFallback = 0,
 }) {
+  const eligibleParticipants = eligibleIdsForAnteCollection(
+    participantIds,
+    scoreById,
+    buyInFallback,
+  );
   const collected = collectHandAntes({
-    participants: participantIds,
+    participants: eligibleParticipants,
     scoreById,
     buyInFallback,
     stakeForPlayer: (pid) => handAnteContribution(scoreById[pid], sessionStake),
   });
-  const carryIn =
-    Math.max(0, Number(carryOverPot) || 0) + (collected.uncollectedPenalties ?? 0);
+  const carryIn = Math.max(0, Number(carryOverPot) || 0);
   const antePot = Object.values(collected.postedAntes).reduce(
     (sum, n) => sum + Math.max(0, Number(n) || 0),
     0,
@@ -394,6 +406,15 @@ export function applyBankrollDelta(bankroll, delta) {
 /** True when a player may opt into the next hand. */
 export function canEnrollWithBankroll(bankroll) {
   return Math.max(0, Number(bankroll) || 0) > 0;
+}
+
+/** Seats that may post antes or bourré replacement — excludes out/broke players. */
+export function eligibleIdsForAnteCollection(participantIds, scoreById, buyInFallback = 0) {
+  return (participantIds || []).filter((pid) => {
+    const row = scoreById?.[pid];
+    if (row?.out === true) return false;
+    return canEnrollWithBankroll(scoreBankroll(row, buyInFallback));
+  });
 }
 
 /**
@@ -452,15 +473,16 @@ export function collectHandAntes({
   const postedAntes = {};
   const outIds = [];
   const activeParticipants = [];
-  let uncollectedPenalties = 0;
 
   for (const pid of participants) {
     const row = scoreById[pid];
-    const replacementDue = Number(row?.bourreReplacementDue);
-    const isBourreReplacement =
-      Number.isFinite(replacementDue) && replacementDue > 0;
-    const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
     const br = scoreBankroll(row, buyInFallback);
+
+    if (row?.out === true || !canEnrollWithBankroll(br)) {
+      continue;
+    }
+
+    const stake = Math.max(0, Number(stakeForPlayer(pid)) || 0);
 
     if (stake <= 0) {
       bankrolls[pid] = br;
@@ -472,10 +494,6 @@ export function collectHandAntes({
     const result = applyBankrollDelta(br, -stake);
     bankrolls[pid] = result.newBankroll;
     postedAntes[pid] = Math.abs(result.appliedDelta);
-
-    if (isBourreReplacement && result.busted) {
-      uncollectedPenalties += Math.max(0, stake - Math.abs(result.appliedDelta));
-    }
 
     if (result.busted) {
       outIds.push(pid);
@@ -489,7 +507,7 @@ export function collectHandAntes({
     postedAntes,
     outIds: [...new Set(outIds)],
     activeParticipants,
-    uncollectedPenalties,
+    uncollectedPenalties: 0,
   };
 }
 

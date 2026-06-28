@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
+import { currentTrickLeaderId } from "./trickTiming";
 import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
 import { DiscardPile } from "./DiscardPile";
@@ -20,6 +21,8 @@ interface PotCenterProps {
   enrollmentActive?: boolean;
   remainingDeckCount?: number | null;
   trickDisplayPlays?: TrickPlay[];
+  trickLeadSuit?: string | null;
+  trickLeaderPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
   trickShowWinnerTag?: boolean;
   trickPresentationPhase?: TrickPresentationPhase;
@@ -56,6 +59,8 @@ export function PotCenter({
   enrollmentActive = false,
   remainingDeckCount,
   trickDisplayPlays = [],
+  trickLeadSuit = null,
+  trickLeaderPlayerId: trickLeaderPlayerIdProp = null,
   trickWinnerPlayerId = null,
   trickShowWinnerTag = false,
   trickPresentationPhase = "live",
@@ -80,6 +85,16 @@ export function PotCenter({
   discardPileCards = [],
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
+  const trickLeaderPlayerId =
+    trickLeaderPlayerIdProp ??
+    ((trickPresentationPhase === "live" || trickPresentationPhase === "trickComplete") &&
+    trickDisplayPlays.length > 0
+      ? currentTrickLeaderId(
+          trickDisplayPlays,
+          trickLeadSuit ?? trickDisplayPlays[0]?.card.suit ?? null,
+          trumpSuit ?? null,
+        )
+      : null);
   const trickResolving = trickPresentationPhase !== "live" && trickPresentationPhase !== "nextLeadReady";
   const liveTrickCardCount = trickDisplayPlays.length;
   const trickPlaysPending =
@@ -197,7 +212,7 @@ export function PotCenter({
           </div>
         )}
 
-        <DiscardPile cards={discardPileCards} />
+        {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
 
         <div className="center-play__phase" aria-live="polite">
           <span
@@ -223,6 +238,7 @@ export function PotCenter({
           <div className="center-play__trick-live">
             <TrickRow
               displayPlays={trickDisplayPlays}
+              leaderPlayerId={trickLeaderPlayerId}
               winnerPlayerId={trickWinnerPlayerId}
               showWinnerTag={trickShowWinnerTag}
               presentationPhase={trickPresentationPhase}

@@ -9,7 +9,7 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS } from "../handPresentationTiming";
+import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -33,6 +33,8 @@ export interface UseHandPresentationInput {
   potAmount: number;
   handComplete: boolean;
   trickPipelineActive?: boolean;
+  /** Last-resort: slam trick presentation to idle when hand-end convergence times out. */
+  forceTrickHandEndDrain?: () => void;
   heroCards?: SerializedCard[];
   enrolledIds?: string[];
   declinedIds?: string[];
@@ -47,6 +49,7 @@ export function useHandPresentation({
   potAmount,
   handComplete,
   trickPipelineActive = false,
+  forceTrickHandEndDrain,
   heroCards = EMPTY_HERO_CARDS,
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
@@ -235,6 +238,29 @@ export function useHandPresentation({
     if (trickPipelineActive) return;
     dispatch({ type: "tryBeginHandSettle" });
   }, [trickPipelineActive]);
+
+  useEffect(() => {
+    if (store.phase !== "play" || !store.pendingHandSettle) return;
+
+    if (!trickPipelineActive) {
+      dispatch({ type: "tryBeginHandSettle" });
+      return;
+    }
+
+    const id = window.setTimeout(() => {
+      const current = storeRef.current;
+      if (current.phase !== "play" || !current.pendingHandSettle) return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useHandPresentation", "hand-end-convergence-force", {
+          trickPipelineActive: true,
+        });
+      }
+      forceTrickHandEndDrain?.();
+      dispatch({ type: "tryBeginHandSettle" });
+    }, HAND_SETTLE_PIPELINE_WATCHDOG_MS);
+
+    return () => window.clearTimeout(id);
+  }, [store.phase, store.pendingHandSettle, trickPipelineActive, forceTrickHandEndDrain]);
 
   return buildHandPresentationModel(store);
 }

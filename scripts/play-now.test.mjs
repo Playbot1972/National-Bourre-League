@@ -116,18 +116,20 @@ describe("randomInt", () => {
 });
 
 describe("Play Now home UI", () => {
-  it("renders Play Now above Join Room with primary button styling", () => {
+  it("renders Play Now as the sole primary CTA above join form", () => {
     const createIdx = indexHtml.indexOf('id="create-room"');
     const playIdx = indexHtml.indexOf('data-testid="play-now"');
     const joinIdx = indexHtml.indexOf('id="join-form"');
     assert.ok(createIdx >= 0);
     assert.ok(playIdx >= 0);
     assert.ok(joinIdx >= 0);
-    assert.ok(playIdx > createIdx);
+    assert.ok(playIdx < createIdx);
     assert.ok(playIdx < joinIdx);
     const playSnippet = indexHtml.slice(Math.max(0, playIdx - 120), playIdx + 120);
+    const createSnippet = indexHtml.slice(Math.max(0, createIdx - 80), createIdx + 80);
     assert.match(playSnippet, /btn btn--primary/);
     assert.match(playSnippet, /Play Now/);
+    assert.doesNotMatch(createSnippet, /btn--primary/);
   });
 });
 

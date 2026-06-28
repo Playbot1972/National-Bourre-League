@@ -75,8 +75,9 @@ export function tableRoot(page: Page): Locator {
 }
 
 export async function expectPhaseTag(page: Page, pattern: RegExp) {
-  await expect(page.getByTestId("phase-tag")).toContainText(pattern);
-  await expect(page.getByTestId("phase-tag")).toHaveAttribute("data-phase", /.+/);
+  const tag = page.getByTestId("phase-tag").first();
+  await expect(tag).toContainText(pattern);
+  await expect(tag).toHaveAttribute("data-phase", /.+/);
 }
 
 /**

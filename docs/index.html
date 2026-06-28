@@ -120,16 +120,16 @@
             <button class="btn btn--primary" data-open-auth="signin">Sign in to continue</button>
           </div>
           <div class="protected__content" data-protected-content>
-            <p class="muted" id="rooms-intro">
-              Signed in as <strong data-current-name>player</strong>. Create a room or
-              join one with an invite code. Rooms are saved to Firestore.
+            <p class="muted rooms-intro" id="rooms-intro">
+              Signed in as <strong data-current-name>player</strong>.
+              <span class="rooms-intro__lead">New here? Tap <strong>Play Now</strong> for a quick game, or enter an invite code to join friends.</span>
             </p>
             <div class="room-actions">
               <div class="room-actions__primary">
-                <button class="btn btn--primary" id="create-room">+ Create a room</button>
                 <button class="btn btn--primary" id="play-now" type="button" data-testid="play-now" aria-busy="false">
                   Play Now
                 </button>
+                <button class="btn" id="create-room" type="button">+ Create a room</button>
               </div>
               <form class="join-form" id="join-form">
                 <input
@@ -316,6 +316,11 @@
                 <input type="checkbox" id="create-room-rebuy-enabled" />
                 <span>Rebuy</span>
                 <span class="muted small">Allow manual top-up when bankroll hits zero</span>
+              </label>
+              <label class="bourre-settings__row bourre-settings__lim bourre-settings__split-pot">
+                <input type="checkbox" id="create-room-split-pot-enabled" />
+                <span>Split pot</span>
+                <span class="muted small">If players tie for most tricks, tied leaders may choose to split the pot instead of carrying it.</span>
               </label>
               <p class="muted small">Applies to new sessions. Buy-in is each player&apos;s starting stack; ante is the per-hand contribution to the pot.</p>
             </div>
