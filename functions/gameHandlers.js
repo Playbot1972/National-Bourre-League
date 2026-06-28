@@ -34,7 +34,14 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
+import {
+  MONEY_EVENTS_COLLECTION,
+  moneyEventsFromFirestoreDocs,
+  nextMoneySequence,
+  runV1HandSettlement,
+  runV1Rebuy,
+} from "./vendor/money-persistence.js";
 import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
@@ -158,6 +165,32 @@ export function scoresCol(db, roomId, sessionId) {
 
 export function handsCol(db, roomId, sessionId) {
   return sessionRef(db, roomId, sessionId).collection("hands");
+}
+
+export function moneyEventsCol(db, roomId, sessionId) {
+  return sessionRef(db, roomId, sessionId).collection(MONEY_EVENTS_COLLECTION);
+}
+
+async function loadSessionMoneyEvents(db, roomId, sessionId) {
+  const snap = await moneyEventsCol(db, roomId, sessionId).get();
+  return moneyEventsFromFirestoreDocs(snap.docs);
+}
+
+function appendMoneyEventsBatch(batch, db, { roomId, sessionId, events, nextSequence }) {
+  if (!events?.length) return;
+  const col = moneyEventsCol(db, roomId, sessionId);
+  for (const event of events) {
+    batch.set(col.doc(event.eventId), {
+      ...event,
+      metadata: event.metadata || {},
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+  batch.update(sessionRef(db, roomId, sessionId), {
+    moneyEngineVersion: MONEY_ENGINE_VERSION,
+    moneySequence: nextSequence,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
 }
 
 export function privateHandRef(db, roomId, sessionId, playerId) {
@@ -1815,51 +1848,63 @@ export async function handleRecordHand(
     (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, stake)),
     0,
   );
-  const stakeForPot = (pid) => postedAntes[pid] ?? playerHandStake(scoreById, pid, stake);
-  const stakeForSettlement = (pid) =>
-    anteAlreadyPosted(postedAntes, pid) ? 0 : playerHandStake(scoreById, pid, stake);
-
-  const handSettlement = settleHandDeltas({
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
-    anteAmount: stake,
-    limEnabled,
-    carryIn,
-    antePot,
-    stakeForPlayer: stakeForSettlement,
-  });
-
-  const {
-    deltas: nominalDeltas,
-    carryOverPot: nominalCarry,
-    bourreIds,
-    bourreMatch,
-    potState,
-    pot: grossPot,
-    cappedPot,
-    overflow,
-  } = handSettlement;
 
   const roomSnap = await db.doc(`rooms/${roomId}`).get();
   const roomBourre = roomSnap.data()?.bourreSettings ?? {};
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
 
-  const solvent = applySolventSettlement({
-    mode,
-    winners,
-    participants,
-    nominalDeltas,
-    scoreById,
-    carryOverPot: nominalCarry,
-    buyInFallback: buyIn,
-    stakeForPlayer: stakeForSettlement,
-  });
+  let existingMoneyEvents = [];
+  let v1MoneyResult = null;
+  if (isMoneyEngineV1(sessionData)) {
+    existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
+    v1MoneyResult = runV1HandSettlement({
+      sessionId,
+      handNumber,
+      mode,
+      winners,
+      participants,
+      tricksByPlayer,
+      scoreById,
+      sessionStake: stake,
+      limEnabled,
+      carryIn,
+      postedAntes,
+      buyInFallback: buyIn,
+      existingEvents: existingMoneyEvents,
+    });
+  }
 
-  const deltas = solvent.appliedDeltas;
-  const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
+  const settlementResult =
+    v1MoneyResult?.settlement ??
+    recordHandSettlement({
+      mode,
+      winners,
+      participants,
+      tricksByPlayer,
+      scoreById,
+      sessionStake: stake,
+      limEnabled,
+      carryIn,
+      postedAntes,
+      buyInFallback: buyIn,
+    });
+
+  const {
+    appliedDeltas: deltas,
+    carryOverPot,
+    bourreIds,
+    bourreMatch,
+    potState,
+    grossPot,
+    cappedPot,
+    overflow,
+    bourreRemainders,
+    scoreById: fundedScoreById,
+    nextDealFunding,
+    solvent,
+  } = settlementResult;
+
+  const newMoneyEvents = v1MoneyResult?.newEvents ?? [];
 
   assertRecordHandChipConservation({
     scoreById,
@@ -1912,18 +1957,11 @@ export async function handleRecordHand(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = FieldValue.delete();
     }
-    const funding = nextDealFundingFlags({
-      playerId: pid,
-      mode,
-      winners,
-      bourreIds,
-      settledPot: potState.currentPot,
-      bourreReplacementRemainder: bourreRemainders[pid] ?? null,
-    });
-    if (funding.bourreReplacementDue != null) {
-      patch.bourreReplacementDue = funding.bourreReplacementDue;
+    const fundedRow = fundedScoreById[pid];
+    if (fundedRow?.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = fundedRow.bourreReplacementDue;
     }
-    if (funding.skipNextAnte) {
+    if (fundedRow?.skipNextAnte) {
       patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
@@ -1953,14 +1991,6 @@ export async function handleRecordHand(
 
   const newDealerId = nextDealerId(scoreSnap.docs, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap.docs);
-  const nextDealFunding = buildNextDealFundingSnapshot({
-    settledPot: potState.currentPot,
-    bourreIds,
-    participants,
-    mode,
-    winners,
-    bourreRemaindersByPlayer: bourreRemainders,
-  });
 
   const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
   const botRebuyPlan = buildBotRebuySettlementPlan({
@@ -2008,6 +2038,28 @@ export async function handleRecordHand(
     sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
   }
   batch.update(sessionRef(db, roomId, sessionId), sessionUpdate);
+
+  if (isMoneyEngineV1(sessionData)) {
+    const rebuyEvents = [];
+    if (botRebuyPlan) {
+      for (const item of botRebuyPlan.plan) {
+        const rebuy = runV1Rebuy({
+          sessionId,
+          playerId: item.playerId,
+          buyInAmount: buyIn,
+          handNumber,
+          existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...rebuyEvents],
+        });
+        rebuyEvents.push(...rebuy.newEvents);
+      }
+    }
+    appendMoneyEventsBatch(batch, db, {
+      roomId,
+      sessionId,
+      events: [...newMoneyEvents, ...rebuyEvents],
+      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + rebuyEvents.length),
+    });
+  }
 
   await batch.commit();
   try {

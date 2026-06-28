@@ -80,8 +80,6 @@
 import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import {
-  settleHandDeltas,
-  applySolventSettlement,
   scoreBankroll,
   canEnrollWithBankroll,
   collectHandAntes,
@@ -91,10 +89,7 @@ import {
   handAnteContribution,
   sumProjectedHandAntes,
   bourrePlayerIds,
-  nextDealFundingFlags,
-  buildNextDealFundingSnapshot,
   mergeNextDealFundingIntoScoreById,
-  bourreRemaindersFromSettlement,
   collectNextHandAntes,
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
@@ -102,7 +97,19 @@ import {
   sessionChipTotal,
   eligibleIdsForAnteCollection,
   splitPotVoteAllowed,
+  recordHandSettlement,
 } from "./bourre-rules.js";
+import {
+  MONEY_ENGINE_VERSION,
+  isMoneyEngineV1,
+  buildSessionBuyInMoney,
+  runV1HandSettlement,
+  runV1Rebuy,
+  finalizeSessionBankrolls,
+  moneyEventsFromFirestoreDocs,
+  nextMoneySequence,
+  MONEY_EVENTS_COLLECTION,
+} from "./money-persistence.js";
 import {
   buildBotRebuySettlementPlan,
   planBotAutoRebuys,
@@ -870,6 +877,33 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
   const scoreSnap = await getDoc(scoreRef);
   if (!scoreSnap.exists()) throw new Error("Player not in session");
 
+  if (isMoneyEngineV1(sessionSnap.data())) {
+    const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
+    const handNumber = sessionSnap.data().handCount || 0;
+    const rebuy = runV1Rebuy({
+      sessionId,
+      playerId,
+      buyInAmount: buyIn,
+      handNumber,
+      existingEvents,
+    });
+    const batch = writeBatch(db);
+    batch.update(scoreRef, {
+      bankroll: buyIn,
+      net: 0,
+      out: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
+    appendMoneyEventsBatch(batch, {
+      roomId,
+      sessionId,
+      events: rebuy.newEvents,
+      nextSequence: nextMoneySequence(sessionSnap.data(), rebuy.newEvents.length),
+    });
+    await batch.commit();
+    return;
+  }
+
   await updateDoc(scoreRef, {
     bankroll: buyIn,
     out: deleteField(),
@@ -973,6 +1007,8 @@ const scoresCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "scores");
 const handsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "hands");
+const moneyEventsCol = (roomId, sessionId) =>
+  collection(db, "rooms", roomId, "sessions", sessionId, MONEY_EVENTS_COLLECTION);
 const sessionDoc = (roomId, sessionId) =>
   doc(db, "rooms", roomId, "sessions", sessionId);
 const scoreDoc = (roomId, sessionId, playerId) =>
@@ -981,6 +1017,27 @@ const privateHandsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "privateHands");
 const privateHandDoc = (roomId, sessionId, playerId) =>
   doc(privateHandsCol(roomId, sessionId), playerId);
+
+async function loadSessionMoneyEvents(roomId, sessionId) {
+  const snap = await getDocs(moneyEventsCol(roomId, sessionId));
+  return moneyEventsFromFirestoreDocs(snap.docs);
+}
+
+function appendMoneyEventsBatch(batch, { roomId, sessionId, events, nextSequence }) {
+  if (!events?.length) return;
+  for (const event of events) {
+    batch.set(doc(moneyEventsCol(roomId, sessionId), event.eventId), {
+      ...event,
+      metadata: event.metadata || {},
+      createdAt: serverTimestamp(),
+    });
+  }
+  batch.update(sessionDoc(roomId, sessionId), {
+    moneyEngineVersion: MONEY_ENGINE_VERSION,
+    moneySequence: nextSequence,
+    updatedAt: serverTimestamp(),
+  });
+}
 
 /** Seconds each player has to tap I'm in, clockwise from first seat after dealer. */
 export const HAND_ENROLLMENT_SECONDS = 12;
@@ -2416,6 +2473,8 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
       throw new Error("All 4 regional sessions already created for this room.");
     }
 
+    const buyInMoney = buildSessionBuyInMoney(sessionRef.id, sortedIds, buyIn);
+
     const roomPatch = {
       claimedSessionNames: [...new Set([...liveClaimed, sessionName])],
       updatedAt: serverTimestamp(),
@@ -2435,6 +2494,8 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
       handStakeLocked: false,
       limEnabled,
       carryOverPot: 0,
+      moneyEngineVersion: MONEY_ENGINE_VERSION,
+      moneySequence: buyInMoney.newEvents.length,
       dealerId: initialDealer,
       ...enrollmentFieldsForCreate(sortedIds, initialDealer),
       currentHand: emptyPreDealHand(),
@@ -2464,6 +2525,15 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
         updatedAt: serverTimestamp(),
       });
     });
+
+    for (const event of buyInMoney.newEvents) {
+      tx.set(doc(moneyEventsCol(roomId, sessionRef.id), event.eventId), {
+        ...event,
+        metadata: event.metadata || {},
+        createdAt: serverTimestamp(),
+      });
+    }
+
     createdSessionId = sessionRef.id;
     createdSessionName = sessionName;
   });
@@ -2619,51 +2689,67 @@ async function recordHandClient(
     (sum, pid) => sum + (postedAntes[pid] ?? playerHandStake(scoreById, pid, stake)),
     0,
   );
-  const stakeForPot = (pid) => postedAntes[pid] ?? playerHandStake(scoreById, pid, stake);
-  const stakeForSettlement = (pid) =>
-    anteAlreadyPosted(postedAntes, pid) ? 0 : playerHandStake(scoreById, pid, stake);
-
-  const handSettlement = settleHandDeltas({
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
-    anteAmount: stake,
-    limEnabled,
-    carryIn,
-    antePot,
-    stakeForPlayer: stakeForSettlement,
-  });
-
-  const {
-    deltas: nominalDeltas,
-    carryOverPot: nominalCarry,
-    bourreIds,
-    bourreMatch,
-    potState,
-    pot: grossPot,
-    cappedPot,
-    overflow,
-  } = handSettlement;
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const roomBourre = roomSnap.data()?.bourreSettings ?? DEFAULT_BOURRE_SETTINGS;
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
 
-  const solvent = applySolventSettlement({
-    mode,
-    winners,
-    participants,
-    nominalDeltas,
-    scoreById,
-    carryOverPot: nominalCarry,
-    buyInFallback: buyIn,
-    stakeForPlayer: stakeForSettlement,
-  });
+  let existingMoneyEvents = [];
+  let v1MoneyResult = null;
+  if (isMoneyEngineV1(sessionData)) {
+    existingMoneyEvents = await loadSessionMoneyEvents(roomId, sessionId);
+  }
 
-  const deltas = solvent.appliedDeltas;
-  const carryOverPot = solvent.carryOverPot;
-  const bourreRemainders = bourreRemaindersFromSettlement(bourreIds, nominalDeltas, deltas);
+  if (isMoneyEngineV1(sessionData)) {
+    v1MoneyResult = runV1HandSettlement({
+      sessionId,
+      handNumber,
+      mode,
+      winners,
+      participants,
+      tricksByPlayer,
+      scoreById,
+      sessionStake: stake,
+      limEnabled,
+      carryIn,
+      postedAntes,
+      buyInFallback: buyIn,
+      existingEvents: existingMoneyEvents,
+    });
+  }
+
+  const settlementResult =
+    v1MoneyResult?.settlement ??
+    recordHandSettlement({
+      mode,
+      winners,
+      participants,
+      tricksByPlayer,
+      scoreById,
+      sessionStake: stake,
+      limEnabled,
+      carryIn,
+      postedAntes,
+      buyInFallback: buyIn,
+    });
+
+  const {
+    nominalDeltas,
+    appliedDeltas: deltas,
+    carryOverPot,
+    bourreIds,
+    bourreMatch,
+    potState,
+    grossPot,
+    cappedPot,
+    overflow,
+    bourreRemainders,
+    scoreById: fundedScoreById,
+    nextDealFunding,
+    solvent,
+  } = settlementResult;
+
+  const newMoneyEvents = v1MoneyResult?.newEvents ?? [];
 
   assertRecordHandChipConservation({
     scoreById,
@@ -2734,18 +2820,11 @@ async function recordHandClient(
     if (current.bourreReplacementDue != null) {
       patch.bourreReplacementDue = deleteField();
     }
-    const funding = nextDealFundingFlags({
-      playerId: pid,
-      mode,
-      winners,
-      bourreIds,
-      settledPot: potState.currentPot,
-      bourreReplacementRemainder: bourreRemainders[pid] ?? null,
-    });
-    if (funding.bourreReplacementDue != null) {
-      patch.bourreReplacementDue = funding.bourreReplacementDue;
+    const fundedRow = fundedScoreById[pid];
+    if (fundedRow?.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = fundedRow.bourreReplacementDue;
     }
-    if (funding.skipNextAnte) {
+    if (fundedRow?.skipNextAnte) {
       patch.skipNextAnte = true;
     }
     if (isWinner && (mode === "split" || mode === "win")) {
@@ -2775,14 +2854,6 @@ async function recordHandClient(
 
   const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap);
-  const nextDealFunding = buildNextDealFundingSnapshot({
-    settledPot: potState.currentPot,
-    bourreIds,
-    participants,
-    mode,
-    winners,
-    bourreRemaindersByPlayer: bourreRemainders,
-  });
 
   const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
   const botRebuyPlan = buildBotRebuySettlementPlan({
@@ -2828,6 +2899,28 @@ async function recordHandClient(
     sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
   }
   batch.update(sessionDoc(roomId, sessionId), sessionUpdate);
+
+  if (isMoneyEngineV1(sessionData)) {
+    const rebuyEvents = [];
+    if (botRebuyPlan) {
+      for (const item of botRebuyPlan.plan) {
+        const rebuy = runV1Rebuy({
+          sessionId,
+          playerId: item.playerId,
+          buyInAmount: buyIn,
+          handNumber,
+          existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...rebuyEvents],
+        });
+        rebuyEvents.push(...rebuy.newEvents);
+      }
+    }
+    appendMoneyEventsBatch(batch, {
+      roomId,
+      sessionId,
+      events: [...newMoneyEvents, ...rebuyEvents],
+      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + rebuyEvents.length),
+    });
+  }
 
   try {
     await batch.commit();
@@ -4139,6 +4232,29 @@ export async function updateSessionHandParticipants(roomId, sessionId, participa
  *          apeClass, apeStatus, momentum}[]} results
  */
 export async function applyRankingResults(roomId, sessionId, results) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  const sessionData = sessionSnap.exists() ? sessionSnap.data() : null;
+
+  if (isMoneyEngineV1(sessionData)) {
+    const [events, scoreSnap] = await Promise.all([
+      loadSessionMoneyEvents(roomId, sessionId),
+      getDocs(scoresCol(roomId, sessionId)),
+    ]);
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const roomSnap = await getDoc(doc(db, "rooms", roomId));
+    const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+    const final = finalizeSessionBankrolls({
+      events,
+      scoreById,
+      buyInFallback: buyIn,
+      carryOverPot: sessionData?.carryOverPot ?? 0,
+      playerCount: scoreSnap.docs.length,
+    });
+    if (!final.invariants.ok) {
+      console.warn("applyRankingResults: money replay drift detected", final.invariants.errors);
+    }
+  }
+
   const batch = writeBatch(db);
   results.forEach((r) => {
     batch.set(
