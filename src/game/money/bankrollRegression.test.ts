@@ -208,7 +208,11 @@ function runTwoHandV1Cycle(scenario: HandScenario): {
     playerIds,
     events,
     afterSettle,
-    afterSecondAnte: replayed,
+    afterSecondAnte: {
+      ...replayed,
+      bankrolls: ante2.newBankrolls,
+      postedAntes: ante2.postedAntes,
+    },
     carryOverPot: settle1.carryOverPot,
     expectedTotal,
   };
@@ -317,23 +321,23 @@ describe("money engine — bankroll display regression (2–8 players)", () => {
     });
   }
 
-  it("3p bourré carry: next-hand pot = carry + non-bourré antes only", () => {
+  it("3p bourré: next-hand pot = bourré penalty + non-bourré antes (no carry)", () => {
     const result = runTwoHandV1Cycle({
       label: "3p-carry-funding",
       playerCount: 3,
       tricksByPlayer: tricksForScenario(3, "single-bourre"),
       winners: ["p0"],
     });
-    assert.equal(result.carryOverPot, 60);
+    assert.equal(result.carryOverPot, 0);
     assert.equal(result.afterSettle.p2?.skipNextAnte, true);
-    assert.equal(result.afterSecondAnte.postedAntes.p2 ?? 0, 0);
+    assert.equal(result.afterSecondAnte.postedAntes.p2 ?? 0, 60);
     assert.equal(result.afterSecondAnte.postedAntes.p0, ANTE);
     assert.equal(result.afterSecondAnte.postedAntes.p1, ANTE);
     assert.equal(potTotal(result.afterSecondAnte), 100);
     assertCanonicalScoreRows(result.afterSettle, result.playerIds);
   });
 
-  it("8p multi-bourré: busted bourré players defer replacement; carry seeds pot", () => {
+  it("8p multi-bourré: busted bourré players defer replacement at next-hand funding", () => {
     const result = runTwoHandV1Cycle({
       label: "8p-carry-multi",
       playerCount: 8,
@@ -342,13 +346,12 @@ describe("money engine — bankroll display regression (2–8 players)", () => {
     });
     const bourreIds = ["p4", "p5", "p6", "p7"];
     for (const pid of bourreIds) {
-      assert.equal(result.afterSettle[pid]?.bankroll, 0);
+      assert.equal(result.afterSettle[pid]?.bankroll, 80);
       assert.equal(result.afterSettle[pid]?.bourreReplacementDue, 80);
       assert.equal(result.afterSecondAnte.bankrolls[pid], 0);
-      assert.equal(result.afterSecondAnte.postedAntes[pid] ?? 0, 0);
-      assert.equal(result.afterSecondAnte.scoreFlags[pid]?.out, true);
+      assert.equal(result.afterSecondAnte.postedAntes[pid] ?? 0, 80);
     }
-    assert.equal(result.carryOverPot, 320);
+    assert.equal(result.carryOverPot, 0);
     assert.equal(ledgerChipTotal(result.afterSecondAnte), 8 * BUY_IN);
     assertCanonicalScoreRows(result.afterSettle, result.playerIds);
   });

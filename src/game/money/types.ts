@@ -9,6 +9,8 @@ export interface ScoreRow {
   tricksWon?: number;
   handsWon?: number;
   total?: number;
+  /** Authoritative next-hand funding amount from nextDealFunding — do not recompute. */
+  fundingContribution?: number;
 }
 
 export type ScoreById = Record<string, ScoreRow>;
@@ -54,6 +56,28 @@ export interface SolventSettlementResult {
 export interface NextDealFundingFlags {
   skipNextAnte: boolean;
   bourreReplacementDue: number | null;
+  /** Authoritative next-hand contribution — consumer only, do not recompute. */
+  fundingContribution?: number;
+  fundingReason?:
+    | "bourre_full_pot_penalty"
+    | "normal_ante"
+    | "tie_carry_exempt"
+    | "explicit_exempt";
+}
+
+export interface NextDealFundingSnapshot {
+  completedHandPot: number;
+  carryoverPot: number;
+  nextPot: number;
+  bourrePlayerIds: string[];
+  tiedWinnerIds: string[];
+  splitPot: boolean;
+  tie: boolean;
+  fundingContributionByPlayer?: Record<string, number>;
+  fundingReasonByPlayer?: Record<string, string>;
+  byPlayer: Record<string, NextDealFundingFlags>;
+  /** @deprecated Use completedHandPot */
+  settledPot?: number;
 }
 
 export interface RecordHandSettlementInput {
@@ -85,11 +109,7 @@ export interface RecordHandSettlementResult {
   bankrolls: Record<string, number>;
   bourreRemainders: Record<string, number>;
   scoreById: ScoreById;
-  nextDealFunding: {
-    settledPot: number;
-    bourreIds: string[];
-    byPlayer: Record<string, NextDealFundingFlags>;
-  };
+  nextDealFunding: NextDealFundingSnapshot;
   solvent: SolventSettlementResult;
   debug: {
     settledPot: number;

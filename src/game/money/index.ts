@@ -1,5 +1,7 @@
 export * from "./types";
 export * from "./core";
+export * from "./canonical";
+export { settleHandDeltas } from "./canonical";
 export * from "./conservation";
 export * from "./pipeline";
 export * from "./events";

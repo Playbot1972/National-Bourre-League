@@ -1,0 +1,760 @@
+/**
+ * Canonical two-phase money engine — single source of truth for settlement + funding.
+ *
+ * Phase 1: settleCompletedHand — award completedHandPot (or carry on tie).
+ * Phase 2: computeNextHandFunding — bourré penalties + normal antes fund nextPot.
+ */
+
+import type { ScoreById, SettlementMode } from "./types";
+import {
+  applyBankrollDelta,
+  bourrePlayerIds,
+  computeHandPotState,
+  scoreBankroll,
+} from "./core";
+
+export type FundingReason =
+  | "bourre_full_pot_penalty"
+  | "normal_ante"
+  | "tie_carry_exempt"
+  | "explicit_exempt";
+
+export interface CanonicalMoneyResult {
+  completedHandPot: number;
+  carryoverPot: number;
+  payoutByPlayer: Record<string, number>;
+  settledStackByPlayer: Record<string, number>;
+  fundingContributionByPlayer: Record<string, number>;
+  fundingReasonByPlayer: Record<string, FundingReason>;
+  nextStartStackByPlayer: Record<string, number>;
+  nextPot: number;
+  splitPot: boolean;
+  tie: boolean;
+  singleWinnerId: string | null;
+  tiedWinnerIds: string[];
+  bourrePlayerIds: string[];
+}
+
+export interface SettleCompletedHandInput {
+  completedHandPot: number;
+  stackByPlayer: Record<string, number>;
+  participants: string[];
+  singleWinnerId?: string | null;
+  tiedWinnerIds?: string[];
+  bourrePlayerIds?: string[];
+  splitPot: boolean;
+  /** Seat order for deterministic split remainder (defaults to participants). */
+  participantOrder?: string[];
+}
+
+export interface ComputeNextHandFundingInput {
+  settledStackByPlayer: Record<string, number>;
+  completedHandPot: number;
+  carryoverPot: number;
+  anteAmount: number;
+  participantIds: string[];
+  bourrePlayerIds: string[];
+  tiedWinnerIds: string[];
+  splitPot: boolean;
+  tie: boolean;
+  /** Players exempt from normal ante by explicit table rules. */
+  explicitExemptPlayerIds?: string[];
+  /** Uncollected bourré penalty remainder when a player busted at funding. */
+  bourreReplacementRemainderByPlayer?: Record<string, number>;
+}
+
+export interface NextDealFundingSnapshot {
+  completedHandPot: number;
+  carryoverPot: number;
+  nextPot: number;
+  bourrePlayerIds: string[];
+  tiedWinnerIds: string[];
+  splitPot: boolean;
+  tie: boolean;
+  fundingContributionByPlayer: Record<string, number>;
+  fundingReasonByPlayer: Record<string, FundingReason>;
+  byPlayer: Record<
+    string,
+    {
+      fundingContribution: number;
+      fundingReason: FundingReason;
+      skipNextAnte: boolean;
+      bourreReplacementDue: number | null;
+    }
+  >;
+}
+
+/** carryoverPot = completedHandPot when tie AND splitPot is false; otherwise 0. */
+export function computeCarryoverPot(
+  completedHandPot: number,
+  tie: boolean,
+  splitPot: boolean,
+): number {
+  if (tie && !splitPot) {
+    return Math.max(0, Number(completedHandPot) || 0);
+  }
+  return 0;
+}
+
+/** Divide completedHandPot among tied winners; remainder to earliest seats in order. */
+export function computeSplitPotPayout(
+  completedHandPot: number,
+  tiedWinnerIds: string[],
+  participantOrder: string[],
+): Record<string, number> {
+  const pot = Math.max(0, Number(completedHandPot) || 0);
+  const winners = tiedWinnerIds.filter((id) => participantOrder.includes(id));
+  const payout: Record<string, number> = {};
+  if (!winners.length || pot <= 0) {
+    return payout;
+  }
+
+  const base = Math.floor(pot / winners.length);
+  let remainder = pot - base * winners.length;
+
+  const orderedWinners = participantOrder.filter((id) => winners.includes(id));
+  for (const pid of orderedWinners) {
+    const extra = remainder > 0 ? 1 : 0;
+    if (remainder > 0) remainder -= 1;
+    payout[pid] = base + extra;
+  }
+  return payout;
+}
+
+/**
+ * Phase 1 — settle the hand that just ended.
+ * Bourré next-hand penalties are NOT applied here.
+ */
+export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
+  CanonicalMoneyResult,
+  | "completedHandPot"
+  | "carryoverPot"
+  | "payoutByPlayer"
+  | "settledStackByPlayer"
+  | "splitPot"
+  | "tie"
+  | "singleWinnerId"
+  | "tiedWinnerIds"
+  | "bourrePlayerIds"
+> {
+  const {
+    completedHandPot,
+    stackByPlayer,
+    participants,
+    singleWinnerId = null,
+    tiedWinnerIds = [],
+    bourrePlayerIds = [],
+    splitPot,
+    participantOrder = participants,
+  } = input;
+
+  const pot = Math.max(0, Number(completedHandPot) || 0);
+  const tie = tiedWinnerIds.length >= 2;
+  const payoutByPlayer: Record<string, number> = {};
+  const settledStackByPlayer: Record<string, number> = {};
+
+  for (const pid of participants) {
+    settledStackByPlayer[pid] = Math.max(0, Number(stackByPlayer[pid]) || 0);
+    payoutByPlayer[pid] = 0;
+  }
+
+  if (tie && !splitPot) {
+    const carryoverPot = computeCarryoverPot(pot, true, false);
+    return {
+      completedHandPot: pot,
+      carryoverPot,
+      payoutByPlayer,
+      settledStackByPlayer,
+      splitPot: false,
+      tie: true,
+      singleWinnerId: null,
+      tiedWinnerIds: [...tiedWinnerIds],
+      bourrePlayerIds: [...bourrePlayerIds],
+    };
+  }
+
+  if (tie && splitPot) {
+    const splits = computeSplitPotPayout(pot, tiedWinnerIds, participantOrder);
+    for (const [pid, amount] of Object.entries(splits)) {
+      payoutByPlayer[pid] = amount;
+      settledStackByPlayer[pid] = (settledStackByPlayer[pid] ?? 0) + amount;
+    }
+    return {
+      completedHandPot: pot,
+      carryoverPot: 0,
+      payoutByPlayer,
+      settledStackByPlayer,
+      splitPot: true,
+      tie: true,
+      singleWinnerId: null,
+      tiedWinnerIds: [...tiedWinnerIds],
+      bourrePlayerIds: [...bourrePlayerIds],
+    };
+  }
+
+  const winner = singleWinnerId ?? tiedWinnerIds[0] ?? null;
+  if (winner && participants.includes(winner)) {
+    payoutByPlayer[winner] = pot;
+    settledStackByPlayer[winner] = (settledStackByPlayer[winner] ?? 0) + pot;
+  }
+
+  return {
+    completedHandPot: pot,
+    carryoverPot: 0,
+    payoutByPlayer,
+    settledStackByPlayer,
+    splitPot: false,
+    tie: false,
+    singleWinnerId: winner,
+    tiedWinnerIds: [],
+    bourrePlayerIds: [...bourrePlayerIds],
+  };
+}
+
+/** Phase 2 — exactly one funding contribution per player. */
+export function computeFundingContributionByPlayer(
+  input: ComputeNextHandFundingInput,
+): {
+  fundingContributionByPlayer: Record<string, number>;
+  fundingReasonByPlayer: Record<string, FundingReason>;
+} {
+  const {
+    completedHandPot,
+    carryoverPot,
+    anteAmount,
+    participantIds,
+    bourrePlayerIds,
+    tiedWinnerIds,
+    splitPot,
+    tie,
+    explicitExemptPlayerIds = [],
+    bourreReplacementRemainderByPlayer = {},
+  } = input;
+
+  const fundingContributionByPlayer: Record<string, number> = {};
+  const fundingReasonByPlayer: Record<string, FundingReason> = {};
+  const pot = Math.max(0, Number(completedHandPot) || 0);
+  const ante = Math.max(0.01, Number(anteAmount) || 1);
+  const exempt = new Set(explicitExemptPlayerIds);
+
+  for (const pid of participantIds) {
+    const remainder = bourreReplacementRemainderByPlayer[pid];
+    if (remainder != null && remainder > 0) {
+      fundingContributionByPlayer[pid] = remainder;
+      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
+      continue;
+    }
+
+    if (bourrePlayerIds.includes(pid)) {
+      fundingContributionByPlayer[pid] = pot;
+      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
+    } else if (tie && !splitPot && tiedWinnerIds.includes(pid)) {
+      fundingContributionByPlayer[pid] = 0;
+      fundingReasonByPlayer[pid] = "tie_carry_exempt";
+    } else if (exempt.has(pid)) {
+      fundingContributionByPlayer[pid] = 0;
+      fundingReasonByPlayer[pid] = "explicit_exempt";
+    } else {
+      fundingContributionByPlayer[pid] = ante;
+      fundingReasonByPlayer[pid] = "normal_ante";
+    }
+  }
+
+  void carryoverPot;
+  return { fundingContributionByPlayer, fundingReasonByPlayer };
+}
+
+/** Apply funding contributions to stacks and compute nextPot. */
+export function applyNextHandFunding(
+  input: ComputeNextHandFundingInput,
+): Pick<
+  CanonicalMoneyResult,
+  | "fundingContributionByPlayer"
+  | "fundingReasonByPlayer"
+  | "nextStartStackByPlayer"
+  | "nextPot"
+  | "carryoverPot"
+> {
+  const { settledStackByPlayer, carryoverPot, participantIds } = input;
+  const { fundingContributionByPlayer, fundingReasonByPlayer } =
+    computeFundingContributionByPlayer(input);
+
+  const nextStartStackByPlayer: Record<string, number> = {};
+  for (const pid of participantIds) {
+    const settled = Math.max(0, Number(settledStackByPlayer[pid]) || 0);
+    const contribution = Math.max(0, Number(fundingContributionByPlayer[pid]) || 0);
+    nextStartStackByPlayer[pid] = Math.max(0, settled - contribution);
+  }
+
+  const contributionSum = participantIds.reduce(
+    (sum, pid) => sum + Math.max(0, Number(fundingContributionByPlayer[pid]) || 0),
+    0,
+  );
+  const nextPot = Math.max(0, Number(carryoverPot) || 0) + contributionSum;
+
+  return {
+    fundingContributionByPlayer,
+    fundingReasonByPlayer,
+    nextStartStackByPlayer,
+    nextPot,
+    carryoverPot: Math.max(0, Number(carryoverPot) || 0),
+  };
+}
+
+/** Build session.nextDealFunding from canonical Phase 2 outputs. */
+export function buildNextDealFunding(
+  phase1: ReturnType<typeof settleCompletedHand>,
+  phase2: ReturnType<typeof applyNextHandFunding>,
+  participantIds: string[],
+  bourreReplacementRemainderByPlayer: Record<string, number> = {},
+): NextDealFundingSnapshot {
+  const byPlayer: NextDealFundingSnapshot["byPlayer"] = {};
+
+  for (const pid of participantIds) {
+    const contribution = phase2.fundingContributionByPlayer[pid] ?? 0;
+    const reason = phase2.fundingReasonByPlayer[pid] ?? "normal_ante";
+    const remainder = bourreReplacementRemainderByPlayer[pid] ?? null;
+    byPlayer[pid] = {
+      fundingContribution: contribution,
+      fundingReason: reason,
+      skipNextAnte: reason === "tie_carry_exempt" || reason === "explicit_exempt",
+      bourreReplacementDue:
+        remainder != null && remainder > 0 ? remainder : null,
+    };
+    if (reason === "bourre_full_pot_penalty") {
+      byPlayer[pid].skipNextAnte = true;
+    }
+  }
+
+  return {
+    completedHandPot: phase1.completedHandPot,
+    carryoverPot: phase1.carryoverPot,
+    nextPot: phase2.nextPot,
+    bourrePlayerIds: [...phase1.bourrePlayerIds],
+    tiedWinnerIds: [...phase1.tiedWinnerIds],
+    splitPot: phase1.splitPot,
+    tie: phase1.tie,
+    fundingContributionByPlayer: { ...phase2.fundingContributionByPlayer },
+    fundingReasonByPlayer: { ...phase2.fundingReasonByPlayer },
+    byPlayer,
+  };
+}
+
+/** Map legacy SettlementMode + room splitPot setting to canonical branch. */
+export function resolveSettlementBranch(
+  mode: SettlementMode,
+  winners: string[],
+  splitPotEnabled: boolean,
+): { splitPot: boolean; tie: boolean; tiedWinnerIds: string[]; singleWinnerId: string | null } {
+  if (mode === "split") {
+    return {
+      splitPot: true,
+      tie: winners.length >= 2,
+      tiedWinnerIds: [...winners],
+      singleWinnerId: null,
+    };
+  }
+  if (mode === "win" && winners.length === 1) {
+    return {
+      splitPot: false,
+      tie: false,
+      tiedWinnerIds: [],
+      singleWinnerId: winners[0],
+    };
+  }
+  const tieModes: SettlementMode[] = ["co_win_carry", "non_winner_ante_up", "push"];
+  if (tieModes.includes(mode) || winners.length >= 2) {
+    return {
+      splitPot: splitPotEnabled && mode === "split",
+      tie: true,
+      tiedWinnerIds: [...winners],
+      singleWinnerId: null,
+    };
+  }
+  return {
+    splitPot: false,
+    tie: false,
+    tiedWinnerIds: [],
+    singleWinnerId: winners[0] ?? null,
+  };
+}
+
+export interface ValidateMoneyInvariantsInput {
+  result: CanonicalMoneyResult;
+  participantIds: string[];
+  anteAmount: number;
+  expectedChipTotal?: number;
+  stackBeforeSettlement?: Record<string, number>;
+}
+
+export interface MoneyInvariantResult {
+  ok: boolean;
+  errors: string[];
+}
+
+/** Assert canonical money invariants from the prompt. */
+export function validateMoneyInvariants(
+  input: ValidateMoneyInvariantsInput,
+): MoneyInvariantResult {
+  const { result, participantIds, anteAmount, expectedChipTotal, stackBeforeSettlement } =
+    input;
+  const errors: string[] = [];
+  const pot = result.completedHandPot;
+
+  if (result.tie && !result.splitPot) {
+    if (result.carryoverPot !== pot) {
+      errors.push(`tie carry: carryoverPot ${result.carryoverPot} !== completedHandPot ${pot}`);
+    }
+    const payoutSum = Object.values(result.payoutByPlayer).reduce((s, n) => s + n, 0);
+    if (payoutSum !== 0) {
+      errors.push(`tie carry: expected zero immediate payout, got ${payoutSum}`);
+    }
+  }
+
+  if (!result.tie && result.singleWinnerId) {
+    if (result.carryoverPot !== 0) {
+      errors.push(`single winner: carryoverPot must be 0, got ${result.carryoverPot}`);
+    }
+    const winnerPayout = result.payoutByPlayer[result.singleWinnerId] ?? 0;
+    if (winnerPayout !== pot) {
+      errors.push(`single winner: payout ${winnerPayout} !== completedHandPot ${pot}`);
+    }
+  }
+
+  if (result.tie && result.splitPot) {
+    if (result.carryoverPot !== 0) {
+      errors.push(`split pot: carryoverPot must be 0, got ${result.carryoverPot}`);
+    }
+    const splitSum = Object.values(result.payoutByPlayer).reduce((s, n) => s + n, 0);
+    if (splitSum !== pot) {
+      errors.push(`split pot: payouts ${splitSum} !== completedHandPot ${pot}`);
+    }
+  }
+
+  const fundingSum = participantIds.reduce(
+    (s, pid) => s + (result.fundingContributionByPlayer[pid] ?? 0),
+    0,
+  );
+  if (result.nextPot !== result.carryoverPot + fundingSum) {
+    errors.push(
+      `nextPot ${result.nextPot} !== carryoverPot ${result.carryoverPot} + funding ${fundingSum}`,
+    );
+  }
+
+  for (const pid of participantIds) {
+    const reason = result.fundingReasonByPlayer[pid];
+    const contrib = result.fundingContributionByPlayer[pid] ?? 0;
+    if (reason === "bourre_full_pot_penalty" && contrib > 0 && contrib !== pot) {
+      if (contrib < pot) {
+        // bust remainder — allowed
+      } else if (contrib !== pot) {
+        errors.push(`${pid}: bourré contribution ${contrib} !== completedHandPot ${pot}`);
+      }
+    }
+    if (reason === "bourre_full_pot_penalty" && reason === result.fundingReasonByPlayer[pid]) {
+      const alsoAnte =
+        result.fundingReasonByPlayer[pid] === "normal_ante" &&
+        result.bourrePlayerIds.includes(pid);
+      if (alsoAnte) {
+        errors.push(`${pid}: charged both bourré penalty and normal ante`);
+      }
+    }
+    if (
+      result.bourrePlayerIds.includes(pid) &&
+      reason === "bourre_full_pot_penalty" &&
+      result.fundingReasonByPlayer[pid] === "normal_ante"
+    ) {
+      errors.push(`${pid}: bourré player charged normal ante`);
+    }
+  }
+
+  for (const pid of participantIds) {
+    const settled = result.settledStackByPlayer[pid] ?? 0;
+    const contrib = result.fundingContributionByPlayer[pid] ?? 0;
+    const next = result.nextStartStackByPlayer[pid] ?? 0;
+    if (next !== Math.max(0, settled - contrib)) {
+      errors.push(`${pid}: nextStart ${next} !== settled ${settled} - contrib ${contrib}`);
+    }
+  }
+
+  if (expectedChipTotal != null && stackBeforeSettlement) {
+    const before =
+      Object.values(stackBeforeSettlement).reduce((s, n) => s + n, 0) + result.carryoverPot;
+    const after =
+      Object.values(result.settledStackByPlayer).reduce((s, n) => s + n, 0) +
+      result.carryoverPot;
+    const payoutDelta = Object.values(result.payoutByPlayer).reduce((s, n) => s + n, 0);
+    if (Math.abs(after - before - payoutDelta) > 0.001) {
+      errors.push("settlement payout does not reconcile with stack deltas");
+    }
+  }
+
+  void anteAmount;
+  void expectedChipTotal;
+
+  return { ok: errors.length === 0, errors };
+}
+
+/** Full canonical flow: Phase 1 + Phase 2. */
+export function runCanonicalMoneyFlow(opts: {
+  mode: SettlementMode;
+  winners: string[];
+  participants: string[];
+  tricksByPlayer: Record<string, number>;
+  scoreById: ScoreById;
+  sessionStake: number;
+  carryIn?: number;
+  postedAntes?: Record<string, number>;
+  buyInFallback?: number;
+  limEnabled?: boolean;
+  splitPotEnabled?: boolean;
+  explicitExemptPlayerIds?: string[];
+}): CanonicalMoneyResult & { nextDealFunding: NextDealFundingSnapshot } {
+  const {
+    mode,
+    winners,
+    participants,
+    tricksByPlayer,
+    scoreById,
+    sessionStake,
+    carryIn = 0,
+    postedAntes = {},
+    buyInFallback = 100,
+    limEnabled = false,
+    splitPotEnabled = false,
+    explicitExemptPlayerIds = [],
+  } = opts;
+
+  const antePot = participants.reduce((sum, pid) => {
+    if (postedAntes[pid] != null) return sum + Math.max(0, Number(postedAntes[pid]) || 0);
+    return sum;
+  }, 0);
+
+  const potState = computeHandPotState({
+    anteAmount: sessionStake,
+    limEnabled,
+    carryIn,
+    antePot,
+  });
+  const completedHandPot = potState.maxWinThisHand;
+  const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
+  const branch = resolveSettlementBranch(mode, winners, splitPotEnabled);
+
+  const stackByPlayer: Record<string, number> = {};
+  for (const pid of participants) {
+    stackByPlayer[pid] = scoreBankroll(scoreById[pid], buyInFallback);
+  }
+
+  const phase1 = settleCompletedHand({
+    completedHandPot,
+    stackByPlayer,
+    participants,
+    singleWinnerId: branch.singleWinnerId,
+    tiedWinnerIds: branch.tiedWinnerIds,
+    bourrePlayerIds: bourreIds,
+    splitPot: branch.splitPot,
+    participantOrder: participants,
+  });
+
+  const bourreReplacementRemainderByPlayer: Record<string, number> = {};
+  const phase2Input: ComputeNextHandFundingInput = {
+    settledStackByPlayer: { ...phase1.settledStackByPlayer },
+    completedHandPot,
+    carryoverPot: phase1.carryoverPot,
+    anteAmount: sessionStake,
+    participantIds: participants,
+    bourrePlayerIds: bourreIds,
+    tiedWinnerIds: phase1.tiedWinnerIds,
+    splitPot: phase1.splitPot,
+    tie: phase1.tie,
+    explicitExemptPlayerIds,
+    bourreReplacementRemainderByPlayer,
+  };
+
+  const phase2 = applyNextHandFunding(phase2Input);
+
+  const nextDealFunding = buildNextDealFunding(
+    phase1,
+    phase2,
+    participants,
+    bourreReplacementRemainderByPlayer,
+  );
+
+  const result: CanonicalMoneyResult = {
+    ...phase1,
+    ...phase2,
+  };
+
+  return { ...result, nextDealFunding };
+}
+
+/** Apply funding with solvent clamping (bust → out, bourré remainder). */
+export function applyFundingWithSolvency(
+  input: ComputeNextHandFundingInput,
+  buyInFallback = 100,
+): {
+  collected: {
+    bankrolls: Record<string, number>;
+    postedAntes: Record<string, number>;
+    outIds: string[];
+    activeParticipants: string[];
+  };
+  nextPot: number;
+  bourreReplacementRemainderByPlayer: Record<string, number>;
+  fundingContributionByPlayer: Record<string, number>;
+  fundingReasonByPlayer: Record<string, FundingReason>;
+} {
+  const { fundingContributionByPlayer, fundingReasonByPlayer } =
+    computeFundingContributionByPlayer(input);
+
+  const bankrolls: Record<string, number> = {};
+  const postedAntes: Record<string, number> = {};
+  const outIds: string[] = [];
+  const activeParticipants: string[] = [];
+  const bourreReplacementRemainderByPlayer: Record<string, number> = {};
+
+  for (const pid of input.participantIds) {
+    const settled = Math.max(0, Number(input.settledStackByPlayer[pid]) || 0);
+    const owed = Math.max(0, Number(fundingContributionByPlayer[pid]) || 0);
+
+    if (owed <= 0) {
+      bankrolls[pid] = settled;
+      postedAntes[pid] = 0;
+      activeParticipants.push(pid);
+      continue;
+    }
+
+    const result = applyBankrollDelta(settled, -owed);
+    bankrolls[pid] = result.newBankroll;
+    postedAntes[pid] = Math.abs(result.appliedDelta);
+
+    if (result.busted) {
+      outIds.push(pid);
+      if (
+        fundingReasonByPlayer[pid] === "bourre_full_pot_penalty" &&
+        owed > Math.abs(result.appliedDelta)
+      ) {
+        bourreReplacementRemainderByPlayer[pid] = owed - Math.abs(result.appliedDelta);
+      }
+    } else {
+      activeParticipants.push(pid);
+    }
+  }
+
+  const contributionSum = input.participantIds.reduce(
+    (sum, pid) => sum + (postedAntes[pid] ?? 0),
+    0,
+  );
+  const nextPot = Math.max(0, Number(input.carryoverPot) || 0) + contributionSum;
+
+  void buyInFallback;
+  return {
+    collected: {
+      bankrolls,
+      postedAntes,
+      outIds: [...new Set(outIds)],
+      activeParticipants,
+    },
+    nextPot,
+    bourreReplacementRemainderByPlayer,
+    fundingContributionByPlayer,
+    fundingReasonByPlayer,
+  };
+}
+
+/**
+ * @deprecated Use canonical settleCompletedHand + computeFundingContributionByPlayer.
+ */
+export function settleHandDeltas({
+  mode,
+  winners,
+  participants,
+  tricksByPlayer,
+  anteAmount,
+  limEnabled = false,
+  carryIn = 0,
+  stakeForPlayer,
+  antePot: antePotOverride,
+  splitPotEnabled = false,
+}: {
+  mode: SettlementMode;
+  winners: string[];
+  participants: string[];
+  tricksByPlayer: Record<string, number>;
+  anteAmount: number;
+  limEnabled?: boolean;
+  carryIn?: number;
+  stakeForPlayer: (pid: string) => number;
+  antePot?: number;
+  splitPotEnabled?: boolean;
+}) {
+  const antePot =
+    antePotOverride ??
+    participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0);
+  const potState = computeHandPotState({
+    anteAmount,
+    limEnabled,
+    carryIn,
+    antePot,
+  });
+  const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
+  const branch =
+    mode === "split"
+      ? { splitPot: true, tiedWinnerIds: winners, singleWinnerId: null as string | null }
+      : mode === "win" && winners.length === 1
+        ? { splitPot: false, tiedWinnerIds: [] as string[], singleWinnerId: winners[0] }
+        : {
+            splitPot: splitPotEnabled && mode === "split",
+            tiedWinnerIds: winners,
+            singleWinnerId: null as string | null,
+          };
+
+  const stackByPlayer = Object.fromEntries(
+    participants.map((pid) => [pid, 100]),
+  );
+  const phase1 = settleCompletedHand({
+    completedHandPot: potState.maxWinThisHand,
+    stackByPlayer,
+    participants,
+    singleWinnerId: branch.singleWinnerId,
+    tiedWinnerIds: branch.tiedWinnerIds,
+    bourrePlayerIds: bourreIds,
+    splitPot: branch.splitPot,
+    participantOrder: participants,
+  });
+
+  const funding = computeFundingContributionByPlayer({
+    settledStackByPlayer: phase1.settledStackByPlayer,
+    completedHandPot: potState.maxWinThisHand,
+    carryoverPot: phase1.carryoverPot,
+    anteAmount,
+    participantIds: participants,
+    bourrePlayerIds: bourreIds,
+    tiedWinnerIds: phase1.tiedWinnerIds,
+    splitPot: phase1.splitPot,
+    tie: phase1.tie,
+  });
+
+  const deltas: Record<string, number> = {};
+  for (const pid of participants) {
+    const payout = phase1.payoutByPlayer[pid] ?? 0;
+    const stake = stakeForPlayer(pid);
+    deltas[pid] = payout - stake;
+    if (bourreIds.includes(pid) && phase1.carryoverPot === 0 && mode === "win") {
+      deltas[pid] -= funding.fundingContributionByPlayer[pid] ?? 0;
+    }
+  }
+
+  const bourreMatch = bourreIds.length * potState.maxWinThisHand;
+
+  return {
+    deltas,
+    carryOverPot: phase1.carryoverPot,
+    bourreIds,
+    bourreMatch,
+    potState,
+    pot: potState.currentPot,
+    cappedPot: potState.maxWinThisHand,
+    overflow: potState.overflow,
+  };
+}

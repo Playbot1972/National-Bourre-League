@@ -126,9 +126,7 @@ export function bourrePlayerIds(tricksByPlayer, participants) {
 }
 
 /**
- * Settlement deltas for one recorded hand.
- * @param {object} opts
- * @returns {{ deltas: Record<string, number>, carryOverPot: number, bourreIds: string[], bourreMatch: number, potState: object }}
+ * @deprecated Use canonical settleCompletedHand + computeFundingContributionByPlayer.
  */
 export function settleHandDeltas({
   mode,
@@ -140,70 +138,76 @@ export function settleHandDeltas({
   carryIn = 0,
   stakeForPlayer,
   antePot: antePotOverride,
+  splitPotEnabled = false,
 }) {
-  const limOn = limEnabled === true;
+  const antePot =
+    antePotOverride ??
+    participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0);
   const potState = computeHandPotState({
     anteAmount,
-    limEnabled: limOn,
+    limEnabled,
     carryIn,
-    antePot:
-      antePotOverride ??
-      participants.reduce((sum, pid) => sum + stakeForPlayer(pid), 0),
+    antePot,
   });
-  const { currentPot, winnerTake, bourrePenalty, overflow } = potState;
   const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
-  const bourreMatch = bourreIds.length * bourrePenalty;
+  const branch =
+    mode === "split"
+      ? { splitPot: true, tiedWinnerIds: winners, singleWinnerId: null }
+      : mode === "win" && winners.length === 1
+        ? { splitPot: false, tiedWinnerIds: [], singleWinnerId: winners[0] }
+        : {
+            splitPot: splitPotEnabled && mode === "split",
+            tiedWinnerIds: winners,
+            singleWinnerId: null,
+          };
+
+  const stackByPlayer = Object.fromEntries(
+    participants.map((pid) => [pid, 100]),
+  );
+  const phase1 = settleCompletedHand({
+    completedHandPot: potState.maxWinThisHand,
+    stackByPlayer,
+    participants,
+    singleWinnerId: branch.singleWinnerId,
+    tiedWinnerIds: branch.tiedWinnerIds,
+    bourrePlayerIds: bourreIds,
+    splitPot: branch.splitPot,
+    participantOrder: participants,
+  });
+
+  const funding = computeFundingContributionByPlayer({
+    settledStackByPlayer: phase1.settledStackByPlayer,
+    completedHandPot: potState.maxWinThisHand,
+    carryoverPot: phase1.carryoverPot,
+    anteAmount,
+    participantIds: participants,
+    bourrePlayerIds: bourreIds,
+    tiedWinnerIds: phase1.tiedWinnerIds,
+    splitPot: phase1.splitPot,
+    tie: phase1.tie,
+  });
 
   const deltas = {};
-  let carryOverPot = 0;
-
-  if (mode === "push" || mode === "non_winner_ante_up" || mode === "co_win_carry") {
-    carryOverPot = currentPot + bourreMatch;
-    participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(pid);
-      const bourreExtra = bourreIds.includes(pid) ? bourrePenalty : 0;
-      deltas[pid] = -playerStake - bourreExtra;
-    });
-    if (limOn) carryOverPot = overflow + currentPot + bourreMatch;
-  } else if (mode === "split") {
-    const share = winnerTake / winners.length;
-    participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(pid);
-      const bourreExtra = bourreIds.includes(pid) ? bourrePenalty : 0;
-      if (winners.includes(pid)) {
-        deltas[pid] = share - playerStake - bourreExtra;
-      } else {
-        deltas[pid] = -playerStake - bourreExtra;
-      }
-    });
-    carryOverPot = (limOn ? overflow : 0) + bourreMatch;
-  } else {
-    const winner = winners[0];
-    participants.forEach((pid) => {
-      const playerStake = stakeForPlayer(pid);
-      if (pid === winner) {
-        deltas[pid] = winnerTake - playerStake;
-      } else if (bourreIds.includes(pid)) {
-        deltas[pid] = -bourrePenalty - playerStake;
-      } else {
-        deltas[pid] = -playerStake;
-      }
-    });
-    carryOverPot = (limOn ? overflow : 0) + bourreMatch;
+  for (const pid of participants) {
+    const payout = phase1.payoutByPlayer[pid] ?? 0;
+    const stake = stakeForPlayer(pid);
+    deltas[pid] = payout - stake;
+    if (bourreIds.includes(pid) && phase1.carryoverPot === 0 && mode === "win") {
+      deltas[pid] -= funding.fundingContributionByPlayer[pid] ?? 0;
+    }
   }
 
-  // Bourré pot match is collected at settlement into carryOverPot (next-hand seed).
-  // Bourré players are exempt from the normal ante on the next deal (skipNextAnte).
+  const bourreMatch = bourreIds.length * potState.maxWinThisHand;
 
   return {
     deltas,
-    carryOverPot,
+    carryOverPot: phase1.carryoverPot,
     bourreIds,
     bourreMatch,
     potState,
-    pot: currentPot,
-    cappedPot: winnerTake,
-    overflow,
+    pot: potState.currentPot,
+    cappedPot: potState.maxWinThisHand,
+    overflow: potState.overflow,
   };
 }
 
@@ -234,6 +238,10 @@ export function scoreBankroll(score, buyInFallback = 0) {
  * @param {number} sessionStake
  */
 export function handAnteContribution(scoreRow, sessionStake) {
+  const authoritative = Number(scoreRow?.fundingContribution);
+  if (Number.isFinite(authoritative) && authoritative >= 0) {
+    return authoritative;
+  }
   const replacement = Number(scoreRow?.bourreReplacementDue);
   if (Number.isFinite(replacement) && replacement > 0) {
     return replacement;
@@ -332,7 +340,7 @@ export function buildNextDealFundingSnapshot({
   };
 }
 
-/** Apply session nextDealFunding onto score rows before collectNextHandAntes. */
+/** Apply session nextDealFunding onto score rows — consumer only, no money math. */
 export function mergeNextDealFundingIntoScoreById(scoreById, nextDealFunding) {
   if (!nextDealFunding?.byPlayer) return scoreById || {};
   const merged = { ...(scoreById || {}) };
@@ -343,6 +351,9 @@ export function mergeNextDealFundingIntoScoreById(scoreById, nextDealFunding) {
     }
     if (flags.skipNextAnte) {
       row.skipNextAnte = true;
+    }
+    if (flags.fundingContribution != null) {
+      row.fundingContribution = flags.fundingContribution;
     }
     merged[pid] = row;
   }
