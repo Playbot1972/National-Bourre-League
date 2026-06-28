@@ -82,7 +82,7 @@ export interface DrawDiscardSelectionInput {
   recommendedDiscardIndices: number[];
 }
 
-/** Indices submitted on Draw — manual picks win over Best Play hints. */
+/** Indices submitted on Draw — uses selectedDraw (including Best Play preselection). */
 export function effectiveDrawDiscardIndices(input: DrawDiscardSelectionInput): number[] {
   const manual = [...input.selectedDraw].sort((a, b) => a - b);
   if (input.drawSelectionTouched || manual.length > 0) return manual;
@@ -90,22 +90,4 @@ export function effectiveDrawDiscardIndices(input: DrawDiscardSelectionInput): n
     return [...input.recommendedDiscardIndices].sort((a, b) => a - b);
   }
   return [];
-}
-
-export interface DrawRecommendationInput {
-  showBestPlayControl: boolean;
-  inDrawPhase: boolean;
-  drawCompleted: boolean;
-  bestPlayEnabled: boolean;
-  drawSelectionTouched: boolean;
-  recommendedDiscardIndices: number[];
-  selectedDraw: ReadonlySet<number>;
-}
-
-/** Green Best Play hint — never overlaps user selection styling. */
-export function isDrawRecommendationIndex(index: number, input: DrawRecommendationInput): boolean {
-  if (!input.showBestPlayControl || !input.inDrawPhase || input.drawCompleted) return false;
-  if (!input.bestPlayEnabled || input.drawSelectionTouched) return false;
-  if (input.selectedDraw.has(index)) return false;
-  return input.recommendedDiscardIndices.includes(index);
 }

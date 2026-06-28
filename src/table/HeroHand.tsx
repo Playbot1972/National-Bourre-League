@@ -10,7 +10,6 @@ import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
   effectiveDrawDiscardIndices,
-  isDrawRecommendationIndex,
   isLegalPlayIndex,
 } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
@@ -225,6 +224,25 @@ export function HeroHand({
 
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
+
+  useEffect(() => {
+    if (
+      !bestPlayEnabled ||
+      !inDrawPhase ||
+      drawCompleted ||
+      drawSelectionTouched
+    ) {
+      return;
+    }
+    setSelectedDraw(new Set(recommendedDiscardIndices));
+  }, [
+    bestPlayEnabled,
+    inDrawPhase,
+    drawCompleted,
+    drawSelectionTouched,
+    recommendedDiscardKey,
+    recommendedDiscardIndices,
+  ]);
 
   useEffect(() => {
     if (!inPlayPhase || !isMyTurn || selectedPlay === null || playLockRef.current || busy) {
@@ -456,27 +474,20 @@ export function HeroHand({
       saveBestPlayEnabled(enabled);
       if (enabled) {
         setDrawSelectionTouched(false);
+        if (inDrawPhase && !drawCompleted) {
+          setSelectedDraw(new Set(recommendedDiscardIndices));
+        }
         return;
       }
       if (!drawSelectionTouched) {
         setSelectedDraw(new Set());
       }
     },
-    [drawSelectionTouched],
+    [drawSelectionTouched, inDrawPhase, drawCompleted, recommendedDiscardIndices],
   );
 
   const showBestPlayControl =
     signedIn && isInHand && (inDrawPhase || inPlayPhase);
-
-  const drawRecommendationInput = {
-    showBestPlayControl,
-    inDrawPhase,
-    drawCompleted,
-    bestPlayEnabled,
-    drawSelectionTouched,
-    recommendedDiscardIndices,
-    selectedDraw,
-  };
 
   const drawSubmitIndices = useMemo(
     () =>
@@ -580,9 +591,6 @@ export function HeroHand({
     if (inDrawPhase && selectedDraw.has(i)) {
       return "draw-selected";
     }
-    if (isDrawRecommendationIndex(i, drawRecommendationInput)) {
-      return "draw-recommended";
-    }
     if (inPlayPhase && selectedPlay === i) return "play-preselected";
     if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
@@ -623,13 +631,7 @@ export function HeroHand({
         {phaseStatus}
         {inDrawPhase && !drawCompleted && isMyTurn && " — tap cards to discard; red border marks your selection"}
         {inPlayPhase && isMyTurn && " — tap a legal card to play"}
-        {bestPlayEnabled &&
-          inDrawPhase &&
-          !drawCompleted &&
-          " — green outline marks Best Play suggestions"}
-        {bestPlayEnabled &&
-          inPlayPhase &&
-          " — green outline marks Best Play suggestions"}
+        {bestPlayEnabled && inPlayPhase && " — green outline marks Best Play suggestions"}
       </p>
       <div
         ref={handRootRef}

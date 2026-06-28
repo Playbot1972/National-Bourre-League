@@ -4,7 +4,6 @@ import {
   computeRecommendedDiscardIndices,
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
-  isDrawRecommendationIndex,
   isLegalPlayIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
@@ -105,24 +104,14 @@ test("effectiveDrawDiscardIndices prefers manual picks over Best Play hints", ()
   );
 });
 
-test("isDrawRecommendationIndex shows Best Play hints without user selection styling", () => {
-  const base = {
-    showBestPlayControl: true,
-    inDrawPhase: true,
-    drawCompleted: false,
-    bestPlayEnabled: true,
-    drawSelectionTouched: false,
-    recommendedDiscardIndices: [1, 2],
-    selectedDraw: new Set<number>(),
-  };
-  assert.equal(isDrawRecommendationIndex(1, base), true);
-  assert.equal(isDrawRecommendationIndex(0, base), false);
-  assert.equal(
-    isDrawRecommendationIndex(1, { ...base, selectedDraw: new Set([1]) }),
-    false,
-  );
-  assert.equal(
-    isDrawRecommendationIndex(1, { ...base, drawSelectionTouched: true }),
-    false,
+test("effectiveDrawDiscardIndices uses Best Play preselection in selectedDraw", () => {
+  assert.deepEqual(
+    effectiveDrawDiscardIndices({
+      selectedDraw: new Set([2, 3]),
+      drawSelectionTouched: false,
+      bestPlayEnabled: true,
+      recommendedDiscardIndices: [2, 3],
+    }),
+    [2, 3],
   );
 });
