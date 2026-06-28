@@ -5,6 +5,35 @@
 /** @typedef {"play" | "draw" | "fold" | "enrollment" | "reveal" | "private_hand" | "settlement" | "other"} TableActionKind */
 
 /**
+ * Race / idempotency failures that mean the table already moved on — not player-facing errors.
+ * @param {unknown} err
+ */
+export function isBenignTableActionError(err) {
+  const msg = String(err?.message ?? err ?? "").trim();
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  const code = String(err?.code ?? "").toLowerCase();
+  if (
+    lower.includes("not in reveal") ||
+    lower.includes("decision step did not apply") ||
+    lower.includes("enrollment step did not apply") ||
+    lower.includes("draw already completed") ||
+    lower.includes("not in draw phase") ||
+    lower.includes("not in trick-play") ||
+    lower.includes("illegal phase transition")
+  ) {
+    return true;
+  }
+  if (
+    code === "functions/failed-precondition" &&
+    (lower.includes("not in reveal") || lower.includes("decision step did not apply"))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * @typedef {object} TableActionErrorContext
  * @property {number | null} [handNumber]
  * @property {string | null} [phase]
