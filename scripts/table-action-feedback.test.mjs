@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatTableActionError,
+  isBenignTableActionError,
   isStaleTableActionError,
   scrubRawInternalMessage,
 } from "../docs/table-action-feedback.js";
@@ -16,6 +17,21 @@ function mockFormatter(err, fallback) {
 }
 
 describe("table-action-feedback", () => {
+  it("detects benign race errors that should not surface to players", () => {
+    assert.equal(isBenignTableActionError(new Error("Decision step did not apply")), true);
+    assert.equal(isBenignTableActionError(new Error("Not in reveal phase")), true);
+    assert.equal(isBenignTableActionError(new Error("Draw already completed")), true);
+    assert.equal(
+      isBenignTableActionError({
+        code: "functions/failed-precondition",
+        message: "Decision step did not apply",
+      }),
+      true,
+    );
+    assert.equal(isBenignTableActionError(new Error("Not your turn")), false);
+    assert.equal(isBenignTableActionError(new Error("Permission denied")), false);
+  });
+
   it("scrubs raw INTERNAL messages", () => {
     assert.equal(
       scrubRawInternalMessage("INTERNAL"),

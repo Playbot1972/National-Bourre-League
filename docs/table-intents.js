@@ -4,6 +4,7 @@
  */
 
 import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
+import { isBenignTableActionError } from "./table-action-feedback.js";
 
 /**
  * @param {object} deps
@@ -39,6 +40,10 @@ export function createTableIntentHandlers(deps) {
   }
 
   function setActionError(err, fallback, actionKind) {
+    if (isBenignTableActionError(err)) {
+      console.warn("Benign table action error suppressed:", err?.message ?? err);
+      return null;
+    }
     const message = actionErrorMessage(err, fallback);
     const context = deps.getActionErrorContext?.(actionKind) ?? null;
     deps.setTableActionFeedback({ status: "error", message }, context);
@@ -85,7 +90,7 @@ export function createTableIntentHandlers(deps) {
           .catch((e) => {
             deps.clearLocalHandCommit();
             const message = setActionError(e, "Could not play this hand", "enrollment");
-            deps.showRoomsError(message);
+            if (message) deps.showRoomsError(message);
           });
         return;
       }
@@ -111,7 +116,7 @@ export function createTableIntentHandlers(deps) {
         .catch((e) => {
           deps.clearLocalHandCommit();
           const message = setActionError(e, "Could not update hand participation", "enrollment");
-          deps.showRoomsError(message);
+          if (message) deps.showRoomsError(message);
         });
     },
 
@@ -137,7 +142,7 @@ export function createTableIntentHandlers(deps) {
         .catch((e) => {
           deps.clearLocalHandCommit();
           const message = setActionError(e, "Could not pass this hand", "enrollment");
-          deps.showRoomsError(message);
+          if (message) deps.showRoomsError(message);
         });
     },
 
@@ -164,7 +169,7 @@ export function createTableIntentHandlers(deps) {
         .catch((e) => {
           deps.clearLocalHandCommit();
           const message = setActionError(e, "Could not play this hand", "enrollment");
-          deps.showRoomsError(message);
+          if (message) deps.showRoomsError(message);
         });
     },
 
@@ -173,11 +178,15 @@ export function createTableIntentHandlers(deps) {
       const sessionId = deps.getSessionId();
       if (!roomId || !sessionId) return Promise.resolve();
       return deps.advanceHandReveal(roomId, sessionId).catch((e) => {
+        if (isBenignTableActionError(e)) {
+          console.warn("advanceHandReveal benign race:", e?.message ?? e);
+          return;
+        }
         const lower = String(e?.message ?? "").toLowerCase();
         if (lower.includes("not in reveal")) return;
         console.warn("advanceHandReveal:", e);
         const message = setActionError(e, "Could not open draw phase", "reveal");
-        deps.showRoomsError(message);
+        if (message) deps.showRoomsError(message);
       });
     },
 

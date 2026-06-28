@@ -38,6 +38,7 @@ import {
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
 import {
+  isBenignTableActionError,
   isStaleTableActionError,
   scrubRawInternalMessage,
 } from "./table-action-feedback.js";
@@ -1322,6 +1323,10 @@ function startEnrollmentTimer() {
     }
     if (enrollmentHasExpired(getSessionEnrollment(sessionObj))) {
       timeoutHandEnrollmentTurn(currentRoomId, openSessionId).catch((e) => {
+        if (isBenignTableActionError(e)) {
+          console.warn("enrollment timeout benign race:", e?.message ?? e);
+          return;
+        }
         console.warn("enrollment timeout:", e);
         const message = formatClientGameError(
           e,
@@ -3584,6 +3589,10 @@ function startPrivateHandSubscription() {
     },
     (err) => {
       privateHandSnapSeen = true;
+      if (isBenignTableActionError(err)) {
+        console.warn("privateHand subscription benign race:", err?.message ?? err);
+        return;
+      }
       console.error("privateHand subscription:", err);
       const message = formatClientGameError(err, "Could not load your private hand");
       setTableActionFeedback(

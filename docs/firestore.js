@@ -122,6 +122,7 @@ import {
   gameVoteCoWinSettlement,
   gameAdvanceBots,
 } from "./game-functions.js";
+import { isBenignTableActionError } from "./table-action-feedback.js";
 import { removePlayerFromEnrollment } from "./enrollment-roster.js";
 import {
   dealInitialHand,
@@ -262,6 +263,13 @@ function isCloudFunctionUnavailable(err) {
   );
 }
 
+function logBenignTableActionRace(source, serverErr, clientErr = null) {
+  console.warn(
+    `[table-action] benign race suppressed (${source})`,
+    clientErr?.message ?? clientErr ?? serverErr?.message ?? serverErr,
+  );
+}
+
 /** Normalize enrollment deadline — re-exported from session-startup (hand phase machine). */
 export { enrollmentDeadlineMs, canActForPlayer } from "./session-startup.js";
 
@@ -279,10 +287,18 @@ async function callEnrollmentAction(clientFn, serverFn) {
         try {
           return await clientFn();
         } catch (clientErr) {
+          if (isBenignTableActionError(clientErr) || isBenignTableActionError(serverErr)) {
+            logBenignTableActionRace("enrollment", serverErr, clientErr);
+            return undefined;
+          }
           throw describeEnrollmentStartError(
             isEnrollmentPermissionError(clientErr) ? clientErr : serverErr,
           );
         }
+      }
+      if (isBenignTableActionError(serverErr)) {
+        logBenignTableActionRace("enrollment", serverErr);
+        return undefined;
       }
       throw describeEnrollmentStartError(
         isEnrollmentPermissionError(serverErr) ? serverErr : serverErr,
@@ -310,6 +326,10 @@ async function callGameOrClient(clientFn, serverFn) {
       return await serverFn();
     } catch (serverErr) {
       if (isCloudFunctionUnavailable(serverErr)) throw clientErr;
+      if (isBenignTableActionError(serverErr) || isBenignTableActionError(clientErr)) {
+        logBenignTableActionRace("game-client", serverErr, clientErr);
+        return undefined;
+      }
       throw serverErr;
     }
   }
@@ -332,8 +352,16 @@ async function callGameServerOrClient(clientFn, serverFn) {
         try {
           return await clientFn();
         } catch (clientErr) {
+          if (isBenignTableActionError(clientErr) || isBenignTableActionError(serverErr)) {
+            logBenignTableActionRace("game-server", serverErr, clientErr);
+            return undefined;
+          }
           throw serverErr;
         }
+      }
+      if (isBenignTableActionError(serverErr)) {
+        logBenignTableActionRace("game-server", serverErr);
+        return undefined;
       }
       throw serverErr;
     }
