@@ -26,8 +26,6 @@ export {
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
-  runV1AnteCollection,
-  buildV1DealScorePatches,
 };
 
 /** Subcollection path segment for immutable money events. */
