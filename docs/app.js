@@ -175,6 +175,7 @@ import {
   pickUniqueRobotNames,
   playNowBourreSettings,
 } from "./play-now.js";
+import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
   formatAnteStake,
   formatRiskStake,
@@ -1971,12 +1972,42 @@ function closeCreateRoomModal() {
   document.body.classList.remove("modal-open");
 }
 
+const joinCodeInput = $("#join-code");
+const joinSubmitBtn = $("[data-testid='join-code-submit']");
+const createRoomBtn = $("#create-room");
+const playNowBtn = $("#play-now");
+
+/** Sync Create / Play Now / Join styling from invite-code input (join mode). */
+function syncJoinRoomActionUi() {
+  const joinMode = isJoinModeActive(joinCodeInput?.value);
+  const roomActions = $("#join-form")?.closest(".room-actions");
+  const joinBusy = joinSubmitBtn?.dataset.busy === "true";
+
+  roomActions?.classList.toggle(JOIN_MODE_CLASS, joinMode);
+
+  if (joinSubmitBtn) {
+    joinSubmitBtn.classList.toggle("btn--primary", joinMode);
+    joinSubmitBtn.disabled = joinBusy;
+  }
+  if (createRoomBtn) {
+    createRoomBtn.disabled = joinMode;
+  }
+  if (playNowBtn) {
+    playNowBtn.disabled = joinMode || playNowInFlight;
+  }
+}
+
+if (joinCodeInput) {
+  joinCodeInput.addEventListener("input", syncJoinRoomActionUi);
+  joinCodeInput.addEventListener("change", syncJoinRoomActionUi);
+}
+syncJoinRoomActionUi();
+
 $("#create-room").addEventListener("click", () => {
-  if (!session) return;
+  if (!session || createRoomBtn?.disabled) return;
   openCreateRoomModal();
 });
 
-const playNowBtn = $("#play-now");
 if (playNowBtn) {
   playNowBtn.addEventListener("click", () => {
     void runPlayNowFlow();
@@ -1986,7 +2017,7 @@ if (playNowBtn) {
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");
   if (!btn) return;
-  btn.disabled = busy;
+  btn.disabled = busy || isJoinModeActive(joinCodeInput?.value);
   btn.setAttribute("aria-busy", busy ? "true" : "false");
   btn.textContent = busy ? "Setting up…" : "Play Now";
 }
@@ -2198,10 +2229,10 @@ $("#join-form").addEventListener("submit", async (e) => {
     );
     return;
   }
-  const joinBtn = $("#join-form button[type='submit']");
+  const joinBtn = joinSubmitBtn;
   if (joinBtn) {
-    joinBtn.disabled = true;
     joinBtn.dataset.busy = "true";
+    syncJoinRoomActionUi();
   }
   try {
     await ensureUserDoc(session);
@@ -2239,9 +2270,9 @@ $("#join-form").addEventListener("submit", async (e) => {
     }
   } finally {
     if (joinBtn) {
-      joinBtn.disabled = false;
       joinBtn.dataset.busy = "false";
     }
+    syncJoinRoomActionUi();
   }
 });
 
