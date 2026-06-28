@@ -24,7 +24,6 @@ import {
   ledgerFromScoreById,
   scoreBankroll,
   ledgerChipTotal,
-  replayEvents,
 } from "./index";
 
 const buyIn = 100;
