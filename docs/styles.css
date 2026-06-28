@@ -852,6 +852,19 @@ body.room-detail-open .room-actions {
   min-width: 0;
 }
 
+.room-actions--join-mode .room-actions__primary .btn:disabled {
+  background: transparent;
+  border-color: var(--border-default);
+  color: var(--text-muted, var(--text-light));
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
+}
+
+.room-actions--join-mode .join-form [type="submit"] {
+  font-weight: 600;
+}
+
 .form-feedback {
   margin: 0 0 12px;
   padding: 10px 12px;
