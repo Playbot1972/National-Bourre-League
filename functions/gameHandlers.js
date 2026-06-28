@@ -34,7 +34,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, settleSoloDefaultWin, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed } from "./vendor/bourre-rules.js";
 import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
@@ -48,6 +48,7 @@ import {
 } from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 import {
+  buildBotRebuySettlementPlan,
   planBotAutoRebuys,
   patchSessionPlayersWithRebuyNames,
   sessionHasRobotScores,
@@ -1095,16 +1096,8 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = data.handStake ?? 1;
-  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
 
-  const eligibleIds = sortedIds.filter((id) => {
-    const row = scoreById[id];
-    if (row?.out === true) return false;
-    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
-  });
-  if (eligibleIds.length < 1) return { status: "noop" };
-
-  const dealExtras = { sessionStake, buyIn, dealingRule, eligibleIds, sortedIds };
+  const dealExtras = { sessionStake, buyIn, dealingRule, sortedIds };
 
   let dealResult = { status: "noop" };
   await db.runTransaction(async (tx) => {
@@ -1116,9 +1109,15 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()])),
       freshData.nextDealFunding,
     );
+    const eligibleIds = eligibleIdsForAnteCollection(
+      dealExtras.sortedIds,
+      freshScoreById,
+      dealExtras.buyIn,
+    );
+    if (eligibleIds.length < 1) return;
     const autoPatch = buildDealCompletionPatch(
       freshData.dealerId,
-      dealExtras.eligibleIds,
+      eligibleIds,
       dealExtras.sortedIds,
       Date.now(),
       dealExtras.dealingRule,
@@ -1962,8 +1961,37 @@ export async function handleRecordHand(
     winners,
     bourreRemaindersByPlayer: bourreRemainders,
   });
+
+  const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  const botRebuyPlan = buildBotRebuySettlementPlan({
+    scoreRows: scoreRowsForRebuy,
+    solventBankrolls: solvent.bankrolls,
+    buyIn,
+    rebuyEnabled: roomBourre.rebuyEnabled === true,
+    players: sessionData.players,
+    tableOptInIds: sessionData.tableOptInIds || [],
+  });
+  if (botRebuyPlan) {
+    for (const item of botRebuyPlan.plan) {
+      batch.update(scoresCol(db, roomId, sessionId).doc(item.playerId), {
+        bankroll: buyIn,
+        out: FieldValue.delete(),
+        displayName: item.displayName,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: botRebuyPlan.plan.map((p) => p.playerId),
+      names: botRebuyPlan.plan.map((p) => p.displayName),
+      buyIn,
+      phase: "settlement-batch",
+    });
+  }
+
   await deletePrivateHandsForSession(db, roomId, sessionId, batch);
-  batch.update(sessionRef(db, roomId, sessionId), {
+  const sessionUpdate = {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
@@ -1974,11 +2002,19 @@ export async function handleRecordHand(
     liveEnrollment: FieldValue.delete(),
     currentHand: emptyPreDealHand(),
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (botRebuyPlan) {
+    sessionUpdate.players = botRebuyPlan.players;
+    sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
+  }
+  batch.update(sessionRef(db, roomId, sessionId), sessionUpdate);
 
   await batch.commit();
   try {
-    await applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn });
+    await applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, {
+      buyIn,
+      rebuyEnabled: roomBourre.rebuyEnabled === true,
+    });
   } catch (err) {
     console.warn("handleRecordHand: bot auto-rebuy deferred", err);
   }
@@ -1986,7 +2022,8 @@ export async function handleRecordHand(
   return { status: "settled", settlement: mode, handNumber };
 }
 
-async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn }) {
+async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn, rebuyEnabled = true }) {
+  if (!rebuyEnabled) return { applied: [] };
   const sessionRefDoc = sessionRef(db, roomId, sessionId);
   const [sessionSnap, scoreSnap] = await Promise.all([
     sessionRefDoc.get(),
