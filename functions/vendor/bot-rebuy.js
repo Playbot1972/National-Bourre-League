@@ -48,3 +48,45 @@ export function patchSessionPlayersWithRebuyNames(players, plan) {
     return { ...p, displayName: byId[id] };
   });
 }
+
+/**
+ * Score rows as they exist immediately after settlement (before optional bot rebuy).
+ */
+export function scoreRowsAfterSettlement({ scoreRows, solventBankrolls, buyIn }) {
+  return scoreRows.map((row) => {
+    const bankroll =
+      solventBankrolls[row.playerId] ?? scoreBankroll(row, buyIn);
+    return {
+      ...row,
+      bankroll,
+      out: bankroll <= 0,
+    };
+  });
+}
+
+/**
+ * Plan bot rebuy patches to apply atomically with hand settlement.
+ * Returns null when rebuy is disabled or no busted bots need rebuy.
+ */
+export function buildBotRebuySettlementPlan({
+  scoreRows,
+  solventBankrolls,
+  buyIn,
+  rebuyEnabled,
+  players,
+  tableOptInIds = [],
+  rng = Math.random,
+}) {
+  if (!rebuyEnabled) return null;
+  const postSettlement = scoreRowsAfterSettlement({ scoreRows, solventBankrolls, buyIn });
+  if (!sessionHasRobotScores(postSettlement)) return null;
+  const plan = planBotAutoRebuys({ scoreRows: postSettlement, buyIn, rng });
+  if (plan.length === 0) return null;
+  const optInIds = new Set(tableOptInIds);
+  for (const item of plan) optInIds.add(item.playerId);
+  return {
+    plan,
+    players: patchSessionPlayersWithRebuyNames(players, plan),
+    tableOptInIds: [...optInIds],
+  };
+}

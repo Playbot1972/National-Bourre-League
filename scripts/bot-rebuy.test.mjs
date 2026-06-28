@@ -5,7 +5,10 @@ import {
   planBotAutoRebuys,
   patchSessionPlayersWithRebuyNames,
   sessionHasRobotScores,
+  scoreRowsAfterSettlement,
+  buildBotRebuySettlementPlan,
 } from "../docs/bot-rebuy.js";
+import { eligibleIdsForAnteCollection } from "../docs/bourre-rules.js";
 
 describe("bot-rebuy", () => {
   it("isRobotPlayerId detects bot seats", () => {
@@ -55,5 +58,63 @@ describe("bot-rebuy", () => {
       sessionHasRobotScores([{ playerId: "u1", displayName: "Mom" }]),
       false,
     );
+  });
+
+  it("buildBotRebuySettlementPlan applies room buy-in when rebuy enabled", () => {
+    const scoreRows = [
+      { playerId: "human", displayName: "Mom", bankroll: 50, out: false },
+      { playerId: "bot_a", displayName: "Liam", isRobot: true, bankroll: 100, out: false },
+    ];
+    const plan = buildBotRebuySettlementPlan({
+      scoreRows,
+      solventBankrolls: { human: 50, bot_a: 0 },
+      buyIn: 250,
+      rebuyEnabled: true,
+      players: scoreRows.map((r) => ({ playerId: r.playerId, displayName: r.displayName })),
+      rng: () => 0.1,
+    });
+    assert.ok(plan);
+    assert.equal(plan.plan.length, 1);
+    assert.equal(plan.plan[0].playerId, "bot_a");
+  });
+
+  it("buildBotRebuySettlementPlan skips when rebuy disabled", () => {
+    const scoreRows = [
+      { playerId: "bot_a", displayName: "Liam", isRobot: true, bankroll: 0, out: true },
+    ];
+    const plan = buildBotRebuySettlementPlan({
+      scoreRows,
+      solventBankrolls: { bot_a: 0 },
+      buyIn: 100,
+      rebuyEnabled: false,
+      players: [],
+    });
+    assert.equal(plan, null);
+  });
+
+  it("re-enrollment includes rebought bot when eligible ids use fresh score rows", () => {
+    const sortedIds = ["human", "bot_a"];
+    const staleScoreById = {
+      human: { bankroll: 80, out: false },
+      bot_a: { bankroll: 0, out: true },
+    };
+    const freshScoreById = {
+      human: { bankroll: 80, out: false },
+      bot_a: { bankroll: 250, out: false },
+    };
+    const staleEligible = eligibleIdsForAnteCollection(sortedIds, staleScoreById, 250);
+    const freshEligible = eligibleIdsForAnteCollection(sortedIds, freshScoreById, 250);
+    assert.deepEqual(staleEligible, ["human"]);
+    assert.deepEqual(freshEligible, ["human", "bot_a"]);
+  });
+
+  it("scoreRowsAfterSettlement marks busted stacks out", () => {
+    const rows = scoreRowsAfterSettlement({
+      scoreRows: [{ playerId: "bot_a", isRobot: true, bankroll: 10 }],
+      solventBankrolls: { bot_a: 0 },
+      buyIn: 100,
+    });
+    assert.equal(rows[0].bankroll, 0);
+    assert.equal(rows[0].out, true);
   });
 });

@@ -104,6 +104,7 @@ import {
   splitPotVoteAllowed,
 } from "./bourre-rules.js";
 import {
+  buildBotRebuySettlementPlan,
   planBotAutoRebuys,
   patchSessionPlayersWithRebuyNames,
   sessionHasRobotScores,
@@ -880,7 +881,8 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
  * After full hand settlement, auto-rebuy busted bots (not humans).
  * Assigns a fresh random display name; keeps the same bot_* player id.
  */
-async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn }) {
+async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, rebuyEnabled = true }) {
+  if (!rebuyEnabled) return { applied: [] };
   const [sessionSnap, scoreSnap] = await Promise.all([
     getDoc(sessionDoc(roomId, sessionId)),
     getDocs(scoresCol(roomId, sessionId)),
@@ -2781,7 +2783,36 @@ async function recordHandClient(
     winners,
     bourreRemaindersByPlayer: bourreRemainders,
   });
-  batch.update(sessionDoc(roomId, sessionId), {
+
+  const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
+  const botRebuyPlan = buildBotRebuySettlementPlan({
+    scoreRows: scoreRowsForRebuy,
+    solventBankrolls: solvent.bankrolls,
+    buyIn,
+    rebuyEnabled: roomBourre.rebuyEnabled === true,
+    players: sessionData.players,
+    tableOptInIds: sessionData.tableOptInIds || [],
+  });
+  if (botRebuyPlan) {
+    for (const item of botRebuyPlan.plan) {
+      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+        bankroll: buyIn,
+        out: deleteField(),
+        displayName: item.displayName,
+        updatedAt: serverTimestamp(),
+      });
+    }
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: botRebuyPlan.plan.map((p) => p.playerId),
+      names: botRebuyPlan.plan.map((p) => p.displayName),
+      buyIn,
+      phase: "settlement-batch",
+    });
+  }
+
+  const sessionUpdate = {
     handCount: handNumber,
     handStakeLocked: true,
     carryOverPot,
@@ -2791,7 +2822,12 @@ async function recordHandClient(
     ...clearedEnrollmentBetweenHands(),
     currentHand: emptyPreDealHand(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (botRebuyPlan) {
+    sessionUpdate.players = botRebuyPlan.players;
+    sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
+  }
+  batch.update(sessionDoc(roomId, sessionId), sessionUpdate);
 
   try {
     await batch.commit();
@@ -2800,7 +2836,10 @@ async function recordHandClient(
   }
 
   try {
-    await applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn });
+    await applyBotAutoRebuysAfterSettlement(roomId, sessionId, {
+      buyIn,
+      rebuyEnabled: roomBourre.rebuyEnabled === true,
+    });
   } catch (err) {
     console.warn("recordHand: bot auto-rebuy deferred", err);
   }
@@ -3724,20 +3763,12 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings);
   const sessionStake = data.handStake ?? 1;
-  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
-
-  const eligibleIds = sortedIds.filter((id) => {
-    const row = scoreById[id];
-    if (row?.out === true) return false;
-    return canEnrollWithBankroll(scoreBankroll(row, buyIn));
-  });
-  if (eligibleIds.length < 1) {
-    throw enrollmentStartFailure(data, scoreSnap, "enrollment_failed");
-  }
 
   const dealContextBase = {
     sessionStake,
     buyIn,
+    sortedIds,
+    dealingRule,
   };
   await runEnrollmentStepTransaction(
     roomId,
@@ -3751,6 +3782,12 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
       const freshTrickProgress = Object.values(freshTricks).some((n) => (n || 0) > 0);
       if (freshPids.length > 0 && !freshPhase && !freshTrickProgress) return null;
       if (freshPids.length > 0 && handPhaseStarted(freshHand)) return null;
+      const eligibleIds = eligibleIdsForAnteCollection(
+        sortedIds,
+        freshScoreById,
+        buyIn,
+      );
+      if (eligibleIds.length < 1) return null;
       return buildDealCompletionPatch(
         freshData.dealerId,
         eligibleIds,

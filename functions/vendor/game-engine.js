@@ -321,7 +321,7 @@ function fe(e) {
 }
 function M(e, t, n) {
 	let r = [...t], i = j(n), a = n.trumpUpcard;
-	return !i || e !== i || !a || r.some((e) => w(e, a)) || r.push(a), r;
+	return !i || e !== i || !a ? r : r.some((e) => w(e, a)) ? r.filter((e) => !w(e, a)) : (r.push(a), r);
 }
 function N(e, t, n) {
 	let r = j(n), i = n.trumpUpcard;
