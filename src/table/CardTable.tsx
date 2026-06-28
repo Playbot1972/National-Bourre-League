@@ -62,6 +62,7 @@ interface CardTableProps {
   onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
   onReaction?: (emoji: string) => void;
+  onHeroUserActivity?: () => void;
 }
 
 export function CardTable({
@@ -97,6 +98,7 @@ export function CardTable({
   onFoldDraw,
   onPlayCard,
   onReaction,
+  onHeroUserActivity,
 }: CardTableProps) {
   const feltPlayers = players.map((player) => ({
     ...player,
@@ -370,6 +372,7 @@ export function CardTable({
         tableRootRef={wrapRef}
         pileIndexRef={pileIndexRef}
         onDiscardCommitted={commitDiscardCards}
+        onUserActivity={onHeroUserActivity}
       />
     </div>
   );

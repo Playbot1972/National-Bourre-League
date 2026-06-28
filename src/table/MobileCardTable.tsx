@@ -70,6 +70,7 @@ interface MobileCardTableProps {
   onPassDraw?: () => void | Promise<void>;
   onFoldDraw?: () => void | Promise<void>;
   onPlayCard?: (cardIndex: number) => void | Promise<void>;
+  onHeroUserActivity?: () => void;
 }
 
 export function MobileCardTable({
@@ -104,6 +105,7 @@ export function MobileCardTable({
   onPassDraw,
   onFoldDraw,
   onPlayCard,
+  onHeroUserActivity,
 }: MobileCardTableProps) {
   const layoutMode = useTableLayoutMode();
   const orientation: MobileOrientation =
@@ -425,6 +427,7 @@ export function MobileCardTable({
           tableRootRef={wrapRef}
           pileIndexRef={pileIndexRef}
           onDiscardCommitted={commitDiscardCards}
+          onUserActivity={onHeroUserActivity}
         />
         </div>
         {enrollmentActive && !selfPlayer?.inHand && (

@@ -24,6 +24,7 @@ import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
+import { InactivityHelper } from "./InactivityHelper";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
@@ -313,7 +314,9 @@ export function TableSessionView({
     handComplete,
   });
   const actionCue =
-    localActionRequired && !handComplete
+    localActionRequired &&
+    !handComplete &&
+    (enrollmentActive || session.phase === "decision")
       ? formatLocalActionCue(session.phase, enrollmentActive)
       : null;
   const waitingCue =
@@ -337,6 +340,21 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
+
+  const [heroHasInteracted, setHeroHasInteracted] = useState(false);
+  useEffect(() => {
+    setHeroHasInteracted(false);
+  }, [turnReminderActivityKey]);
+
+  const handleHeroUserActivity = useCallback(() => {
+    setHeroHasInteracted(true);
+  }, []);
+
+  const inactivityHelperRequired =
+    localActionRequired &&
+    !handComplete &&
+    !heroHasInteracted &&
+    (session.phase === "draw" || session.phase === "play");
 
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
@@ -440,8 +458,9 @@ export function TableSessionView({
         return actions.onPlayCard(effective);
       },
       onReaction: handleReaction,
+      onHeroUserActivity: handleHeroUserActivity,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, handleHeroUserActivity],
   );
 
   const sharedTableProps = {
@@ -640,19 +659,15 @@ export function TableSessionView({
             {actionCue}
           </p>
         )}
+        <InactivityHelper
+          actionRequired={inactivityHelperRequired}
+          activityKey={turnReminderActivityKey}
+          phase={session.phase}
+          hasUserInteracted={heroHasInteracted}
+        />
         {waitingCue && (
           <p className="btable-session__hint btable-session__hint--waiting" data-testid="waiting-cue">
             {waitingCue}
-          </p>
-        )}
-        {session.phase === "draw" && isMyTurn && (
-          <p className="btable-session__hint muted small">
-            Choose cards to discard — selected cards show a red border
-          </p>
-        )}
-        {session.phase === "play" && isMyTurn && (
-          <p className="btable-session__hint muted small">
-            Tap a legal card to play
           </p>
         )}
         {isRevealPhase(session.phase) && (
