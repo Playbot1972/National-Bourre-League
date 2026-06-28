@@ -62,6 +62,8 @@ import {
   buildGameSetupStakesHtml,
   buildSetupRosterHtml,
   buildSessionLiveStatusHtml,
+  readGameSetupBourreFromDom,
+  mergeBourreSettingsWithPending,
 } from "./room-detail-view.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
@@ -1353,6 +1355,8 @@ let tablePlayOpen = false;
 let pendingRoomAnteOverride = null;
 /** Local buy-in override while Bourré settings save or snapshot re-render is in flight. */
 let pendingRoomBuyInOverride = null;
+/** Local LmT / Rebuy / Split pot overrides while save or snapshot re-render is in flight. */
+let pendingRoomBourreOverrides = null;
 let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
@@ -1907,6 +1911,20 @@ function populateCreateRoomAnteSelect(selectEl, current) {
   selectEl.innerHTML = renderAnteSelectOptionsHtml(current, escapeHtml);
 }
 
+function captureGameSetupBourreFromDom() {
+  const limEl = $("#room-lim-enabled", roomDetailView);
+  const rebuyEl = $("#room-rebuy-enabled", roomDetailView);
+  const splitPotEl = $("#room-split-pot-enabled", roomDetailView);
+  if (!limEl && !rebuyEl && !splitPotEl) return;
+  pendingRoomBourreOverrides = readGameSetupBourreFromDom(roomDetailView);
+}
+
+function resolveRoomBourreSettings(roomBs) {
+  return normalizeBourreSettings(
+    mergeBourreSettingsWithPending(roomBs, pendingRoomBourreOverrides),
+  );
+}
+
 function saveRoomBourreSettingsFromForm() {
   const buyInEl = $("#room-buy-in-amount", roomDetailView);
   const anteEl = $("#room-ante-amount", roomDetailView);
@@ -1919,6 +1937,7 @@ function saveRoomBourreSettingsFromForm() {
   const limEnabled = limEl.checked;
   const rebuyEnabled = rebuyEl?.checked === true;
   const splitPotEnabled = splitPotEl?.checked === true;
+  pendingRoomBourreOverrides = { limEnabled, rebuyEnabled, splitPotEnabled };
   updateRoomBourreSettings(currentRoomId, {
     buyInAmount: pendingRoomBuyInOverride,
     anteAmount: pendingRoomAnteOverride,
@@ -1929,6 +1948,7 @@ function saveRoomBourreSettingsFromForm() {
     .then(() => {
       pendingRoomBuyInOverride = null;
       pendingRoomAnteOverride = null;
+      pendingRoomBourreOverrides = null;
       syncAnteSelectToAmount($("#room-ante-amount", roomDetailView), anteEl.value);
       return syncOpenSessionLimEnabled(limEnabled);
     })
@@ -2057,7 +2077,13 @@ function waitUntil(predicate, { timeoutMs = 20000, intervalMs = 80, label = "ope
 /**
  * Create and open a regional session using the same Firestore path as + Open table.
  */
-async function bootstrapNewSession({ buyInAmount, handStake, limEnabled = false }) {
+async function bootstrapNewSession({
+  buyInAmount,
+  handStake,
+  limEnabled = false,
+  rebuyEnabled = false,
+  splitPotEnabled = false,
+}) {
   if (!currentRoomId) throw new Error("Open a room first.");
   const players = currentMembers.map((m) => ({
     playerId: m.userId,
@@ -2078,9 +2104,12 @@ async function bootstrapNewSession({ buyInAmount, handStake, limEnabled = false 
       buyInAmount,
       anteAmount: handStake,
       limEnabled,
+      rebuyEnabled,
+      splitPotEnabled,
     });
     pendingRoomBuyInOverride = null;
     pendingRoomAnteOverride = null;
+    pendingRoomBourreOverrides = null;
   } catch (err) {
     console.warn("updateRoomBourreSettings after create:", err);
   }
@@ -2329,6 +2358,7 @@ function openRoom(roomId) {
   roomDetailView.hidden = false;
   pendingRoomBuyInOverride = null;
   pendingRoomAnteOverride = null;
+  pendingRoomBourreOverrides = null;
   roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
@@ -2345,6 +2375,14 @@ function openRoom(roomId) {
         }
         if (pendingRoomAnteOverride != null && pendingRoomAnteOverride === roomBs.anteAmount) {
           pendingRoomAnteOverride = null;
+        }
+        if (pendingRoomBourreOverrides) {
+          const pending = pendingRoomBourreOverrides;
+          const flagsMatch =
+            (pending.limEnabled == null || pending.limEnabled === roomBs.limEnabled) &&
+            (pending.rebuyEnabled == null || pending.rebuyEnabled === roomBs.rebuyEnabled) &&
+            (pending.splitPotEnabled == null || pending.splitPotEnabled === roomBs.splitPotEnabled);
+          if (flagsMatch) pendingRoomBourreOverrides = null;
         }
       }
       if (room && session?.uid === room.ownerId) {
@@ -3676,6 +3714,7 @@ function renderRoomDetail() {
   }
 
   // Preserve in-progress form state across snapshot re-renders.
+  captureGameSetupBourreFromDom();
   const activeEl = document.activeElement;
   const editingNotes =
     activeEl && activeEl.id === "session-notes"
@@ -3702,7 +3741,7 @@ function renderRoomDetail() {
         }
       : null;
   const hr = currentRoom.houseRules || {};
-  const bourreSettings = normalizeBourreSettings(
+  const bourreSettings = resolveRoomBourreSettings(
     currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
   );
   const openSessionObj = resolveActiveSession();
@@ -4242,13 +4281,24 @@ async function onNewSession() {
     const roomBs = normalizeBourreSettings(
       currentRoom?.bourreSettings || DEFAULT_BOURRE_SETTINGS,
     );
-    const buyInAmount = pendingRoomBuyInOverride ?? roomBs.buyInAmount;
-    const handStake = resolveRoomAnteAmount(pendingRoomAnteOverride, roomBs.anteAmount);
+    const formBs = readGameSetupBourreFromDom(roomDetailView);
+    const buyInAmount = pendingRoomBuyInOverride ?? parseBuyInAmount($("#room-buy-in-amount", roomDetailView)?.value) ?? roomBs.buyInAmount;
+    const handStake = resolveRoomAnteAmount(
+      pendingRoomAnteOverride ?? parseAnteAmount($("#room-ante-amount", roomDetailView)?.value),
+      roomBs.anteAmount,
+    );
+    const limEnabled = pendingRoomBourreOverrides?.limEnabled ?? formBs.limEnabled ?? roomBs.limEnabled;
+    const rebuyEnabled = pendingRoomBourreOverrides?.rebuyEnabled ?? formBs.rebuyEnabled ?? roomBs.rebuyEnabled;
+    const splitPotEnabled =
+      pendingRoomBourreOverrides?.splitPotEnabled ?? formBs.splitPotEnabled ?? roomBs.splitPotEnabled;
+    pendingRoomBourreOverrides = { limEnabled, rebuyEnabled, splitPotEnabled };
 
     await bootstrapNewSession({
       buyInAmount,
       handStake,
-      limEnabled: roomBs.limEnabled,
+      limEnabled,
+      rebuyEnabled,
+      splitPotEnabled,
     });
     showRoomsError("");
     renderRoomDetail();

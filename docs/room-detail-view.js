@@ -40,6 +40,32 @@ export function buildSessionResultsHtml(s, escape = escapeHtml) {
          </div>`;
 }
 
+/** Merge persisted room Bourré flags with local pending overrides (survives snapshot re-renders). */
+export function mergeBourreSettingsWithPending(base, pending = null) {
+  const merged = { ...base };
+  if (!pending) return merged;
+  if (pending.limEnabled != null) merged.limEnabled = pending.limEnabled === true;
+  if (pending.rebuyEnabled != null) merged.rebuyEnabled = pending.rebuyEnabled === true;
+  if (pending.splitPotEnabled != null) merged.splitPotEnabled = pending.splitPotEnabled === true;
+  return merged;
+}
+
+/** Read LmT / Rebuy / Split pot from the in-room game setup panel. */
+export function readGameSetupBourreFromDom(root) {
+  if (!root) {
+    return { limEnabled: false, rebuyEnabled: false, splitPotEnabled: false };
+  }
+  const readChecked = (id) => {
+    const el = root.querySelector(id);
+    return el && typeof el.checked === "boolean" ? el.checked === true : false;
+  };
+  return {
+    limEnabled: readChecked("#room-lim-enabled"),
+    rebuyEnabled: readChecked("#room-rebuy-enabled"),
+    splitPotEnabled: readChecked("#room-split-pot-enabled"),
+  };
+}
+
 export function buildGameSetupStakesHtml(
   isOwner,
   roomBuyInAmount,

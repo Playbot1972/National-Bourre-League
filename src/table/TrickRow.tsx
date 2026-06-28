@@ -57,6 +57,9 @@ export function TrickRow({
     presentationPhase === "trickComplete" ||
     presentationPhase === "winnerReveal";
 
+  const isRake =
+    presentationPhase === "collectTrick";
+
   const isEcho = variant === "echo";
 
   return (
@@ -65,6 +68,7 @@ export function TrickRow({
         "btrick",
         isEcho ? "btrick--echo-pipeline" : "",
         isHold ? "btrick--hold" : "",
+        isRake ? "btrick--rake" : "",
       ]
         .filter(Boolean)
         .join(" ")}

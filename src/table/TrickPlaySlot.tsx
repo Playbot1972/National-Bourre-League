@@ -156,6 +156,7 @@ export function TrickPlaySlot({
 
   const flyStyle: CSSProperties = {
     ["--slot-index" as string]: index,
+    zIndex: 10 + index,
     ...(cssFly
       ? {
           ["--fly-dx" as string]: `${cssFly.dx}px`,

@@ -12487,6 +12487,7 @@ function El({ play: e, index: t, presentationPhase: n, displayCount: r, playerNa
 	]);
 	let D = {
 		"--slot-index": t,
+		zIndex: 10 + t,
 		...f ? {
 			"--fly-dx": `${f.dx}px`,
 			"--fly-dy": `${f.dy}px`
@@ -12541,17 +12542,18 @@ function Dl({ displayPlays: e = [], leaderPlayerId: t = null, winnerPlayerId: n 
 			})
 		})
 	});
-	let c = n ? a[n] ?? "Player" : null, u = i === "trickComplete" || i === "winnerReveal", d = o === "echo";
+	let c = n ? a[n] ?? "Player" : null, u = i === "trickComplete" || i === "winnerReveal", d = i === "collectTrick", f = o === "echo";
 	return /* @__PURE__ */ (0, g.jsx)("div", {
 		className: [
 			"btrick",
-			d ? "btrick--echo-pipeline" : "",
-			u ? "btrick--hold" : ""
+			f ? "btrick--echo-pipeline" : "",
+			u ? "btrick--hold" : "",
+			d ? "btrick--rake" : ""
 		].filter(Boolean).join(" "),
-		"aria-label": d ? void 0 : "Current trick",
-		"aria-hidden": d ? !0 : void 0,
-		"aria-live": d ? void 0 : "polite",
-		"data-testid": d ? "trick-row-echo" : "trick-row",
+		"aria-label": f ? void 0 : "Current trick",
+		"aria-hidden": f ? !0 : void 0,
+		"aria-live": f ? void 0 : "polite",
+		"data-testid": f ? "trick-row-echo" : "trick-row",
 		"data-trick-phase": i,
 		"data-trick-card-count": e.length,
 		"data-trick-variant": o,
@@ -12569,7 +12571,7 @@ function Dl({ displayPlays: e = [], leaderPlayerId: t = null, winnerPlayerId: n 
 				children: e.map((r, o) => /* @__PURE__ */ (0, g.jsx)(El, {
 					play: r,
 					index: o,
-					presentationPhase: d ? "winnerReveal" : i,
+					presentationPhase: f ? "winnerReveal" : i,
 					displayCount: e.length,
 					playerName: a[r.playerId] ?? "Player",
 					leaderPlayerId: t,
@@ -13600,8 +13602,8 @@ function wu(e) {
 var Tu = /* @__PURE__ */ new Set(), Eu = /* @__PURE__ */ new Set(), Du = F.drawDiscard;
 function Ou(e, t) {
 	return {
-		midX: e * .42,
-		midY: t * .42 - Math.max(18, Math.hypot(e, t) * .18)
+		midX: e * .5,
+		midY: t * .5
 	};
 }
 function ku(e, t = document) {
@@ -13678,7 +13680,7 @@ function Ru(e, t) {
 		}
 		let h = a.left + a.width / 2 + u.offsetX, g = a.top + a.height / 2 + u.offsetY, _ = p.left + p.width / 2, v = p.top + p.height / 2, y = h - _, b = g - v, { midX: x, midY: S } = Ou(y, b);
 		d.to(f, {
-			scale: .96,
+			scale: .98,
 			duration: o,
 			ease: N
 		}, m), d.to(f, {
@@ -13756,18 +13758,20 @@ function Hu({ trickPresentation: e, handNumber: t, sessionPhase: n = null, handC
 		a.current = f, u(), Pu(), Wu(o);
 		let p = Bu(o);
 		if (!p.length) return;
-		let m = Math.max(0, (e.displayTricksByPlayer[c] ?? 1) - 1);
-		Ru(p, {
-			winnerPlayerId: c,
-			trickKey: wu({
-				playerId: c,
-				handNumber: t,
-				trickNumber: l.trickNumber
-			}),
-			bookIndex: m,
-			root: o,
-			host: o
-		});
+		let m = Math.max(0, (e.displayTricksByPlayer[c] ?? 1) - 1), h = wu({
+			playerId: c,
+			handNumber: t,
+			trickNumber: l.trickNumber
+		}), g = window.setTimeout(() => {
+			Ru(p, {
+				winnerPlayerId: c,
+				trickKey: h,
+				bookIndex: m,
+				root: o,
+				host: o
+			});
+		}, 220);
+		return () => window.clearTimeout(g);
 	}, [
 		e.phase,
 		e.trickWinnerSeatId,

@@ -660,10 +660,12 @@
   flex-direction: column;
   align-items: center;
   width: 100%;
+  isolation: isolate;
 }
 
 .btrick__cards {
   position: relative;
+  z-index: 1;
   width: calc(
     var(--trick-card-width) + max(0, var(--trick-card-count, 1) - 1) * var(--trick-card-step)
   );
@@ -699,7 +701,7 @@
   gap: 2px;
   width: var(--trick-card-width);
   transform: translateX(calc(var(--slot-index, 0) * var(--trick-card-step)));
-  z-index: calc(var(--slot-index, 0) + 1);
+  z-index: calc(10 + var(--slot-index, 0));
   will-change: transform;
 }
 
@@ -737,7 +739,7 @@
   box-shadow: 0 4px 12px rgba(8, 60, 38, 0.45);
   white-space: nowrap;
   animation: btrick-winner-tag var(--trick-winner-highlight-ms, 1600ms) ease;
-  z-index: 30;
+  z-index: 50;
   pointer-events: none;
 }
 
@@ -779,7 +781,7 @@
 }
 
 .btrick__play--settle .pcard {
-  animation: btrick-card-settle var(--trick-card-settle-ms, 140ms) var(--trick-ease-settle, cubic-bezier(0.34, 1.56, 0.64, 1))
+  animation: btrick-card-settle var(--trick-card-settle-ms, 140ms) var(--trick-ease-shift, cubic-bezier(0.2, 0, 0, 1))
     forwards;
 }
 
@@ -787,16 +789,9 @@
   0% {
     transform: scale(1);
   }
-  55% {
-    transform: scale(1.04);
-  }
   100% {
     transform: scale(1);
   }
-}
-
-.btrick__play--leading {
-  z-index: 11;
 }
 
 .btrick__play--leading .pcard--trick-leading {
@@ -804,7 +799,7 @@
 }
 
 .btrick__play--winner .pcard--winner {
-  z-index: 12;
+  position: relative;
 }
 
 .btrick__play--winner .pcard--winner .pcard__surface {
@@ -838,6 +833,19 @@
   filter: grayscale(0.2) brightness(0.92);
 }
 
+/* Trick collection — compress cards into a tight overlapping line before fly-to-pile */
+.btrick--rake {
+  --trick-rake-step: 16px;
+}
+
+.btrick--rake .btrick__play,
+.btrick--rake .btrick__play--landed,
+.btrick--rake .btrick__play--settled.btrick__play--static-landed,
+.btrick--rake .btrick__play--landed.btrick__play--static-landed {
+  transform: translateX(calc(var(--slot-index, 0) * var(--trick-rake-step, 16px)));
+  transition: transform var(--trick-rake-ms, 220ms) var(--trick-ease-shift, cubic-bezier(0.2, 0, 0, 1));
+}
+
 /* Trick sweep gather — see cardAnimations.css (.btrick--sweep .btrick__surface) */
 
 @keyframes btrick-winner-tag {
@@ -854,11 +862,11 @@
 @keyframes btrick-sweep {
   0% {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translate3d(0, 0, 0);
   }
   100% {
     opacity: 0;
-    transform: scale(0.82) translateY(-8px);
+    transform: scale(0.94) translate3d(0, 0, 0);
   }
 }
 
