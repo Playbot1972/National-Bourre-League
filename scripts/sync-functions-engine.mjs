@@ -17,6 +17,8 @@ const copies = [
   ["docs/bourre-rules.js", "bourre-rules.js"],
   ["docs/risk-stakes.js", "risk-stakes.js"],
   ["docs/session-startup.js", "session-startup.js"],
+  ["docs/play-now.js", "play-now.js"],
+  ["docs/bot-rebuy.js", "bot-rebuy.js"],
 ];
 
 for (const [src, dest] of copies) {
