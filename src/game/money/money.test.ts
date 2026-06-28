@@ -44,7 +44,7 @@ function postedAnteHand(scoreById: Record<string, { bankroll: number; net: numbe
 }
 
 describe("money engine — 3-player $20 ante (PR #344)", () => {
-  it("winner takes pot; bourré pays at settlement; next pot = carry + two antes", () => {
+  it("winner takes pot; bourré pays at next-hand funding; next pot = bourré penalty + antes", () => {
     const scoreById = freshScores();
     const before = sessionChipTotal(scoreById, { buyInFallback: buyIn });
     assert.equal(before, 300);
@@ -68,10 +68,11 @@ describe("money engine — 3-player $20 ante (PR #344)", () => {
 
     assert.equal(settlement.scoreById.human.bankroll, 140);
     assert.equal(settlement.scoreById.bot1.bankroll, 80);
-    assert.equal(settlement.scoreById.bot2.bankroll, 20);
-    assert.equal(settlement.carryOverPot, 60);
+    assert.equal(settlement.scoreById.bot2.bankroll, 80);
+    assert.equal(settlement.carryOverPot, 0);
     assert.equal(settlement.scoreById.bot2.skipNextAnte, true);
     assert.equal(settlement.scoreById.bot1.skipNextAnte, undefined);
+    assert.equal(settlement.nextDealFunding.byPlayer.bot2.fundingContribution, 60);
 
     assertChipConservation(
       Object.fromEntries(
@@ -89,7 +90,8 @@ describe("money engine — 3-player $20 ante (PR #344)", () => {
       buyInFallback: buyIn,
     });
 
-    assert.equal(next.collected.postedAntes.bot2, 0);
+    assert.equal(next.collected.postedAntes.bot2, 60);
+    assert.equal(next.collected.bankrolls.bot2, 20);
     assert.equal(next.collected.postedAntes.human, ante);
     assert.equal(next.collected.postedAntes.bot1, ante);
     assert.equal(next.nextHandPot, 100);
@@ -126,7 +128,7 @@ describe("money engine — 3-player $20 ante (PR #344)", () => {
     });
 
     assert.equal(flow.deal.nextHandPot, 100);
-    assert.equal(flow.settlement.carryOverPot, 60);
+    assert.equal(flow.settlement.carryOverPot, 0);
   });
 });
 
@@ -188,7 +190,7 @@ describe("money engine — edge cases", () => {
       buyInFallback: buyIn,
     });
 
-    assert.equal(settlement.carryOverPot, 80);
+    assert.equal(settlement.carryOverPot, 0);
     assert.equal(settlement.scoreById.p4.bourreReplacementDue, 20);
     assert.ok(
       isChipConserved(
@@ -269,7 +271,7 @@ describe("money engine — event sourcing", () => {
       { version: MONEY_ENGINE_VERSION, buyInFallback: buyIn, bankrolls: {}, nets: {}, carryOverPot: 0, postedAntes: {}, scoreFlags: {}, sequence: 0 },
     );
     assert.equal(replayed.bankrolls.human, r.newBankrolls.human);
-    assert.equal(replayed.carryOverPot, 60);
+    assert.equal(replayed.carryOverPot, 0);
   });
 
   it("duplicate settlement action is idempotent", () => {

@@ -10,7 +10,9 @@ import { MONEY_ENGINE_VERSION } from "./types";
 import { hasActionBeenApplied, makeEventId } from "./idempotency";
 import { emptyLedgerState, ledgerChipTotal, replayEvents } from "./replay";
 import { recordHandSettlement, startNextHandFunding } from "./pipeline";
+import { computeRebuyContributions } from "./canonical";
 import { scoreBankroll, sessionChipTotal } from "./core";
+import { tableChipTotal, validateChipGrowthInvariant } from "./conservation";
 
 function nextSequence(state: MoneyLedgerState, events: MoneyEvent[]): number {
   const maxIn = events.reduce((m, e) => Math.max(m, e.sequence), 0);
@@ -20,12 +22,33 @@ function nextSequence(state: MoneyLedgerState, events: MoneyEvent[]): number {
 function buildInvariantReport(
   state: MoneyLedgerState,
   expectedTotal?: number,
+  growthContext?: {
+    before: Parameters<typeof tableChipTotal>[0];
+    rebuyContributionByPlayer?: Record<string, number>;
+    bourrePenaltyToPotByPlayer?: Record<string, number>;
+    label?: string;
+  },
 ): MoneyInvariantReport {
   const chipTotal = ledgerChipTotal(state);
   const errors: string[] = [];
   const warnings: string[] = [];
   if (expectedTotal != null && chipTotal !== expectedTotal) {
     errors.push(`chip total ${chipTotal} !== expected ${expectedTotal}`);
+  }
+  if (growthContext) {
+    const after = {
+      bankrolls: state.bankrolls,
+      carryOverPot: state.carryOverPot,
+      postedAntes: state.postedAntes,
+    };
+    const growth = validateChipGrowthInvariant({
+      before: growthContext.before,
+      after,
+      rebuyContributionByPlayer: growthContext.rebuyContributionByPlayer,
+      bourrePenaltyToPotByPlayer: growthContext.bourrePenaltyToPotByPlayer,
+      label: growthContext.label,
+    });
+    errors.push(...growth.errors);
   }
   for (const [pid, br] of Object.entries(state.bankrolls)) {
     if (br < 0) errors.push(`negative bankroll for ${pid}: ${br}`);
@@ -173,6 +196,14 @@ export function processAnte(input: ProcessAnteInput): MoneyEngineResult & {
     buyInFallback,
   });
 
+  const beforeSnapshot = {
+    bankrolls: Object.fromEntries(
+      participantIds.map((pid) => [pid, scoreBankroll(scoreById[pid], buyInFallback)]),
+    ),
+    carryOverPot,
+    postedAntes: {},
+  };
+
   const deal = startNextHandFunding({
     scoreById,
     nextDealFunding: nextDealFunding ?? {
@@ -211,7 +242,10 @@ export function processAnte(input: ProcessAnteInput): MoneyEngineResult & {
     ...ledger,
     carryOverPot,
   });
-  const invariants = buildInvariantReport(replayed, beforeTotal);
+  const invariants = buildInvariantReport(replayed, beforeTotal, {
+    before: beforeSnapshot,
+    label: "ante_collect",
+  });
 
   return {
     delta: Object.fromEntries(
@@ -491,6 +525,15 @@ export function processRebuy(input: ProcessRebuyInput): MoneyEngineResult {
     };
   }
 
+  const { rebuyContributionByPlayer } = computeRebuyContributions({
+    stackByPlayer: ledger.bankrolls,
+    participantIds: [playerId],
+    rebuyEnabled: true,
+    rebuyAmount: buyInAmount,
+    rebuyPlayerIds: [playerId],
+  });
+  const rebuyAmount = rebuyContributionByPlayer[playerId] ?? buyInAmount;
+
   const beforeTotal = ledgerChipTotal(ledger);
   let seq = nextSequence(ledger, existingEvents);
   const newEvents: MoneyEvent[] = [
@@ -502,17 +545,29 @@ export function processRebuy(input: ProcessRebuyInput): MoneyEngineResult {
       sequence: seq,
       type: "REBUY_APPLIED",
       playerId,
-      amount: buyInAmount,
-      metadata: {},
+      amount: rebuyAmount,
+      metadata: { fundingReason: "rebuy" },
       timestamp: Date.now(),
     },
   ];
 
+  const beforeSnapshot = {
+    bankrolls: Object.fromEntries(
+      Object.keys(ledger.bankrolls).map((pid) => [pid, ledger.bankrolls[pid] ?? 0]),
+    ),
+    carryOverPot: ledger.carryOverPot,
+    postedAntes: { ...ledger.postedAntes },
+  };
+
   const replayed = replayEvents([...existingEvents, ...newEvents], ledger);
-  const invariants = buildInvariantReport(replayed, beforeTotal + buyInAmount);
+  const invariants = buildInvariantReport(replayed, beforeTotal + rebuyAmount, {
+    before: beforeSnapshot,
+    rebuyContributionByPlayer: { [playerId]: rebuyAmount },
+    label: "rebuy",
+  });
 
   return {
-    delta: { [playerId]: buyInAmount },
+    delta: { [playerId]: rebuyAmount },
     newEvents,
     newBankrolls: replayed.bankrolls,
     carryOverPot: replayed.carryOverPot,

@@ -1,31 +1,36 @@
 import type {
-  CollectAntesResult,
   RecordHandSettlementInput,
   RecordHandSettlementResult,
   ScoreById,
 } from "./types";
 import {
   anteAlreadyPosted,
-  applyRecordHandFundingToScores,
-  applySolventSettlement,
   bourrePlayerIds,
-  bourreRemaindersFromSettlement,
   collectNextHandAntes,
+  computeHandPotState,
+  deriveScoreNet,
   handAnteContribution,
   mergeNextDealFundingIntoScoreById,
-  deriveScoreNet,
   scoreBankroll,
-  settleHandDeltas,
 } from "./core";
+import {
+  applyFundingWithSolvency,
+  buildNextDealFunding,
+  computeFundingContributionByPlayer,
+  resolveSettlementBranch,
+  runCanonicalMoneyFlow,
+  settleCompletedHand,
+  validateMoneyInvariants,
+} from "./canonical";
 
-export { applyRecordHandFundingToScores, mergeNextDealFundingIntoScoreById };
+export { mergeNextDealFundingIntoScoreById };
 
 /** @deprecated Use recordHandSettlement */
 export const simulateRecordHandSettlement = recordHandSettlement;
 
 /**
- * End-to-end hand settlement: nominal deltas → solvent apply → next-deal funding flags.
- * Mirrors recordHandClient / handleRecordHand money path (no persistence).
+ * End-to-end hand settlement via canonical two-phase money engine.
+ * Phase 1: settle completed hand. Phase 2: compute nextDealFunding (applied at deal).
  */
 export function recordHandSettlement(
   input: RecordHandSettlementInput,
@@ -41,7 +46,8 @@ export function recordHandSettlement(
     carryIn = 0,
     postedAntes = {},
     buyInFallback = 100,
-  } = input;
+    splitPotEnabled = false,
+  } = input as RecordHandSettlementInput & { splitPotEnabled?: boolean };
 
   const antePot = participants.reduce(
     (sum, pid) =>
@@ -49,71 +55,136 @@ export function recordHandSettlement(
       (postedAntes[pid] ?? handAnteContribution(scoreById[pid], sessionStake)),
     0,
   );
-  const stakeForSettlement = (pid: string) =>
-    anteAlreadyPosted(postedAntes, pid)
-      ? 0
-      : handAnteContribution(scoreById[pid], sessionStake);
 
-  const handSettlement = settleHandDeltas({
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
+  const potState = computeHandPotState({
     anteAmount: sessionStake,
     limEnabled,
     carryIn,
     antePot,
-    stakeForPlayer: stakeForSettlement,
   });
 
-  const {
-    deltas: nominalDeltas,
-    carryOverPot: nominalCarry,
-    bourreIds,
-    bourreMatch,
-    potState,
-    pot: grossPot,
-    cappedPot,
-    overflow,
-  } = handSettlement;
+  const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
+  const branch = resolveSettlementBranch(mode, winners, splitPotEnabled);
 
-  const solvent = applySolventSettlement({
-    mode,
-    winners,
+  const stackByPlayer: Record<string, number> = {};
+  for (const pid of participants) {
+    stackByPlayer[pid] = scoreBankroll(scoreById[pid], buyInFallback);
+  }
+
+  const phase1 = settleCompletedHand({
+    completedHandPot: potState.maxWinThisHand,
+    stackByPlayer,
     participants,
-    nominalDeltas,
-    scoreById,
-    carryOverPot: nominalCarry,
-    buyInFallback,
-    stakeForPlayer: stakeForSettlement,
+    singleWinnerId: branch.singleWinnerId,
+    tiedWinnerIds: branch.tiedWinnerIds,
+    bourrePlayerIds: bourreIds,
+    splitPot: branch.splitPot,
+    participantOrder: participants,
   });
 
-  const bourreRemainders = bourreRemaindersFromSettlement(
-    bourreIds,
-    nominalDeltas,
-    solvent.appliedDeltas,
+  const phase2Plan = computeFundingContributionByPlayer({
+    settledStackByPlayer: phase1.settledStackByPlayer,
+    completedHandPot: potState.maxWinThisHand,
+    carryoverPot: phase1.carryoverPot,
+    anteAmount: sessionStake,
+    participantIds: participants,
+    bourrePlayerIds: bourreIds,
+    tiedWinnerIds: phase1.tiedWinnerIds,
+    splitPot: phase1.splitPot,
+    tie: phase1.tie,
+  });
+
+  const solventFunding = applyFundingWithSolvency(
+    {
+      settledStackByPlayer: phase1.settledStackByPlayer,
+      completedHandPot: potState.maxWinThisHand,
+      carryoverPot: phase1.carryoverPot,
+      anteAmount: sessionStake,
+      participantIds: participants,
+      bourrePlayerIds: bourreIds,
+      tiedWinnerIds: phase1.tiedWinnerIds,
+      splitPot: phase1.splitPot,
+      tie: phase1.tie,
+    },
+    buyInFallback,
   );
+
+  const bourreRemainders = solventFunding.bourreReplacementRemainderByPlayer;
+
+  const nextDealFunding = buildNextDealFunding(
+    phase1,
+    {
+      ...phase2Plan,
+      nextStartStackByPlayer: solventFunding.collected.bankrolls,
+      nextPot: solventFunding.nextPot,
+      carryoverPot: phase1.carryoverPot,
+    },
+    participants,
+    bourreRemainders,
+  );
+
+  for (const pid of participants) {
+    const remainder = bourreRemainders[pid];
+    if (remainder != null && remainder > 0 && nextDealFunding.byPlayer[pid]) {
+      nextDealFunding.byPlayer[pid].bourreReplacementDue = remainder;
+      nextDealFunding.byPlayer[pid].fundingContribution = remainder;
+      nextDealFunding.byPlayer[pid].fundingReason = "bourre_full_pot_penalty";
+    }
+  }
+
+  const appliedDeltas: Record<string, number> = {};
+  const bankrolls: Record<string, number> = {};
+  for (const pid of participants) {
+    const before = stackByPlayer[pid] ?? 0;
+    const after = phase1.settledStackByPlayer[pid] ?? before;
+    appliedDeltas[pid] = after - before;
+    bankrolls[pid] = after;
+  }
 
   const bankrolled: ScoreById = { ...scoreById };
   for (const pid of participants) {
-    const bankroll =
-      solvent.bankrolls[pid] ?? scoreBankroll(bankrolled[pid], buyInFallback);
-    bankrolled[pid] = {
-      ...bankrolled[pid],
-      bankroll,
-      net: deriveScoreNet(bankroll, buyInFallback),
-    };
+    const bankroll = bankrolls[pid] ?? scoreBankroll(bankrolled[pid], buyInFallback);
+    const row = { ...bankrolled[pid], bankroll, net: deriveScoreNet(bankroll, buyInFallback) };
+    const flags = nextDealFunding.byPlayer[pid];
+    if (flags?.skipNextAnte) row.skipNextAnte = true;
+    if (flags?.bourreReplacementDue != null) {
+      row.bourreReplacementDue = flags.bourreReplacementDue;
+    }
+    if (flags?.fundingContribution != null) {
+      row.fundingContribution = flags.fundingContribution;
+    }
+    bankrolled[pid] = row;
   }
 
-  const funded = applyRecordHandFundingToScores({
-    scoreById: bankrolled,
-    participants,
-    mode,
-    winners,
-    bourreIds,
-    potState,
-    bourreRemaindersByPlayer: bourreRemainders,
+  const canonicalResult = {
+    ...phase1,
+    ...phase2Plan,
+    rebuyContributionByPlayer: {},
+    splitPayoutByPlayer: phase1.splitPayoutByPlayer,
+    nextStartStackByPlayer: Object.fromEntries(
+      participants.map((pid) => [
+        pid,
+        Math.max(
+          0,
+          (phase1.settledStackByPlayer[pid] ?? 0) -
+            (phase2Plan.fundingContributionByPlayer[pid] ?? 0),
+        ),
+      ]),
+    ),
+    nextPot: nextDealFunding.nextPot,
+  };
+
+  validateMoneyInvariants({
+    result: canonicalResult,
+    participantIds: participants,
+    anteAmount: sessionStake,
+    stackBeforeSettlement: stackByPlayer,
+    carryInBeforeSettlement: carryIn,
+    postedAntesBeforeSettlement: postedAntes,
   });
+
+  const nominalDeltas = { ...appliedDeltas };
+  const bourreMatch = bourreIds.length * potState.maxWinThisHand;
 
   return {
     mode,
@@ -121,22 +192,38 @@ export function recordHandSettlement(
     participants,
     bourreIds,
     potState,
-    grossPot,
-    cappedPot,
-    overflow,
+    grossPot: potState.currentPot,
+    cappedPot: potState.maxWinThisHand,
+    overflow: potState.overflow,
     bourreMatch,
     nominalDeltas,
-    appliedDeltas: solvent.appliedDeltas,
-    carryOverPot: solvent.carryOverPot,
-    bankrolls: solvent.bankrolls,
+    appliedDeltas,
+    carryOverPot: phase1.carryoverPot,
+    bankrolls,
     bourreRemainders,
-    scoreById: funded.scoreById,
-    nextDealFunding: funded.nextDealFunding,
-    solvent,
+    scoreById: bankrolled,
+    nextDealFunding: {
+      ...nextDealFunding,
+      settledPot: potState.maxWinThisHand,
+    },
+    solvent: {
+      appliedDeltas,
+      bankrolls,
+      bustedIds: [],
+      outIds: participants.filter((pid) => (bankrolls[pid] ?? 0) <= 0),
+      carryOverPot: phase1.carryoverPot,
+      shortfall: 0,
+    },
     debug: {
-      ...funded.debug,
+      settledPot: potState.currentPot,
       settledHandPot: potState.currentPot,
-      carryOverPot: solvent.carryOverPot,
+      carryOverPot: phase1.carryoverPot,
+      activePlayers: [...participants],
+      bourrePlayers: [...bourreIds],
+      bourreReplacementDuePersisted: bourreRemainders,
+      fundingFlagsRead: Object.fromEntries(
+        participants.map((pid) => [pid, nextDealFunding.byPlayer[pid] ?? {}]),
+      ),
     },
   };
 }
@@ -148,11 +235,10 @@ export interface StartNextHandFundingInput {
   participantIds: string[];
   sessionStake?: number;
   buyInFallback?: number;
-  /** Simulate stale deal read omitting bourré flags */
   staleScoreById?: ScoreById | null;
 }
 
-/** Mirror buildPagatHandStartPatch ante collection (no card deal). */
+/** Apply authoritative nextDealFunding at deal start (no alternate math). */
 export function startNextHandFunding(input: StartNextHandFundingInput) {
   const {
     scoreById,
@@ -166,6 +252,78 @@ export function startNextHandFunding(input: StartNextHandFundingInput) {
 
   const readRows = staleScoreById ?? scoreById;
   const merged = mergeNextDealFundingIntoScoreById(readRows, nextDealFunding);
+
+  const hasAuthoritativeFunding =
+    nextDealFunding?.fundingContributionByPlayer != null ||
+    Object.values(nextDealFunding?.byPlayer ?? {}).some(
+      (f) => f?.fundingContribution != null,
+    );
+
+  if (hasAuthoritativeFunding && nextDealFunding) {
+    const settledStackByPlayer: Record<string, number> = {};
+    for (const pid of participantIds) {
+      settledStackByPlayer[pid] = scoreBankroll(merged[pid], buyInFallback);
+    }
+
+    const fundingInput = {
+      settledStackByPlayer,
+      completedHandPot:
+        nextDealFunding.completedHandPot ??
+        nextDealFunding.settledPot ??
+        0,
+      carryoverPot: carryOverPot,
+      anteAmount: sessionStake,
+      participantIds,
+      bourrePlayerIds: nextDealFunding.bourrePlayerIds ?? [],
+      tiedWinnerIds: nextDealFunding.tiedWinnerIds ?? [],
+      splitPot: nextDealFunding.splitPot === true,
+      tie: nextDealFunding.tie === true,
+      bourreReplacementRemainderByPlayer: Object.fromEntries(
+        participantIds
+          .map((pid) => [pid, merged[pid]?.bourreReplacementDue ?? null] as const)
+          .filter(([, v]) => v != null && v > 0),
+      ),
+    };
+
+    const solvent = applyFundingWithSolvency(fundingInput, buyInFallback);
+
+    const fundingFromStorage = Object.fromEntries(
+      participantIds.map((pid) => [
+        pid,
+        {
+          bourreReplacementDue: merged[pid]?.bourreReplacementDue ?? null,
+          skipNextAnte: merged[pid]?.skipNextAnte === true,
+          fundingContribution:
+            nextDealFunding.byPlayer[pid]?.fundingContribution ??
+            nextDealFunding.fundingContributionByPlayer?.[pid] ??
+            null,
+          fundingReason: nextDealFunding.byPlayer[pid]?.fundingReason ?? null,
+        },
+      ]),
+    );
+
+    return {
+      collected: {
+        ...solvent.collected,
+        carryIn: carryOverPot,
+        antePot: Object.values(solvent.collected.postedAntes).reduce(
+          (s, n) => s + n,
+          0,
+        ),
+        nextHandPot: solvent.nextPot,
+      },
+      mergedScoreById: merged,
+      nextHandPot: solvent.nextPot,
+      debug: {
+        nextDealFundingFlagsReadFromStorage: fundingFromStorage,
+        finalAntesCollected: { ...solvent.collected.postedAntes },
+        nextHandPot: solvent.nextPot,
+        usedStaleRead: staleScoreById != null,
+        canonicalFunding: true,
+      },
+    };
+  }
+
   const collected = collectNextHandAntes({
     carryOverPot,
     participantIds,
@@ -193,6 +351,7 @@ export function startNextHandFunding(input: StartNextHandFundingInput) {
       finalAntesCollected: { ...collected.postedAntes },
       nextHandPot: collected.nextHandPot,
       usedStaleRead: staleScoreById != null,
+      canonicalFunding: false,
     },
   };
 }
@@ -200,7 +359,6 @@ export function startNextHandFunding(input: StartNextHandFundingInput) {
 /** @deprecated Use startNextHandFunding */
 export const simulatePagatHandStartFunding = startNextHandFunding;
 
-/** Settlement → next-deal ante collection with optional stale-read simulation. */
 export function runHandMoneyFlow(
   input: RecordHandSettlementInput,
   options: { staleDealRead?: boolean } = {},
@@ -212,6 +370,7 @@ export function runHandMoneyFlow(
           const row = { ...settlement.scoreById[pid] };
           delete row.bourreReplacementDue;
           delete row.skipNextAnte;
+          delete row.fundingContribution;
           return [pid, row];
         }),
       )
@@ -254,3 +413,5 @@ export function bourreIdsFromTricks(
 ) {
   return bourrePlayerIds(tricksByPlayer, participants);
 }
+
+export { runCanonicalMoneyFlow, validateMoneyInvariants };

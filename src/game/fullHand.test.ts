@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { settleHandDeltas } from "../../docs/bourre-rules.js";
+import { settleHandDeltas } from "./money/index";
 import { deriveWinnersFromTricks } from "../table/logic";
 import { nextDealerId } from "../session/logic";
 import {
@@ -101,8 +101,8 @@ describe("E/H — settlement integration", () => {
     if (winnerIds.length === 1) {
       assert.ok(result.deltas[winnerIds[0]] > 0);
       if (result.bourreIds.length > 0) {
-        assert.ok(result.carryOverPot > 0);
-        assert.equal(result.carryOverPot, result.bourreMatch);
+        assert.equal(result.carryOverPot, 0);
+        assert.ok(result.bourreMatch > 0);
       }
     }
     if (result.bourreMatch > 0) {
