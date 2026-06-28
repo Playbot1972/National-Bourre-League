@@ -182,6 +182,14 @@ service cloud.firestore {
           allow delete: if isRoomOwner(roomId) && sessionFinal(roomId, sessionId);
         }
 
+        match /moneyEvents/{eventId} {
+          allow read: if isMember(roomId);
+          allow create: if isMember(roomId)
+            && request.resource.data.eventId == eventId
+            && request.resource.data.keys().hasAll(['actionId', 'type', 'sequence', 'phase']);
+          allow update, delete: if false;
+        }
+
         match /privateHands/{playerId} {
           allow read: if isMember(roomId) && (
             request.auth.uid == playerId ||
