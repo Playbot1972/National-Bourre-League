@@ -1,14 +1,26 @@
 export const FEEDBACK_PREFS_KEY = "nbl-feedback";
 
 export type HapticsMode = "on" | "minimal" | "off";
+export type SoundMode = "on" | "minimal" | "off";
+
+import {
+  DEFAULT_SOUND_PACK_ID,
+  normalizeSoundPackId,
+  type SoundEventKey,
+  type SoundPackId,
+} from "./soundPacks";
 
 export interface FeedbackPrefs {
-  soundEnabled: boolean;
+  /** @deprecated Use soundMode — kept for migration reads */
+  soundEnabled?: boolean;
+  soundMode: SoundMode;
+  soundPackId: SoundPackId;
   hapticsMode: HapticsMode;
 }
 
 const DEFAULT_PREFS: FeedbackPrefs = {
-  soundEnabled: true,
+  soundMode: "on",
+  soundPackId: DEFAULT_SOUND_PACK_ID,
   hapticsMode: "on",
 };
 
@@ -22,8 +34,19 @@ function normalizePrefs(raw: unknown): FeedbackPrefs {
       : o.hapticsEnabled === false
         ? "off"
         : "on";
+
+  let soundMode: SoundMode;
+  if (o.soundMode === "on" || o.soundMode === "minimal" || o.soundMode === "off") {
+    soundMode = o.soundMode;
+  } else if (o.soundEnabled === false) {
+    soundMode = "off";
+  } else {
+    soundMode = "on";
+  }
+
   return {
-    soundEnabled: o.soundEnabled !== false,
+    soundMode,
+    soundPackId: normalizeSoundPackId(o.soundPackId),
     hapticsMode,
   };
 }
@@ -47,6 +70,14 @@ export function saveFeedbackPrefs(partial: Partial<FeedbackPrefs>): FeedbackPref
   }
   notifyPrefsListeners(next);
   return next;
+}
+
+/** Whether a sound event should play given the user's sound level preference. */
+export function shouldPlaySoundEvent(mode: SoundMode, event: SoundEventKey): boolean {
+  if (mode === "off") return false;
+  if (mode === "on") return true;
+  // Minimal — only meaningful gameplay moments, skip ambient cues
+  return event === "trickWin" || event === "bigWin" || event === "bourre";
 }
 
 type PrefsListener = (prefs: FeedbackPrefs) => void;

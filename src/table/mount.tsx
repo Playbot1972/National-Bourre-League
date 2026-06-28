@@ -7,6 +7,9 @@ import { clearWonTrickCollectionArtifacts } from "./animations/wonTrickPileMotio
 import {
   initGameFeedback,
   playBigWinFeedback,
+  playBourreFeedback,
+  playDrawFeedback,
+  playGameStartFeedback,
   playShuffleFeedback,
   playTrickWinFeedback,
   getFeedbackPrefs,
@@ -28,6 +31,7 @@ import {
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
+import "./theme/card-packs.css";
 import "../components/PlayingCard.css";
 import "../components/Hand.css";
 import "./cardAnimations.css";
@@ -61,8 +65,11 @@ export function unmountTableSession() {
 export {
   initGameFeedback,
   playShuffleFeedback,
+  playDrawFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
+  playBourreFeedback,
+  playGameStartFeedback,
   getFeedbackPrefs,
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,

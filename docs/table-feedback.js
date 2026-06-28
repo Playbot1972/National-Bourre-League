@@ -27,7 +27,7 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
   if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
     if (next.heroCardKeys !== prev.heroCardKeys) {
       clearPendingDrawShuffle = true;
-      api.playShuffleFeedback?.({ delayMs: 120 });
+      api.playDrawFeedback?.();
     }
   }
 
@@ -37,6 +37,10 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
 
   if (next.handComplete && !prev.handComplete && next.myIsWinner) {
     api.playBigWinFeedback?.();
+  }
+
+  if (myUid && next.myBourre && !prev.myBourre) {
+    api.playBourreFeedback?.();
   }
 
   return { snapshot: next, clearPendingDrawShuffle };

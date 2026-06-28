@@ -1,6 +1,9 @@
+import { DEFAULT_CARD_PACK_ID, normalizeCardPackId, type CardPackId } from "./cardPacks";
+
 export type TableThemeId = "carbon" | "simple" | "night-felt" | "arena";
 export type DeckMode = "classic" | "four-color";
 export type CardScale = "sm" | "md" | "lg";
+export type { CardPackId };
 /** `tiled` is scaffolded for future multi-table monitoring. */
 export type LayoutMode = "single" | "tiled";
 
@@ -14,6 +17,7 @@ export interface TableHotkeyMap {
 
 export interface TableSettings {
   themeId: TableThemeId;
+  cardPackId: CardPackId;
   deckMode: DeckMode;
   cardScale: CardScale;
   highContrast: boolean;
@@ -32,8 +36,16 @@ export const DEFAULT_HOTKEYS: TableHotkeyMap = {
   nextTable: "Tab",
 };
 
+export const CARD_PACK_LABELS = {
+  classic: "Classic",
+  elegant: "Elegant",
+  casino: "Casino",
+  midnight: "Midnight",
+} as const satisfies Record<CardPackId, string>;
+
 export const DEFAULT_TABLE_SETTINGS: TableSettings = {
   themeId: "night-felt",
+  cardPackId: DEFAULT_CARD_PACK_ID,
   deckMode: "classic",
   cardScale: "md",
   highContrast: false,
@@ -61,6 +73,7 @@ export function loadTableSettings(): TableSettings {
     return {
       ...DEFAULT_TABLE_SETTINGS,
       ...parsed,
+      cardPackId: normalizeCardPackId(parsed.cardPackId),
       tableScale: clampTableScale(parsed.tableScale ?? DEFAULT_TABLE_SETTINGS.tableScale),
       hotkeys: { ...DEFAULT_HOTKEYS, ...parsed.hotkeys },
     };
@@ -79,6 +92,7 @@ export function saveTableSettings(settings: TableSettings): void {
 
 export function applyTableSettingsToElement(el: HTMLElement, settings: TableSettings): void {
   el.dataset.tableTheme = settings.themeId;
+  el.dataset.cardPack = settings.cardPackId;
   el.dataset.deckMode = settings.deckMode;
   el.dataset.cardScale = settings.cardScale;
   el.dataset.highContrast = settings.highContrast ? "true" : "false";

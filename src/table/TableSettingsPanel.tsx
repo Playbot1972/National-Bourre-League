@@ -1,6 +1,8 @@
 import { useTableTheme } from "./theme/useTableTheme";
 import {
   TABLE_THEME_LABELS,
+  CARD_PACK_LABELS,
+  type CardPackId,
   type CardScale,
   type DeckMode,
   type LayoutMode,
@@ -36,6 +38,20 @@ export function TableSettingsPanel({ open, onClose }: TableSettingsPanelProps) {
             {(Object.keys(TABLE_THEME_LABELS) as TableThemeId[]).map((id) => (
               <option key={id} value={id}>
                 {TABLE_THEME_LABELS[id]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="bsettings__field">
+          <span>Card style</span>
+          <select
+            value={settings.cardPackId}
+            onChange={(e) => updateSettings({ cardPackId: e.target.value as CardPackId })}
+          >
+            {(Object.keys(CARD_PACK_LABELS) as CardPackId[]).map((id) => (
+              <option key={id} value={id}>
+                {CARD_PACK_LABELS[id]}
               </option>
             ))}
           </select>
