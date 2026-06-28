@@ -34,6 +34,9 @@ export const TRUMP_BEAT_READ_MS = 1800;
 /** Directional collection toward winner seat (250–400 ms). */
 export const TRICK_SWEEP_MS = 520;
 
+/** In-line rake before cards fly to the winner pile. */
+export const TRICK_RAKE_MS = 220;
+
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 200;
 

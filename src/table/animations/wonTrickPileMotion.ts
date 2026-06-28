@@ -18,8 +18,8 @@ export const WON_TRICK_GATHER_MS = 140;
 
 function arcMidpoint(dx: number, dy: number): { midX: number; midY: number } {
   return {
-    midX: dx * 0.42,
-    midY: dy * 0.42 - Math.max(18, Math.hypot(dx, dy) * 0.18),
+    midX: dx * 0.5,
+    midY: dy * 0.5,
   };
 }
 
@@ -192,7 +192,7 @@ export function animateTrickCardsToWonPile(
     tl.to(
       ghost,
       {
-        scale: 0.96,
+        scale: 0.98,
         duration: gatherSec,
         ease: PREMIUM_EASE,
       },

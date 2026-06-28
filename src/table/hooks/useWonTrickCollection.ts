@@ -8,6 +8,7 @@ import {
   readTrickRowCardElements,
   WON_TRICK_FLY_MAX_MS,
 } from "../animations/wonTrickPileMotion";
+import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
 
 export interface UseWonTrickCollectionInput {
@@ -116,13 +117,18 @@ export function useWonTrickCollection({
       trickNumber: frozen.trickNumber,
     });
 
-    animateTrickCardsToWonPile(cardEls, {
-      winnerPlayerId: winnerId,
-      trickKey,
-      bookIndex,
-      root,
-      host: root,
-    });
+    const rakeDelay = TRICK_RAKE_MS;
+    const rakeTimer = window.setTimeout(() => {
+      animateTrickCardsToWonPile(cardEls, {
+        winnerPlayerId: winnerId,
+        trickKey,
+        bookIndex,
+        root,
+        host: root,
+      });
+    }, rakeDelay);
+
+    return () => window.clearTimeout(rakeTimer);
   }, [
     trickPresentation.phase,
     trickPresentation.trickWinnerSeatId,
