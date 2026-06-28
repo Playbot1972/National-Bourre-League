@@ -294,12 +294,12 @@
   animation: pcard-draw-select-pop 340ms var(--pcard-ease-snap);
 }
 .pcard--draw-selected .pcard__surface {
-  border-color: #f4d58d;
+  border-color: #e8344a;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 0 0 3px #f4d58d,
-    0 0 0 5px rgba(54, 185, 124, 0.45),
-    0 0 24px rgba(244, 213, 141, 0.4),
+    0 0 0 3px #e8344a,
+    0 0 0 5px rgba(232, 52, 74, 0.35),
+    0 0 24px rgba(232, 52, 74, 0.45),
     0 22px 40px rgba(0, 0, 0, 0.48);
 }
 
