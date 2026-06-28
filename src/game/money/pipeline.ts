@@ -79,6 +79,7 @@ export function recordHandSettlement(
     tiedWinnerIds: branch.tiedWinnerIds,
     bourrePlayerIds: bourreIds,
     splitPot: branch.splitPot,
+    potCarry: branch.potCarry === true,
     participantOrder: participants,
   });
 

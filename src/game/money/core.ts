@@ -150,16 +150,7 @@ export function settleHandDeltas({
     antePot,
   });
   const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
-  const branch =
-    mode === "split"
-      ? { splitPot: true, tiedWinnerIds: winners, singleWinnerId: null }
-      : mode === "win" && winners.length === 1
-        ? { splitPot: false, tiedWinnerIds: [], singleWinnerId: winners[0] }
-        : {
-            splitPot: splitPotEnabled && mode === "split",
-            tiedWinnerIds: winners,
-            singleWinnerId: null,
-          };
+  const branch = resolveSettlementBranch(mode, winners, splitPotEnabled);
 
   const stackByPlayer = Object.fromEntries(
     participants.map((pid) => [pid, 100]),
@@ -172,6 +163,7 @@ export function settleHandDeltas({
     tiedWinnerIds: branch.tiedWinnerIds,
     bourrePlayerIds: bourreIds,
     splitPot: branch.splitPot,
+    potCarry: branch.potCarry === true,
     participantOrder: participants,
   });
 

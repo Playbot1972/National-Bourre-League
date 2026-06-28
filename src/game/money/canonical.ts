@@ -52,6 +52,8 @@ export interface SettleCompletedHandInput {
   tiedWinnerIds?: string[];
   bourrePlayerIds?: string[];
   splitPot: boolean;
+  /** Push / unanimous carry — full pot rolls without payout. */
+  potCarry?: boolean;
   /** Canonical seat order for deterministic split remainder. */
   seatOrder?: string[];
   /** @deprecated Use seatOrder */
@@ -211,11 +213,12 @@ export function settleCompletedHand(input: SettleCompletedHandInput): Pick<
     tiedWinnerIds = [],
     bourrePlayerIds = [],
     splitPot,
+    potCarry = false,
     seatOrder = input.participantOrder ?? participants,
   } = input;
 
   const pot = Math.max(0, Number(completedHandPot) || 0);
-  const tie = tiedWinnerIds.length >= 2;
+  const tie = tiedWinnerIds.length >= 2 || potCarry;
   const payoutByPlayer: Record<string, number> = {};
   const splitPayoutByPlayer: Record<string, number> = {};
   const settledStackByPlayer: Record<string, number> = {};
@@ -429,13 +432,22 @@ export function resolveSettlementBranch(
   mode: SettlementMode,
   winners: string[],
   splitPotEnabled: boolean,
-): { splitPot: boolean; tie: boolean; tiedWinnerIds: string[]; singleWinnerId: string | null } {
+): { splitPot: boolean; tie: boolean; tiedWinnerIds: string[]; singleWinnerId: string | null; potCarry?: boolean } {
   if (mode === "split") {
     return {
       splitPot: true,
       tie: winners.length >= 2,
       tiedWinnerIds: [...winners],
       singleWinnerId: null,
+    };
+  }
+  if (mode === "push") {
+    return {
+      splitPot: false,
+      tie: true,
+      tiedWinnerIds: [...winners],
+      singleWinnerId: null,
+      potCarry: true,
     };
   }
   if (mode === "win" && winners.length === 1) {
@@ -757,6 +769,7 @@ export function runCanonicalMoneyFlow(opts: {
     tiedWinnerIds: branch.tiedWinnerIds,
     bourrePlayerIds: bourreIds,
     splitPot: branch.splitPot,
+    potCarry: branch.potCarry === true,
     participantOrder: participants,
   });
 
@@ -902,16 +915,7 @@ export function settleHandDeltas({
     antePot,
   });
   const bourreIds = bourrePlayerIds(tricksByPlayer, participants);
-  const branch =
-    mode === "split"
-      ? { splitPot: true, tiedWinnerIds: winners, singleWinnerId: null as string | null }
-      : mode === "win" && winners.length === 1
-        ? { splitPot: false, tiedWinnerIds: [] as string[], singleWinnerId: winners[0] }
-        : {
-            splitPot: splitPotEnabled && mode === "split",
-            tiedWinnerIds: winners,
-            singleWinnerId: null as string | null,
-          };
+  const branch = resolveSettlementBranch(mode, winners, splitPotEnabled);
 
   const stackByPlayer = Object.fromEntries(
     participants.map((pid) => [pid, 100]),
@@ -924,6 +928,7 @@ export function settleHandDeltas({
     tiedWinnerIds: branch.tiedWinnerIds,
     bourrePlayerIds: bourreIds,
     splitPot: branch.splitPot,
+    potCarry: branch.potCarry === true,
     participantOrder: participants,
   });
 
