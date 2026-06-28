@@ -1,15 +1,21 @@
 // feedback-prefs.js — sound/haptics preferences (mirrors src/table/feedback/prefs.ts)
 
 /** @typedef {"on" | "minimal" | "off"} HapticsMode */
+/** @typedef {"on" | "minimal" | "off"} SoundMode */
+/** @typedef {"classic" | "wood" | "arcade"} SoundPackId */
 
 /** Keep in sync with src/table/feedback/prefs.ts */
 export const FEEDBACK_PREFS_KEY = "nbl-feedback";
 
-/** @returns {{ soundEnabled: boolean, hapticsMode: HapticsMode }} */
+const SOUND_PACK_IDS = ["classic", "wood", "arcade"];
+
+/** @returns {{ soundMode: SoundMode, soundPackId: SoundPackId, hapticsMode: HapticsMode }} */
 export function getFeedbackPrefs() {
   try {
     const stored = localStorage.getItem(FEEDBACK_PREFS_KEY);
-    if (!stored) return { soundEnabled: true, hapticsMode: "on" };
+    if (!stored) {
+      return { soundMode: "on", soundPackId: "classic", hapticsMode: "on" };
+    }
     const o = JSON.parse(stored);
     const hapticsMode =
       o.hapticsMode === "off" || o.hapticsMode === "minimal" || o.hapticsMode === "on"
@@ -17,13 +23,22 @@ export function getFeedbackPrefs() {
         : o.hapticsEnabled === false
           ? "off"
           : "on";
-    return { soundEnabled: o.soundEnabled !== false, hapticsMode };
+    let soundMode;
+    if (o.soundMode === "on" || o.soundMode === "minimal" || o.soundMode === "off") {
+      soundMode = o.soundMode;
+    } else if (o.soundEnabled === false) {
+      soundMode = "off";
+    } else {
+      soundMode = "on";
+    }
+    const soundPackId = SOUND_PACK_IDS.includes(o.soundPackId) ? o.soundPackId : "classic";
+    return { soundMode, soundPackId, hapticsMode };
   } catch {
-    return { soundEnabled: true, hapticsMode: "on" };
+    return { soundMode: "on", soundPackId: "classic", hapticsMode: "on" };
   }
 }
 
-/** @param {Partial<{ soundEnabled: boolean, hapticsMode: HapticsMode }>} partial */
+/** @param {Partial<{ soundMode: SoundMode, soundPackId: SoundPackId, hapticsMode: HapticsMode }>} partial */
 export function saveFeedbackPrefs(partial) {
   const next = { ...getFeedbackPrefs(), ...partial };
   try {
@@ -34,13 +49,38 @@ export function saveFeedbackPrefs(partial) {
   return next;
 }
 
+export const SOUND_PACK_LABELS = {
+  classic: "Classic",
+  wood: "Wood & Felt",
+  arcade: "Arcade",
+};
+
 export function renderFeedbackSettingsHtml() {
   const prefs = getFeedbackPrefs();
+  const packOptions = SOUND_PACK_IDS.map(
+    (id) =>
+      `<option value="${id}" ${prefs.soundPackId === id ? "selected" : ""}>${SOUND_PACK_LABELS[id]}</option>`,
+  ).join("");
   return `<section class="feedback-settings" aria-label="Game feedback settings">
     <h5 class="feedback-settings__title">Game feedback</h5>
+    <fieldset class="feedback-settings__fieldset">
+      <legend>Sound level</legend>
+      <label class="feedback-settings__radio">
+        <input type="radio" name="feedback-sound-mode" value="on" ${prefs.soundMode === "on" ? "checked" : ""} />
+        On
+      </label>
+      <label class="feedback-settings__radio">
+        <input type="radio" name="feedback-sound-mode" value="minimal" ${prefs.soundMode === "minimal" ? "checked" : ""} />
+        Minimal
+      </label>
+      <label class="feedback-settings__radio">
+        <input type="radio" name="feedback-sound-mode" value="off" ${prefs.soundMode === "off" ? "checked" : ""} />
+        Off
+      </label>
+    </fieldset>
     <label class="feedback-settings__row">
-      <span>Sound effects</span>
-      <input type="checkbox" id="feedback-sound-enabled" ${prefs.soundEnabled ? "checked" : ""} />
+      <span>Sound theme</span>
+      <select id="feedback-sound-pack">${packOptions}</select>
     </label>
     <fieldset class="feedback-settings__fieldset">
       <legend>Haptics</legend>
@@ -57,18 +97,29 @@ export function renderFeedbackSettingsHtml() {
         Off
       </label>
     </fieldset>
-    <p class="muted small feedback-settings__hint">Shuffle and trick-win cues on the live table.</p>
+    <p class="muted small feedback-settings__hint">Minimal plays trick wins and pot cues only.</p>
   </section>`;
 }
 
 /** @param {ParentNode | Document} root */
 export function wireFeedbackSettings(root = document) {
-  const sound = root.querySelector("#feedback-sound-enabled");
+  const soundModes = root.querySelectorAll('input[name="feedback-sound-mode"]');
+  const soundPack = root.querySelector("#feedback-sound-pack");
   const haptics = root.querySelectorAll('input[name="feedback-haptics"]');
-  if (!sound && haptics.length === 0) return;
+  if (soundModes.length === 0 && haptics.length === 0 && !soundPack) return;
 
-  sound?.addEventListener("change", () => {
-    saveFeedbackPrefs({ soundEnabled: /** @type {HTMLInputElement} */ (sound).checked });
+  for (const input of soundModes) {
+    input.addEventListener("change", () => {
+      if (!(/** @type {HTMLInputElement} */ (input).checked)) return;
+      saveFeedbackPrefs({
+        soundMode: /** @type {SoundMode} */ (/** @type {HTMLInputElement} */ (input).value),
+      });
+    });
+  }
+  soundPack?.addEventListener("change", () => {
+    saveFeedbackPrefs({
+      soundPackId: /** @type {SoundPackId} */ (/** @type {HTMLSelectElement} */ (soundPack).value),
+    });
   });
   for (const input of haptics) {
     input.addEventListener("change", () => {

@@ -1170,9 +1170,15 @@ async function processTableFeedbackEvents(sessionObj) {
   if (!api || !sessionObj) return;
 
   const myUid = session?.uid ?? null;
+  const lastHand = openHands[0];
+  const recentBourreIds =
+    lastHand && lastHand.handNumber === (sessionObj.handCount ?? 0)
+      ? (lastHand.bourreIds || []).filter(Boolean)
+      : [];
   const next = buildTableFeedbackSnapshot(sessionObj, {
     myUid,
     privateHandCards: openPrivateHand?.cards ?? [],
+    recentBourreIds,
   });
   const { snapshot, clearPendingDrawShuffle } = applyTableFeedbackDiff(
     tableFeedbackSnapshot,
@@ -2581,6 +2587,8 @@ async function openTablePlay() {
     openSessionObj;
   await syncTableSession(refreshed);
   scheduleSessionOrchestration(refreshed, openScores, { reason: "open-table-play" });
+  const feedbackApi = await ensureTableFeedbackApi();
+  feedbackApi?.playGameStartFeedback?.();
   try {
     await overlay.requestFullscreen?.();
   } catch {

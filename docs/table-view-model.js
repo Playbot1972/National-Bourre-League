@@ -36,12 +36,13 @@ export function cardKeyFromSerialized(card) {
 }
 
 /** Snapshot for sound/haptic diffing (feedback-only). */
-export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards = [] }) {
+export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards = [], recentBourreIds = [] }) {
   const currentHand = getSessionCurrentHand(sessionObj) ?? {};
   const participantIds = currentHand.participantIds ?? [];
   const tricks = currentHand.tricksByPlayer ?? {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
   const handComplete = isHandComplete(tricks, participantIds);
+  const bourreIds = recentBourreIds.length > 0 ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
   return {
     sessionId: sessionObj?.id ?? null,
     phase: currentHand.phase ?? null,
@@ -50,6 +51,7 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
     myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
     handComplete,
     myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
+    myBourre: myUid != null && handComplete && bourreIds.includes(myUid),
     heroCardKeys: (privateHandCards ?? [])
       .map(cardKeyFromSerialized)
       .filter(Boolean)

@@ -24,11 +24,57 @@ describe("table UI layer modules", () => {
       myTricks: 1,
       handComplete: false,
       myIsWinner: false,
+      myBourre: false,
       heroCardKeys: "",
     };
     const next = { ...prev, myTricks: 2 };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
     assert.deepEqual(calls, ["trick"]);
+  });
+
+  it("applyTableFeedbackDiff fires draw feedback on hero card change after draw", () => {
+    const calls = [];
+    const api = {
+      playDrawFeedback: () => calls.push("draw"),
+      playShuffleFeedback: () => calls.push("shuffle"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "draw",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 0,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "a,b,c",
+    };
+    const next = {
+      ...prev,
+      drawCompletedIds: ["a"],
+      heroCardKeys: "a,b,d",
+    };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: true });
+    assert.deepEqual(calls, ["draw"]);
+  });
+
+  it("applyTableFeedbackDiff fires bourre feedback when local player goes bourré", () => {
+    const calls = [];
+    const api = { playBourreFeedback: () => calls.push("bourre") };
+    const prev = {
+      sessionId: "s1",
+      phase: "play",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 0,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, handComplete: true, myBourre: true };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["bourre"]);
   });
 
   it("createTableIntentHandlers requires auth before submit", () => {

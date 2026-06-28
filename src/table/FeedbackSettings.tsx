@@ -4,10 +4,13 @@ import {
   hapticsSupported,
   saveFeedbackPrefs,
   subscribeFeedbackPrefs,
+  SOUND_PACK_LABELS,
   type FeedbackPrefs,
   type HapticsMode,
+  type SoundMode,
+  type SoundPackId,
 } from "./feedback";
-import { audioSupported } from "./feedback/audio";
+import { audioSupported, preloadSoundAssets, resetSoundAssetCache } from "./feedback/audio";
 
 export function FeedbackSettings({ compact = false }: { compact?: boolean }) {
   const [prefs, setPrefs] = useState<FeedbackPrefs>(() => getFeedbackPrefs());
@@ -18,8 +21,14 @@ export function FeedbackSettings({ compact = false }: { compact?: boolean }) {
   const soundAvail = audioSupported();
   const hapticAvail = hapticsSupported();
 
-  function setSound(enabled: boolean) {
-    saveFeedbackPrefs({ soundEnabled: enabled });
+  function setSoundMode(mode: SoundMode) {
+    saveFeedbackPrefs({ soundMode: mode });
+  }
+
+  function setSoundPack(packId: SoundPackId) {
+    saveFeedbackPrefs({ soundPackId: packId });
+    resetSoundAssetCache();
+    void preloadSoundAssets(packId);
   }
 
   function setHaptics(mode: HapticsMode) {
@@ -28,18 +37,55 @@ export function FeedbackSettings({ compact = false }: { compact?: boolean }) {
 
   const panel = (
     <div className={`bfeedback-settings${compact ? " bfeedback-settings--compact" : ""}`}>
-      <label className="bfeedback-settings__row">
-        <span className="bfeedback-settings__label">Sound effects</span>
-        <input
-          type="checkbox"
-          checked={prefs.soundEnabled}
-          disabled={!soundAvail}
-          onChange={(e) => setSound(e.target.checked)}
-        />
-      </label>
+      <fieldset className="bfeedback-settings__fieldset">
+        <legend className="bfeedback-settings__label">Sound level</legend>
+        <label className="bfeedback-settings__radio">
+          <input
+            type="radio"
+            name="sound-mode"
+            checked={prefs.soundMode === "on"}
+            disabled={!soundAvail}
+            onChange={() => setSoundMode("on")}
+          />
+          On
+        </label>
+        <label className="bfeedback-settings__radio">
+          <input
+            type="radio"
+            name="sound-mode"
+            checked={prefs.soundMode === "minimal"}
+            disabled={!soundAvail}
+            onChange={() => setSoundMode("minimal")}
+          />
+          Minimal
+        </label>
+        <label className="bfeedback-settings__radio">
+          <input
+            type="radio"
+            name="sound-mode"
+            checked={prefs.soundMode === "off"}
+            onChange={() => setSoundMode("off")}
+          />
+          Off
+        </label>
+      </fieldset>
       {!soundAvail && (
         <p className="bfeedback-settings__note muted small">Audio not supported in this browser.</p>
       )}
+      <label className="bfeedback-settings__row">
+        <span className="bfeedback-settings__label">Sound theme</span>
+        <select
+          value={prefs.soundPackId}
+          disabled={!soundAvail || prefs.soundMode === "off"}
+          onChange={(e) => setSoundPack(e.target.value as SoundPackId)}
+        >
+          {(Object.keys(SOUND_PACK_LABELS) as SoundPackId[]).map((id) => (
+            <option key={id} value={id}>
+              {SOUND_PACK_LABELS[id]}
+            </option>
+          ))}
+        </select>
+      </label>
       <fieldset className="bfeedback-settings__fieldset">
         <legend className="bfeedback-settings__label">Haptics</legend>
         <label className="bfeedback-settings__radio">
