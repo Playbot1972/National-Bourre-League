@@ -95,11 +95,15 @@
 
       function buildPlayers() {
         const onDecisionClock = selfNeedsDecision();
+        const turnId =
+          phase === "draw" ? "p0" : phase === "play" ? "p0" : null;
 
         return ids.map((id) => {
           const isSelf = id === "p0";
           const satOut = selfPassed && isSelf;
           const inHand = cardsDealt && !satOut;
+          const isActiveActor =
+            (onDecisionClock && isSelf) || (turnId != null && id === turnId);
           return {
             playerId: id,
             displayName: displayName(id),
@@ -123,7 +127,8 @@
             canEditTricks: false,
             showHoleCards: (phase === "draw" || phase === "play") && !isSelf && inHand,
             holeCardCount: phase === "draw" || phase === "play" ? 4 : 0,
-            isOnTurn: phase === "draw" && id === "p0",
+            isOnTurn: turnId != null && id === turnId,
+            isActiveActor,
           };
         });
       }

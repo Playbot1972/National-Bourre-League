@@ -55,10 +55,12 @@ export async function tapPlayCard(page: Page, card: Locator, { useTouch = false 
   const { x, y } = await cardCenter(card);
   if (!useTouch) {
     await card.evaluate((el) => (el as HTMLButtonElement).click());
+    await page.waitForTimeout(300);
     return;
   }
   await dispatchPointer(card, "down", { x, y }, pointerType);
   await dispatchPointer(card, "up", { x, y }, pointerType);
+  await page.waitForTimeout(300);
 }
 
 /** Press-and-hold past the hold threshold, then release. */
@@ -72,6 +74,7 @@ export async function holdPlayCard(
   await dispatchPointer(card, "down", { x, y }, pointerType);
   await page.waitForTimeout(holdMs);
   await dispatchPointer(card, "up", { x, y }, pointerType);
+  await page.waitForTimeout(300);
 }
 
 /** Upward swipe/flick on a playable card. */
@@ -85,6 +88,7 @@ export async function swipeUpPlayCard(
   await dispatchPointer(card, "down", { x, y }, pointerType);
   await dispatchPointer(card, "move", { x, y: y - distance }, pointerType);
   await dispatchPointer(card, "up", { x, y: y - distance }, pointerType);
+  await page.waitForTimeout(300);
 }
 
 declare global {

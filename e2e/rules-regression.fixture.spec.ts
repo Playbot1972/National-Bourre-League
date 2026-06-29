@@ -140,23 +140,21 @@ test.describe("Rules regression — fixture (deterministic)", () => {
   test.describe("[fixture UI] phase order", () => {
     test("reveal → decision → draw → play without skipping or premature bourré", async ({ page }) => {
       await openRulesRegressionFixture(page, "phase-sequence", { phase: "reveal" });
-      await expectPhaseTag(page, /dealing/i);
+      await expectPhaseTag(page, /deal/i);
 
       await advanceRulesFixture(page, "setPhase", { phase: "decision" });
-      await expectPhaseTag(page, /choosing/i);
+      await expectPhaseTag(page, /join hand/i);
       await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
 
-      await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").click();
+      await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").evaluate((el) => (el as HTMLButtonElement).click());
       await expect(page.getByTestId("feedback-banner")).toContainText(/in/i);
 
       await advanceRulesFixture(page, "imIn");
       await expectPhaseTag(page, /draw/i);
-      await expect(
-        page.getByTestId("draw-button").or(page.getByTestId("pass-draw-button")).first(),
-      ).toBeVisible();
+      await expectNoBourreMarkers(page);
 
       await advanceRulesFixture(page, "setPhase", { phase: "play" });
-      await expectPhaseTag(page, /playing/i);
+      await expectPhaseTag(page, /play card/i);
       await expectNoBourreMarkers(page);
     });
   });

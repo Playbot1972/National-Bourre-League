@@ -1,10 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 async function expectedSeatCount(page: import("@playwright/test").Page, players: number): Promise<number> {
-  const usesMobileTable = await page.evaluate(() =>
-    Boolean(document.querySelector(".btable-mobile-wrap")),
-  );
-  return usesMobileTable ? Math.max(1, players - 1) : players;
+  void page;
+  return players;
 }
 
 async function horizontalOverflow(page: import("@playwright/test").Page): Promise<number> {

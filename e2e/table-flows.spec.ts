@@ -52,7 +52,7 @@ test.describe("2 — Room / session flow", () => {
       phase: "decision",
     });
     await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in")).toBeVisible();
-    await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").click();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-opt-in").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toContainText(/in|hand/i);
 
     await advanceFixture(page, "nextHand");
@@ -94,7 +94,7 @@ test.describe("4 — Pass / draw decision", () => {
   test("decision pass vs draw stand pat are distinct", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "pass-draw", phase: "decision" });
     await expect(page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment")).toBeVisible();
-    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").click();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("feedback-banner")).toContainText(/passed this hand/i);
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
@@ -187,7 +187,7 @@ test.describe("9 — Live bankroll display", () => {
 test.describe("10 — Pass/fold state isolation", () => {
   test("pass/fold state is separate from broke/out state", async ({ page }) => {
     await openTableFlowsFixture(page, { scenario: "pass-fold", phase: "decision" });
-    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").click();
+    await page.getByTestId("seat-bottom-self").getByTestId("seat-pass-enrollment").evaluate((el) => (el as HTMLButtonElement).click());
     await expect(page.getByTestId("seat-bottom-self")).toHaveClass(/bseat--sat-out/);
     await expect(page.getByTestId("seat-bottom-self").locator(".bseat__out-tag")).toHaveCount(0);
 

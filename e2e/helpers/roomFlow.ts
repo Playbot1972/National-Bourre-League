@@ -440,20 +440,13 @@ export async function waitForPlayPhase(page: Page) {
 export async function expectOpeningLeadNotDealer(page: Page) {
   const root = page.locator("#table-play-overlay, #table-root");
   const dealer = root.locator(".bseat--dealer");
-  const onTurn = root.locator(".bseat--on-turn");
-
   await expect(dealer).toHaveCount(1, { timeout: 15_000 });
-  await expect(onTurn).toHaveCount(1, { timeout: 15_000 });
 
-  const sameSeat = await page.evaluate(() => {
-    const scope =
-      document.querySelector("#table-play-overlay") ?? document.querySelector("#table-root");
-    if (!scope) return true;
-    const dealerEl = scope.querySelector(".bseat--dealer");
-    const turnEl = scope.querySelector(".bseat--on-turn");
-    return Boolean(dealerEl && turnEl && dealerEl === turnEl);
-  });
-  expect(sameSeat, "dealer must not lead trick 1").toBe(false);
+  const selfSeat = root.getByTestId("seat-bottom-self");
+  const opponentSeat = root.getByTestId("seat-top");
+  await expect(selfSeat).toHaveClass(/bseat--dealer/);
+  await expect(opponentSeat).toHaveClass(/bseat--active-actor/);
+  await expect(selfSeat).not.toHaveClass(/bseat--active-actor/);
 }
 
 /** @deprecated Use waitForDrawPhase */

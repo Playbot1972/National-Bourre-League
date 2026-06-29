@@ -215,6 +215,9 @@
             showHoleCards: (state.phase === "draw" || state.phase === "play") && !isSelf && inHand,
             holeCardCount: inHand ? 5 : 0,
             isOnTurn: state.turnPlayerId === id,
+            isActiveActor:
+              (state.phase === "decision" && isSelf) ||
+              (state.turnPlayerId != null && state.turnPlayerId === id),
             bourreAlert: bourreMarker ? "marker" : null,
             bourrePressure: atRisk,
           };
@@ -274,6 +277,7 @@
             trumpSuit: cardsDealt ? state.trumpSuit : null,
             trumpUpcard: state.drawDiscardedTrump ? null : state.trumpUpcard,
             turnPlayerId: state.turnPlayerId,
+            drawCompletedIds: [],
             remainingDeckCount: state.phase === "draw" ? 28 : null,
             maxDrawDiscards: 5,
             handEnrollment:
@@ -394,6 +398,7 @@
               state.enrolledIds = [...new Set([...state.enrolledIds, "p0"])];
               state.phase = "draw";
               state.trumpMerged = true;
+              state.turnPlayerId = "p0";
               break;
             case "finalTrickRisk":
               state.phase = "play";

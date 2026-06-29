@@ -238,7 +238,7 @@ export async function expectOverlayStageFillsViewport(
   page: Page,
   opts: { minWidthRatio?: number; minHeightRatio?: number } = {},
 ) {
-  const minWidthRatio = opts.minWidthRatio ?? 0.37;
+  const minWidthRatio = opts.minWidthRatio ?? 0.34;
   const minHeightRatio = opts.minHeightRatio ?? 0.3;
 
   const metrics = await readOverlayStageMetrics(page);

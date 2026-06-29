@@ -1820,9 +1820,11 @@
   align-items: center;
   gap: 3px;
   pointer-events: none;
+  z-index: 8;
 }
 
 .bseat__aux .bseat__opt-in,
+.bseat__aux .bseat__pass,
 .bseat__aux .bseat__trick-btn,
 .bseat__aux .bseat__react-btn {
   pointer-events: auto;

@@ -169,6 +169,8 @@
                   : 4
                 : 0,
             isOnTurn: turnId != null && id === turnId,
+            isActiveActor:
+              (onClock && isSelf) || (turnId != null && id === turnId),
           };
         });
       }
