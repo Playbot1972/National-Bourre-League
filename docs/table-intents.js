@@ -9,7 +9,19 @@ import {
   isInternalTableActionError,
   isStaleTableActionError,
 } from "./table-action-feedback.js";
-import { isHandComplete, totalTricksPlayed } from "./table-view-model.js";
+
+const MAX_TRICKS_PER_HAND = 5;
+
+function totalTricksPlayed(tricksByPlayer, participantIds) {
+  return (participantIds || []).reduce(
+    (sum, pid) => sum + (tricksByPlayer?.[pid] || 0),
+    0,
+  );
+}
+
+function isHandComplete(tricksByPlayer, participantIds) {
+  return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
 
 /**
  * @param {object} deps
