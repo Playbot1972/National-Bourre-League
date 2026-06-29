@@ -30,6 +30,8 @@ export interface HeroCardMotionOptions {
   dealing: boolean;
   dealStaggerMs: number;
   drawAnimSubPhase: "discard" | "receive" | "done" | null;
+  drawDiscardCount?: number;
+  drawReplaceCount?: number;
   pendingDiscardIndices: number[];
   standPatPulse: boolean;
   foldOutPulse: boolean;
@@ -49,6 +51,8 @@ export function useHeroCardMotion(
     dealing,
     dealStaggerMs,
     drawAnimSubPhase,
+    drawDiscardCount = 0,
+    drawReplaceCount = 0,
     pendingDiscardIndices,
     standPatPulse,
     foldOutPulse,
@@ -93,12 +97,16 @@ export function useHeroCardMotion(
 
   useLayoutEffect(() => {
     if (drawAnimSubPhase === "discard") {
+      if (drawDiscardCount <= 0) return;
       cardKeysBeforeDrawRef.current = cards.map(cardKey);
       const root = handRootRef.current;
       const tableRoot = tableRootRef?.current ?? root?.closest(".btable-wrap");
       const targets = readHeroDiscardCardElements(root, pendingDiscardIndices);
+      if (!targets.length || !tableRoot || !playerId) {
+        return;
+      }
       const flyKey = `${handNumber}:${playerId}:discard:${targets.length}:${pendingDiscardIndices.join(",")}`;
-      if (!targets.length || !tableRoot || !playerId || discardFlyKeyRef.current === flyKey) {
+      if (discardFlyKeyRef.current === flyKey) {
         return;
       }
       discardFlyKeyRef.current = flyKey;
@@ -121,6 +129,7 @@ export function useHeroCardMotion(
     }
 
     if (drawAnimSubPhase === "receive") {
+      if (drawReplaceCount <= 0) return;
       discardFlyKeyRef.current = null;
       const root = handRootRef.current;
       const cardEls = handCards(root);
@@ -140,6 +149,8 @@ export function useHeroCardMotion(
     }
   }, [
     drawAnimSubPhase,
+    drawDiscardCount,
+    drawReplaceCount,
     cards,
     pendingDiscardIndices,
     handRootRef,

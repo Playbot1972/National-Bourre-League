@@ -9,7 +9,7 @@ import {
 import { initCardMotion } from "./initMotion";
 import { rectFromElement, type MotionRect } from "./flip";
 import { readDeckOrigin } from "./cardMotion";
-import { seatOriginRectsForDiscard } from "./discardPileMotion";
+import { seatHandOriginRectsForDraw } from "./discardPileMotion";
 
 const ACTIVE_RECEIVE_FLIGHTS = new Set<gsap.core.Timeline>();
 
@@ -183,7 +183,7 @@ export function runBotDrawReceiveFly(input: {
     return;
   }
   const deck = readDeckOrigin(root);
-  const seats = seatOriginRectsForDiscard(playerId, replaceCount, root);
+  const seats = seatHandOriginRectsForDraw(playerId, replaceCount, root);
   if (!deck || !seats.length) {
     onComplete?.();
     return;

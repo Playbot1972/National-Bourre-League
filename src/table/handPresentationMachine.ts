@@ -367,6 +367,15 @@ function commitDrawPlayerReceiveComplete(
   };
 }
 
+function initialDrawAnimSubPhase(
+  discardCount: number,
+  replaceCount: number,
+): DrawAnimSubPhase {
+  if (discardCount > 0) return "discard";
+  if (replaceCount > 0) return "receive";
+  return "done";
+}
+
 function beginDrawPlayerAnim(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -389,7 +398,7 @@ function beginDrawPlayerAnim(
   logDrawCandidateResolution(store, snapshot, playerId, reason);
   return withPhase(store, "drawPlayer", {
     animatingDrawPlayerId: playerId,
-    drawAnimSubPhase: "discard",
+    drawAnimSubPhase: initialDrawAnimSubPhase(discardCount, replaceCount),
     drawDiscardCount: discardCount,
     drawReplaceCount: replaceCount,
     prevSnapshot: snapshot,
@@ -875,7 +884,7 @@ export function phaseScheduleMs(
     case "trumpMerge":
       return t.trumpMergeAnimMs;
     case "drawPlayer":
-      if (store.drawAnimSubPhase === "done" && !store.animatingDrawPlayerId) {
+      if (store.drawAnimSubPhase === "done") {
         return 0;
       }
       return drawPlayerScheduleMs(

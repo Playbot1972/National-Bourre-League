@@ -177,14 +177,13 @@ export function animateOriginRectsToDiscardPile(
   return tl;
 }
 
-export function seatOriginRectsForDiscard(
+/** Hand-lane origin for draw flies — never won-trick pile / side marker anchors. */
+export function seatHandOriginRectsForDraw(
   playerId: string,
   count: number,
   root: ParentNode,
 ): MotionRect[] {
   const el =
-    root.querySelector(`[data-seat-motion-anchor="${playerId}"]`) ??
-    root.querySelector(`[data-won-trick-pile-anchor="${playerId}"]`) ??
     root.querySelector(`[data-seat-play-origin="${playerId}"]`) ??
     root.querySelector(`[data-trick-play-origin="${playerId}"]`);
   if (!el) return [];
@@ -194,6 +193,15 @@ export function seatOriginRectsForDiscard(
     left: base.left + i * 3,
     top: base.top - i * 2,
   }));
+}
+
+/** @deprecated Use seatHandOriginRectsForDraw — pile anchors are not draw origins. */
+export function seatOriginRectsForDiscard(
+  playerId: string,
+  count: number,
+  root: ParentNode,
+): MotionRect[] {
+  return seatHandOriginRectsForDraw(playerId, count, root);
 }
 
 export function invertGhostToOrigin(ghost: HTMLElement, origin: MotionRect): void {

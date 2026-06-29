@@ -306,6 +306,19 @@ describe("handPresentationMachine", () => {
     assert.equal(store.displayDrawCompletedIds.includes("p2"), true);
   });
 
+  it("skips discard subphase for stand-pat draw completions", () => {
+    let store = createHandPresentationStore(baseSnap);
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p2" },
+      heroDrawDiscardCount: 0,
+      heroDrawReplaceCount: 0,
+    });
+    assert.equal(store.animatingDrawPlayerId, "p2");
+    assert.equal(store.drawAnimSubPhase, "done");
+    assert.equal(phaseScheduleMs(store), 0);
+  });
+
   it("holds drawReady beat before play phase", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
@@ -324,7 +337,7 @@ describe("handPresentationMachine", () => {
     let store = createHandPresentationStore(baseSnap);
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
-      snapshot: { ...baseSnap, drawCompletedIds: ["p2"] },
+      snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p3" },
     });
     assert.equal(store.drawAnimSubPhase, "discard");
     store = reduceHandPresentation(store, {
