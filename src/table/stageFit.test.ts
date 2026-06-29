@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStageFit, isWithinViewport, landscapeStageShareForPlayers, resolveHeroBudget, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
+import { computeStageFit, isWithinViewport, landscapeStageShareForPlayers, resolveHeroBudget, resolveSessionChromeBudget, stabilizeHeroHeight, tableAspectForMobileViewport } from "./stageFit";
 
 describe("stageFit", () => {
   it("contain-fits stage inside viewport without exceeding width", () => {
@@ -76,6 +76,20 @@ describe("stageFit", () => {
     const reset = stabilizeHeroHeight(0, 0, 140);
     assert.equal(reset.height, 140);
     assert.equal(reset.peak, 0);
+  });
+
+  it("stabilizes session chrome at peak when trick-resolve line appears", () => {
+    const baseline = resolveSessionChromeBudget(88, 0);
+    assert.equal(baseline.height, 88);
+    assert.equal(baseline.peak, 88);
+
+    const withTrickLine = resolveSessionChromeBudget(112, baseline.peak);
+    assert.equal(withTrickLine.height, 112);
+    assert.equal(withTrickLine.peak, 112);
+
+    const afterTrick = resolveSessionChromeBudget(88, withTrickLine.peak);
+    assert.equal(afterTrick.height, 112);
+    assert.equal(afterTrick.peak, 112);
   });
 
   it("detects bounds inside viewport", () => {

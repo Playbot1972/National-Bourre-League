@@ -127,6 +127,7 @@
   margin: 0 auto;
   flex-shrink: 0;
   overflow: visible;
+  contain: layout style;
   perspective: 1400px;
   perspective-origin: center 46%;
   transform-style: preserve-3d;
@@ -482,11 +483,14 @@
 .center-play__trick-stage,
 .center-play__trick {
   width: 100%;
-  min-height: 62px;
+  min-height: calc(var(--trick-card-height, 74px) + 8px);
+  height: calc(var(--trick-card-height, 74px) + 8px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   position: relative;
+  contain: layout style;
+  overflow: visible;
 }
 
 .center-play__trick-live {
@@ -669,8 +673,12 @@
   width: calc(
     var(--trick-card-width) + max(0, var(--trick-card-count, 1) - 1) * var(--trick-card-step)
   );
+  min-width: calc(
+    var(--trick-card-width) + max(0, var(--trick-card-count, 1) - 1) * var(--trick-card-step)
+  );
   height: var(--trick-card-height);
   margin-inline: auto;
+  contain: layout style;
 }
 
 .btrick--empty {
@@ -3853,6 +3861,27 @@
 .won-trick-fly-ghost .pcard {
   width: 100%;
   height: 100%;
+}
+
+/* Grouped trick collection — one packet after CSS rake compresses the row */
+.won-trick-fly-packet {
+  pointer-events: none;
+  z-index: 150;
+  overflow: visible;
+  will-change: transform, opacity;
+}
+
+.won-trick-fly-packet__card {
+  pointer-events: none;
+  will-change: left, top;
+}
+
+.won-trick-fly-packet__card .pcard {
+  width: 100%;
+  height: 100%;
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.38),
+    0 8px 18px rgba(0, 0, 0, 0.22);
 }
 
 [data-gsap-motion="true"] .bseat--draw-discard .bseat__hole-cards {

@@ -157,7 +157,7 @@ function clearAllPileRevealFlags(root: ParentNode): void {
 }
 
 function removeStaleGhosts(root: ParentNode): void {
-  for (const ghost of root.querySelectorAll(".won-trick-fly-ghost")) {
+  for (const ghost of root.querySelectorAll(".won-trick-fly-ghost, .won-trick-fly-packet")) {
     ghost.remove();
   }
 }
