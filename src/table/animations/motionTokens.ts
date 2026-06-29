@@ -5,12 +5,12 @@ export const PREMIUM_EASE_IN_OUT = "power2.inOut";
 export const PREMIUM_EASE_BOUNCE = "back.out(1.35)";
 
 export const GSAP_DURATIONS = {
-  deal: 0.62,
-  dealStagger: 0.11,
-  playToTable: 0.58,
-  drawDiscard: 0.35,
-  drawReceive: 0.6,
-  drawReceiveStagger: 0.085,
+  deal: 0.72,
+  dealStagger: 0.13,
+  playToTable: 0.66,
+  drawDiscard: 0.4,
+  drawReceive: 0.68,
+  drawReceiveStagger: 0.095,
   trumpReveal: 0.64,
   trumpMerge: 0.62,
   standPat: 0.68,

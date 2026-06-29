@@ -9,7 +9,7 @@ import { prefersReducedMotion } from "./trickTiming";
 export const ANTE_CHIP_TRAVEL_MS = 220;
 
 /** Per-card deal stagger (90–140 ms). */
-export const DEAL_CARD_STAGGER_MS = 110;
+export const DEAL_CARD_STAGGER_MS = 130;
 
 /** Full deal fan duration (matches bdeal-to-hand). */
 export const DEAL_FAN_MS = 600;
@@ -24,10 +24,10 @@ export const TRUMP_MERGE_ANIM_MS = 0;
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
 
 /** Draw discard slide to center pile (280–420 ms). */
-export const DRAW_DISCARD_MS = 350;
+export const DRAW_DISCARD_MS = 400;
 
 /** Draw replacement per card (100–160 ms). */
-export const DRAW_REPLACE_MS = 620;
+export const DRAW_REPLACE_MS = 700;
 
 /** Pause after all draws before first lead (400–600 ms). */
 export const DRAW_READY_BEAT_MS = 500;

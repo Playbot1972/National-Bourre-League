@@ -11,6 +11,10 @@ import {
   STAGE_SEAT_OVERFLOW_PAD,
   tableAspectForMobileViewport,
 } from "../stageFit";
+import {
+  isDealPresentationActive,
+  isTrickCollectionActive,
+} from "../presentationMotionBusy";
 import { useTableTheme } from "../theme/useTableTheme";
 import { useMobileTable } from "../useMobileTable";
 
@@ -265,6 +269,7 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
 
     let rafId: number | null = null;
     const scheduleApply = () => {
+      if (isDealPresentationActive() || isTrickCollectionActive()) return;
       if (rafId != null) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = null;

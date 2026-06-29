@@ -40,6 +40,7 @@ export function useTableDiscardFly({
       handNumber,
       discardCount: count,
       pileStartIndex: pileIndexRef.current,
+      root: tableRootRef.current ?? undefined,
       onComplete: (committed) => {
         pileIndexRef.current += committed.length;
         onDiscardCommitted(committed);

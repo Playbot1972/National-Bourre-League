@@ -1,6 +1,10 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import {
+  isDealPresentationActive,
+  isTrickCollectionActive,
+} from "./presentationMotionBusy";
 
 export interface TrickAnimationBusyState {
   pipelineActive: boolean;
@@ -13,12 +17,16 @@ export interface TrickAnimationBusyState {
   /** Hand deal / trump / draw presentation still running. */
   handPresenting: boolean;
   handPresentationPhase: string;
+  /** Clockwise deal GSAP sequence in flight. */
+  dealPresentationActive: boolean;
+  /** Trick packet fly to won-tricks pile in flight. */
+  trickCollectionActive: boolean;
 }
 
 /** After this, bot driver may proceed even if presentation is still busy. */
-export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 3_500;
+export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 5_500;
 /** After this, presentation busy flags are force-cleared for bots. */
-export const BOT_PRESENTATION_FORCE_RELEASE_MS = 4_000;
+export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
 
 const IDLE: TrickAnimationBusyState = {
   pipelineActive: false,
@@ -28,6 +36,8 @@ const IDLE: TrickAnimationBusyState = {
   displayedPlayCount: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
+  dealPresentationActive: false,
+  trickCollectionActive: false,
 };
 
 let state: TrickAnimationBusyState = IDLE;
@@ -48,7 +58,9 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
     a.peakPlayCount === b.peakPlayCount &&
     a.displayedPlayCount === b.displayedPlayCount &&
     a.handPresenting === b.handPresenting &&
-    a.handPresentationPhase === b.handPresentationPhase
+    a.handPresentationPhase === b.handPresentationPhase &&
+    a.dealPresentationActive === b.dealPresentationActive &&
+    a.trickCollectionActive === b.trickCollectionActive
   );
 }
 
@@ -56,6 +68,8 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
 ): string | null {
+  if (s.dealPresentationActive) return "dealPresentationActive";
+  if (s.trickCollectionActive) return "trickCollectionActive";
   if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
   if (s.revealCatchUp) return "revealCatchUp";
@@ -107,6 +121,8 @@ export function forceReleasePresentationForBots(source: string): void {
     handPresentationPhase: "idle",
     peakPlayCount: state.displayedPlayCount,
     motionGateActive: false,
+    dealPresentationActive: false,
+    trickCollectionActive: false,
   };
   botGateBypassUntil = Date.now() + 1_500;
   blockEpisode = null;
@@ -232,8 +248,18 @@ export function isTrickAnimationBusy(): boolean {
     state.pipelineActive ||
     state.revealCatchUp ||
     state.motionGateActive ||
+    state.trickCollectionActive ||
     (state.peakPlayCount > state.displayedPlayCount && state.peakPlayCount > 0)
   );
+}
+
+/** Sync motion-busy module flags into bridge state (called from TableSessionView). */
+export function syncPresentationMotionBusyFlags(): void {
+  setTrickAnimationBusyState({
+    ...state,
+    dealPresentationActive: isDealPresentationActive(),
+    trickCollectionActive: isTrickCollectionActive(),
+  });
 }
 
 /** True while hand or trick presentation must finish before bot draw/play. */

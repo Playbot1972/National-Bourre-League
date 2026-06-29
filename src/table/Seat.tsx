@@ -12,13 +12,24 @@ interface SeatProps {
   region: SeatRegion;
   handLane?: HandLane;
   style: CSSProperties;
+  clockwiseDealing?: boolean;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
   onReaction?: (emoji: string) => void;
 }
 
-export function Seat({ player, region, handLane = "below", style, onToggleInHand, onPassEnrollment, onTrickDelta, onReaction }: SeatProps) {
+export function Seat({
+  player,
+  region,
+  handLane = "below",
+  style,
+  clockwiseDealing = false,
+  onToggleInHand,
+  onPassEnrollment,
+  onTrickDelta,
+  onReaction,
+}: SeatProps) {
   const [avatarPeek, setAvatarPeek] = useState(false);
   const toggleAvatarPeek = useCallback(() => {
     setAvatarPeek((open) => !open);
@@ -26,7 +37,12 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
 
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
-  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
+  const showHoleCards = Boolean(
+    !player.isSelf &&
+      player.inHand &&
+      cardsHeld > 0 &&
+      (player.showHoleCards || clockwiseDealing),
+  );
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
@@ -154,6 +170,8 @@ export function Seat({ player, region, handLane = "below", style, onToggleInHand
                         .filter(Boolean)
                         .join(" ")}
                       style={{ ["--hole-i" as string]: i }}
+                      data-deal-seat={player.playerId}
+                      data-deal-round={i}
                     >
                       {isTrumpSlot ? (
                         <PlayingCard

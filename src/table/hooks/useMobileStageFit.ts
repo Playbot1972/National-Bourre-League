@@ -7,6 +7,10 @@ import {
   resolveSessionChromeBudget,
   SESSION_CHROME_FLOOR_PX,
 } from "../stageFit";
+import {
+  isDealPresentationActive,
+  isTrickCollectionActive,
+} from "../presentationMotionBusy";
 import { useTableLayoutMode } from "../layout/useTableLayoutMode";
 import { useTableTheme } from "../theme/useTableTheme";
 
@@ -171,6 +175,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
 
     let rafId: number | null = null;
     const scheduleApply = () => {
+      if (isDealPresentationActive() || isTrickCollectionActive()) return;
       if (rafId != null) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = null;

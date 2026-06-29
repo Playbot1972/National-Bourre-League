@@ -143,19 +143,19 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickReadMs({ trumpBeat: true }), 1800);
-    assert.equal(postTrickReadMs({}), 1600);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 2050);
+    assert.equal(postTrickReadMs({}), 1850);
   });
 
   it("schedules winner reveal inside the read pause", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 1600);
+    assert.equal(schedule.readTotalMs, 1850);
     assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
-    assert.equal(schedule.readBeforeWinnerMs, 1600 - WINNER_REVEAL_MS);
+    assert.equal(schedule.readBeforeWinnerMs, 1850 - WINNER_REVEAL_MS);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {
-    assert.ok(MIN_TRICK_PIPELINE_MS >= 1800);
+    assert.ok(MIN_TRICK_PIPELINE_MS >= 2050);
   });
 
   it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {

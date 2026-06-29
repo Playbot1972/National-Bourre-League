@@ -957,8 +957,8 @@ let robotActionInFlight = false;
 let lastRobotTrickAt = 0;
 let sessionOrchestrationTimer = null;
 let sessionOrchestrationCoalesce = false;
-const ROBOT_PRESENTATION_SOFT_MS = 3_500;
-const ROBOT_PRESENTATION_FORCE_MS = 4_000;
+const ROBOT_PRESENTATION_SOFT_MS = 5_500;
+const ROBOT_PRESENTATION_FORCE_MS = 7_000;
 let robotPresentationBlockEpisode = null;
 
 /** Server bot-advance request controller (execute path is Cloud Functions only). */
@@ -989,9 +989,8 @@ let pendingRobotWake = false;
 let robotPresentationUnsub = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
-/** Keep in sync with src/table/trickTiming.ts trickResolutionScheduleMs().pipelineMs (1600+300+200). */
-const TRICK_PIPELINE_MS = 1600 + 300 + 200;
-const BOT_PLAY_STAGGER_MS = 350;
+const TRICK_PIPELINE_MS = 1850 + 1080 + 230;
+const BOT_PLAY_STAGGER_MS = 380;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
 /** After settlement, force-open the next join window if auto-open stalls. */
 const HAND_LIFECYCLE_WATCHDOG_MS = 12_000;

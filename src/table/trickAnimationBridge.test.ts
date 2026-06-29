@@ -22,6 +22,8 @@ const idleTrickFields = {
   displayedPlayCount: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
+  dealPresentationActive: false,
+  trickCollectionActive: false,
 };
 
 describe("trickAnimationBridge", () => {

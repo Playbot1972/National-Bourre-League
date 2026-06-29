@@ -357,9 +357,9 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 2100);
-    assert.equal(schedule.readTotalMs, 1600);
-    assert.equal(schedule.sweepMs, 520);
+    assert.ok(schedule.pipelineMs >= 3100);
+    assert.equal(schedule.readTotalMs, 1850);
+    assert.equal(schedule.sweepMs, 1080);
   });
 
   it("displayRevealFloor keeps visible cards when holdPlays briefly shrinks", () => {

@@ -8,6 +8,7 @@ import {
   readTrickRowCardElements,
   WON_TRICK_FLY_MAX_MS,
 } from "../animations/wonTrickPileMotion";
+import { setTrickCollectionActive } from "../presentationMotionBusy";
 import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
 
@@ -22,9 +23,7 @@ export interface UseWonTrickCollectionInput {
 const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
 
 /**
- * GSAP trick collection — visual-only, non-blocking for bot presentation gate.
- * Clears ghosts and presentation flags when each hand resolves; defers trick cleanup
- * until the fly finishes so the animation is not cut off mid-flight.
+ * GSAP trick collection — blocks bots until the packet reaches the won-tricks pile.
  */
 export function useWonTrickCollection({
   trickPresentation,
@@ -118,6 +117,7 @@ export function useWonTrickCollection({
     });
 
     const rakeDelay = TRICK_RAKE_MS;
+    setTrickCollectionActive(true);
     const rakeTimer = window.setTimeout(() => {
       animateTrickCardsToWonPile(cardEls, {
         winnerPlayerId: winnerId,
@@ -125,10 +125,14 @@ export function useWonTrickCollection({
         bookIndex,
         root,
         host: root,
+        onComplete: () => setTrickCollectionActive(false),
       });
     }, rakeDelay);
 
-    return () => window.clearTimeout(rakeTimer);
+    return () => {
+      window.clearTimeout(rakeTimer);
+      setTrickCollectionActive(false);
+    };
   }, [
     trickPresentation.phase,
     trickPresentation.trickWinnerSeatId,

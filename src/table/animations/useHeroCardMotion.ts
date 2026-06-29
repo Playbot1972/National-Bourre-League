@@ -40,6 +40,7 @@ export interface HeroCardMotionOptions {
   tableRootRef?: RefObject<HTMLElement | null>;
   pileIndexRef?: RefObject<number>;
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
+  skipHeroDealMotion?: boolean;
 }
 
 export function useHeroCardMotion(
@@ -58,6 +59,7 @@ export function useHeroCardMotion(
     tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
+    skipHeroDealMotion = false,
   }: HeroCardMotionOptions,
 ): void {
   const cardKeysBeforeDrawRef = useRef<string[]>([]);
@@ -70,6 +72,10 @@ export function useHeroCardMotion(
   }, [handRootRef]);
 
   useLayoutEffect(() => {
+    if (skipHeroDealMotion) {
+      dealtRef.current = true;
+      return;
+    }
     if (!dealing || cards.length === 0) {
       dealtRef.current = false;
       return;
@@ -83,7 +89,7 @@ export function useHeroCardMotion(
     if (!deck) return;
     const staggerSec = Math.max(0.04, dealStaggerMs / 1000);
     dealCardsFromDeck(cardEls, deck, staggerSec);
-  }, [dealing, cards.length, dealStaggerMs, handRootRef]);
+  }, [dealing, cards.length, dealStaggerMs, handRootRef, skipHeroDealMotion]);
 
   useLayoutEffect(() => {
     if (drawAnimSubPhase === "discard") {
@@ -142,6 +148,7 @@ export function useHeroCardMotion(
     tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
+    skipHeroDealMotion,
   ]);
 
   useLayoutEffect(() => {
