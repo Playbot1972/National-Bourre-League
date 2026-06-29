@@ -1,14 +1,11 @@
 import { formatRiskStake } from "./logic";
-import {
-  buildCoWinSettlementView,
-  type PotSnapshot,
-} from "./settlementCopy";
-import type { TablePlayer, TableSessionData } from "./types";
+import { buildCoWinSettlementView } from "./settlementCopy";
+import type { PotMetrics, TablePlayer, TableSessionData } from "./types";
 
 interface SettlementCoWinPanelProps {
   session: TableSessionData;
   players: TablePlayer[];
-  potMetrics: PotSnapshot;
+  potMetrics: PotMetrics;
   splitSharePerWinner: number;
   currentUserId: string | null;
   isCoWinner: boolean;
