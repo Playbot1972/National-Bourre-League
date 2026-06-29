@@ -40,6 +40,9 @@ export function isBenignTableActionError(err) {
  * @property {string | null} [turnPlayerId]
  * @property {TableActionKind | null} [actionKind]
  * @property {number} [atMs]
+ * @property {number | null} [totalTricksPlayed]
+ * @property {number | null} [currentTrickLen]
+ * @property {number | null} [drawCompletedCount]
  */
 
 /**
@@ -48,7 +51,25 @@ export function isBenignTableActionError(err) {
  * @property {string | null} [phase]
  * @property {string | null} [turnPlayerId]
  * @property {boolean} [handComplete]
+ * @property {number | null} [totalTricksPlayed]
+ * @property {number | null} [currentTrickLen]
+ * @property {number | null} [drawCompletedCount]
  */
+
+/**
+ * True for Firebase callable INTERNAL failures (often post-success bot/settlement noise).
+ * @param {unknown} err
+ */
+export function isInternalTableActionError(err) {
+  const code = String(err?.code ?? "").toLowerCase();
+  const msg = String(err?.message ?? err ?? "").trim().toLowerCase();
+  return (
+    code === "functions/internal" ||
+    code === "functions/unknown" ||
+    msg === "internal" ||
+    msg.includes("internal error")
+  );
+}
 
 /**
  * Map raw Firebase / server errors to player-facing copy.
@@ -109,6 +130,32 @@ export function isStaleTableActionError(errorContext, session) {
     session.turnPlayerId != null &&
     errorContext.turnPlayerId !== session.turnPlayerId &&
     (errorContext.actionKind === "play" || errorContext.actionKind === "other")
+  ) {
+    return true;
+  }
+
+  if (
+    errorContext.totalTricksPlayed != null &&
+    session.totalTricksPlayed != null &&
+    session.totalTricksPlayed > errorContext.totalTricksPlayed
+  ) {
+    return true;
+  }
+
+  if (
+    errorContext.currentTrickLen != null &&
+    session.currentTrickLen != null &&
+    session.currentTrickLen !== errorContext.currentTrickLen &&
+    (errorContext.actionKind === "play" || errorContext.phase === "play")
+  ) {
+    return true;
+  }
+
+  if (
+    errorContext.actionKind === "draw" &&
+    errorContext.drawCompletedCount != null &&
+    session.drawCompletedCount != null &&
+    session.drawCompletedCount > errorContext.drawCompletedCount
   ) {
     return true;
   }
