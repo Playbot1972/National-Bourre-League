@@ -104,9 +104,26 @@ export function handPhaseStarted(hand: PublicHandView | null | undefined): boole
   return phase === "reveal" || phase === "decision" || phase === "draw" || phase === "play";
 }
 
+/**
+ * Five tricks recorded but settlement has not cleared the session yet.
+ * Must not block post-hand recovery or the next join window.
+ */
+export function isHandAwaitingSettlement(
+  sessionData: SessionHandView | null | undefined,
+): boolean {
+  if (!sessionData) return false;
+  const hand = authoritativeCurrentHand(sessionData);
+  const participantIds = hand.participantIds ?? [];
+  if (participantIds.length < 2) return false;
+  const phase = hand.phase ?? null;
+  if (phase !== "play" && phase !== "draw") return false;
+  return isHandComplete(hand.tricksByPlayer ?? {}, participantIds);
+}
+
 /** Check raw session mirrors — avoids authoritative merge hiding a fresh deal. */
 export function sessionHandDealStarted(sessionData: SessionHandView | null | undefined): boolean {
   if (!sessionData) return false;
+  if (isHandAwaitingSettlement(sessionData)) return false;
   if (handPhaseStarted(sessionData.currentHand)) return true;
   if (handPhaseStarted(sessionData.liveEnrollment?.deal?.publicHand)) return true;
   return handPhaseStarted(authoritativeCurrentHand(sessionData));

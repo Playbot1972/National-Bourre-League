@@ -178,6 +178,7 @@ import {
   analyzeTableStartup,
   authoritativeCurrentHand,
   sessionHandDealStarted,
+  isHandAwaitingSettlement,
   shouldClearOrphanLiveEnrollment,
   tableStartupUserMessage,
   buildHandFlowSnapshot,
@@ -1644,15 +1645,21 @@ export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) 
   if (sessionData.status === "final") return { status: "final" };
   if (sessionData.pendingCoWinSettlement) return { status: "cowin_pending" };
 
-  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
-  const participantIds = rawHand.participantIds ?? [];
-  const tricksByPlayer = rawHand.tricksByPlayer ?? {};
+  const authHand = getSessionCurrentHand(sessionData);
+  const participantIds = authHand.participantIds ?? [];
+  const tricksByPlayer = authHand.tricksByPlayer ?? {};
 
   if (participantIds.length > 0 && isHandComplete(tricksByPlayer, participantIds)) {
+    logHandLifecycleTransition({
+      from: "play",
+      to: "settle",
+      reason: `recoverHandoff: final trick complete (${JSON.stringify(tricksByPlayer)})`,
+    });
     await finalizeHandFromCardPlay(roomId, sessionId, recordedBy);
     return { status: "settlement_recovered" };
   }
 
+  const rawHand = sessionData.currentHand ?? emptyPreDealHand();
   if (isClearedPreDealHand(rawHand) && shouldClearOrphanLiveEnrollment(sessionData)) {
     await clearStaleHandoffArtifacts(roomId, sessionId);
     return { status: "artifacts_cleared" };
@@ -1862,13 +1869,21 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
   const rawHand = sessionData.currentHand ?? emptyPreDealHand();
-  if (isClearedPreDealHand(rawHand)) return;
+  if (isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData)) return;
 
   const currentHand =
     (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+
+  logHandLifecycleTransition({
+    from: "play",
+    to: ready ? (winnerIds.length === 1 ? "settle" : "settle") : "settle",
+    reason: ready
+      ? `finalizeHandFromCardPlay: tricks=${JSON.stringify(tricksByPlayer)} winners=${winnerIds.join(",")}`
+      : `finalizeHandFromCardPlay: push (tricks=${JSON.stringify(tricksByPlayer)})`,
+  });
 
   if (!ready) {
     assertSettlementEntryAllowed(sessionData, { settlement: "push" });
@@ -2068,7 +2083,7 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
 
 /** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  return callGameOrClient(
+  return callGameServerOrClient(
     () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
     () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
   );
@@ -2117,6 +2132,11 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
 
   if (handComplete) {
     await finalizeHandFromCardPlay(roomId, sessionId, actorId);
+    logHandLifecycleTransition({
+      from: "settle",
+      to: "handoffToNextDeal",
+      reason: "playHandCardClient finalized completed hand",
+    });
   }
 }
 
@@ -2325,6 +2345,7 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
         buyIn: dealContext?.buyIn ?? 1,
         carryIn: dealContext?.carryIn ?? 0,
         handCount: dealContext?.handCount ?? 0,
+        nextDealFunding: dealContext?.nextDealFunding ?? null,
       },
     );
   }
@@ -3876,6 +3897,14 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   if (!sessionSnap.exists()) return;
   let data = sessionSnap.data();
   if (data.status === "final") return;
+
+  if (isHandAwaitingSettlement(data)) {
+    await recoverHandoffBetweenHands(roomId, sessionId, null);
+    sessionSnap = await getDoc(sessionRef);
+    if (!sessionSnap.exists()) return;
+    data = sessionSnap.data();
+    if (data.status === "final") return;
+  }
 
   if (shouldClearStaleLiveEnrollment(data)) {
     await clearStaleHandoffArtifacts(roomId, sessionId);
