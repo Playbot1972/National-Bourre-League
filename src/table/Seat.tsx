@@ -37,6 +37,7 @@ export function Seat({
 
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
+  const showWonTrickPile = trickCount > 0;
   const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
@@ -127,22 +128,31 @@ export function Seat({
                 {trickCount}
               </span>
             )}
-            <div
-              className="bseat__won-trick-pile"
-              data-won-trick-pile-anchor={player.playerId}
-              aria-hidden={trickCount <= 0}
-              data-trick-count={trickCount}
-            >
-              {Array.from({ length: Math.min(trickCount, 5) }, (_, i) => (
-                <div
-                  key={i}
-                  className="bseat__won-trick-pile-card"
-                  style={{ ["--book-i" as string]: i }}
-                >
-                  <PlayingCard faceDown size="xs" />
-                </div>
-              ))}
-            </div>
+            {player.inHand && !player.isSelf && (
+              <span
+                className="bseat__seat-motion-anchor"
+                data-seat-motion-anchor={player.playerId}
+                aria-hidden="true"
+              />
+            )}
+            {showWonTrickPile && (
+              <div
+                className="bseat__won-trick-pile"
+                data-won-trick-pile-anchor={player.playerId}
+                aria-hidden={false}
+                data-trick-count={trickCount}
+              >
+                {Array.from({ length: Math.min(trickCount, 5) }, (_, i) => (
+                  <div
+                    key={i}
+                    className="bseat__won-trick-pile-card"
+                    style={{ ["--book-i" as string]: i }}
+                  >
+                    <PlayingCard faceDown size="xs" />
+                  </div>
+                ))}
+              </div>
+            )}
             {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
               <div className="bseat__deal-targets" aria-hidden="true">
                 {Array.from({ length: cardsHeld }, (_, i) => (

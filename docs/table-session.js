@@ -10333,7 +10333,7 @@ function ha(e, t, n, r, i = {}) {
 	}), o;
 }
 function ga(e, t, n) {
-	let r = n.querySelector(`[data-won-trick-pile-anchor="${e}"]`) ?? n.querySelector(`[data-seat-play-origin="${e}"]`) ?? n.querySelector(`[data-trick-play-origin="${e}"]`);
+	let r = n.querySelector(`[data-seat-motion-anchor="${e}"]`) ?? n.querySelector(`[data-won-trick-pile-anchor="${e}"]`) ?? n.querySelector(`[data-seat-play-origin="${e}"]`) ?? n.querySelector(`[data-trick-play-origin="${e}"]`);
 	if (!r) return [];
 	let i = J(r);
 	return Array.from({ length: t }, (e, t) => ({
@@ -12953,7 +12953,7 @@ function Z({ progress: e, segment: t, reducedMotion: n = Cl() }) {
 function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDealing: i = !1, onToggleInHand: a, onPassEnrollment: o, onTrickDelta: s, onReaction: c }) {
 	let [u, d] = (0, l.useState)(!1), f = (0, l.useCallback)(() => {
 		d((e) => !e);
-	}, []), p = e.tricksThisHand, m = Math.max(0, e.holeCardCount ?? 0), h = !!(e.showHoleCards && !e.isSelf && e.inHand && m > 0), v = e.bankroll != null, y = e.bourreAlert === "pulse", b = e.bourreAlert === "marker" || e.bourreAlert === "pulse", x = !!e.bourrePressure, S = x && e.isSelf, C = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
+	}, []), p = e.tricksThisHand, m = Math.max(0, e.holeCardCount ?? 0), h = p > 0, v = !!(e.showHoleCards && !e.isSelf && e.inHand && m > 0), y = e.bankroll != null, b = e.bourreAlert === "pulse", x = e.bourreAlert === "marker" || e.bourreAlert === "pulse", S = !!e.bourrePressure, C = S && e.isSelf, w = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
 		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
 		className: [
@@ -12977,13 +12977,13 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 			e.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
 			e.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
 			e.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
-			y ? "bseat--bourre-pulse" : "",
-			b ? "bseat--bourre" : "",
-			x ? "bseat--bourre-pressure" : "",
-			S ? "bseat--bourre-pressure-self" : "",
+			b ? "bseat--bourre-pulse" : "",
+			x ? "bseat--bourre" : "",
+			S ? "bseat--bourre-pressure" : "",
+			C ? "bseat--bourre-pressure-self" : "",
 			e.bankrollTick === "up" ? "bseat--bankroll-up" : "",
 			e.bankrollTick === "down" ? "bseat--bankroll-down" : "",
-			C ? "bseat--trump-reveal" : "",
+			w ? "bseat--trump-reveal" : "",
 			e.seatTrumpMergeActive ? "bseat--trump-merge" : "",
 			u ? "bseat--meta-open" : ""
 		].filter(Boolean).join(" "),
@@ -13003,7 +13003,7 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 					children: [
 						/* @__PURE__ */ (0, g.jsxs)("div", {
 							className: "bseat__avatar-stack",
-							"data-trick-play-origin": !e.isSelf && e.inHand && !h ? e.playerId : void 0,
+							"data-trick-play-origin": !e.isSelf && e.inHand && !v ? e.playerId : void 0,
 							children: [
 								e.inHand && /* @__PURE__ */ (0, g.jsx)("span", {
 									className: [
@@ -13015,10 +13015,15 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 									title: `${p} trick${p === 1 ? "" : "s"} won`,
 									children: p
 								}),
-								/* @__PURE__ */ (0, g.jsx)("div", {
+								e.inHand && !e.isSelf && /* @__PURE__ */ (0, g.jsx)("span", {
+									className: "bseat__seat-motion-anchor",
+									"data-seat-motion-anchor": e.playerId,
+									"aria-hidden": "true"
+								}),
+								h && /* @__PURE__ */ (0, g.jsx)("div", {
 									className: "bseat__won-trick-pile",
 									"data-won-trick-pile-anchor": e.playerId,
-									"aria-hidden": p <= 0,
+									"aria-hidden": !1,
 									"data-trick-count": p,
 									children: Array.from({ length: Math.min(p, 5) }, (e, t) => /* @__PURE__ */ (0, g.jsx)("div", {
 										className: "bseat__won-trick-pile-card",
@@ -13039,7 +13044,7 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 										style: { "--hole-i": n }
 									}, `deal-target-${n}`))
 								}),
-								h && /* @__PURE__ */ (0, g.jsx)("div", {
+								v && /* @__PURE__ */ (0, g.jsx)("div", {
 									className: "bseat__hole-cards bseat__hole-cards--crown",
 									"aria-label": `${m} cards in hand`,
 									"data-trick-play-origin": e.playerId,
@@ -13066,14 +13071,14 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 										}, n);
 									})
 								}),
-								x && /* @__PURE__ */ (0, g.jsx)("span", {
+								S && /* @__PURE__ */ (0, g.jsx)("span", {
 									className: "bseat__bourre-pressure-badge",
 									"data-testid": "bourre-pressure-badge",
-									"aria-label": S ? "You need this trick to avoid bourré" : "At risk of bourré",
-									title: S ? "Win this trick or go bourré" : "Must win this trick",
-									children: S ? "Bourré risk!" : "0 tricks"
+									"aria-label": C ? "You need this trick to avoid bourré" : "At risk of bourré",
+									title: C ? "Win this trick or go bourré" : "Must win this trick",
+									children: C ? "Bourré risk!" : "0 tricks"
 								}),
-								b && !x && /* @__PURE__ */ (0, g.jsx)("span", {
+								x && !S && /* @__PURE__ */ (0, g.jsx)("span", {
 									className: "bseat__bourre-badge",
 									"data-testid": "bourre-marker-badge",
 									"aria-label": "Bourré",
@@ -13111,11 +13116,11 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 											className: "bseat__in-badge",
 											title: "In this hand"
 										}),
-										x && /* @__PURE__ */ (0, g.jsx)("span", {
+										S && /* @__PURE__ */ (0, g.jsx)("span", {
 											className: "bseat__bourre-pressure-ring",
 											"aria-hidden": "true"
 										}),
-										y && !x && /* @__PURE__ */ (0, g.jsx)("span", {
+										b && !S && /* @__PURE__ */ (0, g.jsx)("span", {
 											className: "bseat__bourre-ring",
 											"aria-hidden": "true"
 										}),
@@ -13127,7 +13132,7 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 								})
 							]
 						}),
-						v && /* @__PURE__ */ (0, g.jsx)("span", {
+						y && /* @__PURE__ */ (0, g.jsx)("span", {
 							className: `bseat__stack${e.isOut ? " bseat__stack--out" : ""}`,
 							"data-testid": "seat-stack",
 							"aria-label": `Chips ${Qc(e.bankroll ?? 0)}`,
@@ -14025,8 +14030,8 @@ function sd(e, t) {
 	};
 }
 function cd(e, t = document) {
-	let n = (t instanceof Document ? t : t.ownerDocument ?? document).querySelector(`[data-won-trick-pile-anchor="${e}"]`);
-	return n ? J(n) : null;
+	let n = t instanceof Document ? t : t.ownerDocument ?? document, r = n.querySelector(`[data-won-trick-pile-anchor="${e}"]`) ?? n.querySelector(`[data-seat-motion-anchor="${e}"]`);
+	return r ? J(r) : null;
 }
 function ld() {
 	for (let e of ad) q.set(e, { clearProps: "opacity,transform,willChange,zIndex" });
@@ -14061,7 +14066,8 @@ function hd(e, t) {
 	return i.style.width = "100%", i.style.height = "100%", r.appendChild(i), t.appendChild(r), r;
 }
 function gd(e, t) {
-	((t instanceof Document ? t : t.ownerDocument ?? document).querySelector(`[data-won-trick-pile-anchor="${e}"]`)?.closest(".bseat"))?.classList.add("bseat--pile-reveal-ready");
+	let n = t instanceof Document ? t : t.ownerDocument ?? document;
+	(n.querySelector(`[data-won-trick-pile-anchor="${e}"]`)?.closest(".bseat") ?? n.querySelector(`[data-seat-motion-anchor="${e}"]`)?.closest(".bseat"))?.classList.add("bseat--pile-reveal-ready");
 }
 function _d(e, t) {
 	na(t.root ?? document);

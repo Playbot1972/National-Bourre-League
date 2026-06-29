@@ -590,13 +590,15 @@
   --trick-badge-x: clamp(3px, 0.9vmin, 5px);
 }
 
-/* Won-trick pile — opposite side from trick badge (mobile opponents) */
+/* Won-trick pile + motion anchor — opposite side from trick badge (mobile opponents) */
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat__seat-motion-anchor,
 .btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat__won-trick-pile {
   left: 0;
   right: auto;
   --trick-pile-x: calc(-100% - clamp(6px, 1.4vmin, 8px));
 }
 
+.btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__seat-motion-anchor,
 .btable-mobile-wrap .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__won-trick-pile {
   --trick-pile-x: -4px;
 }
