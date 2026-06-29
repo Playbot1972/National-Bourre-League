@@ -30,6 +30,7 @@ export interface TableStartupAnalysis {
 export {
   authoritativeCurrentHand,
   isClearedPreDealHand,
+  isHandAwaitingSettlement,
   sessionHandDealStarted,
   handPhaseStarted,
   isLegacyEnrollmentActive,

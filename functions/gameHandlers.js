@@ -219,8 +219,19 @@ function handPhaseStarted(hand) {
   );
 }
 
+function isHandAwaitingSettlement(sessionData) {
+  if (!sessionData) return false;
+  const hand = getSessionCurrentHand(sessionData);
+  const participantIds = hand.participantIds ?? [];
+  if (participantIds.length < 2) return false;
+  const phase = hand.phase ?? null;
+  if (phase !== HAND_PHASE.PLAY && phase !== HAND_PHASE.DRAW) return false;
+  return isHandComplete(hand.tricksByPlayer ?? {}, participantIds);
+}
+
 function sessionHandDealStarted(sessionData) {
   if (!sessionData) return false;
+  if (isHandAwaitingSettlement(sessionData)) return false;
   if (handPhaseStarted(sessionData.currentHand)) return true;
   if (handPhaseStarted(sessionData.liveEnrollment?.deal?.publicHand)) return true;
   return handPhaseStarted(getSessionCurrentHand(sessionData));
@@ -1138,6 +1149,14 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   let data = sessionSnap.data();
   if (data.status === "final") return { status: "noop" };
 
+  if (isHandAwaitingSettlement(data)) {
+    await finalizeHandFromCardPlay(db, roomId, sessionId, actorId);
+    sessionSnap = await ref.get();
+    if (!sessionSnap.exists) return { status: "noop" };
+    data = sessionSnap.data();
+    if (data.status === "final") return { status: "noop" };
+  }
+
   if (shouldClearStaleLiveEnrollment(data)) {
     await ref.update({
       liveEnrollment: FieldValue.delete(),
@@ -1789,13 +1808,20 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
   if (!sessionSnap.exists) return { status: "noop" };
   const sessionData = sessionSnap.data();
   const rawHand = sessionData.currentHand ?? emptyPreDealHand();
-  if (isClearedPreDealHand(rawHand)) return { status: "already_cleared" };
+  if (isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData)) {
+    return { status: "already_cleared" };
+  }
 
   const currentHand =
     (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
   const participantIds = currentHand.participantIds || [];
   const tricksByPlayer = currentHand.tricksByPlayer || {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricksByPlayer, participantIds);
+
+  console.info(
+    "[hand-lifecycle] play → settle:",
+    `finalizeHandFromCardPlay tricks=${JSON.stringify(tricksByPlayer)} winners=${winnerIds.join(",")}`,
+  );
 
   if (!ready) {
     assertSettlementEntryAllowed(sessionData, { settlement: "push" });

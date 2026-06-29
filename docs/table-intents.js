@@ -299,7 +299,10 @@ export function createTableIntentHandlers(deps) {
         .then(() => {
           deps.setTableActionFeedback(null);
           const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
-          if (sessionObj) deps.scheduleTableSessionSync(sessionObj);
+          if (sessionObj) {
+            deps.scheduleTableSessionSync(sessionObj);
+            deps.wakeBotsAfterHandAction?.(sessionObj);
+          }
         })
         .catch((e) => {
           deps.clearLocalHandCommit();

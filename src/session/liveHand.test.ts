@@ -6,6 +6,7 @@ import {
   sessionHandDealStarted,
   handPhaseStarted,
   isClearedPreDealHand,
+  isHandAwaitingSettlement,
   isPlayerLockedInLiveHand,
 } from "./liveHand";
 
@@ -236,6 +237,18 @@ describe("live enrollment hand view", () => {
     };
     assert.equal(sessionHandDealStarted(session), true);
     assert.equal(handPhaseStarted(getSessionCurrentHand(session)), true);
+  });
+
+  it("sessionHandDealStarted is false when five tricks are in but hand is uncleared", () => {
+    const session = {
+      currentHand: {
+        phase: "play",
+        participantIds: ["a", "b"],
+        tricksByPlayer: { a: 4, b: 1 },
+      },
+    };
+    assert.equal(isHandAwaitingSettlement(session), true);
+    assert.equal(sessionHandDealStarted(session), false);
   });
 });
 
