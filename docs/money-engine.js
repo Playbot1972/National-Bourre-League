@@ -444,7 +444,7 @@ function L(e, t, n, r = {}) {
 			fundingReason: a,
 			skipNextAnte: a === "tie_carry_exempt" || a === "explicit_exempt",
 			bourreReplacementDue: o != null && o > 0 ? o : null,
-			rebuyContribution: s > 0 ? s : void 0
+			...s > 0 ? { rebuyContribution: s } : {}
 		}, a === "bourre_full_pot_penalty" && (i[e].skipNextAnte = !0);
 	}
 	return {

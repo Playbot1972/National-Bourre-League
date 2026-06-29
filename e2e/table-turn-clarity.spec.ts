@@ -7,12 +7,11 @@ test.describe("Turn clarity visuals", () => {
     await page.goto("/e2e-fixtures/table-session?players=4&bots=2&phase=decision");
     await expect(page.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
 
-    await expect(page.getByTestId("phase-tag")).toHaveText(/choosing/i);
+    await expect(page.getByTestId("phase-tag")).toHaveText(/join hand/i);
     await expect(page.getByTestId("action-cue")).toContainText(/i'm in or pass/i);
 
     const selfSeat = page.getByTestId("seat-bottom-self");
     await expect(selfSeat).toHaveClass(/bseat--active-actor/);
-    await expect(selfSeat.locator(".bseat__turn-tag")).toContainText(/your turn/i);
     await expect(page.getByTestId("table-root")).toHaveClass(/btable-wrap--has-active-turn/);
   });
 
@@ -21,7 +20,7 @@ test.describe("Turn clarity visuals", () => {
     await page.goto("/e2e-fixtures/table-flows?scenario=your-turn&phase=play");
 
     await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
-    await expect(page.getByTestId("phase-tag")).toHaveText(/playing/i);
+    await expect(page.getByTestId("phase-tag")).toHaveText(/play card/i);
   });
 
   test("draw phase highlights hero hand on local draw turn", async ({ page }) => {

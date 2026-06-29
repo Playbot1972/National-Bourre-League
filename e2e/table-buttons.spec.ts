@@ -46,6 +46,7 @@ test.describe("Table UI buttons — click audit", () => {
 
     const card = await playCardLocator(page, 1);
     await card.evaluate((el) => (el as HTMLButtonElement).click());
+    await page.waitForTimeout(300);
 
     const log = await page.evaluate(() => window.__fixturePlayLog ?? []);
     expect(log).toHaveLength(1);

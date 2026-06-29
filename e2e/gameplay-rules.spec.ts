@@ -16,7 +16,7 @@ test.describe("Gameplay rules — fixture (trick 1 opening lead)", () => {
     await expectOpeningLeadNotDealer(page);
 
     const table = page.locator("#table-root");
-    await expect(table.locator(".btable-session__phase-tag")).toContainText(/playing/i);
+    await expect(table.locator(".btable-session__phase-tag")).toContainText(/play card/i);
   });
 });
 

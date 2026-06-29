@@ -30,6 +30,7 @@ import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
+import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
 import { useTableTheme } from "./theme/useTableTheme";
 import { useMobileTable } from "./useMobileTable";
@@ -710,6 +711,18 @@ export function TableSessionView({
           onAgreeSplit={() => actions.onSettle("split")}
           onDeclineSplit={() => actions.onSettle("push")}
           onCarryover={() => actions.onSettleCarryover?.()}
+        />
+      )}
+
+      {showCoWinSettlement && !session.isFinal && !splitPotEnabled && (
+        <SettlementCoWinPanel
+          session={session}
+          players={players}
+          potMetrics={potMetrics}
+          splitSharePerWinner={splitSharePerWinner}
+          currentUserId={currentUserId}
+          isCoWinner={isCoWinner}
+          onSettle={(choice) => actions.onSettle(choice)}
         />
       )}
 

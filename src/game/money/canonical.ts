@@ -405,7 +405,7 @@ export function buildNextDealFunding(
       skipNextAnte: reason === "tie_carry_exempt" || reason === "explicit_exempt",
       bourreReplacementDue:
         remainder != null && remainder > 0 ? remainder : null,
-      rebuyContribution: rebuy > 0 ? rebuy : undefined,
+      ...(rebuy > 0 ? { rebuyContribution: rebuy } : {}),
     };
     if (reason === "bourre_full_pot_penalty") {
       byPlayer[pid].skipNextAnte = true;
