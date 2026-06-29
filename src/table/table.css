@@ -3854,7 +3854,7 @@
 
 .won-trick-fly-ghost {
   pointer-events: none;
-  z-index: 150;
+  z-index: 4;
   overflow: visible;
 }
 
@@ -3863,10 +3863,10 @@
   height: 100%;
 }
 
-/* Grouped trick collection — one packet after CSS rake compresses the row */
+/* Grouped trick collection — legacy packet styles (unused; per-card fly is active) */
 .won-trick-fly-packet {
   pointer-events: none;
-  z-index: 150;
+  z-index: 4;
   overflow: visible;
   will-change: transform, opacity;
 }

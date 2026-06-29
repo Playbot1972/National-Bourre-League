@@ -26,19 +26,18 @@
   --trick-winner-highlight-ms: 1850ms;
 }
 
-/* --- Clockwise deal: hide slots until GSAP ghost reveals each card --- */
-.btable-wrap--clockwise-dealing [data-deal-seat]:not(.deal-card--revealed) .pcard,
-.btable-wrap--clockwise-dealing .bseat__hole-card:not(.deal-card--revealed) .pcard {
-  opacity: 0 !important;
+/* --- Clockwise deal: invisible anchors only — no opponent hole-card crown --- */
+.bseat__deal-target {
+  display: block;
+  width: 34px;
+  height: 48px;
   visibility: hidden;
   pointer-events: none;
 }
 
-.btable-wrap--clockwise-dealing .deal-card--revealed .pcard,
-.btable-wrap--clockwise-dealing [data-deal-seat].deal-card--revealed .pcard {
-  opacity: 1 !important;
-  visibility: visible;
-  pointer-events: auto;
+.btable-wrap--clockwise-dealing .btable-hero--dealing .hand__slot,
+.btable-wrap--clockwise-dealing .btable-hero--dealing .hand__slot .pcard {
+  animation: none !important;
 }
 
 .deal-fly-ghost {
@@ -50,13 +49,18 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.65);
 }
 
-.btable-wrap--clockwise-dealing .btable-hero--dealing .hand__slot,
-.btable-wrap--clockwise-dealing .btable-hero--dealing .hand__slot .pcard,
-.btable-wrap--clockwise-dealing .bseat__hole-card {
-  animation: none !important;
+/* Hero hand: hide slots until GSAP ghost reveals each card */
+.btable-wrap--clockwise-dealing [data-deal-seat]:not(.deal-card--revealed) .pcard {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
 }
 
-/* --- Deal: deck → seats / hero hand (arc + flip + soft land) --- */
+.btable-wrap--clockwise-dealing [data-deal-seat].deal-card--revealed .pcard {
+  opacity: 1 !important;
+  visibility: visible;
+  pointer-events: auto;
+}
 .bpot__trump--deal,
 .bpot__ante-chip {
   animation-duration: var(--anim-deal-ms) !important;
