@@ -423,6 +423,132 @@ export function eligibleIdsForAnteCollection(participantIds, scoreById, buyInFal
   });
 }
 
+/** True when antes were already collected for the current hand (post-funding start). */
+export function soloWinPotAlreadyFunded(
+  postedAntes: Record<string, number> = {},
+): boolean {
+  return Object.values(postedAntes).some((n) => (Number(n) || 0) > 0);
+}
+
+/**
+ * Solo win after deal funding: award the existing pot to the winner without
+ * charging another ante (decision-phase "I'm out" / fold-out path).
+ */
+export function settleSoloPrefundedWin({
+  winnerId,
+  carryIn = 0,
+  postedAntes = {},
+  scoreById,
+  buyInFallback = 0,
+  participants,
+}: {
+  winnerId: string;
+  carryIn?: number;
+  postedAntes?: Record<string, number>;
+  scoreById: ScoreById;
+  buyInFallback?: number;
+  participants: string[];
+}) {
+  const pot =
+    Math.max(0, Number(carryIn) || 0) +
+    Object.values(postedAntes).reduce(
+      (sum, raw) => sum + Math.max(0, Number(raw) || 0),
+      0,
+    );
+  const settledBankrolls: Record<string, number> = {};
+  for (const pid of participants) {
+    settledBankrolls[pid] = scoreBankroll(scoreById[pid], buyInFallback);
+  }
+  const winnerBase =
+    settledBankrolls[winnerId] ?? scoreBankroll(scoreById[winnerId], buyInFallback);
+  settledBankrolls[winnerId] = winnerBase + pot;
+  return {
+    ready: true as const,
+    winnerId,
+    pot,
+    postedAntes,
+    bankrolls: settledBankrolls,
+    carryOverPot: 0,
+  };
+}
+
+export interface BuildSoloWinSettlementInput {
+  winnerId: string;
+  carryIn?: number;
+  postedAntes?: Record<string, number>;
+  scoreById: ScoreById;
+  buyInFallback?: number;
+  participants: string[];
+  sessionStake?: number;
+  stakeForPlayer?: (pid: string) => number;
+}
+
+/** Shared solo-win money path for enrollment (pre-deal) and decision pass (post-funding). */
+export function buildSoloWinSettlement(input: BuildSoloWinSettlementInput) {
+  const {
+    winnerId,
+    carryIn = 0,
+    postedAntes = {},
+    scoreById,
+    buyInFallback = 0,
+    participants,
+    sessionStake = 1,
+    stakeForPlayer,
+  } = input;
+
+  if (soloWinPotAlreadyFunded(postedAntes)) {
+    const prefunded = settleSoloPrefundedWin({
+      winnerId,
+      carryIn,
+      postedAntes,
+      scoreById,
+      buyInFallback,
+      participants,
+    });
+    const fundedScoreById: ScoreById = { ...scoreById };
+    for (const pid of participants) {
+      const br = prefunded.bankrolls[pid];
+      if (br == null) continue;
+      fundedScoreById[pid] = {
+        ...(fundedScoreById[pid] || {}),
+        bankroll: br,
+        net: deriveScoreNet(br, buyInFallback),
+      };
+    }
+    const funding = applyRecordHandFundingToScores({
+      scoreById: fundedScoreById,
+      participants,
+      mode: "win",
+      winners: [winnerId],
+      bourreIds: [],
+      potState: { currentPot: prefunded.pot },
+    });
+    return {
+      ...prefunded,
+      prefunded: true as const,
+      settledBankrolls: prefunded.bankrolls,
+      fundedScoreById: funding.scoreById,
+      nextDealFunding: funding.nextDealFunding,
+    };
+  }
+
+  const settled = settleSoloDefaultWin({
+    winnerId,
+    carryIn,
+    scoreById,
+    buyInFallback,
+    stakeForPlayer:
+      stakeForPlayer ?? ((pid) => handAnteContribution(scoreById[pid], sessionStake)),
+  });
+  return {
+    ...settled,
+    prefunded: false as const,
+    settledBankrolls: settled.ready ? settled.bankrolls : undefined,
+    fundedScoreById: null,
+    nextDealFunding: null,
+  };
+}
+
 /**
  * Pagat: when only one player elects to play, they win the pot without trick play.
  * Collects the solo player's ante, awards carry + antes into the pot to the winner.

@@ -6,6 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { ScoreById } from "./types";
 import {
+  buildSoloWinSettlement,
   collectFundingForHandStart,
   mergeNextDealFundingIntoScoreById,
   processAnte,
@@ -302,5 +303,41 @@ describe("money engine — bankroll progression (consecutive wins)", () => {
       funded.collected.postedAntes,
       { human: 120, bot: 40, pot: 40 },
     );
+  });
+
+  it("decision pass I'm out: prefunded pot awards 80/120, next start 60/100/40", () => {
+    const scoreById: ScoreById = {
+      [HUMAN]: { bankroll: 80, net: -20 },
+      [BOT]: { bankroll: 80, net: -20 },
+    };
+    const postedAntes = { [HUMAN]: ANTE, [BOT]: ANTE };
+    const settled = buildSoloWinSettlement({
+      winnerId: BOT,
+      carryIn: 0,
+      postedAntes,
+      scoreById,
+      buyInFallback: BUY_IN,
+      participants: IDS,
+      sessionStake: ANTE,
+    });
+    assert.equal(settled.ready, true);
+    assert.equal(settled.prefunded, true);
+    assert.equal(settled.settledBankrolls?.[HUMAN], 80);
+    assert.equal(settled.settledBankrolls?.[BOT], 120);
+    assert.ok(settled.nextDealFunding, "nextDealFunding should be built");
+
+    const deal = collectFundingForHandStart({
+      scoreById: settled.fundedScoreById ?? scoreById,
+      nextDealFunding: settled.nextDealFunding,
+      carryOverPot: 0,
+      participantIds: IDS,
+      sessionStake: ANTE,
+      buyInFallback: BUY_IN,
+    });
+    assertPostFundingStart("hand 2 after I'm out", deal.bankrolls, deal.postedAntes, {
+      human: 60,
+      bot: 100,
+      pot: 40,
+    });
   });
 });
