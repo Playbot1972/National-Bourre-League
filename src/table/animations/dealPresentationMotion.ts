@@ -3,6 +3,7 @@ import { CARDS_PER_PLAYER } from "../../game/playerOrder";
 import { readDeckOrigin } from "./cardMotion";
 import {
   GSAP_DURATIONS,
+  MOTION_GHOST_Z_INDEX,
   PREMIUM_EASE,
   PREMIUM_EASE_BOUNCE,
   prefersReducedMotion,
@@ -86,7 +87,7 @@ function createDealGhost(origin: MotionRect): HTMLElement {
   ghost.style.width = `${origin.width}px`;
   ghost.style.height = `${origin.height}px`;
   ghost.style.pointerEvents = "none";
-  ghost.style.zIndex = "180";
+  ghost.style.zIndex = String(MOTION_GHOST_Z_INDEX);
   return ghost;
 }
 
