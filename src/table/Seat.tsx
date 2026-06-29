@@ -37,12 +37,7 @@ export function Seat({
 
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
-  const showHoleCards = Boolean(
-    !player.isSelf &&
-      player.inHand &&
-      cardsHeld > 0 &&
-      (player.showHoleCards || clockwiseDealing),
-  );
+  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
@@ -148,6 +143,22 @@ export function Seat({
                 </div>
               ))}
             </div>
+            {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
+              <div
+                className="bseat__deal-targets bseat__hole-cards bseat__hole-cards--crown"
+                aria-hidden="true"
+              >
+                {Array.from({ length: cardsHeld }, (_, i) => (
+                  <span
+                    key={`deal-target-${i}`}
+                    className="bseat__deal-target bseat__hole-card"
+                    data-deal-seat={player.playerId}
+                    data-deal-round={i}
+                    style={{ ["--hole-i" as string]: i }}
+                  />
+                ))}
+              </div>
+            )}
             {showHoleCards && (
               <div
                 className="bseat__hole-cards bseat__hole-cards--crown"
@@ -170,8 +181,6 @@ export function Seat({
                         .filter(Boolean)
                         .join(" ")}
                       style={{ ["--hole-i" as string]: i }}
-                      data-deal-seat={player.playerId}
-                      data-deal-round={i}
                     >
                       {isTrumpSlot ? (
                         <PlayingCard
