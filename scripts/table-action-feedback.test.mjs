@@ -83,9 +83,45 @@ describe("table-action-feedback", () => {
   it("keeps current-turn play error visible", () => {
     assert.equal(
       isStaleTableActionError(
-        { handNumber: 3, phase: "play", turnPlayerId: "human", actionKind: "play" },
-        { handNumber: 3, phase: "play", turnPlayerId: "human", handComplete: false },
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "human",
+          actionKind: "play",
+          totalTricksPlayed: 0,
+          currentTrickLen: 1,
+        },
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "human",
+          handComplete: false,
+          totalTricksPlayed: 0,
+          currentTrickLen: 1,
+        },
       ),
+      false,
+    );
+  });
+
+  it("does not treat post-play error context as fresh when session unchanged", () => {
+    const postPlay = {
+      handNumber: 3,
+      phase: "play",
+      turnPlayerId: "bot_1",
+      actionKind: "play",
+      totalTricksPlayed: 0,
+      currentTrickLen: 2,
+    };
+    assert.equal(
+      isStaleTableActionError(postPlay, {
+        handNumber: 3,
+        phase: "play",
+        turnPlayerId: "bot_1",
+        handComplete: false,
+        totalTricksPlayed: 0,
+        currentTrickLen: 2,
+      }),
       false,
     );
   });

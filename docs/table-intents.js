@@ -6,7 +6,6 @@
 import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
 import {
   isBenignTableActionError,
-  isInternalTableActionError,
   isStaleTableActionError,
 } from "./table-action-feedback.js";
 
@@ -52,6 +51,17 @@ function isHandComplete(tricksByPlayer, participantIds) {
  * @param {object} deps.getSessionCurrentHand
  */
 export function createTableIntentHandlers(deps) {
+  /** Snapshot at action start — stale detection must compare pre-action vs live state. */
+  let actionStartContext = null;
+
+  function captureActionStart(actionKind) {
+    actionStartContext = deps.getActionErrorContext?.(actionKind) ?? null;
+  }
+
+  function clearActionStart() {
+    actionStartContext = null;
+  }
+
   function actionErrorMessage(err, fallback) {
     return deps.formatClientGameError(err, fallback);
   }
@@ -75,23 +85,23 @@ export function createTableIntentHandlers(deps) {
   function setActionError(err, fallback, actionKind) {
     if (isBenignTableActionError(err)) {
       console.warn("Benign table action error suppressed:", err?.message ?? err);
+      clearActionStart();
       return null;
     }
-    const context = deps.getActionErrorContext?.(actionKind) ?? null;
-    if (
-      isInternalTableActionError(err) &&
-      context &&
-      isStaleTableActionError(context, sessionFeedbackState())
-    ) {
+    const startContext = actionStartContext ?? deps.getActionErrorContext?.(actionKind) ?? null;
+    const liveState = sessionFeedbackState();
+    if (startContext && isStaleTableActionError(startContext, liveState)) {
       console.warn(
-        "Recovered internal table action error suppressed:",
+        "Recovered table action error suppressed:",
         err?.message ?? err,
       );
+      clearActionStart();
       deps.setTableActionFeedback(null);
       return null;
     }
     const message = actionErrorMessage(err, fallback);
-    deps.setTableActionFeedback({ status: "error", message }, context);
+    deps.setTableActionFeedback({ status: "error", message }, startContext);
+    clearActionStart();
     return message;
   }
 
@@ -121,6 +131,7 @@ export function createTableIntentHandlers(deps) {
         livePhase === "play";
       if (cardsAlreadyDealt && inHand) {
         deps.commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount: 0 });
+        captureActionStart("enrollment");
         deps.setTableActionFeedback({ status: "loading", message: "Joining hand…" });
         deps
           .setHandParticipation(roomId, sessionId, {
@@ -130,6 +141,7 @@ export function createTableIntentHandlers(deps) {
             actorId: auth.uid,
           })
           .then(() => {
+            clearActionStart();
             deps.setTableActionFeedback({ status: "success", message: "You're in this hand." });
           })
           .catch((e) => {
@@ -142,6 +154,7 @@ export function createTableIntentHandlers(deps) {
       deps.commitLocalHandAction(
         inHand ? LOCAL_HAND_ACTION.ENROLL_PLAY : LOCAL_HAND_ACTION.ENROLL_PASS,
       );
+      captureActionStart("enrollment");
       deps.setTableActionFeedback({
         status: "loading",
         message: inHand ? "Joining hand…" : "Passing hand…",
@@ -153,6 +166,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback({
             status: "success",
             message: inHand ? "You're in this hand." : "You passed this hand.",
@@ -174,6 +188,7 @@ export function createTableIntentHandlers(deps) {
           ? LOCAL_HAND_ACTION.DECISION_PASS
           : LOCAL_HAND_ACTION.ENROLL_PASS;
       deps.commitLocalHandAction(kind);
+      captureActionStart("enrollment");
       deps.setTableActionFeedback({ status: "loading", message: "Passing hand…" });
       deps
         .setHandParticipation(deps.getRoomId(), deps.getSessionId(), {
@@ -182,6 +197,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback({ status: "success", message: "You passed this hand." });
         })
         .catch((e) => {
@@ -196,6 +212,7 @@ export function createTableIntentHandlers(deps) {
       if (!auth) return;
       const label = discardCount > 0 ? `Playing — will draw ${discardCount}` : "Staying pat";
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DECISION_PLAY, { discardCount });
+      captureActionStart("enrollment");
       deps.setTableActionFeedback({ status: "loading", message: `${label}…` });
       deps
         .setHandParticipation(deps.getRoomId(), deps.getSessionId(), {
@@ -205,6 +222,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback({
             status: "success",
             message:
@@ -254,6 +272,7 @@ export function createTableIntentHandlers(deps) {
         return Promise.reject(err);
       }
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+      captureActionStart("draw");
       deps.setTableActionFeedback({
         status: "loading",
         message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
@@ -266,6 +285,7 @@ export function createTableIntentHandlers(deps) {
         })
         .then(() => {
           if (discardIndices.length > 0) deps.markPendingDrawShuffle();
+          clearActionStart();
           deps.setTableActionFeedback({
             status: "success",
             message: discardIndices.length
@@ -286,6 +306,7 @@ export function createTableIntentHandlers(deps) {
       const auth = requireAuth("Sign in to draw");
       if (!auth) return Promise.reject(new Error("Sign in to draw"));
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+      captureActionStart("draw");
       deps.setTableActionFeedback({ status: "loading", message: "Standing pat…" });
       return deps
         .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
@@ -294,6 +315,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
           const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
           if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
@@ -309,6 +331,7 @@ export function createTableIntentHandlers(deps) {
       const auth = requireAuth("Sign in to fold");
       if (!auth) return Promise.reject(new Error("Sign in to fold"));
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+      captureActionStart("fold");
       deps.setTableActionFeedback({ status: "loading", message: "Folding out…" });
       return deps
         .foldHandDraw(deps.getRoomId(), deps.getSessionId(), {
@@ -316,6 +339,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback({
             status: "success",
             message: "You're out this hand — ante forfeited",
@@ -334,6 +358,7 @@ export function createTableIntentHandlers(deps) {
       const auth = requireAuth("Sign in to play");
       if (!auth) return Promise.reject(new Error("Sign in to play"));
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.PLAY_CARD);
+      captureActionStart("play");
       deps.setTableActionFeedback({ status: "loading", message: "Playing card…" });
       return deps
         .playHandCard(deps.getRoomId(), deps.getSessionId(), {
@@ -342,6 +367,7 @@ export function createTableIntentHandlers(deps) {
           actorId: auth.uid,
         })
         .then(() => {
+          clearActionStart();
           deps.setTableActionFeedback(null);
           const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
           if (sessionObj) {
