@@ -18,6 +18,7 @@ import {
   TRICK_CARD_SETTLE_MS,
   TRICK_CARD_SHIFT_MS,
   TRICK_CARD_TRAVEL_MS,
+  TRICK_RAKE_MS,
   TRICK_SWEEP_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
@@ -254,6 +255,7 @@ export function MobileCardTable({
         ["--trick-card-land-ms" as string]: `${CARD_LAND_MS}ms`,
         ["--trick-winner-highlight-ms" as string]: `${WINNER_HIGHLIGHT_MS}ms`,
         ["--trick-sweep-ms" as string]: `${TRICK_SWEEP_MS}ms`,
+        ["--trick-rake-ms" as string]: `${TRICK_RAKE_MS}ms`,
         ["--trick-post-read-ms" as string]: `${POST_TRICK_READ_MS}ms`,
         ["--trick-next-lead-gap-ms" as string]: `${NEXT_LEAD_GAP_MS}ms`,
         ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,

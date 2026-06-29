@@ -4,6 +4,8 @@ import {
   computeStageFit,
   landscapeStageShareForPlayers,
   resolveHeroBudget,
+  resolveSessionChromeBudget,
+  SESSION_CHROME_FLOOR_PX,
 } from "../stageFit";
 import { useTableLayoutMode } from "../layout/useTableLayoutMode";
 import { useTableTheme } from "../theme/useTableTheme";
@@ -23,13 +25,21 @@ function readSafePx(name: string, fallback: number): number {
 function measureMobileChromePx(wrap: HTMLElement): number {
   const session = wrap.closest<HTMLElement>(".btable-session");
   if (!session) return 0;
+  const headRow = session.querySelector<HTMLElement>(".btable-session__head-row");
+  const status = session.querySelector<HTMLElement>(".btable-session__status");
+  let chrome = 0;
+  if (headRow) chrome += headRow.getBoundingClientRect().height;
+  if (status) chrome += status.getBoundingClientRect().height;
+  chrome += 24;
   const mobileShell = session.querySelector<HTMLElement>(".btable-mobile");
-  if (!mobileShell) return 0;
-  const sessionRect = session.getBoundingClientRect();
-  const shellRect = mobileShell.getBoundingClientRect();
-  const above = Math.max(0, shellRect.top - sessionRect.top);
-  const below = Math.max(0, sessionRect.bottom - shellRect.bottom);
-  return above + below;
+  if (mobileShell) {
+    const sessionRect = session.getBoundingClientRect();
+    const shellRect = mobileShell.getBoundingClientRect();
+    const above = Math.max(0, shellRect.top - sessionRect.top);
+    const below = Math.max(0, sessionRect.bottom - shellRect.bottom);
+    return Math.max(chrome, above + below) + 4;
+  }
+  return chrome + 4;
 }
 
 function stageFitHost(wrap: HTMLElement): HTMLElement {
@@ -45,6 +55,7 @@ function stageFitHost(wrap: HTMLElement): HTMLElement {
 export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptions) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const heroPeakRef = useRef(0);
+  const chromePeakRef = useRef(0);
   const sessionKeyRef = useRef(sessionKey);
   const layoutMode = useTableLayoutMode();
   const { settings } = useTableTheme();
@@ -58,6 +69,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
     if (sessionKeyRef.current !== sessionKey) {
       sessionKeyRef.current = sessionKey;
       heroPeakRef.current = 0;
+      chromePeakRef.current = 0;
     }
 
     const visualViewport = window.visualViewport;
@@ -103,8 +115,14 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
       let availHeight = Math.min(hostRect.height, vv?.height ?? window.innerHeight);
 
       if (inOverlay) {
-        const chrome = measureMobileChromePx(wrap);
-        availHeight = Math.max(140, availHeight - chrome);
+        const measuredChrome = measureMobileChromePx(wrap);
+        const stableChrome = resolveSessionChromeBudget(
+          measuredChrome,
+          chromePeakRef.current,
+          SESSION_CHROME_FLOOR_PX,
+        );
+        chromePeakRef.current = stableChrome.peak;
+        availHeight = Math.max(140, availHeight - stableChrome.height);
       }
 
       const userScale = Math.max(0.85, Math.min(1.35, settings.tableScale || 1));
@@ -151,29 +169,31 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
       wrap.style.setProperty("--stage-effective-scale", "1");
     };
 
-    const ro = new ResizeObserver(apply);
-    ro.observe(wrap);
+    let rafId: number | null = null;
+    const scheduleApply = () => {
+      if (rafId != null) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        apply();
+      });
+    };
+
+    const ro = new ResizeObserver(scheduleApply);
     const hero = wrap.querySelector<HTMLElement>(".btable-mobile-hero-dock");
     if (hero) ro.observe(hero);
     const host = stageFitHost(wrap);
     if (host instanceof HTMLElement) ro.observe(host);
-    const session = wrap.closest(".btable-session");
-    if (session instanceof HTMLElement) {
-      ro.observe(session);
-      const head = session.querySelector(".btable-session__head");
-      if (head instanceof HTMLElement) ro.observe(head);
-      const feedback = session.querySelector(".btable-session__feedback");
-      if (feedback instanceof HTMLElement) ro.observe(feedback);
-    }
-    apply();
-    window.addEventListener("orientationchange", apply);
-    visualViewport?.addEventListener("resize", apply);
-    visualViewport?.addEventListener("scroll", apply);
+    scheduleApply();
+    const onViewportChange = () => scheduleApply();
+    window.addEventListener("orientationchange", onViewportChange);
+    visualViewport?.addEventListener("resize", onViewportChange);
+    visualViewport?.addEventListener("scroll", onViewportChange);
     return () => {
+      if (rafId != null) window.cancelAnimationFrame(rafId);
       ro.disconnect();
-      window.removeEventListener("orientationchange", apply);
-      visualViewport?.removeEventListener("resize", apply);
-      visualViewport?.removeEventListener("scroll", apply);
+      window.removeEventListener("orientationchange", onViewportChange);
+      visualViewport?.removeEventListener("resize", onViewportChange);
+      visualViewport?.removeEventListener("scroll", onViewportChange);
     };
   }, [aspect, layoutMode, portrait, sessionKey, settings.tableScale]);
 

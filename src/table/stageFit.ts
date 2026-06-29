@@ -12,6 +12,9 @@ export const STAGE_SEAT_OVERFLOW_PAD = 28;
 /** Fixed hero dock budget — decouples felt sizing from draw/play chrome changes. */
 export const HERO_HAND_RESERVE_PX = 152;
 
+/** Baseline session chrome (title row + status) before ephemeral turn lines appear. */
+export const SESSION_CHROME_FLOOR_PX = 72;
+
 export interface StageFitInput {
   availWidth: number;
   availHeight: number;
@@ -58,6 +61,15 @@ export function resolveHeroBudget(
   const height =
     stable.peak > 0 ? Math.min(stable.height, cap) : Math.min(reserve, cap);
   return { height, peak: stable.peak };
+}
+
+/** Peak-stabilized session chrome — trick-resolve / feedback lines must not shrink the stage. */
+export function resolveSessionChromeBudget(
+  measured: number,
+  peak: number,
+  floor: number = SESSION_CHROME_FLOOR_PX,
+): { height: number; peak: number } {
+  return stabilizeHeroHeight(measured, peak, floor);
 }
 
 /** Tighter aspect on phones so the racetrack fits portrait without horizontal squeeze. */

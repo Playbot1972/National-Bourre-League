@@ -13,6 +13,8 @@ interface TrickRowProps {
   /** Presentation-only: CSS-driven final-trick echo when the live row clears early. */
   variant?: "live" | "echo";
   instantTrickPlays?: boolean;
+  /** Peak play count — reserves trick row width so the center cluster does not reflow mid-trick. */
+  peakCardCount?: number;
 }
 
 /** Public trick cards only — never hole cards. */
@@ -25,6 +27,7 @@ export function TrickRow({
   playerNames = {},
   variant = "live",
   instantTrickPlays = false,
+  peakCardCount = 0,
 }: TrickRowProps) {
   useEffect(() => {
     if (!isGameFlowDebugEnabled()) return;
@@ -33,6 +36,8 @@ export function TrickRow({
       phase: presentationPhase,
     });
   }, [displayPlays.length, presentationPhase]);
+
+  const layoutCardCount = Math.max(displayPlays.length, peakCardCount, 1);
 
   if (displayPlays.length === 0) {
     return (
@@ -90,7 +95,7 @@ export function TrickRow({
           className="btrick__cards"
           role="list"
           aria-label="Cards in trick"
-          style={{ ["--trick-card-count" as string]: displayPlays.length }}
+          style={{ ["--trick-card-count" as string]: layoutCardCount }}
         >
           {displayPlays.map((play, i) => (
             <TrickPlaySlot

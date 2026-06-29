@@ -244,6 +244,7 @@ export function PotCenter({
               presentationPhase={trickPresentationPhase}
               playerNames={playerNames}
               instantTrickPlays={instantTrickPlays}
+              peakCardCount={peakTrickPlayCount}
             />
           </div>
           {finalTrickEcho && (
