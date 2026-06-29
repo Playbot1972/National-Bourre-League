@@ -5,7 +5,7 @@ let trickCollectionActive = false;
 const listeners = new Set<() => void>();
 
 function notify(): void {
-  for (const listener of listeners) listeners();
+  for (const listener of listeners) listener();
 }
 
 export function setDealPresentationActive(active: boolean): void {
