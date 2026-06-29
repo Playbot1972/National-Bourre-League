@@ -40,6 +40,8 @@ interface HeroHandProps {
   className?: string;
   dealStaggerMs?: number;
   drawAnimSubPhase?: "discard" | "receive" | "done" | null;
+  drawDiscardCount?: number;
+  drawReplaceCount?: number;
   currentUserId?: string | null;
   revealedTrumpIndex?: number | null;
   trumpMergeActive?: boolean;
@@ -102,6 +104,8 @@ export function HeroHand({
   className = "",
   dealStaggerMs = 120,
   drawAnimSubPhase = null,
+  drawDiscardCount = 0,
+  drawReplaceCount = 0,
   currentUserId = null,
   revealedTrumpIndex = null,
   trumpMergeActive = false,
@@ -182,6 +186,8 @@ export function HeroHand({
     dealing,
     dealStaggerMs,
     drawAnimSubPhase,
+    drawDiscardCount,
+    drawReplaceCount,
     pendingDiscardIndices,
     standPatPulse,
     foldOutPulse,
@@ -618,8 +624,8 @@ export function HeroHand({
         revealedTrumpIndex !== null ? "btable-hero--trump-reveal" : "",
         trumpMergeActive ? "btable-hero--trump-merge" : "",
         inDrawPhase && isMyTurn && !drawCompleted ? "btable-hero--draw-select" : "",
-        drawAnimSubPhase === "discard" ? "btable-hero--draw-discard" : "",
-        drawAnimSubPhase === "receive" ? "btable-hero--draw-receive" : "",
+        drawAnimSubPhase === "discard" && drawDiscardCount > 0 ? "btable-hero--draw-discard" : "",
+        drawAnimSubPhase === "receive" && drawReplaceCount > 0 ? "btable-hero--draw-receive" : "",
         showDrawActions ? "btable-hero--draw-actions" : "",
         (inDrawPhase && isMyTurn && !drawCompleted) || (inPlayPhase && isMyTurn)
           ? "btable-hero--your-turn"

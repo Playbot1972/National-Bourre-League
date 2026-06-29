@@ -8,8 +8,9 @@ import {
   animateOriginRectsToDiscardPile,
   animateCardsToDiscardPile,
   killDiscardFlights,
-  seatOriginRectsForDiscard,
+  seatHandOriginRectsForDraw,
 } from "../animations/discardPileMotion";
+import { killDrawReceiveFlights } from "../animations/drawSeatMotion";
 import type { SerializedCard } from "../types";
 
 export interface UseDiscardPileStateInput {
@@ -30,6 +31,7 @@ export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPile
     handRef.current = handNumber;
     pileIndexRef.current = 0;
     killDiscardFlights();
+    killDrawReceiveFlights();
     setCards([]);
   }, [handNumber]);
 
@@ -39,6 +41,7 @@ export function useDiscardPileState({ handNumber, sessionPhase }: UseDiscardPile
     phaseRef.current = phase;
     if (prev === "draw" && phase === "play") {
       killDiscardFlights();
+      killDrawReceiveFlights();
       setCards([]);
     }
   }, [sessionPhase]);
@@ -116,7 +119,7 @@ export function runBotDiscardFly({
     onComplete(keys.map((id) => ({ id, playerId })));
     return;
   }
-  const origins = seatOriginRectsForDiscard(playerId, discardCount, root);
+  const origins = seatHandOriginRectsForDraw(playerId, discardCount, root);
   if (!origins.length) {
     onComplete(keys.map((id) => ({ id, playerId })));
     return;

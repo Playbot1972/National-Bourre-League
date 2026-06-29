@@ -20,6 +20,7 @@ import { useStageFit } from "./hooks/useStageFit";
 import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
+import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
@@ -135,6 +136,15 @@ export function CardTable({
     handPresentation,
     handNumber: session.handNumber,
     currentUserId,
+    tableRootRef: wrapRef,
+  });
+  useTableDrawMotionCleanup({
+    handNumber: session.handNumber,
+    sessionPhase: session.phase,
+    turnPlayerId: session.turnPlayerId,
+    drawCompletedIds: session.drawCompletedIds ?? [],
+    currentUserId,
+    handPresentation,
     tableRootRef: wrapRef,
   });
   const clockwiseDealing = useTableDealPresentation({
@@ -370,6 +380,16 @@ export function CardTable({
           handPresentation.animatingDrawPlayerId === currentUserId
             ? handPresentation.drawAnimSubPhase
             : null
+        }
+        drawDiscardCount={
+          handPresentation.animatingDrawPlayerId === currentUserId
+            ? handPresentation.drawDiscardCount
+            : 0
+        }
+        drawReplaceCount={
+          handPresentation.animatingDrawPlayerId === currentUserId
+            ? handPresentation.drawReplaceCount
+            : 0
         }
         drawCompleted={drawCompleted}
         maxDrawDiscards={session.maxDrawDiscards ?? 4}
