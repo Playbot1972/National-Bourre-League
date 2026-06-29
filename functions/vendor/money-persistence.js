@@ -13,6 +13,8 @@ import {
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
   deriveScoreNet,
+  startNextHandFunding,
+  collectFundingForHandStart,
 } from "./money-engine.js";
 
 export {
@@ -26,6 +28,8 @@ export {
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
+  startNextHandFunding,
+  collectFundingForHandStart,
 };
 
 /** Subcollection path segment for immutable money events. */

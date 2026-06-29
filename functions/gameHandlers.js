@@ -42,6 +42,7 @@ import {
   runV1HandSettlement,
   runV1Rebuy,
   runV1AnteCollection,
+  collectFundingForHandStart,
 } from "./vendor/money-persistence.js";
 import {
   buildHandFlowSnapshot,
@@ -512,12 +513,19 @@ function buildDealCompletionPatch(
   dealingRule,
   dealContextExtras = {},
 ) {
-  const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
-    dealContextExtras;
-  const collected = collectNextHandAntes({
+  const {
+    scoreById = {},
+    sessionStake = 1,
+    buyIn = 1,
+    carryIn = 0,
+    handCount = 0,
+    nextDealFunding = null,
+  } = dealContextExtras;
+  const collected = collectFundingForHandStart({
+    scoreById,
+    nextDealFunding,
     carryOverPot: carryIn,
     participantIds: enrolledIds,
-    scoreById,
     sessionStake,
     buyInFallback: buyIn,
   });
@@ -777,7 +785,6 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     nextDealFunding: sessionData.nextDealFunding ?? null,
     existingEvents,
   });
-  if (!anteResult.newEvents.length) return patch;
 
   const scorePatches = { ...patch.scorePatches };
   for (const pid of participantIds) {
@@ -790,11 +797,21 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     };
   }
 
+  const currentHand =
+    patch.currentHand && anteResult.postedAntes
+      ? { ...patch.currentHand, postedAntes: anteResult.postedAntes }
+      : patch.currentHand;
+
   return {
     ...patch,
+    currentHand,
     scorePatches,
-    moneyEvents: anteResult.newEvents,
-    moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+    ...(anteResult.newEvents.length
+      ? {
+          moneyEvents: anteResult.newEvents,
+          moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+        }
+      : {}),
   };
 }
 
@@ -1975,6 +1992,7 @@ export async function handleRecordHand(
     bourreRemainders,
     scoreById: fundedScoreById,
     nextDealFunding,
+    bankrolls: settledBankrollsByPlayer,
     solvent,
   } = settlementResult;
 
@@ -2017,13 +2035,16 @@ export async function handleRecordHand(
     const tricksWon =
       (current.tricksWon || 0) +
       (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
-    const bankroll = solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn);
+    const settledBankroll =
+      settledBankrollsByPlayer[pid] ??
+      solvent.bankrolls[pid] ??
+      scoreBankroll(current, buyIn);
     const patch = {
-      net: deriveScoreNet(bankroll, buyIn),
-      bankroll,
+      net: deriveScoreNet(settledBankroll, buyIn),
+      bankroll: settledBankroll,
       updatedAt: FieldValue.serverTimestamp(),
     };
-    if ((solvent.bankrolls[pid] ?? 0) <= 0) {
+    if (settledBankroll <= 0) {
       patch.out = true;
     } else {
       patch.out = FieldValue.delete();

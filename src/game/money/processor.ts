@@ -182,9 +182,11 @@ export function processAnte(input: ProcessAnteInput): MoneyEngineResult & {
     return {
       delta: {},
       newEvents: [],
-      newBankrolls: replayed.bankrolls,
+      // Authoritative post-funding stacks from settled score rows — not replay snapshot
+      // (replay can lag when settlement events committed without a matching score write).
+      newBankrolls: deal.collected.bankrolls,
       carryOverPot: replayed.carryOverPot,
-      postedAntes: replayed.postedAntes,
+      postedAntes: deal.collected.postedAntes,
       invariants: buildInvariantReport(replayed),
       version: MONEY_ENGINE_VERSION,
       collected: deal.collected,

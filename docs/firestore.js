@@ -90,7 +90,6 @@ import {
   sumProjectedHandAntes,
   bourrePlayerIds,
   mergeNextDealFundingIntoScoreById,
-  collectNextHandAntes,
   logBourreAccounting,
   DEFAULT_BOURRE_SETTINGS,
   normalizeBourreSettings,
@@ -112,6 +111,7 @@ import {
   moneyEventsFromFirestoreDocs,
   nextMoneySequence,
   MONEY_EVENTS_COLLECTION,
+  collectFundingForHandStart,
 } from "./money-persistence.js";
 import {
   buildBotRebuySettlementPlan,
@@ -1155,6 +1155,7 @@ function decisionContextFromSession(data, sortedPlayerIds, scoreById, dealingRul
     sessionStake,
     carryIn: data.carryOverPot || 0,
     handCount: data.handCount || 0,
+    nextDealFunding: data.nextDealFunding ?? null,
   };
 }
 
@@ -1267,7 +1268,6 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     nextDealFunding: sessionData.nextDealFunding ?? null,
     existingEvents,
   });
-  if (!anteResult.newEvents.length) return patch;
 
   const scorePatches = { ...patch.scorePatches };
   for (const pid of participantIds) {
@@ -1280,11 +1280,21 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     };
   }
 
+  const currentHand =
+    patch.currentHand && anteResult.postedAntes
+      ? { ...patch.currentHand, postedAntes: anteResult.postedAntes }
+      : patch.currentHand;
+
   return {
     ...patch,
+    currentHand,
     scorePatches,
-    moneyEvents: anteResult.newEvents,
-    moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+    ...(anteResult.newEvents.length
+      ? {
+          moneyEvents: anteResult.newEvents,
+          moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
+        }
+      : {}),
   };
 }
 
@@ -1540,7 +1550,7 @@ function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, session
     sortedIds,
     Date.now(),
     dealingRule,
-    { scoreById, sessionStake, buyIn },
+    { scoreById, sessionStake, buyIn, nextDealFunding: sessionData.nextDealFunding ?? null },
   );
 }
 
@@ -1687,12 +1697,19 @@ function buildPagatHandStartPatch(
   dealingRule,
   dealContextExtras = {},
 ) {
-  const { scoreById = {}, sessionStake = 1, buyIn = 1, carryIn = 0, handCount = 0 } =
-    dealContextExtras;
-  const collected = collectNextHandAntes({
+  const {
+    scoreById = {},
+    sessionStake = 1,
+    buyIn = 1,
+    carryIn = 0,
+    handCount = 0,
+    nextDealFunding = null,
+  } = dealContextExtras;
+  const collected = collectFundingForHandStart({
+    scoreById,
+    nextDealFunding,
     carryOverPot: carryIn,
     participantIds: seatedIds,
-    scoreById,
     sessionStake,
     buyInFallback: buyIn,
   });
@@ -2320,13 +2337,14 @@ function enrollmentPatchAfterStep(enrollment, enrolledIds, declinedIds, dealCont
     dealContext.sortedPlayerIds,
     dealContext.seed,
     dealContext.dealingRule,
-    {
-      scoreById: dealContext.scoreById ?? {},
-      sessionStake: dealContext.sessionStake ?? 1,
-      buyIn: dealContext.buyIn ?? 1,
-      carryIn: dealContext.carryIn ?? 0,
-      handCount: dealContext.handCount ?? 0,
-    },
+      {
+        scoreById: dealContext.scoreById ?? {},
+        sessionStake: dealContext.sessionStake ?? 1,
+        buyIn: dealContext.buyIn ?? 1,
+        carryIn: dealContext.carryIn ?? 0,
+        handCount: dealContext.handCount ?? 0,
+        nextDealFunding: dealContext.nextDealFunding ?? null,
+      },
   );
 }
 
@@ -2810,6 +2828,7 @@ async function recordHandClient(
     bourreRemainders,
     scoreById: fundedScoreById,
     nextDealFunding,
+    bankrolls: settledBankrollsByPlayer,
     solvent,
   } = settlementResult;
 
@@ -2837,7 +2856,7 @@ async function recordHandClient(
     bankrollsBefore: Object.fromEntries(
       participants.map((pid) => [pid, scoreBankroll(scoreById[pid], buyIn)]),
     ),
-    bankrollsAfter: solvent.bankrolls,
+    bankrollsAfter: settledBankrollsByPlayer ?? solvent.bankrolls,
     postedAntes,
     antePot,
   });
@@ -2868,13 +2887,16 @@ async function recordHandClient(
     const isWinner = winners.includes(pid);
     const tricksWon =
       (current.tricksWon || 0) + (isWinner && mode === "split" ? 1 : mode === "win" && isWinner ? 1 : 0);
+    const settledBankroll =
+      settledBankrollsByPlayer[pid] ??
+      solvent.bankrolls[pid] ??
+      scoreBankroll(current, buyIn);
     const patch = {
-      net: (current.net || 0) + deltas[pid],
-      bankroll: solvent.bankrolls[pid] ?? scoreBankroll(current, buyIn),
+      net: deriveScoreNet(settledBankroll, buyIn),
+      bankroll: settledBankroll,
       updatedAt: serverTimestamp(),
     };
-    patch.net = deriveScoreNet(patch.bankroll, buyIn);
-    if ((solvent.bankrolls[pid] ?? 0) <= 0) {
+    if (settledBankroll <= 0) {
       patch.out = true;
     } else {
       patch.out = deleteField();
@@ -3957,6 +3979,7 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
           scoreById: freshScoreById,
           carryIn: freshData.carryOverPot || 0,
           handCount: freshData.handCount || 0,
+          nextDealFunding: freshData.nextDealFunding ?? null,
         },
       );
     },
@@ -4052,6 +4075,7 @@ async function timeoutHandEnrollmentTurnClient(roomId, sessionId) {
       sessionStake,
       carryIn: data.carryOverPot || 0,
       handCount: data.handCount || 0,
+      nextDealFunding: data.nextDealFunding ?? null,
     });
   });
 }
