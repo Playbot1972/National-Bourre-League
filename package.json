@@ -1,7 +1,7 @@
 {
   "name": "national-bourre-league",
   "private": true,
-  "version": "1.03.27",
+  "version": "1.03.28",
   "type": "module",
   "scripts": {
     "dev": "vite",
