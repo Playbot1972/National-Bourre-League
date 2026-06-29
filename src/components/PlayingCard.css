@@ -209,7 +209,7 @@
   transform: translateY(-12px) rotateX(6deg) scale(1.02);
 }
 .btrick__play--winner .pcard--winner {
-  transform: translateY(-2px) scale(1.02);
+  transform: scale(1.02);
 }
 .pcard--winner .pcard__surface {
   border-color: #2f9e6a;
