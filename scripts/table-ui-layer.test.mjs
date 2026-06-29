@@ -154,6 +154,70 @@ describe("table UI layer modules", () => {
     assert.match(feedback?.message ?? "", /server could not finish/);
     assert.equal(context?.actionKind, "play");
   });
+
+  it("suppresses play internal error when table already advanced since action start", async () => {
+    let feedback = null;
+    let contextCalls = 0;
+    const prePlayHand = {
+      phase: "play",
+      turnPlayerId: "human",
+      participantIds: ["human", "bot_1"],
+      tricksByPlayer: {},
+      currentTrick: [{}],
+    };
+    const postPlayHand = {
+      phase: "play",
+      turnPlayerId: "bot_1",
+      participantIds: ["human", "bot_1"],
+      tricksByPlayer: {},
+      currentTrick: [{}, {}],
+    };
+    const handlers = createTableIntentHandlers({
+      getAuth: () => ({ uid: "human" }),
+      getRoomId: () => "r1",
+      getSessionId: () => "s1",
+      getCurrentSessions: () => [{ id: "s1", handCount: 0, currentHand: postPlayHand }],
+      getHandPhase: () => "play",
+      getCurrentHand: () => postPlayHand,
+      getSessionCurrentHand: () => postPlayHand,
+      setTableActionFeedback: (fb, ctx) => {
+        feedback = fb;
+        if (ctx) contextCalls += 1;
+      },
+      showRoomsError: () => {},
+      commitLocalHandAction: () => {},
+      clearLocalHandCommit: () => {},
+      markPendingDrawShuffle: () => {},
+      scheduleTableSessionSync: () => {},
+      setHandParticipation: async () => {},
+      submitHandDraw: async () => {},
+      foldHandDraw: async () => {},
+      playHandCard: async () => {
+        const err = new Error("INTERNAL");
+        err.code = "functions/internal";
+        throw err;
+      },
+      advanceHandReveal: async () => {},
+      updateHandTrick: async () => {},
+      onSettleHand: async () => {},
+      formatClientGameError: () =>
+        "The server could not finish that table action. Refresh the page and try again.",
+      getActionErrorContext: (kind) => {
+        contextCalls += 1;
+        const hand = contextCalls === 1 ? prePlayHand : postPlayHand;
+        return {
+          handNumber: 1,
+          phase: hand.phase,
+          turnPlayerId: hand.turnPlayerId,
+          actionKind: kind,
+          totalTricksPlayed: 0,
+          currentTrickLen: hand.currentTrick.length,
+        };
+      },
+    });
+    await handlers.onPlayCard(0).catch(() => {});
+    assert.equal(feedback, null);
+  });
 });
 
 describe("app.js UI wiring", () => {
