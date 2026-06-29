@@ -1204,12 +1204,17 @@ async function ensureTableFeedbackApi() {
 function getActionErrorContext(actionKind) {
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   const currentHand = sessionObj ? getSessionCurrentHand(sessionObj) : null;
+  const participantIds = currentHand?.participantIds ?? [];
+  const tricksByPlayer = currentHand?.tricksByPlayer ?? {};
   return {
     handNumber: sessionObj ? sessionHandNumber(sessionObj) : null,
     phase: currentHand?.phase ?? null,
     turnPlayerId: currentHand?.turnPlayerId ?? null,
     actionKind: actionKind ?? null,
     atMs: Date.now(),
+    totalTricksPlayed: totalTricksPlayed(tricksByPlayer, participantIds),
+    currentTrickLen: currentHand?.currentTrick?.length ?? 0,
+    drawCompletedCount: (currentHand?.drawCompletedIds ?? []).length,
   };
 }
 
@@ -3378,6 +3383,9 @@ function buildTableSessionProps(s) {
     phase: handPhase,
     turnPlayerId: currentHand?.turnPlayerId ?? null,
     handComplete,
+    totalTricksPlayed: totalTricks,
+    currentTrickLen: currentHand?.currentTrick?.length ?? 0,
+    drawCompletedCount: drawCompletedIds.length,
   });
   if (
     tableActionFeedback?.status === "error" &&

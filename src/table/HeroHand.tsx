@@ -285,6 +285,17 @@ export function HeroHand({
     }
   }, [actionFeedback?.status, clearPreselectTimer]);
 
+  /** Clear hero-local mirror once parent action feedback recovers from an error. */
+  const prevFeedbackStatusRef = useRef<TableActionFeedback["status"] | undefined>(undefined);
+  useEffect(() => {
+    const status = actionFeedback?.status;
+    const prev = prevFeedbackStatusRef.current;
+    prevFeedbackStatusRef.current = status;
+    if (prev === "error" && status !== "error") {
+      setLocalError(null);
+    }
+  }, [actionFeedback?.status]);
+
   const cardSize = settings.cardScale === "lg" ? "md" : "sm";
   const feedbackError = scrubInternalActionMessage(
     actionFeedback?.status === "error" ? actionFeedback.message : localError,
@@ -350,9 +361,8 @@ export function HeroHand({
         await Promise.resolve(onPlayCard(index));
         setPlayingIndex(null);
         playLockRef.current = false;
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : "Could not play card";
-        setLocalError(scrubInternalActionMessage(raw));
+      } catch {
+        // Play errors surface via actionFeedback from onPlayCard — avoid duplicate bottom banner.
         setPlayingIndex(null);
         playLockRef.current = false;
       }
@@ -420,8 +430,8 @@ export function HeroHand({
       try {
         await onSubmitDraw(indices);
         setSelectedDraw(new Set());
-      } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Draw failed");
+      } catch {
+        // Draw errors surface via actionFeedback from onSubmitDraw.
       } finally {
         setLocalBusy(false);
       }
@@ -439,8 +449,8 @@ export function HeroHand({
       setSelectedDraw(new Set());
       setStandPatPulse(true);
       window.setTimeout(() => setStandPatPulse(false), 700);
-    } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "Could not stand pat");
+    } catch {
+      // Pass errors surface via actionFeedback from onPassDraw.
     } finally {
       setLocalBusy(false);
     }
@@ -455,9 +465,8 @@ export function HeroHand({
     try {
       await onFoldDraw();
       setSelectedDraw(new Set());
-    } catch (err) {
+    } catch {
       setFoldOutPulse(false);
-      setLocalError(err instanceof Error ? err.message : "Could not fold out");
     } finally {
       setLocalBusy(false);
     }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   formatTableActionError,
   isBenignTableActionError,
+  isInternalTableActionError,
   isStaleTableActionError,
   scrubRawInternalMessage,
 } from "../docs/table-action-feedback.js";
@@ -87,5 +88,61 @@ describe("table-action-feedback", () => {
       ),
       false,
     );
+  });
+
+  it("clears play error when trick progress advances (turn cycled back to same seat)", () => {
+    assert.equal(
+      isStaleTableActionError(
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "human",
+          actionKind: "play",
+          totalTricksPlayed: 1,
+          currentTrickLen: 2,
+        },
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "human",
+          handComplete: false,
+          totalTricksPlayed: 2,
+          currentTrickLen: 0,
+        },
+      ),
+      true,
+    );
+  });
+
+  it("clears play error when current trick gains a card", () => {
+    assert.equal(
+      isStaleTableActionError(
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "human",
+          actionKind: "play",
+          totalTricksPlayed: 0,
+          currentTrickLen: 1,
+        },
+        {
+          handNumber: 3,
+          phase: "play",
+          turnPlayerId: "bot_1",
+          handComplete: false,
+          totalTricksPlayed: 0,
+          currentTrickLen: 2,
+        },
+      ),
+      true,
+    );
+  });
+
+  it("detects internal callable errors", () => {
+    assert.equal(
+      isInternalTableActionError({ code: "functions/internal", message: "INTERNAL" }),
+      true,
+    );
+    assert.equal(isInternalTableActionError(new Error("Not your turn")), false);
   });
 });

@@ -4,7 +4,12 @@
  */
 
 import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
-import { isBenignTableActionError } from "./table-action-feedback.js";
+import {
+  isBenignTableActionError,
+  isInternalTableActionError,
+  isStaleTableActionError,
+} from "./table-action-feedback.js";
+import { isHandComplete, totalTricksPlayed } from "./table-view-model.js";
 
 /**
  * @param {object} deps
@@ -39,13 +44,41 @@ export function createTableIntentHandlers(deps) {
     return deps.formatClientGameError(err, fallback);
   }
 
+  function sessionFeedbackState() {
+    const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+    const currentHand = sessionObj ? deps.getSessionCurrentHand(sessionObj) : null;
+    const participantIds = currentHand?.participantIds ?? [];
+    const tricksByPlayer = currentHand?.tricksByPlayer ?? {};
+    return {
+      handNumber: sessionObj ? (sessionObj.handCount ?? 0) + 1 : null,
+      phase: currentHand?.phase ?? null,
+      turnPlayerId: currentHand?.turnPlayerId ?? null,
+      handComplete: isHandComplete(tricksByPlayer, participantIds),
+      totalTricksPlayed: totalTricksPlayed(tricksByPlayer, participantIds),
+      currentTrickLen: currentHand?.currentTrick?.length ?? 0,
+      drawCompletedCount: (currentHand?.drawCompletedIds ?? []).length,
+    };
+  }
+
   function setActionError(err, fallback, actionKind) {
     if (isBenignTableActionError(err)) {
       console.warn("Benign table action error suppressed:", err?.message ?? err);
       return null;
     }
-    const message = actionErrorMessage(err, fallback);
     const context = deps.getActionErrorContext?.(actionKind) ?? null;
+    if (
+      isInternalTableActionError(err) &&
+      context &&
+      isStaleTableActionError(context, sessionFeedbackState())
+    ) {
+      console.warn(
+        "Recovered internal table action error suppressed:",
+        err?.message ?? err,
+      );
+      deps.setTableActionFeedback(null);
+      return null;
+    }
+    const message = actionErrorMessage(err, fallback);
     deps.setTableActionFeedback({ status: "error", message }, context);
     return message;
   }
