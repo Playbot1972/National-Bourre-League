@@ -1929,6 +1929,19 @@
 }
 
 /* Won tricks pile — beside avatar, opposite trick-count badge */
+.bseat__seat-motion-anchor {
+  --trick-pile-x: 8px;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 22px;
+  height: 30px;
+  transform: translate(var(--trick-pile-x), -50%);
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .bseat__won-trick-pile {
   --trick-pile-x: 8px;
   position: absolute;
@@ -1971,30 +1984,32 @@
     0 5px 10px rgba(0, 0, 0, 0.28);
 }
 
-.bseat__won-trick-pile[data-trick-count="0"] {
-  opacity: 0;
-}
-
 /* Default: badge left → pile right. Opponents: badge right → pile left. */
+.btable__seat-slot:not([data-seat-index="0"]) .bseat__seat-motion-anchor,
 .btable__seat-slot:not([data-seat-index="0"]) .bseat__won-trick-pile {
   left: 0;
   right: auto;
   --trick-pile-x: calc(-100% - 8px);
 }
 
+.btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__seat-motion-anchor,
 .btable__seat-slot:not([data-seat-index="0"]) .bseat--right .bseat__won-trick-pile {
   --trick-pile-x: -4px;
 }
 
+.bseat--bottom .bseat__seat-motion-anchor,
 .bseat--bottom .bseat__won-trick-pile {
   top: 52%;
 }
 
+.bseat--top .bseat__seat-motion-anchor,
 .bseat--top .bseat__won-trick-pile {
   top: 48%;
 }
 
+.bseat--left .bseat__seat-motion-anchor,
 .bseat--left .bseat__won-trick-pile,
+.bseat--right .bseat__seat-motion-anchor,
 .bseat--right .bseat__won-trick-pile {
   top: 50%;
 }

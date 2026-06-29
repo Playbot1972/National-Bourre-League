@@ -40,7 +40,9 @@ export function readWonTrickPileAnchor(
   root: ParentNode = document,
 ): MotionRect | null {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-  const el = doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`);
+  const el =
+    doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`) ??
+    doc.querySelector(`[data-seat-motion-anchor="${winnerPlayerId}"]`);
   return el ? rectFromElement(el) : null;
 }
 
@@ -112,13 +114,17 @@ function cloneCardForFly(source: HTMLElement, host: HTMLElement): HTMLElement {
 
 export function markWinnerPileRevealReady(winnerPlayerId: string, root: ParentNode): void {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-  const seat = doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`)?.closest(".bseat");
+  const seat =
+    doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`)?.closest(".bseat") ??
+    doc.querySelector(`[data-seat-motion-anchor="${winnerPlayerId}"]`)?.closest(".bseat");
   seat?.classList.add("bseat--pile-reveal-ready");
 }
 
 export function clearWinnerPileRevealReady(winnerPlayerId: string, root: ParentNode): void {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
-  const seat = doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`)?.closest(".bseat");
+  const seat =
+    doc.querySelector(`[data-won-trick-pile-anchor="${winnerPlayerId}"]`)?.closest(".bseat") ??
+    doc.querySelector(`[data-seat-motion-anchor="${winnerPlayerId}"]`)?.closest(".bseat");
   seat?.classList.remove("bseat--pile-reveal-ready");
 }
 

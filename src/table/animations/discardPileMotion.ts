@@ -183,6 +183,7 @@ export function seatOriginRectsForDiscard(
   root: ParentNode,
 ): MotionRect[] {
   const el =
+    root.querySelector(`[data-seat-motion-anchor="${playerId}"]`) ??
     root.querySelector(`[data-won-trick-pile-anchor="${playerId}"]`) ??
     root.querySelector(`[data-seat-play-origin="${playerId}"]`) ??
     root.querySelector(`[data-trick-play-origin="${playerId}"]`);
