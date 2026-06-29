@@ -26,11 +26,28 @@
   --trick-winner-highlight-ms: 1850ms;
 }
 
-/* --- Clockwise deal: invisible anchors only — no opponent hole-card crown --- */
+/* --- Clockwise deal: invisible anchors beside avatar (never over the face) --- */
+.bseat__deal-targets {
+  --trick-pile-x: 8px;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: 28px;
+  height: 34px;
+  transform: translate(var(--trick-pile-x), -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .bseat__deal-target {
   display: block;
-  width: 34px;
-  height: 48px;
+  width: 22px;
+  height: 30px;
   visibility: hidden;
   pointer-events: none;
 }

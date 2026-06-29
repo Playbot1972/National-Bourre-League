@@ -18,6 +18,9 @@ export const GSAP_DURATIONS = {
   hoverLift: 0.38,
 } as const;
 
+/** Fly ghosts stay under seats/avatars (btable-wrap__table-area is z-index 8). */
+export const MOTION_GHOST_Z_INDEX = 4;
+
 export function motionScale(reducedMotion = prefersReducedMotion()): number {
   return reducedMotion ? 0.35 : 1;
 }

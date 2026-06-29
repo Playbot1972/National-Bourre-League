@@ -2,6 +2,7 @@ import gsap from "gsap";
 import { discardPilePlacement } from "../discardPileModel";
 import {
   GSAP_DURATIONS,
+  MOTION_GHOST_Z_INDEX,
   PREMIUM_EASE,
   prefersReducedMotion,
   scaledDuration,
@@ -73,7 +74,7 @@ export function animateCardsToDiscardPile(
     gsap.set(el, {
       transformOrigin: "50% 50%",
       willChange: "transform,opacity",
-      zIndex: 120 + pileStartIndex + i,
+      zIndex: MOTION_GHOST_Z_INDEX,
     });
 
     if (!anchor || reduced) {
@@ -158,6 +159,7 @@ export function animateOriginRectsToDiscardPile(
     ghost.style.width = `${origin.width}px`;
     ghost.style.height = `${origin.height}px`;
     ghost.style.pointerEvents = "none";
+    ghost.style.zIndex = String(MOTION_GHOST_Z_INDEX);
     host.appendChild(ghost);
     ghosts.push(ghost);
   }
@@ -181,6 +183,7 @@ export function seatOriginRectsForDiscard(
   root: ParentNode,
 ): MotionRect[] {
   const el =
+    root.querySelector(`[data-won-trick-pile-anchor="${playerId}"]`) ??
     root.querySelector(`[data-seat-play-origin="${playerId}"]`) ??
     root.querySelector(`[data-trick-play-origin="${playerId}"]`);
   if (!el) return [];

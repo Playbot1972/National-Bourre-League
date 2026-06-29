@@ -10265,7 +10265,7 @@ function ma(e, t, n, r = {}) {
 		if (q.set(e, {
 			transformOrigin: "50% 50%",
 			willChange: "transform,opacity",
-			zIndex: 120 + n + l
+			zIndex: 4
 		}), !a || i) {
 			c.to(e, {
 				opacity: 0,
@@ -10319,7 +10319,7 @@ function ha(e, t, n, r, i = {}) {
 	let a = [];
 	for (let t = 0; t < e.length; t++) {
 		let n = e[t], i = document.createElement("div");
-		i.className = "discard-fly-ghost", i.setAttribute("aria-hidden", "true"), i.style.position = "fixed", i.style.left = `${n.left}px`, i.style.top = `${n.top}px`, i.style.width = `${n.width}px`, i.style.height = `${n.height}px`, i.style.pointerEvents = "none", r.appendChild(i), a.push(i);
+		i.className = "discard-fly-ghost", i.setAttribute("aria-hidden", "true"), i.style.position = "fixed", i.style.left = `${n.left}px`, i.style.top = `${n.top}px`, i.style.width = `${n.width}px`, i.style.height = `${n.height}px`, i.style.pointerEvents = "none", i.style.zIndex = "4", r.appendChild(i), a.push(i);
 	}
 	let o = ma(a, t, n, {
 		root: r,
@@ -10333,7 +10333,7 @@ function ha(e, t, n, r, i = {}) {
 	}), o;
 }
 function ga(e, t, n) {
-	let r = n.querySelector(`[data-seat-play-origin="${e}"]`) ?? n.querySelector(`[data-trick-play-origin="${e}"]`);
+	let r = n.querySelector(`[data-won-trick-pile-anchor="${e}"]`) ?? n.querySelector(`[data-seat-play-origin="${e}"]`) ?? n.querySelector(`[data-trick-play-origin="${e}"]`);
 	if (!r) return [];
 	let i = J(r);
 	return Array.from({ length: t }, (e, t) => ({
@@ -13030,10 +13030,10 @@ function Ll({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 									}, t))
 								}),
 								i && e.inHand && !e.isSelf && m > 0 && /* @__PURE__ */ (0, g.jsx)("div", {
-									className: "bseat__deal-targets bseat__hole-cards bseat__hole-cards--crown",
+									className: "bseat__deal-targets",
 									"aria-hidden": "true",
 									children: Array.from({ length: m }, (t, n) => /* @__PURE__ */ (0, g.jsx)("span", {
-										className: "bseat__deal-target bseat__hole-card",
+										className: "bseat__deal-target",
 										"data-deal-seat": e.playerId,
 										"data-deal-round": n,
 										style: { "--hole-i": n }
@@ -13702,7 +13702,7 @@ function Ru(e, t) {
 }
 function zu(e) {
 	let t = document.createElement("div");
-	return t.className = "draw-receive-fly-ghost", t.setAttribute("aria-hidden", "true"), t.style.position = "fixed", t.style.left = `${e.left}px`, t.style.top = `${e.top}px`, t.style.width = `${e.width}px`, t.style.height = `${e.height}px`, t.style.pointerEvents = "none", t;
+	return t.className = "draw-receive-fly-ghost", t.setAttribute("aria-hidden", "true"), t.style.position = "fixed", t.style.left = `${e.left}px`, t.style.top = `${e.top}px`, t.style.width = `${e.width}px`, t.style.height = `${e.height}px`, t.style.pointerEvents = "none", t.style.zIndex = "4", t;
 }
 function Bu(e, t, n, r = {}) {
 	na(n);
@@ -13736,14 +13736,18 @@ function Bu(e, t, n, r = {}) {
 			c.to(e, {
 				x: p,
 				y: m,
-				opacity: .92,
-				duration: Math.min(a, .22),
+				opacity: .5,
+				duration: Math.min(a, .18)
+			}, n * o), c.to(e, {
+				opacity: 0,
+				duration: Math.min(a, .08),
 				onComplete: () => {
 					q.set(e, { clearProps: "transform,opacity,willChange" });
 				}
-			}, n * o);
+			}, n * o + Math.min(a, .18));
 			return;
 		}
+		let _ = n * o, v = _ + a * .78;
 		c.to(e, {
 			motionPath: {
 				path: [
@@ -13764,13 +13768,18 @@ function Bu(e, t, n, r = {}) {
 			},
 			rotationY: 0,
 			scale: 1,
-			opacity: 1,
-			duration: a,
-			ease: N,
+			opacity: .92,
+			duration: a * .78,
+			ease: N
+		}, _), c.to(e, {
+			opacity: 0,
+			scale: .92,
+			duration: a * .22,
+			ease: "power1.in",
 			onComplete: () => {
 				q.set(e, { clearProps: "transform,opacity,willChange" });
 			}
-		}, n * o);
+		}, v);
 	}), c;
 }
 function Vu(e) {
@@ -13841,7 +13850,7 @@ function qu(e, t) {
 }
 function Ju(e) {
 	let t = document.createElement("div");
-	return t.className = "deal-fly-ghost", t.setAttribute("aria-hidden", "true"), t.style.position = "fixed", t.style.left = `${e.left}px`, t.style.top = `${e.top}px`, t.style.width = `${e.width}px`, t.style.height = `${e.height}px`, t.style.pointerEvents = "none", t.style.zIndex = "180", t;
+	return t.className = "deal-fly-ghost", t.setAttribute("aria-hidden", "true"), t.style.position = "fixed", t.style.left = `${e.left}px`, t.style.top = `${e.top}px`, t.style.width = `${e.width}px`, t.style.height = `${e.height}px`, t.style.pointerEvents = "none", t.style.zIndex = "4", t;
 }
 function Yu(e, t, n) {
 	(n instanceof Document ? n : n.ownerDocument ?? document).querySelector(`[data-deal-seat="${e}"][data-deal-round="${t}"]`)?.classList.add("deal-card--revealed");

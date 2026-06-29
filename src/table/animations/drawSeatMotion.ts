@@ -1,6 +1,7 @@
 import gsap from "gsap";
 import {
   GSAP_DURATIONS,
+  MOTION_GHOST_Z_INDEX,
   PREMIUM_EASE_BOUNCE,
   prefersReducedMotion,
   scaledDuration,
@@ -37,6 +38,7 @@ function createCardBackGhost(origin: MotionRect): HTMLElement {
   ghost.style.width = `${origin.width}px`;
   ghost.style.height = `${origin.height}px`;
   ghost.style.pointerEvents = "none";
+  ghost.style.zIndex = String(MOTION_GHOST_Z_INDEX);
   return ghost;
 }
 
@@ -111,17 +113,27 @@ export function animateDeckGhostsToSeatOrigins(
         {
           x: dx,
           y: dy,
-          opacity: 0.92,
-          duration: Math.min(duration, 0.22),
+          opacity: 0.5,
+          duration: Math.min(duration, 0.18),
+        },
+        i * stagger,
+      );
+      tl.to(
+        ghost,
+        {
+          opacity: 0,
+          duration: Math.min(duration, 0.08),
           onComplete: () => {
             gsap.set(ghost, { clearProps: "transform,opacity,willChange" });
           },
         },
-        i * stagger,
+        i * stagger + Math.min(duration, 0.18),
       );
       return;
     }
 
+    const travelAt = i * stagger;
+    const fadeAt = travelAt + duration * 0.78;
     tl.to(
       ghost,
       {
@@ -135,14 +147,24 @@ export function animateDeckGhostsToSeatOrigins(
         },
         rotationY: 0,
         scale: 1,
-        opacity: 1,
-        duration,
+        opacity: 0.92,
+        duration: duration * 0.78,
         ease: PREMIUM_EASE_BOUNCE,
+      },
+      travelAt,
+    );
+    tl.to(
+      ghost,
+      {
+        opacity: 0,
+        scale: 0.92,
+        duration: duration * 0.22,
+        ease: "power1.in",
         onComplete: () => {
           gsap.set(ghost, { clearProps: "transform,opacity,willChange" });
         },
       },
-      i * stagger,
+      fadeAt,
     );
   });
 

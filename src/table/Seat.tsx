@@ -144,14 +144,11 @@ export function Seat({
               ))}
             </div>
             {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
-              <div
-                className="bseat__deal-targets bseat__hole-cards bseat__hole-cards--crown"
-                aria-hidden="true"
-              >
+              <div className="bseat__deal-targets" aria-hidden="true">
                 {Array.from({ length: cardsHeld }, (_, i) => (
                   <span
                     key={`deal-target-${i}`}
-                    className="bseat__deal-target bseat__hole-card"
+                    className="bseat__deal-target"
                     data-deal-seat={player.playerId}
                     data-deal-round={i}
                     style={{ ["--hole-i" as string]: i }}
