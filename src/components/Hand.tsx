@@ -39,6 +39,8 @@ interface HandProps {
   fan?: boolean;
   cardTestId?: string;
   cardInteraction?: HandCardInteraction;
+  /** Player id for clockwise deal targeting. */
+  dealSeatPlayerId?: string | null;
 }
 
 const keyFor = (c: Card) => cardKey(c);
@@ -56,6 +58,7 @@ interface HandCardProps {
   onCardPeek?: (index: number | null) => void;
   peekActive: boolean;
   slotClassFor?: (card: Card, index: number) => string;
+  dealSeatPlayerId?: string | null;
   style?: CSSProperties;
 }
 
@@ -71,6 +74,7 @@ function HandCard({
   onCardPeek,
   peekActive,
   slotClassFor,
+  dealSeatPlayerId,
   style,
 }: HandCardProps) {
   const [pressed, setPressed] = useState(false);
@@ -152,6 +156,8 @@ function HandCard({
           ? interaction.trickPlayOriginPlayerId
           : undefined
       }
+      data-deal-seat={dealSeatPlayerId ?? undefined}
+      data-deal-round={dealSeatPlayerId != null ? index : undefined}
     >
       <PlayingCard
         card={card}
@@ -188,6 +194,7 @@ export function Hand({
   cardTestId,
   cardInteraction,
   slotClassFor,
+  dealSeatPlayerId = null,
 }: HandProps) {
   const handRef = useRef<HTMLDivElement>(null);
 
@@ -236,6 +243,7 @@ export function Hand({
           onCardPeek={onCardPeek}
           peekActive={peekIndex === i}
           slotClassFor={slotClassFor}
+          dealSeatPlayerId={dealSeatPlayerId}
         />
       ))}
       </div>

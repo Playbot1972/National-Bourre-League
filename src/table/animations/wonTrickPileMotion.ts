@@ -14,7 +14,7 @@ const ACTIVE_SOURCE_CARDS = new Set<HTMLElement>();
 
 export const WON_TRICK_FLY_DURATION_SEC = GSAP_DURATIONS.drawDiscard;
 /** Packet fly — rake delay + gather + arc; keep in sync with TRICK_SWEEP_MS budget. */
-export const WON_TRICK_FLY_MAX_MS = 620;
+export const WON_TRICK_FLY_MAX_MS = 760;
 export const WON_TRICK_GATHER_MS = 160;
 
 function arcMidpoint(dx: number, dy: number): { midX: number; midY: number } {

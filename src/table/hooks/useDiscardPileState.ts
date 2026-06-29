@@ -5,8 +5,10 @@ import {
   type DiscardPileCard,
 } from "../discardPileModel";
 import {
+  animateOriginRectsToDiscardPile,
   animateCardsToDiscardPile,
   killDiscardFlights,
+  seatOriginRectsForDiscard,
 } from "../animations/discardPileMotion";
 import type { SerializedCard } from "../types";
 
@@ -92,6 +94,7 @@ export interface RunBotDiscardFlyInput {
   handNumber: number;
   discardCount: number;
   pileStartIndex: number;
+  root?: HTMLElement;
   onComplete: (committed: { id: string; playerId: string }[]) => void;
 }
 
@@ -100,6 +103,7 @@ export function runBotDiscardFly({
   handNumber,
   discardCount,
   pileStartIndex,
+  root,
   onComplete,
 }: RunBotDiscardFlyInput): void {
   const keys = discardCardKeysForDraw({
@@ -108,7 +112,18 @@ export function runBotDiscardFly({
     discardCount,
     pileStartIndex,
   });
-  onComplete(keys.map((id) => ({ id, playerId })));
+  if (!root || discardCount <= 0 || !keys.length) {
+    onComplete(keys.map((id) => ({ id, playerId })));
+    return;
+  }
+  const origins = seatOriginRectsForDiscard(playerId, discardCount, root);
+  if (!origins.length) {
+    onComplete(keys.map((id) => ({ id, playerId })));
+    return;
+  }
+  animateOriginRectsToDiscardPile(origins, keys, pileStartIndex, root, {
+    onComplete: () => onComplete(keys.map((id) => ({ id, playerId }))),
+  });
 }
 
 export function heroDiscardCardKeys(

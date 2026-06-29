@@ -19,6 +19,8 @@ import { handTimingScale } from "./handPresentationTiming";
 import { useStageFit } from "./hooks/useStageFit";
 import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
+import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
+import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -129,6 +131,18 @@ export function CardTable({
     pileIndexRef,
     onDiscardCommitted: commitDiscardCards,
   });
+  useTableDrawReceiveFly({
+    handPresentation,
+    handNumber: session.handNumber,
+    currentUserId,
+    tableRootRef: wrapRef,
+  });
+  const clockwiseDealing = useTableDealPresentation({
+    session,
+    heroCards,
+    privateHandReady,
+    tableRootRef: wrapRef,
+  });
   useWonTrickCollection({
     trickPresentation,
     handNumber: session.handNumber,
@@ -223,6 +237,7 @@ export function CardTable({
         "btable-wrap btable-wrap--stage-fit",
         countClass,
         hasActiveTurn ? "btable-wrap--has-active-turn" : "",
+        clockwiseDealing ? "btable-wrap--clockwise-dealing" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -310,6 +325,7 @@ export function CardTable({
                   player={seatPlayer}
                   region={layout.region}
                   handLane={layout.handLane}
+                  clockwiseDealing={clockwiseDealing}
                   style={{
                     left: `${layout.x}%`,
                     top: `${layout.y}%`,
@@ -375,6 +391,7 @@ export function CardTable({
         pileIndexRef={pileIndexRef}
         onDiscardCommitted={commitDiscardCards}
         onUserActivity={onHeroUserActivity}
+        skipHeroDealMotion={clockwiseDealing}
       />
     </div>
   );

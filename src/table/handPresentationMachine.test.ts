@@ -511,9 +511,9 @@ describe("handPresentationMachine", () => {
 
 describe("trick timing with hand flow", () => {
   it("holds complete trick for two seconds before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 1600);
+    assert.equal(POST_TRICK_READ_MS, 1850);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 1600);
-    assert.ok(schedule.pipelineMs >= 2100);
+    assert.equal(schedule.readTotalMs, 1850);
+    assert.ok(schedule.pipelineMs >= 3100);
   });
 });

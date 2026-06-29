@@ -28,6 +28,7 @@ import {
   resetTrickAnimationBusyState,
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
+import { resetPresentationMotionBusy } from "./presentationMotionBusy";
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
@@ -60,6 +61,7 @@ export function unmountTableSession() {
   root = null;
   rootEl = null;
   resetTrickAnimationBusyState();
+  resetPresentationMotionBusy();
 }
 
 export {

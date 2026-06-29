@@ -5,10 +5,10 @@ import { totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
 /** Card travel from seat to table center. */
-export const TRICK_CARD_TRAVEL_MS = 340;
+export const TRICK_CARD_TRAVEL_MS = 395;
 
 /** Arrival settle/pop after travel. */
-export const TRICK_CARD_SETTLE_MS = 140;
+export const TRICK_CARD_SETTLE_MS = 165;
 
 /** Existing table cards shift sideways when a new card lands. */
 export const TRICK_CARD_SHIFT_MS = 220;
@@ -20,25 +20,25 @@ export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
 
 /** Stagger between bot plays in the social driver (250–450 ms). */
-export const BOT_PLAY_STAGGER_MS = 350;
+export const BOT_PLAY_STAGGER_MS = 380;
 
 /** Readability pause after last card before winner highlight (1600 ms — within 1400–1800 spec). */
-export const POST_TRICK_READ_MS = 1600;
+export const POST_TRICK_READ_MS = 1850;
 
 /** Winner glow inside the read pause (300–500 ms). */
 export const WINNER_REVEAL_MS = 400;
 
 /** Longer read when trump beats led suit. */
-export const TRUMP_BEAT_READ_MS = 1800;
+export const TRUMP_BEAT_READ_MS = 2050;
 
-/** Directional collection toward winner seat (250–400 ms). */
-export const TRICK_SWEEP_MS = 520;
+/** Directional collection toward winner seat (rake + gather + packet fly). */
+export const TRICK_SWEEP_MS = 1_080;
 
 /** In-line rake before cards fly to the winner pile. */
-export const TRICK_RAKE_MS = 220;
+export const TRICK_RAKE_MS = 240;
 
 /** Gap before next lead indicators (150–250 ms). */
-export const NEXT_LEAD_GAP_MS = 200;
+export const NEXT_LEAD_GAP_MS = 230;
 
 /** Max wait to drain trick presentation after the server clears the hand. */
 export const TRICK_HAND_END_DRAIN_MS = 4_000;

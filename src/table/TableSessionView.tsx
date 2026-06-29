@@ -29,6 +29,11 @@ import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction"
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
+import {
+  subscribePresentationMotionBusy,
+  isDealPresentationActive,
+  isTrickCollectionActive,
+} from "./presentationMotionBusy";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -125,6 +130,9 @@ export function TableSessionView({
     session.phase,
   );
 
+  const [motionBusyTick, setMotionBusyTick] = useState(0);
+  useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
+
   useEffect(() => {
     setTrickAnimationBusyState({
       pipelineActive: trickPresentation.isPipelineActive,
@@ -136,6 +144,8 @@ export function TableSessionView({
       displayedPlayCount: trickPresentation.displayPlays.length,
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
+      dealPresentationActive: isDealPresentationActive(),
+      trickCollectionActive: isTrickCollectionActive(),
     });
   }, [
     trickPresentation.isPipelineActive,
@@ -148,6 +158,7 @@ export function TableSessionView({
     handPresentingForBots,
     handPresentation.phase,
     session.phase,
+    motionBusyTick,
   ]);
 
   const cardsDealt = isCardsDealtPhase(session.phase);

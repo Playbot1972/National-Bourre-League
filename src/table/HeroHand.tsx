@@ -50,6 +50,8 @@ interface HeroHandProps {
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
   /** Fired on any local hand interaction (selection, draw/play action). */
   onUserActivity?: () => void;
+  /** Table-wide clockwise deal — disables hero-only deal motion. */
+  skipHeroDealMotion?: boolean;
 }
 
 function heroShellClass(
@@ -109,6 +111,7 @@ export function HeroHand({
   pileIndexRef,
   onDiscardCommitted,
   onUserActivity,
+  skipHeroDealMotion = false,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -153,6 +156,7 @@ export function HeroHand({
   );
 
   useEffect(() => {
+    if (skipHeroDealMotion) return;
     if (!dealtPhase || cards.length === 0) return;
     const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
     const prev = prevCardIdsRef.current;
@@ -166,7 +170,7 @@ export function HeroHand({
     const dealMs = dealMotionWindowMs(cards.length, dealStaggerMs);
     const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
-  }, [cards, dealtPhase, dealStaggerMs]);
+  }, [cards, dealtPhase, dealStaggerMs, skipHeroDealMotion]);
 
   useEffect(() => {
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
@@ -188,6 +192,7 @@ export function HeroHand({
     tableRootRef,
     pileIndexRef,
     onDiscardCommitted,
+    skipHeroDealMotion,
   });
 
   const clearPreselectTimer = useCallback(() => {
@@ -609,7 +614,7 @@ export function HeroHand({
   return (
     <div
       className={heroShellClass(settings, className, [
-        dealing ? "btable-hero--dealing" : "",
+        dealing && !skipHeroDealMotion ? "btable-hero--dealing" : "",
         revealedTrumpIndex !== null ? "btable-hero--trump-reveal" : "",
         trumpMergeActive ? "btable-hero--trump-merge" : "",
         inDrawPhase && isMyTurn && !drawCompleted ? "btable-hero--draw-select" : "",
@@ -649,6 +654,7 @@ export function HeroHand({
           cards={typedCards}
           size={cardSize}
           fan
+          dealSeatPlayerId={currentUserId}
           stateFor={stateFor}
           slotClassFor={slotClassFor}
           peekIndex={peekIndex}
