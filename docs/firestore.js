@@ -85,6 +85,7 @@ import {
   collectHandAntes,
   anteAlreadyPosted,
   settleSoloDefaultWin,
+  buildSoloWinSettlement,
   resolveSessionBuyIn,
   handAnteContribution,
   sumProjectedHandAntes,
@@ -1345,7 +1346,9 @@ function applySoloWinInTransaction(tx, ref, patch, roomId, sessionId) {
     [LIVE_ENROLLMENT_FIELD]: deleteField(),
     currentHand: patch.currentHand ?? emptyPreDealHand(),
     pendingCoWinSettlement: deleteField(),
-    nextDealFunding: deleteField(),
+    ...(patch.nextDealFunding != null
+      ? { nextDealFunding: patch.nextDealFunding }
+      : { nextDealFunding: deleteField() }),
     updatedAt: serverTimestamp(),
   });
 }
@@ -1461,15 +1464,25 @@ function writePrivateHandsBestEffort(roomId, sessionId, privateHandsByPlayer) {
 }
 
 function buildSoloWinPatch(winnerId, sessionData, dealContext) {
-  const { scoreById = {}, sessionStake = 1, buyIn = 1 } = dealContext;
-  const stakeFor = (pid) => playerHandStake(scoreById, pid, sessionStake);
-  const settled = settleSoloDefaultWin({
+  const { scoreById = {}, sessionStake = 1, buyIn = 1, sortedPlayerIds = [] } = dealContext;
+  const currentHand = getSessionCurrentHand(sessionData) ?? {};
+  const postedAntes = currentHand.postedAntes ?? {};
+  const fundedParticipants =
+    Object.keys(postedAntes).filter((pid) => (postedAntes[pid] || 0) > 0).length > 0
+      ? Object.keys(postedAntes).filter((pid) => (postedAntes[pid] || 0) > 0)
+      : sortedPlayerIds;
+
+  const settled = buildSoloWinSettlement({
     winnerId,
     carryIn: sessionData.carryOverPot || 0,
+    postedAntes,
     scoreById,
     buyInFallback: buyIn,
-    stakeForPlayer: stakeFor,
+    participants: fundedParticipants,
+    sessionStake,
+    stakeForPlayer: (pid) => playerHandStake(scoreById, pid, sessionStake),
   });
+
   if (!settled.ready) {
     const eligibleForAntes = eligibleIdsForAnteCollection(
       dealContext.sortedPlayerIds ?? [],
@@ -1488,6 +1501,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
         buyIn,
         carryIn: sessionData.carryOverPot || 0,
         handCount: sessionData.handCount || 0,
+        nextDealFunding: sessionData.nextDealFunding ?? null,
       },
     );
   }
@@ -1495,14 +1509,29 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   const currentDealer = dealContext.dealerId ?? sessionData.dealerId ?? null;
   const newDealerId = rotateDealerSeat(dealContext.sortedPlayerIds ?? [], currentDealer);
   const scorePatches = {};
-  const br = settled.bankrolls[winnerId];
-  scorePatches[winnerId] = {
-    bankroll: br,
-    net: deriveScoreNet(br, buyIn),
-    handsWon: (scoreById[winnerId]?.handsWon || 0) + 1,
-    tricksWon: scoreById[winnerId]?.tricksWon || 0,
-    out: br <= 0 ? true : deleteField(),
-  };
+  for (const pid of sortedPlayerIds) {
+    const br = settled.prefunded
+      ? settled.settledBankrolls?.[pid]
+      : pid === winnerId
+        ? settled.bankrolls?.[winnerId]
+        : scoreBankroll(scoreById[pid], buyIn);
+    if (br == null) continue;
+    const patch = {
+      bankroll: br,
+      net: deriveScoreNet(br, buyIn),
+    };
+    if (pid === winnerId) {
+      patch.handsWon = (scoreById[pid]?.handsWon || 0) + 1;
+      patch.tricksWon = scoreById[pid]?.tricksWon || 0;
+    }
+    patch.out = br <= 0 ? true : deleteField();
+    const fundedRow = settled.fundedScoreById?.[pid];
+    if (fundedRow?.skipNextAnte) patch.skipNextAnte = true;
+    if (fundedRow?.bourreReplacementDue != null) {
+      patch.bourreReplacementDue = fundedRow.bourreReplacementDue;
+    }
+    scorePatches[pid] = patch;
+  }
   return {
     soloWin: true,
     winnerId,
@@ -1511,6 +1540,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     postedAntes: settled.postedAntes,
     scorePatches,
     carryOverPot: 0,
+    nextDealFunding: settled.nextDealFunding ?? null,
     handEnrollment: deleteField(),
     currentHand: emptyPreDealHand(),
     sortedPlayerIds: dealContext.sortedPlayerIds,
