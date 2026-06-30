@@ -1,4 +1,6 @@
 import { HeroHand } from "./HeroHand";
+import { BigPotBrewingIndicator } from "./BigPotBrewingIndicator";
+import { isHeroCardAreaEmpty } from "./heroCardArea";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
@@ -29,6 +31,7 @@ import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
+import type { TableEvent } from "./hooks/useTableEvents";
 import type { TurnCountdownState } from "./turnCountdown";
 
 interface CardTableProps {
@@ -58,6 +61,8 @@ interface CardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
+  bigPotEvent?: TableEvent | null;
+  onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -94,6 +99,8 @@ export function CardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
+  bigPotEvent = null,
+  onDismissTableEvent,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -362,8 +369,11 @@ export function CardTable({
       </div>
       </div>
       </div>
+      <div className="hand-panel">
+        {bigPotEvent && isHeroCardAreaEmpty(heroCards) && onDismissTableEvent && (
+          <BigPotBrewingIndicator event={bigPotEvent} onDismiss={onDismissTableEvent} />
+        )}
       <HeroHand
-        className="hand-panel"
         cards={heroCards}
         privateHandReady={privateHandReady}
         phase={session.phase}
@@ -413,6 +423,7 @@ export function CardTable({
         onUserActivity={onHeroUserActivity}
         skipHeroDealMotion={clockwiseDealing}
       />
+      </div>
     </div>
   );
 }
