@@ -1,10 +1,10 @@
 import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
-import { formatBankroll, formatSeatDisplayName, type SeatRegion } from "./logic";
+import { formatBankroll, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
 import type { Rank, Suit } from "../types";
-import { TurnCountdownRing } from "./TurnCountdownRing";
+import { SeatAvatarIdentity } from "./SeatAvatarIdentity";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -45,8 +45,6 @@ export function Seat({
   const bourrePressure = Boolean(player.bourrePressure);
   const bourrePressureSelf = bourrePressure && player.isSelf;
   const seatTrumpRevealed = player.revealedTrumpIndex != null && player.revealedTrumpUpcard;
-
-  const seatDisplayName = formatSeatDisplayName(player.displayName);
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -223,53 +221,19 @@ export function Seat({
                 Bourré
               </span>
             )}
-            <div
-              className={`bseat__avatar-wrap${avatarPeek ? " bseat__avatar-wrap--peek" : ""}`}
-              role="button"
-              tabIndex={0}
-              aria-label={`${seatDisplayName} seat`}
-              aria-expanded={avatarPeek}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleAvatarPeek();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  toggleAvatarPeek();
-                }
-              }}
-              onBlur={() => setAvatarPeek(false)}
-            >
-              {player.isDealer && (
-                <span
-                  className={`bseat__dealer${player.dealerMoved ? " bseat__dealer--moved" : ""}`}
-                >
-                  D
-                </span>
-              )}
-              {player.photoURL ? (
-                <img className="bseat__avatar" src={player.photoURL} alt="" />
-              ) : (
-                <span className="bseat__avatar bseat__avatar--blank" aria-hidden="true" />
-              )}
-              <span className="bseat__name-plate" title={seatDisplayName}>
-                {seatDisplayName}
-              </span>
-              {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
-              {bourrePressure && (
-                <span className="bseat__bourre-pressure-ring" aria-hidden="true" />
-              )}
-              {bourrePulse && !bourrePressure && (
-                <span className="bseat__bourre-ring" aria-hidden="true" />
-              )}
-              {player.turnCountdown && (
-                <TurnCountdownRing
-                  progress={player.turnCountdown.progress}
-                  segment={player.turnCountdown.segment}
-                />
-              )}
-            </div>
+            <SeatAvatarIdentity
+              displayName={player.displayName}
+              photoURL={player.photoURL}
+              isDealer={player.isDealer}
+              dealerMoved={player.dealerMoved}
+              inHand={player.inHand}
+              bourrePressure={bourrePressure}
+              bourrePulse={bourrePulse}
+              turnCountdown={player.turnCountdown ?? null}
+              peek={avatarPeek}
+              onTogglePeek={toggleAvatarPeek}
+              onBlurPeek={() => setAvatarPeek(false)}
+            />
           </div>
           {showBankroll && (
             <span
