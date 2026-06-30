@@ -10,28 +10,28 @@ interface SeatPlacement {
 
 type SeatMap<T extends number> = Record<T, SeatPlacement>;
 
-/**
- * Desktop 5-bot table (hero + 5 bots, totalPlayers = 6).
- * Seats 1 and 5 sit lower on the bottom rail — closer to the hero for readability.
- */
-export const DESKTOP_FIVE_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5> = {
-  0: { x: 50, y: 95, region: "bottom" },
-  1: { x: 10, y: 88, region: "bottom" },
-  2: { x: 9.3, y: 27.5, region: "left" },
-  3: { x: 50, y: 5, region: "top" },
-  4: { x: 90.7, y: 27.5, region: "right" },
-  5: { x: 90, y: 88, region: "bottom" },
-};
-
 /** Desktop 6-bot table (hero + 6 bots, totalPlayers = 7). */
 export const DESKTOP_SIX_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-  0: { x: 50, y: 96, region: "bottom" },
+  0: { x: 50, y: 99, region: "bottom" },
   1: { x: 4, y: 99, region: "bottom" },
-  2: { x: 2, y: 40.4, region: "left" },
+  2: { x: 2, y: 46.5, region: "left" },
   3: { x: 8, y: 9, region: "top" },
   4: { x: 50, y: 9, region: "top" },
   5: { x: 92, y: 9, region: "top" },
   6: { x: 96, y: 99, region: "bottom" },
+};
+
+/**
+ * Desktop 5-bot table (hero + 5 bots, totalPlayers = 6).
+ * Seats 1 and 5 mirror the 6-bot bottom-corner anchors for side symmetry.
+ */
+export const DESKTOP_FIVE_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5> = {
+  0: { x: 50, y: 99, region: "bottom" },
+  1: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  2: { x: 9.3, y: 27.5, region: "left" },
+  3: { x: 50, y: 5, region: "top" },
+  4: { x: 90.7, y: 27.5, region: "right" },
+  5: DESKTOP_SIX_BOT_SEAT_MAP[6],
 };
 
 /**
@@ -45,7 +45,7 @@ export const DESKTOP_SEVEN_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7> 
   3: DESKTOP_SIX_BOT_SEAT_MAP[3],
   4: DESKTOP_SIX_BOT_SEAT_MAP[4],
   5: DESKTOP_SIX_BOT_SEAT_MAP[5],
-  6: { x: 98, y: 40.4, region: "right" },
+  6: { x: 98, y: 46.5, region: "right" },
   7: DESKTOP_SIX_BOT_SEAT_MAP[6],
 };
 
@@ -57,9 +57,9 @@ export const SHARED_DESKTOP_ANCHORS = {
 } as const;
 
 const MOBILE_SIX_BOT_PORTRAIT: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-  0: { x: 50, y: 88, region: "bottom" },
+  0: { x: 50, y: 91, region: "bottom" },
   1: { x: 8, y: 91, region: "bottom" },
-  2: { x: 8, y: 40.4, region: "left" },
+  2: { x: 8, y: 46.5, region: "left" },
   3: { x: 8, y: 9, region: "top" },
   4: { x: 50, y: 9, region: "top" },
   5: { x: 92, y: 9, region: "top" },
@@ -67,13 +67,13 @@ const MOBILE_SIX_BOT_PORTRAIT: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
 };
 
 const MOBILE_SIX_BOT_LANDSCAPE: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
-  0: { x: 50, y: 86, region: "bottom" },
-  1: { x: 8, y: 89, region: "bottom" },
-  2: { x: 8, y: 40.4, region: "left" },
+  0: { x: 50, y: 90, region: "bottom" },
+  1: { x: 8, y: 91, region: "bottom" },
+  2: { x: 8, y: 46.5, region: "left" },
   3: { x: 8, y: 9, region: "top" },
   4: { x: 50, y: 9, region: "top" },
   5: { x: 92, y: 9, region: "top" },
-  6: { x: 92, y: 89, region: "bottom" },
+  6: { x: 92, y: 91, region: "bottom" },
 };
 
 const MOBILE_SEVEN_BOT_PORTRAIT: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7> = {
@@ -83,18 +83,18 @@ const MOBILE_SEVEN_BOT_PORTRAIT: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7> = {
   3: MOBILE_SIX_BOT_PORTRAIT[3],
   4: MOBILE_SIX_BOT_PORTRAIT[4],
   5: MOBILE_SIX_BOT_PORTRAIT[5],
-  6: { x: 92, y: 40.4, region: "right" },
+  6: { x: 92, y: 46.5, region: "right" },
   7: MOBILE_SIX_BOT_PORTRAIT[6],
 };
 
 const MOBILE_SEVEN_BOT_LANDSCAPE: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7> = {
-  0: { x: 50, y: 89, region: "bottom" },
+  0: { x: 50, y: 91, region: "bottom" },
   1: MOBILE_SIX_BOT_LANDSCAPE[1],
   2: MOBILE_SIX_BOT_LANDSCAPE[2],
   3: MOBILE_SIX_BOT_LANDSCAPE[3],
   4: MOBILE_SIX_BOT_LANDSCAPE[4],
   5: MOBILE_SIX_BOT_LANDSCAPE[5],
-  6: { x: 92, y: 40.4, region: "right" },
+  6: { x: 92, y: 46.5, region: "right" },
   7: MOBILE_SIX_BOT_LANDSCAPE[6],
 };
 

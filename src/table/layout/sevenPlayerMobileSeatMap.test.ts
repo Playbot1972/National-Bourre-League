@@ -41,8 +41,8 @@ describe("sevenPlayerMobileSeatMap", () => {
     assert.equal(bot5.x, bot6.x, "Bot 6 x mirrors Bot 5");
     assert.ok(bot1.y > 85 && bot3.y < 12, "Bot 1 bottom mirrors Bot 3 top");
     assert.ok(bot6.y > 85 && bot5.y < 12, "Bot 6 bottom mirrors Bot 5 top");
-    assert.ok(bot1.y > hero.y, "Bot 1 below hero");
-    assert.ok(bot6.y > hero.y, "Bot 6 below hero");
+    assert.ok(bot1.y >= hero.y && bot1.y > 85, "Bot 1 on bottom rail with hero");
+    assert.ok(bot6.y >= hero.y && bot6.y > 85, "Bot 6 on bottom rail with hero");
   });
 
   it("centers Bot 4 on the top rail at x=50", () => {

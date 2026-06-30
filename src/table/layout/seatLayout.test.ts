@@ -134,14 +134,24 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
 describe("6-seat preset (hero + 5 bots)", () => {
   it("lowers seats 1 and 5 toward the hero rail", () => {
     const map = buildSeatLayoutMap(6, { isMobile: false });
+    const sixBot = buildSeatLayoutMap(7, { isMobile: false });
     const hero = map[0]!;
     const bot1 = map[1]!;
     const bot5 = map[5]!;
 
     assert.equal(map.length, 6);
     assert.equal(isClockwiseOnScreen(map), true);
-    assert.ok(bot1.y > 85 && bot1.y < hero.y, "Bot 1 sits lower than ellipse default");
-    assert.ok(bot5.y > 85 && bot5.y < hero.y, "Bot 5 sits lower than ellipse default");
+    assert.deepEqual(
+      { x: bot1.x, y: bot1.y, region: bot1.region },
+      { x: sixBot[1]!.x, y: sixBot[1]!.y, region: sixBot[1]!.region },
+      "Bot 1 mirrors 6-bot bottom-left corner",
+    );
+    assert.deepEqual(
+      { x: bot5.x, y: bot5.y, region: bot5.region },
+      { x: sixBot[6]!.x, y: sixBot[6]!.y, region: sixBot[6]!.region },
+      "Bot 5 mirrors 6-bot bottom-right corner",
+    );
+    assert.ok(hero.y >= 99, "Hero sits on bottom table edge");
     assert.equal(bot1.region, "bottom");
     assert.equal(bot5.region, "bottom");
     assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
@@ -172,7 +182,7 @@ describe("7-seat preset", () => {
 
     assert.equal(bot2.region, "left");
     assert.ok(bot2.x < 6.1, "Bot 2 moves outward onto left brown edge");
-    assert.ok(Math.abs(bot2.y - 40.4) < 0.05, "Bot 2 vertical rail position preserved");
+    assert.ok(Math.abs(bot2.y - 46.5) < 0.05, "Bot 2 vertical rail position lowered for balance");
     assert.equal(bot2.handLane, "side");
   });
 
@@ -184,13 +194,13 @@ describe("7-seat preset", () => {
     const bot5 = map[5]!;
     const bot6 = map[6]!;
 
-    assert.ok(bot1.x < 8 && bot1.y > hero.y, "Bot 1 lower-left below hero");
+    assert.ok(bot1.x < 8 && bot1.y >= hero.y, "Bot 1 lower-left on bottom rail");
     assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
 
     assert.ok(bot3.x < 12 && bot3.y < 12, "Bot 3 upper-left kiddie corner");
     assert.ok(bot5.x > 88 && bot5.y < 12, "Bot 5 upper-right kiddie corner");
     assert.equal(bot6.region, "bottom");
-    assert.ok(bot6.x > 92 && bot6.y > hero.y, "Bot 6 lower-right below hero");
+    assert.ok(bot6.x > 92 && bot6.y >= hero.y, "Bot 6 lower-right on bottom rail");
     assert.ok(bot6.x > hero.x, "Bot 6 right of hero");
   });
 

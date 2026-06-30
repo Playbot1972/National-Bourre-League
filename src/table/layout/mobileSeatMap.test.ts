@@ -36,8 +36,8 @@ describe("mobile seat map", () => {
     const hero = map[0]!;
     const bot1 = map[1]!;
     const bot6 = map[6]!;
-    assert.ok(bot1.y > hero.y);
-    assert.ok(bot6.y > hero.y);
+    assert.ok(bot1.y >= hero.y);
+    assert.ok(bot6.y >= hero.y);
     assert.ok(bot1.y > 85);
     assert.ok(bot6.y > 85);
   });

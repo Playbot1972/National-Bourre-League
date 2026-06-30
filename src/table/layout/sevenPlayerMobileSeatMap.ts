@@ -67,6 +67,6 @@ export function buildSevenPlayerMobileSeatMap(
 /** Locked anchors — bottom corners and left mid-rail. */
 export const SEVEN_PLAYER_MOBILE_LOCKED_SEATS = {
   1: { x: 8, y: 91, region: "bottom" as const },
-  2: { x: 8, y: 40.4, region: "left" as const },
+  2: { x: 8, y: 46.5, region: "left" as const },
   6: { x: 92, y: 91, region: "bottom" as const },
 } as const;
