@@ -1,4 +1,4 @@
-import React, { useCallback, type KeyboardEvent } from "react";
+import { useCallback, type KeyboardEvent } from "react";
 import { formatSeatDisplayName } from "./logic";
 import { TurnCountdownRing } from "./TurnCountdownRing";
 import type { TurnCountdownSegment } from "./turnCountdown";
