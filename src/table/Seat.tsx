@@ -1,7 +1,7 @@
 import { useCallback, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
-import { formatBankroll, initials, type SeatRegion } from "./logic";
+import { formatBankroll, formatSeatDisplayName, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
 import type { Rank, Suit } from "../types";
 import { TurnCountdownRing } from "./TurnCountdownRing";
@@ -45,6 +45,8 @@ export function Seat({
   const bourrePressure = Boolean(player.bourrePressure);
   const bourrePressureSelf = bourrePressure && player.isSelf;
   const seatTrumpRevealed = player.revealedTrumpIndex != null && player.revealedTrumpUpcard;
+
+  const seatDisplayName = formatSeatDisplayName(player.displayName);
 
   const seatTestId = player.isSelf
     ? "seat-bottom-self"
@@ -225,7 +227,7 @@ export function Seat({
               className={`bseat__avatar-wrap${avatarPeek ? " bseat__avatar-wrap--peek" : ""}`}
               role="button"
               tabIndex={0}
-              aria-label={`${player.displayName} seat`}
+              aria-label={`${seatDisplayName} seat`}
               aria-expanded={avatarPeek}
               onClick={(e) => {
                 e.stopPropagation();
@@ -249,10 +251,11 @@ export function Seat({
               {player.photoURL ? (
                 <img className="bseat__avatar" src={player.photoURL} alt="" />
               ) : (
-                <span className="bseat__avatar bseat__avatar--initials" aria-hidden="true">
-                  {initials(player.displayName)}
-                </span>
+                <span className="bseat__avatar bseat__avatar--blank" aria-hidden="true" />
               )}
+              <span className="bseat__name-plate" title={seatDisplayName}>
+                {seatDisplayName}
+              </span>
               {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
               {bourrePressure && (
                 <span className="bseat__bourre-pressure-ring" aria-hidden="true" />
@@ -298,8 +301,6 @@ export function Seat({
 
       <div className="bseat__aux">
         <div className="bseat__info">
-          <span className="bseat__name">{player.displayName}</span>
-          {player.isRobot && <span className="bseat__robot-tag muted small">Bot</span>}
           {player.isOut && (
             <span className="bseat__out-tag muted small">Out</span>
           )}
