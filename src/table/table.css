@@ -3392,7 +3392,7 @@
   }
 }
 
-/* Cinematic splashes */
+/* Cinematic splashes (table-center — pot cap / hand win only) */
 .bsplash {
   pointer-events: none;
   position: absolute;
@@ -3461,6 +3461,84 @@
   }
   50% {
     transform: scale(1.03);
+  }
+}
+
+/* Big pot brewing — hero empty card dock only (never over avatars / trick piles) */
+.bpot-brew {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: bpot-brew-in 320ms ease-out;
+}
+
+.hand-panel .btable-hero {
+  position: relative;
+  z-index: 2;
+}
+
+.bpot-brew__glow {
+  position: absolute;
+  width: min(92%, 240px);
+  aspect-ratio: 2 / 1;
+  background: radial-gradient(ellipse, var(--hud-accent) 0%, transparent 70%);
+  opacity: 0.2;
+  filter: blur(18px);
+}
+
+.bpot-brew__content {
+  position: relative;
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--splash-backdrop);
+  border: 1px solid color-mix(in srgb, var(--hud-accent) 35%, transparent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  animation: bpot-brew-pulse 2s ease-in-out;
+  max-width: min(100%, 260px);
+}
+
+.bpot-brew__emoji {
+  font-size: 28px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.bpot-brew__title {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 1rem;
+  color: var(--hud-accent);
+}
+
+.bpot-brew__subtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--text-dim, #b9c9bf);
+}
+
+@keyframes bpot-brew-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bpot-brew-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
   }
 }
 

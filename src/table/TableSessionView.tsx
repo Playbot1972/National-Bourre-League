@@ -85,6 +85,11 @@ export function TableSessionView({
     participantIds: session.participantIds,
   });
 
+  const bigPotEvent = useMemo(
+    () => [...events].reverse().find((e) => e.kind === "big-pot") ?? null,
+    [events],
+  );
+
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
@@ -500,6 +505,8 @@ export function TableSessionView({
     microinteractions,
     instantTrickPlays,
     turnCountdown,
+    bigPotEvent,
+    onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
   };
 

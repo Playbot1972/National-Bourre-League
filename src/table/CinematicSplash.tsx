@@ -6,7 +6,7 @@ interface CinematicSplashProps {
   onDismiss: (id: string) => void;
 }
 
-const SPLASH_KINDS = new Set(["big-pot", "pot-cap", "hand-win"]);
+const SPLASH_KINDS = new Set(["pot-cap", "hand-win"]);
 
 export function CinematicSplash({ events, onDismiss }: CinematicSplashProps) {
   const splash = [...events].reverse().find((e) => SPLASH_KINDS.has(e.kind));

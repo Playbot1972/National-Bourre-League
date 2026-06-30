@@ -1,4 +1,7 @@
+import type { TableEvent } from "./hooks/useTableEvents";
 import { HeroHand } from "./HeroHand";
+import { BigPotBrewingIndicator } from "./BigPotBrewingIndicator";
+import { isHeroCardAreaEmpty } from "./heroCardArea";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import {
@@ -67,6 +70,8 @@ interface MobileCardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
+  bigPotEvent?: TableEvent | null;
+  onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
   onTrickDelta: (playerId: string, delta: number) => void;
@@ -102,6 +107,8 @@ export function MobileCardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
+  bigPotEvent = null,
+  onDismissTableEvent,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -419,6 +426,9 @@ export function MobileCardTable({
 
       <div className="btable-mobile-hero-dock hand-panel">
         <div className="btable-mobile-hero-dock__stack">
+        {bigPotEvent && isHeroCardAreaEmpty(heroCards) && onDismissTableEvent && (
+          <BigPotBrewingIndicator event={bigPotEvent} onDismiss={onDismissTableEvent} />
+        )}
         <HeroHand
           cards={heroCards}
           privateHandReady={privateHandReady}
