@@ -2831,7 +2831,9 @@ async function recordHandClient(
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const roomBourre = roomSnap.data()?.bourreSettings ?? DEFAULT_BOURRE_SETTINGS;
+  const normalizedBourre = normalizeBourreSettings(roomBourre);
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
+  const splitPotEnabled = normalizedBourre.splitPotEnabled === true;
 
   let existingMoneyEvents = [];
   let v1MoneyResult = null;
@@ -2839,38 +2841,31 @@ async function recordHandClient(
     existingMoneyEvents = await loadSessionMoneyEvents(roomId, sessionId);
   }
 
+  const settlementInput = {
+    mode,
+    winners,
+    participants,
+    tricksByPlayer,
+    scoreById,
+    sessionStake: stake,
+    limEnabled,
+    carryIn,
+    postedAntes,
+    buyInFallback: buyIn,
+    splitPotEnabled,
+  };
+
   if (isMoneyEngineV1(sessionData)) {
     v1MoneyResult = runV1HandSettlement({
       sessionId,
       handNumber,
-      mode,
-      winners,
-      participants,
-      tricksByPlayer,
-      scoreById,
-      sessionStake: stake,
-      limEnabled,
-      carryIn,
-      postedAntes,
-      buyInFallback: buyIn,
+      ...settlementInput,
       existingEvents: existingMoneyEvents,
     });
   }
 
   const settlementResult =
-    v1MoneyResult?.settlement ??
-    recordHandSettlement({
-      mode,
-      winners,
-      participants,
-      tricksByPlayer,
-      scoreById,
-      sessionStake: stake,
-      limEnabled,
-      carryIn,
-      postedAntes,
-      buyInFallback: buyIn,
-    });
+    v1MoneyResult?.settlement ?? recordHandSettlement(settlementInput);
 
   const {
     nominalDeltas,

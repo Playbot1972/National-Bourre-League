@@ -9,4 +9,9 @@ export {
   applyRecordHandFundingToScores,
   mergeNextDealFundingIntoScoreById,
   bourreIdsFromTricks,
+  SETTLEMENT_STAGES,
+  runSettlementLifecycle,
+  resolveHandOutcome,
+  isSoleSurvivor,
+  solventPlayerIds,
 } from "./money-engine.js";

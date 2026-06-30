@@ -93,6 +93,8 @@ export interface RecordHandSettlementInput {
   carryIn?: number;
   postedAntes?: Record<string, number>;
   buyInFallback?: number;
+  /** Room Bourré setting — ties may split when mode is `split` and this is true. */
+  splitPotEnabled?: boolean;
 }
 
 export interface RecordHandSettlementResult {
