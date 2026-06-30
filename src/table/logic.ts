@@ -115,6 +115,17 @@ export function initials(name: string) {
     .join("") || "?";
 }
 
+/** Seat label — strip bot suffix/prefix; show display name only. */
+export function formatSeatDisplayName(name: string): string {
+  return (
+    (name || "?")
+      .trim()
+      .replace(/\s+bot$/i, "")
+      .replace(/^bot\s+/i, "")
+      .trim() || "?"
+  );
+}
+
 /**
  * Seat rail ellipse inside `.btable__seats` (percent of seat box).
  * Stage-fit contain handles viewport edges; rails can sit near the felt lip.

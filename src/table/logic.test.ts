@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   deriveWinnersFromTricks,
+  formatSeatDisplayName,
   isHandComplete,
   isPlayerAtBourreRisk,
   playersAtBourreRisk,
@@ -132,5 +133,27 @@ describe("displayLiveBankroll", () => {
       }),
       8,
     );
+  });
+});
+
+describe("formatSeatDisplayName", () => {
+  it("strips trailing bot suffix", () => {
+    assert.equal(formatSeatDisplayName("Owen bot"), "Owen");
+    assert.equal(formatSeatDisplayName("Owen Bot"), "Owen");
+  });
+
+  it("strips leading bot prefix", () => {
+    assert.equal(formatSeatDisplayName("bot Owen"), "Owen");
+    assert.equal(formatSeatDisplayName("Bot Owen"), "Owen");
+  });
+
+  it("keeps ordinary display names", () => {
+    assert.equal(formatSeatDisplayName("Owen"), "Owen");
+    assert.equal(formatSeatDisplayName("  Alex  "), "Alex");
+  });
+
+  it("falls back when empty", () => {
+    assert.equal(formatSeatDisplayName(""), "?");
+    assert.equal(formatSeatDisplayName("   "), "?");
   });
 });

@@ -12462,7 +12462,7 @@ function ll(e, t, n) {
 	return e == null || n.anteAlreadyPosted || !n.inHand || !n.anteAnimActive ? e : Math.max(0, e - Math.max(0, t));
 }
 function ul(e) {
-	return (e || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((e) => e[0]?.toUpperCase() || "").join("") || "?";
+	return (e || "?").trim().replace(/\s+bot$/i, "").replace(/^bot\s+/i, "").trim() || "?";
 }
 function dl(e) {
 	switch (Math.max(2, Math.min(8, e || 2))) {
@@ -13112,7 +13112,7 @@ function Wl({ progress: e, segment: t, reducedMotion: n = Nl() }) {
 function Gl({ player: e, region: t, handLane: n = "below", style: r, clockwiseDealing: i = !1, onToggleInHand: a, onPassEnrollment: o, onTrickDelta: s, onReaction: c }) {
 	let [u, d] = (0, l.useState)(!1), f = (0, l.useCallback)(() => {
 		d((e) => !e);
-	}, []), p = e.tricksThisHand, m = Math.max(0, e.holeCardCount ?? 0), h = p > 0, v = !!(e.showHoleCards && !e.isSelf && e.inHand && m > 0), y = e.bankroll != null, b = e.bourreAlert === "pulse", x = e.bourreAlert === "marker" || e.bourreAlert === "pulse", S = !!e.bourrePressure, C = S && e.isSelf, w = e.revealedTrumpIndex != null && e.revealedTrumpUpcard;
+	}, []), p = e.tricksThisHand, m = Math.max(0, e.holeCardCount ?? 0), h = p > 0, v = !!(e.showHoleCards && !e.isSelf && e.inHand && m > 0), y = e.bankroll != null, b = e.bourreAlert === "pulse", x = e.bourreAlert === "marker" || e.bourreAlert === "pulse", S = !!e.bourrePressure, C = S && e.isSelf, w = e.revealedTrumpIndex != null && e.revealedTrumpUpcard, T = ul(e.displayName);
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
 		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
 		className: [
@@ -13248,7 +13248,7 @@ function Gl({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 									className: `bseat__avatar-wrap${u ? " bseat__avatar-wrap--peek" : ""}`,
 									role: "button",
 									tabIndex: 0,
-									"aria-label": `${e.displayName} seat`,
+									"aria-label": `${T} seat`,
 									"aria-expanded": u,
 									onClick: (e) => {
 										e.stopPropagation(), f();
@@ -13267,9 +13267,13 @@ function Gl({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 											src: e.photoURL,
 											alt: ""
 										}) : /* @__PURE__ */ (0, g.jsx)("span", {
-											className: "bseat__avatar bseat__avatar--initials",
-											"aria-hidden": "true",
-											children: ul(e.displayName)
+											className: "bseat__avatar bseat__avatar--blank",
+											"aria-hidden": "true"
+										}),
+										/* @__PURE__ */ (0, g.jsx)("span", {
+											className: "bseat__name-plate",
+											title: T,
+											children: T
 										}),
 										e.inHand && /* @__PURE__ */ (0, g.jsx)("span", {
 											className: "bseat__in-badge",
@@ -13321,14 +13325,6 @@ function Gl({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 					/* @__PURE__ */ (0, g.jsxs)("div", {
 						className: "bseat__info",
 						children: [
-							/* @__PURE__ */ (0, g.jsx)("span", {
-								className: "bseat__name",
-								children: e.displayName
-							}),
-							e.isRobot && /* @__PURE__ */ (0, g.jsx)("span", {
-								className: "bseat__robot-tag muted small",
-								children: "Bot"
-							}),
 							e.isOut && /* @__PURE__ */ (0, g.jsx)("span", {
 								className: "bseat__out-tag muted small",
 								children: "Out"
