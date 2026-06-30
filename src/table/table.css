@@ -378,21 +378,7 @@
 }
 
 .btable--p5,
-.btable--p6 {
-  --stage-seat-inset-top: 5%;
-  --stage-seat-inset-x: 4%;
-  --stage-seat-inset-bottom: 6.5%;
-}
-
-.btable--p5 .table-oval,
-.btable--p6 .table-oval {
-  inset: 4% 2.5% 5% 2.5%;
-}
-
-.btable--p6 .table-center-cluster {
-  top: 46%;
-}
-
+.btable--p6,
 .btable--p7,
 .btable--p8 {
   --stage-seat-inset-top: 5.5%;
@@ -400,9 +386,15 @@
   --stage-seat-inset-bottom: 7%;
 }
 
+.btable--p5 .table-oval,
+.btable--p6 .table-oval,
 .btable--p7 .table-oval,
 .btable--p8 .table-oval {
   inset: 4.5% 3% 5.5% 3%;
+}
+
+.btable--p6 .table-center-cluster {
+  top: 46%;
 }
 
 .btable--p3 .deck-stack,

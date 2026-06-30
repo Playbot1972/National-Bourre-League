@@ -21,16 +21,23 @@ export const DESKTOP_SIX_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
   6: { x: 96, y: 99, region: "bottom" },
 };
 
+/** Shared side-seat anchors — 6-bot seats 1 and 6 are the reference for all smaller tables. */
+export const SHARED_DESKTOP_ANCHORS = {
+  sixBotBottomLeft: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  sixBotBottomRight: DESKTOP_SIX_BOT_SEAT_MAP[6],
+  sixBotTopCenter: DESKTOP_SIX_BOT_SEAT_MAP[4],
+} as const;
+
 /**
  * Desktop 4-bot table (hero + 4 bots, totalPlayers = 5).
  * Seats 1 and 4 mirror the 6-bot bottom-corner anchors; top pair mirrors 6-bot kiddie corners.
  */
 export const DESKTOP_FOUR_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4> = {
   0: { x: 50, y: 99, region: "bottom" },
-  1: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  1: SHARED_DESKTOP_ANCHORS.sixBotBottomLeft,
   2: DESKTOP_SIX_BOT_SEAT_MAP[3],
   3: DESKTOP_SIX_BOT_SEAT_MAP[5],
-  4: DESKTOP_SIX_BOT_SEAT_MAP[6],
+  4: SHARED_DESKTOP_ANCHORS.sixBotBottomRight,
 };
 
 /**
@@ -39,11 +46,11 @@ export const DESKTOP_FOUR_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4> = {
  */
 export const DESKTOP_FIVE_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5> = {
   0: { x: 50, y: 99, region: "bottom" },
-  1: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  1: SHARED_DESKTOP_ANCHORS.sixBotBottomLeft,
   2: { x: 9.3, y: 27.5, region: "left" },
   3: { x: 50, y: 5, region: "top" },
   4: { x: 90.7, y: 27.5, region: "right" },
-  5: DESKTOP_SIX_BOT_SEAT_MAP[6],
+  5: SHARED_DESKTOP_ANCHORS.sixBotBottomRight,
 };
 
 /**
@@ -52,21 +59,14 @@ export const DESKTOP_FIVE_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5> = {
  */
 export const DESKTOP_SEVEN_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6 | 7> = {
   0: { x: 50, y: 99, region: "bottom" },
-  1: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  1: SHARED_DESKTOP_ANCHORS.sixBotBottomLeft,
   2: DESKTOP_SIX_BOT_SEAT_MAP[2],
   3: DESKTOP_SIX_BOT_SEAT_MAP[3],
-  4: DESKTOP_SIX_BOT_SEAT_MAP[4],
+  4: SHARED_DESKTOP_ANCHORS.sixBotTopCenter,
   5: DESKTOP_SIX_BOT_SEAT_MAP[5],
   6: { x: 98, y: 46.5, region: "right" },
-  7: DESKTOP_SIX_BOT_SEAT_MAP[6],
+  7: SHARED_DESKTOP_ANCHORS.sixBotBottomRight,
 };
-
-/** Shared anchors reused across 6-bot and 7-bot layouts. */
-export const SHARED_DESKTOP_ANCHORS = {
-  sixBotBottomLeft: DESKTOP_SIX_BOT_SEAT_MAP[1],
-  sixBotBottomRight: DESKTOP_SIX_BOT_SEAT_MAP[6],
-  sixBotTopCenter: DESKTOP_SIX_BOT_SEAT_MAP[4],
-} as const;
 
 const MOBILE_SIX_BOT_PORTRAIT: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
   0: { x: 50, y: 91, region: "bottom" },

@@ -116,7 +116,7 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
         resolveMobileOpponentLayout(i, total, "portrait"),
       );
       assert.equal(layouts.length, opponents);
-      const yMax = total === 7 || total === 8 ? 92 : 56;
+      const yMax = total >= 5 ? 92 : 56;
       for (const layout of layouts) {
         assert.equal(layout.handLane, "below");
         assert.ok(layout.x >= 8 && layout.x <= 92);
@@ -129,6 +129,42 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
       assert.equal(isClockwiseOnScreen(buildSeatLayoutMap(total, { isMobile: true, orientation: "portrait" })), true);
     });
   }
+});
+
+describe("outer side-seat consistency (4-bot / 5-bot / 6-bot)", () => {
+  it("desktop corners share the 6-bot seat 1 and seat 6 anchors", () => {
+    const ref = buildSeatLayoutMap(7, { isMobile: false });
+    for (const total of [5, 6, 7] as const) {
+      const map = buildSeatLayoutMap(total, { isMobile: false });
+      assert.deepEqual(
+        { x: map[1]!.x, y: map[1]!.y, region: map[1]!.region },
+        { x: ref[1]!.x, y: ref[1]!.y, region: ref[1]!.region },
+        `seat 1 at total=${total}`,
+      );
+      assert.deepEqual(
+        { x: map[total - 1]!.x, y: map[total - 1]!.y, region: map[total - 1]!.region },
+        { x: ref[6]!.x, y: ref[6]!.y, region: ref[6]!.region },
+        `outer right seat at total=${total}`,
+      );
+    }
+  });
+
+  it("mobile portrait corners share the 6-bot seat 1 and seat 6 anchors", () => {
+    const ref = buildSeatLayoutMap(7, { isMobile: true, orientation: "portrait" });
+    for (const total of [5, 6, 7] as const) {
+      const map = buildSeatLayoutMap(total, { isMobile: true, orientation: "portrait" });
+      assert.deepEqual(
+        { x: map[1]!.x, y: map[1]!.y, region: map[1]!.region },
+        { x: ref[1]!.x, y: ref[1]!.y, region: ref[1]!.region },
+        `mobile seat 1 at total=${total}`,
+      );
+      assert.deepEqual(
+        { x: map[total - 1]!.x, y: map[total - 1]!.y, region: map[total - 1]!.region },
+        { x: ref[6]!.x, y: ref[6]!.y, region: ref[6]!.region },
+        `mobile outer right seat at total=${total}`,
+      );
+    }
+  });
 });
 
 describe("5-seat preset (hero + 4 bots)", () => {
