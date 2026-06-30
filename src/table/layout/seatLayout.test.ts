@@ -131,6 +131,34 @@ describe("seat layout map — 3 to 6 opponents (4–7 total)", () => {
   }
 });
 
+describe("5-seat preset (hero + 4 bots)", () => {
+  it("lowers seats 1 and 4 toward the hero rail", () => {
+    const map = buildSeatLayoutMap(5, { isMobile: false });
+    const sixBot = buildSeatLayoutMap(7, { isMobile: false });
+    const hero = map[0]!;
+    const bot1 = map[1]!;
+    const bot4 = map[4]!;
+
+    assert.equal(map.length, 5);
+    assert.equal(isClockwiseOnScreen(map), true);
+    assert.deepEqual(
+      { x: bot1.x, y: bot1.y, region: bot1.region },
+      { x: sixBot[1]!.x, y: sixBot[1]!.y, region: sixBot[1]!.region },
+      "Bot 1 mirrors 6-bot bottom-left corner",
+    );
+    assert.deepEqual(
+      { x: bot4.x, y: bot4.y, region: bot4.region },
+      { x: sixBot[6]!.x, y: sixBot[6]!.y, region: sixBot[6]!.region },
+      "Bot 4 mirrors 6-bot bottom-right corner",
+    );
+    assert.ok(hero.y >= 99, "Hero sits on bottom table edge");
+    assert.equal(bot1.region, "bottom");
+    assert.equal(bot4.region, "bottom");
+    assert.ok(bot1.x < hero.x, "Bot 1 left of hero");
+    assert.ok(bot4.x > hero.x, "Bot 4 right of hero");
+  });
+});
+
 describe("6-seat preset (hero + 5 bots)", () => {
   it("lowers seats 1 and 5 toward the hero rail", () => {
     const map = buildSeatLayoutMap(6, { isMobile: false });

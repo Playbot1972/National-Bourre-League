@@ -178,6 +178,7 @@ export interface SeatPlacement {
 }
 
 import {
+  DESKTOP_FOUR_BOT_SEAT_MAP,
   DESKTOP_FIVE_BOT_SEAT_MAP,
   DESKTOP_SEVEN_BOT_SEAT_MAP,
   DESKTOP_SIX_BOT_SEAT_MAP,
@@ -191,6 +192,9 @@ const EIGHT_SEAT_PRESET = DESKTOP_SEVEN_BOT_SEAT_MAP;
  * Bot 4 is top-rail center; Bot 1 / Bot 6 bottom corners are locked.
  */
 const SEVEN_SEAT_PRESET = DESKTOP_SIX_BOT_SEAT_MAP;
+
+/** 5-player preset (hero + 4 bots): lowers seats 1 and 4 toward the hero rail. */
+const FIVE_SEAT_PRESET = DESKTOP_FOUR_BOT_SEAT_MAP;
 
 /** 6-player preset (hero + 5 bots): lowers seats 1 and 5 toward the hero rail. */
 const SIX_SEAT_PRESET = DESKTOP_FIVE_BOT_SEAT_MAP;
@@ -219,6 +223,11 @@ function ellipseSeatPosition(index: number, n: number): SeatPlacement {
 export function seatPosition(index: number, total: number): SeatPlacement {
   const n = Math.max(2, Math.min(8, total || 2));
   if (n <= 0) return { x: 50, y: 50, region: "bottom" };
+
+  if (n === 5) {
+    const preset = FIVE_SEAT_PRESET[index as 0 | 1 | 2 | 3 | 4];
+    if (preset) return preset;
+  }
 
   if (n === 6) {
     const preset = SIX_SEAT_PRESET[index as 0 | 1 | 2 | 3 | 4 | 5];

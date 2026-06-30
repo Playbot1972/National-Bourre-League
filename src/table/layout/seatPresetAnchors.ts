@@ -22,6 +22,18 @@ export const DESKTOP_SIX_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4 | 5 | 6> = {
 };
 
 /**
+ * Desktop 4-bot table (hero + 4 bots, totalPlayers = 5).
+ * Seats 1 and 4 mirror the 6-bot bottom-corner anchors; top pair mirrors 6-bot kiddie corners.
+ */
+export const DESKTOP_FOUR_BOT_SEAT_MAP: SeatMap<0 | 1 | 2 | 3 | 4> = {
+  0: { x: 50, y: 99, region: "bottom" },
+  1: DESKTOP_SIX_BOT_SEAT_MAP[1],
+  2: DESKTOP_SIX_BOT_SEAT_MAP[3],
+  3: DESKTOP_SIX_BOT_SEAT_MAP[5],
+  4: DESKTOP_SIX_BOT_SEAT_MAP[6],
+};
+
+/**
  * Desktop 5-bot table (hero + 5 bots, totalPlayers = 6).
  * Seats 1 and 5 mirror the 6-bot bottom-corner anchors for side symmetry.
  */
