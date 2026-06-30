@@ -84,6 +84,7 @@ export function useTableDealPresentation({
       runClockwiseDealPresentation({
         steps,
         root,
+        trumpHolderId: session.trumpHolderId ?? session.dealerId ?? null,
         onComplete: () => {
           root.classList.remove("btable-wrap--clockwise-dealing");
           setClockwiseDealing(false);

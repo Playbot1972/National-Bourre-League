@@ -57,8 +57,17 @@ export function readDealTargetRect(
   playerId: string,
   roundIndex: number,
   root: ParentNode,
+  trumpHolderId?: string | null,
 ): MotionRect | null {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+  const isTrumpDeal =
+    trumpHolderId &&
+    playerId === trumpHolderId &&
+    roundIndex === CARDS_PER_PLAYER - 1;
+  if (isTrumpDeal) {
+    const trumpTarget = doc.querySelector<HTMLElement>("[data-trump-deal-target]");
+    if (trumpTarget) return rectFromElement(trumpTarget);
+  }
   const slot =
     doc.querySelector<HTMLElement>(
       `[data-deal-seat="${playerId}"][data-deal-round="${roundIndex}"]`,
@@ -95,8 +104,19 @@ export function revealDealCard(
   playerId: string,
   roundIndex: number,
   root: ParentNode,
+  trumpHolderId?: string | null,
 ): void {
   const doc = root instanceof Document ? root : root.ownerDocument ?? document;
+  const isTrumpDeal =
+    trumpHolderId &&
+    playerId === trumpHolderId &&
+    roundIndex === CARDS_PER_PLAYER - 1;
+  if (isTrumpDeal) {
+    doc
+      .querySelector<HTMLElement>("[data-trump-deal-target]")
+      ?.classList.add("deal-card--revealed");
+    return;
+  }
   const slot = doc.querySelector<HTMLElement>(
     `[data-deal-seat="${playerId}"][data-deal-round="${roundIndex}"]`,
   );
@@ -125,6 +145,7 @@ export function hasActiveDealPresentation(): boolean {
 export interface RunClockwiseDealInput {
   steps: DealStep[];
   root: HTMLElement;
+  trumpHolderId?: string | null;
   onStepComplete?: (step: DealStep) => void;
   onComplete?: () => void;
 }
@@ -133,6 +154,7 @@ export interface RunClockwiseDealInput {
 export function runClockwiseDealPresentation({
   steps,
   root,
+  trumpHolderId = null,
   onStepComplete,
   onComplete,
 }: RunClockwiseDealInput): gsap.core.Timeline {
@@ -158,19 +180,19 @@ export function runClockwiseDealPresentation({
   ACTIVE_DEAL_TIMELINES.add(tl);
 
   if (!deck || steps.length === 0) {
-    for (const step of steps) revealDealCard(step.playerId, step.roundIndex, root);
+    for (const step of steps) revealDealCard(step.playerId, step.roundIndex, root, trumpHolderId);
     tl.call(() => onComplete?.());
     return tl;
   }
 
   steps.forEach((step, i) => {
     const position = i * (travelSec + settleSec + gapSec);
-    const target = readDealTargetRect(step.playerId, step.roundIndex, root);
+    const target = readDealTargetRect(step.playerId, step.roundIndex, root, trumpHolderId);
 
     tl.call(
       () => {
         if (!target) {
-          revealDealCard(step.playerId, step.roundIndex, root);
+          revealDealCard(step.playerId, step.roundIndex, root, trumpHolderId);
           onStepComplete?.(step);
           return;
         }
@@ -201,7 +223,7 @@ export function runClockwiseDealPresentation({
         const inner = gsap.timeline({
           onComplete: () => {
             ghost.remove();
-            revealDealCard(step.playerId, step.roundIndex, root);
+            revealDealCard(step.playerId, step.roundIndex, root, trumpHolderId);
             onStepComplete?.(step);
           },
         });

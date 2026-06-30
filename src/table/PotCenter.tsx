@@ -139,6 +139,7 @@ export function PotCenter({
               .filter(Boolean)
               .join(" ")}
             data-testid="trump-button"
+            data-trump-deal-target=""
           >
             <PlayingCard
               card={{

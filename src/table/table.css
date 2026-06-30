@@ -844,7 +844,7 @@
   }
 }
 
-.btrick--hold .btrick__play:not(.btrick__play--winner) .pcard {
+.btrick--hold .btrick__play:not(.btrick__play--winner):not(.btrick__play--leading) .pcard {
   filter: grayscale(0.2) brightness(0.92);
 }
 

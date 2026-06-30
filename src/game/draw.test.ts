@@ -90,7 +90,7 @@ describe("C — draw / discard phase", () => {
     );
   });
 
-  it("keeps trump reveal while dealer discards other cards", () => {
+  it("clears center trump reveal when dealer takes first draw action", () => {
     const deal = dealForTest();
     const pub = publicHandFromDeal(deal);
     const deck = shuffledDeckFromSeed(deal.deckSeed);
@@ -104,7 +104,7 @@ describe("C — draw / discard phase", () => {
       deck,
       maxDiscards: 4,
     });
-    assert.ok(result.publicHand.trumpUpcard);
+    assert.equal(result.publicHand.trumpUpcard, null);
   });
 
   it("excludes table trump from dealer effective hand during draw", () => {

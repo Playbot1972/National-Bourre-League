@@ -154,6 +154,8 @@ import {
   maxDrawDiscards,
   botDrawDiscardIndices,
   botPlayCardIndex,
+  botShouldFoldDraw,
+  botShouldPassDecision,
   getLegalPlayIndices,
   buildPlayValidationState,
   effectivePlayerHand,
@@ -2184,6 +2186,10 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
   const privateHand = deserializeCards(handData.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
+  if (botShouldFoldDraw(hand, trumpSuit)) {
+    await foldHandDraw(roomId, sessionId, { playerId, actorId });
+    return;
+  }
   const deckSeed = ch.deckSeed;
   const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const pile = pileFromPublicHand(ch, deck);

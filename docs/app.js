@@ -146,6 +146,7 @@ import {
   enrollmentDeadlineMs,
   tricksForPlayer,
   resolveActionOrder,
+  getPrivateHand,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -156,6 +157,9 @@ import {
 } from "./session-presets.js";
 import {
   cardsRemainingInHand,
+  deserializeCards,
+  effectivePlayerHand,
+  botShouldPassDecision,
 } from "./game-engine.js";
 import {
   formatHandHistoryPublicLine,
@@ -3064,12 +3068,31 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
       !(enrollment.declinedIds || []).includes(currentId)
     ) {
       robotActionInFlight = true;
-      setHandParticipation(currentRoomId, openSessionId, {
-        playerId: currentId,
-        inHand: true,
-        discardCount: isPagatDecision ? 0 : 0,
-        actorId,
-      })
+      const runBotEnrollment = async () => {
+        if (isPagatDecision) {
+          const ch = getSessionCurrentHand(s);
+          const handData = await getPrivateHand(currentRoomId, openSessionId, currentId);
+          if (handData && ch?.trumpSuit) {
+            const privateHand = deserializeCards(handData.cards || []);
+            const effective = effectivePlayerHand(currentId, privateHand, ch);
+            if (botShouldPassDecision(effective, ch.trumpSuit)) {
+              await setHandParticipation(currentRoomId, openSessionId, {
+                playerId: currentId,
+                inHand: false,
+                actorId,
+              });
+              return;
+            }
+          }
+        }
+        await setHandParticipation(currentRoomId, openSessionId, {
+          playerId: currentId,
+          inHand: true,
+          discardCount: 0,
+          actorId,
+        });
+      };
+      runBotEnrollment()
         .catch((e) => console.warn("robot enroll:", e))
         .finally(() => {
           finishRobotAction();

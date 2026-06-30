@@ -5,6 +5,7 @@ import { applyDraw } from "./draw";
 import { applyPlayCard, applyPlayerPlayCard } from "./play";
 import {
   assertCardUniqueness,
+  clearTrumpUpcardIfFirstAction,
   effectivePlayerHand,
   privateHandFromEffective,
   cardsRemainingInHand,
@@ -271,5 +272,18 @@ describe("dealer trump upcard during play", () => {
     assert.equal(displayHoleCardCount(pub, holder!, false), 4);
     assert.equal(displayHoleCardCount(pub, holder!, true), 5);
     assert.equal(displayHoleCardCount(pub, "p2", false), 5);
+  });
+
+  it("clearTrumpUpcardIfFirstAction clears center trump on first opening action", () => {
+    const d = deal();
+    const pub = publicFromDeal(d);
+    assert.ok(pub.trumpUpcard);
+    const cleared = clearTrumpUpcardIfFirstAction(pub);
+    assert.equal(cleared.trumpUpcard, null);
+    const afterDraw = {
+      ...pub,
+      drawCompletedIds: ["p1"],
+    };
+    assert.equal(clearTrumpUpcardIfFirstAction(afterDraw).trumpUpcard, pub.trumpUpcard);
   });
 });

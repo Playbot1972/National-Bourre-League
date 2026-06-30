@@ -73,6 +73,7 @@ export {
 export type { PlayContext, LegalityResult, LegalityCode, PlayValidationMeta } from "./legal";
 export { resolveTrickWinner } from "./trick";
 export { applyPlayCard, applyPlayerPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
+export { botShouldFoldDraw, botShouldPassDecision, estimateHandStrength } from "./botDecisions";
 export type { ApplyPlayInput, ApplyPlayResult, ApplyPlayerPlayInput, ApplyPlayerPlayResult } from "./play";
 export {
   assertCardUniqueness,
@@ -85,6 +86,8 @@ export {
   trumpRevealMirroredInHolderHand,
   trumpOnTable,
   trumpOwnerId,
+  isBeforeFirstHandAction,
+  clearTrumpUpcardIfFirstAction,
   CardUniquenessError,
 } from "./invariants";
 export { cardKey, cardsEqual, rankValue, isTrump } from "./cardUtils";
