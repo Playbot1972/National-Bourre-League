@@ -653,7 +653,7 @@
   justify-content: center;
   min-width: 48px;
   min-height: 74px;
-  --trick-card-overlap: calc(var(--trick-card-width) * 0.288461538);
+  --trick-card-overlap: calc(var(--trick-card-width) * 0.346153846);
   --trick-card-width: 52px;
   --trick-card-height: 74px;
   --trick-card-step: calc(var(--trick-card-width) - var(--trick-card-overlap));
@@ -850,14 +850,14 @@
 
 /* Trick collection — compress cards into a tight overlapping line before fly-to-pile */
 .btrick--rake {
-  --trick-rake-step: 16px;
+  --trick-rake-step: 13px;
 }
 
 .btrick--rake .btrick__play,
 .btrick--rake .btrick__play--landed,
 .btrick--rake .btrick__play--settled.btrick__play--static-landed,
 .btrick--rake .btrick__play--landed.btrick__play--static-landed {
-  transform: translateX(calc(var(--slot-index, 0) * var(--trick-rake-step, 16px)));
+  transform: translateX(calc(var(--slot-index, 0) * var(--trick-rake-step, 13px)));
   transition: transform var(--trick-rake-ms, 220ms) var(--trick-ease-shift, cubic-bezier(0.2, 0, 0, 1));
 }
 
@@ -1613,7 +1613,7 @@
 }
 
 .bseat--bottom .bseat__core {
-  transform: translate(-50%, calc(-50% + 5px));
+  transform: translate(-50%, calc(-50% + 8px));
 }
 
 .bseat--left .bseat__core {

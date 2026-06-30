@@ -12214,38 +12214,7 @@ function Gc(e) {
 var Kc = {
 	0: {
 		x: 50,
-		y: 95,
-		region: "bottom"
-	},
-	1: {
-		x: 10,
-		y: 88,
-		region: "bottom"
-	},
-	2: {
-		x: 9.3,
-		y: 27.5,
-		region: "left"
-	},
-	3: {
-		x: 50,
-		y: 5,
-		region: "top"
-	},
-	4: {
-		x: 90.7,
-		y: 27.5,
-		region: "right"
-	},
-	5: {
-		x: 90,
-		y: 88,
-		region: "bottom"
-	}
-}, qc = {
-	0: {
-		x: 50,
-		y: 96,
+		y: 99,
 		region: "bottom"
 	},
 	1: {
@@ -12255,7 +12224,7 @@ var Kc = {
 	},
 	2: {
 		x: 2,
-		y: 40.4,
+		y: 46.5,
 		region: "left"
 	},
 	3: {
@@ -12278,29 +12247,52 @@ var Kc = {
 		y: 99,
 		region: "bottom"
 	}
+}, qc = {
+	0: {
+		x: 50,
+		y: 99,
+		region: "bottom"
+	},
+	1: Kc[1],
+	2: {
+		x: 9.3,
+		y: 27.5,
+		region: "left"
+	},
+	3: {
+		x: 50,
+		y: 5,
+		region: "top"
+	},
+	4: {
+		x: 90.7,
+		y: 27.5,
+		region: "right"
+	},
+	5: Kc[6]
 }, Jc = {
 	0: {
 		x: 50,
 		y: 99,
 		region: "bottom"
 	},
-	1: qc[1],
-	2: qc[2],
-	3: qc[3],
-	4: qc[4],
-	5: qc[5],
+	1: Kc[1],
+	2: Kc[2],
+	3: Kc[3],
+	4: Kc[4],
+	5: Kc[5],
 	6: {
 		x: 98,
-		y: 40.4,
+		y: 46.5,
 		region: "right"
 	},
-	7: qc[6]
+	7: Kc[6]
 };
-qc[1], qc[6], qc[4];
+Kc[1], Kc[6], Kc[4];
 var Yc = {
 	0: {
 		x: 50,
-		y: 88,
+		y: 91,
 		region: "bottom"
 	},
 	1: {
@@ -12310,7 +12302,7 @@ var Yc = {
 	},
 	2: {
 		x: 8,
-		y: 40.4,
+		y: 46.5,
 		region: "left"
 	},
 	3: {
@@ -12336,17 +12328,17 @@ var Yc = {
 }, Xc = {
 	0: {
 		x: 50,
-		y: 86,
+		y: 90,
 		region: "bottom"
 	},
 	1: {
 		x: 8,
-		y: 89,
+		y: 91,
 		region: "bottom"
 	},
 	2: {
 		x: 8,
-		y: 40.4,
+		y: 46.5,
 		region: "left"
 	},
 	3: {
@@ -12366,7 +12358,7 @@ var Yc = {
 	},
 	6: {
 		x: 92,
-		y: 89,
+		y: 91,
 		region: "bottom"
 	}
 }, Zc = {
@@ -12382,14 +12374,14 @@ var Yc = {
 	5: Yc[5],
 	6: {
 		x: 92,
-		y: 40.4,
+		y: 46.5,
 		region: "right"
 	},
 	7: Yc[6]
 }, Qc = {
 	0: {
 		x: 50,
-		y: 89,
+		y: 91,
 		region: "bottom"
 	},
 	1: Xc[1],
@@ -12399,7 +12391,7 @@ var Yc = {
 	5: Xc[5],
 	6: {
 		x: 92,
-		y: 40.4,
+		y: 46.5,
 		region: "right"
 	},
 	7: Xc[6]
@@ -12512,7 +12504,7 @@ function fl(e) {
 	let t = Math.cos(e), n = Math.sin(e);
 	return Math.abs(n) >= Math.abs(t) ? n > 0 ? "bottom" : "top" : t > 0 ? "right" : "left";
 }
-var pl = Jc, ml = qc, hl = Kc;
+var pl = Jc, ml = Kc, hl = qc;
 function gl(e, t) {
 	let { rx: n, ry: r, outset: i } = dl(t), a = e / t * Math.PI * 2 + Math.PI / 2, o = Math.cos(a), s = Math.sin(a);
 	return {
