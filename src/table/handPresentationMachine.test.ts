@@ -427,7 +427,7 @@ describe("handPresentationMachine", () => {
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
-    assert.ok(t.trumpMergeAnimMs <= 80);
+    assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
 

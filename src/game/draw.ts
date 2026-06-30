@@ -8,6 +8,7 @@ import {
 } from "./drawPile";
 import { maxDrawDiscards } from "./drawLimit";
 import {
+  clearTrumpUpcardIfFirstAction,
   effectiveIndexDiscardsTrump,
   effectivePlayerHand,
   privateHandFromEffective,
@@ -156,6 +157,8 @@ export function applyPlayerDraw(input: ApplyPlayerDrawInput): ApplyPlayerDrawRes
 
   if (trumpDiscarded) {
     nextPublic = { ...nextPublic, trumpUpcard: null };
+  } else {
+    nextPublic = clearTrumpUpcardIfFirstAction(nextPublic);
   }
 
   const privateHand = privateHandFromEffective(input.playerId, drawResult.hand, nextPublic);
@@ -203,19 +206,20 @@ export function applyDrawFold(
   actionOrder: string[],
   foldingPlayerId: string,
 ): DrawFoldResult {
-  const participantIds = publicHand.participantIds.filter((id) => id !== foldingPlayerId);
-  const foldedIds = [...(publicHand.foldedIds ?? []), foldingPlayerId];
+  const trumpClearedHand = clearTrumpUpcardIfFirstAction(publicHand);
+  const participantIds = trumpClearedHand.participantIds.filter((id) => id !== foldingPlayerId);
+  const foldedIds = [...(trumpClearedHand.foldedIds ?? []), foldingPlayerId];
   const newActionOrder = actionOrder.filter((id) => participantIds.includes(id));
-  const drawCompletedIds = [...new Set([...(publicHand.drawCompletedIds ?? []), foldingPlayerId])];
+  const drawCompletedIds = [...new Set([...(trumpClearedHand.drawCompletedIds ?? []), foldingPlayerId])];
 
   const baseHand: PublicHandState = {
-    ...publicHand,
+    ...trumpClearedHand,
     participantIds,
     actionOrder: newActionOrder,
     drawCompletedIds,
     foldedIds,
     tricksByPlayer: Object.fromEntries(
-      participantIds.map((id) => [id, publicHand.tricksByPlayer[id] ?? 0]),
+      participantIds.map((id) => [id, trumpClearedHand.tricksByPlayer[id] ?? 0]),
     ),
   };
 

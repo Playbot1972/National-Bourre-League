@@ -66,11 +66,14 @@ export function TrickPlaySlot({
   const isLanding = index === displayCount - 1 && isLivePhase;
   /** Shift transition only after a completed land — never during fly keyframes. */
   const isSettled = hasLanded;
-  const showLeadingCard =
-    isLeading &&
-    (presentationPhase === "live" || presentationPhase === "trickComplete");
-  const showWinnerCard =
-    isWinner && presentationPhase !== "live" && presentationPhase !== "trickComplete";
+  /** Current trick leader — green winner border immediately during live play. */
+  const showLiveLeaderHighlight =
+    isLeading && (presentationPhase === "live" || presentationPhase === "trickComplete");
+  const showResolvedWinnerHighlight =
+    isWinner &&
+    presentationPhase !== "live" &&
+    presentationPhase !== "trickComplete";
+  const showWinnerCard = showLiveLeaderHighlight || showResolvedWinnerHighlight;
 
   useLayoutEffect(() => {
     if (isGameFlowDebugEnabled()) {
@@ -177,8 +180,8 @@ export function TrickPlaySlot({
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",
         flyMode === "settle" ? "btrick__play--settle" : "",
-        showLeadingCard ? "btrick__play--leading" : "",
-        isWinner && showWinnerCard ? "btrick__play--winner" : "",
+        showLiveLeaderHighlight ? "btrick__play--leading" : "",
+        showWinnerCard ? "btrick__play--winner" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -188,13 +191,7 @@ export function TrickPlaySlot({
       <PlayingCard
         card={serializedToCard(play.card)}
         size="sm"
-        state={
-          showWinnerCard && isWinner
-            ? "winner"
-            : showLeadingCard && isLeading
-              ? "trick-leading"
-              : "default"
-        }
+        state={showWinnerCard ? "winner" : "default"}
       />
       <span className="btrick__name muted small">{playerName}</span>
     </div>

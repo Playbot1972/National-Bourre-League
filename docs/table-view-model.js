@@ -62,7 +62,7 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
 
 export function buildHeroCardsForTable(currentHand, privateCardList, playerId, handPhase) {
   const privateCards = privateCardList ?? [];
-  if ((handPhase !== "draw" && handPhase !== "play") || !currentHand || !playerId) {
+  if (!currentHand || !playerId || !isHandCardsDealtPhase(handPhase)) {
     return privateCards;
   }
   const effective = effectivePlayerHand(

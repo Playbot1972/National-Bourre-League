@@ -209,3 +209,27 @@ export function trumpRevealMirroredInHolderHand(
   if (!holderHand?.length) return false;
   return holderHand.some((c) => cardsEqual(c, publicHand.trumpUpcard as Card));
 }
+
+/** True before any draw, play, or fold has been recorded this hand. */
+export function isBeforeFirstHandAction(
+  publicHand: Pick<
+    PublicHandState,
+    "drawCompletedIds" | "playedCards" | "currentTrick" | "foldedIds"
+  >,
+): boolean {
+  const drawsDone = (publicHand.drawCompletedIds ?? []).length;
+  const played = (publicHand.playedCards ?? []).length;
+  const inTrick = (publicHand.currentTrick?.plays ?? []).length;
+  const folded = (publicHand.foldedIds ?? []).length;
+  return drawsDone === 0 && played === 0 && inTrick === 0 && folded === 0;
+}
+
+/** After the first opening action, the center trump reveal merges into the holder hand. */
+export function clearTrumpUpcardIfFirstAction(
+  publicHand: PublicHandState,
+): PublicHandState {
+  if (!publicHand.trumpUpcard || !isBeforeFirstHandAction(publicHand)) {
+    return publicHand;
+  }
+  return { ...publicHand, trumpUpcard: null };
+}

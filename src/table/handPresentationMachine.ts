@@ -559,6 +559,20 @@ function reduceHandPresentationCore(
         return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
       }
 
+      const prevTrump = trumpKey(prev.trumpUpcard);
+      const nextTrump = trumpKey(snapshot.trumpUpcard);
+      if (prevTrump && !nextTrump && !store.trumpMergeActive) {
+        return {
+          ...store,
+          trumpRevealActive: false,
+          trumpMergeActive: true,
+          trumpMergedIntoHand: true,
+          prevSnapshot: snapshot,
+          pendingSnapshot: snapshot,
+          phaseStartedAt: Date.now(),
+        };
+      }
+
       // Authoritative play phase must not wait on draw/trump presentation.
       if (snapshot.phase === "play" && store.phase !== "play") {
         return withPhase(store, "play", {

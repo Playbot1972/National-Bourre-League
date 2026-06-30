@@ -3,6 +3,7 @@ import {
   effectivePlayerHand,
   playedTrumpUpcard,
   privateHandFromEffective,
+  clearTrumpUpcardIfFirstAction,
 } from "./invariants";
 import { getLegalPlayIndices, validatePlayIndex, type PlayContext } from "./legal";
 import { buildPlayValidationState, normalizeTrickForPlay } from "./playContext";
@@ -67,6 +68,8 @@ export function applyPlayerPlayCard(input: ApplyPlayerPlayInput): ApplyPlayerPla
     (openingPlay || (playedCard && playedTrumpUpcard(playedCard, input.publicHand)))
   ) {
     nextPublic = { ...nextPublic, trumpUpcard: null };
+  } else {
+    nextPublic = clearTrumpUpcardIfFirstAction(nextPublic);
   }
 
   const privateHand = privateHandFromEffective(input.playerId, result.playerHand, nextPublic);

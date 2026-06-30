@@ -21,6 +21,8 @@ import {
   applyPlayerPlayCard,
   botDrawDiscardIndices,
   botPlayCardIndex,
+  botShouldFoldDraw,
+  botShouldPassDecision,
   buildPlayValidationState,
   effectivePlayerHand,
   maxDrawDiscards,
@@ -1023,6 +1025,9 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
   const effective = effectivePlayerHand(playerId, privateHand, ch);
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
+  if (botShouldFoldDraw(effective, ch.trumpSuit)) {
+    return handleFoldDraw(db, { roomId, sessionId, playerId, actorId });
+  }
   const deckSeed = ch.deckSeed;
   const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const pile = pileFromPublicHand(ch, deck);
@@ -1136,14 +1141,37 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
         break;
       case "decision":
-        await handleSetHandParticipation(db, {
-          roomId,
-          sessionId,
-          playerId: hint.turnPlayerId,
-          inHand: true,
-          actorId,
-          discardCount: 0,
-        });
+        {
+          const sessionSnap = await sessionRef(db, roomId, sessionId).get();
+          const ch = getSessionCurrentHand(sessionSnap.data() || {});
+          const embedded = embeddedPrivateHandData(sessionSnap.data() || {}, hint.turnPlayerId);
+          let privateHand;
+          if (embedded?.cards) {
+            privateHand = deserializeCards(embedded.cards);
+          } else {
+            const privateSnap = await privateHandRef(db, roomId, sessionId, hint.turnPlayerId).get();
+            privateHand = deserializeCards(privateSnap.data()?.cards || []);
+          }
+          const effective = effectivePlayerHand(hint.turnPlayerId, privateHand, ch);
+          if (ch.trumpSuit && botShouldPassDecision(effective, ch.trumpSuit)) {
+            await handleSetHandParticipation(db, {
+              roomId,
+              sessionId,
+              playerId: hint.turnPlayerId,
+              inHand: false,
+              actorId,
+            });
+            break;
+          }
+          await handleSetHandParticipation(db, {
+            roomId,
+            sessionId,
+            playerId: hint.turnPlayerId,
+            inHand: true,
+            actorId,
+            discardCount: 0,
+          });
+        }
         break;
       case "draw":
         await executeBotDraw(db, roomId, sessionId, hint.turnPlayerId, actorId, dealingRule);

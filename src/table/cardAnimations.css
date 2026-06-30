@@ -78,6 +78,18 @@
   visibility: visible;
   pointer-events: auto;
 }
+
+/* Trump upcard — hide until dealer's fifth deal lands in center */
+.btable-wrap--clockwise-dealing [data-trump-deal-target]:not(.deal-card--revealed) .pcard {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.btable-wrap--clockwise-dealing [data-trump-deal-target].deal-card--revealed .pcard {
+  opacity: 1 !important;
+  visibility: visible;
+}
 .bpot__trump--deal,
 .bpot__ante-chip {
   animation-duration: var(--anim-deal-ms) !important;
