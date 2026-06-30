@@ -47,7 +47,7 @@ export function recordHandSettlement(
     postedAntes = {},
     buyInFallback = 100,
     splitPotEnabled = false,
-  } = input as RecordHandSettlementInput & { splitPotEnabled?: boolean };
+  } = input;
 
   const antePot = participants.reduce(
     (sum, pid) =>

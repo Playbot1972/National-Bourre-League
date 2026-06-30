@@ -110,33 +110,15 @@ export function runV1HandSettlement(input) {
   const {
     sessionId,
     handNumber,
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
-    scoreById,
-    sessionStake,
-    limEnabled,
-    carryIn,
-    postedAntes,
-    buyInFallback,
     existingEvents = [],
+    ...settlementInput
   } = input;
 
   return processHandSettlement({
     actionId: `settle:${sessionId}:${handNumber}`,
     handId: String(handNumber),
     sessionId,
-    mode,
-    winners,
-    participants,
-    tricksByPlayer,
-    scoreById,
-    sessionStake,
-    limEnabled,
-    carryIn,
-    postedAntes,
-    buyInFallback,
+    ...settlementInput,
     existingEvents,
   });
 }
