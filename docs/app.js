@@ -205,6 +205,7 @@ import {
   resolveCurrentHandChoicePlayerId,
   assertHandFlowConsistent,
   shouldAutoOpenNextHand,
+  sessionNeedsHandoffRecovery,
   createTransitionLock,
   HAND_TRANSITION,
   logHandTransition,
@@ -1128,7 +1129,7 @@ function maybeRecoverHandLifecycle(sessionObj) {
       });
       return;
     }
-    if (tablePlayOpen && !handoffRecoveryInFlight) {
+    if (tablePlayOpen && !handoffRecoveryInFlight && sessionNeedsHandoffRecovery(sessionObj)) {
       handoffRecoveryInFlight = true;
       void recoverHandoffBetweenHands(currentRoomId, openSessionId, session?.uid ?? null)
         .then((result) => {

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   analyzeTableStartup,
   authoritativeCurrentHand,
+  sessionNeedsHandoffRecovery,
   shouldClearOrphanLiveEnrollment,
   tableStartupUserMessage,
 } from "./tableStartup";
@@ -103,5 +104,48 @@ describe("tableStartup", () => {
     const analysis = analyzeTableStartup({ status: "final" }, 4);
     assert.equal(analysis.canOpenTable, false);
     assert.match(tableStartupUserMessage(analysis), /finished/i);
+  });
+
+  it("sessionNeedsHandoffRecovery is false during mid-hand draw", () => {
+    const session = {
+      status: "in_progress",
+      handCount: 1,
+      currentHand: {
+        phase: "draw",
+        participantIds: ["a", "b"],
+        tricksByPlayer: {},
+        turnPlayerId: "a",
+      },
+    };
+    assert.equal(sessionNeedsHandoffRecovery(session), false);
+  });
+
+  it("sessionNeedsHandoffRecovery is true when five tricks await settlement", () => {
+    const session = {
+      status: "in_progress",
+      handCount: 1,
+      currentHand: {
+        phase: "play",
+        participantIds: ["a", "b"],
+        tricksByPlayer: { a: 4, b: 1 },
+        turnPlayerId: null,
+      },
+    };
+    assert.equal(sessionNeedsHandoffRecovery(session), true);
+  });
+
+  it("sessionNeedsHandoffRecovery is true for cleared hand with orphan live deal", () => {
+    const session = {
+      status: "in_progress",
+      handEnrollment: null,
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: { phase: "draw", participantIds: ["a", "b"], tricksByPlayer: {} },
+        },
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+    assert.equal(sessionNeedsHandoffRecovery(session), true);
   });
 });
