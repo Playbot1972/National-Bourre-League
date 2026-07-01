@@ -1008,6 +1008,23 @@ let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
 let handoffRecoveryInFlight = false;
 const appRoundAdvanceLock = createTransitionLock();
+/** Last hand phase observed on the open session — client-side transition logging only. */
+let clientObservedHandPhase = null;
+
+function maybeLogClientHandPhaseTransitions(sessionObj) {
+  if (!sessionObj || sessionObj.id !== openSessionId || !currentRoomId) return;
+  const currentHand = getSessionCurrentHand(sessionObj);
+  const currentPhase = currentHand?.phase ?? null;
+  const prevPhase = clientObservedHandPhase;
+  if (prevPhase !== "draw" && currentPhase === "draw") {
+    logHandTransition(HAND_TRANSITION.DRAW_START, {
+      roomId: currentRoomId,
+      sessionId: openSessionId,
+      turnPlayerId: currentHand?.turnPlayerId ?? null,
+    });
+  }
+  clientObservedHandPhase = currentPhase;
+}
 
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
@@ -2785,6 +2802,8 @@ function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {
     return;
   }
 
+  maybeLogClientHandPhaseTransitions(sessionObj);
+
   if (isGameFlowDebugEnabled()) {
     try {
       assertHandFlowConsistent(sessionObj);
@@ -3724,6 +3743,7 @@ function openSession(sessionId) {
   openSessionId = sessionId;
   openScores = [];
   openHands = [];
+  clientObservedHandPhase = null;
   tableFeedbackSnapshot = null;
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {

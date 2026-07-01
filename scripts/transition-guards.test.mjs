@@ -59,6 +59,24 @@ describe("transition guards", () => {
     assert.ok(intentsSrc.includes("result?.blocked"));
   });
 
+  it("runSessionOrchestration logs client DRAW_START on first entry into draw", () => {
+    const appSrc = readFileSync(
+      fileURLToPath(new URL("../docs/app.js", import.meta.url)),
+      "utf8",
+    );
+    const fnIdx = appSrc.indexOf("function maybeLogClientHandPhaseTransitions");
+    assert.ok(fnIdx >= 0);
+    const body = appSrc.slice(fnIdx, fnIdx + 600);
+    assert.ok(body.includes('prevPhase !== "draw"'));
+    assert.ok(body.includes('currentPhase === "draw"'));
+    assert.ok(body.includes("HAND_TRANSITION.DRAW_START"));
+    assert.ok(body.includes("clientObservedHandPhase = currentPhase"));
+    const orchIdx = appSrc.indexOf("function runSessionOrchestration");
+    assert.ok(orchIdx >= 0);
+    const orchBody = appSrc.slice(orchIdx, orchIdx + 500);
+    assert.ok(orchBody.includes("maybeLogClientHandPhaseTransitions(sessionObj)"));
+  });
+
   it("maybeRecoverHandLifecycle skips recover when next-hand enrollment is in flight", () => {
     const appSrc = readFileSync(
       fileURLToPath(new URL("../docs/app.js", import.meta.url)),
