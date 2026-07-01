@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import { Seat } from "./Seat";
 import { resolveSeatLayout, type SeatLayout } from "./layout/seatLayout";
+import { tableSeatSlotPropsEqual } from "./tableSeatSlotEqual";
 import type { TablePlayer } from "./types";
 
 export interface TableSeatSlotProps {
@@ -87,4 +88,4 @@ function TableSeatSlotInner({
   );
 }
 
-export const TableSeatSlot = memo(TableSeatSlotInner);
+export const TableSeatSlot = memo(TableSeatSlotInner, tableSeatSlotPropsEqual);
