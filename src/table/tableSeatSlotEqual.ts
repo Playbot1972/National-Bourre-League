@@ -1,5 +1,5 @@
 import { seatPlayerVisualEqual } from "./seatPlayerEqual";
-import type { SeatLayout } from "./layout/seatLayout";
+import type { ResolvedSeatLayout } from "./layout/seatLayout";
 import type { TablePlayer } from "./types";
 
 export interface TableSeatSlotMemoProps {
@@ -9,7 +9,7 @@ export interface TableSeatSlotMemoProps {
   playerCount: number;
   isMobile: boolean;
   clockwiseDealing: boolean;
-  layoutOverride?: SeatLayout;
+  layoutOverride?: ResolvedSeatLayout;
   seatIndexAttr?: number;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;

@@ -23,7 +23,7 @@ import {
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
-interface UseTrickPresentationInput {
+export interface UseTrickPresentationInput {
   phase?: string | null;
   currentTrick?: CurrentTrickState | null;
   tricksByPlayer: Record<string, number>;

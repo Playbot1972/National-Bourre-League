@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, type CSSProperties } from "react";
 import { Seat } from "./Seat";
-import { resolveSeatLayout, type SeatLayout } from "./layout/seatLayout";
+import { resolveSeatLayout, type ResolvedSeatLayout } from "./layout/seatLayout";
 import { tableSeatSlotPropsEqual } from "./tableSeatSlotEqual";
 import type { TablePlayer } from "./types";
 
@@ -11,7 +11,7 @@ export interface TableSeatSlotProps {
   playerCount: number;
   isMobile: boolean;
   clockwiseDealing: boolean;
-  layoutOverride?: SeatLayout;
+  layoutOverride?: ResolvedSeatLayout;
   seatIndexAttr?: number;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
   onPassEnrollment?: (playerId: string) => void;
@@ -19,7 +19,7 @@ export interface TableSeatSlotProps {
   onReaction?: (emoji: string) => void;
 }
 
-function layoutStyle(layout: SeatLayout): CSSProperties {
+function layoutStyle(layout: ResolvedSeatLayout): CSSProperties {
   return { left: `${layout.x}%`, top: `${layout.y}%` };
 }
 
