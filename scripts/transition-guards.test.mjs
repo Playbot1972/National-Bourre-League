@@ -59,6 +59,23 @@ describe("transition guards", () => {
     assert.ok(intentsSrc.includes("result?.blocked"));
   });
 
+  it("maybeRecoverHandLifecycle skips recover when next-hand enrollment is in flight", () => {
+    const appSrc = readFileSync(
+      fileURLToPath(new URL("../docs/app.js", import.meta.url)),
+      "utf8",
+    );
+    const idx = appSrc.indexOf("function maybeRecoverHandLifecycle");
+    assert.ok(idx >= 0);
+    const body = appSrc.slice(idx, idx + 1200);
+    assert.ok(body.includes("nextHandOpenInFlight || appRoundAdvanceLock.isLocked()"));
+    assert.ok(body.includes("next_hand_inflight_or_round_advance_locked"));
+    assert.ok(body.includes("recoverHandoffBetweenHands"));
+    const guardIdx = body.indexOf("next_hand_inflight_or_round_advance_locked");
+    const recoverIdx = body.indexOf("recoverHandoffBetweenHands");
+    assert.ok(guardIdx >= 0 && recoverIdx >= 0);
+    assert.ok(guardIdx < recoverIdx);
+  });
+
   it("processRobotActions requests server advance before client robot draw", () => {
     const appSrc = readFileSync(
       fileURLToPath(new URL("../docs/app.js", import.meta.url)),

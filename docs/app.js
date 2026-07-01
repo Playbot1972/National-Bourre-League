@@ -1102,6 +1102,15 @@ function maybeRecoverHandLifecycle(sessionObj) {
 
   const handoffReady = shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
   if (!handoffReady) {
+    if (nextHandOpenInFlight || appRoundAdvanceLock.isLocked()) {
+      logHandTransition(HAND_TRANSITION.ROUND_ADVANCE, {
+        blocked: true,
+        reason: "next_hand_inflight_or_round_advance_locked",
+        roomId: currentRoomId,
+        sessionId: openSessionId,
+      });
+      return;
+    }
     if (tablePlayOpen && !handoffRecoveryInFlight) {
       handoffRecoveryInFlight = true;
       void recoverHandoffBetweenHands(currentRoomId, openSessionId, session?.uid ?? null)
