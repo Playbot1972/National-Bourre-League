@@ -21,6 +21,7 @@ import {
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { TurnCountdownSync } from "./TurnCountdownSync";
+import { TrickAnimationBusySync } from "./TrickAnimationBusySync";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -37,12 +38,7 @@ import {
   selectTrickSessionBridge,
   trickSessionBridgeEqual,
 } from "./trickPresentationSelectors";
-import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
-import {
-  subscribePresentationMotionBusy,
-  isDealPresentationActive,
-  isTrickCollectionActive,
-} from "./presentationMotionBusy";
+import { handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -163,11 +159,8 @@ export function TableSessionView({
     session.phase,
   );
 
-  const [motionBusyTick, setMotionBusyTick] = useState(0);
-  useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
-
-  useEffect(() => {
-    setTrickAnimationBusyState({
+  const trickAnimationBusyInput = useMemo(
+    () => ({
       pipelineActive: trickBridge.isPipelineActive,
       revealCatchUp:
         trickBridge.phase === "live" &&
@@ -177,22 +170,19 @@ export function TableSessionView({
       displayedPlayCount: trickBridge.displayPlaysLength,
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
-      dealPresentationActive: isDealPresentationActive(),
-      trickCollectionActive: isTrickCollectionActive(),
-    });
-  }, [
-    trickBridge.isPipelineActive,
-    trickBridge.phase,
-    trickBridge.revealedCount,
-    trickBridge.revealTarget,
-    trickBridge.peakPlayCount,
-    trickBridge.displayPlaysLength,
-    instantTrickPlays,
-    handPresentingForBots,
-    handPresentation.phase,
-    session.phase,
-    motionBusyTick,
-  ]);
+    }),
+    [
+      trickBridge.isPipelineActive,
+      trickBridge.phase,
+      trickBridge.revealedCount,
+      trickBridge.revealTarget,
+      trickBridge.peakPlayCount,
+      trickBridge.displayPlaysLength,
+      instantTrickPlays,
+      handPresentingForBots,
+      handPresentation.phase,
+    ],
+  );
 
   const cardsDealt = isCardsDealtPhase(session.phase);
 
@@ -590,6 +580,7 @@ export function TableSessionView({
   const gameplayStage = (
     <>
       <TrickPresentationSync {...trickPresentationInput} />
+      <TrickAnimationBusySync input={trickAnimationBusyInput} />
       <TurnCountdownSync input={turnCountdownInput} />
       <div className="btable-session__attention-layer" aria-live="polite">
         <YourTurnAttention
