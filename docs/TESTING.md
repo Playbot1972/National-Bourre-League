@@ -2,7 +2,7 @@
 
 Repo-specific steps for local development, release validation, and **booray.win** production ops.
 
-**Track `main`** (currently **v1.03.41** per `package.json`). Pull and install before testing:
+**Track `main`** (currently **v1.03.42** per `package.json`). Pull and install before testing:
 
 ```bash
 git checkout main
