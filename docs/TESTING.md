@@ -164,9 +164,98 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | GitHub Actions: hosting OK, functions fail `iam.serviceAccounts.ActAs` | Deploy SA missing **Service Account User** on App Engine default SA and/or `{projectNumber}-compute@developer.gserviceaccount.com` (Gen2 runtime) | `npm run fix:deploy-iam` or `npm run fix:deploy` then re-run **Deploy to Firebase** |
 | GitHub Actions: `failed to parse service account key JSON` / `unexpected token` | `FIREBASE_SERVICE_ACCOUNT` secret corrupted (not raw JSON) | From repo root: `npm run sync:github-sa-secret` or `npm run fix:deploy` |
 | GitHub Actions: functions fail `Cloud Billing API` / `cloudbilling.googleapis.com` disabled | Billing API not enabled on GCP project | `npm run enable:functions-apis` or `npm run fix:deploy` (as project Owner) |
-| `advanceSessionBots` / `gameAdvanceBots` fails with 403 Forbidden (HTML) on booray.win; other callables return 401 | Gen2 callable missing Cloud Run **public invoker** (`gameAdvanceBots` only) | Redeploy functions (CI runs `fix:callable-invoker` post-deploy), then `npm run verify:game-callables` (all PASS) |
+| `advanceSessionBots` / `gameAdvanceBots` fails with 403 Forbidden (HTML) on booray.win; other callables return 401 | Gen2 callable missing Cloud Run **public invoker** (`gameAdvanceBots` only) | See **[Production ops — gameAdvanceBots IAM](#production-ops--gameadvancebots-iam)** below |
 | No sound (mobile) | No user gesture yet | Tap table once; check Sound setting |
 | No vibration (iPhone) | Web limitation | Expected; native wrapper needed for iOS haptics |
+
+---
+
+## Production ops — gameAdvanceBots IAM
+
+Quick runbook for **booray.win** when bot turns stall. Root cause is almost always **Cloud Run IAM** on `gameAdvanceBots`, not client CORS code or callable-vs-POST mismatch.
+
+### Symptoms
+
+- Browser console: CORS blocked on POST to `gameAdvanceBots`
+- `FirebaseError: internal` from `advanceSessionBots`
+- Bot turns never advance; hand stalls in play phase
+- Secondary `gamePlayCard` **500** on bot turns (client fallback — fix IAM first)
+
+### First check (10 seconds)
+
+```bash
+npm run verify:game-callables
+```
+
+| Result | Meaning |
+|--------|---------|
+| `PASS gameAdvanceBots OPTIONS HTTP 204` | Callable reachable at Cloud Run; CORS preflight OK |
+| `PASS gameAdvanceBots POST HTTP 401` | Handler reachable (401 = no auth token, expected) |
+| `FAIL … HTTP 403` | **Missing public invoker** — IAM repair needed |
+
+### How to read HTTP status (no auth)
+
+| Status | Layer | Action |
+|--------|-------|--------|
+| **204** OPTIONS + `Access-Control-Allow-Origin` | Cloud Run + CORS | ✅ Healthy |
+| **401** POST + JSON `UNAUTHENTICATED` | Callable handler reached | ✅ Healthy |
+| **403** POST or OPTIONS (HTML “Forbidden”) | Cloud Run IAM blocks request | ❌ Run IAM repair |
+
+Copy-paste probes:
+
+```bash
+# OPTIONS — expect 204 + Access-Control-Allow-Origin
+curl -sI -X OPTIONS \
+  "https://us-central1-national-bourre-league.cloudfunctions.net/gameAdvanceBots" \
+  -H "Origin: https://booray.win" \
+  -H "Access-Control-Request-Method: POST" | head -5
+
+# POST — expect 401 (not 403 HTML)
+curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+  "https://us-central1-national-bourre-league.cloudfunctions.net/gameAdvanceBots" \
+  -H "Content-Type: application/json" \
+  -d '{"data":{"roomId":"smoke","sessionId":"smoke"}}'
+```
+
+### When to run each command
+
+| Command | When |
+|---------|------|
+| `npm run verify:game-callables` | **Always first.** After every functions deploy, on bot-turn reports, weekly smoke. |
+| `npm run fix:callable-invoker` | Verify shows **403** on `gameAdvanceBots`. Also if CI IAM repair step failed. Run as GCP project Owner. |
+| `npm run fix:deploy-iam` | `fix:callable-invoker` fails with permission errors, or CI logs mention missing `run.admin`. One-time SA setup, then re-run deploy. |
+| `gh workflow run deploy.yml --ref main` | After manual IAM repair, to confirm CI verify step passes. |
+
+Typical recovery (Owner):
+
+```bash
+npm run fix:deploy-iam          # only if IAM repair lacks permissions
+npm run fix:callable-invoker
+npm run verify:game-callables   # must PASS before closing incident
+```
+
+### Ignore extension noise
+
+These are **not** Bourré bugs — ignore when triaging:
+
+- `contentscript.js`
+- `ObjectMultiplex`
+- MetaMask / wallet extension warnings
+
+### Manual gameplay smoke (3 steps)
+
+At https://booray.win/social/ — signed in, room with ≥1 bot.
+
+1. **Reach play** — complete enrollment + draw; play until a **bot turn**.
+2. **Bot advance** — DevTools console shows `[bot-orchestrator] gameAdvanceBots-result` with **no** CORS error, `FirebaseError: internal`, or `Callable blocked before handler`.
+3. **Full hand** — all five tricks complete and hand settles; **no** `gamePlayCard` 500 during bot turns.
+
+Optional debug (console, then reload):
+
+```javascript
+localStorage.setItem('nbl-game-flow-debug', '1');
+location.reload();
+```
 
 ---
 
