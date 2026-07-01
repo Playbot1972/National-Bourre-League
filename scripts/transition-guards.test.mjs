@@ -39,6 +39,26 @@ describe("transition guards", () => {
     assert.ok(body.includes("blocked: true"));
   });
 
+  it("submitHandDraw returns blocked sentinel when draw lock is held", () => {
+    const firestoreSrc = readFileSync(
+      fileURLToPath(new URL("../docs/firestore.js", import.meta.url)),
+      "utf8",
+    );
+    const idx = firestoreSrc.indexOf("export async function submitHandDraw");
+    assert.ok(idx >= 0);
+    const body = firestoreSrc.slice(idx, idx + 1200);
+    assert.ok(body.includes("draw_transition_lock"));
+    assert.ok(body.includes("return { blocked: true }"));
+  });
+
+  it("table draw intents ignore blocked submitHandDraw results", () => {
+    const intentsSrc = readFileSync(
+      fileURLToPath(new URL("../docs/table-intents.js", import.meta.url)),
+      "utf8",
+    );
+    assert.ok(intentsSrc.includes("result?.blocked"));
+  });
+
   it("processRobotActions requests server advance before client robot draw", () => {
     const appSrc = readFileSync(
       fileURLToPath(new URL("../docs/app.js", import.meta.url)),

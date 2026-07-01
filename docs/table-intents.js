@@ -283,7 +283,8 @@ export function createTableIntentHandlers(deps) {
           discardIndices,
           actorId: auth.uid,
         })
-        .then(() => {
+        .then((result) => {
+          if (result?.blocked) return;
           if (discardIndices.length > 0) deps.markPendingDrawShuffle();
           clearActionStart();
           deps.setTableActionFeedback({
@@ -314,7 +315,8 @@ export function createTableIntentHandlers(deps) {
           discardIndices: [],
           actorId: auth.uid,
         })
-        .then(() => {
+        .then((result) => {
+          if (result?.blocked) return;
           clearActionStart();
           deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
           const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
