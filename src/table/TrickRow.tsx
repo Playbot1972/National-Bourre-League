@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import { TrickPlaySlot } from "./TrickPlaySlot";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
@@ -18,7 +18,7 @@ interface TrickRowProps {
 }
 
 /** Public trick cards only — never hole cards. */
-export function TrickRow({
+function TrickRowInner({
   displayPlays = [],
   leaderPlayerId = null,
   winnerPlayerId = null,
@@ -115,3 +115,5 @@ export function TrickRow({
     </div>
   );
 }
+
+export const TrickRow = memo(TrickRowInner);

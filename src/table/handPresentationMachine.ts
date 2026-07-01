@@ -470,11 +470,83 @@ export type HandPresentationEvent =
   | { type: "dealCardRevealed"; count: number }
   | { type: "clearEnrollmentPulse" };
 
+function stringArrayEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+function enrollmentPulseEqual(
+  a: Record<string, "join" | "pass" | null>,
+  b: Record<string, "join" | "pass" | null>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+/** Seat/table-visible store fields — inputs to buildHandPresentationModel. */
+export function handPresentationVisibleEqual(
+  a: HandPresentationStore,
+  b: HandPresentationStore,
+): boolean {
+  return (
+    a.phase === b.phase &&
+    stringArrayEqual(a.displayDrawCompletedIds, b.displayDrawCompletedIds) &&
+    a.animatingDrawPlayerId === b.animatingDrawPlayerId &&
+    a.drawAnimSubPhase === b.drawAnimSubPhase &&
+    a.drawDiscardCount === b.drawDiscardCount &&
+    a.drawReplaceCount === b.drawReplaceCount &&
+    a.trumpRevealActive === b.trumpRevealActive &&
+    a.trumpMergeActive === b.trumpMergeActive &&
+    a.trumpMergedIntoHand === b.trumpMergedIntoHand &&
+    a.anteAnimActive === b.anteAnimActive &&
+    a.dealStaggerCount === b.dealStaggerCount &&
+    enrollmentPulseEqual(a.enrollmentPulse, b.enrollmentPulse) &&
+    a.settleAnimActive === b.settleAnimActive &&
+    a.settleCarryOver === b.settleCarryOver &&
+    a.nextHandResetActive === b.nextHandResetActive &&
+    a.pendingHandSettle === b.pendingHandSettle &&
+    a.displayPotAmount === b.displayPotAmount
+  );
+}
+
+/** Bookkeeping fields that must stay current but do not affect seat/table visuals. */
+function applyInternalHandPresentationFields(
+  target: HandPresentationStore,
+  source: HandPresentationStore,
+): void {
+  target.prevSnapshot = source.prevSnapshot;
+  target.pendingSnapshot = source.pendingSnapshot;
+  target.handSettleSnapshot = source.handSettleSnapshot;
+  target.drawPresentationConsumedIds = source.drawPresentationConsumedIds;
+  target.handNumber = source.handNumber;
+}
+
+function coalesceHandPresentationStore(
+  prev: HandPresentationStore,
+  next: HandPresentationStore,
+): HandPresentationStore {
+  if (prev === next) return prev;
+  if (!handPresentationVisibleEqual(prev, next)) return next;
+  applyInternalHandPresentationFields(prev, next);
+  return prev;
+}
+
 export function reduceHandPresentation(
   store: HandPresentationStore,
   event: HandPresentationEvent,
 ): HandPresentationStore {
-  const next = reduceHandPresentationCore(store, event);
+  const next = coalesceHandPresentationStore(
+    store,
+    reduceHandPresentationCore(store, event),
+  );
   if (isGameFlowDebugEnabled()) {
     if (
       store.phase !== next.phase ||

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Hand } from "../components/Hand";
 import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
@@ -17,6 +17,7 @@ import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
 import { logPlayClick } from "./playClickDebug";
+import { HeroHandActionButtons } from "./HeroHandActionButtons";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
@@ -83,7 +84,7 @@ function HeroHandReserve({ className = "" }: { className?: string }) {
   );
 }
 
-export function HeroHand({
+export const HeroHand = memo(function HeroHand({
   cards,
   phase,
   enrollmentActive = false,
@@ -568,6 +569,109 @@ export function HeroHand({
     ],
   );
 
+  const showBestPlayRecommendation =
+    showBestPlayControl &&
+    inPlayPhase &&
+    bestPlayEnabled &&
+    selectedPlay === null &&
+    recommendedPlayIndex !== null &&
+    recommendedPlayIndex >= 0;
+
+  const stateFor = useCallback(
+    (_: Card, i: number): CardState => {
+      if (revealedTrumpIndex === i) return "trump";
+      if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
+      if (playingIndex === i) return "default";
+      if (illegalFlashIndex === i || illegalShakeIndex === i) return "default";
+      if (inDrawPhase && selectedDraw.has(i)) return "draw-selected";
+      if (inPlayPhase && selectedPlay === i) return "play-preselected";
+      if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
+      if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
+      return "default";
+    },
+    [
+      revealedTrumpIndex,
+      trumpDisabledIndex,
+      inDrawPhase,
+      inPlayPhase,
+      playingIndex,
+      illegalFlashIndex,
+      illegalShakeIndex,
+      selectedDraw,
+      selectedPlay,
+      showBestPlayRecommendation,
+      recommendedPlayIndex,
+      legalPlayIndices,
+    ],
+  );
+
+  const gestureMode = useMemo((): CardGestureMode => {
+    const enablePeek = dealtPhase && isInHand && !(inPlayPhase && isMyTurn);
+    if (inPlayPhase && isInHand) return "play";
+    if (inDrawPhase && isInHand && !drawCompleted) return "draw-select";
+    if (enablePeek) return "peek";
+    return "none";
+  }, [dealtPhase, isInHand, inPlayPhase, isMyTurn, inDrawPhase, drawCompleted]);
+
+  const enablePeek = dealtPhase && isInHand && !(inPlayPhase && isMyTurn);
+
+  const handleHandPlayCard = useCallback(
+    (index: number) => {
+      logPlayClick("Hand.onPlayCard", { index, isMyTurn, gestureMode });
+      preselectCard(index);
+    },
+    [gestureMode, isMyTurn, preselectCard],
+  );
+
+  const cardInteraction = useMemo(
+    () => ({
+      mode: gestureMode,
+      isMyTurn,
+      legalPlayIndices,
+      playingIndex,
+      illegalShakeIndex,
+      illegalFlashIndex,
+      busy,
+      showPlayableHint: false,
+      allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
+      trickPlayOriginPlayerId: currentUserId,
+      onPlayCard: handleHandPlayCard,
+      onSelectCard: toggleDrawIndex,
+      onIllegalPlay: handleIllegalPlay,
+      onPeek: setPeekIndex,
+    }),
+    [
+      gestureMode,
+      isMyTurn,
+      legalPlayIndices,
+      playingIndex,
+      illegalShakeIndex,
+      illegalFlashIndex,
+      busy,
+      inPlayPhase,
+      isInHand,
+      currentUserId,
+      handleHandPlayCard,
+      toggleDrawIndex,
+      handleIllegalPlay,
+    ],
+  );
+
+  const selectedCount = drawSubmitIndices.length;
+  const showDrawActions = inDrawPhase && !drawCompleted && isMyTurn;
+
+  const handleDrawSubmit = useCallback(() => {
+    void runDrawAction(drawSubmitIndices);
+  }, [runDrawAction, drawSubmitIndices]);
+
+  const handlePassDrawClick = useCallback(() => {
+    void runPassDraw();
+  }, [runPassDraw]);
+
+  const handleFoldDrawClick = useCallback(() => {
+    void runFoldDraw();
+  }, [runFoldDraw]);
+
   const renderBestPlayCheckbox = () =>
     showBestPlayControl ? (
       <label className="btable-hero__best-play">
@@ -637,37 +741,6 @@ export function HeroHand({
     return <HeroHandReserve className={className} />;
   }
 
-  const showBestPlayRecommendation =
-    showBestPlayControl &&
-    inPlayPhase &&
-    bestPlayEnabled &&
-    selectedPlay === null &&
-    recommendedPlayIndex !== null &&
-    recommendedPlayIndex >= 0;
-
-  const stateFor = (_: Card, i: number): CardState => {
-    if (revealedTrumpIndex === i) return "trump";
-    if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
-    if (playingIndex === i) return "default";
-    if (illegalFlashIndex === i || illegalShakeIndex === i) return "default";
-    if (inDrawPhase && selectedDraw.has(i)) {
-      return "draw-selected";
-    }
-    if (inPlayPhase && selectedPlay === i) return "play-preselected";
-    if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
-    if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
-    return "default";
-  };
-
-  const enablePeek = dealtPhase && isInHand && !(inPlayPhase && isMyTurn);
-  let gestureMode: CardGestureMode = "none";
-  if (inPlayPhase && isInHand) gestureMode = "play";
-  else if (inDrawPhase && isInHand && !drawCompleted) gestureMode = "draw-select";
-  else if (enablePeek) gestureMode = "peek";
-
-  const selectedCount = drawSubmitIndices.length;
-  const showDrawActions = inDrawPhase && !drawCompleted && isMyTurn;
-
   return (
     <div
       className={heroShellClass(settings, className, [
@@ -717,25 +790,7 @@ export function HeroHand({
           peekIndex={peekIndex}
           onCardPeek={enablePeek ? setPeekIndex : undefined}
           cardTestId={inPlayPhase && isMyTurn ? "play-button" : undefined}
-          cardInteraction={{
-            mode: gestureMode,
-            isMyTurn,
-            legalPlayIndices,
-            playingIndex,
-            illegalShakeIndex,
-            illegalFlashIndex,
-            busy,
-            showPlayableHint: false,
-            allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
-            trickPlayOriginPlayerId: currentUserId,
-            onPlayCard: (index) => {
-              logPlayClick("Hand.onPlayCard", { index, isMyTurn, gestureMode });
-              preselectCard(index);
-            },
-            onSelectCard: toggleDrawIndex,
-            onIllegalPlay: handleIllegalPlay,
-            onPeek: setPeekIndex,
-          }}
+          cardInteraction={cardInteraction}
         />
         </div>
         {renderBestPlayCheckbox()}
@@ -750,43 +805,14 @@ export function HeroHand({
           {feedbackError}
         </p>
       )}
-      <div
-        className="btable-hero__actions-slot"
-        aria-hidden={!showDrawActions}
-      >
-        {showDrawActions && (
-          <div className="btable-hero__actions btable-hero__actions--triple">
-            <button
-              type="button"
-              className="btn btn--sm btn--primary"
-              data-testid="draw-button"
-              disabled={busy}
-              aria-busy={busy}
-              onClick={() => runDrawAction(drawSubmitIndices)}
-            >
-              {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
-            </button>
-            <button
-              type="button"
-              className="btn btn--sm btn--secondary-muted"
-              data-testid="pass-draw-button"
-              disabled={busy}
-              onClick={() => runPassDraw()}
-            >
-              Stand pat
-            </button>
-            <button
-              type="button"
-              className="btn btn--sm btn--secondary-muted"
-              data-testid="im-out-button"
-              disabled={busy}
-              onClick={() => runFoldDraw()}
-            >
-              I&apos;m Out
-            </button>
-          </div>
-        )}
-      </div>
+      <HeroHandActionButtons
+        visible={showDrawActions}
+        busy={busy}
+        selectedCount={selectedCount}
+        onDraw={handleDrawSubmit}
+        onPassDraw={handlePassDrawClick}
+        onFoldDraw={handleFoldDrawClick}
+      />
     </div>
   );
-}
+});

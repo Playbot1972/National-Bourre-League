@@ -1,20 +1,57 @@
-import type { TurnCountdownSegment } from "./turnCountdown";
+import { memo, useEffect, useRef, useState } from "react";
+import {
+  buildTurnCountdownState,
+  type TurnCountdownSegment,
+} from "./turnCountdown";
 import { prefersReducedMotion } from "./trickTiming";
 
 const RING_RADIUS = 22;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 export interface TurnCountdownRingProps {
-  progress: number;
-  segment: TurnCountdownSegment;
+  activityKey: string;
+  startedAtMs: number;
   reducedMotion?: boolean;
 }
 
-export function TurnCountdownRing({
-  progress,
-  segment,
+function TurnCountdownRingInner({
+  activityKey,
+  startedAtMs,
   reducedMotion = prefersReducedMotion(),
 }: TurnCountdownRingProps) {
+  const [progress, setProgress] = useState(1);
+  const [segment, setSegment] = useState<TurnCountdownSegment>("green");
+  const rafRef = useRef<number | null>(null);
+  const startedAtRef = useRef(startedAtMs);
+  startedAtRef.current = startedAtMs;
+
+  useEffect(() => {
+    const tick = (nowMs: number) => {
+      const state = buildTurnCountdownState("local", startedAtRef.current, nowMs);
+      if (!state) return;
+      setProgress(state.progress);
+      setSegment(state.segment);
+    };
+
+    if (reducedMotion) {
+      tick(Date.now());
+      const intervalId = window.setInterval(() => tick(Date.now()), 250);
+      return () => window.clearInterval(intervalId);
+    }
+
+    const frame = (nowMs: number) => {
+      tick(nowMs);
+      rafRef.current = window.requestAnimationFrame(frame);
+    };
+    rafRef.current = window.requestAnimationFrame(frame);
+    return () => {
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [activityKey, reducedMotion]);
+
   const clamped = Math.max(0, Math.min(1, progress));
   const dashOffset = RING_CIRCUMFERENCE * (1 - clamped);
 
@@ -51,3 +88,5 @@ export function TurnCountdownRing({
     </svg>
   );
 }
+
+export const TurnCountdownRing = memo(TurnCountdownRingInner);

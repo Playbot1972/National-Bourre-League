@@ -2027,6 +2027,16 @@ export async function submitHandDraw(roomId, sessionId, { playerId, discardIndic
         () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
       ),
   );
+  if (result === undefined) {
+    logHandTransition(HAND_TRANSITION.DRAW_SUBMIT, {
+      blocked: true,
+      reason: "draw_transition_lock",
+      roomId,
+      sessionId,
+      playerId,
+    });
+    return { blocked: true };
+  }
   if (result) {
     logHandTransition(HAND_TRANSITION.DRAW_RESOLVE, {
       roomId,

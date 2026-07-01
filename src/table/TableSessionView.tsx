@@ -20,20 +20,25 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { useTurnCountdown } from "./hooks/useTurnCountdown";
+import { TurnCountdownSync } from "./TurnCountdownSync";
+import { TrickAnimationBusySync } from "./TrickAnimationBusySync";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { InactivityHelper } from "./InactivityHelper";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
-import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
+import { TrickPresentationSync } from "./TrickPresentationSync";
+import { useExternalStoreSelector } from "./hooks/useExternalStoreSelector";
 import {
-  subscribePresentationMotionBusy,
-  isDealPresentationActive,
-  isTrickCollectionActive,
-} from "./presentationMotionBusy";
+  getTrickPresentationSnapshot,
+  subscribeTrickPresentation,
+} from "./trickPresentationStore";
+import {
+  selectTrickSessionBridge,
+  trickSessionBridgeEqual,
+} from "./trickPresentationSelectors";
+import { handPresentingBlocksBots } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -93,25 +98,44 @@ export function TableSessionView({
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
-  const trickPresentation = useTrickPresentation({
-    phase: session.phase,
-    currentTrick: session.currentTrick,
-    tricksByPlayer: session.tricksByPlayer,
-    participantIds: session.participantIds,
-    trumpSuit: session.trumpSuit,
-    playedCards: session.playedCards,
-    turnPlayerId: session.turnPlayerId,
-    handComplete,
-  });
+  const trickPresentationInput = useMemo(
+    () => ({
+      phase: session.phase,
+      currentTrick: session.currentTrick,
+      tricksByPlayer: session.tricksByPlayer,
+      participantIds: session.participantIds,
+      trumpSuit: session.trumpSuit,
+      playedCards: session.playedCards,
+      turnPlayerId: session.turnPlayerId,
+      handComplete,
+    }),
+    [
+      session.phase,
+      session.currentTrick,
+      session.tricksByPlayer,
+      session.participantIds,
+      session.trumpSuit,
+      session.playedCards,
+      session.turnPlayerId,
+      handComplete,
+    ],
+  );
 
-  const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
+  const trickBridge = useExternalStoreSelector(
+    subscribeTrickPresentation,
+    getTrickPresentationSnapshot,
+    selectTrickSessionBridge,
+    trickSessionBridgeEqual,
+  );
+
+  const forceTrickHandEndDrain = trickBridge.forceHandEndDrain;
 
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
     potAmount: potMetrics.currentPot,
     handComplete,
-    trickPipelineActive: trickPresentation.isPipelineActive,
+    trickPipelineActive: trickBridge.isPipelineActive,
     forceTrickHandEndDrain,
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
@@ -125,7 +149,7 @@ export function TableSessionView({
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
     session.trumpUpcard,
-    trickPresentation.displayPlays.length,
+    trickBridge.displayPlaysLength,
   );
 
   // Server play/draw is authoritative — do not block bots on peer draw animations.
@@ -135,36 +159,30 @@ export function TableSessionView({
     session.phase,
   );
 
-  const [motionBusyTick, setMotionBusyTick] = useState(0);
-  useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
-
-  useEffect(() => {
-    setTrickAnimationBusyState({
-      pipelineActive: trickPresentation.isPipelineActive,
+  const trickAnimationBusyInput = useMemo(
+    () => ({
+      pipelineActive: trickBridge.isPipelineActive,
       revealCatchUp:
-        trickPresentation.phase === "live" &&
-        trickPresentation.revealedCount < trickPresentation.revealTarget,
+        trickBridge.phase === "live" &&
+        trickBridge.revealedCount < trickBridge.revealTarget,
       motionGateActive: instantTrickPlays,
-      peakPlayCount: trickPresentation.peakPlayCount,
-      displayedPlayCount: trickPresentation.displayPlays.length,
+      peakPlayCount: trickBridge.peakPlayCount,
+      displayedPlayCount: trickBridge.displayPlaysLength,
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
-      dealPresentationActive: isDealPresentationActive(),
-      trickCollectionActive: isTrickCollectionActive(),
-    });
-  }, [
-    trickPresentation.isPipelineActive,
-    trickPresentation.phase,
-    trickPresentation.revealedCount,
-    trickPresentation.revealTarget,
-    trickPresentation.peakPlayCount,
-    trickPresentation.displayPlays.length,
-    instantTrickPlays,
-    handPresentingForBots,
-    handPresentation.phase,
-    session.phase,
-    motionBusyTick,
-  ]);
+    }),
+    [
+      trickBridge.isPipelineActive,
+      trickBridge.phase,
+      trickBridge.revealedCount,
+      trickBridge.revealTarget,
+      trickBridge.peakPlayCount,
+      trickBridge.displayPlaysLength,
+      instantTrickPlays,
+      handPresentingForBots,
+      handPresentation.phase,
+    ],
+  );
 
   const cardsDealt = isCardsDealtPhase(session.phase);
 
@@ -300,7 +318,7 @@ export function TableSessionView({
     heroHandDisplay.trumpDisabledIndex,
   ]);
   const suppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+    trickBridge.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
     suppressTurn
@@ -339,7 +357,7 @@ export function TableSessionView({
   const waitingCue =
     !actionCue &&
     !suppressTurn &&
-    !(turnLabel && cardsDealt && trickPresentation.phase === "live")
+    !(turnLabel && cardsDealt && trickBridge.phase === "live")
       ? formatWaitingCue({
           phase: session.phase,
           enrollmentActive,
@@ -373,18 +391,41 @@ export function TableSessionView({
     !heroHasInteracted &&
     (session.phase === "draw" || session.phase === "play");
 
-  const { countdown: turnCountdown } = useTurnCountdown({
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-  });
+  const turnCountdownInput = useMemo(
+    () => ({
+      session: {
+        phase: session.phase,
+        turnPlayerId: session.turnPlayerId,
+        drawCompletedIds: session.drawCompletedIds,
+        handEnrollment: session.handEnrollment,
+        participantIds: session.participantIds,
+        tricksByPlayer: session.tricksByPlayer,
+        handNumber: session.handNumber,
+        pendingCoWinSettlement: session.pendingCoWinSettlement,
+      },
+      suppressTurn: Boolean(suppressTurn),
+      handComplete,
+    }),
+    [
+      session.phase,
+      session.turnPlayerId,
+      session.drawCompletedIds,
+      session.handEnrollment,
+      session.participantIds,
+      session.tricksByPlayer,
+      session.handNumber,
+      session.pendingCoWinSettlement,
+      suppressTurn,
+      handComplete,
+    ],
+  );
 
   const showTrumpSuitReminder =
     trumpHolderPresentation.showTrumpSuitReminder ||
     (!session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play");
   const tricksSnapshot = useMemo(
-    () => ({ ...trickPresentation.displayTricksByPlayer }),
-    [trickPresentation.displayTricksByPlayer],
+    () => ({ ...trickBridge.displayTricksByPlayer }),
+    [trickBridge.displayTricksByPlayer],
   );
   const bankrollByPlayer = useMemo(
     () =>
@@ -404,8 +445,8 @@ export function TableSessionView({
     showTrumpSuitReminder,
     suppressTurn: Boolean(suppressTurn),
     actionFeedbackStatus: actionFeedback?.status ?? "idle",
-    trickWinnerSeatId: trickPresentation.trickWinnerSeatId,
-    trickPhase: trickPresentation.phase,
+    trickWinnerSeatId: trickBridge.trickWinnerSeatId,
+    trickPhase: trickBridge.phase,
   });
   const selfBourreSting =
     Boolean(selfPlayer?.playerId) &&
@@ -480,38 +521,67 @@ export function TableSessionView({
     [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, handleHeroUserActivity],
   );
 
-  const sharedTableProps = {
-    session,
-    players,
-    potMetrics,
-    participantCount,
-    enrollmentActive,
-    heroCards: displayHeroCards,
-    revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
-    trumpMergeActive: heroHandDisplay.trumpMergeActive,
-    trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
-    hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
-    showTrumpSuitReminder,
-    trumpHolderPresentation,
-    privateHandReady,
-    currentUserId,
-    legalPlayIndices: displayLegalPlayIndices,
-    recommendedPlayIndex: displayRecommendedPlayIndex,
-    recommendedDiscardIndices: displayRecommendedDiscardIndices,
-    handComplete,
-    actionFeedback,
-    trickPresentation,
-    handPresentation,
-    microinteractions,
-    instantTrickPlays,
-    turnCountdown,
-    bigPotEvent,
-    onDismissTableEvent: dismissEvent,
-    ...tableCallbacks,
-  };
+  const sharedTableProps = useMemo(
+    () => ({
+      session,
+      players,
+      potMetrics,
+      participantCount,
+      enrollmentActive,
+      heroCards: displayHeroCards,
+      revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
+      trumpMergeActive: heroHandDisplay.trumpMergeActive,
+      trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
+      hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
+      showTrumpSuitReminder,
+      trumpHolderPresentation,
+      privateHandReady,
+      currentUserId,
+      legalPlayIndices: displayLegalPlayIndices,
+      recommendedPlayIndex: displayRecommendedPlayIndex,
+      recommendedDiscardIndices: displayRecommendedDiscardIndices,
+      handComplete,
+      actionFeedback,
+      handPresentation,
+      microinteractions,
+      instantTrickPlays,
+      bigPotEvent,
+      onDismissTableEvent: dismissEvent,
+      ...tableCallbacks,
+    }),
+    [
+      session,
+      players,
+      potMetrics,
+      participantCount,
+      enrollmentActive,
+      displayHeroCards,
+      heroHandDisplay.revealedTrumpIndex,
+      heroHandDisplay.trumpMergeActive,
+      heroHandDisplay.trumpDisabledIndex,
+      trumpHolderPresentation,
+      showTrumpSuitReminder,
+      privateHandReady,
+      currentUserId,
+      displayLegalPlayIndices,
+      displayRecommendedPlayIndex,
+      displayRecommendedDiscardIndices,
+      handComplete,
+      actionFeedback,
+      handPresentation,
+      microinteractions,
+      instantTrickPlays,
+      bigPotEvent,
+      dismissEvent,
+      tableCallbacks,
+    ],
+  );
 
   const gameplayStage = (
     <>
+      <TrickPresentationSync {...trickPresentationInput} />
+      <TrickAnimationBusySync input={trickAnimationBusyInput} />
+      <TurnCountdownSync input={turnCountdownInput} />
       <div className="btable-session__attention-layer" aria-live="polite">
         <YourTurnAttention
           actionRequired={localActionRequired}
@@ -582,7 +652,7 @@ export function TableSessionView({
       ]
         .filter(Boolean)
         .join(" ")}
-      data-trick-resolving={trickPresentation.isPipelineActive ? "true" : "false"}
+      data-trick-resolving={trickBridge.isPipelineActive ? "true" : "false"}
       data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
       data-hand-complete={handComplete ? "true" : "false"}
     >
@@ -661,7 +731,7 @@ export function TableSessionView({
             </p>
           )}
         </div>
-        {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
+        {turnLabel && cardsDealt && trickBridge.phase === "live" && (
           <p
             className={[
               "btable-session__turn",

@@ -39,6 +39,61 @@ describe("transition guards", () => {
     assert.ok(body.includes("blocked: true"));
   });
 
+  it("submitHandDraw returns blocked sentinel when draw lock is held", () => {
+    const firestoreSrc = readFileSync(
+      fileURLToPath(new URL("../docs/firestore.js", import.meta.url)),
+      "utf8",
+    );
+    const idx = firestoreSrc.indexOf("export async function submitHandDraw");
+    assert.ok(idx >= 0);
+    const body = firestoreSrc.slice(idx, idx + 1200);
+    assert.ok(body.includes("draw_transition_lock"));
+    assert.ok(body.includes("return { blocked: true }"));
+  });
+
+  it("table draw intents ignore blocked submitHandDraw results", () => {
+    const intentsSrc = readFileSync(
+      fileURLToPath(new URL("../docs/table-intents.js", import.meta.url)),
+      "utf8",
+    );
+    assert.ok(intentsSrc.includes("result?.blocked"));
+  });
+
+  it("runSessionOrchestration logs client DRAW_START on first entry into draw", () => {
+    const appSrc = readFileSync(
+      fileURLToPath(new URL("../docs/app.js", import.meta.url)),
+      "utf8",
+    );
+    const fnIdx = appSrc.indexOf("function maybeLogClientHandPhaseTransitions");
+    assert.ok(fnIdx >= 0);
+    const body = appSrc.slice(fnIdx, fnIdx + 600);
+    assert.ok(body.includes('prevPhase !== "draw"'));
+    assert.ok(body.includes('currentPhase === "draw"'));
+    assert.ok(body.includes("HAND_TRANSITION.DRAW_START"));
+    assert.ok(body.includes("clientObservedHandPhase = currentPhase"));
+    const orchIdx = appSrc.indexOf("function runSessionOrchestration");
+    assert.ok(orchIdx >= 0);
+    const orchBody = appSrc.slice(orchIdx, orchIdx + 500);
+    assert.ok(orchBody.includes("maybeLogClientHandPhaseTransitions(sessionObj)"));
+  });
+
+  it("maybeRecoverHandLifecycle skips recover when next-hand enrollment is in flight", () => {
+    const appSrc = readFileSync(
+      fileURLToPath(new URL("../docs/app.js", import.meta.url)),
+      "utf8",
+    );
+    const idx = appSrc.indexOf("function maybeRecoverHandLifecycle");
+    assert.ok(idx >= 0);
+    const body = appSrc.slice(idx, idx + 1200);
+    assert.ok(body.includes("nextHandOpenInFlight || appRoundAdvanceLock.isLocked()"));
+    assert.ok(body.includes("next_hand_inflight_or_round_advance_locked"));
+    assert.ok(body.includes("recoverHandoffBetweenHands"));
+    const guardIdx = body.indexOf("next_hand_inflight_or_round_advance_locked");
+    const recoverIdx = body.indexOf("recoverHandoffBetweenHands");
+    assert.ok(guardIdx >= 0 && recoverIdx >= 0);
+    assert.ok(guardIdx < recoverIdx);
+  });
+
   it("processRobotActions requests server advance before client robot draw", () => {
     const appSrc = readFileSync(
       fileURLToPath(new URL("../docs/app.js", import.meta.url)),
