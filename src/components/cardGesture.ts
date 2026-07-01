@@ -42,6 +42,10 @@ export interface CardGestureSession {
   startX: number;
   startY: number;
   fired: boolean;
+  /** Set once pointer move exceeds swipe threshold — resolved on release. */
+  swipeIntent: boolean;
+  /** Downward scroll-like drag — suppresses play on release. */
+  scrollCancelled: boolean;
 }
 
 export function createCardGestureSession(
@@ -49,5 +53,32 @@ export function createCardGestureSession(
   startX: number,
   startY: number,
 ): CardGestureSession {
-  return { pointerId, startX, startY, fired: false };
+  return { pointerId, startX, startY, fired: false, swipeIntent: false, scrollCancelled: false };
+}
+
+export type PlayReleaseAction = "tap" | "swipe-up" | "swipe-flick" | "cancel" | "none";
+
+/** Classify pointer move during play — marks intent only; does not fire play. */
+export function classifyPlayPointerMove(
+  dx: number,
+  dy: number,
+): "none" | "scroll-cancel" | "swipe" {
+  if (isScrollCancel(dx, dy)) return "scroll-cancel";
+  if (isSwipeUpPlay(dx, dy) || Math.hypot(dx, dy) >= CARD_GESTURE.SWIPE_FLICK_PX) {
+    return "swipe";
+  }
+  return "none";
+}
+
+/** Resolve play action on pointer release — tap is default unless swipe/cancel. */
+export function resolvePlayReleaseAction(
+  dx: number,
+  dy: number,
+  session: Pick<CardGestureSession, "fired" | "swipeIntent" | "scrollCancelled">,
+): PlayReleaseAction {
+  if (session.fired) return "none";
+  if (session.scrollCancelled || isScrollCancel(dx, dy)) return "cancel";
+  if (session.swipeIntent || isSwipeUpPlay(dx, dy)) return "swipe-up";
+  if (Math.hypot(dx, dy) >= CARD_GESTURE.SWIPE_FLICK_PX) return "swipe-flick";
+  return "tap";
 }

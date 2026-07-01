@@ -122,7 +122,7 @@ export function PlayingCard({
         type="button"
         className={`${classes} ${red ? "pcard--red" : "pcard--black"} ${suitClass}`}
         onClick={
-          pointerInteractive && playable && onPlayClick
+          pointerInteractive && onPlayClick
             ? (event) => {
                 event.preventDefault();
                 onPlayClick();

@@ -3,10 +3,10 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import {
   CARD_GESTURE,
   type CardGestureKind,
+  classifyPlayPointerMove,
   createCardGestureSession,
   isScrollCancel,
-  isSwipeFlickPlay,
-  isTapMovement,
+  resolvePlayReleaseAction,
 } from "./cardGesture";
 
 export type CardGestureMode = "none" | "play" | "draw-select" | "peek";
@@ -121,7 +121,9 @@ export function useCardGestureHandlers({
         peekingRef.current = false;
         opts.onPressChange?.(true);
         event.currentTarget.setPointerCapture(event.pointerId);
-        event.preventDefault();
+        if (opts.mode === "play" || opts.mode === "draw-select") {
+          event.preventDefault();
+        }
 
         if (opts.mode === "peek") {
           peekingRef.current = true;
@@ -146,14 +148,18 @@ export function useCardGestureHandlers({
         const dy = event.clientY - session.startY;
 
         if (opts.mode === "play" && !session.fired) {
-          if (isScrollCancel(dx, dy)) {
+          const moveKind = classifyPlayPointerMove(dx, dy);
+          if (moveKind === "scroll-cancel") {
+            session.scrollCancelled = true;
             clearHoldTimer();
-            finishPeek();
             return;
           }
-          if (isSwipeFlickPlay(dx, dy)) {
-            firePlay("swipe-flick");
+          if (moveKind === "swipe") {
+            session.swipeIntent = true;
+            clearHoldTimer();
           }
+        } else if (opts.mode === "draw-select" && isScrollCancel(dx, dy)) {
+          session.scrollCancelled = true;
         }
       },
 
@@ -167,9 +173,12 @@ export function useCardGestureHandlers({
         clearHoldTimer();
 
         if (!session.fired) {
-          if (opts.mode === "play" && isTapMovement(dx, dy)) {
-            firePlay("tap");
-          } else if (opts.mode === "draw-select" && isTapMovement(dx, dy)) {
+          if (opts.mode === "play") {
+            const action = resolvePlayReleaseAction(dx, dy, session);
+            if (action === "tap") firePlay("tap");
+            else if (action === "swipe-up") firePlay("swipe-up");
+            else if (action === "swipe-flick") firePlay("swipe-flick");
+          } else if (opts.mode === "draw-select" && !session.scrollCancelled && !isScrollCancel(dx, dy)) {
             fireSelect();
           }
         }
