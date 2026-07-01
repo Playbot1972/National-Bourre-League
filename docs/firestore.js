@@ -1510,9 +1510,6 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   const handNumber = (sessionData.handCount || 0) + 1;
   const currentDealer = dealContext.dealerId ?? sessionData.dealerId ?? null;
   const seatIds = dealContext.sortedPlayerIds ?? [];
-  const projectedScoreById = projectScoreByIdFromPatches(scoreById, seatIds, scorePatches);
-  const eligibleForDealer = eligibleIdsForAnteCollection(seatIds, projectedScoreById, buyIn);
-  const newDealerId = nextEligibleDealerId(seatIds, currentDealer, eligibleForDealer);
   const scorePatches = {};
   for (const pid of sortedPlayerIds) {
     const br = settled.prefunded
@@ -1537,6 +1534,9 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     }
     scorePatches[pid] = patch;
   }
+  const projectedScoreById = projectScoreByIdFromPatches(scoreById, seatIds, scorePatches);
+  const eligibleForDealer = eligibleIdsForAnteCollection(seatIds, projectedScoreById, buyIn);
+  const newDealerId = nextEligibleDealerId(seatIds, currentDealer, eligibleForDealer);
   return {
     soloWin: true,
     winnerId,
@@ -2472,9 +2472,16 @@ function nextDealerId(scoreSnap, currentDealerId, sessionData, scoreByIdForEligi
 function nextEligibleDealerId(sortedIds, currentDealerId, eligibleIds) {
   if (!eligibleIds?.length) return null;
   const eligibleSet = new Set(eligibleIds);
-  const pool = sortedIds.filter((id) => eligibleSet.has(id));
-  if (!pool.length) return eligibleIds[0] ?? null;
-  return rotateDealerSeat(pool, currentDealerId);
+  const firstEligibleInSeatOrder = () =>
+    sortedIds.find((id) => eligibleSet.has(id)) ?? eligibleIds[0] ?? null;
+  if (!currentDealerId) return firstEligibleInSeatOrder();
+  const startIdx = sortedIds.indexOf(currentDealerId);
+  if (startIdx < 0) return firstEligibleInSeatOrder();
+  for (let step = 1; step <= sortedIds.length; step++) {
+    const seat = sortedIds[(startIdx + step) % sortedIds.length];
+    if (eligibleSet.has(seat)) return seat;
+  }
+  return eligibleIds[0] ?? null;
 }
 
 function rotateDealerSeat(sortedIds, currentDealerId) {

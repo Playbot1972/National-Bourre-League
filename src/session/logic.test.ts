@@ -63,6 +63,27 @@ describe("A — session and bot helpers", () => {
     assert.equal(nextEligibleDealerId(seats, "p1", []), null);
   });
 
+  it("nextEligibleDealerId handles dealer becoming ineligible after settlement", () => {
+    const seats = ["p1", "p2", "p3", "p4"];
+    const eligible = ["p1", "p3", "p4"];
+    assert.equal(nextEligibleDealerId(seats, "p2", eligible), "p3");
+  });
+
+  it("nextEligibleDealerId keeps sole eligible player as dealer", () => {
+    const seats = ["p1", "p2", "p3", "p4"];
+    assert.equal(nextEligibleDealerId(seats, "p2", ["p3"]), "p3");
+    assert.equal(nextEligibleDealerId(seats, "p4", ["p3"]), "p3");
+  });
+
+  it("nextEligibleDealerId skips consecutive out seats", () => {
+    const seats = ["p1", "p2", "p3", "p4", "p5"];
+    const eligible = ["p1", "p4", "p5"];
+    assert.equal(nextEligibleDealerId(seats, "p1", eligible), "p4");
+    assert.equal(nextEligibleDealerId(seats, "p2", eligible), "p4");
+    assert.equal(nextEligibleDealerId(seats, "p3", eligible), "p4");
+    assert.equal(nextEligibleDealerId(seats, "p5", eligible), "p1");
+  });
+
   it("seatPlayerIdsFromRoster uses session join order for dealer rotation", () => {
     const seats = seatPlayerIdsFromRoster(
       [

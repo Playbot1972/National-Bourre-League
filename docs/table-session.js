@@ -11920,11 +11920,7 @@ function Wc({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 			De.current = null;
 			return;
 		}
-		De.current = n, o && (Ee.current = window.setTimeout(() => {
-			Ee.current = null;
-			let e = De.current;
-			De.current = null, e === n && !Te.current && Ae.current(n);
-		}, _o.autoPlayPreselect));
+		De.current = n;
 	}, [
 		Re,
 		Le,

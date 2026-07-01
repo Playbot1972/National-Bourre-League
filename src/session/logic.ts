@@ -95,9 +95,19 @@ export function nextEligibleDealerId(
 ): string | null {
   if (eligibleIds.length === 0) return null;
   const eligibleSet = new Set(eligibleIds);
-  const pool = sortedPlayerIds.filter((id) => eligibleSet.has(id));
-  if (pool.length === 0) return eligibleIds[0] ?? null;
-  return nextDealerId(pool, currentDealerId);
+  const firstEligibleInSeatOrder = () =>
+    sortedPlayerIds.find((id) => eligibleSet.has(id)) ?? eligibleIds[0] ?? null;
+
+  if (!currentDealerId) return firstEligibleInSeatOrder();
+
+  const startIdx = sortedPlayerIds.indexOf(currentDealerId);
+  if (startIdx < 0) return firstEligibleInSeatOrder();
+
+  for (let step = 1; step <= sortedPlayerIds.length; step++) {
+    const seat = sortedPlayerIds[(startIdx + step) % sortedPlayerIds.length]!;
+    if (eligibleSet.has(seat)) return seat;
+  }
+  return eligibleIds[0] ?? null;
 }
 
 /** Clockwise seat order from session roster (join order), then any extra score rows. */

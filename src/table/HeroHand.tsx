@@ -400,14 +400,6 @@ export function HeroHand({
       }
       pendingPlayIndexRef.current = nextSelection;
       if (!isMyTurn) return;
-      preselectTimerRef.current = window.setTimeout(() => {
-        preselectTimerRef.current = null;
-        const pending = pendingPlayIndexRef.current;
-        pendingPlayIndexRef.current = null;
-        if (pending === nextSelection && !playLockRef.current) {
-          void executePlayRef.current(nextSelection);
-        }
-      }, MICRO_MS.autoPlayPreselect);
     },
     [
       busy,
