@@ -1,10 +1,11 @@
-import { useCallback, useState, type CSSProperties } from "react";
-import { PlayingCard } from "../components/PlayingCard";
+import { memo, useCallback, useState, type CSSProperties } from "react";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, type SeatRegion } from "./logic";
 import type { HandLane } from "./layout/seatLayout";
-import type { Rank, Suit } from "../types";
 import { SeatAvatarIdentity } from "./SeatAvatarIdentity";
+import { SeatHoleCards } from "./SeatHoleCards";
+import { SeatWonTrickPile } from "./SeatWonTrickPile";
+import { seatPlayerVisualEqual } from "./seatPlayerEqual";
 import type { TablePlayer } from "./types";
 
 interface SeatProps {
@@ -13,18 +14,20 @@ interface SeatProps {
   handLane?: HandLane;
   style: CSSProperties;
   clockwiseDealing?: boolean;
+  countdownPlayerId?: string | null;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
   onReaction?: (emoji: string) => void;
 }
 
-export function Seat({
+function SeatInner({
   player,
   region,
   handLane = "below",
   style,
   clockwiseDealing = false,
+  countdownPlayerId = null,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -34,6 +37,12 @@ export function Seat({
   const toggleAvatarPeek = useCallback(() => {
     setAvatarPeek((open) => !open);
   }, []);
+  const blurAvatarPeek = useCallback(() => {
+    setAvatarPeek(false);
+  }, []);
+  const handleTrickPlus = useCallback(() => {
+    onTrickDelta(1);
+  }, [onTrickDelta]);
 
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
@@ -136,22 +145,7 @@ export function Seat({
               />
             )}
             {showWonTrickPile && (
-              <div
-                className="bseat__won-trick-pile"
-                data-won-trick-pile-anchor={player.playerId}
-                aria-hidden={false}
-                data-trick-count={trickCount}
-              >
-                {Array.from({ length: Math.min(trickCount, 5) }, (_, i) => (
-                  <div
-                    key={i}
-                    className="bseat__won-trick-pile-card"
-                    style={{ ["--book-i" as string]: i }}
-                  >
-                    <PlayingCard faceDown size="xs" />
-                  </div>
-                ))}
-              </div>
+              <SeatWonTrickPile playerId={player.playerId} trickCount={trickCount} />
             )}
             {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
               <div className="bseat__deal-targets" aria-hidden="true">
@@ -167,44 +161,13 @@ export function Seat({
               </div>
             )}
             {showHoleCards && (
-              <div
-                className="bseat__hole-cards bseat__hole-cards--crown"
-                aria-label={`${cardsHeld} cards in hand`}
-                data-trick-play-origin={player.playerId}
-              >
-                {Array.from({ length: cardsHeld }, (_, i) => {
-                  const isTrumpSlot =
-                    player.revealedTrumpIndex === i && player.revealedTrumpUpcard;
-                  return (
-                    <div
-                      key={i}
-                      className={[
-                        "bseat__hole-card",
-                        isTrumpSlot ? "bseat__hole-card--trump-revealed" : "",
-                        isTrumpSlot && player.seatTrumpMergeActive
-                          ? "bseat__hole-card--trump-merge"
-                          : "",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                      style={{ ["--hole-i" as string]: i }}
-                    >
-                      {isTrumpSlot ? (
-                        <PlayingCard
-                          card={{
-                            rank: player.revealedTrumpUpcard!.rank as Rank,
-                            suit: player.revealedTrumpUpcard!.suit as Suit,
-                          }}
-                          size="xs"
-                          state="trump"
-                        />
-                      ) : (
-                        <PlayingCard faceDown size="xs" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <SeatHoleCards
+                playerId={player.playerId}
+                cardsHeld={cardsHeld}
+                revealedTrumpIndex={player.revealedTrumpIndex}
+                revealedTrumpUpcard={player.revealedTrumpUpcard}
+                seatTrumpMergeActive={player.seatTrumpMergeActive}
+              />
             )}
             {bourrePressure && (
               <span
@@ -229,10 +192,10 @@ export function Seat({
               inHand={player.inHand}
               bourrePressure={bourrePressure}
               bourrePulse={bourrePulse}
-              turnCountdown={player.turnCountdown ?? null}
+              countdownPlayerId={countdownPlayerId}
               peek={avatarPeek}
               onTogglePeek={toggleAvatarPeek}
-              onBlurPeek={() => setAvatarPeek(false)}
+              onBlurPeek={blurAvatarPeek}
             />
           </div>
           {showBankroll && (
@@ -321,7 +284,7 @@ export function Seat({
               className="bseat__trick-btn bseat__trick-btn--plus"
               aria-label="Won a trick"
               disabled={trickCount >= 5}
-              onClick={() => onTrickDelta(1)}
+              onClick={handleTrickPlus}
             >
               +
             </button>
@@ -331,3 +294,21 @@ export function Seat({
     </div>
   );
 }
+
+function seatPropsEqual(prev: SeatProps, next: SeatProps): boolean {
+  return (
+    prev.region === next.region &&
+    prev.handLane === next.handLane &&
+    prev.clockwiseDealing === next.clockwiseDealing &&
+    prev.countdownPlayerId === next.countdownPlayerId &&
+    prev.style.left === next.style.left &&
+    prev.style.top === next.style.top &&
+    prev.onToggleInHand === next.onToggleInHand &&
+    prev.onPassEnrollment === next.onPassEnrollment &&
+    prev.onTrickDelta === next.onTrickDelta &&
+    prev.onReaction === next.onReaction &&
+    seatPlayerVisualEqual(prev.player, next.player)
+  );
+}
+
+export const Seat = memo(SeatInner, seatPropsEqual);

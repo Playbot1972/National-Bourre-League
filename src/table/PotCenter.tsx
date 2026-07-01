@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { currentTrickLeaderId } from "./trickTiming";
-import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
 import { DiscardPile } from "./DiscardPile";
+import { PotDisplay } from "./PotDisplay";
 import type { DiscardPileCard } from "./discardPileModel";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
@@ -50,7 +50,7 @@ interface PotCenterProps {
   discardPileCards?: DiscardPileCard[];
 }
 
-export function PotCenter({
+function PotCenterInner({
   potMetrics,
   participantCount,
   trumpUpcard,
@@ -262,46 +262,14 @@ export function PotCenter({
           )}
         </div>
 
-        <dl className="center-play__stats">
-          <div
-            className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
-            data-testid="pot-display"
-            key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
-          >
-            <dt>Table pot</dt>
-            <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
-          </div>
-          <div className="bpot__stat" data-testid="ante-display">
-            <dt>Ante / hand</dt>
-            <dd>{formatAnteStake(potMetrics.anteAmount)}</dd>
-          </div>
-          {potMetrics.limEnabled && (
-            <>
-              <div className="bpot__stat">
-                <dt>Cap</dt>
-                <dd>
-                  {formatRiskStake(potMetrics.potCap)}
-                  <span className="bpot__lim-tag">LmT</span>
-                </dd>
-              </div>
-              <div className="bpot__stat bpot__stat--highlight">
-                <dt>Max win</dt>
-                <dd>{formatRiskStake(potMetrics.maxWinThisHand)}</dd>
-              </div>
-            </>
-          )}
-        </dl>
-
-        {potMetrics.limEnabled && potMetrics.overflow > 0 && (
-          <div className="center-play__carry muted small">
-            +{formatRiskStake(potMetrics.overflow)} carry
-          </div>
-        )}
-
-        <div className="center-play__meta muted small">
-          {participantCount} in hand
-        </div>
+        <PotDisplay
+          potMetrics={potMetrics}
+          participantCount={participantCount}
+          potTick={potTick}
+        />
       </div>
     </div>
   );
 }
+
+export const PotCenter = memo(PotCenterInner);

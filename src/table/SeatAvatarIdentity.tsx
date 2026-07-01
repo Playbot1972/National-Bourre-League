@@ -1,7 +1,6 @@
-import { useCallback, type KeyboardEvent } from "react";
+import { memo, useCallback, type KeyboardEvent, type MouseEvent } from "react";
 import { formatSeatDisplayName } from "./logic";
-import { TurnCountdownRing } from "./TurnCountdownRing";
-import type { TurnCountdownSegment } from "./turnCountdown";
+import { ConnectedTurnCountdownRing } from "./ConnectedTurnCountdownRing";
 
 export interface SeatAvatarIdentityProps {
   displayName: string;
@@ -11,22 +10,14 @@ export interface SeatAvatarIdentityProps {
   inHand?: boolean;
   bourrePressure?: boolean;
   bourrePulse?: boolean;
-  turnCountdown?: {
-    progress: number;
-    segment: TurnCountdownSegment;
-  } | null;
+  /** When set, this seat shows the isolated turn countdown ring. */
+  countdownPlayerId?: string | null;
   peek?: boolean;
   onTogglePeek: () => void;
   onBlurPeek: () => void;
 }
 
-/**
- * Stable avatar + name anchor for table seats.
- * The circular frame is fixed-size; profile images and fallbacks share the same
- * media slot. The name label is a separate layer centered on the unit — not
- * positioned relative to seat region.
- */
-export function SeatAvatarIdentity({
+function SeatAvatarIdentityInner({
   displayName,
   photoURL,
   isDealer = false,
@@ -34,7 +25,7 @@ export function SeatAvatarIdentity({
   inHand = false,
   bourrePressure = false,
   bourrePulse = false,
-  turnCountdown = null,
+  countdownPlayerId = null,
   peek = false,
   onTogglePeek,
   onBlurPeek,
@@ -52,6 +43,14 @@ export function SeatAvatarIdentity({
     [onTogglePeek],
   );
 
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      event.stopPropagation();
+      onTogglePeek();
+    },
+    [onTogglePeek],
+  );
+
   return (
     <div className="bseat__avatar-unit">
       <div
@@ -60,10 +59,7 @@ export function SeatAvatarIdentity({
         tabIndex={0}
         aria-label={`${seatDisplayName} seat`}
         aria-expanded={peek}
-        onClick={(event) => {
-          event.stopPropagation();
-          onTogglePeek();
-        }}
+        onClick={handleClick}
         onKeyDown={handleKeyDown}
         onBlur={onBlurPeek}
       >
@@ -93,12 +89,7 @@ export function SeatAvatarIdentity({
           {bourrePulse && !bourrePressure && (
             <span className="bseat__bourre-ring" aria-hidden="true" />
           )}
-          {turnCountdown && (
-            <TurnCountdownRing
-              progress={turnCountdown.progress}
-              segment={turnCountdown.segment}
-            />
-          )}
+          {countdownPlayerId && <ConnectedTurnCountdownRing playerId={countdownPlayerId} />}
         </div>
       </div>
       <span className="bseat__avatar-label" title={seatDisplayName}>
@@ -107,3 +98,5 @@ export function SeatAvatarIdentity({
     </div>
   );
 }
+
+export const SeatAvatarIdentity = memo(SeatAvatarIdentityInner);

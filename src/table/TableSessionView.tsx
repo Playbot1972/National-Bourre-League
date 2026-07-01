@@ -20,7 +20,7 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { useTurnCountdown } from "./hooks/useTurnCountdown";
+import { TurnCountdownSync } from "./TurnCountdownSync";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -373,11 +373,34 @@ export function TableSessionView({
     !heroHasInteracted &&
     (session.phase === "draw" || session.phase === "play");
 
-  const { countdown: turnCountdown } = useTurnCountdown({
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-  });
+  const turnCountdownInput = useMemo(
+    () => ({
+      session: {
+        phase: session.phase,
+        turnPlayerId: session.turnPlayerId,
+        drawCompletedIds: session.drawCompletedIds,
+        handEnrollment: session.handEnrollment,
+        participantIds: session.participantIds,
+        tricksByPlayer: session.tricksByPlayer,
+        handNumber: session.handNumber,
+        pendingCoWinSettlement: session.pendingCoWinSettlement,
+      },
+      suppressTurn: Boolean(suppressTurn),
+      handComplete,
+    }),
+    [
+      session.phase,
+      session.turnPlayerId,
+      session.drawCompletedIds,
+      session.handEnrollment,
+      session.participantIds,
+      session.tricksByPlayer,
+      session.handNumber,
+      session.pendingCoWinSettlement,
+      suppressTurn,
+      handComplete,
+    ],
+  );
 
   const showTrumpSuitReminder =
     trumpHolderPresentation.showTrumpSuitReminder ||
@@ -480,38 +503,67 @@ export function TableSessionView({
     [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, handleHeroUserActivity],
   );
 
-  const sharedTableProps = {
-    session,
-    players,
-    potMetrics,
-    participantCount,
-    enrollmentActive,
-    heroCards: displayHeroCards,
-    revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
-    trumpMergeActive: heroHandDisplay.trumpMergeActive,
-    trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
-    hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
-    showTrumpSuitReminder,
-    trumpHolderPresentation,
-    privateHandReady,
-    currentUserId,
-    legalPlayIndices: displayLegalPlayIndices,
-    recommendedPlayIndex: displayRecommendedPlayIndex,
-    recommendedDiscardIndices: displayRecommendedDiscardIndices,
-    handComplete,
-    actionFeedback,
-    trickPresentation,
-    handPresentation,
-    microinteractions,
-    instantTrickPlays,
-    turnCountdown,
-    bigPotEvent,
-    onDismissTableEvent: dismissEvent,
-    ...tableCallbacks,
-  };
+  const sharedTableProps = useMemo(
+    () => ({
+      session,
+      players,
+      potMetrics,
+      participantCount,
+      enrollmentActive,
+      heroCards: displayHeroCards,
+      revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
+      trumpMergeActive: heroHandDisplay.trumpMergeActive,
+      trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
+      hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
+      showTrumpSuitReminder,
+      trumpHolderPresentation,
+      privateHandReady,
+      currentUserId,
+      legalPlayIndices: displayLegalPlayIndices,
+      recommendedPlayIndex: displayRecommendedPlayIndex,
+      recommendedDiscardIndices: displayRecommendedDiscardIndices,
+      handComplete,
+      actionFeedback,
+      trickPresentation,
+      handPresentation,
+      microinteractions,
+      instantTrickPlays,
+      bigPotEvent,
+      onDismissTableEvent: dismissEvent,
+      ...tableCallbacks,
+    }),
+    [
+      session,
+      players,
+      potMetrics,
+      participantCount,
+      enrollmentActive,
+      displayHeroCards,
+      heroHandDisplay.revealedTrumpIndex,
+      heroHandDisplay.trumpMergeActive,
+      heroHandDisplay.trumpDisabledIndex,
+      trumpHolderPresentation,
+      showTrumpSuitReminder,
+      privateHandReady,
+      currentUserId,
+      displayLegalPlayIndices,
+      displayRecommendedPlayIndex,
+      displayRecommendedDiscardIndices,
+      handComplete,
+      actionFeedback,
+      trickPresentation,
+      handPresentation,
+      microinteractions,
+      instantTrickPlays,
+      bigPotEvent,
+      dismissEvent,
+      tableCallbacks,
+    ],
+  );
 
   const gameplayStage = (
     <>
+      <TurnCountdownSync input={turnCountdownInput} />
       <div className="btable-session__attention-layer" aria-live="polite">
         <YourTurnAttention
           actionRequired={localActionRequired}

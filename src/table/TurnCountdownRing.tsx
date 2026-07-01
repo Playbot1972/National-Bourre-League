@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { TurnCountdownSegment } from "./turnCountdown";
 import { prefersReducedMotion } from "./trickTiming";
 
@@ -10,7 +11,7 @@ export interface TurnCountdownRingProps {
   reducedMotion?: boolean;
 }
 
-export function TurnCountdownRing({
+function TurnCountdownRingInner({
   progress,
   segment,
   reducedMotion = prefersReducedMotion(),
@@ -51,3 +52,5 @@ export function TurnCountdownRing({
     </svg>
   );
 }
+
+export const TurnCountdownRing = memo(TurnCountdownRingInner);
