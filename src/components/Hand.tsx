@@ -165,7 +165,11 @@ function HandCard({
         state={disabled && isPlayMode && !illegalTarget ? "disabled" : state}
         badge={badge}
         onClick={!usePointer && onCardClick ? () => onCardClick(card, index) : undefined}
-        onPlayClick={usePointer && playable ? () => interaction?.onPlayCard?.(index) : undefined}
+        onPlayClick={
+          usePointer && (playable || preselectable)
+            ? () => interaction?.onPlayCard?.(index)
+            : undefined
+        }
         pointerHandlers={usePointer ? pointerHandlers : undefined}
         pressed={pressed}
         playing={playing}

@@ -8098,7 +8098,7 @@ function _({ card: e, faceDown: t = !1, size: n = "md", state: r = "default", ba
 	return w ? /* @__PURE__ */ (0, g.jsx)("button", {
 		type: "button",
 		className: `${T} ${E ? "pcard--red" : "pcard--black"} ${k}`,
-		onClick: C && u && o ? (e) => {
+		onClick: C && o ? (e) => {
 			e.preventDefault(), o();
 		} : C ? void 0 : a,
 		disabled: v,
@@ -8131,26 +8131,28 @@ var v = {
 	SCROLL_CANCEL_PX: 48
 };
 function y(e, t) {
-	return Math.hypot(e, t) <= v.TAP_MOVE_PX;
-}
-function b(e, t) {
 	let n = Math.abs(e), r = Math.abs(t);
 	return t <= -v.SWIPE_UP_PX && r > n;
 }
-function x(e, t) {
+function b(e, t) {
 	let n = Math.abs(e), r = Math.abs(t);
 	return t > 0 && r > v.SCROLL_CANCEL_PX && r > n;
 }
-function S(e, t) {
-	return x(e, t) ? !1 : b(e, t) ? !0 : Math.hypot(e, t) >= v.SWIPE_FLICK_PX;
-}
-function C(e, t, n) {
+function x(e, t, n) {
 	return {
 		pointerId: e,
 		startX: t,
 		startY: n,
-		fired: !1
+		fired: !1,
+		swipeIntent: !1,
+		scrollCancelled: !1
 	};
+}
+function S(e, t) {
+	return b(e, t) ? "scroll-cancel" : y(e, t) || Math.hypot(e, t) >= v.SWIPE_FLICK_PX ? "swipe" : "none";
+}
+function C(e, t, n) {
+	return n.fired ? "none" : n.scrollCancelled || b(e, t) ? "cancel" : n.swipeIntent || y(e, t) ? "swipe-up" : Math.hypot(e, t) >= v.SWIPE_FLICK_PX ? "swipe-flick" : "tap";
 }
 //#endregion
 //#region src/components/useCardGestureHandlers.ts
@@ -8198,7 +8200,7 @@ function w({ disabled: e = !1, mode: t, onPlay: n, onSelect: r, onPeekStart: i, 
 			onPointerDown(e) {
 				let t = s.current;
 				if (!(t.disabled || t.mode === "none" || e.button !== 0)) {
-					if (f(), c.current = C(e.pointerId, e.clientX, e.clientY), d.current = !1, t.onPressChange?.(!0), e.currentTarget.setPointerCapture(e.pointerId), e.preventDefault(), t.mode === "peek") {
+					if (f(), c.current = x(e.pointerId, e.clientX, e.clientY), d.current = !1, t.onPressChange?.(!0), e.currentTarget.setPointerCapture(e.pointerId), (t.mode === "play" || t.mode === "draw-select") && e.preventDefault(), t.mode === "peek") {
 						d.current = !0, t.onPeekStart?.();
 						return;
 					}
@@ -8212,18 +8214,23 @@ function w({ disabled: e = !1, mode: t, onPlay: n, onSelect: r, onPeekStart: i, 
 				if (!t || t.pointerId !== e.pointerId || n.disabled) return;
 				let r = e.clientX - t.startX, i = e.clientY - t.startY;
 				if (n.mode === "play" && !t.fired) {
-					if (x(r, i)) {
-						f(), p();
+					let e = S(r, i);
+					if (e === "scroll-cancel") {
+						t.scrollCancelled = !0, f();
 						return;
 					}
-					S(r, i) && m("swipe-flick");
-				}
+					e === "swipe" && (t.swipeIntent = !0, f());
+				} else n.mode === "draw-select" && b(r, i) && (t.scrollCancelled = !0);
 			},
 			onPointerUp(t) {
 				let n = c.current, r = s.current;
 				if (!n || n.pointerId !== t.pointerId) return;
 				let i = t.clientX - n.startX, a = t.clientY - n.startY;
-				f(), n.fired || (r.mode === "play" && y(i, a) ? m("tap") : r.mode === "draw-select" && y(i, a) && h()), e(t.currentTarget, t.pointerId), c.current = null, r.onPressChange?.(!1), p();
+				if (f(), !n.fired) if (r.mode === "play") {
+					let e = C(i, a, n);
+					e === "tap" ? m("tap") : e === "swipe-up" ? m("swipe-up") : e === "swipe-flick" && m("swipe-flick");
+				} else r.mode === "draw-select" && !n.scrollCancelled && !b(i, a) && h();
+				e(t.currentTarget, t.pointerId), c.current = null, r.onPressChange?.(!1), p();
 			},
 			onPointerCancel(e) {
 				let n = c.current;
@@ -8295,7 +8302,7 @@ function j({ card: e, index: t, size: n, state: r, badge: i, cardTestId: a, card
 			state: M && y && !O ? "disabled" : r,
 			badge: i,
 			onClick: !ne && s ? () => s(e, t) : void 0,
-			onPlayClick: ne && T ? () => v?.onPlayCard?.(t) : void 0,
+			onPlayClick: ne && (T || E) ? () => v?.onPlayCard?.(t) : void 0,
 			pointerHandlers: ne ? te : void 0,
 			pressed: m,
 			playing: D,

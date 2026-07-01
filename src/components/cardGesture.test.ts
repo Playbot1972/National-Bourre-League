@@ -6,6 +6,8 @@ import {
   isSwipeFlickPlay,
   isSwipeUpPlay,
   isTapMovement,
+  classifyPlayPointerMove,
+  resolvePlayReleaseAction,
 } from "./cardGesture";
 
 describe("cardGesture thresholds", () => {
@@ -41,5 +43,23 @@ describe("cardGesture thresholds", () => {
     assert.equal(CARD_GESTURE.HOLD_MS, 220);
     assert.equal(CARD_GESTURE.SWIPE_UP_PX, 28);
     assert.equal(CARD_GESTURE.SWIPE_FLICK_PX, 36);
+  });
+
+  it("classifyPlayPointerMove marks swipe only past threshold", () => {
+    assert.equal(classifyPlayPointerMove(0, -15), "none");
+    assert.equal(classifyPlayPointerMove(0, -30), "swipe");
+    assert.equal(classifyPlayPointerMove(40, 0), "swipe");
+  });
+
+  it("resolvePlayReleaseAction defaults to tap under swipe threshold", () => {
+    const base = { fired: false, swipeIntent: false, scrollCancelled: false };
+    assert.equal(resolvePlayReleaseAction(0, 0, base), "tap");
+    assert.equal(resolvePlayReleaseAction(8, -15, base), "tap");
+    assert.equal(resolvePlayReleaseAction(0, -30, base), "swipe-up");
+    assert.equal(resolvePlayReleaseAction(40, 0, base), "swipe-flick");
+    assert.equal(
+      resolvePlayReleaseAction(0, 50, { ...base, scrollCancelled: true }),
+      "cancel",
+    );
   });
 });
