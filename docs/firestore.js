@@ -1509,7 +1509,7 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
   }
   const handNumber = (sessionData.handCount || 0) + 1;
   const currentDealer = dealContext.dealerId ?? sessionData.dealerId ?? null;
-  const newDealerId = rotateDealerSeat(dealContext.sortedPlayerIds ?? [], currentDealer);
+  const seatIds = dealContext.sortedPlayerIds ?? [];
   const scorePatches = {};
   for (const pid of sortedPlayerIds) {
     const br = settled.prefunded
@@ -1534,6 +1534,9 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     }
     scorePatches[pid] = patch;
   }
+  const projectedScoreById = projectScoreByIdFromPatches(scoreById, seatIds, scorePatches);
+  const eligibleForDealer = eligibleIdsForAnteCollection(seatIds, projectedScoreById, buyIn);
+  const newDealerId = nextEligibleDealerId(seatIds, currentDealer, eligibleForDealer);
   return {
     soloWin: true,
     winnerId,
@@ -2460,9 +2463,25 @@ async function runDecisionStepTransaction(roomId, sessionId, buildPatch, { requi
   if (requirePatch && !applied) throw new Error("Decision step did not apply");
 }
 
-function nextDealerId(scoreSnap, currentDealerId, sessionData) {
+function nextDealerId(scoreSnap, currentDealerId, sessionData, scoreByIdForEligibility, buyIn) {
   const ids = seatPlayerIds(sessionData, scoreSnap);
-  return rotateDealerSeat(ids, currentDealerId);
+  const eligible = eligibleIdsForAnteCollection(ids, scoreByIdForEligibility, buyIn);
+  return nextEligibleDealerId(ids, currentDealerId, eligible);
+}
+
+function nextEligibleDealerId(sortedIds, currentDealerId, eligibleIds) {
+  if (!eligibleIds?.length) return null;
+  const eligibleSet = new Set(eligibleIds);
+  const firstEligibleInSeatOrder = () =>
+    sortedIds.find((id) => eligibleSet.has(id)) ?? eligibleIds[0] ?? null;
+  if (!currentDealerId) return firstEligibleInSeatOrder();
+  const startIdx = sortedIds.indexOf(currentDealerId);
+  if (startIdx < 0) return firstEligibleInSeatOrder();
+  for (let step = 1; step <= sortedIds.length; step++) {
+    const seat = sortedIds[(startIdx + step) % sortedIds.length];
+    if (eligibleSet.has(seat)) return seat;
+  }
+  return eligibleIds[0] ?? null;
 }
 
 function rotateDealerSeat(sortedIds, currentDealerId) {
@@ -2470,6 +2489,48 @@ function rotateDealerSeat(sortedIds, currentDealerId) {
   const idx = sortedIds.indexOf(currentDealerId);
   const base = idx >= 0 ? idx : 0;
   return sortedIds[(base + 1) % sortedIds.length];
+}
+
+function applyScorePatchToRow(baseRow, patch) {
+  const row = { ...(baseRow || {}) };
+  if (!patch) return row;
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === deleteField()) delete row[key];
+    else row[key] = value;
+  }
+  return row;
+}
+
+function projectScoreByIdAfterSettlement(
+  scoreById,
+  seatIds,
+  settledBankrollsByPlayer,
+  fundedScoreById,
+  buyIn,
+) {
+  const projected = { ...scoreById };
+  for (const pid of seatIds) {
+    const base = scoreById[pid] || {};
+    const fundedRow = fundedScoreById?.[pid];
+    const settledBankroll =
+      settledBankrollsByPlayer?.[pid] ?? scoreBankroll(fundedRow ?? base, buyIn);
+    projected[pid] = {
+      ...base,
+      ...fundedRow,
+      bankroll: settledBankroll,
+      out: settledBankroll <= 0 ? true : undefined,
+    };
+    if (settledBankroll > 0) delete projected[pid].out;
+  }
+  return projected;
+}
+
+function projectScoreByIdFromPatches(scoreById, seatIds, scorePatches) {
+  const projected = { ...scoreById };
+  for (const pid of seatIds) {
+    projected[pid] = applyScorePatchToRow(scoreById[pid], scorePatches[pid]);
+  }
+  return projected;
 }
 
 export async function ensureRoomSessionNamePool(roomId) {
@@ -2991,8 +3052,21 @@ async function recordHandClient(
     }
   }
 
-  const newDealerId = nextDealerId(scoreSnap, sessionData.dealerId, sessionData);
   const seatIds = seatPlayerIds(sessionData, scoreSnap);
+  const projectedScoreById = projectScoreByIdAfterSettlement(
+    scoreById,
+    seatIds,
+    settledBankrollsByPlayer,
+    fundedScoreById,
+    buyIn,
+  );
+  const newDealerId = nextDealerId(
+    scoreSnap,
+    sessionData.dealerId,
+    sessionData,
+    projectedScoreById,
+    buyIn,
+  );
 
   const scoreRowsForRebuy = scoreSnap.docs.map((d) => ({ playerId: d.id, ...d.data() }));
   const botRebuyPlan = buildBotRebuySettlementPlan({
