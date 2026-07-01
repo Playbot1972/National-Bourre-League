@@ -108,7 +108,7 @@ function HandCard({
     (isPlayMode && !legalPlay && !preselectable) ||
     (isDrawMode && !isMyTurn);
 
-  const pointerHandlers = useCardGestureHandlers({
+  const { handlers: pointerHandlers, suppressNextClickRef } = useCardGestureHandlers({
     disabled: gestureDisabled || (!playable && !preselectable && !isDrawMode && !isPeekMode && !illegalTarget),
     mode: illegalTarget ? "draw-select" : (interaction?.mode ?? "none"),
     onPlay:
@@ -170,6 +170,7 @@ function HandCard({
             ? () => interaction?.onPlayCard?.(index)
             : undefined
         }
+        suppressNextClickRef={usePointer ? suppressNextClickRef : undefined}
         pointerHandlers={usePointer ? pointerHandlers : undefined}
         pressed={pressed}
         playing={playing}

@@ -52,6 +52,8 @@ export function useCardGestureHandlers({
   const sessionRef = useRef<ReturnType<typeof createCardGestureSession> | null>(null);
   const holdTimerRef = useRef<number | null>(null);
   const peekingRef = useRef(false);
+  /** Pointer-up already fired play/select — skip the synthetic click that follows. */
+  const suppressNextClickRef = useRef(false);
 
   const clearHoldTimer = () => {
     if (holdTimerRef.current != null) {
@@ -66,12 +68,17 @@ export function useCardGestureHandlers({
     optsRef.current.onPeekEnd?.();
   };
 
+  const markPointerHandled = () => {
+    suppressNextClickRef.current = true;
+  };
+
   const firePlay = (kind: CardGestureKind) => {
     const session = sessionRef.current;
     if (!session || session.fired) return;
     session.fired = true;
     clearHoldTimer();
     finishPeek();
+    markPointerHandled();
     optsRef.current.onPlay?.();
     void kind;
   };
@@ -82,6 +89,7 @@ export function useCardGestureHandlers({
     session.fired = true;
     clearHoldTimer();
     finishPeek();
+    markPointerHandled();
     optsRef.current.onSelect?.();
   };
 
@@ -107,7 +115,7 @@ export function useCardGestureHandlers({
       finishPeek();
     };
 
-    return {
+    const handlers = {
       onPointerDown(event: ReactPointerEvent<HTMLElement>) {
         const opts = optsRef.current;
         if (opts.disabled || opts.mode === "none" || event.button !== 0) return;
@@ -203,5 +211,7 @@ export function useCardGestureHandlers({
         resetSession(event.currentTarget);
       },
     };
+
+    return { handlers, suppressNextClickRef };
   }, []);
 }
