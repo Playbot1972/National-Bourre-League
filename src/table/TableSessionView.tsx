@@ -27,7 +27,16 @@ import { YourTurnAttention } from "./YourTurnAttention";
 import { InactivityHelper } from "./InactivityHelper";
 import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
-import { useTrickPresentation } from "./hooks/useTrickPresentation";
+import { TrickPresentationSync } from "./TrickPresentationSync";
+import { useExternalStoreSelector } from "./hooks/useExternalStoreSelector";
+import {
+  getTrickPresentationSnapshot,
+  subscribeTrickPresentation,
+} from "./trickPresentationStore";
+import {
+  selectTrickSessionBridge,
+  trickSessionBridgeEqual,
+} from "./trickPresentationSelectors";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
@@ -93,25 +102,44 @@ export function TableSessionView({
   const isCoWinner =
     currentUserId != null &&
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
-  const trickPresentation = useTrickPresentation({
-    phase: session.phase,
-    currentTrick: session.currentTrick,
-    tricksByPlayer: session.tricksByPlayer,
-    participantIds: session.participantIds,
-    trumpSuit: session.trumpSuit,
-    playedCards: session.playedCards,
-    turnPlayerId: session.turnPlayerId,
-    handComplete,
-  });
+  const trickPresentationInput = useMemo(
+    () => ({
+      phase: session.phase,
+      currentTrick: session.currentTrick,
+      tricksByPlayer: session.tricksByPlayer,
+      participantIds: session.participantIds,
+      trumpSuit: session.trumpSuit,
+      playedCards: session.playedCards,
+      turnPlayerId: session.turnPlayerId,
+      handComplete,
+    }),
+    [
+      session.phase,
+      session.currentTrick,
+      session.tricksByPlayer,
+      session.participantIds,
+      session.trumpSuit,
+      session.playedCards,
+      session.turnPlayerId,
+      handComplete,
+    ],
+  );
 
-  const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
+  const trickBridge = useExternalStoreSelector(
+    subscribeTrickPresentation,
+    getTrickPresentationSnapshot,
+    selectTrickSessionBridge,
+    trickSessionBridgeEqual,
+  );
+
+  const forceTrickHandEndDrain = trickBridge.forceHandEndDrain;
 
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
     potAmount: potMetrics.currentPot,
     handComplete,
-    trickPipelineActive: trickPresentation.isPipelineActive,
+    trickPipelineActive: trickBridge.isPipelineActive,
     forceTrickHandEndDrain,
     heroCards,
     enrolledIds: session.handEnrollment?.enrolledIds ?? EMPTY_ENROLLMENT_IDS,
@@ -125,7 +153,7 @@ export function TableSessionView({
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
     session.trumpUpcard,
-    trickPresentation.displayPlays.length,
+    trickBridge.displayPlaysLength,
   );
 
   // Server play/draw is authoritative — do not block bots on peer draw animations.
@@ -140,25 +168,25 @@ export function TableSessionView({
 
   useEffect(() => {
     setTrickAnimationBusyState({
-      pipelineActive: trickPresentation.isPipelineActive,
+      pipelineActive: trickBridge.isPipelineActive,
       revealCatchUp:
-        trickPresentation.phase === "live" &&
-        trickPresentation.revealedCount < trickPresentation.revealTarget,
+        trickBridge.phase === "live" &&
+        trickBridge.revealedCount < trickBridge.revealTarget,
       motionGateActive: instantTrickPlays,
-      peakPlayCount: trickPresentation.peakPlayCount,
-      displayedPlayCount: trickPresentation.displayPlays.length,
+      peakPlayCount: trickBridge.peakPlayCount,
+      displayedPlayCount: trickBridge.displayPlaysLength,
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
       dealPresentationActive: isDealPresentationActive(),
       trickCollectionActive: isTrickCollectionActive(),
     });
   }, [
-    trickPresentation.isPipelineActive,
-    trickPresentation.phase,
-    trickPresentation.revealedCount,
-    trickPresentation.revealTarget,
-    trickPresentation.peakPlayCount,
-    trickPresentation.displayPlays.length,
+    trickBridge.isPipelineActive,
+    trickBridge.phase,
+    trickBridge.revealedCount,
+    trickBridge.revealTarget,
+    trickBridge.peakPlayCount,
+    trickBridge.displayPlaysLength,
     instantTrickPlays,
     handPresentingForBots,
     handPresentation.phase,
@@ -300,7 +328,7 @@ export function TableSessionView({
     heroHandDisplay.trumpDisabledIndex,
   ]);
   const suppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+    trickBridge.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
     suppressTurn
@@ -339,7 +367,7 @@ export function TableSessionView({
   const waitingCue =
     !actionCue &&
     !suppressTurn &&
-    !(turnLabel && cardsDealt && trickPresentation.phase === "live")
+    !(turnLabel && cardsDealt && trickBridge.phase === "live")
       ? formatWaitingCue({
           phase: session.phase,
           enrollmentActive,
@@ -406,8 +434,8 @@ export function TableSessionView({
     trumpHolderPresentation.showTrumpSuitReminder ||
     (!session.trumpUpcard && Boolean(session.trumpSuit) && session.phase === "play");
   const tricksSnapshot = useMemo(
-    () => ({ ...trickPresentation.displayTricksByPlayer }),
-    [trickPresentation.displayTricksByPlayer],
+    () => ({ ...trickBridge.displayTricksByPlayer }),
+    [trickBridge.displayTricksByPlayer],
   );
   const bankrollByPlayer = useMemo(
     () =>
@@ -427,8 +455,8 @@ export function TableSessionView({
     showTrumpSuitReminder,
     suppressTurn: Boolean(suppressTurn),
     actionFeedbackStatus: actionFeedback?.status ?? "idle",
-    trickWinnerSeatId: trickPresentation.trickWinnerSeatId,
-    trickPhase: trickPresentation.phase,
+    trickWinnerSeatId: trickBridge.trickWinnerSeatId,
+    trickPhase: trickBridge.phase,
   });
   const selfBourreSting =
     Boolean(selfPlayer?.playerId) &&
@@ -524,7 +552,6 @@ export function TableSessionView({
       recommendedDiscardIndices: displayRecommendedDiscardIndices,
       handComplete,
       actionFeedback,
-      trickPresentation,
       handPresentation,
       microinteractions,
       instantTrickPlays,
@@ -551,7 +578,6 @@ export function TableSessionView({
       displayRecommendedDiscardIndices,
       handComplete,
       actionFeedback,
-      trickPresentation,
       handPresentation,
       microinteractions,
       instantTrickPlays,
@@ -563,6 +589,7 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
+      <TrickPresentationSync {...trickPresentationInput} />
       <TurnCountdownSync input={turnCountdownInput} />
       <div className="btable-session__attention-layer" aria-live="polite">
         <YourTurnAttention
@@ -634,7 +661,7 @@ export function TableSessionView({
       ]
         .filter(Boolean)
         .join(" ")}
-      data-trick-resolving={trickPresentation.isPipelineActive ? "true" : "false"}
+      data-trick-resolving={trickBridge.isPipelineActive ? "true" : "false"}
       data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
       data-hand-complete={handComplete ? "true" : "false"}
     >
@@ -713,7 +740,7 @@ export function TableSessionView({
             </p>
           )}
         </div>
-        {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
+        {turnLabel && cardsDealt && trickBridge.phase === "live" && (
           <p
             className={[
               "btable-session__turn",

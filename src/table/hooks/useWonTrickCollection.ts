@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import type { TrickPresentation } from "./useTrickPresentation";
+import type { FrozenTrick, TrickPresentationPhase } from "../trickTiming";
 import {
   animateTrickCardsToWonPile,
   clearWonTrickCollectionArtifacts,
@@ -12,8 +12,15 @@ import { setTrickCollectionActive } from "../presentationMotionBusy";
 import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
 
+export interface TrickCollectionState {
+  phase: TrickPresentationPhase;
+  trickWinnerSeatId: string | null;
+  frozenTrick: FrozenTrick | null;
+  displayTricksByPlayer: Record<string, number>;
+}
+
 export interface UseWonTrickCollectionInput {
-  trickPresentation: TrickPresentation;
+  trickCollection: TrickCollectionState;
   handNumber: number;
   sessionPhase?: string | null;
   handComplete?: boolean;
@@ -26,7 +33,7 @@ const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
  * GSAP trick collection — blocks bots until the packet reaches the won-tricks pile.
  */
 export function useWonTrickCollection({
-  trickPresentation,
+  trickCollection,
   handNumber,
   sessionPhase = null,
   handComplete = false,
@@ -34,8 +41,9 @@ export function useWonTrickCollection({
 }: UseWonTrickCollectionInput): void {
   const lastCollectKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
-  const prevPhaseRef = useRef(trickPresentation.phase);
+  const prevPhaseRef = useRef(trickCollection.phase);
   const trickCleanupTimerRef = useRef<number | null>(null);
+  const collectionInFlightRef = useRef(false);
 
   const clearTrickCleanupTimer = () => {
     if (trickCleanupTimerRef.current != null) {
@@ -74,7 +82,7 @@ export function useWonTrickCollection({
 
   useLayoutEffect(() => {
     const prev = prevPhaseRef.current;
-    const phase = trickPresentation.phase;
+    const phase = trickCollection.phase;
     prevPhaseRef.current = phase;
 
     const root = tableRootRef.current;
@@ -82,6 +90,7 @@ export function useWonTrickCollection({
 
     if (prev === "collectTrick" && TRICK_RESOLVED_PHASES.has(phase)) {
       lastCollectKeyRef.current = null;
+      collectionInFlightRef.current = false;
       scheduleTrickArtifactCleanup(root);
     }
 
@@ -89,13 +98,14 @@ export function useWonTrickCollection({
       return;
     }
 
-    const winnerId = trickPresentation.trickWinnerSeatId;
-    const frozen = trickPresentation.frozenTrick;
+    const winnerId = trickCollection.trickWinnerSeatId;
+    const frozen = trickCollection.frozenTrick;
     if (!winnerId || !frozen) return;
 
     const collectKey = `${frozen.trickNumber}:${winnerId}:${frozen.plays.length}`;
     if (lastCollectKeyRef.current === collectKey) return;
     lastCollectKeyRef.current = collectKey;
+    collectionInFlightRef.current = true;
 
     clearTrickCleanupTimer();
     killWonTrickFlights();
@@ -103,12 +113,13 @@ export function useWonTrickCollection({
 
     const cardEls = readTrickRowCardElements(root);
     if (!cardEls.length) {
+      collectionInFlightRef.current = false;
       return;
     }
 
     const bookIndex = Math.max(
       0,
-      (trickPresentation.displayTricksByPlayer[winnerId] ?? 1) - 1,
+      (trickCollection.displayTricksByPlayer[winnerId] ?? 1) - 1,
     );
     const trickKey = wonTrickBookKey({
       playerId: winnerId,
@@ -125,19 +136,23 @@ export function useWonTrickCollection({
         bookIndex,
         root,
         host: root,
-        onComplete: () => setTrickCollectionActive(false),
+        onComplete: () => {
+          collectionInFlightRef.current = false;
+          setTrickCollectionActive(false);
+        },
       });
     }, rakeDelay);
 
     return () => {
       window.clearTimeout(rakeTimer);
+      collectionInFlightRef.current = false;
       setTrickCollectionActive(false);
     };
   }, [
-    trickPresentation.phase,
-    trickPresentation.trickWinnerSeatId,
-    trickPresentation.frozenTrick,
-    trickPresentation.displayTricksByPlayer,
+    trickCollection.phase,
+    trickCollection.trickWinnerSeatId,
+    trickCollection.frozenTrick,
+    trickCollection.displayTricksByPlayer,
     handNumber,
     tableRootRef,
   ]);

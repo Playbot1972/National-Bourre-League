@@ -1,4 +1,13 @@
 import { useMemo, type CSSProperties } from "react";
+import { useExternalStoreSelector } from "./useExternalStoreSelector";
+import {
+  getTrickPresentationSnapshot,
+  subscribeTrickPresentation,
+} from "../trickPresentationStore";
+import {
+  selectTrickSeatOverlay,
+  trickSeatOverlayEqual,
+} from "../trickPresentationSelectors";
 import {
   CARD_LAND_MS,
   NEXT_LEAD_GAP_MS,
@@ -17,7 +26,6 @@ import { displayLiveBankroll, isPlayerAtBourreRisk, tableAspectForPlayers } from
 import { resolveSeatTrumpDisplay } from "../trumpHolderPresentation";
 import type { HandPresentation } from "./useHandPresentation";
 import type { TableMicrointeractions } from "./useTableMicrointeractions";
-import type { TrickPresentation } from "./useTrickPresentation";
 import type { TrumpHolderPresentation } from "../trumpHolderPresentation";
 import type { PotMetrics, TablePlayer, TableSessionData } from "../types";
 
@@ -26,7 +34,6 @@ export interface UseTableSeatModelInput {
   players: TablePlayer[];
   currentUserId?: string | null;
   potMetrics: PotMetrics;
-  trickPresentation: TrickPresentation;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   trumpHolderPresentation: TrumpHolderPresentation;
@@ -39,12 +46,17 @@ export function useTableSeatModel({
   players,
   currentUserId = null,
   potMetrics,
-  trickPresentation,
   handPresentation,
   microinteractions,
   trumpHolderPresentation,
   mobileOrientation = null,
 }: UseTableSeatModelInput) {
+  const trickSeat = useExternalStoreSelector(
+    subscribeTrickPresentation,
+    getTrickPresentationSnapshot,
+    selectTrickSeatOverlay,
+    trickSeatOverlayEqual,
+  );
   const feltPlayers = useMemo(
     () =>
       players.map((player) => ({
@@ -79,25 +91,25 @@ export function useTableSeatModel({
         session.participantIds.filter((pid) =>
           isPlayerAtBourreRisk(
             pid,
-            trickPresentation.displayTricksByPlayer,
+            trickSeat.displayTricksByPlayer,
             session.participantIds,
             session.phase,
           ),
         ),
       ),
-    [session.participantIds, session.phase, trickPresentation.displayTricksByPlayer],
+    [session.participantIds, session.phase, trickSeat.displayTricksByPlayer],
   );
 
   const suppressTurn = Boolean(
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator,
+    trickSeat.suppressTurnPlayerId || handPresentation.suppressTurnIndicator,
   );
 
   const displayPlayersById = useMemo(() => {
     const map = new Map<string, TablePlayer>();
     for (const player of feltPlayers) {
-      const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
-      const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
-      const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
+      const tricksThisHand = trickSeat.displayTricksByPlayer[player.playerId] ?? 0;
+      const trickWinnerSeat = trickSeat.trickWinnerSeatId === player.playerId;
+      const capturingTrick = trickSeat.phase === "collectTrick" && trickWinnerSeat;
       const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
       const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
       const seatTrump = resolveSeatTrumpDisplay(
@@ -122,7 +134,7 @@ export function useTableSeatModel({
         isActiveActor: suppressTurn ? false : player.isActiveActor,
         isLeading:
           trickWinnerSeat &&
-          (trickPresentation.phase === "winnerReveal" || trickPresentation.phase === "collectTrick")
+          (trickSeat.phase === "winnerReveal" || trickSeat.phase === "collectTrick")
             ? true
             : suppressTurn
               ? false
@@ -146,9 +158,9 @@ export function useTableSeatModel({
     return map;
   }, [
     feltPlayers,
-    trickPresentation.displayTricksByPlayer,
-    trickPresentation.trickWinnerSeatId,
-    trickPresentation.phase,
+    trickSeat.displayTricksByPlayer,
+    trickSeat.trickWinnerSeatId,
+    trickSeat.phase,
     handPresentation.enrollmentPulse,
     handPresentation.animatingDrawPlayerId,
     handPresentation.drawAnimSubPhase,

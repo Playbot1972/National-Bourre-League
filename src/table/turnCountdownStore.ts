@@ -1,98 +1,73 @@
 import {
-  buildTurnCountdownState,
   resolveTableActiveActorId,
   turnCountdownActivityKey,
   type TurnCountdownInput,
-  type TurnCountdownState,
 } from "./turnCountdown";
-import { prefersReducedMotion } from "./trickTiming";
 
-let snapshot: TurnCountdownState | null = null;
-const listeners = new Set<() => void>();
-
-let intervalId: number | null = null;
-let startedAtMs: number | null = null;
-let lastActivityKey = "";
-let activeActorId: string | null = null;
-
-function clearTicker(): void {
-  if (intervalId != null) {
-    window.clearInterval(intervalId);
-    intervalId = null;
-  }
+/** Config-only snapshot — timer ticks run locally inside TurnCountdownRing. */
+export interface TurnCountdownConfig {
+  playerId: string;
+  activityKey: string;
+  startedAtMs: number;
 }
+
+let config: TurnCountdownConfig | null = null;
+const listeners = new Set<() => void>();
 
 function emit(): void {
   listeners.forEach((listener) => listener());
 }
 
-function countdownChanged(
-  prev: TurnCountdownState | null,
-  next: TurnCountdownState | null,
-): boolean {
+function configChanged(prev: TurnCountdownConfig | null, next: TurnCountdownConfig | null): boolean {
   if (prev === next) return false;
   if (!prev || !next) return true;
-  if (prev.playerId !== next.playerId || prev.segment !== next.segment) return true;
-  return Math.abs(prev.progress - next.progress) > 0.004;
+  return (
+    prev.playerId !== next.playerId ||
+    prev.activityKey !== next.activityKey ||
+    prev.startedAtMs !== next.startedAtMs
+  );
 }
 
-function publish(next: TurnCountdownState | null): void {
-  if (!countdownChanged(snapshot, next)) return;
-  snapshot = next;
+function publish(next: TurnCountdownConfig | null): void {
+  if (!configChanged(config, next)) return;
+  config = next;
   emit();
 }
 
-function tickNow(): void {
-  if (!activeActorId || startedAtMs == null) return;
-  publish(buildTurnCountdownState(activeActorId, startedAtMs, Date.now()));
-}
-
-function ensureTicker(): void {
-  if (intervalId != null || !activeActorId) return;
-  const intervalMs = prefersReducedMotion() ? 250 : 100;
-  intervalId = window.setInterval(tickNow, intervalMs);
-}
-
-export function subscribeTurnCountdown(listener: () => void): () => void {
+export function subscribeTurnCountdownConfig(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-export function getTurnCountdownSnapshot(): TurnCountdownState | null {
-  return snapshot;
+export function getTurnCountdownConfig(): TurnCountdownConfig | null {
+  return config;
 }
 
-/** Imperative turn timer — updates external store without parent React state. */
+/** Sync turn timer ownership — no interval ticks at the store layer. */
 export function syncTurnCountdownEngine(input: TurnCountdownInput): void {
   const nextActorId = resolveTableActiveActorId(input);
   const nextActivityKey = turnCountdownActivityKey({ ...input, activeActorId: nextActorId });
 
   if (!nextActorId) {
-    activeActorId = null;
-    startedAtMs = null;
-    lastActivityKey = nextActivityKey;
-    clearTicker();
     publish(null);
     return;
   }
 
-  if (nextActivityKey !== lastActivityKey || startedAtMs == null) {
-    startedAtMs = Date.now();
-    lastActivityKey = nextActivityKey;
-    activeActorId = nextActorId;
-    publish(buildTurnCountdownState(nextActorId, startedAtMs, Date.now()));
-  } else {
-    activeActorId = nextActorId;
+  if (!config || config.activityKey !== nextActivityKey) {
+    publish({
+      playerId: nextActorId,
+      activityKey: nextActivityKey,
+      startedAtMs: Date.now(),
+    });
+    return;
   }
 
-  ensureTicker();
+  if (config.playerId !== nextActorId) {
+    publish({ ...config, playerId: nextActorId });
+  }
 }
 
 export function disposeTurnCountdownEngine(): void {
-  clearTicker();
-  activeActorId = null;
-  startedAtMs = null;
-  lastActivityKey = "";
-  snapshot = null;
+  config = null;
   emit();
 }

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { HeroHand } from "./HeroHand";
 import { BigPotBrewingIndicator } from "./BigPotBrewingIndicator";
 import { isHeroCardAreaEmpty } from "./heroCardArea";
-import { PotCenter } from "./PotCenter";
+import { ConnectedPotCenter } from "./ConnectedPotCenter";
 import { TableSeatSlot } from "./TableSeatSlot";
 import { useTableSeatModel } from "./hooks/useTableSeatModel";
 import { useStageFit } from "./hooks/useStageFit";
@@ -12,12 +12,20 @@ import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
-import type { HandPresentation } from "./hooks/useHandPresentation";
-import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
-import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
+import { useExternalStoreSelector } from "./hooks/useExternalStoreSelector";
+import {
+  getTrickPresentationSnapshot,
+  subscribeTrickPresentation,
+} from "./trickPresentationStore";
+import {
+  selectTrickCollectionSlice,
+  trickCollectionSliceEqual,
+} from "./trickPresentationSelectors";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 import type { TableEvent } from "./hooks/useTableEvents";
+import type { HandPresentation } from "./hooks/useHandPresentation";
+import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
+import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { TableProfiler } from "./tableProfiler";
 
 interface CardTableProps {
@@ -40,7 +48,6 @@ interface CardTableProps {
   recommendedDiscardIndices?: number[];
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;
-  trickPresentation: TrickPresentation;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
@@ -77,7 +84,6 @@ export function CardTable({
   recommendedDiscardIndices = [],
   handComplete = false,
   actionFeedback,
-  trickPresentation,
   handPresentation,
   microinteractions,
   instantTrickPlays = false,
@@ -98,7 +104,6 @@ export function CardTable({
     players,
     currentUserId,
     potMetrics,
-    trickPresentation,
     handPresentation,
     microinteractions,
     trumpHolderPresentation,
@@ -119,6 +124,13 @@ export function CardTable({
     potMetricsForCenter,
     wrapStyle,
   } = seatModel;
+
+  const trickCollection = useExternalStoreSelector(
+    subscribeTrickPresentation,
+    getTrickPresentationSnapshot,
+    selectTrickCollectionSlice,
+    trickCollectionSliceEqual,
+  );
 
   const sessionKey = session.sessionId;
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
@@ -157,7 +169,7 @@ export function CardTable({
     tableRootRef: wrapRef,
   });
   useWonTrickCollection({
-    trickPresentation,
+    trickCollection,
     handNumber: session.handNumber,
     sessionPhase: session.phase,
     handComplete,
@@ -173,15 +185,7 @@ export function CardTable({
       phase: session.phase,
       enrollmentActive,
       remainingDeckCount: session.remainingDeckCount,
-      trickDisplayPlays: trickPresentation.displayPlays,
       trickLeadSuit: session.currentTrick?.leadSuit ?? session.leadSuit ?? null,
-      trickWinnerPlayerId: trickPresentation.winnerPlayerId,
-      trickShowWinnerTag: trickPresentation.showWinnerTag,
-      trickPresentationPhase: trickPresentation.phase,
-      trickEchoPlays: trickPresentation.trickEchoPlays,
-      trickEchoWinnerId: trickPresentation.trickEchoWinnerId,
-      trickEchoPhase: trickPresentation.trickEchoPhase,
-      showFinalTrickEcho: trickPresentation.showFinalTrickEcho,
       playerNames,
       anteAnimActive: handPresentation.anteAnimActive,
       trumpRevealActive: handPresentation.trumpRevealActive,
@@ -195,7 +199,6 @@ export function CardTable({
       potTick: microinteractions.potTick,
       trumpReminderPulse: microinteractions.trumpReminderPulse,
       instantTrickPlays,
-      peakTrickPlayCount: trickPresentation.peakPlayCount,
       discardPileCards,
     }),
     [
@@ -208,7 +211,6 @@ export function CardTable({
       session.currentTrick?.leadSuit,
       session.leadSuit,
       enrollmentActive,
-      trickPresentation,
       playerNames,
       handPresentation,
       hideCenterTrump,
@@ -246,7 +248,7 @@ export function CardTable({
 
         <div className="btable__play-zone">
           <TableProfiler id="TrickArea">
-          <PotCenter {...potCenterProps} />
+          <ConnectedPotCenter {...potCenterProps} />
           </TableProfiler>
         </div>
 
