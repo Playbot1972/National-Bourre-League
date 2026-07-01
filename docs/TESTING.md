@@ -1,8 +1,8 @@
 # National Bourré League — local test & debug guide
 
-Repo-specific steps for local development and release validation.
+Repo-specific steps for local development, release validation, and **booray.win** production ops.
 
-**`main` is v1.00.64** (PR #71 merged). Pull `main`, then `npm install`.
+**Track `main`** (currently **v1.03.41** per `package.json`). Pull and install before testing:
 
 ```bash
 git checkout main
@@ -10,29 +10,12 @@ git pull origin main
 npm install
 ```
 
----
-
-## Branch map
-
-| Branch | PR | What it adds | Depends on |
-|--------|-----|--------------|------------|
-| `main` | #65 (merged) | Play engine, draw/play phases, table bundle | — |
-| `cursor/release-bugfix-landscape-draw-8d02` | [#67](https://github.com/Playbot1972/National-Bourre-League/pull/67) | Gameplay bugfix: duplicate cards, draw UX, landscape table | `main` |
-| `cursor/icons-on-main-8d02` | [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) | Icons, PWA manifest, favicon, `icons:generate` | `main` |
-| `cursor/premium-sound-haptics-8d02` | [#68](https://github.com/Playbot1972/National-Bourre-League/pull/68) | Sound + haptics feedback service | **#67** |
-| `cursor/premium-table-ux-8d02` | [#66](https://github.com/Playbot1972/National-Bourre-League/pull/66) | Premium table UX (themes, Smart HUD, reactions) | Optional, separate stack |
-
-### Known branch stacking
-
-- **Testing #68:** merge or rebase **#67** first, **or** checkout `cursor/premium-sound-haptics-8d02` directly (it already includes #67).
-- **Testing #70:** checkout `cursor/icons-on-main-8d02` until [#70](https://github.com/Playbot1972/National-Bourre-League/pull/70) is merged into `main`.
-- **Testing #66:** independent of #67–#70; optional polish, not required for release bugfix validation.
-
-```bash
-git fetch origin
-git checkout cursor/release-bugfix-landscape-draw-8d02   # example
-npm install
-```
+| Need | Section |
+|------|---------|
+| Emulators + social app locally | [Local setup](#local-setup-two-terminals) |
+| `npm run test`, `test:qa`, builds | [Automated checks](#automated-checks) |
+| Bot turns / `gameAdvanceBots` on production | [Production ops — gameAdvanceBots IAM](#production-ops--gameadvancebots-iam) |
+| Release scenario coverage | [`docs/QA_RELEASE.md`](./QA_RELEASE.md) |
 
 ---
 
