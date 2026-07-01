@@ -33,6 +33,7 @@ import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 import type { TableEvent } from "./hooks/useTableEvents";
 import type { TurnCountdownState } from "./turnCountdown";
+import { TableProfiler } from "./tableProfiler";
 
 interface CardTableProps {
   session: TableSessionData;
@@ -248,6 +249,7 @@ export function CardTable({
   const hasActiveTurn = displayPlayers.some((p) => p.isActiveActor);
 
   return (
+    <TableProfiler id="GameTable">
     <div
       ref={wrapRef}
       className={[
@@ -287,6 +289,7 @@ export function CardTable({
         </div>
 
         <div className="btable__play-zone">
+          <TableProfiler id="TrickArea">
           <PotCenter
             potMetrics={{
               ...potMetrics,
@@ -323,8 +326,10 @@ export function CardTable({
             peakTrickPlayCount={trickPresentation.peakPlayCount}
             discardPileCards={discardPileCards}
           />
+          </TableProfiler>
         </div>
 
+        <TableProfiler id="PlayerSeats">
         <div className="btable__seats" aria-label="Players at the table">
           {rotated.map((player, i) => {
             const layout = resolveSeatLayout(i, rotated.length, {
@@ -365,10 +370,12 @@ export function CardTable({
             );
           })}
         </div>
+        </TableProfiler>
       </div>
       </div>
       </div>
       </div>
+      <TableProfiler id="ActionBar">
       <div className="hand-panel">
         {bigPotEvent && isHeroCardAreaEmpty(heroCards) && onDismissTableEvent && (
           <BigPotBrewingIndicator event={bigPotEvent} onDismiss={onDismissTableEvent} />
@@ -424,6 +431,8 @@ export function CardTable({
         skipHeroDealMotion={clockwiseDealing}
       />
       </div>
+      </TableProfiler>
     </div>
+    </TableProfiler>
   );
 }
