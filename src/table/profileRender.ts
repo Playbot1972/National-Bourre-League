@@ -1,5 +1,30 @@
 import type { ProfilerOnRenderCallback } from "react";
 
+export const TABLE_RENDER_PROFILE_DEBUG_KEY = "nbl-table-render-profile";
+
+/** Node/tests only — simulate import.meta.env.DEV without a Vite dev server. */
+let devModeOverrideForTests: boolean | undefined;
+
+export function setTableRenderProfileDevForTests(value?: boolean): void {
+  devModeOverrideForTests = value;
+}
+
+function isDevEnvironment(): boolean {
+  if (devModeOverrideForTests !== undefined) return devModeOverrideForTests;
+  return typeof import.meta !== "undefined" && import.meta.env?.DEV === true;
+}
+
+export function isTableRenderProfileEnabled(): boolean {
+  if (isDevEnvironment()) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    if (window.localStorage?.getItem(TABLE_RENDER_PROFILE_DEBUG_KEY) === "1") return true;
+    return new URLSearchParams(window.location.search).get("tableProfile") === "1";
+  } catch {
+    return false;
+  }
+}
+
 /** Log [PROFILE] when a subtree render exceeds the threshold (default 8ms). */
 export function onRenderProfile(
   id: string,
@@ -29,5 +54,6 @@ export const tableOnRenderProfile: ProfilerOnRenderCallback = (
   startTime,
   commitTime,
 ) => {
+  if (!isTableRenderProfileEnabled()) return;
   onRenderProfile(id, phase, actualDuration, baseDuration, startTime, commitTime);
 };
