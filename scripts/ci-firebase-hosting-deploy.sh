@@ -68,6 +68,13 @@ deploy_adc() {
 
 activate_sa
 if deploy_adc "${@:2}"; then
+  if [[ "$ONLY" == "functions" ]]; then
+    echo "==> Ensure public invoker on Gen2 game callables"
+    chmod +x scripts/fix-callable-public-invoker.sh
+    bash scripts/fix-callable-public-invoker.sh "${PROJECT_ID}" || {
+      echo "::warning::Could not set public invoker bindings — run npm run fix:callable-invoker as project Owner"
+    }
+  fi
   exit 0
 fi
 

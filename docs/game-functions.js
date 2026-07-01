@@ -38,6 +38,26 @@ async function getFunctionsInstance() {
   return initPromise;
 }
 
+function logCallableFailure(name, data, err) {
+  const payload = {
+    function: name,
+    roomId: data?.roomId ?? null,
+    sessionId: data?.sessionId ?? null,
+    code: err?.code ?? null,
+    message: err?.message ?? String(err),
+    details: err?.details ?? null,
+  };
+  if (payload.code === "functions/permission-denied" || /403|forbidden/i.test(payload.message)) {
+    console.error(
+      "[game-functions] Callable blocked before handler — likely missing Cloud Run invoker on",
+      name,
+      payload,
+    );
+  } else {
+    console.warn("[game-functions] Callable failed:", payload);
+  }
+}
+
 async function callGame(name, data) {
   const functions = await getFunctionsInstance();
   if (!functions) {
@@ -45,8 +65,13 @@ async function callGame(name, data) {
   }
   const { httpsCallable } = await import(`${CDN}/firebase-functions.js`);
   const fn = httpsCallable(functions, name);
-  const result = await fn(data);
-  return result.data;
+  try {
+    const result = await fn(data);
+    return result.data;
+  } catch (err) {
+    logCallableFailure(name, data, err);
+    throw err;
+  }
 }
 
 export function isServerHandAuthorityEnabled() {
