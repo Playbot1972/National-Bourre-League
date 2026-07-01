@@ -159,3 +159,15 @@ jobs:
             echo "Bad secret JSON: npm run sync:github-sa-secret"
             exit 1
           }
+
+      - name: Verify production callables
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          npm run verify:game-callables || {
+            echo "::error::Callable verify failed — gameAdvanceBots may still be missing public invoker."
+            echo "As project Owner: npm run fix:deploy-iam && npm run fix:callable-invoker"
+            echo "Then re-run: gh workflow run deploy.yml --ref main"
+            exit 1
+          }

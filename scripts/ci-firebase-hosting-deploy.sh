@@ -5,6 +5,16 @@ set -euo pipefail
 ONLY="${1:?usage: ci-firebase-hosting-deploy.sh <only> e.g. hosting}"
 PROJECT_ID="${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID required}"
 FB_TOOLS="${FIREBASE_TOOLS_VERSION:-14.9.0}"
+REGION="${FIREBASE_FUNCTIONS_REGION:-us-central1}"
+
+ensure_callable_invoker() {
+  if [[ "$ONLY" != "functions" ]]; then
+    return 0
+  fi
+  echo "==> Ensure public invoker on Gen2 game callables"
+  chmod +x scripts/fix-callable-public-invoker.sh
+  FIREBASE_FUNCTIONS_REGION="${REGION}" bash scripts/fix-callable-public-invoker.sh "${PROJECT_ID}"
+}
 
 if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
   echo "firebase-auth=ci-token"
@@ -12,6 +22,9 @@ if [[ -n "${FIREBASE_TOKEN:-}" ]]; then
   unset CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE 2>/dev/null || true
   npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive --token "$FIREBASE_TOKEN"
   npx "firebase-tools@${FB_TOOLS}" deploy --only "$ONLY" --non-interactive --project "$PROJECT_ID" --token "$FIREBASE_TOKEN" "${@:2}"
+  if [[ "$ONLY" == "functions" ]]; then
+    echo "::warning::Token deploy skips automatic callable invoker repair — run npm run fix:callable-invoker"
+  fi
   exit 0
 fi
 
@@ -45,7 +58,7 @@ deploy_adc() {
   npx "firebase-tools@${FB_TOOLS}" use "$PROJECT_ID" --non-interactive
   if [[ "$ONLY" == "functions" ]]; then
     npx "firebase-tools@${FB_TOOLS}" functions:artifacts:setpolicy \
-      --location us-central1 \
+      --location "${REGION}" \
       --days 30 \
       --force \
       --non-interactive \
@@ -68,10 +81,16 @@ deploy_adc() {
 
 activate_sa
 if deploy_adc "${@:2}"; then
+  ensure_callable_invoker
   exit 0
 fi
 
 echo "::warning::ADC deploy failed — re-activating service account and retrying once"
 rm -rf "${HOME}/.config/firebase" 2>/dev/null || true
 activate_sa
-deploy_adc "${@:2}"
+if deploy_adc "${@:2}"; then
+  ensure_callable_invoker
+  exit 0
+fi
+
+exit 1

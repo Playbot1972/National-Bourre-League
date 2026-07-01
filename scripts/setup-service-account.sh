@@ -67,6 +67,7 @@ for ROLE in \
   roles/firebasehosting.admin \
   roles/firebaserules.admin \
   roles/cloudfunctions.developer \
+  roles/run.admin \
   roles/serviceusage.serviceUsageViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \

@@ -44,6 +44,7 @@ fi
 echo "==> Project roles for ${SA_EMAIL}"
 for ROLE in \
   roles/cloudfunctions.developer \
+  roles/run.admin \
   roles/serviceusage.serviceUsageViewer; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \
@@ -68,6 +69,9 @@ echo ""
 echo "Done. Re-run deploy:"
 echo "  gh workflow run deploy.yml --ref main"
 echo "  or: npm run fix:deploy"
+echo ""
+echo "If callable invoker repair fails during deploy, also run:"
+echo "  npm run fix:callable-invoker"
 echo ""
 echo "If functions still fail with actAs on *-compute@developer.gserviceaccount.com,"
 echo "re-run this script — step 3 grants both App Engine and Compute default SAs."
