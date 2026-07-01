@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
+  handPresentationVisibleEqual,
   nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
@@ -519,6 +520,107 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "ante");
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
+  });
+
+  it("coalesces play-phase serverUpdate when only bookkeeping changes", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      drawCompletedIds: ["p1", "p2", "p3"],
+      turnPlayerId: "p1",
+      potAmount: 15,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        drawCompletedIds: ["p1", "p2", "p3"],
+        turnPlayerId: "p1",
+        potAmount: 15,
+      },
+    });
+
+    const before = store;
+    const beforeModel = buildHandPresentationModel(before);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        drawCompletedIds: ["p1", "p2", "p3"],
+        turnPlayerId: "p2",
+        potAmount: 15,
+      },
+    });
+
+    assert.equal(store, before);
+    assert.equal(store.prevSnapshot?.turnPlayerId, "p2");
+    assert.deepEqual(buildHandPresentationModel(store), beforeModel);
+  });
+
+  it("returns new store when play-phase serverUpdate changes visible pot", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      drawCompletedIds: ["p1", "p2", "p3"],
+      potAmount: 15,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        drawCompletedIds: ["p1", "p2", "p3"],
+        potAmount: 15,
+      },
+    });
+
+    const before = store;
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        drawCompletedIds: ["p1", "p2", "p3"],
+        potAmount: 18,
+      },
+    });
+
+    assert.notEqual(store, before);
+    assert.equal(buildHandPresentationModel(store).displayPotAmount, 18);
+  });
+
+  it("returns new store when hand settle becomes visible", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    const before = store;
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handComplete: true,
+      },
+    });
+
+    assert.notEqual(store, before);
+    assert.equal(buildHandPresentationModel(store).pendingHandSettle, true);
+  });
+
+  it("handPresentationVisibleEqual matches buildHandPresentationModel output", () => {
+    const a = createHandPresentationStore({ ...baseSnap, phase: "play", potAmount: 9 });
+    const b = {
+      ...a,
+      prevSnapshot: { ...baseSnap, phase: "play", turnPlayerId: "p3" },
+      pendingSnapshot: { ...baseSnap, phase: "play", turnPlayerId: "p3" },
+      handSettleSnapshot: { ...baseSnap, phase: "play" },
+      drawPresentationConsumedIds: ["bot_x"],
+      handNumber: 99,
+    };
+    assert.ok(handPresentationVisibleEqual(a, b));
+    assert.deepEqual(buildHandPresentationModel(a), buildHandPresentationModel(b));
   });
 });
 

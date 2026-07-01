@@ -262,5 +262,5 @@ export function useHandPresentation({
     return () => window.clearTimeout(id);
   }, [store.phase, store.pendingHandSettle, trickPipelineActive, forceTrickHandEndDrain]);
 
-  return buildHandPresentationModel(store);
+  return useMemo(() => buildHandPresentationModel(store), [store]);
 }
