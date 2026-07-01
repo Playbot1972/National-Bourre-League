@@ -37,6 +37,13 @@ export function isSwipeFlickPlay(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) >= CARD_GESTURE.SWIPE_FLICK_PX;
 }
 
+/** After pointer-up handled play/select, skip the follow-up synthetic click. */
+export function consumeSuppressNextClick(ref: { current: boolean }): boolean {
+  if (!ref.current) return false;
+  ref.current = false;
+  return true;
+}
+
 export interface CardGestureSession {
   pointerId: number;
   startX: number;

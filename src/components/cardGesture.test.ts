@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   CARD_GESTURE,
+  consumeSuppressNextClick,
   isScrollCancel,
   isSwipeFlickPlay,
   isSwipeUpPlay,
@@ -49,6 +50,14 @@ describe("cardGesture thresholds", () => {
     assert.equal(classifyPlayPointerMove(0, -15), "none");
     assert.equal(classifyPlayPointerMove(0, -30), "swipe");
     assert.equal(classifyPlayPointerMove(40, 0), "swipe");
+  });
+
+  it("consumeSuppressNextClick clears flag once", () => {
+    const ref = { current: false };
+    assert.equal(consumeSuppressNextClick(ref), false);
+    ref.current = true;
+    assert.equal(consumeSuppressNextClick(ref), true);
+    assert.equal(consumeSuppressNextClick(ref), false);
   });
 
   it("resolvePlayReleaseAction defaults to tap under swipe threshold", () => {

@@ -1,5 +1,6 @@
-import type { PointerEventHandler } from "react";
+import type { MutableRefObject, PointerEventHandler } from "react";
 import { SUIT_SYMBOL, SUIT_LABEL, isRedSuit, type Card } from "../types";
+import { consumeSuppressNextClick } from "./cardGesture";
 import "./PlayingCard.css";
 
 export type CardState =
@@ -23,8 +24,10 @@ interface PlayingCardProps {
   badge?: string;
   /** @deprecated Use pointerHandlers — kept for non-table tutorial cards. */
   onClick?: () => void;
-  /** Click fallback when pointerHandlers are active (tap + mouse click). */
+  /** After pointer-up handled play, skip the synthetic click that follows. */
+  /** Click fallback when pointerHandlers are active (keyboard activation). */
   onPlayClick?: () => void;
+  suppressNextClickRef?: MutableRefObject<boolean>;
   pointerHandlers?: {
     onPointerDown?: PointerEventHandler<HTMLElement>;
     onPointerMove?: PointerEventHandler<HTMLElement>;
@@ -54,6 +57,7 @@ export function PlayingCard({
   badge,
   onClick,
   onPlayClick,
+  suppressNextClickRef,
   pointerHandlers,
   pressed = false,
   playing = false,
@@ -124,6 +128,10 @@ export function PlayingCard({
         onClick={
           pointerInteractive && onPlayClick
             ? (event) => {
+                if (suppressNextClickRef && consumeSuppressNextClick(suppressNextClickRef)) {
+                  event.preventDefault();
+                  return;
+                }
                 event.preventDefault();
                 onPlayClick();
               }
