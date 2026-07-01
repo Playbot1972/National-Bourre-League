@@ -87,6 +87,19 @@ export function nextDealerId(sortedPlayerIds: string[], currentDealerId: string 
   return sortedPlayerIds[(base + 1) % sortedPlayerIds.length];
 }
 
+/** Rotate dealer clockwise among next-hand eligible seats only (preserves table seat order). */
+export function nextEligibleDealerId(
+  sortedPlayerIds: string[],
+  currentDealerId: string | null,
+  eligibleIds: string[],
+): string | null {
+  if (eligibleIds.length === 0) return null;
+  const eligibleSet = new Set(eligibleIds);
+  const pool = sortedPlayerIds.filter((id) => eligibleSet.has(id));
+  if (pool.length === 0) return eligibleIds[0] ?? null;
+  return nextDealerId(pool, currentDealerId);
+}
+
 /** Clockwise seat order from session roster (join order), then any extra score rows. */
 export function seatPlayerIdsFromRoster(
   sessionPlayers: Array<{ playerId?: string }> = [],

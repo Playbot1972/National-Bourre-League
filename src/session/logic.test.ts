@@ -5,6 +5,7 @@ import {
   isRobotPlayerId,
   mergeScoresWithMembers,
   nextDealerId,
+  nextEligibleDealerId,
   seatPlayerIdsFromRoster,
   sessionHasRobots,
   sortScoresForDisplay,
@@ -51,6 +52,15 @@ describe("A — session and bot helpers", () => {
   it("nextDealerId rotates clockwise in sorted order", () => {
     assert.equal(nextDealerId(["a", "b", "c"], "a"), "b");
     assert.equal(nextDealerId(["a", "b", "c"], "c"), "a");
+  });
+
+  it("nextEligibleDealerId skips out/ineligible seats", () => {
+    const seats = ["p1", "p2", "p3", "p4"];
+    const eligible = ["p1", "p3", "p4"];
+    assert.equal(nextEligibleDealerId(seats, "p1", eligible), "p3");
+    assert.equal(nextEligibleDealerId(seats, "p2", eligible), "p3");
+    assert.equal(nextEligibleDealerId(seats, "p4", eligible), "p1");
+    assert.equal(nextEligibleDealerId(seats, "p1", []), null);
   });
 
   it("seatPlayerIdsFromRoster uses session join order for dealer rotation", () => {

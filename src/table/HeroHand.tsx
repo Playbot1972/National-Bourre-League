@@ -11,6 +11,7 @@ import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
@@ -388,18 +389,23 @@ export function HeroHand({
         }
         return;
       }
+      const nextSelection = togglePlayPreselectIndex(selectedPlay, index);
       clearPreselectTimer();
-      setSelectedPlay(index);
+      setSelectedPlay(nextSelection);
       setLocalError(null);
       notifyUserActivity();
-      pendingPlayIndexRef.current = index;
+      if (nextSelection === null) {
+        pendingPlayIndexRef.current = null;
+        return;
+      }
+      pendingPlayIndexRef.current = nextSelection;
       if (!isMyTurn) return;
       preselectTimerRef.current = window.setTimeout(() => {
         preselectTimerRef.current = null;
         const pending = pendingPlayIndexRef.current;
         pendingPlayIndexRef.current = null;
-        if (pending === index && !playLockRef.current) {
-          void executePlayRef.current(index);
+        if (pending === nextSelection && !playLockRef.current) {
+          void executePlayRef.current(nextSelection);
         }
       }, MICRO_MS.autoPlayPreselect);
     },
@@ -411,6 +417,7 @@ export function HeroHand({
       onPlayCard,
       phase,
       notifyUserActivity,
+      selectedPlay,
     ],
   );
 

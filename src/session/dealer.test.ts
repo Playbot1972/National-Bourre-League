@@ -4,7 +4,7 @@ import { activePlayerOrder, openingLeaderId } from "../game/playerOrder";
 import { dealInitialHand } from "../game/deal";
 import { advanceAfterDraw } from "../game/draw";
 import { serializeHandState } from "../game/serialize";
-import { nextDealerId } from "./logic";
+import { nextDealerId, nextEligibleDealerId } from "./logic";
 import { resolveHandDealerId } from "./dealer";
 import { HAND_PHASE } from "../game/types";
 
@@ -14,6 +14,13 @@ describe("dealer flow", () => {
   it("rotates dealer clockwise between hands", () => {
     assert.equal(nextDealerId(SORTED, "p1"), "p2");
     assert.equal(nextDealerId(SORTED, "p4"), "p1");
+  });
+
+  it("skips out players when advancing dealer for the next hand", () => {
+    const eligible = ["p1", "p3", "p4"];
+    assert.equal(nextEligibleDealerId(SORTED, "p1", eligible), "p3");
+    assert.equal(nextEligibleDealerId(SORTED, "p2", eligible), "p3");
+    assert.equal(nextEligibleDealerId(SORTED, "p4", eligible), "p1");
   });
 
   it("keeps per-hand dealer stable while hand is live", () => {

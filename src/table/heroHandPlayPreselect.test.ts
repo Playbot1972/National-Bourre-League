@@ -5,8 +5,15 @@ import {
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
+
+test("togglePlayPreselectIndex deselects same card and switches to another", () => {
+  assert.equal(togglePlayPreselectIndex(null, 2), 2);
+  assert.equal(togglePlayPreselectIndex(2, 2), null);
+  assert.equal(togglePlayPreselectIndex(2, 4), 4);
+});
 
 test("isLegalPlayIndex allows any index when legality list is absent", () => {
   assert.equal(isLegalPlayIndex(2, undefined), true);
