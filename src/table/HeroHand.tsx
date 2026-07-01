@@ -16,6 +16,7 @@ import {
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
+import { logPlayClick } from "./playClickDebug";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
@@ -267,10 +268,12 @@ export function HeroHand({
     }
     if (preselectTimerRef.current != null) return;
     pendingPlayIndexRef.current = selectedPlay;
+    logPlayClick("preselectEffect:armTimer", { selectedPlay });
     preselectTimerRef.current = window.setTimeout(() => {
       preselectTimerRef.current = null;
       const pending = pendingPlayIndexRef.current;
       pendingPlayIndexRef.current = null;
+      logPlayClick("preselectEffect:timerFire", { pending, selectedPlay });
       if (pending !== null && !playLockRef.current) {
         void executePlayRef.current(pending);
       }
@@ -373,7 +376,29 @@ export function HeroHand({
 
   const preselectCard = useCallback(
     (index: number) => {
-      if (playLockRef.current || busy || !onPlayCard || phase !== "play") return;
+      logPlayClick("preselectCard:enter", {
+        index,
+        isMyTurn,
+        busy,
+        playLock: playLockRef.current,
+        phase,
+        selectedPlay,
+        hasOnPlayCard: Boolean(onPlayCard),
+        legal: isLegalPlayIndex(index, legalPlayIndices),
+      });
+      if (playLockRef.current || busy || !onPlayCard || phase !== "play") {
+        logPlayClick("preselectCard:blocked", {
+          index,
+          reason: playLockRef.current
+            ? "playLock"
+            : busy
+              ? "busy"
+              : !onPlayCard
+                ? "noOnPlayCard"
+                : "phase",
+        });
+        return;
+      }
       if (!isLegalPlayIndex(index, legalPlayIndices)) {
         if (isMyTurn) {
           playIllegalActionFeedback();
@@ -387,19 +412,37 @@ export function HeroHand({
           }, MICRO_MS.illegalFlash);
           setLocalError("Illegal play");
         }
+        logPlayClick("preselectCard:illegal", { index, isMyTurn });
         return;
       }
-      const nextSelection = togglePlayPreselectIndex(selectedPlay, index);
+      const nextSelection = isMyTurn
+        ? index
+        : togglePlayPreselectIndex(selectedPlay, index);
+      logPlayClick("preselectCard:toggle", { index, nextSelection, isMyTurn, selectedPlay });
       clearPreselectTimer();
       setSelectedPlay(nextSelection);
       setLocalError(null);
       notifyUserActivity();
       if (nextSelection === null) {
         pendingPlayIndexRef.current = null;
+        logPlayClick("preselectCard:deselected", { index });
         return;
       }
       pendingPlayIndexRef.current = nextSelection;
-      if (!isMyTurn) return;
+      if (!isMyTurn) {
+        logPlayClick("preselectCard:queued", { index: nextSelection });
+        return;
+      }
+      logPlayClick("preselectCard:armTimer", { index: nextSelection });
+      preselectTimerRef.current = window.setTimeout(() => {
+        preselectTimerRef.current = null;
+        const pending = pendingPlayIndexRef.current;
+        pendingPlayIndexRef.current = null;
+        logPlayClick("preselectCard:timerFire", { pending, nextSelection });
+        if (pending === nextSelection && !playLockRef.current) {
+          void executePlayRef.current(nextSelection);
+        }
+      }, MICRO_MS.autoPlayPreselect);
     },
     [
       busy,
@@ -685,7 +728,10 @@ export function HeroHand({
             showPlayableHint: false,
             allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
             trickPlayOriginPlayerId: currentUserId,
-            onPlayCard: preselectCard,
+            onPlayCard: (index) => {
+              logPlayClick("Hand.onPlayCard", { index, isMyTurn, gestureMode });
+              preselectCard(index);
+            },
             onSelectCard: toggleDrawIndex,
             onIllegalPlay: handleIllegalPlay,
             onPeek: setPeekIndex,

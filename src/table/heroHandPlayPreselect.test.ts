@@ -15,6 +15,14 @@ test("togglePlayPreselectIndex deselects same card and switches to another", () 
   assert.equal(togglePlayPreselectIndex(2, 4), 4);
 });
 
+test("isMyTurn play path should not use toggle deselect semantics", () => {
+  const isMyTurn = true;
+  const selectedPlay = 2;
+  const clicked = 2;
+  const nextSelection = isMyTurn ? clicked : togglePlayPreselectIndex(selectedPlay, clicked);
+  assert.equal(nextSelection, 2);
+});
+
 test("isLegalPlayIndex allows any index when legality list is absent", () => {
   assert.equal(isLegalPlayIndex(2, undefined), true);
 });
