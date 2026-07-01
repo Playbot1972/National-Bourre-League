@@ -44,6 +44,7 @@ import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, Tabl
 import type { TurnCountdownState } from "./turnCountdown";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
+import { TableProfiler } from "./tableProfiler";
 
 interface MobileCardTableProps {
   session: TableSessionData;
@@ -266,6 +267,7 @@ export function MobileCardTable({
   const hasActiveTurn = displayPlayers.some((p) => p.isActiveActor);
 
   return (
+    <TableProfiler id="GameTable">
     <div
       ref={wrapRef}
       className={[
@@ -306,6 +308,7 @@ export function MobileCardTable({
           </div>
 
           <div className="btable__play-zone">
+            <TableProfiler id="TrickArea">
             <PotCenter
               potMetrics={{
                 ...potMetrics,
@@ -342,8 +345,10 @@ export function MobileCardTable({
               peakTrickPlayCount={trickPresentation.peakPlayCount}
               discardPileCards={discardPileCards}
             />
+            </TableProfiler>
           </div>
 
+          <TableProfiler id="PlayerSeats">
           <div className="btable__seats btable-mobile__seats" aria-label="Players at the table">
             {opponents.map((player, i) => {
               const layout = resolveMobileOpponentLayout(
@@ -419,11 +424,13 @@ export function MobileCardTable({
               </div>
             )}
           </div>
+          </TableProfiler>
         </div>
         </div>
         </div>
       </div>
 
+      <TableProfiler id="ActionBar">
       <div className="btable-mobile-hero-dock hand-panel">
         <div className="btable-mobile-hero-dock__stack">
         {bigPotEvent && isHeroCardAreaEmpty(heroCards) && onDismissTableEvent && (
@@ -486,6 +493,8 @@ export function MobileCardTable({
           </p>
         )}
       </div>
+      </TableProfiler>
     </div>
+    </TableProfiler>
   );
 }

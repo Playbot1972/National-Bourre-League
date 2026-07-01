@@ -75,6 +75,14 @@ export {
 
 export { forceInvariantsForTests, isInvariantsStrict, logInvariantViolation } from "./invariantDebug";
 
+export { createTransitionLock, type TransitionLock } from "./transitionLock";
+export {
+  HAND_TRANSITION,
+  logHandTransition,
+  logServerHandTransition,
+  type HandTransitionEvent,
+} from "./handTransitionLog";
+
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (!livePublic?.phase) return false;

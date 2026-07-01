@@ -194,7 +194,14 @@ import {
   assertSessionChipConserved,
   assertHandFlowConsistent,
   assertBotAdvanceNotInFlight,
+  createTransitionLock,
+  HAND_TRANSITION,
+  logHandTransition,
 } from "./session-startup.js";
+
+const drawTransitionLock = createTransitionLock();
+const handEndTransitionLock = createTransitionLock();
+const roundAdvanceTransitionLock = createTransitionLock();
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
 
@@ -1674,6 +1681,8 @@ async function clearStaleHandoffArtifacts(roomId, sessionId) {
  * Idempotent: skips when already cleared, repairs stale mirrors, or re-runs settlement.
  */
 export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) {
+  return roundAdvanceTransitionLock.runLockedTransition(`round-advance:${roomId}:${sessionId}`, async () => {
+  logHandTransition(HAND_TRANSITION.ROUND_ADVANCE, { roomId, sessionId, recordedBy });
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return { status: "missing" };
   const sessionData = sessionSnap.data();
@@ -1701,6 +1710,7 @@ export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) 
   }
 
   return { status: "noop" };
+  });
 }
 
 function writeEnrollmentPatch(enrollment) {
@@ -1900,6 +1910,8 @@ function sortedPlayerIdsFromSession(sessionData) {
 }
 
 async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
+  return handEndTransitionLock.runLockedTransition(`hand-end:${roomId}:${sessionId}`, async () => {
+  logHandTransition(HAND_TRANSITION.HAND_END, { roomId, sessionId, recordedBy });
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
@@ -1967,6 +1979,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     recordedBy,
     tricksByPlayer,
   });
+  });
 }
 
 /** Chip conservation at settlement boundary (bankrolls + carry + posted antes). */
@@ -2005,10 +2018,25 @@ function assertRecordHandChipConservation({
 
 /** Draw/discard during the draw phase — server-validated via Cloud Function. */
 export async function submitHandDraw(roomId, sessionId, { playerId, discardIndices, actorId }) {
-  return callGameServerOrClient(
-    () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
-    () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
+  logHandTransition(HAND_TRANSITION.DRAW_SUBMIT, { roomId, sessionId, playerId });
+  const result = await drawTransitionLock.runLockedTransition(
+    `draw-submit:${roomId}:${sessionId}:${playerId}`,
+    () =>
+      callGameServerOrClient(
+        () => submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }),
+        () => gameSubmitDraw(roomId, sessionId, { playerId, discardIndices, actorId }),
+      ),
   );
+  if (result) {
+    logHandTransition(HAND_TRANSITION.DRAW_RESOLVE, {
+      roomId,
+      sessionId,
+      playerId,
+      phase: result?.phase ?? null,
+      status: result?.status ?? null,
+    });
+  }
+  return result;
 }
 
 async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndices, actorId }) {
@@ -2166,6 +2194,7 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
   });
 
   if (handComplete) {
+    logHandTransition(HAND_TRANSITION.TRICK_END, { roomId, sessionId, playerId, actorId });
     await finalizeHandFromCardPlay(roomId, sessionId, actorId);
     logHandLifecycleTransition({
       from: "settle",
@@ -2177,6 +2206,16 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
 
 /** Robot draw/play helpers — room member drives bot using bot private hand doc. */
 export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, dealingRule }) {
+  if (SERVER_HAND_AUTHORITY) {
+    logHandTransition(HAND_TRANSITION.DRAW_SUBMIT, {
+      blocked: true,
+      reason: "server_authority",
+      roomId,
+      sessionId,
+      playerId,
+    });
+    return;
+  }
   const handData = await getPrivateHand(roomId, sessionId, playerId);
   if (!handData) {
     throw new Error(`Bot private hand missing (${playerId}) — redeal or nudge bots`);
@@ -2818,6 +2857,12 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
+  logHandTransition(HAND_TRANSITION.HAND_END, {
+    roomId,
+    sessionId,
+    settlement,
+    winnerCount: (winnerIds?.length ? winnerIds : winnerId ? [winnerId] : []).length,
+  });
   return callSettlementOrClient(
     () =>
       recordHandClient(roomId, sessionId, {

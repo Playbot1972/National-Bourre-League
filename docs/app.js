@@ -205,6 +205,9 @@ import {
   resolveCurrentHandChoicePlayerId,
   assertHandFlowConsistent,
   shouldAutoOpenNextHand,
+  createTransitionLock,
+  HAND_TRANSITION,
+  logHandTransition,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -1004,6 +1007,7 @@ let nextHandOpenTimer = null;
 let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
 let handoffRecoveryInFlight = false;
+const appRoundAdvanceLock = createTransitionLock();
 
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
@@ -1031,6 +1035,14 @@ async function openNextHandEnrollment(sessionObj) {
   if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
   if (tableReadyPlayerCount(sessionObj) < 2) return;
 
+  return appRoundAdvanceLock.runLockedTransition(
+    `round-advance:${currentRoomId}:${openSessionId}`,
+    async () => {
+  logHandTransition(HAND_TRANSITION.ROUND_ADVANCE, {
+    roomId: currentRoomId,
+    sessionId: openSessionId,
+    handCount: sessionObj.handCount ?? null,
+  });
   nextHandOpenInFlight = true;
   cancelNextHandOpenTimer();
   openPrivateHand = null;
@@ -1074,6 +1086,8 @@ async function openNextHandEnrollment(sessionObj) {
   } finally {
     nextHandOpenInFlight = false;
   }
+    },
+  );
 }
 
 function maybeRecoverHandLifecycle(sessionObj) {
@@ -3042,6 +3056,15 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     !clientFallbackOnly
   ) {
     scheduleServerBotAdvance(s, scores, actorId, { reason: "processRobotActions" });
+    return;
+  }
+
+  if (SERVER_HAND_AUTHORITY && !clientFallbackOnly) {
+    logHandTransition(HAND_TRANSITION.DRAW_SUBMIT, {
+      blocked: true,
+      reason: "server_authority_process_robot_actions",
+      handPhase: getSessionCurrentHand(s)?.phase ?? null,
+    });
     return;
   }
 
