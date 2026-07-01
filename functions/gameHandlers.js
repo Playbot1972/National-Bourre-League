@@ -56,6 +56,9 @@ import {
   assertSettlementEntryAllowed,
   assertSessionChipConserved,
   checkInvariant,
+  createTransitionLock,
+  HAND_TRANSITION,
+  logServerHandTransition,
 } from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 import {
@@ -1067,6 +1070,9 @@ async function getDealingRule(db, roomId) {
 }
 
 const BOT_ADVANCE_MAX_STEPS = 64;
+const drawTransitionLock = createTransitionLock();
+const handEndTransitionLock = createTransitionLock();
+const botAdvanceLock = createTransitionLock();
 
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
@@ -1122,6 +1128,7 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
 
 /** Chain bot enrollment, draw, play, and co-win votes until a human must act. */
 export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
+  return botAdvanceLock.runLockedTransition(`bot-advance:${roomId}:${sessionId}`, async () => {
   const dealingRule = await getDealingRule(db, roomId);
   const steps = [];
   for (let step = 0; step < BOT_ADVANCE_MAX_STEPS; step += 1) {
@@ -1235,6 +1242,12 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         }
         break;
       case "draw":
+        logServerHandTransition(HAND_TRANSITION.DRAW_START, {
+          roomId,
+          sessionId,
+          playerId: hint.turnPlayerId,
+          step,
+        });
         await executeBotDraw(db, roomId, sessionId, hint.turnPlayerId, actorId, dealingRule);
         break;
       case "play":
@@ -1251,6 +1264,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     { roomId, sessionId, actorId },
   );
   return { status: "ok", steps, capped: true };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1778,18 +1792,30 @@ export async function handleSubmitDraw(
     throw new HttpsError("permission-denied", "You can only draw for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
+  logServerHandTransition(HAND_TRANSITION.DRAW_SUBMIT, { roomId, sessionId, playerId });
   let result;
   try {
-    result = await runSubmitDrawTransaction(db, {
-      roomId,
-      sessionId,
-      playerId,
-      discardIndices,
-    });
+    result = await drawTransitionLock.runLockedTransition(
+      `draw-submit:${roomId}:${sessionId}:${playerId}`,
+      () =>
+        runSubmitDrawTransaction(db, {
+          roomId,
+          sessionId,
+          playerId,
+          discardIndices,
+        }),
+    );
   } catch (err) {
     if (err instanceof HttpsError) throw err;
     throw new HttpsError("failed-precondition", err?.message || "Draw failed");
   }
+  if (!result) return { status: "skipped", reason: "draw_transition_locked" };
+  logServerHandTransition(HAND_TRANSITION.DRAW_RESOLVE, {
+    roomId,
+    sessionId,
+    playerId,
+    phase: result.phase ?? null,
+  });
   await advanceBotsAfterAction(db, roomId, sessionId, actorId);
   return result;
 }
@@ -1921,6 +1947,8 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
 }
 
 async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
+  return handEndTransitionLock.runLockedTransition(`hand-end:${roomId}:${sessionId}`, async () => {
+  logServerHandTransition(HAND_TRANSITION.HAND_END, { roomId, sessionId, recordedBy });
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   if (!sessionSnap.exists) return { status: "noop" };
   const sessionData = sessionSnap.data();
@@ -1994,6 +2022,7 @@ async function finalizeHandFromCardPlay(db, roomId, sessionId, recordedBy) {
     tricksByPlayer,
   });
   return { status: "settled", settlement: "co_win_carry" };
+  });
 }
 
 export async function handlePlayCard(db, { roomId, sessionId, playerId, cardIndex, actorId }) {
@@ -2008,6 +2037,9 @@ export async function handlePlayCard(db, { roomId, sessionId, playerId, cardInde
     playerId,
     cardIndex,
   });
+  if (handComplete) {
+    logServerHandTransition(HAND_TRANSITION.TRICK_END, { roomId, sessionId, playerId });
+  }
   const result = handComplete
     ? await finalizeHandFromCardPlay(db, roomId, sessionId, actorId)
     : { status: "ok" };
@@ -2031,6 +2063,7 @@ export async function handleRecordHand(
 ) {
   const recorder = recordedBy || actorId;
   await assertRoomMember(db, roomId, recorder);
+  logServerHandTransition(HAND_TRANSITION.HAND_END, { roomId, sessionId, settlement });
 
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
