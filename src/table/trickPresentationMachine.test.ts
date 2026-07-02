@@ -417,6 +417,55 @@ describe("trickPresentationMachine", () => {
     assert.equal(model.displayPlays.length, 2);
   });
 
+  it("gates winnerPlayerId null during live and trickComplete only", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+
+    const liveModel = buildTrickPresentationModel(store, null);
+    assert.equal(liveModel.winnerPlayerId, null);
+
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    const revealModel = buildTrickPresentationModel(store, null);
+    assert.equal(store.phase, "winnerReveal");
+    assert.equal(revealModel.winnerPlayerId, "p1");
+    assert.equal(revealModel.showWinnerTag, true);
+  });
+
+  it("advances through full trick presentation phase chain", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(store.phase, "trickComplete");
+
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "winnerReveal");
+
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "collectTrick");
+
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "nextLeadReady");
+
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "live");
+    assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
+  });
+
   it("forceHandEndDrain clears a stuck trick pipeline after settlement", () => {
     let store = createTrickPresentationStore({ p1: 3, p2: 1, p3: 0, p4: 0 }, completedTrick);
     for (let i = 0; i < 4; i++) {

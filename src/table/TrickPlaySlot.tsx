@@ -13,6 +13,7 @@ import {
 } from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { resolveTrickPlayHighlight } from "./trickPlayHighlight";
 
 type FlyMode = "pending" | "travel" | "settle" | "land" | "static";
 
@@ -60,20 +61,20 @@ export function TrickPlaySlot({
   const [hasLanded, setHasLanded] = useState(false);
   const flightStartedRef = useRef(false);
   const playKey = playFlyKey(play);
-  const isLeading = leaderPlayerId != null && play.playerId === leaderPlayerId;
-  const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
+  const highlight = resolveTrickPlayHighlight({
+    presentationPhase,
+    leaderPlayerId: leaderPlayerId ?? null,
+    winnerPlayerId: winnerPlayerId ?? null,
+    playPlayerId: play.playerId,
+  });
   const isLivePhase = presentationPhase === "live";
   const isLanding = index === displayCount - 1 && isLivePhase;
   /** Shift transition only after a completed land — never during fly keyframes. */
   const isSettled = hasLanded;
-  /** Current trick leader — green winner border immediately during live play. */
-  const showLiveLeaderHighlight =
-    isLeading && (presentationPhase === "live" || presentationPhase === "trickComplete");
-  const showResolvedWinnerHighlight =
-    isWinner &&
-    presentationPhase !== "live" &&
-    presentationPhase !== "trickComplete";
-  const showWinnerCard = showLiveLeaderHighlight || showResolvedWinnerHighlight;
+  const {
+    showLiveLeaderHighlight,
+    showWinnerCard,
+  } = highlight;
 
   useLayoutEffect(() => {
     if (isGameFlowDebugEnabled()) {
