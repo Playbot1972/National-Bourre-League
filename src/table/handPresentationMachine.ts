@@ -6,6 +6,7 @@ import {
   drawPlayerScheduleMs,
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
+  suppressesHandTurnIndicator,
 } from "./handPresentationTiming";
 
 export interface HandServerSnapshot {
@@ -941,14 +942,7 @@ export function buildHandPresentationModel(
     nextHandResetActive: store.nextHandResetActive,
     pendingHandSettle: store.pendingHandSettle,
     suppressTurnIndicator:
-      store.pendingHandSettle ||
-      store.phase === "trumpReveal" ||
-      store.phase === "trumpMerge" ||
-      store.phase === "ante" ||
-      store.phase === "drawReady" ||
-      store.phase === "settle" ||
-      store.phase === "nextHandReset" ||
-      store.phase === "handReset" ||
+      suppressesHandTurnIndicator(store.phase) ||
       (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done"),
     displayPotAmount: store.displayPotAmount,
     isPresenting: isHandPresentingPhase(store.phase),

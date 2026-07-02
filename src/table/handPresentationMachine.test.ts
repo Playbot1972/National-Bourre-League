@@ -363,6 +363,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "play");
     assert.equal(store.pendingHandSettle, true);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
+    assert.equal(buildHandPresentationModel(store).suppressTurnIndicator, false);
 
     store = reduceHandPresentation(store, {
       type: "serverUpdate",

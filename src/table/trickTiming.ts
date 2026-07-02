@@ -46,6 +46,9 @@ export const FINAL_TRICK_EXTRA_READ_MS = 900;
 /** Max wait to drain trick presentation after the server clears the hand. */
 export const TRICK_HAND_END_DRAIN_MS = 9_500;
 
+/** Force-advance a stuck trick presentation phase (timers cleared without advancing). */
+export const TRICK_PIPELINE_STUCK_MS = 8_500;
+
 /** @deprecated Use POST_TRICK_READ_MS — kept for gradual migration. */
 export const POST_TRICK_HOLD_MS = POST_TRICK_READ_MS;
 

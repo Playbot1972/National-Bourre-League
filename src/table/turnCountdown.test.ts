@@ -134,4 +134,19 @@ describe("turnCountdown", () => {
     assert.equal(id, null);
     void HAND_FLOW_PHASE;
   });
+
+  it("keeps actor during trick-5 play when handComplete is latched", () => {
+    const id = resolveTableActiveActorId({
+      session: {
+        phase: "play",
+        turnPlayerId: "p2",
+        participantIds: ["p1", "p2"],
+        tricksByPlayer: { p1: 3, p2: 2 },
+        handNumber: 4,
+      },
+      suppressTurn: false,
+      handComplete: true,
+    });
+    assert.equal(id, "p2");
+  });
 });

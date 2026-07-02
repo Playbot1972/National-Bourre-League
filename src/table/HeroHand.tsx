@@ -11,6 +11,8 @@ import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  isPreselectContextValid,
+  type PreselectPlayContext,
   togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import { playIllegalActionFeedback } from "./feedback";
@@ -50,6 +52,8 @@ interface HeroHandProps {
   trumpMergeActive?: boolean;
   trumpDisabledIndex?: number | null;
   handNumber?: number;
+  trickNumber?: number | null;
+  turnPlayerId?: string | null;
   tableRootRef?: RefObject<HTMLElement | null>;
   pileIndexRef?: RefObject<number>;
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
@@ -114,6 +118,8 @@ export const HeroHand = memo(function HeroHand({
   trumpMergeActive = false,
   trumpDisabledIndex = null,
   handNumber = 0,
+  trickNumber = null,
+  turnPlayerId = null,
   tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
@@ -140,6 +146,7 @@ export const HeroHand = memo(function HeroHand({
   const preselectTimerRef = useRef<number | null>(null);
   const pendingPlayIndexRef = useRef<number | null>(null);
   const queuedOffTurnRef = useRef(false);
+  const preselectContextRef = useRef<PreselectPlayContext | null>(null);
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
@@ -212,7 +219,38 @@ export const HeroHand = memo(function HeroHand({
     }
     pendingPlayIndexRef.current = null;
     queuedOffTurnRef.current = false;
+    preselectContextRef.current = null;
   }, []);
+
+  const buildPreselectContext = useCallback(
+    (): PreselectPlayContext => ({
+      phase,
+      handNumber,
+      trickNumber,
+      turnPlayerId,
+      playerId: currentUserId,
+    }),
+    [phase, handNumber, trickNumber, turnPlayerId, currentUserId],
+  );
+
+  const canFirePreselect = useCallback(
+    (index: number, armedContext: PreselectPlayContext | null) => {
+      if (armedContext == null) return false;
+      if (!isPreselectContextValid(armedContext, buildPreselectContext())) return false;
+      if (phase !== "play" || !currentUserId || turnPlayerId !== currentUserId) return false;
+      if (!isLegalPlayIndex(index, legalPlayIndices)) return false;
+      if (playLockRef.current || busy) return false;
+      return true;
+    },
+    [
+      buildPreselectContext,
+      phase,
+      currentUserId,
+      turnPlayerId,
+      legalPlayIndices,
+      busy,
+    ],
+  );
 
   const snapshotPreselectOrigin = useCallback(
     (index: number) => {
@@ -236,6 +274,7 @@ export const HeroHand = memo(function HeroHand({
       clearPreselectTimer();
       pendingPlayIndexRef.current = index;
       queuedOffTurnRef.current = queuedOffTurn;
+      preselectContextRef.current = buildPreselectContext();
       const delay = queuedOffTurn ? MICRO_MS.turnHandoff : MICRO_MS.autoPlayPreselect;
       logPlayClick(queuedOffTurn ? "preselectEffect:armTurnHandoff" : "preselectEffect:armTimer", {
         index,
@@ -244,15 +283,17 @@ export const HeroHand = memo(function HeroHand({
       preselectTimerRef.current = window.setTimeout(() => {
         preselectTimerRef.current = null;
         const pending = pendingPlayIndexRef.current;
+        const armedContext = preselectContextRef.current;
         pendingPlayIndexRef.current = null;
         queuedOffTurnRef.current = false;
+        preselectContextRef.current = null;
         logPlayClick("preselectEffect:timerFire", { pending, index });
-        if (pending === index && !playLockRef.current) {
+        if (pending === index && canFirePreselect(pending, armedContext)) {
           void executePlayRef.current(pending);
         }
       }, delay);
     },
-    [clearPreselectTimer],
+    [clearPreselectTimer, buildPreselectContext, canFirePreselect],
   );
 
   useEffect(() => {
@@ -268,7 +309,7 @@ export const HeroHand = memo(function HeroHand({
     setIllegalShakeIndex(null);
     setIllegalFlashIndex(null);
     setLocalError(null);
-  }, [phase, handCardKey, clearPreselectTimer]);
+  }, [phase, handCardKey, handNumber, trickNumber, turnPlayerId, clearPreselectTimer]);
 
   useEffect(() => {
     if (selectedPlay === null) return;
@@ -278,6 +319,23 @@ export const HeroHand = memo(function HeroHand({
       clearPreselectTimer();
     }
   }, [legalPlayIndices, selectedPlay, clearPreselectTimer]);
+
+  useEffect(() => {
+    if (selectedPlay === null || preselectTimerRef.current == null) return;
+    const armed = preselectContextRef.current;
+    if (!armed || isPreselectContextValid(armed, buildPreselectContext())) return;
+    clearPreselectTimer();
+    setSelectedPlay(null);
+  }, [
+    selectedPlay,
+    phase,
+    handNumber,
+    trickNumber,
+    turnPlayerId,
+    currentUserId,
+    buildPreselectContext,
+    clearPreselectTimer,
+  ]);
 
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;

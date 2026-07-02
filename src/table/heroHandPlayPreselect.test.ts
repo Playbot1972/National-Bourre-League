@@ -5,6 +5,8 @@ import {
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  isPreselectContextValid,
+  preselectContextKey,
   togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
@@ -30,6 +32,35 @@ test("isLegalPlayIndex allows any index when legality list is absent", () => {
 test("isLegalPlayIndex gates on legalPlayIndices from engine", () => {
   assert.equal(isLegalPlayIndex(1, [0, 2, 4]), false);
   assert.equal(isLegalPlayIndex(2, [0, 2, 4]), true);
+});
+
+test("preselect context invalidates when hand, trick, or turn changes", () => {
+  const armed = {
+    phase: "play",
+    handNumber: 2,
+    trickNumber: 3,
+    turnPlayerId: "p1",
+    playerId: "p1",
+  };
+  assert.equal(
+    isPreselectContextValid(armed, {
+      ...armed,
+      trickNumber: 4,
+    }),
+    false,
+  );
+  assert.equal(
+    isPreselectContextValid(armed, {
+      ...armed,
+      turnPlayerId: "p2",
+    }),
+    false,
+  );
+  assert.equal(isPreselectContextValid(armed, armed), true);
+  assert.notEqual(
+    preselectContextKey(armed),
+    preselectContextKey({ ...armed, handNumber: 3 }),
+  );
 });
 
 test("computeRecommendedPlayIndex returns null without legal plays", () => {
