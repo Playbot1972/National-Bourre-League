@@ -147,6 +147,13 @@ export interface TableSessionData {
     declinedIds?: string[];
     plannedDiscards?: Record<string, number>;
   } | null;
+  handDecision?: {
+    active?: boolean;
+    orderedPlayerIds?: string[];
+    currentIndex?: number;
+    turnDeadlineMs?: number;
+    plannedDiscards?: Record<string, number>;
+  } | null;
 }
 
 export interface TableSessionActions {

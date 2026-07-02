@@ -79,9 +79,14 @@ export type TrickPresentationPhase =
   | "collectTrick"
   | "nextLeadReady";
 
-/** Phases where the turn countdown ring is hidden (winner pulse + card sweep only). */
+/** Phases where the turn countdown ring is hidden until the trick pipeline drains. */
 export function suppressesTurnIndicator(phase: TrickPresentationPhase): boolean {
-  return phase === "winnerReveal" || phase === "collectTrick";
+  return (
+    phase === "trickComplete" ||
+    phase === "winnerReveal" ||
+    phase === "collectTrick" ||
+    phase === "nextLeadReady"
+  );
 }
 
 export interface FrozenTrick {

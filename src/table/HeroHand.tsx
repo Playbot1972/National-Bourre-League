@@ -239,7 +239,7 @@ export const HeroHand = memo(function HeroHand({
     (index: number, armedContext: PreselectPlayContext | null) => {
       if (armedContext == null) return false;
       if (!isPreselectContextValid(armedContext, buildPreselectContext())) return false;
-      if (phase !== "play" || !currentUserId || turnPlayerId !== currentUserId) return false;
+      if (phase !== "play" || !isMyTurn) return false;
       if (!isLegalPlayIndex(index, legalPlayIndices)) return false;
       if (playLockRef.current || busy) return false;
       return true;
@@ -247,8 +247,7 @@ export const HeroHand = memo(function HeroHand({
     [
       buildPreselectContext,
       phase,
-      currentUserId,
-      turnPlayerId,
+      isMyTurn,
       legalPlayIndices,
       busy,
     ],
@@ -728,7 +727,8 @@ export const HeroHand = memo(function HeroHand({
       illegalFlashIndex,
       busy,
       showPlayableHint: false,
-      allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
+      allowPlayPreselect:
+        inPlayPhase && isInHand && !isMyTurn && !busy && playingIndex === null,
       trickPlayOriginPlayerId: currentUserId,
       onPlayCard: handleHandPlayCard,
       onSelectCard: toggleDrawIndex,
