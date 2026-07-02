@@ -4,7 +4,7 @@
  */
 
 import type { SessionHandView } from "./liveHand";
-import { getSessionEnrollment, isClearedPreDealHand, authoritativeCurrentHand } from "./liveHand";
+import { getSessionEnrollment, isClearedPreDealHand, isHandAwaitingSettlement, authoritativeCurrentHand } from "./liveHand";
 import { isHandComplete } from "../table/logic";
 
 export type TableStartupKind =
@@ -107,6 +107,19 @@ export function shouldClearOrphanLiveEnrollment(sessionData: SessionHandView | n
   }
   if (livePhase === "draw" || livePhase === "play") return false;
   return isClearedPreDealHand(sessionData?.currentHand);
+}
+
+/** True when recoverHandoffBetweenHands can do useful work (not mid-hand enrollment/draw/play). */
+export function sessionNeedsHandoffRecovery(
+  sessionData: SessionHandView | null | undefined,
+): boolean {
+  if (!sessionData || sessionData.status === "final") return false;
+  if (sessionData.pendingCoWinSettlement) return false;
+  if (isHandAwaitingSettlement(sessionData)) return true;
+  return (
+    isClearedPreDealHand(sessionData.currentHand) &&
+    shouldClearOrphanLiveEnrollment(sessionData)
+  );
 }
 
 export function analyzeTableStartup(

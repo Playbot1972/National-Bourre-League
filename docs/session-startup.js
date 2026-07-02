@@ -806,7 +806,10 @@ function $(e) {
 	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
 	return (t === "draw" || t === "play") && !n ? u(e.currentHand) : t === "draw" || t === "play" ? !1 : u(e?.currentHand);
 }
-function ge(e, t) {
+function ge(e) {
+	return !e || e.status === "final" || e.pendingCoWinSettlement ? !1 : h(e) ? !0 : u(e.currentHand) && $(e);
+}
+function _e(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -855,10 +858,10 @@ function ge(e, t) {
 		recovery: "refresh"
 	};
 }
-function _e(e) {
+function ve(e) {
 	return e.needsEnrollment;
 }
-function ve(e, t) {
+function ye(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -873,4 +876,4 @@ function ve(e, t) {
 	}
 }
 //#endregion
-export { C as HAND_FLOW_PHASE, w as HAND_FLOW_TRANSITIONS, fe as HAND_TRANSITION, H as HandInvariantError, ge as analyzeTableStartup, le as assertBotAdvanceNotInFlight, K as assertConsistentHandFlowPhase, ce as assertHandActionAllowed, se as assertHandFlowConsistent, J as assertHandFlowTransition, ue as assertSessionChipConserved, X as assertSettlementEntryAllowed, q as assertSingleTurnOwner, _ as authoritativeCurrentHand, M as buildHandFlowSnapshot, j as canActForPlayer, re as canAdvanceBots, te as canPlayerShowHandChoice, F as canSubmitHandAction, W as checkInvariant, de as createTransitionLock, N as deriveHandFlowPhase, k as enrollmentDeadlineMs, U as failInvariant, Y as flowEventForAction, oe as forceInvariantsForTests, m as handPhaseStarted, u as isClearedPreDealHand, h as isHandAwaitingSettlement, D as isHandFlowTransitionAllowed, B as isInvariantsStrict, b as isLegacyEnrollmentActive, x as isPagatDecisionActive, A as isRobotPlayerId, Q as isStaleLiveDealSnapshot, he as logHandTransition, V as logInvariantViolation, Z as logServerHandTransition, O as nextHandFlowPhase, I as resolveBotAdvanceHint, S as resolveCurrentHandChoicePlayerId, P as resolveHandFlowTurnPlayerId, ee as resolveTableEnrollmentActive, g as sessionHandDealStarted, ie as shouldAutoOpenNextHand, $ as shouldClearOrphanLiveEnrollment, L as shouldOpenEnrollmentAfterSettle, _e as tableStartupNeedsEnrollment, ve as tableStartupUserMessage };
+export { C as HAND_FLOW_PHASE, w as HAND_FLOW_TRANSITIONS, fe as HAND_TRANSITION, H as HandInvariantError, _e as analyzeTableStartup, le as assertBotAdvanceNotInFlight, K as assertConsistentHandFlowPhase, ce as assertHandActionAllowed, se as assertHandFlowConsistent, J as assertHandFlowTransition, ue as assertSessionChipConserved, X as assertSettlementEntryAllowed, q as assertSingleTurnOwner, _ as authoritativeCurrentHand, M as buildHandFlowSnapshot, j as canActForPlayer, re as canAdvanceBots, te as canPlayerShowHandChoice, F as canSubmitHandAction, W as checkInvariant, de as createTransitionLock, N as deriveHandFlowPhase, k as enrollmentDeadlineMs, U as failInvariant, Y as flowEventForAction, oe as forceInvariantsForTests, m as handPhaseStarted, u as isClearedPreDealHand, h as isHandAwaitingSettlement, D as isHandFlowTransitionAllowed, B as isInvariantsStrict, b as isLegacyEnrollmentActive, x as isPagatDecisionActive, A as isRobotPlayerId, Q as isStaleLiveDealSnapshot, he as logHandTransition, V as logInvariantViolation, Z as logServerHandTransition, O as nextHandFlowPhase, I as resolveBotAdvanceHint, S as resolveCurrentHandChoicePlayerId, P as resolveHandFlowTurnPlayerId, ee as resolveTableEnrollmentActive, g as sessionHandDealStarted, ge as sessionNeedsHandoffRecovery, ie as shouldAutoOpenNextHand, $ as shouldClearOrphanLiveEnrollment, L as shouldOpenEnrollmentAfterSettle, ve as tableStartupNeedsEnrollment, ye as tableStartupUserMessage };

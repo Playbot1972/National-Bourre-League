@@ -84,14 +84,17 @@ describe("transition guards", () => {
     );
     const idx = appSrc.indexOf("function maybeRecoverHandLifecycle");
     assert.ok(idx >= 0);
-    const body = appSrc.slice(idx, idx + 1200);
+    const body = appSrc.slice(idx, idx + 1400);
     assert.ok(body.includes("nextHandOpenInFlight || appRoundAdvanceLock.isLocked()"));
     assert.ok(body.includes("next_hand_inflight_or_round_advance_locked"));
+    assert.ok(body.includes("sessionNeedsHandoffRecovery(sessionObj)"));
     assert.ok(body.includes("recoverHandoffBetweenHands"));
     const guardIdx = body.indexOf("next_hand_inflight_or_round_advance_locked");
+    const needsIdx = body.indexOf("sessionNeedsHandoffRecovery(sessionObj)");
     const recoverIdx = body.indexOf("recoverHandoffBetweenHands");
-    assert.ok(guardIdx >= 0 && recoverIdx >= 0);
+    assert.ok(guardIdx >= 0 && needsIdx >= 0 && recoverIdx >= 0);
     assert.ok(guardIdx < recoverIdx);
+    assert.ok(needsIdx < recoverIdx);
   });
 
   it("processRobotActions requests server advance before client robot draw", () => {
