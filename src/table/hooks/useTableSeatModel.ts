@@ -10,6 +10,7 @@ import {
 } from "../trickPresentationSelectors";
 import {
   CARD_LAND_MS,
+  FINAL_TRICK_EXTRA_READ_MS,
   NEXT_LEAD_GAP_MS,
   POST_TRICK_READ_MS,
   TRICK_CARD_SETTLE_MS,
@@ -217,7 +218,7 @@ export function useTableSeatModel({
         ["--trick-rake-ms" as string]: `${TRICK_RAKE_MS}ms`,
         ["--trick-post-read-ms" as string]: `${POST_TRICK_READ_MS}ms`,
         ["--trick-next-lead-gap-ms" as string]: `${NEXT_LEAD_GAP_MS}ms`,
-        ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,
+        ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + FINAL_TRICK_EXTRA_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,
         ["--deal-card-stagger-ms" as string]: `${handTiming.dealCardStaggerMs}ms`,
         ["--draw-discard-ms" as string]: `${handTiming.drawDiscardMs}ms`,
         ["--draw-replace-ms" as string]: `${handTiming.drawReplaceMs}ms`,

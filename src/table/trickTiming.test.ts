@@ -10,6 +10,7 @@ import {
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
   trickResolutionScheduleMs,
+  trickRevealCatchUpMs,
   trickWinnerDelta,
   trumpBeatLedSuit,
   WINNER_REVEAL_MS,
@@ -152,6 +153,18 @@ describe("trickTiming", () => {
     assert.equal(schedule.readTotalMs, 1850);
     assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
     assert.equal(schedule.readBeforeWinnerMs, 1850 - WINNER_REVEAL_MS);
+  });
+
+  it("adds extra read beat on the final trick", () => {
+    const normal = trickResolutionScheduleMs({});
+    const finalTrick = trickResolutionScheduleMs({ finalTrick: true });
+    assert.equal(finalTrick.readTotalMs, normal.readTotalMs + 900);
+    assert.ok(finalTrick.pipelineMs > normal.pipelineMs);
+  });
+
+  it("reveal catch-up scales with remaining cards", () => {
+    assert.equal(trickRevealCatchUpMs(4, 4), 0);
+    assert.ok(trickRevealCatchUpMs(0, 4) > CARD_LAND_MS);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {

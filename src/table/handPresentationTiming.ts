@@ -48,7 +48,7 @@ export const PRESENTATION_WATCHDOG_MS = 12_000;
 export const BOT_DRAW_PRESENTATION_WATCHDOG_MS = 4_000;
 
 /** After the server clears the hand, force settlement if trick presentation is still busy. */
-export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = 4_000;
+export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = 9_500;
 
 export type HandPresentationPhase =
   | "idle"

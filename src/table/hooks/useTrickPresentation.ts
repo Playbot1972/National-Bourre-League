@@ -171,8 +171,10 @@ export function useTrickPresentation({
     clearTimers();
 
     const frozen = store.frozenTrick;
+    const isFinalTrick = frozen.trickNumber === 5;
     const scheduleMs = trickResolutionScheduleMs({
       trumpBeat: trumpBeatLedSuit(frozen.plays, frozen.leadSuit, trumpSuit),
+      finalTrick: isFinalTrick,
       reducedMotion: prefersReducedMotion(),
     });
 
@@ -217,9 +219,6 @@ export function useTrickPresentation({
     if (!pipelineActive || !handEndedForDrain) return;
     if (sessionPlayActive && !handComplete) return;
 
-    const reduced = prefersReducedMotion();
-    const stepMs = reduced ? 60 : 160;
-    const landMs = reduced ? 80 : Math.min(CARD_LAND_MS, 220);
     const drainTimers: number[] = [];
     const scheduleDrain = (fn: () => void, ms: number) => {
       drainTimers.push(window.setTimeout(fn, ms));
@@ -229,23 +228,13 @@ export function useTrickPresentation({
       logGameFlow("useTrickPresentation", "hand-end-drain-armed", {
         phase: store.phase,
         pendingResolution: Boolean(store.pendingResolution),
+        trickNumber:
+          store.frozenTrick?.trickNumber ?? store.pendingResolution?.frozen.trickNumber,
       });
     }
 
-    if (store.phase === "live" && store.pendingResolution) {
-      scheduleDrain(() => dispatch({ type: "commitTrickResolution" }), landMs);
-    }
-
-    let delay = (store.phase === "live" && store.pendingResolution ? landMs : 0) + stepMs;
-    for (let i = 0; i < 6; i++) {
-      scheduleDrain(() => {
-        const current = storeRef.current;
-        if (current.phase === "live" && !current.pendingResolution) return;
-        dispatch({ type: "advancePhase" });
-      }, delay);
-      delay += stepMs;
-    }
-
+    // Let the normal trick pipeline timers run at full pace — only force-clear as a
+    // last resort so trick 5 and settlement are not compressed when bots finish fast.
     scheduleDrain(() => {
       const current = storeRef.current;
       if (current.phase === "live" && !current.pendingResolution) return;
@@ -266,6 +255,7 @@ export function useTrickPresentation({
     pipelineActive,
     store.phase,
     store.pendingResolution,
+    store.frozenTrick,
     handComplete,
     phase,
     participantIds.length,
