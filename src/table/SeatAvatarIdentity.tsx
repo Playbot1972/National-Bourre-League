@@ -89,7 +89,9 @@ function SeatAvatarIdentityInner({
           {bourrePulse && !bourrePressure && (
             <span className="bseat__bourre-ring" aria-hidden="true" />
           )}
-          {countdownPlayerId && <ConnectedTurnCountdownRing playerId={countdownPlayerId} />}
+          {countdownPlayerId ? (
+            <ConnectedTurnCountdownRing playerId={countdownPlayerId} />
+          ) : null}
         </div>
       </div>
       <span className="bseat__avatar-label" title={seatDisplayName}>

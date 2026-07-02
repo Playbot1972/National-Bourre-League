@@ -82,7 +82,7 @@ function TableSeatSlotInner({
         onPassEnrollment={passEnrollment}
         onTrickDelta={handleTrickDelta}
         onReaction={reaction}
-        countdownPlayerId={seatPlayer.isActiveActor ? seatPlayer.playerId : null}
+        countdownPlayerId={seatPlayer.playerId}
       />
     </div>
   );
