@@ -13845,8 +13845,8 @@ function rd({ activityKey: e, startedAtMs: t, reducedMotion: n = Hl() }) {
 			let t = window.setInterval(() => e(Date.now()), 250);
 			return () => window.clearInterval(t);
 		}
-		let t = (n) => {
-			e(n), s.current = window.requestAnimationFrame(t);
+		let t = () => {
+			e(Date.now()), s.current = window.requestAnimationFrame(t);
 		};
 		return s.current = window.requestAnimationFrame(t), () => {
 			s.current != null && (window.cancelAnimationFrame(s.current), s.current = null);
