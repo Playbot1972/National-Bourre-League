@@ -139,6 +139,7 @@ export const HeroHand = memo(function HeroHand({
   const playLockRef = useRef(false);
   const preselectTimerRef = useRef<number | null>(null);
   const pendingPlayIndexRef = useRef<number | null>(null);
+  const queuedOffTurnRef = useRef(false);
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
@@ -210,7 +211,49 @@ export const HeroHand = memo(function HeroHand({
       preselectTimerRef.current = null;
     }
     pendingPlayIndexRef.current = null;
+    queuedOffTurnRef.current = false;
   }, []);
+
+  const snapshotPreselectOrigin = useCallback(
+    (index: number) => {
+      if (!currentUserId) return;
+      const card = typedCards[index];
+      if (!card) return;
+      snapshotHeroHandCardOrigin(
+        currentUserId,
+        playFlyKey({
+          playerId: currentUserId,
+          card: { rank: String(card.rank), suit: String(card.suit) },
+        }),
+        index,
+      );
+    },
+    [currentUserId, typedCards],
+  );
+
+  const armPreselectPlayTimer = useCallback(
+    (index: number, queuedOffTurn: boolean) => {
+      clearPreselectTimer();
+      pendingPlayIndexRef.current = index;
+      queuedOffTurnRef.current = queuedOffTurn;
+      const delay = queuedOffTurn ? MICRO_MS.turnHandoff : MICRO_MS.autoPlayPreselect;
+      logPlayClick(queuedOffTurn ? "preselectEffect:armTurnHandoff" : "preselectEffect:armTimer", {
+        index,
+        delay,
+      });
+      preselectTimerRef.current = window.setTimeout(() => {
+        preselectTimerRef.current = null;
+        const pending = pendingPlayIndexRef.current;
+        pendingPlayIndexRef.current = null;
+        queuedOffTurnRef.current = false;
+        logPlayClick("preselectEffect:timerFire", { pending, index });
+        if (pending === index && !playLockRef.current) {
+          void executePlayRef.current(pending);
+        }
+      }, delay);
+    },
+    [clearPreselectTimer],
+  );
 
   useEffect(() => {
     return () => clearPreselectTimer();
@@ -268,18 +311,17 @@ export const HeroHand = memo(function HeroHand({
       return;
     }
     if (preselectTimerRef.current != null) return;
-    pendingPlayIndexRef.current = selectedPlay;
-    logPlayClick("preselectEffect:armTimer", { selectedPlay });
-    preselectTimerRef.current = window.setTimeout(() => {
-      preselectTimerRef.current = null;
-      const pending = pendingPlayIndexRef.current;
-      pendingPlayIndexRef.current = null;
-      logPlayClick("preselectEffect:timerFire", { pending, selectedPlay });
-      if (pending !== null && !playLockRef.current) {
-        void executePlayRef.current(pending);
-      }
-    }, MICRO_MS.autoPlayPreselect);
-  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy]);
+    snapshotPreselectOrigin(selectedPlay);
+    armPreselectPlayTimer(selectedPlay, queuedOffTurnRef.current);
+  }, [
+    inPlayPhase,
+    isMyTurn,
+    selectedPlay,
+    legalPlayIndices,
+    busy,
+    armPreselectPlayTimer,
+    snapshotPreselectOrigin,
+  ]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -431,19 +473,13 @@ export const HeroHand = memo(function HeroHand({
       }
       pendingPlayIndexRef.current = nextSelection;
       if (!isMyTurn) {
+        queuedOffTurnRef.current = true;
+        snapshotPreselectOrigin(nextSelection);
         logPlayClick("preselectCard:queued", { index: nextSelection });
         return;
       }
-      logPlayClick("preselectCard:armTimer", { index: nextSelection });
-      preselectTimerRef.current = window.setTimeout(() => {
-        preselectTimerRef.current = null;
-        const pending = pendingPlayIndexRef.current;
-        pendingPlayIndexRef.current = null;
-        logPlayClick("preselectCard:timerFire", { pending, nextSelection });
-        if (pending === nextSelection && !playLockRef.current) {
-          void executePlayRef.current(nextSelection);
-        }
-      }, MICRO_MS.autoPlayPreselect);
+      snapshotPreselectOrigin(nextSelection);
+      armPreselectPlayTimer(nextSelection, false);
     },
     [
       busy,
@@ -454,6 +490,8 @@ export const HeroHand = memo(function HeroHand({
       phase,
       notifyUserActivity,
       selectedPlay,
+      armPreselectPlayTimer,
+      snapshotPreselectOrigin,
     ],
   );
 

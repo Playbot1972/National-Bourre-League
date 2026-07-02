@@ -40,8 +40,11 @@ export const TRICK_RAKE_MS = 240;
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 230;
 
+/** Extra read beat after trick 5 before hand settle (end-of-hand clarity). */
+export const FINAL_TRICK_EXTRA_READ_MS = 900;
+
 /** Max wait to drain trick presentation after the server clears the hand. */
-export const TRICK_HAND_END_DRAIN_MS = 4_000;
+export const TRICK_HAND_END_DRAIN_MS = 9_500;
 
 /** @deprecated Use POST_TRICK_READ_MS — kept for gradual migration. */
 export const POST_TRICK_HOLD_MS = POST_TRICK_READ_MS;
@@ -127,6 +130,7 @@ export function postTrickHoldMs(options: {
 
 export function trickResolutionScheduleMs(options: {
   trumpBeat?: boolean;
+  finalTrick?: boolean;
   reducedMotion?: boolean;
 }): {
   readBeforeWinnerMs: number;
@@ -137,7 +141,11 @@ export function trickResolutionScheduleMs(options: {
   pipelineMs: number;
 } {
   const timing = trickTimingScale(options.reducedMotion);
-  const readTotalMs = options.trumpBeat ? timing.trumpBeatReadMs : timing.postTrickReadMs;
+  const finalExtraMs = options.finalTrick
+    ? Math.round(FINAL_TRICK_EXTRA_READ_MS * (options.reducedMotion ? 0.55 : 1))
+    : 0;
+  const readTotalMs =
+    (options.trumpBeat ? timing.trumpBeatReadMs : timing.postTrickReadMs) + finalExtraMs;
   const winnerRevealMs = Math.min(timing.winnerRevealMs, readTotalMs - 200);
   const readBeforeWinnerMs = Math.max(200, readTotalMs - winnerRevealMs);
   const sweepMs = timing.trickSweepMs;
@@ -150,6 +158,21 @@ export function trickResolutionScheduleMs(options: {
     nextLeadGapMs,
     pipelineMs: readTotalMs + sweepMs + nextLeadGapMs,
   };
+}
+
+/** Time to reveal remaining trick cards before resolution can commit. */
+export function trickRevealCatchUpMs(
+  revealedCount: number,
+  targetCount: number,
+  reducedMotion = prefersReducedMotion(),
+): number {
+  const remaining = Math.max(0, targetCount - revealedCount);
+  if (remaining === 0) return 0;
+  const stagger = reducedMotion
+    ? Math.round(CARD_REVEAL_STAGGER_MS * 0.55)
+    : CARD_REVEAL_STAGGER_MS;
+  const landMs = reducedMotion ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
+  return remaining * stagger + landMs;
 }
 
 export function trickWinnerDelta(
