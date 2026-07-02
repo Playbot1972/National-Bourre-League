@@ -51,7 +51,7 @@ import {
 } from "./heroHandDisplay";
 import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
-import { computeVisualSuppressTurn } from "./visualTurnGate";
+import { computeVisualSuppressTurn, computeRingSuppressTurn } from "./visualTurnGate";
 import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
 
@@ -326,6 +326,10 @@ export function TableSessionView({
     revealedCount: trickBridge.revealedCount,
     revealTarget: trickBridge.revealTarget,
   });
+  const ringSuppressTurn = computeRingSuppressTurn({
+    trickSuppressTurn: trickBridge.suppressTurnPlayerId,
+    trickPipelineActive: trickBridge.isPipelineActive,
+  });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
     suppressTurn
@@ -411,7 +415,7 @@ export function TableSessionView({
         handNumber: session.handNumber,
         pendingCoWinSettlement: session.pendingCoWinSettlement,
       },
-      suppressTurn: Boolean(suppressTurn),
+      suppressTurn: Boolean(ringSuppressTurn),
       handComplete,
     }),
     [
@@ -424,7 +428,7 @@ export function TableSessionView({
       session.tricksByPlayer,
       session.handNumber,
       session.pendingCoWinSettlement,
-      suppressTurn,
+      ringSuppressTurn,
       handComplete,
     ],
   );

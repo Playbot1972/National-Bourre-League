@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { computeVisualSuppressTurn, isTrickPlayRevealCatchUp } from "./visualTurnGate";
+import { computeVisualSuppressTurn, computeRingSuppressTurn, isTrickPlayRevealCatchUp } from "./visualTurnGate";
 
 describe("visualTurnGate", () => {
   it("suppresses during trick pipeline but not live reveal catch-up", () => {
@@ -36,6 +36,27 @@ describe("visualTurnGate", () => {
         trickPhase: "live",
         revealedCount: 3,
         revealTarget: 3,
+      }),
+      false,
+    );
+  });
+
+  it("suppresses seat cues during hand presentation but not the ring", () => {
+    assert.equal(
+      computeVisualSuppressTurn({
+        trickSuppressTurn: false,
+        handSuppressTurn: true,
+        trickPipelineActive: false,
+        trickPhase: "live",
+        revealedCount: 0,
+        revealTarget: 0,
+      }),
+      true,
+    );
+    assert.equal(
+      computeRingSuppressTurn({
+        trickSuppressTurn: false,
+        trickPipelineActive: false,
       }),
       false,
     );

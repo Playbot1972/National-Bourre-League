@@ -95,7 +95,7 @@ function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
 
 /**
  * Whether hand presentation should block bot draw/play.
- * During server draw phase, peer draw animations are visual-only.
+ * Deal/trump/draw animations are visual-only once the server hand is live.
  */
 export function handPresentingBlocksBots(
   isPresenting: boolean,
@@ -104,11 +104,26 @@ export function handPresentingBlocksBots(
 ): boolean {
   if (!isPresenting) return false;
   if (sessionPhase === "play") return false;
-  if (sessionPhase === "draw") {
-    if (handPresentationPhase === "drawPlayer" || handPresentationPhase === "drawReady") {
-      return false;
-    }
+
+  const cosmeticPhases = new Set([
+    "ante",
+    "trumpReveal",
+    "trumpMerge",
+    "drawPlayer",
+    "drawReady",
+    "enrollment",
+    "decision",
+  ]);
+
+  if (
+    (sessionPhase === "draw" ||
+      sessionPhase === "reveal" ||
+      sessionPhase === "decision") &&
+    cosmeticPhases.has(handPresentationPhase)
+  ) {
+    return false;
   }
+
   return true;
 }
 

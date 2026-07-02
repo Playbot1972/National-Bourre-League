@@ -941,9 +941,7 @@ export function buildHandPresentationModel(
     settleCarryOver: store.settleCarryOver,
     nextHandResetActive: store.nextHandResetActive,
     pendingHandSettle: store.pendingHandSettle,
-    suppressTurnIndicator:
-      suppressesHandTurnIndicator(store.phase) ||
-      (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done"),
+    suppressTurnIndicator: suppressesHandTurnIndicator(store.phase),
     displayPotAmount: store.displayPotAmount,
     isPresenting: isHandPresentingPhase(store.phase),
   };
