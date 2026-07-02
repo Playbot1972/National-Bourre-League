@@ -18,6 +18,33 @@ export function isLegalPlayIndex(index: number, legalPlayIndices?: number[]): bo
   return legalPlayIndices.includes(index);
 }
 
+/** Snapshot of table context when a queued preselect is armed. */
+export interface PreselectPlayContext {
+  phase: string | null | undefined;
+  handNumber: number;
+  trickNumber: number | null;
+  turnPlayerId: string | null | undefined;
+  playerId: string | null | undefined;
+}
+
+export function preselectContextKey(ctx: PreselectPlayContext): string {
+  return [
+    ctx.phase ?? "",
+    ctx.handNumber,
+    ctx.trickNumber ?? "",
+    ctx.turnPlayerId ?? "",
+    ctx.playerId ?? "",
+  ].join("|");
+}
+
+/** True when the armed preselect still matches live turn/trick/hand context. */
+export function isPreselectContextValid(
+  armed: PreselectPlayContext,
+  current: PreselectPlayContext,
+): boolean {
+  return preselectContextKey(armed) === preselectContextKey(current);
+}
+
 /** Table/session snapshot — compatible with Firestore string card fields. */
 export type RecommendationPublicHand = {
   trumpSuit: Suit;

@@ -89,7 +89,14 @@ function sessionViewFromTable(input: TurnCountdownInput): HandFlowSessionView {
  * Mirrors `resolveHandFlowTurnPlayerId` / seat `isActiveActor`.
  */
 export function resolveTableActiveActorId(input: TurnCountdownInput): string | null {
-  if (input.handComplete || input.suppressTurn) return null;
+  if (input.suppressTurn) return null;
+
+  // Server may still be in play while tricks mark the hand complete (trick-5 tail).
+  if (input.session.phase === "play") {
+    return input.session.turnPlayerId ?? null;
+  }
+
+  if (input.handComplete) return null;
 
   const snapshot = buildHandFlowSnapshot({
     session: sessionViewFromTable(input),

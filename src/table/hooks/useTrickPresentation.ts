@@ -6,6 +6,7 @@ import {
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
   TRICK_HAND_END_DRAIN_MS,
+  TRICK_PIPELINE_STUCK_MS,
   type TrickPresentationPhase,
 } from "../trickTiming";
 import {
@@ -82,6 +83,7 @@ export function useTrickPresentation({
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
     timersRef.current = [];
+    resolutionKeyRef.current = null;
   };
 
   const schedule = (fn: () => void, ms: number) => {
@@ -212,6 +214,56 @@ export function useTrickPresentation({
   useEffect(() => {
     if (store.phase === "live") resolutionKeyRef.current = null;
   }, [store.phase]);
+
+  useEffect(() => {
+    if (!sessionPlayActive && !pipelineActive) return;
+    if (store.phase === "live") return;
+
+    const stuckMs = TRICK_PIPELINE_STUCK_MS;
+    const id = window.setTimeout(() => {
+      const current = storeRef.current;
+      if (current.phase === "live") return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "pipeline-stuck-force-advance", {
+          phase: current.phase,
+          pendingResolution: Boolean(current.pendingResolution),
+        });
+      }
+      dispatch({ type: "advancePhase" });
+    }, stuckMs);
+
+    return () => window.clearTimeout(id);
+  }, [sessionPlayActive, pipelineActive, store.phase, store.pendingResolution]);
+
+  useEffect(() => {
+    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live" || !store.pendingResolution) {
+      return;
+    }
+
+    const playCount = store.pendingResolution.frozen.plays.length;
+    if (store.revealedCount >= playCount) return;
+
+    const id = window.setTimeout(() => {
+      const current = storeRef.current;
+      if (current.phase !== "live" || !current.pendingResolution) return;
+      if (current.revealedCount >= current.pendingResolution.frozen.plays.length) return;
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "pending-resolution-reveal-catchup", {
+          revealedCount: current.revealedCount,
+          target: current.pendingResolution.frozen.plays.length,
+        });
+      }
+      dispatch({ type: "revealNextCard" });
+    }, TRICK_PIPELINE_STUCK_MS);
+
+    return () => window.clearTimeout(id);
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.pendingResolution,
+    store.revealedCount,
+  ]);
 
   useEffect(() => {
     const handEndedForDrain =
