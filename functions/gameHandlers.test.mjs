@@ -6,6 +6,8 @@ import {
   canActForPlayer,
   buildHandEnrollment,
   deriveWinnersFromTricks,
+  engineErrorToHttps,
+  isBotAdvanceRaceError,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -96,5 +98,19 @@ describe("deriveWinnersFromTricks", () => {
     const result = deriveWinnersFromTricks({ a: 2, b: 2, c: 1 }, ["a", "b", "c"]);
     assert.equal(result.ready, true);
     assert.deepEqual(result.winnerIds.sort(), ["a", "b"]);
+  });
+});
+
+describe("bot advance race / engine errors", () => {
+  it("isBotAdvanceRaceError recognizes engine turn races", () => {
+    assert.equal(isBotAdvanceRaceError(new Error("Not your turn")), true);
+    assert.equal(isBotAdvanceRaceError(new Error("Not in trick-play phase")), true);
+    assert.equal(isBotAdvanceRaceError(new Error("unexpected boom")), false);
+  });
+
+  it("engineErrorToHttps maps race errors to failed-precondition", () => {
+    const err = engineErrorToHttps(new Error("Not your turn"));
+    assert.equal(err.code, "failed-precondition");
+    assert.match(err.message, /not your turn/i);
   });
 });
