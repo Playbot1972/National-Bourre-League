@@ -117,7 +117,7 @@ describe("trickAnimationBridge", () => {
     assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
   });
 
-  it("soft-unblocks bots after presentation wait threshold", () => {
+  it("soft-unblocks bots after presentation wait threshold for hand deal only", () => {
     resetTrickAnimationBusyState();
     setTrickAnimationBusyState({
       ...idleTrickFields,
@@ -131,6 +131,26 @@ describe("trickAnimationBridge", () => {
     assert.equal(soft.blocked, false);
     assert.equal(soft.softUnblock, true);
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS), false);
+  });
+
+  it("does not soft-unblock play reveal catch-up — bots wait for serialized cards", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      peakPlayCount: 2,
+      displayedPlayCount: 1,
+    });
+    const start = 3_000_000;
+    assert.equal(evaluateBotPresentationGate(start).blocked, true);
+    assert.equal(
+      evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS).blocked,
+      true,
+    );
+    assert.equal(
+      isTablePresentationBusyForBots(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS),
+      true,
+    );
   });
 
   it("force-releases presentation after hard timeout", () => {

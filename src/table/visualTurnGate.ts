@@ -16,12 +16,16 @@ export function isTrickPlayRevealCatchUp(
   return input.trickPhase === "live" && input.revealedCount < input.revealTarget;
 }
 
-/** Single gate for seat emphasis, ring, hero isMyTurn, and micro turn handoff. */
+/**
+ * Single gate for seat emphasis, ring, hero isMyTurn, and micro turn handoff.
+ * Reveal catch-up is excluded — server turn may advance before staggered cards land,
+ * but hiding the ring for the whole catch-up window made bot timers invisible.
+ * Trick resolution still suppresses via trickSuppressTurn + trickPipelineActive.
+ */
 export function computeVisualSuppressTurn(input: VisualTurnGateInput): boolean {
   return (
     input.trickSuppressTurn ||
     input.handSuppressTurn ||
-    input.trickPipelineActive ||
-    isTrickPlayRevealCatchUp(input)
+    input.trickPipelineActive
   );
 }

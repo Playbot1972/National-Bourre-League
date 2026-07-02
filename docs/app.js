@@ -998,8 +998,10 @@ let robotPresentationUnsub = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
 const TRICK_PIPELINE_MS = 1850 + 1080 + 230;
-const BOT_PLAY_STAGGER_MS = 380;
-const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
+const CARD_LAND_MS = 395 + 165;
+/** Match CARD_REVEAL_STAGGER_MS — bots must not outrun staggered card reveals. */
+const BOT_PLAY_STAGGER_MS = CARD_LAND_MS + 110;
+const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + CARD_LAND_MS;
 /** After settlement, force-open the next join window if auto-open stalls. */
 const HAND_LIFECYCLE_WATCHDOG_MS = 12_000;
 /** Brief pause so "Hand complete…" is readable before the next I'm-in window. */
@@ -2934,10 +2936,17 @@ function isRawTablePresentationBusy() {
 }
 
 /**
- * Draw/play robot gate with per-turn deadline.
- * Works with legacy table-session.js (no evaluateBotPresentationGate export).
+ * Draw/play robot gate — prefers table-session evaluateBotPresentationGate when mounted.
  */
 function shouldBlockRobotForPresentation(s, scores) {
+  try {
+    if (typeof tableMountApi?.evaluateBotPresentationGate === "function") {
+      return tableMountApi.evaluateBotPresentationGate().blocked === true;
+    }
+  } catch {
+    /* fall through to legacy gate */
+  }
+
   const busy = isRawTablePresentationBusy();
   if (!busy) {
     robotPresentationBlockEpisode = null;
@@ -2963,6 +2972,9 @@ function shouldBlockRobotForPresentation(s, scores) {
   const blockedMs = now - ep.since;
   const ctx = snapshotGameFlowContext(s, scores);
   const gate = snapshotTablePresentationGate();
+  const blockReason = gate?.blockReason ?? null;
+  const handOnlySoftUnblock =
+    blockReason === "handPresenting" || blockReason === "dealPresentationActive";
 
   if (blockedMs >= ROBOT_PRESENTATION_FORCE_MS) {
     if (!ep.forceLogged) {
@@ -2987,7 +2999,7 @@ function shouldBlockRobotForPresentation(s, scores) {
     return false;
   }
 
-  if (blockedMs >= ROBOT_PRESENTATION_SOFT_MS) {
+  if (blockedMs >= ROBOT_PRESENTATION_SOFT_MS && handOnlySoftUnblock) {
     if (!ep.softLogged && isGameFlowDebugEnabled()) {
       ep.softLogged = true;
       logGameFlow("processRobotActions", "robot-block-soft-timeout", {
