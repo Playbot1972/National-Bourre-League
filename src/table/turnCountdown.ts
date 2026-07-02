@@ -45,10 +45,22 @@ const ACTIONABLE_FLOW_PHASES = new Set<string>([
   HAND_FLOW_PHASE.PLAY,
 ]);
 
-/** Color segment from remaining milliseconds. */
+/** Color segment from remaining milliseconds (human 15s timer). */
 export function turnCountdownSegment(remainingMs: number): TurnCountdownSegment {
   if (remainingMs > TURN_COUNTDOWN_GREEN_UNTIL_MS) return "green";
   if (remainingMs > TURN_COUNTDOWN_YELLOW_UNTIL_MS) return "yellow";
+  return "red";
+}
+
+/** Proportional green/yellow/red for short bot think windows. */
+export function turnCountdownSegmentScaled(
+  remainingMs: number,
+  durationMs: number,
+): TurnCountdownSegment {
+  if (durationMs <= 0) return "red";
+  const ratio = remainingMs / durationMs;
+  if (ratio > 2 / 3) return "green";
+  if (ratio > 1 / 3) return "yellow";
   return "red";
 }
 
@@ -113,8 +125,21 @@ export function buildTurnCountdownState(
   playerId: string,
   startedAtMs: number,
   nowMs: number,
+  durationMs: number = TURN_COUNTDOWN_MS,
 ): TurnCountdownState | null {
   const elapsed = Math.max(0, nowMs - startedAtMs);
+
+  if (durationMs < TURN_COUNTDOWN_MS) {
+    const remainingMs = Math.max(0, durationMs - elapsed);
+    if (remainingMs <= 0) return null;
+    return {
+      playerId,
+      remainingMs,
+      progress: remainingMs / durationMs,
+      segment: turnCountdownSegmentScaled(remainingMs, durationMs),
+    };
+  }
+
   const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
   const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
 

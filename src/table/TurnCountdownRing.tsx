@@ -11,12 +11,14 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 export interface TurnCountdownRingProps {
   activityKey: string;
   startedAtMs: number;
+  durationMs: number;
   reducedMotion?: boolean;
 }
 
 function TurnCountdownRingInner({
   activityKey,
   startedAtMs,
+  durationMs,
   reducedMotion = prefersReducedMotion(),
 }: TurnCountdownRingProps) {
   const [progress, setProgress] = useState(1);
@@ -27,8 +29,11 @@ function TurnCountdownRingInner({
 
   useEffect(() => {
     const tick = (nowMs: number) => {
-      const state = buildTurnCountdownState("local", startedAtRef.current, nowMs);
-      if (!state) return;
+      const state = buildTurnCountdownState("local", startedAtRef.current, nowMs, durationMs);
+      if (!state) {
+        setProgress(0);
+        return;
+      }
       setProgress(state.progress);
       setSegment(state.segment);
     };
@@ -51,7 +56,7 @@ function TurnCountdownRingInner({
         rafRef.current = null;
       }
     };
-  }, [activityKey, reducedMotion]);
+  }, [activityKey, durationMs, reducedMotion]);
 
   const clamped = Math.max(0, Math.min(1, progress));
   const dashOffset = RING_CIRCUMFERENCE * (1 - clamped);

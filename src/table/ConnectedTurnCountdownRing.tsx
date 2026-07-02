@@ -21,6 +21,7 @@ export function ConnectedTurnCountdownRing({ playerId }: ConnectedTurnCountdownR
     <TurnCountdownRing
       activityKey={config.activityKey}
       startedAtMs={config.startedAtMs}
+      durationMs={config.durationMs}
     />
   );
 }
