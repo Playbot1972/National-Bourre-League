@@ -50,6 +50,7 @@ interface CardTableProps {
   actionFeedback?: TableActionFeedback | null;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
+  onDealPresentationComplete?: () => void;
   instantTrickPlays?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
@@ -86,6 +87,7 @@ export function CardTable({
   actionFeedback,
   handPresentation,
   microinteractions,
+  onDealPresentationComplete,
   instantTrickPlays = false,
   bigPotEvent = null,
   onDismissTableEvent,
@@ -167,6 +169,7 @@ export function CardTable({
     heroCards,
     privateHandReady,
     tableRootRef: wrapRef,
+    onDealPresentationComplete,
   });
   useWonTrickCollection({
     trickCollection,
@@ -231,6 +234,7 @@ export function CardTable({
         countClass,
         hasActiveTurn ? "btable-wrap--has-active-turn" : "",
         clockwiseDealing ? "btable-wrap--clockwise-dealing" : "",
+        handPresentation.handResetCueActive ? "btable-wrap--hand-reset" : "",
       ]
         .filter(Boolean)
         .join(" ")}

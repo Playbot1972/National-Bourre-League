@@ -7,6 +7,7 @@ import {
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
   suppressesHandTurnIndicator,
+  ANTE_DEAL_STALL_MS,
 } from "./handPresentationTiming";
 
 export interface HandServerSnapshot {
@@ -45,6 +46,8 @@ export interface HandPresentationModel {
   nextHandResetActive: boolean;
   /** Latched when the server reports handComplete; cleared when settle begins. */
   pendingHandSettle: boolean;
+  /** True when GSAP clockwise deal has finished (gates ante → trump/draw). */
+  handResetCueActive: boolean;
   suppressTurnIndicator: boolean;
   displayPotAmount: number;
   isPresenting: boolean;
@@ -74,6 +77,8 @@ export interface HandPresentationStore {
   prevSnapshot: HandServerSnapshot | null;
   pendingSnapshot: HandServerSnapshot | null;
   phaseStartedAt: number;
+  /** GSAP deal completion — ante phase waits for this before advancing. */
+  dealPresentationComplete: boolean;
   /** Players whose draw presentation fully finished this hand (dedupe key: handNumber + playerId). */
   drawPresentationConsumedIds: string[];
 }
@@ -136,7 +141,7 @@ function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase
   if (snapshot.phase === "play") return "play";
   if (snapshot.phase === "draw") return "drawPlayer";
   if (snapshot.phase === "decision") return "decision";
-  if (snapshot.phase === "reveal") return "ante";
+  if (snapshot.phase === "reveal") return "handReset";
   if (snapshot.enrollmentActive) return "enrollment";
   return "idle";
 }
@@ -161,13 +166,14 @@ export function createHandPresentationStore(
     enrollmentPulse: {},
     settleAnimActive: false,
     settleCarryOver: false,
-    nextHandResetActive: false,
+    nextHandResetActive: snapshot.phase === "reveal",
     pendingHandSettle: false,
     handSettleSnapshot: null,
     displayPotAmount: snapshot.potAmount,
     prevSnapshot: snapshot,
     pendingSnapshot: null,
     phaseStartedAt: Date.now(),
+    dealPresentationComplete: false,
     drawPresentationConsumedIds: [],
   };
 }
@@ -431,12 +437,14 @@ function beginRevealPresentation(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
+    dealPresentationComplete: false,
     dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
     prevSnapshot: snapshot,
     displayPotAmount: snapshot.potAmount,
     pendingHandSettle: false,
     handSettleSnapshot: null,
     pendingSnapshot: null,
+    nextHandResetActive: false,
   });
 }
 
@@ -469,6 +477,7 @@ export type HandPresentationEvent =
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
+  | { type: "dealPresentationComplete" }
   | { type: "clearEnrollmentPulse" };
 
 function stringArrayEqual(a: string[], b: string[]): boolean {
@@ -518,6 +527,10 @@ export function handPresentationVisibleEqual(
   );
 }
 
+function handResetCueActive(store: HandPresentationStore): boolean {
+  return store.phase === "handReset" || store.nextHandResetActive;
+}
+
 /** Bookkeeping fields that must stay current but do not affect seat/table visuals. */
 function applyInternalHandPresentationFields(
   target: HandPresentationStore,
@@ -528,6 +541,7 @@ function applyInternalHandPresentationFields(
   target.handSettleSnapshot = source.handSettleSnapshot;
   target.drawPresentationConsumedIds = source.drawPresentationConsumedIds;
   target.handNumber = source.handNumber;
+  target.dealPresentationComplete = source.dealPresentationComplete;
 }
 
 function coalesceHandPresentationStore(
@@ -588,6 +602,10 @@ function reduceHandPresentationCore(
     case "dealCardRevealed":
       return { ...store, dealStaggerCount: Math.max(store.dealStaggerCount, event.count) };
 
+    case "dealPresentationComplete":
+      if (store.dealPresentationComplete) return store;
+      return { ...store, dealPresentationComplete: true };
+
     case "clearEnrollmentPulse":
       if (!Object.keys(store.enrollmentPulse).length) return store;
       return { ...store, enrollmentPulse: {} };
@@ -595,6 +613,23 @@ function reduceHandPresentationCore(
     case "watchdog":
       if (store.pendingHandSettle && store.phase === "play") {
         return beginHandSettleFromPending(store);
+      }
+      if (
+        store.phase === "ante" &&
+        !store.dealPresentationComplete &&
+        Date.now() - store.phaseStartedAt >= ANTE_DEAL_STALL_MS
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("handPresentation", "ante-deal-stall-force-complete", {
+            handNumber: store.handNumber,
+            blockedMs: Date.now() - store.phaseStartedAt,
+          });
+        }
+        return advanceHandPhase({
+          ...store,
+          dealPresentationComplete: true,
+          pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot,
+        });
       }
       if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
       return advanceHandPhase({ ...store, pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot });
@@ -611,7 +646,10 @@ function reduceHandPresentationCore(
 
       if (store.sessionKey !== snapshot.sessionKey) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal") {
+          return { ...fresh, nextHandResetActive: true, prevSnapshot: snapshot };
+        }
+        return fresh;
       }
 
       const handClearedOnServer =
@@ -636,7 +674,10 @@ function reduceHandPresentationCore(
 
       if (store.handNumber !== snapshot.handNumber) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal") {
+          return { ...fresh, nextHandResetActive: true, prevSnapshot: snapshot };
+        }
+        return fresh;
       }
 
       const prevTrump = trumpKey(prev.trumpUpcard);
@@ -713,7 +754,11 @@ function reduceHandPresentationCore(
           store.phase === "settle" ||
           store.phase === "play")
       ) {
-        return beginRevealPresentation(store, snapshot);
+        return withPhase(store, "handReset", {
+          nextHandResetActive: true,
+          prevSnapshot: snapshot,
+          pendingSnapshot: null,
+        });
       }
 
       if (
@@ -806,10 +851,20 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
   const snap = pending ?? store.prevSnapshot;
 
   switch (store.phase) {
-    case "handReset":
-      return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
+    case "handReset": {
+      const snap = pending ?? store.prevSnapshot;
+      if (snap) return beginRevealPresentation(store, snap);
+      return withPhase(store, "ante", {
+        anteAnimActive: true,
+        dealPresentationComplete: true,
+        pendingSnapshot: null,
+      });
+    }
 
     case "ante":
+      if (!store.dealPresentationComplete) {
+        return store;
+      }
       if (store.trumpRevealActive || snap?.trumpUpcard) {
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
@@ -919,9 +974,17 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
         pendingSnapshot: null,
       });
 
-    case "nextHandReset":
+    case "nextHandReset": {
+      const snap = pending ?? store.prevSnapshot;
+      if (snap?.phase === "reveal") {
+        return withPhase(createHandPresentationStore(snap), "handReset", {
+          nextHandResetActive: false,
+          prevSnapshot: snap,
+        });
+      }
       if (snap) return createHandPresentationStore(snap);
       return withPhase(store, "idle", { nextHandResetActive: false });
+    }
 
     default:
       return store;
@@ -947,6 +1010,7 @@ export function buildHandPresentationModel(
     settleAnimActive: store.settleAnimActive,
     settleCarryOver: store.settleCarryOver,
     nextHandResetActive: store.nextHandResetActive,
+    handResetCueActive: handResetCueActive(store),
     pendingHandSettle: store.pendingHandSettle,
     suppressTurnIndicator: suppressesHandTurnIndicator(store.phase),
     displayPotAmount: store.displayPotAmount,
@@ -963,7 +1027,8 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      if (!store.dealPresentationComplete) return 0;
+      return t.anteChipTravelMs;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":

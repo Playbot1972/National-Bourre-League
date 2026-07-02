@@ -41,6 +41,9 @@ export const NEXT_HAND_RESET_MS = 550;
 /** Hand reset between sessions (400–700 ms). */
 export const HAND_RESET_MS = 500;
 
+/** Safety net when GSAP deal never signals completion during ante. */
+export const ANTE_DEAL_STALL_MS = 8_000;
+
 /** Maximum time any single presentation phase may hold before forced advance. */
 export const PRESENTATION_WATCHDOG_MS = 12_000;
 

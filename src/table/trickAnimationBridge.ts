@@ -106,6 +106,8 @@ export function handPresentingBlocksBots(
   if (sessionPhase === "play") return false;
 
   const cosmeticPhases = new Set([
+    "handReset",
+    "nextHandReset",
     "ante",
     "trumpReveal",
     "trumpMerge",

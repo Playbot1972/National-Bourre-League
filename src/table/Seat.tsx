@@ -83,6 +83,7 @@ function SeatInner({
         player.trumpMerging ? "bseat--trump-merge" : "",
         player.isActiveActor ? "bseat--active-actor" : "",
         player.isActiveActor && player.inHand ? "bseat--play-origin-active" : "",
+        player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",

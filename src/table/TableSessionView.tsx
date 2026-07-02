@@ -19,6 +19,7 @@ import {
   turnIndicatorLabel,
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
+import type { HandPresentationApi } from "./handPresentationApi";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { TurnCountdownSync } from "./TurnCountdownSync";
 import { TrickAnimationBusySync } from "./TrickAnimationBusySync";
@@ -131,6 +132,11 @@ export function TableSessionView({
 
   const forceTrickHandEndDrain = trickBridge.forceHandEndDrain;
 
+  const handPresentationApiRef = useRef<HandPresentationApi | null>(null);
+  const notifyDealPresentationComplete = useCallback(() => {
+    handPresentationApiRef.current?.notifyDealPresentationComplete();
+  }, []);
+
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
@@ -145,6 +151,7 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
+    presentationApiRef: handPresentationApiRef,
   });
 
   const instantTrickPlays = useTrumpTrickMotionGate(
@@ -557,6 +564,7 @@ export function TableSessionView({
       actionFeedback,
       handPresentation,
       microinteractions,
+      onDealPresentationComplete: notifyDealPresentationComplete,
       instantTrickPlays,
       bigPotEvent,
       onDismissTableEvent: dismissEvent,
@@ -583,6 +591,7 @@ export function TableSessionView({
       actionFeedback,
       handPresentation,
       microinteractions,
+      notifyDealPresentationComplete,
       instantTrickPlays,
       bigPotEvent,
       dismissEvent,

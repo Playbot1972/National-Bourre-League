@@ -4174,8 +4174,30 @@
 }
 
 /* Table microinteractions */
+.btable-wrap--hand-reset .table-stage {
+  animation: bhand-reset-readiness 520ms ease;
+}
+
+@keyframes bhand-reset-readiness {
+  0% {
+    opacity: 0.9;
+    filter: brightness(0.94);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+.bseat--turn-handoff {
+  outline: 1px solid rgba(92, 196, 140, 0.42);
+  outline-offset: 2px;
+  border-radius: 12px;
+  transition: outline-color 220ms ease;
+}
+
 .bseat--turn-handoff .bseat__avatar-wrap {
-  /* Replaced by turn countdown ring — no handoff pulse. */
+  /* Countdown ring stays primary — no avatar pulse. */
   animation: none;
 }
 

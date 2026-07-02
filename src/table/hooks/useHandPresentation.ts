@@ -11,6 +11,7 @@ import {
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
+import type { HandPresentationApi } from "../handPresentationApi";
 import type { SerializedCard, TableSessionData } from "../types";
 
 const EMPTY_IDS: string[] = [];
@@ -39,6 +40,8 @@ export interface UseHandPresentationInput {
   enrolledIds?: string[];
   declinedIds?: string[];
   actionOrder?: string[];
+  /** Receives notifyDealPresentationComplete once the hook mounts. */
+  presentationApiRef?: React.MutableRefObject<HandPresentationApi | null>;
 }
 
 export type HandPresentation = HandPresentationModel;
@@ -54,6 +57,7 @@ export function useHandPresentation({
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
   actionOrder,
+  presentationApiRef,
 }: UseHandPresentationInput): HandPresentation {
   const snapshot = useMemo(
     (): HandServerSnapshot =>
@@ -109,6 +113,18 @@ export function useHandPresentation({
   };
 
   useEffect(() => () => clearTimers(), []);
+
+  useEffect(() => {
+    if (!presentationApiRef) return;
+    presentationApiRef.current = {
+      notifyDealPresentationComplete: () => {
+        dispatch({ type: "dealPresentationComplete" });
+      },
+    };
+    return () => {
+      presentationApiRef.current = null;
+    };
+  }, [presentationApiRef]);
 
   useEffect(() => {
     const heroKeys = heroCards.map((c) => `${c.rank}-${c.suit}`);
@@ -218,7 +234,14 @@ export function useHandPresentation({
         ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
         : PRESENTATION_WATCHDOG_MS;
     schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
-  }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
+  }, [
+    store.handNumber,
+    store.phase,
+    store.animatingDrawPlayerId,
+    store.drawAnimSubPhase,
+    store.phaseStartedAt,
+    store.dealPresentationComplete,
+  ]);
 
   useEffect(() => {
     if (

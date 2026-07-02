@@ -47,7 +47,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergeActive, false);
   });
 
-  it("starts ante when legacy enrollment deals into Pagat reveal", () => {
+  it("enters handReset then ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: null,
@@ -63,9 +63,13 @@ describe("handPresentationMachine", () => {
         trumpUpcard: { rank: "A", suit: "hearts" },
       },
     });
+    assert.equal(store.phase, "handReset");
+    assert.equal(store.nextHandResetActive, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "ante");
     assert.equal(store.anteAnimActive, true);
     assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.dealPresentationComplete, false);
   });
 
   it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
@@ -485,10 +489,14 @@ describe("handPresentationMachine", () => {
       },
     });
     assert.equal(store.handNumber, 2);
+    assert.equal(store.phase, "handReset");
+    assert.equal(store.nextHandResetActive, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "ante");
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
 
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "trumpReveal");
     store = reduceHandPresentation(store, { type: "advancePhase" });
@@ -518,9 +526,53 @@ describe("handPresentationMachine", () => {
       },
     });
     assert.equal(store.handNumber, 2);
+    assert.equal(store.phase, "handReset");
+    assert.equal(store.nextHandResetActive, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "ante");
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
+  });
+
+  it("holds ante until dealPresentationComplete then schedules chip travel", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "ante");
+    assert.equal(phaseScheduleMs(store, false), 0);
+
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    assert.ok(phaseScheduleMs(store, false) > 0);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+  });
+
+  it("nextHandReset advances into handReset when next hand is on reveal", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 1 });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, phase: "play", handNumber: 1, handComplete: true },
+    });
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "nextHandReset");
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        handNumber: 2,
+        phase: "reveal",
+        trumpUpcard: { rank: "A", suit: "clubs" },
+      },
+    });
+    assert.equal(store.phase, "handReset");
+    assert.equal(buildHandPresentationModel(store).handResetCueActive, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "ante");
   });
 
   it("coalesces play-phase serverUpdate when only bookkeeping changes", () => {

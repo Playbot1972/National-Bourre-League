@@ -17,6 +17,7 @@ export interface UseTableDealPresentationInput {
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
+  onDealPresentationComplete?: () => void;
 }
 
 export function useTableDealPresentation({
@@ -24,6 +25,7 @@ export function useTableDealPresentation({
   heroCards,
   privateHandReady = false,
   tableRootRef,
+  onDealPresentationComplete,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
   const lastDealKeyRef = useRef<string | null>(null);
@@ -59,7 +61,10 @@ export function useTableDealPresentation({
     }
 
     const dealKey = `${session.handNumber}:${cardCount}:${session.participantIds.join(",")}`;
-    if (lastDealKeyRef.current === dealKey) return;
+    if (lastDealKeyRef.current === dealKey) {
+      onDealPresentationComplete?.();
+      return;
+    }
 
     const seatRing = seatRingPlayerIds(session.participantIds, session);
     const dealOrder = activePlayerOrder(
@@ -89,6 +94,7 @@ export function useTableDealPresentation({
           root.classList.remove("btable-wrap--clockwise-dealing");
           setClockwiseDealing(false);
           setDealPresentationActive(false);
+          onDealPresentationComplete?.();
         },
       });
     });
@@ -98,6 +104,7 @@ export function useTableDealPresentation({
         root.classList.remove("btable-wrap--clockwise-dealing");
         setClockwiseDealing(false);
         setDealPresentationActive(false);
+        onDealPresentationComplete?.();
       },
       dealPresentationDurationMs(steps.length, reduced) + 400,
     );
@@ -118,6 +125,7 @@ export function useTableDealPresentation({
     heroCards.length,
     privateHandReady,
     tableRootRef,
+    onDealPresentationComplete,
   ]);
 
   return clockwiseDealing;
