@@ -1,6 +1,6 @@
 /** Visible bot turn window — client-paced “thinking” before draw/play/enrollment actions. */
-export const BOT_THINK_MIN_MS = 400;
-export const BOT_THINK_MAX_MS = 2_500;
+export const BOT_THINK_MIN_MS = 1_200;
+export const BOT_THINK_MAX_MS = 3_000;
 
 export interface BotThinkClock {
   activityKey: string;

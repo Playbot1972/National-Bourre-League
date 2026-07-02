@@ -10,7 +10,7 @@ import {
 } from "./botThinkClock";
 
 describe("botThinkClock", () => {
-  it("randomBotThinkDurationMs stays within 0.4s–2.5s", () => {
+  it("randomBotThinkDurationMs stays within the think window", () => {
     for (let i = 0; i < 50; i += 1) {
       const ms = randomBotThinkDurationMs(() => i / 50);
       assert.ok(ms >= BOT_THINK_MIN_MS);

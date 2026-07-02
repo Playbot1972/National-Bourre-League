@@ -55,7 +55,6 @@ export function syncTurnCountdownEngine(input: TurnCountdownInput): void {
 
   if (!nextActorId) {
     publish(null);
-    resetBotThinkClock();
     return;
   }
 
