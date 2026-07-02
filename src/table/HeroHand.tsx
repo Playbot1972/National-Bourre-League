@@ -161,6 +161,8 @@ export const HeroHand = memo(function HeroHand({
   );
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const busy =
+    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
@@ -336,9 +338,6 @@ export const HeroHand = memo(function HeroHand({
     buildPreselectContext,
     clearPreselectTimer,
   ]);
-
-  const busy =
-    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   useEffect(() => {
     if (
