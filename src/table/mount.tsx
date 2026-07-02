@@ -29,6 +29,7 @@ import {
   resetTrickAnimationBusyState,
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
+import { isBotThinkClockBlocking, resetBotThinkClock } from "./botThinkClock";
 import { resetPresentationMotionBusy } from "./presentationMotionBusy";
 import "./table.css";
 import "./mobile-table.css";
@@ -66,6 +67,7 @@ export function unmountTableSession() {
   rootEl = null;
   resetTrickAnimationBusyState();
   resetPresentationMotionBusy();
+  resetBotThinkClock();
 }
 
 export {
@@ -88,6 +90,7 @@ export {
   forceReleasePresentationForBots,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
+  isBotThinkClockBlocking,
   clearWonTrickCollectionArtifacts,
   clearDrawFlyGhosts,
 };

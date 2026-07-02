@@ -45,6 +45,18 @@ describe("turnCountdown", () => {
     assert.ok(nextCycle!.remainingMs > TURN_COUNTDOWN_MS - 500);
   });
 
+  it("uses a short non-looping countdown for bot think windows", () => {
+    const started = 5_000;
+    const duration = 1_000;
+    const mid = buildTurnCountdownState("bot_a", started, started + 500, duration);
+    assert.ok(mid);
+    assert.equal(mid!.segment, "yellow");
+    assert.ok(mid!.progress > 0.4 && mid!.progress < 0.6);
+
+    const done = buildTurnCountdownState("bot_a", started, started + duration, duration);
+    assert.equal(done, null);
+  });
+
   it("resolves active actor during play from turnPlayerId", () => {
     const id = resolveTableActiveActorId({
       session: {

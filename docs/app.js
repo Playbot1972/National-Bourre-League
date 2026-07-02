@@ -2935,10 +2935,19 @@ function isRawTablePresentationBusy() {
   }
 }
 
+function shouldBlockRobotForThinking() {
+  try {
+    return tableMountApi?.isBotThinkClockBlocking?.() === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Draw/play robot gate — prefers table-session evaluateBotPresentationGate when mounted.
  */
 function shouldBlockRobotForPresentation(s, scores) {
+  if (shouldBlockRobotForThinking()) return true;
   try {
     if (typeof tableMountApi?.evaluateBotPresentationGate === "function") {
       return tableMountApi.evaluateBotPresentationGate().blocked === true;
