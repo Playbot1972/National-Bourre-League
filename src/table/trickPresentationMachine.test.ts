@@ -123,7 +123,7 @@ describe("trickPresentationMachine", () => {
     assert.equal(model.displayTricksByPlayer.p1, 0);
   });
 
-  it("keeps turn countdown eligible during trick read and next-lead gap", () => {
+  it("suppresses turn countdown through trick resolution and next-lead gap", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
     for (let i = 0; i < 4; i++) {
       store = reduceTrickPresentation(store, { type: "revealNextCard" });
@@ -133,8 +133,11 @@ describe("trickPresentationMachine", () => {
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
-    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, true);
     assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, false);
+
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, true);
 
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, true);
@@ -142,7 +145,7 @@ describe("trickPresentationMachine", () => {
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "nextLeadReady");
-    assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, false);
+    assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, true);
   });
 
   it("increments trick count only when collection starts", () => {

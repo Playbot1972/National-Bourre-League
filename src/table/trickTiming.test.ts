@@ -184,10 +184,10 @@ describe("trickTiming", () => {
     assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
   });
 
-  it("suppresses turn ring only during winner reveal and collection", () => {
+  it("suppresses turn indicator until the trick pipeline returns to live play", () => {
     assert.equal(suppressesTurnIndicator("live"), false);
-    assert.equal(suppressesTurnIndicator("trickComplete"), false);
-    assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
+    assert.equal(suppressesTurnIndicator("trickComplete"), true);
+    assert.equal(suppressesTurnIndicator("nextLeadReady"), true);
     assert.equal(suppressesTurnIndicator("winnerReveal"), true);
     assert.equal(suppressesTurnIndicator("collectTrick"), true);
   });

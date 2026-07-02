@@ -29,6 +29,7 @@ export interface TurnCountdownInput {
     | "turnPlayerId"
     | "drawCompletedIds"
     | "handEnrollment"
+    | "handDecision"
     | "participantIds"
     | "tricksByPlayer"
     | "handNumber"
@@ -59,9 +60,9 @@ export function turnCountdownActivityKey(input: TurnCountdownInput & { activeAct
     : "off";
   return [
     input.session.phase ?? "",
+    String(input.session.handNumber ?? 0),
     input.activeActorId ?? "",
     enrollmentKey,
-    input.session.drawCompletedIds?.join(",") ?? "",
     input.suppressTurn ? "1" : "0",
     input.handComplete ? "1" : "0",
   ].join("|");
@@ -80,6 +81,7 @@ function sessionViewFromTable(input: TurnCountdownInput): HandFlowSessionView {
       drawCompletedIds: session.drawCompletedIds,
       participantIds: session.participantIds ?? [],
       tricksByPlayer: session.tricksByPlayer ?? {},
+      handDecision: session.handDecision ?? undefined,
     },
   };
 }

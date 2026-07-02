@@ -51,6 +51,7 @@ import {
 } from "./heroHandDisplay";
 import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
+import { computeVisualSuppressTurn } from "./visualTurnGate";
 import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
 
@@ -317,8 +318,14 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
-  const suppressTurn =
-    trickBridge.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+  const suppressTurn = computeVisualSuppressTurn({
+    trickSuppressTurn: trickBridge.suppressTurnPlayerId,
+    handSuppressTurn: handPresentation.suppressTurnIndicator,
+    trickPipelineActive: trickBridge.isPipelineActive,
+    trickPhase: trickBridge.phase,
+    revealedCount: trickBridge.revealedCount,
+    revealTarget: trickBridge.revealTarget,
+  });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
     suppressTurn
@@ -398,6 +405,7 @@ export function TableSessionView({
         turnPlayerId: session.turnPlayerId,
         drawCompletedIds: session.drawCompletedIds,
         handEnrollment: session.handEnrollment,
+        handDecision: session.handDecision,
         participantIds: session.participantIds,
         tricksByPlayer: session.tricksByPlayer,
         handNumber: session.handNumber,
@@ -411,6 +419,7 @@ export function TableSessionView({
       session.turnPlayerId,
       session.drawCompletedIds,
       session.handEnrollment,
+      session.handDecision,
       session.participantIds,
       session.tricksByPlayer,
       session.handNumber,

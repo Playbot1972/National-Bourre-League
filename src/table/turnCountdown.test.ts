@@ -119,6 +119,26 @@ describe("turnCountdown", () => {
     assert.equal(id, "p2");
   });
 
+  it("resolves Pagat decision actor from handDecision", () => {
+    const id = resolveTableActiveActorId({
+      session: {
+        phase: "decision",
+        turnPlayerId: null,
+        participantIds: ["p1", "p2"],
+        tricksByPlayer: {},
+        handNumber: 1,
+        handDecision: {
+          active: true,
+          orderedPlayerIds: ["p1", "p2"],
+          currentIndex: 1,
+        },
+      },
+      suppressTurn: false,
+      handComplete: false,
+    });
+    assert.equal(id, "p2");
+  });
+
   it("does not resolve actor outside actionable phases", () => {
     const id = resolveTableActiveActorId({
       session: {

@@ -3589,6 +3589,7 @@ function buildTableSessionProps(s) {
       postedAntes: currentHand?.postedAntes ?? {},
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
+      handDecision: pagatHandDecision ?? null,
     },
     heroCards: heroCardList,
     rawHeroCards: privateHeroCards,

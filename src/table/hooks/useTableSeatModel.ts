@@ -22,6 +22,7 @@ import {
 } from "../trickTiming";
 import { handTimingScale } from "../handPresentationTiming";
 import { orderPlayersForTable } from "../layout/seatOrder";
+import { computeVisualSuppressTurn } from "../visualTurnGate";
 import { mobileTableAspect, type MobileOrientation } from "../layout/mobileSeatMap";
 import { displayLiveBankroll, isPlayerAtBourreRisk, tableAspectForPlayers } from "../logic";
 import { resolveSeatTrumpDisplay } from "../trumpHolderPresentation";
@@ -101,9 +102,14 @@ export function useTableSeatModel({
     [session.participantIds, session.phase, trickSeat.displayTricksByPlayer],
   );
 
-  const suppressTurn = Boolean(
-    trickSeat.suppressTurnPlayerId || handPresentation.suppressTurnIndicator,
-  );
+  const suppressTurn = computeVisualSuppressTurn({
+    trickSuppressTurn: trickSeat.suppressTurnPlayerId,
+    handSuppressTurn: handPresentation.suppressTurnIndicator,
+    trickPipelineActive: trickSeat.isPipelineActive,
+    trickPhase: trickSeat.phase,
+    revealedCount: trickSeat.revealedCount,
+    revealTarget: trickSeat.revealTarget,
+  });
 
   const displayPlayersById = useMemo(() => {
     const map = new Map<string, TablePlayer>();

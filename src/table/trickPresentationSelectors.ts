@@ -6,6 +6,9 @@ export interface TrickSeatOverlay {
   displayTricksByPlayer: Record<string, number>;
   trickWinnerSeatId: string | null;
   suppressTurnPlayerId: boolean;
+  isPipelineActive: boolean;
+  revealedCount: number;
+  revealTarget: number;
 }
 
 export interface TrickCenterProps {
@@ -61,6 +64,9 @@ export function selectTrickSeatOverlay(
       displayTricksByPlayer: EMPTY_TRICKS,
       trickWinnerSeatId: null,
       suppressTurnPlayerId: false,
+      isPipelineActive: false,
+      revealedCount: 0,
+      revealTarget: 0,
     };
   }
   return {
@@ -68,6 +74,9 @@ export function selectTrickSeatOverlay(
     displayTricksByPlayer: snapshot.displayTricksByPlayer,
     trickWinnerSeatId: snapshot.trickWinnerSeatId,
     suppressTurnPlayerId: snapshot.suppressTurnPlayerId,
+    isPipelineActive: snapshot.isPipelineActive,
+    revealedCount: snapshot.revealedCount,
+    revealTarget: snapshot.revealTarget,
   };
 }
 
@@ -76,6 +85,9 @@ export function trickSeatOverlayEqual(a: TrickSeatOverlay, b: TrickSeatOverlay):
     a.phase === b.phase &&
     a.trickWinnerSeatId === b.trickWinnerSeatId &&
     a.suppressTurnPlayerId === b.suppressTurnPlayerId &&
+    a.isPipelineActive === b.isPipelineActive &&
+    a.revealedCount === b.revealedCount &&
+    a.revealTarget === b.revealTarget &&
     tricksEqual(a.displayTricksByPlayer, b.displayTricksByPlayer)
   );
 }
