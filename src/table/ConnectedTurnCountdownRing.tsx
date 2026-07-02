@@ -1,4 +1,4 @@
-import { memo, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { TurnCountdownRing } from "./TurnCountdownRing";
 import {
   getTurnCountdownConfig,
@@ -9,8 +9,13 @@ interface ConnectedTurnCountdownRingProps {
   playerId: string;
 }
 
-function ConnectedTurnCountdownRingInner({ playerId }: ConnectedTurnCountdownRingProps) {
-  const config = useSyncExternalStore(subscribeTurnCountdownConfig, getTurnCountdownConfig);
+/** Must not be memo()'d — useSyncExternalStore updates would be swallowed. */
+export function ConnectedTurnCountdownRing({ playerId }: ConnectedTurnCountdownRingProps) {
+  const config = useSyncExternalStore(
+    subscribeTurnCountdownConfig,
+    getTurnCountdownConfig,
+    getTurnCountdownConfig,
+  );
   if (!config || config.playerId !== playerId) return null;
   return (
     <TurnCountdownRing
@@ -19,5 +24,3 @@ function ConnectedTurnCountdownRingInner({ playerId }: ConnectedTurnCountdownRin
     />
   );
 }
-
-export const ConnectedTurnCountdownRing = memo(ConnectedTurnCountdownRingInner);
