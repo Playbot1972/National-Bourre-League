@@ -111,7 +111,10 @@ export function shouldClearOrphanLiveEnrollment(sessionData: SessionHandView | n
 
 /** True when recoverHandoffBetweenHands can do useful work (not mid-hand enrollment/draw/play). */
 export function sessionNeedsHandoffRecovery(
-  sessionData: SessionHandView | null | undefined,
+  sessionData:
+    | ({ status?: string | null; pendingCoWinSettlement?: unknown } & SessionHandView)
+    | null
+    | undefined,
 ): boolean {
   if (!sessionData || sessionData.status === "final") return false;
   if (sessionData.pendingCoWinSettlement) return false;
