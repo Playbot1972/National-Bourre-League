@@ -23,10 +23,20 @@ export interface TrickAnimationBusyState {
   trickCollectionActive: boolean;
 }
 
-/** After this, bot driver may proceed even if presentation is still busy. */
+/** After this, bot driver may proceed for slow hand/deal presentation only. */
 export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 5_500;
 /** After this, presentation busy flags are force-cleared for bots. */
 export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
+
+/** Play-phase catch-up must drain — soft-unblock only for slow hand/deal windows. */
+const BOT_SOFT_UNBLOCK_REASONS = new Set([
+  "handPresenting",
+  "dealPresentationActive",
+]);
+
+function allowsBotPresentationSoftUnblock(reason: string): boolean {
+  return BOT_SOFT_UNBLOCK_REASONS.has(reason);
+}
 
 const IDLE: TrickAnimationBusyState = {
   pipelineActive: false,
@@ -180,7 +190,10 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
     };
   }
 
-  if (blockedMs >= BOT_PRESENTATION_SOFT_UNBLOCK_MS) {
+  if (
+    blockedMs >= BOT_PRESENTATION_SOFT_UNBLOCK_MS &&
+    allowsBotPresentationSoftUnblock(reason)
+  ) {
     if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
       logGameFlow("trickAnimationBridge", "gate-soft-unblock", { reason, blockedMs });
       blockEpisode.blockedLogged = true;

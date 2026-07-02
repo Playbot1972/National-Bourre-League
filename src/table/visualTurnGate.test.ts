@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { computeVisualSuppressTurn, isTrickPlayRevealCatchUp } from "./visualTurnGate";
 
 describe("visualTurnGate", () => {
-  it("suppresses during trick pipeline and live reveal catch-up", () => {
+  it("suppresses during trick pipeline but not live reveal catch-up", () => {
     assert.equal(
       computeVisualSuppressTurn({
         trickSuppressTurn: false,
@@ -25,7 +25,7 @@ describe("visualTurnGate", () => {
         revealedCount: 1,
         revealTarget: 3,
       }),
-      true,
+      false,
     );
 
     assert.equal(
