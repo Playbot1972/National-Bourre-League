@@ -12706,7 +12706,7 @@ function Ol(e) {
 }
 var kl = 1850, Al = 2050, jl = 1080, Ml = 9500;
 function Nl(e) {
-	return e !== "live";
+	return e === "winnerReveal" || e === "collectTrick";
 }
 function Pl(e = !1) {
 	let t = e ? .55 : 1;
