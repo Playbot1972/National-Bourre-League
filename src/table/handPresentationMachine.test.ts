@@ -7,9 +7,11 @@ import {
   nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
+  shouldAnimateSettlePotPayout,
+  settleSubPhaseScheduleMs,
   snapshotFromSession,
 } from "./handPresentationMachine";
-import { drawPlayerScheduleMs, handTimingScale } from "./handPresentationTiming";
+import { drawPlayerScheduleMs, handTimingScale, SETTLE_TRICK_TOTALS_MS } from "./handPresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "./trickTiming";
 
 const baseSnap = snapshotFromSession({
@@ -465,9 +467,12 @@ describe("handPresentationMachine", () => {
     });
     store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
     assert.equal(store.phase, "settle");
+    assert.equal(store.settleSubPhase, "trickTotals");
     assert.equal(store.trumpMergedIntoHand, false);
 
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    while (store.phase === "settle") {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
     assert.equal(store.phase, "nextHandReset");
 
     store = {
@@ -557,7 +562,9 @@ describe("handPresentationMachine", () => {
       snapshot: { ...baseSnap, phase: "play", handNumber: 1, handComplete: true },
     });
     store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    while (store.phase === "settle") {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
     assert.equal(store.phase, "nextHandReset");
 
     store = reduceHandPresentation(store, {
@@ -675,7 +682,101 @@ describe("handPresentationMachine", () => {
     assert.ok(handPresentationVisibleEqual(a, b));
     assert.deepEqual(buildHandPresentationModel(a), buildHandPresentationModel(b));
   });
+
+  it("enters settle sub-phases trickTotals then potPayout on hand complete", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handComplete: true,
+        tricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+        potAmount: 24,
+      },
+    });
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    assert.equal(store.phase, "settle");
+    assert.equal(store.settleSubPhase, "trickTotals");
+    assert.deepEqual(store.settleWinnerIds, ["p1"]);
+    assert.deepEqual(store.settleBourreIds, ["p3"]);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "potPayout");
+    assert.equal(store.settlePayoutComplete, false);
+  });
+
+  it("waits for settlePayoutComplete before leaving potPayout when animating", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = withPhaseSettle(store, {
+      settleSubPhase: "potPayout",
+      settleWinnerIds: ["p1"],
+      displayPotAmount: 30,
+      settlePayoutComplete: false,
+    });
+    assert.ok(shouldAnimateSettlePotPayout(store));
+    assert.equal(settleSubPhaseScheduleMs(store), 0);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "potPayout");
+    store = reduceHandPresentation(store, { type: "settlePayoutComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "reset");
+  });
+
+  it("runs bourre callout and penalty sub-phases when bourre players exist", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = withPhaseSettle(store, {
+      settleSubPhase: "bourreCallout",
+      settleBourreIds: ["p3"],
+      settleWinnerIds: ["p1"],
+    });
+    assert.equal(buildHandPresentationModel(store).showBourreCallout, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "bourrePenalty");
+    store = reduceHandPresentation(store, { type: "settlePenaltyComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "reset");
+  });
+
+  it("watchdog force-completes stuck settle payout motion", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = withPhaseSettle(store, {
+      settleSubPhase: "potPayout",
+      settleWinnerIds: ["p1"],
+      displayPotAmount: 18,
+      settlePayoutComplete: false,
+      phaseStartedAt: Date.now() - 3_000,
+    });
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.settlePayoutComplete, true);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.notEqual(store.settleSubPhase, "potPayout");
+  });
+
+  it("schedules trick totals hold during settle sub-phase", () => {
+    const store = withPhaseSettle(createHandPresentationStore({ ...baseSnap, phase: "play" }), {
+      settleSubPhase: "trickTotals",
+    });
+    assert.ok(settleSubPhaseScheduleMs(store) >= SETTLE_TRICK_TOTALS_MS * 0.5);
+  });
 });
+
+function withPhaseSettle(
+  store: ReturnType<typeof createHandPresentationStore>,
+  patch: Partial<ReturnType<typeof createHandPresentationStore>>,
+) {
+  return {
+    ...store,
+    phase: "settle" as const,
+    settleAnimActive: true,
+    settleTricksByPlayer: { p1: 3, p2: 2, p3: 0 },
+    ...patch,
+  };
+}
 
 describe("trick timing with hand flow", () => {
   it("holds complete trick for two seconds before winner highlight", () => {

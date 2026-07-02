@@ -77,6 +77,7 @@ export function useHandPresentation({
         carryOverPot: session.carryOverPot,
         enrolledIds,
         declinedIds,
+        tricksByPlayer: session.tricksByPlayer,
       }),
     [
       session,
@@ -119,6 +120,12 @@ export function useHandPresentation({
     presentationApiRef.current = {
       notifyDealPresentationComplete: () => {
         dispatch({ type: "dealPresentationComplete" });
+      },
+      notifySettlePayoutComplete: () => {
+        dispatch({ type: "settlePayoutComplete" });
+      },
+      notifySettlePenaltyComplete: () => {
+        dispatch({ type: "settlePenaltyComplete" });
       },
     };
     return () => {
@@ -241,6 +248,9 @@ export function useHandPresentation({
     store.drawAnimSubPhase,
     store.phaseStartedAt,
     store.dealPresentationComplete,
+    store.settleSubPhase,
+    store.settlePayoutComplete,
+    store.settlePenaltyComplete,
   ]);
 
   useEffect(() => {

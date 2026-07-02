@@ -6,8 +6,9 @@ import { currentTrickLeaderId } from "./trickTiming";
 import { TrickRow } from "./TrickRow";
 import { DiscardPile } from "./DiscardPile";
 import { PotDisplay } from "./PotDisplay";
+import { SettleTrickTotals } from "./SettleTrickTotals";
 import type { DiscardPileCard } from "./discardPileModel";
-import type { DrawAnimSubPhase } from "./handPresentationTiming";
+import type { DrawAnimSubPhase, SettleSubPhase } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { CARD_LAND_MS } from "./trickTiming";
 import type { PotMetrics, SerializedCard } from "./types";
@@ -48,6 +49,10 @@ interface PotCenterProps {
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
   discardPileCards?: DiscardPileCard[];
+  settleSubPhase?: SettleSubPhase | null;
+  settleTricksByPlayer?: Record<string, number>;
+  settleWinnerIds?: string[];
+  settleSeatRows?: { playerId: string; displayName: string }[];
 }
 
 function PotCenterInner({
@@ -83,6 +88,10 @@ function PotCenterInner({
   instantTrickPlays = false,
   peakTrickPlayCount = 0,
   discardPileCards = [],
+  settleSubPhase = null,
+  settleTricksByPlayer = {},
+  settleWinnerIds = [],
+  settleSeatRows = [],
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const trickLeaderPlayerId =
@@ -124,6 +133,7 @@ function PotCenterInner({
   const trumpKey = hasTrumpCard ? `${displayTrumpUpcard!.rank}-${displayTrumpUpcard!.suit}` : "trump-slot";
   const finalTrickEcho =
     showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);
+  const showSettleTrickTotals = settleSubPhase === "trickTotals" && settleSeatRows.length > 0;
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
@@ -200,6 +210,7 @@ function PotCenterInner({
         data-trick-phase={trickPresentationPhase}
         data-trick-cards={liveTrickCardCount}
         data-hand-settling={settleAnimActive ? "true" : "false"}
+        data-settle-sub-phase={settleSubPhase ?? undefined}
       >
         {anteAnimActive && (
           <div className="bpot__ante-chips" aria-hidden="true">
@@ -236,6 +247,14 @@ function PotCenterInner({
         </div>
 
         <div className="center-play__trick-stage">
+          {showSettleTrickTotals && (
+            <SettleTrickTotals
+              tricksByPlayer={settleTricksByPlayer}
+              seats={settleSeatRows}
+              winnerIds={settleWinnerIds}
+              visible
+            />
+          )}
           <div className="center-play__trick-live">
             <TrickRow
               displayPlays={trickDisplayPlays}
@@ -266,6 +285,7 @@ function PotCenterInner({
           potMetrics={potMetrics}
           participantCount={participantCount}
           potTick={potTick}
+          settlePotPayoutActive={settleSubPhase === "potPayout"}
         />
       </div>
     </div>

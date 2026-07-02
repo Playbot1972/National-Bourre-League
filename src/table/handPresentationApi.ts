@@ -2,4 +2,6 @@
 
 export interface HandPresentationApi {
   notifyDealPresentationComplete: () => void;
+  notifySettlePayoutComplete: () => void;
+  notifySettlePenaltyComplete: () => void;
 }

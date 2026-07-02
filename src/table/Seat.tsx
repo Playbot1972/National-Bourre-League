@@ -115,6 +115,13 @@ function SeatInner({
           aria-hidden="true"
         />
       )}
+      {player.inHand && (
+        <span
+          className="bseat__settle-chip-anchor"
+          data-settle-chip-anchor={player.playerId}
+          aria-hidden="true"
+        />
+      )}
       <div className="bseat__core">
         <div className="bseat__avatar-stage">
           <div
