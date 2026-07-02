@@ -20,11 +20,14 @@ function classify(line) {
   if (/robot-block-first-seen/i.test(line)) return "robot_block_first";
   if (/robot-force-unblock/i.test(line)) return "robot_force_unblock";
   if (/robot-block-soft-timeout/i.test(line)) return "robot_block_soft";
-  if (/gameAdvanceBots|gamePlayCard|CORS|FirebaseError.*internal|403|500/i.test(line)) {
-    return "callable_error";
+  if (/client-fallback/i.test(line)) return "client_fallback";
+  if (/\[game-functions\] Callable failed:.*functions\/internal/i.test(line)) {
+    return "callable_internal";
   }
-  if (/\[bot-orchestrator\]|\[bot-advance\]/i.test(line) && /error|fail|internal/i.test(line)) {
-    return "bot_error";
+  if (/advanceSessionBots: FirebaseError: INTERNAL/i.test(line)) return "callable_internal";
+  if (/CORS|403 Forbidden/i.test(line)) return "callable_error";
+  if (/\[bot-orchestrator\].*error/i.test(line) && /INTERNAL/i.test(line)) {
+    return "callable_internal";
   }
   return null;
 }
@@ -180,8 +183,9 @@ function analyze() {
   const robotFirst = events.filter((e) => e.kind === "robot_block_first");
   const robotForce = events.filter((e) => e.kind === "robot_force_unblock");
   const callableErrors = events.filter(
-    (e) => e.kind === "callable_error" || e.kind === "bot_error",
+    (e) => e.kind === "callable_error" || e.kind === "callable_internal",
   );
+  const clientFallbacks = events.filter((e) => e.kind === "client_fallback");
 
   const sustainedRobotChurn =
     robotForce.length >= 2 ||
@@ -196,6 +200,8 @@ function analyze() {
     robotForceUnblock: robotForce.length,
     robotBlockSoft: events.filter((e) => e.kind === "robot_block_soft").length,
     sustainedRobotChurn,
+    clientFallbackCount: clientFallbacks.length,
+    callableInternalCount: events.filter((e) => e.kind === "callable_internal").length,
     callableErrors: callableErrors.map((e) => e.line),
   };
 }
@@ -274,6 +280,8 @@ async function main() {
       !timedOut &&
       analysis.midHandNoise.length === 0 &&
       !analysis.sustainedRobotChurn &&
+      analysis.callableInternalCount === 0 &&
+      analysis.clientFallbackCount === 0 &&
       analysis.callableErrors.length === 0,
     base: BASE,
     version: version.trim(),

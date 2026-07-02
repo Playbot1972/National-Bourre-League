@@ -103,6 +103,27 @@ function handActionHttpsError(action, reason) {
   return new HttpsError("failed-precondition", `Action blocked (${reason})`);
 }
 
+/** Plain engine throws (applyPlayerPlayCard, applyPlayerDraw) → callable-safe HttpsError. */
+export function engineErrorToHttps(err, fallback = "Action failed") {
+  if (err instanceof HttpsError) return err;
+  const msg = err?.message || fallback;
+  if (isBotAdvanceRaceError(err)) {
+    return new HttpsError("failed-precondition", msg);
+  }
+  return err;
+}
+
+/** Turn/phase races between bot-advance hint and transaction — not a server fault. */
+export function isBotAdvanceRaceError(err) {
+  if (err instanceof HttpsError) {
+    return err.code === "failed-precondition" || err.code === "aborted";
+  }
+  const msg = err?.message ?? "";
+  return /not your turn|not in trick-play|not in draw phase|draw already|illegal play|no active trick|invalid discard/i.test(
+    msg,
+  );
+}
+
 function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
   const currentHand = getSessionCurrentHand(sessionData);
   try {
@@ -1074,21 +1095,23 @@ const drawTransitionLock = createTransitionLock();
 const handEndTransitionLock = createTransitionLock();
 const botAdvanceLock = createTransitionLock();
 
+async function readBotPrivateHand(db, roomId, sessionId, sessionData, playerId) {
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  if (embedded?.cards) {
+    return deserializeCards(embedded.cards);
+  }
+  const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
+  if (!privateSnap.exists) {
+    throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
+  }
+  return deserializeCards(privateSnap.data().cards || []);
+}
+
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   const sessionData = sessionSnap.data() || {};
   const ch = getSessionCurrentHand(sessionData) || {};
-  const embedded = embeddedPrivateHandData(sessionData, playerId);
-  let privateHand;
-  if (embedded?.cards) {
-    privateHand = deserializeCards(embedded.cards);
-  } else {
-    const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
-    if (!privateSnap.exists) {
-      throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
-    }
-    privateHand = deserializeCards(privateSnap.data().cards || []);
-  }
+  const privateHand = await readBotPrivateHand(db, roomId, sessionId, sessionData, playerId);
   const effective = effectivePlayerHand(playerId, privateHand, ch);
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
@@ -1105,12 +1128,9 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
 
 async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
-  const ch = sessionSnap.data()?.currentHand || {};
-  const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
-  if (!privateSnap.exists) {
-    throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
-  }
-  const privateHand = deserializeCards(privateSnap.data().cards || []);
+  const sessionData = sessionSnap.data() || {};
+  const ch = getSessionCurrentHand(sessionData) || {};
+  const privateHand = await readBotPrivateHand(db, roomId, sessionId, sessionData, playerId);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   const ctx = buildPlayValidationState({ hand, publicHand: ch });
   const cardIndex = botPlayCardIndex(hand, ctx);
@@ -1178,7 +1198,8 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     );
     steps.push({ kind: hint.kind, turnPlayerId: hint.turnPlayerId, phase: snapshot.phase });
 
-    switch (hint.kind) {
+    try {
+      switch (hint.kind) {
       case "cowin": {
         const pending = sessionData.pendingCoWinSettlement;
         await handleVoteCoWinSettlement(db, {
@@ -1255,6 +1276,25 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         break;
       default:
         return { status: "ok", steps, reason: "unknown_hint" };
+      }
+    } catch (err) {
+      if (isBotAdvanceRaceError(err)) {
+        console.info(
+          "[bot-advance]",
+          "race",
+          JSON.stringify({
+            requester: actorId,
+            owner: "server",
+            roomId,
+            sessionId,
+            kind: hint.kind,
+            turnPlayerId: hint.turnPlayerId,
+            message: err?.message ?? String(err),
+          }),
+        );
+        return { status: "ok", steps, reason: "turn_race" };
+      }
+      throw err;
     }
   }
   checkInvariant(
@@ -1754,14 +1794,19 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     const maxDraw =
       currentHand.maxDrawDiscards ?? maxDrawDiscards(currentHand.participantIds?.length ?? 2);
 
-    const drawResult = applyPlayerDraw({
-      playerId,
-      privateHand: hand,
-      publicHand: currentHand,
-      discardIndices: discardIndices || [],
-      deck,
-      maxDiscards: maxDraw,
-    });
+    let drawResult;
+    try {
+      drawResult = applyPlayerDraw({
+        playerId,
+        privateHand: hand,
+        publicHand: currentHand,
+        discardIndices: discardIndices || [],
+        deck,
+        maxDiscards: maxDraw,
+      });
+    } catch (err) {
+      throw engineErrorToHttps(err, "Draw failed");
+    }
 
     const nextPublic = advanceAfterDraw(
       drawResult.publicHand,
@@ -1898,50 +1943,60 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
   const ref = sessionRef(db, roomId, sessionId);
   let handComplete = false;
 
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpsError("not-found", "Session not found");
-    const sessionData = snap.data();
-    if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new HttpsError("not-found", "Session not found");
+      const sessionData = snap.data();
+      if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
-    assertCanSubmitHandAction(sessionData, "play_card", playerId, playerId);
+      assertCanSubmitHandAction(sessionData, "play_card", playerId, playerId);
 
-    const currentHand = getSessionCurrentHand(sessionData);
+      const currentHand = getSessionCurrentHand(sessionData);
 
-    const handData = await readPrivateHandInTransaction(
-      tx,
-      db,
-      roomId,
-      sessionId,
-      sessionData,
-      playerId,
-    );
-    if (!handData) throw new HttpsError("not-found", "Private hand not found");
+      const handData = await readPrivateHandInTransaction(
+        tx,
+        db,
+        roomId,
+        sessionId,
+        sessionData,
+        playerId,
+      );
+      if (!handData) throw new HttpsError("not-found", "Private hand not found");
 
-    const hand = deserializeCards(handData.cards || []);
-    const result = applyPlayerPlayCard({
-      publicHand: currentHand,
-      privateHand: hand,
-      playerId,
-      cardIndex,
-      actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
-      cinchEnabled: currentHand.cinchEnabled === true,
+      const hand = deserializeCards(handData.cards || []);
+      let result;
+      try {
+        result = applyPlayerPlayCard({
+          publicHand: currentHand,
+          privateHand: hand,
+          playerId,
+          cardIndex,
+          actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
+          cinchEnabled: currentHand.cinchEnabled === true,
+        });
+      } catch (err) {
+        throw engineErrorToHttps(err, "Play failed");
+      }
+
+      handComplete = result.handComplete;
+
+      writePrivateHandInTransaction(
+        tx,
+        db,
+        ref,
+        sessionData,
+        roomId,
+        sessionId,
+        playerId,
+        serializeCards(result.privateHand),
+      );
+      tx.update(ref, publicHandSessionUpdate(sessionData, result.publicHand));
     });
-
-    handComplete = result.handComplete;
-
-    writePrivateHandInTransaction(
-      tx,
-      db,
-      ref,
-      sessionData,
-      roomId,
-      sessionId,
-      playerId,
-      serializeCards(result.privateHand),
-    );
-    tx.update(ref, publicHandSessionUpdate(sessionData, result.publicHand));
-  });
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    throw engineErrorToHttps(err, "Play failed");
+  }
 
   return { handComplete };
 }
