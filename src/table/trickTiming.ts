@@ -76,9 +76,9 @@ export type TrickPresentationPhase =
   | "collectTrick"
   | "nextLeadReady";
 
-/** Phases where turn/lead UI must stay suppressed. */
+/** Phases where the turn countdown ring is hidden (winner pulse + card sweep only). */
 export function suppressesTurnIndicator(phase: TrickPresentationPhase): boolean {
-  return phase !== "live";
+  return phase === "winnerReveal" || phase === "collectTrick";
 }
 
 export interface FrozenTrick {

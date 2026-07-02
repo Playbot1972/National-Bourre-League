@@ -9,6 +9,7 @@ import {
   detectTrickResolution,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
+  suppressesTurnIndicator,
   trickResolutionScheduleMs,
   trickRevealCatchUpMs,
   trickWinnerDelta,
@@ -181,5 +182,13 @@ describe("trickTiming", () => {
 
   it("card reveal stagger waits for prior card land + shift", () => {
     assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
+  });
+
+  it("suppresses turn ring only during winner reveal and collection", () => {
+    assert.equal(suppressesTurnIndicator("live"), false);
+    assert.equal(suppressesTurnIndicator("trickComplete"), false);
+    assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
+    assert.equal(suppressesTurnIndicator("winnerReveal"), true);
+    assert.equal(suppressesTurnIndicator("collectTrick"), true);
   });
 });
