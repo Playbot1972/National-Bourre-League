@@ -762,6 +762,46 @@ describe("handPresentationMachine", () => {
       settleSubPhase: "trickTotals",
     });
     assert.ok(settleSubPhaseScheduleMs(store) >= SETTLE_TRICK_TOTALS_MS * 0.5);
+    assert.ok(settleSubPhaseScheduleMs(store, true) >= 80);
+  });
+
+  it("shouldAnimateSettlePotPayout skips co-win and zero-pot hands", () => {
+    assert.equal(
+      shouldAnimateSettlePotPayout({ settleWinnerIds: ["p1", "p2"], displayPotAmount: 40 }),
+      false,
+    );
+    assert.equal(
+      shouldAnimateSettlePotPayout({ settleWinnerIds: ["p1"], displayPotAmount: 0 }),
+      false,
+    );
+    assert.equal(
+      shouldAnimateSettlePotPayout({ settleWinnerIds: ["p1"], displayPotAmount: 12 }),
+      true,
+    );
+  });
+
+  it("advances potPayout to bourreCallout when bourre players exist", () => {
+    let store = withPhaseSettle(createHandPresentationStore({ ...baseSnap, phase: "play" }), {
+      settleSubPhase: "potPayout",
+      settleWinnerIds: ["p1"],
+      settleBourreIds: ["p3"],
+      displayPotAmount: 20,
+      settlePayoutComplete: true,
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.settleSubPhase, "bourreCallout");
+  });
+
+  it("watchdog force-completes stuck settle penalty motion", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = withPhaseSettle(store, {
+      settleSubPhase: "bourrePenalty",
+      settleBourreIds: ["p3"],
+      settlePenaltyComplete: false,
+      phaseStartedAt: Date.now() - 3_000,
+    });
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.settlePenaltyComplete, true);
   });
 });
 
