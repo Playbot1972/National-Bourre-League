@@ -128,8 +128,6 @@ export function recordHandSettlement(
     const remainder = bourreRemainders[pid];
     if (remainder != null && remainder > 0 && nextDealFunding.byPlayer[pid]) {
       nextDealFunding.byPlayer[pid].bourreReplacementDue = remainder;
-      nextDealFunding.byPlayer[pid].fundingContribution = remainder;
-      nextDealFunding.byPlayer[pid].fundingReason = "bourre_full_pot_penalty";
     }
   }
 

@@ -313,6 +313,12 @@ export function computeFundingContributionByPlayer(
   const exempt = new Set(explicitExemptPlayerIds);
 
   for (const pid of participantIds) {
+    if (bourrePlayerIds.includes(pid)) {
+      fundingContributionByPlayer[pid] = pot;
+      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
+      continue;
+    }
+
     const remainder = bourreReplacementRemainderByPlayer[pid];
     if (remainder != null && remainder > 0) {
       fundingContributionByPlayer[pid] = remainder;
@@ -320,10 +326,7 @@ export function computeFundingContributionByPlayer(
       continue;
     }
 
-    if (bourrePlayerIds.includes(pid)) {
-      fundingContributionByPlayer[pid] = pot;
-      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
-    } else if (tie && !splitPot && tiedWinnerIds.includes(pid)) {
+    if (tie && !splitPot && tiedWinnerIds.includes(pid)) {
       fundingContributionByPlayer[pid] = 0;
       fundingReasonByPlayer[pid] = "tie_carry_exempt";
     } else if (exempt.has(pid)) {

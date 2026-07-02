@@ -1208,7 +1208,7 @@ describe("1–8 player bourré settlement (PR #344 invariant)", () => {
       tricksByPlayer,
     });
     assert.equal(carryOverPot, 0);
-    assert.equal(scoreById.p4.fundingContribution, 20);
+    assert.equal(scoreById.p4.fundingContribution, 100);
     assert.equal(scoreById.p4.bourreReplacementDue, 20);
     assert.equal(
       sessionChipTotal(scoreById, { carryOverPot, buyInFallback: buyIn }),

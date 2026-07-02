@@ -470,12 +470,16 @@ function F(e) {
 function I(e) {
 	let { completedHandPot: t, carryoverPot: n, anteAmount: r, participantIds: i, bourrePlayerIds: a, tiedWinnerIds: o, splitPot: s, tie: c, explicitExemptPlayerIds: l = [], bourreReplacementRemainderByPlayer: u = {} } = e, d = {}, f = {}, p = Math.max(0, Number(t) || 0), m = Math.max(.01, Number(r) || 1), h = new Set(l);
 	for (let e of i) {
+		if (a.includes(e)) {
+			d[e] = p, f[e] = "bourre_full_pot_penalty";
+			continue;
+		}
 		let t = u[e];
 		if (t != null && t > 0) {
 			d[e] = t, f[e] = "bourre_full_pot_penalty";
 			continue;
 		}
-		a.includes(e) ? (d[e] = p, f[e] = "bourre_full_pot_penalty") : c && !s && o.includes(e) ? (d[e] = 0, f[e] = "tie_carry_exempt") : h.has(e) ? (d[e] = 0, f[e] = "explicit_exempt") : (d[e] = m, f[e] = "normal_ante");
+		c && !s && o.includes(e) ? (d[e] = 0, f[e] = "tie_carry_exempt") : h.has(e) ? (d[e] = 0, f[e] = "explicit_exempt") : (d[e] = m, f[e] = "normal_ante");
 	}
 	return {
 		fundingContributionByPlayer: d,
@@ -797,7 +801,7 @@ function B(e) {
 	}, r, w);
 	for (let e of r) {
 		let t = w[e];
-		t != null && t > 0 && T.byPlayer[e] && (T.byPlayer[e].bourreReplacementDue = t, T.byPlayer[e].fundingContribution = t, T.byPlayer[e].fundingReason = "bourre_full_pot_penalty");
+		t != null && t > 0 && T.byPlayer[e] && (T.byPlayer[e].bourreReplacementDue = t);
 	}
 	let E = {}, D = {};
 	for (let e of r) {
