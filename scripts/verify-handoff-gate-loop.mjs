@@ -24,6 +24,9 @@ function classify(line) {
   if (/\[game-functions\] Callable failed:.*functions\/internal/i.test(line)) {
     return "callable_internal";
   }
+  if (/\[game-functions\] Callable failed:.*gameRecordHand/i.test(line)) {
+    return "callable_record_hand";
+  }
   if (/advanceSessionBots: FirebaseError: INTERNAL/i.test(line)) return "callable_internal";
   if (/CORS|403 Forbidden/i.test(line)) return "callable_error";
   if (/\[bot-orchestrator\].*error/i.test(line) && /INTERNAL/i.test(line)) {
@@ -202,6 +205,7 @@ function analyze() {
     sustainedRobotChurn,
     clientFallbackCount: clientFallbacks.length,
     callableInternalCount: events.filter((e) => e.kind === "callable_internal").length,
+    gameRecordHandErrors: events.filter((e) => e.kind === "callable_record_hand").length,
     callableErrors: callableErrors.map((e) => e.line),
   };
 }
@@ -281,6 +285,7 @@ async function main() {
       analysis.midHandNoise.length === 0 &&
       !analysis.sustainedRobotChurn &&
       analysis.callableInternalCount === 0 &&
+      analysis.gameRecordHandErrors === 0 &&
       analysis.clientFallbackCount === 0 &&
       analysis.callableErrors.length === 0,
     base: BASE,

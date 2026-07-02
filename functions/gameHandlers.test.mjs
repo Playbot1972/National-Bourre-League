@@ -8,7 +8,9 @@ import {
   deriveWinnersFromTricks,
   engineErrorToHttps,
   isBotAdvanceRaceError,
+  settlementErrorToHttps,
 } from "./gameHandlers.js";
+import { HandInvariantError } from "./vendor/session-startup.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
 
@@ -112,5 +114,21 @@ describe("bot advance race / engine errors", () => {
     const err = engineErrorToHttps(new Error("Not your turn"));
     assert.equal(err.code, "failed-precondition");
     assert.match(err.message, /not your turn/i);
+  });
+});
+
+describe("settlement callable errors", () => {
+  it("settlementErrorToHttps maps HandInvariantError to failed-precondition", () => {
+    const err = settlementErrorToHttps(
+      new HandInvariantError("settlement_before_play_complete", "Hand is not ready to settle", {}),
+    );
+    assert.equal(err.code, "failed-precondition");
+    assert.match(err.message, /not ready to settle/i);
+  });
+
+  it("settlementErrorToHttps maps money chip conservation errors", () => {
+    const err = settlementErrorToHttps(new Error("chip conservation failed — total 100, expected 120"));
+    assert.equal(err.code, "failed-precondition");
+    assert.match(err.message, /chip conservation/i);
   });
 });

@@ -124,6 +124,24 @@ export function isBotAdvanceRaceError(err) {
   );
 }
 
+/** Plain engine / invariant throws → callable-safe HttpsError for settlement. */
+export function settlementErrorToHttps(err, fallback = "Settlement failed") {
+  if (err instanceof HttpsError) return err;
+  if (err?.name === "HandInvariantError") {
+    return new HttpsError("failed-precondition", err.message);
+  }
+  const msg = err?.message || fallback;
+  if (/chip conservation failed|not ready to settle|settlement before/i.test(msg)) {
+    return new HttpsError("failed-precondition", msg);
+  }
+  return err;
+}
+
+function sessionSettlementAlreadyRecorded(sessionData) {
+  const rawHand = sessionData?.currentHand ?? emptyPreDealHand();
+  return isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData);
+}
+
 function assertCanSubmitHandAction(sessionData, action, playerId, actorId) {
   const currentHand = getSessionCurrentHand(sessionData);
   try {
@@ -2125,6 +2143,15 @@ export async function handleRecordHand(
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") throw new HttpsError("failed-precondition", "Session is final");
 
+  if (sessionSettlementAlreadyRecorded(sessionData)) {
+    console.info(
+      "[hand-settlement]",
+      "already_settled",
+      JSON.stringify({ roomId, sessionId, handCount: sessionData.handCount ?? 0 }),
+    );
+    return { status: "already_settled", handNumber: sessionData.handCount ?? 0 };
+  }
+
   const winners = [
     ...new Set((winnerIds?.length ? winnerIds : winnerId ? [winnerId] : []).filter(Boolean)),
   ];
@@ -2152,7 +2179,11 @@ export async function handleRecordHand(
     }
   }
 
-  assertSettlementEntryAllowed(sessionData, { settlement: mode });
+  try {
+    assertSettlementEntryAllowed(sessionData, { settlement: mode });
+  } catch (err) {
+    throw settlementErrorToHttps(err);
+  }
 
   const stake = sessionData.handStake ?? 1;
   const limEnabled = sessionData.limEnabled === true;
@@ -2192,18 +2223,33 @@ export async function handleRecordHand(
     splitPotEnabled,
   };
 
-  if (isMoneyEngineV1(sessionData)) {
-    existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
-    v1MoneyResult = runV1HandSettlement({
-      sessionId,
-      handNumber,
-      ...settlementInput,
-      existingEvents: existingMoneyEvents,
-    });
-  }
+  let settlementResult;
+  try {
+    if (isMoneyEngineV1(sessionData)) {
+      existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
+      v1MoneyResult = runV1HandSettlement({
+        sessionId,
+        handNumber,
+        ...settlementInput,
+        existingEvents: existingMoneyEvents,
+      });
+    }
 
-  const settlementResult =
-    v1MoneyResult?.settlement ?? recordHandSettlement(settlementInput);
+    settlementResult =
+      v1MoneyResult?.settlement ?? recordHandSettlement(settlementInput);
+
+    assertRecordHandChipConservation({
+      scoreById,
+      carryOverPot: carryIn,
+      postedAntes,
+      buyIn,
+      solvent: settlementResult.solvent,
+      participants,
+      deltas: settlementResult.appliedDeltas,
+    });
+  } catch (err) {
+    throw settlementErrorToHttps(err);
+  }
 
   const {
     appliedDeltas: deltas,
@@ -2222,16 +2268,6 @@ export async function handleRecordHand(
   } = settlementResult;
 
   const newMoneyEvents = v1MoneyResult?.newEvents ?? [];
-
-  assertRecordHandChipConservation({
-    scoreById,
-    carryOverPot: carryIn,
-    postedAntes,
-    buyIn,
-    solvent,
-    participants,
-    deltas,
-  });
 
   const batch = db.batch();
   batch.set(handsCol(db, roomId, sessionId).doc(), {
