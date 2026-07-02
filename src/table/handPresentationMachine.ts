@@ -1,5 +1,5 @@
 import type { SerializedCard } from "./types";
-import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { isGameFlowDebugEnabled, logGameFlow, logPresentationPhase } from "./gameFlowDebug";
 import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
@@ -549,6 +549,13 @@ export function reduceHandPresentation(
     reduceHandPresentationCore(store, event),
   );
   if (isGameFlowDebugEnabled()) {
+    if (store.phase !== next.phase) {
+      logPresentationPhase("hand", store.phase, next.phase, {
+        handNumber: next.handNumber,
+        drawSubPhase: next.drawAnimSubPhase,
+        animatingDrawPlayerId: next.animatingDrawPlayerId,
+      });
+    }
     if (
       store.phase !== next.phase ||
       store.handNumber !== next.handNumber ||
