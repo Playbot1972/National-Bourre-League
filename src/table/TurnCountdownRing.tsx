@@ -39,8 +39,9 @@ function TurnCountdownRingInner({
       return () => window.clearInterval(intervalId);
     }
 
-    const frame = (nowMs: number) => {
-      tick(nowMs);
+    const frame = () => {
+      // rAF passes a performance timeline timestamp — startedAtMs is epoch ms from Date.now().
+      tick(Date.now());
       rafRef.current = window.requestAnimationFrame(frame);
     };
     rafRef.current = window.requestAnimationFrame(frame);
