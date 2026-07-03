@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Hand } from "../components/Hand";
+import type { CardGestureKind } from "../components/cardGesture";
 import type { CardGestureMode } from "../components/useCardGestureHandlers";
 import type { CardState } from "../components/PlayingCard";
 import type { Card } from "../types";
@@ -11,8 +12,10 @@ import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
-  togglePlayPreselectIndex,
+  planTapAutoplay,
+  shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
+import { logPlayClick } from "./playClickDebug";
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
@@ -48,6 +51,8 @@ interface HeroHandProps {
   trumpMergeActive?: boolean;
   trumpDisabledIndex?: number | null;
   handNumber?: number;
+  trickNumber?: number | null;
+  turnPlayerId?: string | null;
   tableRootRef?: RefObject<HTMLElement | null>;
   pileIndexRef?: RefObject<number>;
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
@@ -112,6 +117,8 @@ export function HeroHand({
   trumpMergeActive = false,
   trumpDisabledIndex = null,
   handNumber = 0,
+  trickNumber = null,
+  turnPlayerId = null,
   tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
@@ -137,6 +144,8 @@ export function HeroHand({
   const playLockRef = useRef(false);
   const preselectTimerRef = useRef<number | null>(null);
   const pendingPlayIndexRef = useRef<number | null>(null);
+  const autoplayGenerationRef = useRef(0);
+  const playActivityKey = `${handNumber}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
@@ -151,6 +160,8 @@ export function HeroHand({
   );
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const busy =
+    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
@@ -202,13 +213,127 @@ export function HeroHand({
     skipHeroDealMotion,
   });
 
-  const clearPreselectTimer = useCallback(() => {
+  const clearPreselectTimer = useCallback((reason?: string) => {
     if (preselectTimerRef.current != null) {
       window.clearTimeout(preselectTimerRef.current);
       preselectTimerRef.current = null;
+      if (reason) {
+        logPlayClick({
+          event: "tap-autoplay-canceled",
+          reason,
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          selectedPlay,
+          generation: autoplayGenerationRef.current,
+          isMyTurn,
+          playLock: playLockRef.current,
+          busy,
+        });
+      }
     }
     pendingPlayIndexRef.current = null;
+  }, [busy, handNumber, isMyTurn, selectedPlay, trickNumber, turnPlayerId]);
+
+  const bumpAutoplayGeneration = useCallback(() => {
+    autoplayGenerationRef.current += 1;
+    return autoplayGenerationRef.current;
   }, []);
+
+  const armTapAutoplay = useCallback(
+    (index: number, reason: string) => {
+      clearPreselectTimer();
+      const generation = bumpAutoplayGeneration();
+      pendingPlayIndexRef.current = index;
+      logPlayClick({
+        event: "tap-autoplay-armed",
+        reason,
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        selectedPlay: index,
+        cardIndex: index,
+        actorId: currentUserId,
+        isMyTurn,
+        isLegal: true,
+        busy,
+        playLock: playLockRef.current,
+        delayMs: MICRO_MS.autoPlayPreselect,
+        generation,
+      });
+      preselectTimerRef.current = window.setTimeout(() => {
+        preselectTimerRef.current = null;
+        if (generation !== autoplayGenerationRef.current) {
+          logPlayClick({
+            event: "timer-fire-rejected",
+            reason: "stale-generation",
+            handNumber,
+            trickNumber,
+            turnPlayerId,
+            selectedPlay,
+            cardIndex: index,
+            generation,
+            isMyTurn,
+            busy,
+            playLock: playLockRef.current,
+          });
+          return;
+        }
+        const pending = pendingPlayIndexRef.current;
+        if (pending !== index) {
+          logPlayClick({
+            event: "timer-fire-rejected",
+            reason: "selection-changed",
+            handNumber,
+            trickNumber,
+            turnPlayerId,
+            selectedPlay,
+            cardIndex: index,
+            generation,
+          });
+          return;
+        }
+        if (playLockRef.current || busy) {
+          logPlayClick({
+            event: "timer-fire-rejected",
+            reason: "busy-or-locked",
+            handNumber,
+            trickNumber,
+            turnPlayerId,
+            selectedPlay,
+            cardIndex: index,
+            generation,
+            busy,
+            playLock: playLockRef.current,
+          });
+          return;
+        }
+        logPlayClick({
+          event: "timer-fire-accepted",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          selectedPlay: pending,
+          cardIndex: pending ?? undefined,
+          generation,
+          isMyTurn,
+        });
+        pendingPlayIndexRef.current = null;
+        void executePlayRef.current(pending!);
+      }, MICRO_MS.autoPlayPreselect);
+    },
+    [
+      bumpAutoplayGeneration,
+      busy,
+      clearPreselectTimer,
+      currentUserId,
+      handNumber,
+      isMyTurn,
+      selectedPlay,
+      trickNumber,
+      turnPlayerId,
+    ],
+  );
 
   useEffect(() => {
     return () => clearPreselectTimer();
@@ -233,9 +358,6 @@ export function HeroHand({
       clearPreselectTimer();
     }
   }, [legalPlayIndices, selectedPlay, clearPreselectTimer]);
-
-  const busy =
-    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   useEffect(() => {
     if (
@@ -266,16 +388,16 @@ export function HeroHand({
       return;
     }
     if (preselectTimerRef.current != null) return;
-    pendingPlayIndexRef.current = selectedPlay;
-    preselectTimerRef.current = window.setTimeout(() => {
-      preselectTimerRef.current = null;
-      const pending = pendingPlayIndexRef.current;
-      pendingPlayIndexRef.current = null;
-      if (pending !== null && !playLockRef.current) {
-        void executePlayRef.current(pending);
-      }
-    }, MICRO_MS.autoPlayPreselect);
-  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy]);
+    armTapAutoplay(selectedPlay, "turn-became-mine");
+  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy, armTapAutoplay]);
+
+  const prevPlayActivityKeyRef = useRef(playActivityKey);
+  useEffect(() => {
+    if (prevPlayActivityKeyRef.current === playActivityKey) return;
+    prevPlayActivityKeyRef.current = playActivityKey;
+    bumpAutoplayGeneration();
+    clearPreselectTimer("play-activity-change");
+  }, [playActivityKey, bumpAutoplayGeneration, clearPreselectTimer]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
@@ -339,14 +461,53 @@ export function HeroHand({
   );
 
   const executePlay = useCallback(
-    async (index: number) => {
-      if (playLockRef.current || busy || !onPlayCard) return;
-      if (!isLegalPlayIndex(index, legalPlayIndices)) return;
+    async (index: number, source: "tap-autoplay" | "swipe" | "hold" = "tap-autoplay") => {
+      if (playLockRef.current || busy || !onPlayCard) {
+        logPlayClick({
+          event: "submit-rejected",
+          reason: "busy-or-locked",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          cardIndex: index,
+          isMyTurn,
+          busy,
+          playLock: playLockRef.current,
+          gesture: source,
+        });
+        return;
+      }
+      if (!isLegalPlayIndex(index, legalPlayIndices)) {
+        logPlayClick({
+          event: "submit-rejected",
+          reason: "illegal",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          cardIndex: index,
+          isMyTurn,
+          isLegal: false,
+          gesture: source,
+        });
+        return;
+      }
+      bumpAutoplayGeneration();
       clearPreselectTimer();
       playLockRef.current = true;
       setSelectedPlay(null);
       setPlayingIndex(index);
       setLocalError(null);
+      logPlayClick({
+        event: "submit-accepted",
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        cardIndex: index,
+        isMyTurn,
+        isLegal: true,
+        gesture: source,
+        generation: autoplayGenerationRef.current,
+      });
       const card = typedCards[index];
       if (currentUserId && card) {
         snapshotHeroHandCardOrigin(
@@ -363,21 +524,34 @@ export function HeroHand({
         setPlayingIndex(null);
         playLockRef.current = false;
       } catch {
-        // Play errors surface via actionFeedback from onPlayCard — avoid duplicate bottom banner.
         setPlayingIndex(null);
         playLockRef.current = false;
       }
     },
-    [busy, legalPlayIndices, onPlayCard, currentUserId, typedCards, clearPreselectTimer],
+    [
+      busy,
+      bumpAutoplayGeneration,
+      clearPreselectTimer,
+      currentUserId,
+      handNumber,
+      isMyTurn,
+      legalPlayIndices,
+      onPlayCard,
+      trickNumber,
+      turnPlayerId,
+      typedCards,
+    ],
   );
 
-  const preselectCard = useCallback(
+  const handleTapPlay = useCallback(
     (index: number) => {
       if (playLockRef.current || busy || !onPlayCard || phase !== "play") return;
-      if (!isLegalPlayIndex(index, legalPlayIndices)) {
+      const legal = isLegalPlayIndex(index, legalPlayIndices);
+      if (!legal) {
         if (isMyTurn) {
           playIllegalActionFeedback();
-          clearPreselectTimer();
+          bumpAutoplayGeneration();
+          clearPreselectTimer("illegal");
           setSelectedPlay(null);
           setIllegalShakeIndex(index);
           setIllegalFlashIndex(index);
@@ -387,41 +561,138 @@ export function HeroHand({
           }, MICRO_MS.illegalFlash);
           setLocalError("Illegal play");
         }
+        logPlayClick({
+          event: "tap-select",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          cardIndex: index,
+          isMyTurn,
+          isLegal: false,
+          gesture: "tap",
+        });
         return;
       }
-      const nextSelection = togglePlayPreselectIndex(selectedPlay, index);
-      clearPreselectTimer();
-      setSelectedPlay(nextSelection);
+
+      const plan = planTapAutoplay({
+        selectedPlay,
+        tappedIndex: index,
+        isMyTurn,
+        isLegal: legal,
+      });
+
+      if (plan.isDeselect) {
+        bumpAutoplayGeneration();
+        clearPreselectTimer("deselect");
+        setSelectedPlay(null);
+        logPlayClick({
+          event: "tap-deselect",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          cardIndex: index,
+          selectedPlay: null,
+          isMyTurn,
+          isLegal: true,
+          gesture: "tap",
+        });
+        return;
+      }
+
+      if (plan.shouldCancelAutoplay && selectedPlay !== null && selectedPlay !== index) {
+        bumpAutoplayGeneration();
+        clearPreselectTimer("selection-switch");
+      }
+
+      setSelectedPlay(plan.nextSelection);
       setLocalError(null);
       notifyUserActivity();
-      if (nextSelection === null) {
-        pendingPlayIndexRef.current = null;
-        return;
+      logPlayClick({
+        event: "tap-select",
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        cardIndex: index,
+        selectedPlay: plan.nextSelection,
+        isMyTurn,
+        isLegal: true,
+        gesture: "tap",
+      });
+
+      if (plan.shouldArmAutoplay && plan.nextSelection !== null) {
+        armTapAutoplay(plan.nextSelection, "tap-select");
       }
-      pendingPlayIndexRef.current = nextSelection;
-      if (!isMyTurn) return;
-      preselectTimerRef.current = window.setTimeout(() => {
-        preselectTimerRef.current = null;
-        const pending = pendingPlayIndexRef.current;
-        pendingPlayIndexRef.current = null;
-        if (pending === nextSelection && !playLockRef.current) {
-          void executePlayRef.current(nextSelection);
-        }
-      }, MICRO_MS.autoPlayPreselect);
     },
     [
+      armTapAutoplay,
+      bumpAutoplayGeneration,
       busy,
       clearPreselectTimer,
+      handNumber,
+      isMyTurn,
+      legalPlayIndices,
+      notifyUserActivity,
+      onPlayCard,
+      phase,
+      selectedPlay,
+      trickNumber,
+      turnPlayerId,
+    ],
+  );
+
+  const handleSwipePlay = useCallback(
+    (index: number) => {
+      if (playLockRef.current || busy || !onPlayCard || phase !== "play") return;
+      const legal = isLegalPlayIndex(index, legalPlayIndices);
+      logPlayClick({
+        event: "swipe-immediate-play",
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        cardIndex: index,
+        isMyTurn,
+        isLegal: legal,
+        gesture: "swipe-flick",
+        busy,
+        playLock: playLockRef.current,
+      });
+      if (!shouldSwipeImmediatePlay(isMyTurn, legal)) return;
+      bumpAutoplayGeneration();
+      clearPreselectTimer("swipe");
+      setSelectedPlay(null);
+      void executePlay(index, "swipe");
+    },
+    [
+      bumpAutoplayGeneration,
+      busy,
+      clearPreselectTimer,
+      executePlay,
+      handNumber,
       isMyTurn,
       legalPlayIndices,
       onPlayCard,
       phase,
-      notifyUserActivity,
-      selectedPlay,
+      trickNumber,
+      turnPlayerId,
     ],
   );
 
-  executePlayRef.current = executePlay;
+  const handlePlayCard = useCallback(
+    (index: number, gesture: CardGestureKind = "tap") => {
+      if (gesture === "swipe-flick") {
+        handleSwipePlay(index);
+        return;
+      }
+      if (gesture === "hold") {
+        handleSwipePlay(index);
+        return;
+      }
+      handleTapPlay(index);
+    },
+    [handleSwipePlay, handleTapPlay],
+  );
+
+  executePlayRef.current = (index: number) => executePlay(index, "tap-autoplay");
 
   const runDrawAction = useCallback(
     async (indices: number[]) => {
@@ -693,7 +964,7 @@ export function HeroHand({
             showPlayableHint: false,
             allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
             trickPlayOriginPlayerId: currentUserId,
-            onPlayCard: preselectCard,
+            onPlayCard: handlePlayCard,
             onSelectCard: toggleDrawIndex,
             onIllegalPlay: handleIllegalPlay,
             onPeek: setPeekIndex,

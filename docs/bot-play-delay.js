@@ -55,8 +55,6 @@ export function createBotPlayDelayState(options = {}) {
    * @param {number|null|undefined} input.trickNumber
    * @param {string|null|undefined} input.turnPlayerId
    * @param {number} input.nowMs
-   * @param {number} input.lastCompletedAtMs
-   * @param {number} input.trickIntervalMs
    */
   function resolvePlayDelayMs(input) {
     syncHand(input.handNumber);
@@ -69,18 +67,12 @@ export function createBotPlayDelayState(options = {}) {
     const chosenDelayMs = pickDelayForKey(key);
     const elapsedSinceTurnMs = input.nowMs - turnEligibleAtMs;
     const remainingTurnMs = Math.max(0, chosenDelayMs - elapsedSinceTurnMs);
-    const elapsedSinceCompleteMs = input.nowMs - input.lastCompletedAtMs;
-    const trickGapRemainingMs =
-      input.trickIntervalMs > 0
-        ? Math.max(0, input.trickIntervalMs - elapsedSinceCompleteMs)
-        : 0;
-    const delayMs = Math.max(remainingTurnMs, trickGapRemainingMs);
     return {
       turnKey: key,
       chosenDelayMs,
       elapsedSinceTurnMs,
-      trickGapRemainingMs,
-      delayMs,
+      trickGapRemainingMs: 0,
+      delayMs: remainingTurnMs,
     };
   }
 
@@ -93,13 +85,137 @@ export function createBotPlayDelayState(options = {}) {
 }
 
 /**
+ * Play-phase think scheduler — single pending timer per turn key, generation cancel.
+ *
+ * @param {object} [options]
+ * @param {() => number} [options.rng]
+ */
+export function createBotThinkScheduleState(options = {}) {
+  const playDelayState = createBotPlayDelayState(options);
+  let scheduledTimer = null;
+  let scheduleGeneration = 0;
+  let pendingTurnKey = null;
+  let pendingChosenDelayMs = null;
+
+  function clearTimer() {
+    if (scheduledTimer) {
+      clearTimeout(scheduledTimer);
+      scheduledTimer = null;
+    }
+  }
+
+  /**
+   * @param {object} input
+   * @param {string} [input.reason]
+   * @param {(extra: object) => void} [input.onCanceled]
+   */
+  function cancelPending({ reason = "canceled", onCanceled } = {}) {
+    if (!scheduledTimer && !pendingTurnKey) return false;
+    scheduleGeneration += 1;
+    const extra = {
+      reason,
+      turnKey: pendingTurnKey,
+      generation: scheduleGeneration,
+      chosenDelayMs: pendingChosenDelayMs,
+    };
+    clearTimer();
+    pendingTurnKey = null;
+    pendingChosenDelayMs = null;
+    onCanceled?.(extra);
+    return true;
+  }
+
+  /**
+   * @param {object} input
+   * @param {{ handNumber: number, trickNumber: number|null, turnPlayerId: string|null }} input.ctx
+   * @param {number} input.nowMs
+   * @param {() => boolean} input.shouldFire
+   * @param {(payload: { turnKey: string, generation: number, plan: object }) => void} input.onFire
+   * @param {{ armed?: Function, coalesced?: Function, rejected?: Function, accepted?: Function }} [input.log]
+   */
+  function armPlayThink({ ctx, nowMs, shouldFire, onFire, log }) {
+    const turnKey = botPlayTurnKey(ctx);
+    if (scheduledTimer && pendingTurnKey === turnKey) {
+      log?.coalesced?.({
+        turnKey,
+        generation: scheduleGeneration,
+        chosenDelayMs: pendingChosenDelayMs,
+      });
+      return { action: "coalesced", turnKey, generation: scheduleGeneration };
+    }
+
+    if (scheduledTimer || pendingTurnKey) {
+      cancelPending({
+        reason: "superseded",
+        onCanceled: (extra) => log?.canceled?.({ ...extra, trigger: "superseded" }),
+      });
+    }
+
+    const plan = playDelayState.resolvePlayDelayMs({
+      handNumber: ctx.handNumber,
+      trickNumber: ctx.trickNumber,
+      turnPlayerId: ctx.turnPlayerId,
+      nowMs,
+    });
+    const generation = scheduleGeneration;
+    pendingTurnKey = turnKey;
+    pendingChosenDelayMs = plan.chosenDelayMs;
+
+    log?.armed?.({
+      turnKey,
+      generation,
+      chosenDelayMs: plan.chosenDelayMs,
+      delayMs: plan.delayMs,
+      elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
+    });
+
+    scheduledTimer = setTimeout(() => {
+      scheduledTimer = null;
+      if (generation !== scheduleGeneration) return;
+      if (pendingTurnKey !== turnKey) return;
+      pendingTurnKey = null;
+      pendingChosenDelayMs = null;
+
+      if (!shouldFire()) {
+        log?.rejected?.({
+          turnKey,
+          generation,
+          chosenDelayMs: plan.chosenDelayMs,
+        });
+        return;
+      }
+
+      log?.accepted?.({
+        turnKey,
+        generation,
+        chosenDelayMs: plan.chosenDelayMs,
+        delayMs: plan.delayMs,
+      });
+      onFire({ turnKey, generation, plan });
+    }, plan.delayMs);
+
+    return { action: "armed", turnKey, generation, ...plan };
+  }
+
+  return {
+    playDelayState,
+    armPlayThink,
+    cancelPending,
+    get pendingTurnKey() {
+      return pendingTurnKey;
+    },
+    get generation() {
+      return scheduleGeneration;
+    },
+  };
+}
+
+/**
  * @param {object} input
  * @param {"play"|string|null|undefined} input.handPhase
  * @param {ReturnType<typeof createBotPlayDelayState>} input.playDelayState
  * @param {object} input.ctx — handNumber, trickNumber, turnPlayerId
  * @param {number} input.nowMs
- * @param {number} input.lastCompletedAtMs
- * @param {number} input.trickIntervalMs
  */
 export function resolveBotAdvanceDelayMs(input) {
   if (input.handPhase === "play") {
@@ -109,22 +225,17 @@ export function resolveBotAdvanceDelayMs(input) {
         trickNumber: input.ctx.trickNumber,
         turnPlayerId: input.ctx.turnPlayerId,
         nowMs: input.nowMs,
-        lastCompletedAtMs: input.lastCompletedAtMs,
-        trickIntervalMs: input.trickIntervalMs,
       }),
       handPhase: "play",
     };
   }
 
-  const elapsedSinceCompleteMs = input.nowMs - input.lastCompletedAtMs;
-  const delayMs = Math.max(BOT_ADVANCE_DEBOUNCE_MS, 0);
-  void elapsedSinceCompleteMs;
   return {
     handPhase: input.handPhase ?? null,
     turnKey: null,
     chosenDelayMs: BOT_ADVANCE_DEBOUNCE_MS,
     elapsedSinceTurnMs: 0,
     trickGapRemainingMs: 0,
-    delayMs,
+    delayMs: BOT_ADVANCE_DEBOUNCE_MS,
   };
 }

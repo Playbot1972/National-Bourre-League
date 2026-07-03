@@ -14,7 +14,7 @@ export type CardGestureMode = "none" | "play" | "draw-select" | "peek";
 export interface UseCardGestureHandlersOptions {
   disabled?: boolean;
   mode: CardGestureMode;
-  onPlay?: () => void;
+  onPlay?: (kind: CardGestureKind) => void;
   onSelect?: () => void;
   onPeekStart?: () => void;
   onPeekEnd?: () => void;
@@ -72,8 +72,7 @@ export function useCardGestureHandlers({
     session.fired = true;
     clearHoldTimer();
     finishPeek();
-    optsRef.current.onPlay?.();
-    void kind;
+    optsRef.current.onPlay?.(kind);
   };
 
   const fireSelect = () => {

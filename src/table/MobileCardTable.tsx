@@ -473,6 +473,8 @@ export function MobileCardTable({
           trumpMergeActive={trumpMergeActive}
           trumpDisabledIndex={trumpDisabledIndex}
           handNumber={session.handNumber}
+          trickNumber={session.currentTrick?.trickNumber ?? null}
+          turnPlayerId={session.turnPlayerId}
           tableRootRef={wrapRef}
           pileIndexRef={pileIndexRef}
           onDiscardCommitted={commitDiscardCards}
