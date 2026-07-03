@@ -16,7 +16,10 @@ jobs:
   deploy:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      !contains(github.event.head_commit.message, '[skip ci]')
+      (
+        !contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[rollback-deploy]')
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
