@@ -68,15 +68,30 @@ export function shouldShowBestPlayRecommendation(input: {
   );
 }
 
+export type HeroPlayCardVisualTier =
+  | "play-preselected"
+  | "play-recommended"
+  | "legal-playable"
+  | null;
+
 /**
- * Manual preselect vs Best Play card styling — separate paths; preselect wins on same index.
+ * Hero play-phase card styling precedence:
+ * 1. selectedPlay (manual tap / queue)
+ * 2. best-play recommendation
+ * 3. legal-play green outline (ambient hint)
+ * 4. default / muted
  */
-export function resolveManualOrRecommendedPlayState(input: {
+export function resolveHeroPlayCardVisualTier(input: {
+  inPlayPhase: boolean;
+  isMyTurn: boolean;
+  busy: boolean;
   cardIndex: number;
   selectedPlay: number | null;
+  isLegal: boolean;
   showBestPlayRecommendation: boolean;
   recommendedPlayIndex: number | null;
-}): "play-preselected" | "play-recommended" | null {
+}): HeroPlayCardVisualTier {
+  if (!input.inPlayPhase) return null;
   if (input.selectedPlay === input.cardIndex) return "play-preselected";
   if (
     input.showBestPlayRecommendation &&
@@ -84,6 +99,28 @@ export function resolveManualOrRecommendedPlayState(input: {
   ) {
     return "play-recommended";
   }
+  if (input.isMyTurn && input.isLegal && !input.busy) return "legal-playable";
+  return null;
+}
+
+/** @deprecated Use resolveHeroPlayCardVisualTier */
+export function resolveManualOrRecommendedPlayState(input: {
+  cardIndex: number;
+  selectedPlay: number | null;
+  showBestPlayRecommendation: boolean;
+  recommendedPlayIndex: number | null;
+}): "play-preselected" | "play-recommended" | null {
+  const tier = resolveHeroPlayCardVisualTier({
+    inPlayPhase: true,
+    isMyTurn: true,
+    busy: false,
+    cardIndex: input.cardIndex,
+    selectedPlay: input.selectedPlay,
+    isLegal: true,
+    showBestPlayRecommendation: input.showBestPlayRecommendation,
+    recommendedPlayIndex: input.recommendedPlayIndex,
+  });
+  if (tier === "play-preselected" || tier === "play-recommended") return tier;
   return null;
 }
 

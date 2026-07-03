@@ -13,7 +13,7 @@ import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
   planTapAutoplay,
-  resolveManualOrRecommendedPlayState,
+  resolveHeroPlayCardVisualTier,
   shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
@@ -318,13 +318,17 @@ export function HeroHand({
     prevPlayActivityKeyRef.current = playActivityKey;
     bumpAutoplayGeneration();
     clearPreselectTimer("play-activity-change");
+    setSelectedPlay(null);
   }, [playActivityKey, bumpAutoplayGeneration, clearPreselectTimer]);
 
   useEffect(() => {
-    if (actionFeedback?.status === "success" || actionFeedback?.status === "error") {
+    if (actionFeedback?.status === "success") {
       setPlayingIndex(null);
       setSelectedPlay(null);
       clearPreselectTimer();
+      playLockRef.current = false;
+    } else if (actionFeedback?.status === "error") {
+      setPlayingIndex(null);
       playLockRef.current = false;
     }
   }, [actionFeedback?.status, clearPreselectTimer]);
@@ -415,7 +419,6 @@ export function HeroHand({
       bumpAutoplayGeneration();
       clearPreselectTimer();
       playLockRef.current = true;
-      setSelectedPlay(null);
       setPlayingIndex(index);
       setLocalError(null);
       logPlayClick({
@@ -443,6 +446,7 @@ export function HeroHand({
       try {
         await Promise.resolve(onPlayCard(index));
         setPlayingIndex(null);
+        setSelectedPlay(null);
         playLockRef.current = false;
       } catch {
         setPlayingIndex(null);
@@ -526,6 +530,7 @@ export function HeroHand({
       }
 
       if (plan.shouldImmediatePlay && plan.nextSelection !== null) {
+        setSelectedPlay(plan.nextSelection);
         setLocalError(null);
         notifyUserActivity();
         logPlayClick({
@@ -594,7 +599,7 @@ export function HeroHand({
       if (!shouldSwipeImmediatePlay(isMyTurn, legal)) return;
       bumpAutoplayGeneration();
       clearPreselectTimer("swipe");
-      setSelectedPlay(null);
+      setSelectedPlay(index);
       void executePlay(index, "swipe");
     },
     [
@@ -815,6 +820,31 @@ export function HeroHand({
     recommendedPlayIndex,
   });
 
+  const playVisualTierFor = useCallback(
+    (cardIndex: number) => {
+      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
+      return resolveHeroPlayCardVisualTier({
+        inPlayPhase,
+        isMyTurn,
+        busy,
+        cardIndex,
+        selectedPlay,
+        isLegal,
+        showBestPlayRecommendation,
+        recommendedPlayIndex,
+      });
+    },
+    [
+      busy,
+      inPlayPhase,
+      isMyTurn,
+      legalPlayIndices,
+      recommendedPlayIndex,
+      selectedPlay,
+      showBestPlayRecommendation,
+    ],
+  );
+
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";
     if (trumpDisabledIndex === i && (inDrawPhase || inPlayPhase)) return "muted";
@@ -823,13 +853,9 @@ export function HeroHand({
     if (inDrawPhase && selectedDraw.has(i)) {
       return "draw-selected";
     }
-    const manualOrRecommended = resolveManualOrRecommendedPlayState({
-      cardIndex: i,
-      selectedPlay,
-      showBestPlayRecommendation,
-      recommendedPlayIndex,
-    });
-    if (manualOrRecommended) return manualOrRecommended;
+    const tier = playVisualTierFor(i);
+    if (tier === "play-preselected") return "play-preselected";
+    if (tier === "play-recommended") return "play-recommended";
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
   };
@@ -900,7 +926,8 @@ export function HeroHand({
             illegalShakeIndex,
             illegalFlashIndex,
             busy,
-            showPlayableHint: false,
+            showPlayableHint: true,
+            playableHintFor: (i) => playVisualTierFor(i) === "legal-playable",
             allowPlayPreselect: inPlayPhase && isInHand && !isMyTurn,
             trickPlayOriginPlayerId: currentUserId,
             onPlayCard: handlePlayCard,
