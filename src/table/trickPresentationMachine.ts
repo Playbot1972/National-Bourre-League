@@ -7,7 +7,7 @@ import {
   type TrickPresentationPhase,
 } from "./trickTiming";
 import { playFlyKey } from "./trickPlayFly";
-import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { isGameFlowDebugEnabled, logGameFlow, logPresentationPhase } from "./gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "./types";
 
 export interface ServerTrickSnapshot {
@@ -195,6 +195,13 @@ export function reduceTrickPresentation(
 ): TrickPresentationStore {
   const next = reduceTrickPresentationCore(store, event);
   if (isGameFlowDebugEnabled()) {
+    if (store.phase !== next.phase) {
+      logPresentationPhase("trick", store.phase, next.phase, {
+        trickNumber: next.frozenTrick?.trickNumber,
+        winnerId: next.frozenTrick?.winnerId,
+        pendingResolution: Boolean(next.pendingResolution),
+      });
+    }
     const plays = serializedPlays(store.prevTrick).length;
     const nextPlays = serializedPlays(next.prevTrick).length;
     if (

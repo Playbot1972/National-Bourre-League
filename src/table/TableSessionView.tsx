@@ -19,6 +19,7 @@ import {
   turnIndicatorLabel,
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
+import type { HandPresentationApi } from "./handPresentationApi";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { TurnCountdownSync } from "./TurnCountdownSync";
 import { TrickAnimationBusySync } from "./TrickAnimationBusySync";
@@ -131,6 +132,11 @@ export function TableSessionView({
 
   const forceTrickHandEndDrain = trickBridge.forceHandEndDrain;
 
+  const handPresentationApiRef = useRef<HandPresentationApi | null>(null);
+  const notifyDealPresentationComplete = useCallback(() => {
+    handPresentationApiRef.current?.notifyDealPresentationComplete();
+  }, []);
+
   const handPresentation = useHandPresentation({
     session,
     enrollmentActive,
@@ -145,6 +151,7 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
+    presentationApiRef: handPresentationApiRef,
   });
 
   const instantTrickPlays = useTrumpTrickMotionGate(
@@ -463,8 +470,14 @@ export function TableSessionView({
   });
   const selfBourreSting =
     Boolean(selfPlayer?.playerId) &&
+    handPresentation.settleBourreIds.includes(selfPlayer!.playerId) &&
+    handPresentation.showBourreCallout;
+  const legacyBourreSting =
+    Boolean(selfPlayer?.playerId) &&
     (recentBourreIds ?? []).includes(selfPlayer!.playerId) &&
-    microinteractions.bourreAlerts[selfPlayer!.playerId] === "pulse";
+    microinteractions.bourreAlerts[selfPlayer!.playerId] === "pulse" &&
+    handPresentation.phase !== "settle";
+  const bourreStingActive = selfBourreSting || legacyBourreSting;
 
   const prevErrorPulseRef = useRef(0);
   const prevSuccessPulseRef = useRef(0);
@@ -557,6 +570,8 @@ export function TableSessionView({
       actionFeedback,
       handPresentation,
       microinteractions,
+      onDealPresentationComplete: notifyDealPresentationComplete,
+      presentationApiRef: handPresentationApiRef,
       instantTrickPlays,
       bigPotEvent,
       onDismissTableEvent: dismissEvent,
@@ -583,6 +598,8 @@ export function TableSessionView({
       actionFeedback,
       handPresentation,
       microinteractions,
+      notifyDealPresentationComplete,
+      handPresentationApiRef,
       instantTrickPlays,
       bigPotEvent,
       dismissEvent,
@@ -601,7 +618,7 @@ export function TableSessionView({
           activityKey={turnReminderActivityKey}
         />
       </div>
-      <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
+      <BourreResultSting active={bourreStingActive} displayName={selfPlayer?.displayName} />
       <EventReactions events={events} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
       {nativeMobile ? (

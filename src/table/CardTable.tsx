@@ -12,6 +12,7 @@ import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
+import { useHandSettlePresentation } from "./hooks/useHandSettlePresentation";
 import { useExternalStoreSelector } from "./hooks/useExternalStoreSelector";
 import {
   getTrickPresentationSnapshot,
@@ -24,6 +25,7 @@ import {
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
 import type { TableEvent } from "./hooks/useTableEvents";
 import type { HandPresentation } from "./hooks/useHandPresentation";
+import type { HandPresentationApi } from "./handPresentationApi";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { TableProfiler } from "./tableProfiler";
@@ -50,6 +52,8 @@ interface CardTableProps {
   actionFeedback?: TableActionFeedback | null;
   handPresentation: HandPresentation;
   microinteractions: TableMicrointeractions;
+  onDealPresentationComplete?: () => void;
+  presentationApiRef?: React.MutableRefObject<HandPresentationApi | null>;
   instantTrickPlays?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
@@ -86,6 +90,8 @@ export function CardTable({
   actionFeedback,
   handPresentation,
   microinteractions,
+  onDealPresentationComplete,
+  presentationApiRef,
   instantTrickPlays = false,
   bigPotEvent = null,
   onDismissTableEvent,
@@ -167,6 +173,7 @@ export function CardTable({
     heroCards,
     privateHandReady,
     tableRootRef: wrapRef,
+    onDealPresentationComplete,
   });
   useWonTrickCollection({
     trickCollection,
@@ -175,6 +182,19 @@ export function CardTable({
     handComplete,
     tableRootRef: wrapRef,
   });
+  useHandSettlePresentation({
+    handPresentation,
+    tableRootRef: wrapRef,
+    presentationApiRef,
+  });
+
+  const settleSeatRows = useMemo(
+    () =>
+      players
+        .filter((p) => p.inHand)
+        .map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
+    [players],
+  );
 
   const potCenterProps = useMemo(
     () => ({
@@ -196,6 +216,10 @@ export function CardTable({
       drawDiscardCount: handPresentation.drawDiscardCount,
       settleAnimActive: handPresentation.settleAnimActive,
       settleCarryOver: handPresentation.settleCarryOver,
+      settleSubPhase: handPresentation.settleSubPhase,
+      settleTricksByPlayer: handPresentation.settleTricksByPlayer,
+      settleWinnerIds: handPresentation.settleWinnerIds,
+      settleSeatRows,
       potTick: microinteractions.potTick,
       trumpReminderPulse: microinteractions.trumpReminderPulse,
       instantTrickPlays,
@@ -213,6 +237,7 @@ export function CardTable({
       enrollmentActive,
       playerNames,
       handPresentation,
+      settleSeatRows,
       hideCenterTrump,
       showTrumpSuitReminder,
       microinteractions.potTick,
@@ -231,6 +256,7 @@ export function CardTable({
         countClass,
         hasActiveTurn ? "btable-wrap--has-active-turn" : "",
         clockwiseDealing ? "btable-wrap--clockwise-dealing" : "",
+        handPresentation.handResetCueActive ? "btable-wrap--hand-reset" : "",
       ]
         .filter(Boolean)
         .join(" ")}

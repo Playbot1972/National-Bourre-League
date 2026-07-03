@@ -41,6 +41,35 @@ export const NEXT_HAND_RESET_MS = 550;
 /** Hand reset between sessions (400–700 ms). */
 export const HAND_RESET_MS = 500;
 
+/** Safety net when GSAP deal never signals completion during ante. */
+export const ANTE_DEAL_STALL_MS = 8_000;
+
+/** Settle presentation sub-phases (while hand phase === "settle"). */
+export type SettleSubPhase =
+  | "trickTotals"
+  | "potPayout"
+  | "bourreCallout"
+  | "bourrePenalty"
+  | "reset";
+
+/** End-of-hand trick count summary. */
+export const SETTLE_TRICK_TOTALS_MS = 1_200;
+
+/** Pot chip flight to sole winner (or brief beat when skipped). */
+export const SETTLE_POT_PAYOUT_MS = 480;
+
+/** Bourré sting / callout hold. */
+export const SETTLE_BOURRE_CALLOUT_MS = 1_400;
+
+/** Bourré penalty chip flight to pot. */
+export const SETTLE_BOURRE_PENALTY_MS = 520;
+
+/** Brief beat before nextHandReset. */
+export const SETTLE_RESET_MS = 420;
+
+/** Watchdog when payout/penalty motion never signals completion. */
+export const SETTLE_MOTION_STALL_MS = 2_400;
+
 /** Maximum time any single presentation phase may hold before forced advance. */
 export const PRESENTATION_WATCHDOG_MS = 12_000;
 

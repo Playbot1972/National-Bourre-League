@@ -83,6 +83,7 @@ function SeatInner({
         player.trumpMerging ? "bseat--trump-merge" : "",
         player.isActiveActor ? "bseat--active-actor" : "",
         player.isActiveActor && player.inHand ? "bseat--play-origin-active" : "",
+        player.turnHandoff ? "bseat--turn-handoff" : "",
         player.isTrickCapture ? "bseat--trick-capture" : "",
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
@@ -111,6 +112,13 @@ function SeatInner({
           className="bseat__play-origin"
           data-seat-play-origin={player.playerId}
           data-trick-play-origin={player.playerId}
+          aria-hidden="true"
+        />
+      )}
+      {player.inHand && (
+        <span
+          className="bseat__settle-chip-anchor"
+          data-settle-chip-anchor={player.playerId}
           aria-hidden="true"
         />
       )}

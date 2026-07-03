@@ -5,12 +5,14 @@ import {
   clearWonTrickCollectionArtifacts,
   hasActiveWonTrickFlights,
   killWonTrickFlights,
+  markWinnerPileRevealReady,
   readTrickRowCardElements,
   WON_TRICK_FLY_MAX_MS,
 } from "../animations/wonTrickPileMotion";
 import { setTrickCollectionActive } from "../presentationMotionBusy";
 import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
+import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 
 export interface TrickCollectionState {
   phase: TrickPresentationPhase;
@@ -28,6 +30,23 @@ export interface UseWonTrickCollectionInput {
 }
 
 const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
+const COLLECT_DOM_RETRY_MS = 48;
+const COLLECT_DOM_MAX_ATTEMPTS = 5;
+
+function waitForTrickRowCards(
+  root: ParentNode,
+  attempt = 0,
+): Promise<HTMLElement[]> {
+  const cardEls = readTrickRowCardElements(root);
+  if (cardEls.length > 0 || attempt >= COLLECT_DOM_MAX_ATTEMPTS) {
+    return Promise.resolve(cardEls);
+  }
+  return new Promise((resolve) => {
+    window.setTimeout(() => {
+      void waitForTrickRowCards(root, attempt + 1).then(resolve);
+    }, COLLECT_DOM_RETRY_MS);
+  });
+}
 
 /**
  * GSAP trick collection — blocks bots until the packet reaches the won-tricks pile.
@@ -111,12 +130,6 @@ export function useWonTrickCollection({
     killWonTrickFlights();
     removeStaleGhosts(root);
 
-    const cardEls = readTrickRowCardElements(root);
-    if (!cardEls.length) {
-      collectionInFlightRef.current = false;
-      return;
-    }
-
     const bookIndex = Math.max(
       0,
       (trickCollection.displayTricksByPlayer[winnerId] ?? 1) - 1,
@@ -128,23 +141,50 @@ export function useWonTrickCollection({
     });
 
     const rakeDelay = TRICK_RAKE_MS;
-    setTrickCollectionActive(true);
-    const rakeTimer = window.setTimeout(() => {
-      animateTrickCardsToWonPile(cardEls, {
-        winnerPlayerId: winnerId,
-        trickKey,
-        bookIndex,
-        root,
-        host: root,
-        onComplete: () => {
-          collectionInFlightRef.current = false;
-          setTrickCollectionActive(false);
-        },
-      });
-    }, rakeDelay);
+    let cancelled = false;
+    let rakeTimer: number | null = null;
+
+    const finishWithoutFly = (reason: string) => {
+      if (cancelled) return;
+      collectionInFlightRef.current = false;
+      setTrickCollectionActive(false);
+      markWinnerPileRevealReady(winnerId, root);
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useWonTrickCollection", "collect-skip-fly", {
+          reason,
+          collectKey,
+          trickNumber: frozen.trickNumber,
+        });
+      }
+    };
+
+    const startCollection = (cardEls: HTMLElement[]) => {
+      if (cancelled) return;
+      if (!cardEls.length) {
+        finishWithoutFly("no-dom-cards");
+        return;
+      }
+      setTrickCollectionActive(true);
+      rakeTimer = window.setTimeout(() => {
+        animateTrickCardsToWonPile(cardEls, {
+          winnerPlayerId: winnerId,
+          trickKey,
+          bookIndex,
+          root,
+          host: root,
+          onComplete: () => {
+            collectionInFlightRef.current = false;
+            setTrickCollectionActive(false);
+          },
+        });
+      }, rakeDelay);
+    };
+
+    void waitForTrickRowCards(root).then(startCollection);
 
     return () => {
-      window.clearTimeout(rakeTimer);
+      cancelled = true;
+      if (rakeTimer != null) window.clearTimeout(rakeTimer);
       collectionInFlightRef.current = false;
       setTrickCollectionActive(false);
     };

@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useReducer, useRef } from "react";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
   phaseScheduleMs,
   reduceHandPresentation,
+  shouldAnimateSettlePotPayout,
   snapshotFromSession,
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
+import {
+  PRESENTATION_WATCHDOG_MS,
+  ENROLLMENT_SEAT_PULSE_MS,
+  BOT_DRAW_PRESENTATION_WATCHDOG_MS,
+  HAND_SETTLE_PIPELINE_WATCHDOG_MS,
+  SETTLE_MOTION_STALL_MS,
+} from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
+import type { HandPresentationApi } from "../handPresentationApi";
 import type { SerializedCard, TableSessionData } from "../types";
 
 const EMPTY_IDS: string[] = [];
@@ -39,6 +47,8 @@ export interface UseHandPresentationInput {
   enrolledIds?: string[];
   declinedIds?: string[];
   actionOrder?: string[];
+  /** Receives notifyDealPresentationComplete once the hook mounts. */
+  presentationApiRef?: React.MutableRefObject<HandPresentationApi | null>;
 }
 
 export type HandPresentation = HandPresentationModel;
@@ -54,6 +64,7 @@ export function useHandPresentation({
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
   actionOrder,
+  presentationApiRef,
 }: UseHandPresentationInput): HandPresentation {
   const snapshot = useMemo(
     (): HandServerSnapshot =>
@@ -73,6 +84,7 @@ export function useHandPresentation({
         carryOverPot: session.carryOverPot,
         enrolledIds,
         declinedIds,
+        tricksByPlayer: session.tricksByPlayer,
       }),
     [
       session,
@@ -97,6 +109,21 @@ export function useHandPresentation({
   const storeRef = useRef(store);
   storeRef.current = store;
 
+  // Imperative API must exist before child layout effects in the same render.
+  if (presentationApiRef) {
+    presentationApiRef.current = {
+      notifyDealPresentationComplete: () => {
+        dispatch({ type: "dealPresentationComplete" });
+      },
+      notifySettlePayoutComplete: () => {
+        dispatch({ type: "settlePayoutComplete" });
+      },
+      notifySettlePenaltyComplete: () => {
+        dispatch({ type: "settlePenaltyComplete" });
+      },
+    };
+  }
+
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
     timersRef.current = [];
@@ -109,6 +136,12 @@ export function useHandPresentation({
   };
 
   useEffect(() => () => clearTimers(), []);
+
+  useEffect(() => {
+    return () => {
+      if (presentationApiRef) presentationApiRef.current = null;
+    };
+  }, [presentationApiRef]);
 
   useEffect(() => {
     const heroKeys = heroCards.map((c) => `${c.rank}-${c.suit}`);
@@ -147,6 +180,25 @@ export function useHandPresentation({
   useEffect(() => {
     const reduced = prefersReducedMotion();
     const phaseKey = `${store.handNumber}:${store.phase}:${store.animatingDrawPlayerId ?? ""}:${store.drawAnimSubPhase}:${store.phaseStartedAt}`;
+    const delay = phaseScheduleMs(store, reduced);
+    const motionGatedSettle =
+      store.phase === "settle" &&
+      ((store.settleSubPhase === "potPayout" &&
+        shouldAnimateSettlePotPayout(store) &&
+        !store.settlePayoutComplete) ||
+        (store.settleSubPhase === "bourrePenalty" &&
+          store.settleBourreIds.length > 0 &&
+          !store.settlePenaltyComplete));
+    const motionKey = `motion:${phaseKey}`;
+
+    if (delay <= 0 && motionGatedSettle) {
+      if (advanceArmedKeyRef.current === motionKey) return;
+      clearTimers();
+      advanceArmedKeyRef.current = motionKey;
+      schedule(() => dispatch({ type: "watchdog" }), SETTLE_MOTION_STALL_MS);
+      return;
+    }
+
     if (advanceArmedKeyRef.current === phaseKey) {
       if (isGameFlowDebugEnabled()) {
         logGameFlow("useHandPresentation", "advancePhase-timer-skip-duplicate", { phaseKey });
@@ -155,7 +207,6 @@ export function useHandPresentation({
     }
 
     clearTimers();
-    const delay = phaseScheduleMs(store, reduced);
     if (delay <= 0) return;
 
     const armedAt = {
@@ -218,7 +269,17 @@ export function useHandPresentation({
         ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
         : PRESENTATION_WATCHDOG_MS;
     schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
-  }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
+  }, [
+    store.handNumber,
+    store.phase,
+    store.animatingDrawPlayerId,
+    store.drawAnimSubPhase,
+    store.phaseStartedAt,
+    store.dealPresentationComplete,
+    store.settleSubPhase,
+    store.settlePayoutComplete,
+    store.settlePenaltyComplete,
+  ]);
 
   useEffect(() => {
     if (

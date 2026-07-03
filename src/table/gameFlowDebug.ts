@@ -32,6 +32,20 @@ export function isGameFlowDebugEnabled(): boolean {
   }
 }
 
+/** Structured presentation phase transition — enable via gameFlowDebug. */
+export function logPresentationPhase(
+  machine: "hand" | "trick",
+  from: string,
+  to: string,
+  meta?: Record<string, unknown>,
+): void {
+  logGameFlow(
+    machine === "hand" ? "handPresentation" : "trickPresentation",
+    "phase-transition",
+    { from, to, ...meta },
+  );
+}
+
 export function logGameFlow(
   source: string,
   event: string,

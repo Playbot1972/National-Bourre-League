@@ -4174,8 +4174,30 @@
 }
 
 /* Table microinteractions */
+.btable-wrap--hand-reset .table-stage {
+  animation: bhand-reset-readiness 520ms ease;
+}
+
+@keyframes bhand-reset-readiness {
+  0% {
+    opacity: 0.9;
+    filter: brightness(0.94);
+  }
+  100% {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+.bseat--turn-handoff {
+  outline: 1px solid rgba(92, 196, 140, 0.42);
+  outline-offset: 2px;
+  border-radius: 12px;
+  transition: outline-color 220ms ease;
+}
+
 .bseat--turn-handoff .bseat__avatar-wrap {
-  /* Replaced by turn countdown ring — no handoff pulse. */
+  /* Countdown ring stays primary — no avatar pulse. */
   animation: none;
 }
 
@@ -4311,12 +4333,111 @@
   }
 }
 
+.btable-settle-trick-totals {
+  position: absolute;
+  inset: auto 0 52%;
+  z-index: 6;
+  margin: 0 auto;
+  width: min(18rem, 92%);
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.65rem;
+  background: rgba(8, 14, 22, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  animation: btable-settle-totals-in 320ms ease-out;
+}
+
+.btable-settle-trick-totals__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.btable-settle-trick-totals__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.btable-settle-trick-totals__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.86rem;
+}
+
+.btable-settle-trick-totals__row--winner {
+  color: #8fe3a8;
+  font-weight: 600;
+}
+
+.btable-settle-trick-totals__count {
+  font-variant-numeric: tabular-nums;
+}
+
+.btable-settle-chip-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1200;
+}
+
+.btable-settle-chip {
+  position: fixed;
+  width: 0.72rem;
+  height: 0.72rem;
+  margin: -0.36rem 0 0 -0.36rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffe7a8, #d4a017 58%, #8a5f00);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.bseat__settle-chip-anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.bpot__stat--settle-payout dd {
+  animation: bpot-settle-payout-pulse 480ms ease-out;
+}
+
+@keyframes btable-settle-totals-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bpot-settle-payout-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+    color: #ffe7a8;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bpot__ante-chip,
   .center-play__discard-card,
   .bpot__trump--reveal,
   .bseat--enroll-join .bseat__avatar-wrap,
-  .bseat--enroll-pass .bseat__avatar-wrap {
+  .bseat--enroll-pass .bseat__avatar-wrap,
+  .btable-settle-chip {
     animation-duration: 120ms !important;
   }
 

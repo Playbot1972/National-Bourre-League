@@ -2,6 +2,7 @@
 
 let dealPresentationActive = false;
 let trickCollectionActive = false;
+let settleMotionActive = false;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -28,6 +29,16 @@ export function isTrickCollectionActive(): boolean {
   return trickCollectionActive;
 }
 
+export function setSettleMotionActive(active: boolean): void {
+  if (settleMotionActive === active) return;
+  settleMotionActive = active;
+  notify();
+}
+
+export function isSettleMotionActive(): boolean {
+  return settleMotionActive;
+}
+
 export function subscribePresentationMotionBusy(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -36,5 +47,6 @@ export function subscribePresentationMotionBusy(listener: () => void): () => voi
 export function resetPresentationMotionBusy(): void {
   dealPresentationActive = false;
   trickCollectionActive = false;
+  settleMotionActive = false;
   notify();
 }

@@ -49,6 +49,7 @@ export function seatPlayerVisualEqual(a: TablePlayer, b: TablePlayer): boolean {
     a.apeStatus === b.apeStatus &&
     a.sessionStreak === b.sessionStreak &&
     a.dealerMoved === b.dealerMoved &&
+    a.turnHandoff === b.turnHandoff &&
     a.trumpMerging === b.trumpMerging &&
     a.winnerFlash === b.winnerFlash
   );

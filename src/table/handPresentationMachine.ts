@@ -1,5 +1,5 @@
 import type { SerializedCard } from "./types";
-import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { isGameFlowDebugEnabled, logGameFlow, logPresentationPhase } from "./gameFlowDebug";
 import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
@@ -7,7 +7,17 @@ import {
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
   suppressesHandTurnIndicator,
+  ANTE_DEAL_STALL_MS,
+  SETTLE_BOURRE_CALLOUT_MS,
+  SETTLE_BOURRE_PENALTY_MS,
+  SETTLE_MOTION_STALL_MS,
+  SETTLE_POT_PAYOUT_MS,
+  SETTLE_RESET_MS,
+  SETTLE_TRICK_TOTALS_MS,
+  type SettleSubPhase,
 } from "./handPresentationTiming";
+import { bourrePlayerIds } from "./settlementCopy";
+import { deriveWinnersFromTricks } from "./logic";
 
 export interface HandServerSnapshot {
   sessionKey: string;
@@ -25,6 +35,7 @@ export interface HandServerSnapshot {
   carryOverPot: number;
   enrolledIds: string[];
   declinedIds: string[];
+  tricksByPlayer?: Record<string, number>;
 }
 
 export interface HandPresentationModel {
@@ -45,6 +56,13 @@ export interface HandPresentationModel {
   nextHandResetActive: boolean;
   /** Latched when the server reports handComplete; cleared when settle begins. */
   pendingHandSettle: boolean;
+  /** True when GSAP clockwise deal has finished (gates ante → trump/draw). */
+  handResetCueActive: boolean;
+  settleSubPhase: SettleSubPhase | null;
+  settleTricksByPlayer: Record<string, number>;
+  settleWinnerIds: string[];
+  settleBourreIds: string[];
+  showBourreCallout: boolean;
   suppressTurnIndicator: boolean;
   displayPotAmount: number;
   isPresenting: boolean;
@@ -74,6 +92,14 @@ export interface HandPresentationStore {
   prevSnapshot: HandServerSnapshot | null;
   pendingSnapshot: HandServerSnapshot | null;
   phaseStartedAt: number;
+  /** GSAP deal completion — ante phase waits for this before advancing. */
+  dealPresentationComplete: boolean;
+  settleSubPhase: SettleSubPhase | null;
+  settleTricksByPlayer: Record<string, number>;
+  settleWinnerIds: string[];
+  settleBourreIds: string[];
+  settlePayoutComplete: boolean;
+  settlePenaltyComplete: boolean;
   /** Players whose draw presentation fully finished this hand (dedupe key: handNumber + playerId). */
   drawPresentationConsumedIds: string[];
 }
@@ -112,6 +138,7 @@ export function snapshotFromSession(input: {
   carryOverPot?: number;
   enrolledIds?: string[];
   declinedIds?: string[];
+  tricksByPlayer?: Record<string, number>;
 }): HandServerSnapshot {
   return {
     sessionKey: input.sessionId,
@@ -129,6 +156,7 @@ export function snapshotFromSession(input: {
     carryOverPot: input.carryOverPot ?? 0,
     enrolledIds: [...(input.enrolledIds ?? [])],
     declinedIds: [...(input.declinedIds ?? [])],
+    tricksByPlayer: { ...(input.tricksByPlayer ?? {}) },
   };
 }
 
@@ -136,7 +164,7 @@ function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase
   if (snapshot.phase === "play") return "play";
   if (snapshot.phase === "draw") return "drawPlayer";
   if (snapshot.phase === "decision") return "decision";
-  if (snapshot.phase === "reveal") return "ante";
+  if (snapshot.phase === "reveal") return "handReset";
   if (snapshot.enrollmentActive) return "enrollment";
   return "idle";
 }
@@ -161,13 +189,20 @@ export function createHandPresentationStore(
     enrollmentPulse: {},
     settleAnimActive: false,
     settleCarryOver: false,
-    nextHandResetActive: false,
+    nextHandResetActive: snapshot.phase === "reveal",
     pendingHandSettle: false,
     handSettleSnapshot: null,
     displayPotAmount: snapshot.potAmount,
     prevSnapshot: snapshot,
     pendingSnapshot: null,
     phaseStartedAt: Date.now(),
+    dealPresentationComplete: false,
+    settleSubPhase: null,
+    settleTricksByPlayer: {},
+    settleWinnerIds: [],
+    settleBourreIds: [],
+    settlePayoutComplete: false,
+    settlePenaltyComplete: false,
     drawPresentationConsumedIds: [],
   };
 }
@@ -411,6 +446,7 @@ function beginHandSettleFromPending(store: HandPresentationStore): HandPresentat
   if (!store.pendingHandSettle || store.phase !== "play") return store;
   const snap = store.handSettleSnapshot ?? store.prevSnapshot;
   if (!snap) return store;
+  const { tricks, winnerIds, bourreIds } = resolveSettleContext(snap);
   return withPhase(store, "settle", {
     pendingHandSettle: false,
     handSettleSnapshot: null,
@@ -418,7 +454,95 @@ function beginHandSettleFromPending(store: HandPresentationStore): HandPresentat
     settleCarryOver: snap.carryOverPot > 0,
     prevSnapshot: snap,
     displayPotAmount: snap.potAmount,
+    settleSubPhase: "trickTotals",
+    settleTricksByPlayer: tricks,
+    settleWinnerIds: winnerIds,
+    settleBourreIds: bourreIds,
+    settlePayoutComplete: false,
+    settlePenaltyComplete: false,
   });
+}
+
+function resolveSettleContext(snap: HandServerSnapshot): {
+  tricks: Record<string, number>;
+  winnerIds: string[];
+  bourreIds: string[];
+} {
+  const tricks = { ...(snap.tricksByPlayer ?? {}) };
+  const { winnerIds } = deriveWinnersFromTricks(tricks, snap.participantIds);
+  const bourreIds = bourrePlayerIds(tricks, snap.participantIds);
+  return { tricks, winnerIds, bourreIds };
+}
+
+export type SettlePotPayoutContext = {
+  settleWinnerIds: string[];
+  displayPotAmount: number;
+};
+
+export function shouldAnimateSettlePotPayout(ctx: SettlePotPayoutContext): boolean {
+  return ctx.settleWinnerIds.length === 1 && ctx.displayPotAmount > 0;
+}
+
+function nextSettleSubPhase(store: HandPresentationStore): SettleSubPhase | "done" {
+  switch (store.settleSubPhase) {
+    case "trickTotals":
+      return "potPayout";
+    case "potPayout":
+      return store.settleBourreIds.length > 0 ? "bourreCallout" : "reset";
+    case "bourreCallout":
+      return store.settleBourreIds.length > 0 ? "bourrePenalty" : "reset";
+    case "bourrePenalty":
+      return "reset";
+    case "reset":
+      return "done";
+    default:
+      return "done";
+  }
+}
+
+function advanceSettleSubPhase(store: HandPresentationStore): HandPresentationStore {
+  const next = nextSettleSubPhase(store);
+  if (next === "done") {
+    return withPhase(store, "nextHandReset", {
+      settleAnimActive: false,
+      settleSubPhase: null,
+      nextHandResetActive: true,
+      pendingSnapshot: null,
+    });
+  }
+  return {
+    ...store,
+    phase: "settle",
+    settleSubPhase: next,
+    phaseStartedAt: Date.now(),
+    settlePayoutComplete: next === "potPayout" ? false : store.settlePayoutComplete,
+    settlePenaltyComplete: next === "bourrePenalty" ? false : store.settlePenaltyComplete,
+  };
+}
+
+export function settleSubPhaseScheduleMs(
+  store: HandPresentationStore,
+  reducedMotion = false,
+): number {
+  if (store.phase !== "settle" || !store.settleSubPhase) return 0;
+  const scale = reducedMotion ? 0.55 : 1;
+  const round = (ms: number) => Math.max(80, Math.round(ms * scale));
+  switch (store.settleSubPhase) {
+    case "trickTotals":
+      return round(SETTLE_TRICK_TOTALS_MS);
+    case "potPayout":
+      if (shouldAnimateSettlePotPayout(store) && !store.settlePayoutComplete) return 0;
+      return round(SETTLE_POT_PAYOUT_MS);
+    case "bourreCallout":
+      return round(SETTLE_BOURRE_CALLOUT_MS);
+    case "bourrePenalty":
+      if (store.settleBourreIds.length > 0 && !store.settlePenaltyComplete) return 0;
+      return round(SETTLE_BOURRE_PENALTY_MS);
+    case "reset":
+      return round(SETTLE_RESET_MS);
+    default:
+      return 0;
+  }
 }
 
 function beginRevealPresentation(
@@ -431,12 +555,14 @@ function beginRevealPresentation(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
+    dealPresentationComplete: false,
     dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
     prevSnapshot: snapshot,
     displayPotAmount: snapshot.potAmount,
     pendingHandSettle: false,
     handSettleSnapshot: null,
     pendingSnapshot: null,
+    nextHandResetActive: false,
   });
 }
 
@@ -469,6 +595,9 @@ export type HandPresentationEvent =
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
+  | { type: "dealPresentationComplete" }
+  | { type: "settlePayoutComplete" }
+  | { type: "settlePenaltyComplete" }
   | { type: "clearEnrollmentPulse" };
 
 function stringArrayEqual(a: string[], b: string[]): boolean {
@@ -513,9 +642,17 @@ export function handPresentationVisibleEqual(
     a.settleAnimActive === b.settleAnimActive &&
     a.settleCarryOver === b.settleCarryOver &&
     a.nextHandResetActive === b.nextHandResetActive &&
+    a.settleSubPhase === b.settleSubPhase &&
     a.pendingHandSettle === b.pendingHandSettle &&
-    a.displayPotAmount === b.displayPotAmount
+    a.displayPotAmount === b.displayPotAmount &&
+    a.dealPresentationComplete === b.dealPresentationComplete &&
+    a.settlePayoutComplete === b.settlePayoutComplete &&
+    a.settlePenaltyComplete === b.settlePenaltyComplete
   );
+}
+
+function handResetCueActive(store: HandPresentationStore): boolean {
+  return store.phase === "handReset" || store.nextHandResetActive;
 }
 
 /** Bookkeeping fields that must stay current but do not affect seat/table visuals. */
@@ -528,6 +665,13 @@ function applyInternalHandPresentationFields(
   target.handSettleSnapshot = source.handSettleSnapshot;
   target.drawPresentationConsumedIds = source.drawPresentationConsumedIds;
   target.handNumber = source.handNumber;
+  target.dealPresentationComplete = source.dealPresentationComplete;
+  target.settlePayoutComplete = source.settlePayoutComplete;
+  target.settlePenaltyComplete = source.settlePenaltyComplete;
+  target.settleSubPhase = source.settleSubPhase;
+  target.settleTricksByPlayer = source.settleTricksByPlayer;
+  target.settleWinnerIds = source.settleWinnerIds;
+  target.settleBourreIds = source.settleBourreIds;
 }
 
 function coalesceHandPresentationStore(
@@ -549,6 +693,13 @@ export function reduceHandPresentation(
     reduceHandPresentationCore(store, event),
   );
   if (isGameFlowDebugEnabled()) {
+    if (store.phase !== next.phase) {
+      logPresentationPhase("hand", store.phase, next.phase, {
+        handNumber: next.handNumber,
+        drawSubPhase: next.drawAnimSubPhase,
+        animatingDrawPlayerId: next.animatingDrawPlayerId,
+      });
+    }
     if (
       store.phase !== next.phase ||
       store.handNumber !== next.handNumber ||
@@ -581,6 +732,20 @@ function reduceHandPresentationCore(
     case "dealCardRevealed":
       return { ...store, dealStaggerCount: Math.max(store.dealStaggerCount, event.count) };
 
+    case "dealPresentationComplete":
+      if (store.dealPresentationComplete) return store;
+      return { ...store, dealPresentationComplete: true };
+
+    case "settlePayoutComplete":
+      if (store.phase !== "settle" || store.settleSubPhase !== "potPayout") return store;
+      if (store.settlePayoutComplete) return store;
+      return { ...store, settlePayoutComplete: true };
+
+    case "settlePenaltyComplete":
+      if (store.phase !== "settle" || store.settleSubPhase !== "bourrePenalty") return store;
+      if (store.settlePenaltyComplete) return store;
+      return { ...store, settlePenaltyComplete: true };
+
     case "clearEnrollmentPulse":
       if (!Object.keys(store.enrollmentPulse).length) return store;
       return { ...store, enrollmentPulse: {} };
@@ -588,6 +753,55 @@ function reduceHandPresentationCore(
     case "watchdog":
       if (store.pendingHandSettle && store.phase === "play") {
         return beginHandSettleFromPending(store);
+      }
+      if (
+        store.phase === "ante" &&
+        !store.dealPresentationComplete &&
+        Date.now() - store.phaseStartedAt >= ANTE_DEAL_STALL_MS
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("handPresentation", "ante-deal-stall-force-complete", {
+            handNumber: store.handNumber,
+            blockedMs: Date.now() - store.phaseStartedAt,
+          });
+        }
+        return advanceHandPhase({
+          ...store,
+          dealPresentationComplete: true,
+          pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot,
+        });
+      }
+      if (store.phase === "settle" && store.settleSubPhase === "potPayout") {
+        const blockedMs = Date.now() - store.phaseStartedAt;
+        if (
+          shouldAnimateSettlePotPayout(store) &&
+          !store.settlePayoutComplete &&
+          blockedMs >= SETTLE_MOTION_STALL_MS
+        ) {
+          if (isGameFlowDebugEnabled()) {
+            logGameFlow("handPresentation", "settle-payout-stall-force-complete", {
+              handNumber: store.handNumber,
+              blockedMs,
+            });
+          }
+          return advanceHandPhase({ ...store, settlePayoutComplete: true });
+        }
+      }
+      if (store.phase === "settle" && store.settleSubPhase === "bourrePenalty") {
+        const blockedMs = Date.now() - store.phaseStartedAt;
+        if (
+          store.settleBourreIds.length > 0 &&
+          !store.settlePenaltyComplete &&
+          blockedMs >= SETTLE_MOTION_STALL_MS
+        ) {
+          if (isGameFlowDebugEnabled()) {
+            logGameFlow("handPresentation", "settle-penalty-stall-force-complete", {
+              handNumber: store.handNumber,
+              blockedMs,
+            });
+          }
+          return advanceHandPhase({ ...store, settlePenaltyComplete: true });
+        }
       }
       if (Date.now() - store.phaseStartedAt < PRESENTATION_WATCHDOG_MS) return store;
       return advanceHandPhase({ ...store, pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot });
@@ -604,7 +818,10 @@ function reduceHandPresentationCore(
 
       if (store.sessionKey !== snapshot.sessionKey) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal") {
+          return { ...fresh, nextHandResetActive: true, prevSnapshot: snapshot };
+        }
+        return fresh;
       }
 
       const handClearedOnServer =
@@ -629,7 +846,10 @@ function reduceHandPresentationCore(
 
       if (store.handNumber !== snapshot.handNumber) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal") {
+          return { ...fresh, nextHandResetActive: true, prevSnapshot: snapshot };
+        }
+        return fresh;
       }
 
       const prevTrump = trumpKey(prev.trumpUpcard);
@@ -706,7 +926,11 @@ function reduceHandPresentationCore(
           store.phase === "settle" ||
           store.phase === "play")
       ) {
-        return beginRevealPresentation(store, snapshot);
+        return withPhase(store, "handReset", {
+          nextHandResetActive: true,
+          prevSnapshot: snapshot,
+          pendingSnapshot: null,
+        });
       }
 
       if (
@@ -799,10 +1023,20 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
   const snap = pending ?? store.prevSnapshot;
 
   switch (store.phase) {
-    case "handReset":
-      return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
+    case "handReset": {
+      const snap = pending ?? store.prevSnapshot;
+      if (snap) return beginRevealPresentation(store, snap);
+      return withPhase(store, "ante", {
+        anteAnimActive: true,
+        dealPresentationComplete: true,
+        pendingSnapshot: null,
+      });
+    }
 
     case "ante":
+      if (!store.dealPresentationComplete) {
+        return store;
+      }
       if (store.trumpRevealActive || snap?.trumpUpcard) {
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
@@ -906,15 +1140,33 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "play", { pendingSnapshot: null });
 
     case "settle":
-      return withPhase(store, "nextHandReset", {
-        settleAnimActive: false,
-        nextHandResetActive: true,
-        pendingSnapshot: null,
-      });
+      if (
+        store.settleSubPhase === "potPayout" &&
+        shouldAnimateSettlePotPayout(store) &&
+        !store.settlePayoutComplete
+      ) {
+        return store;
+      }
+      if (
+        store.settleSubPhase === "bourrePenalty" &&
+        store.settleBourreIds.length > 0 &&
+        !store.settlePenaltyComplete
+      ) {
+        return store;
+      }
+      return advanceSettleSubPhase(store);
 
-    case "nextHandReset":
+    case "nextHandReset": {
+      const snap = pending ?? store.prevSnapshot;
+      if (snap?.phase === "reveal") {
+        return withPhase(createHandPresentationStore(snap), "handReset", {
+          nextHandResetActive: false,
+          prevSnapshot: snap,
+        });
+      }
       if (snap) return createHandPresentationStore(snap);
       return withPhase(store, "idle", { nextHandResetActive: false });
+    }
 
     default:
       return store;
@@ -940,6 +1192,12 @@ export function buildHandPresentationModel(
     settleAnimActive: store.settleAnimActive,
     settleCarryOver: store.settleCarryOver,
     nextHandResetActive: store.nextHandResetActive,
+    handResetCueActive: handResetCueActive(store),
+    settleSubPhase: store.settleSubPhase,
+    settleTricksByPlayer: store.settleTricksByPlayer,
+    settleWinnerIds: store.settleWinnerIds,
+    settleBourreIds: store.settleBourreIds,
+    showBourreCallout: store.settleSubPhase === "bourreCallout",
     pendingHandSettle: store.pendingHandSettle,
     suppressTurnIndicator: suppressesHandTurnIndicator(store.phase),
     displayPotAmount: store.displayPotAmount,
@@ -956,7 +1214,8 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      if (!store.dealPresentationComplete) return 0;
+      return t.anteChipTravelMs;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
@@ -973,7 +1232,7 @@ export function phaseScheduleMs(
     case "drawReady":
       return t.drawReadyBeatMs;
     case "settle":
-      return t.settleHoldMs;
+      return settleSubPhaseScheduleMs(store, reducedMotion);
     case "nextHandReset":
       return t.nextHandResetMs;
     default:

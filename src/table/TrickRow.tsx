@@ -1,6 +1,7 @@
 import { memo, useEffect } from "react";
 import { TrickPlaySlot } from "./TrickPlaySlot";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { resolveTrickRowPresentationClasses } from "./trickRowPresentation";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 
 interface TrickRowProps {
@@ -58,14 +59,10 @@ function TrickRowInner({
 
   const winnerName = winnerPlayerId ? (playerNames[winnerPlayerId] ?? "Player") : null;
 
-  const isHold =
-    presentationPhase === "trickComplete" ||
-    presentationPhase === "winnerReveal";
-
-  const isRake =
-    presentationPhase === "collectTrick";
-
-  const isEcho = variant === "echo";
+  const { isHold, isRake, isEcho } = resolveTrickRowPresentationClasses(
+    presentationPhase,
+    variant,
+  );
 
   return (
     <div

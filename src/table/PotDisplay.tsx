@@ -6,19 +6,22 @@ export interface PotDisplayProps {
   potMetrics: PotMetrics;
   participantCount: number;
   potTick?: number;
+  settlePotPayoutActive?: boolean;
 }
 
 function PotDisplayInner({
   potMetrics,
   participantCount,
   potTick = 0,
+  settlePotPayoutActive = false,
 }: PotDisplayProps) {
   return (
     <>
       <dl className="center-play__stats">
         <div
-          className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
+          className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}${settlePotPayoutActive ? " bpot__stat--settle-payout" : ""}`}
           data-testid="pot-display"
+          data-settle-pot-anchor=""
           key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
         >
           <dt>Table pot</dt>

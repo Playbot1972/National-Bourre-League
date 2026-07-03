@@ -112,6 +112,8 @@ describe("trickAnimationBridge", () => {
   });
 
   it("does not block bots for cosmetic deal/draw presentation", () => {
+    assert.equal(handPresentingBlocksBots(true, "handReset", "reveal"), false);
+    assert.equal(handPresentingBlocksBots(true, "nextHandReset", "reveal"), false);
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
