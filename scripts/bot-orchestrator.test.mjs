@@ -62,6 +62,7 @@ describe("app.js bot paths", () => {
     assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
     assert.ok(runtimeSrc.includes("let inFlight = false"));
     assert.ok(runtimeSrc.includes("bot-think-armed"));
+    assert.ok(runtimeSrc.includes("bot-delay-chosen"));
     assert.ok(runtimeSrc.includes("createBotThinkScheduleState"));
   });
 

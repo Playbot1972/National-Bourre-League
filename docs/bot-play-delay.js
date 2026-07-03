@@ -1,13 +1,45 @@
 /**
- * Bot play-phase think delay — random 1–3s per turn instance, minimum 1s from eligibility.
+ * Bot play-phase think delay — random 1–3s per turn instance; last card plays within 1s.
  */
 
 export const BOT_PLAY_DELAY_MIN_MS = 1000;
 export const BOT_PLAY_DELAY_MAX_MS = 3000;
+export const BOT_PLAY_LAST_CARD_MIN_MS = 250;
+export const BOT_PLAY_LAST_CARD_MAX_MS = 1000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
   return `${handNumber ?? 0}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
+}
+
+/**
+ * @param {number} min
+ * @param {number} max
+ * @param {() => number} [rng]
+ */
+export function randomIntInclusive(min, max, rng = Math.random) {
+  const span = max - min + 1;
+  return min + Math.floor(rng() * span);
+}
+
+/**
+ * @param {number|null|undefined} remainingHandCount
+ * @param {() => number} [rng]
+ */
+export function pickBotPlayDelayMs(remainingHandCount, rng = Math.random) {
+  const isLastCard = remainingHandCount === 1;
+  const chosenDelayMs = isLastCard
+    ? randomIntInclusive(BOT_PLAY_LAST_CARD_MIN_MS, BOT_PLAY_LAST_CARD_MAX_MS, rng)
+    : randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
+  return {
+    chosenDelayMs,
+    isLastCard,
+    remainingHandCount: remainingHandCount ?? null,
+  };
+}
+
+function delayCacheKey(turnKey, remainingHandCount) {
+  return `${turnKey}:r${remainingHandCount ?? "?"}`;
 }
 
 /**
@@ -39,14 +71,23 @@ export function createBotPlayDelayState(options = {}) {
     return key;
   }
 
-  function pickDelayForKey(key) {
-    let chosen = delayByTurnKey.get(key);
+  function pickDelayForKey(turnKey, remainingHandCount) {
+    const cacheKey = delayCacheKey(turnKey, remainingHandCount);
+    let chosen = delayByTurnKey.get(cacheKey);
+    let meta = null;
     if (chosen == null) {
-      const span = BOT_PLAY_DELAY_MAX_MS - BOT_PLAY_DELAY_MIN_MS + 1;
-      chosen = BOT_PLAY_DELAY_MIN_MS + Math.floor(rng() * span);
-      delayByTurnKey.set(key, chosen);
+      meta = pickBotPlayDelayMs(remainingHandCount, rng);
+      chosen = meta.chosenDelayMs;
+      delayByTurnKey.set(cacheKey, chosen);
     }
-    return chosen;
+    if (!meta) {
+      meta = {
+        chosenDelayMs: chosen,
+        isLastCard: remainingHandCount === 1,
+        remainingHandCount: remainingHandCount ?? null,
+      };
+    }
+    return meta;
   }
 
   /**
@@ -54,6 +95,7 @@ export function createBotPlayDelayState(options = {}) {
    * @param {number} input.handNumber
    * @param {number|null|undefined} input.trickNumber
    * @param {string|null|undefined} input.turnPlayerId
+   * @param {number|null|undefined} [input.remainingHandCount]
    * @param {number} input.nowMs
    */
   function resolvePlayDelayMs(input) {
@@ -64,7 +106,8 @@ export function createBotPlayDelayState(options = {}) {
       turnPlayerId: input.turnPlayerId,
       nowMs: input.nowMs,
     });
-    const chosenDelayMs = pickDelayForKey(key);
+    const picked = pickDelayForKey(key, input.remainingHandCount);
+    const chosenDelayMs = picked.chosenDelayMs;
     const elapsedSinceTurnMs = input.nowMs - turnEligibleAtMs;
     const remainingTurnMs = Math.max(0, chosenDelayMs - elapsedSinceTurnMs);
     return {
@@ -73,6 +116,8 @@ export function createBotPlayDelayState(options = {}) {
       elapsedSinceTurnMs,
       trickGapRemainingMs: 0,
       delayMs: remainingTurnMs,
+      remainingHandCount: picked.remainingHandCount,
+      isLastCard: picked.isLastCard,
     };
   }
 
@@ -127,11 +172,11 @@ export function createBotThinkScheduleState(options = {}) {
 
   /**
    * @param {object} input
-   * @param {{ handNumber: number, trickNumber: number|null, turnPlayerId: string|null }} input.ctx
+   * @param {{ handNumber: number, trickNumber: number|null, turnPlayerId: string|null, remainingHandCount?: number|null }} input.ctx
    * @param {number} input.nowMs
    * @param {() => boolean} input.shouldFire
    * @param {(payload: { turnKey: string, generation: number, plan: object }) => void} input.onFire
-   * @param {{ armed?: Function, coalesced?: Function, rejected?: Function, accepted?: Function }} [input.log]
+   * @param {{ armed?: Function, coalesced?: Function, rejected?: Function, accepted?: Function, delayChosen?: Function }} [input.log]
    */
   function armPlayThink({ ctx, nowMs, shouldFire, onFire, log }) {
     const turnKey = botPlayTurnKey(ctx);
@@ -140,6 +185,7 @@ export function createBotThinkScheduleState(options = {}) {
         turnKey,
         generation: scheduleGeneration,
         chosenDelayMs: pendingChosenDelayMs,
+        remainingHandCount: ctx.remainingHandCount ?? null,
       });
       return { action: "coalesced", turnKey, generation: scheduleGeneration };
     }
@@ -155,11 +201,21 @@ export function createBotThinkScheduleState(options = {}) {
       handNumber: ctx.handNumber,
       trickNumber: ctx.trickNumber,
       turnPlayerId: ctx.turnPlayerId,
+      remainingHandCount: ctx.remainingHandCount,
       nowMs,
     });
     const generation = scheduleGeneration;
     pendingTurnKey = turnKey;
     pendingChosenDelayMs = plan.chosenDelayMs;
+
+    log?.delayChosen?.({
+      turnKey,
+      generation,
+      chosenDelayMs: plan.chosenDelayMs,
+      delayMs: plan.delayMs,
+      remainingHandCount: plan.remainingHandCount,
+      isLastCard: plan.isLastCard,
+    });
 
     log?.armed?.({
       turnKey,
@@ -167,6 +223,8 @@ export function createBotThinkScheduleState(options = {}) {
       chosenDelayMs: plan.chosenDelayMs,
       delayMs: plan.delayMs,
       elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
+      remainingHandCount: plan.remainingHandCount,
+      isLastCard: plan.isLastCard,
     });
 
     scheduledTimer = setTimeout(() => {
@@ -181,6 +239,8 @@ export function createBotThinkScheduleState(options = {}) {
           turnKey,
           generation,
           chosenDelayMs: plan.chosenDelayMs,
+          remainingHandCount: plan.remainingHandCount,
+          isLastCard: plan.isLastCard,
         });
         return;
       }
@@ -190,6 +250,8 @@ export function createBotThinkScheduleState(options = {}) {
         generation,
         chosenDelayMs: plan.chosenDelayMs,
         delayMs: plan.delayMs,
+        remainingHandCount: plan.remainingHandCount,
+        isLastCard: plan.isLastCard,
       });
       onFire({ turnKey, generation, plan });
     }, plan.delayMs);
@@ -214,7 +276,7 @@ export function createBotThinkScheduleState(options = {}) {
  * @param {object} input
  * @param {"play"|string|null|undefined} input.handPhase
  * @param {ReturnType<typeof createBotPlayDelayState>} input.playDelayState
- * @param {object} input.ctx — handNumber, trickNumber, turnPlayerId
+ * @param {object} input.ctx — handNumber, trickNumber, turnPlayerId, remainingHandCount
  * @param {number} input.nowMs
  */
 export function resolveBotAdvanceDelayMs(input) {
@@ -224,6 +286,7 @@ export function resolveBotAdvanceDelayMs(input) {
         handNumber: input.ctx.handNumber,
         trickNumber: input.ctx.trickNumber,
         turnPlayerId: input.ctx.turnPlayerId,
+        remainingHandCount: input.ctx.remainingHandCount,
         nowMs: input.nowMs,
       }),
       handPhase: "play",
@@ -237,5 +300,7 @@ export function resolveBotAdvanceDelayMs(input) {
     elapsedSinceTurnMs: 0,
     trickGapRemainingMs: 0,
     delayMs: BOT_ADVANCE_DEBOUNCE_MS,
+    remainingHandCount: null,
+    isLastCard: false,
   };
 }
