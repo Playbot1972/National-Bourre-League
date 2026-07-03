@@ -45,6 +45,7 @@ interface MobileCardTableProps {
   participantCount: number;
   enrollmentActive?: boolean;
   heroCards?: SerializedCard[];
+  dealSourceCards?: SerializedCard[];
   revealedTrumpIndex?: number | null;
   trumpMergeActive?: boolean;
   trumpDisabledIndex?: number | null;
@@ -82,6 +83,7 @@ export function MobileCardTable({
   participantCount,
   enrollmentActive = false,
   heroCards = [],
+  dealSourceCards,
   revealedTrumpIndex = null,
   trumpMergeActive = false,
   trumpDisabledIndex = null,
@@ -187,6 +189,7 @@ export function MobileCardTable({
   const clockwiseDealing = useTableDealPresentation({
     session,
     heroCards,
+    dealSourceCards,
     privateHandReady,
     tableRootRef: wrapRef,
     onDealPresentationComplete,

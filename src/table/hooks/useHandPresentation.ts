@@ -11,6 +11,7 @@ import {
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import {
+  ANTE_DEAL_STALL_MS,
   PRESENTATION_WATCHDOG_MS,
   ENROLLMENT_SEAT_PULSE_MS,
   BOT_DRAW_PRESENTATION_WATCHDOG_MS,
@@ -207,7 +208,17 @@ export function useHandPresentation({
     }
 
     clearTimers();
-    if (delay <= 0) return;
+    if (delay <= 0) {
+      if (store.phase === "ante" && !store.dealPresentationComplete) {
+        const anteStallKey = `ante-stall:${phaseKey}`;
+        if (advanceArmedKeyRef.current === anteStallKey) return;
+        advanceArmedKeyRef.current = anteStallKey;
+        const blockedMs = Date.now() - store.phaseStartedAt;
+        const waitMs = Math.max(0, ANTE_DEAL_STALL_MS - blockedMs);
+        schedule(() => dispatch({ type: "watchdog" }), waitMs);
+      }
+      return;
+    }
 
     const armedAt = {
       handNumber: store.handNumber,

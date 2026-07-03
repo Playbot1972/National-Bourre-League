@@ -15,6 +15,8 @@ import type { SerializedCard, TableSessionData } from "../types";
 export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
+  /** Full private hand (5 cards) — trump holder effective hand is 4 while center trump is up. */
+  dealSourceCards?: SerializedCard[];
   privateHandReady?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
   onDealPresentationComplete?: () => void;
@@ -23,6 +25,7 @@ export interface UseTableDealPresentationInput {
 export function useTableDealPresentation({
   session,
   heroCards,
+  dealSourceCards,
   privateHandReady = false,
   tableRootRef,
   onDealPresentationComplete,
@@ -55,7 +58,7 @@ export function useTableDealPresentation({
       session.phase === "draw" ||
       session.phase === "play";
 
-    const cardCount = heroCards.length;
+    const cardCount = dealSourceCards?.length ?? heroCards.length;
     if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
       return;
     }
@@ -122,6 +125,7 @@ export function useTableDealPresentation({
     session.phase,
     session.dealerId,
     session.participantIds,
+    dealSourceCards?.length,
     heroCards.length,
     privateHandReady,
     tableRootRef,

@@ -267,6 +267,27 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
     assert.equal(store.trumpMergedIntoHand, true);
     assert.ok(revealPresentationReady(store, snapForHand(4)));
   });
+
+  it("trump holder recovers via ante watchdog when deal animation never starts (4 effective cards)", () => {
+    let store = createHandPresentationStore(snapForHand(1));
+    if (store.phase === "handReset") {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
+    assert.equal(store.phase, "ante");
+    assert.equal(store.dealPresentationComplete, false);
+
+    store = {
+      ...store,
+      phaseStartedAt: Date.now() - 8_500,
+    };
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.dealPresentationComplete, true);
+    assert.equal(store.phase, "trumpReveal");
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.ok(revealPresentationReady(store, snapForHand(1)));
+  });
 });
 
 describe("reveal advance gate (TableSessionView contract)", () => {
