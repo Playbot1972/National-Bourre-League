@@ -18,6 +18,7 @@ import {
 import {
   revealPresentationReady,
   traceRevealHandoffState,
+  traceRevealRetryGate,
   traceTrumpRevealReconStep,
   type RevealHandoffTrace,
   type TrumpRevealReconStep,
@@ -453,6 +454,121 @@ describe("trump visible freeze recon (hands 2–5)", () => {
     });
     assert.equal(attemptCount, 1);
     assert.deepEqual(callTimes, [0]);
+  });
+});
+
+describe("hand 2 freeze recon (hand 1 vs hand 2)", () => {
+  function reachTrumpReveal(hand: number): HandPresentationStore {
+    let store =
+      hand === 1
+        ? openNextHandReveal(createHandPresentationStore(snapForHand(1)), snapForHand(1))
+        : openNextHandReveal(
+            settleHandToNextHandReset(
+              createHandPresentationStore({ ...snapForHand(hand - 1), phase: "play" }),
+              snapForHand(hand - 1, { phase: "play" }),
+            ),
+            snapForHand(hand),
+          );
+    assert.equal(store.handNumber, hand);
+    assert.equal(store.phase, "ante");
+    assert.equal(store.trumpMergedIntoHand, false, `hand ${hand} trumpMergedIntoHand reset`);
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal", `hand ${hand} trumpReveal`);
+    assert.equal(store.trumpMergeActive, false, `hand ${hand} trumpMergeActive cleared`);
+    assert.ok(store.phaseStartedAt > 0, `hand ${hand} phaseStartedAt set`);
+    return store;
+  }
+
+  it("hand 1 succeeds reveal -> draw; hand 2 resets per-hand flags after settlement", () => {
+    const hand1 = walkRevealToDrawPlayerReady(snapForHand(1));
+    const hand1Trace = traceRevealHandoffState(hand1, snapForHand(1));
+    assert.ok(hand1Trace.revealPresentationReady);
+
+    const hand1Retry = traceRevealRetryGate({
+      store: hand1,
+      snapshot: snapForHand(1),
+      hasOnAdvanceReveal: true,
+      advanceHandRevealAttempted: true,
+      clientAdvancedToDraw: true,
+    });
+    assert.ok(hand1Retry.retryTimerArmed);
+    assert.equal(hand1Retry.guardBlockedRetry, false);
+
+    const hand2Ante = reachTrumpReveal(2);
+    const hand2Trace = traceRevealHandoffState(hand2Ante, snapForHand(2));
+    assert.equal(hand2Trace.trumpMergedIntoHand, false);
+    assert.equal(hand2Trace.trumpRevealActive, true);
+    assert.equal(hand2Trace.presentationPhase, "trumpReveal");
+  });
+
+  it("hand 2: server draw during trumpReveal fast-forwards (retry gate would be blocked)", () => {
+    let store = reachTrumpReveal(2);
+    const revealSnap = snapForHand(2);
+    const blocked = traceRevealRetryGate({
+      store,
+      snapshot: { ...revealSnap, phase: "draw" },
+      hasOnAdvanceReveal: true,
+    });
+    assert.equal(blocked.retryTimerArmed, false);
+    assert.equal(blocked.guardBlockedRetry, true);
+
+    const before = store;
+    const drawSnap = { ...revealSnap, phase: "draw" as const };
+    store = reduceHandPresentation(store, { type: "serverUpdate", snapshot: drawSnap });
+    const step = traceTrumpRevealReconStep(before, store, drawSnap, "serverUpdate");
+
+    assert.ok(step.serverDrawFastForward, "server-draw-fast-forward branch");
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpRevealActive, false);
+    assert.notEqual(store.phase, "trumpReveal");
+    assert.equal(step.revertedToTrumpReveal, false);
+  });
+
+  it("hand 2: trump-clear branch still advances when server stays on reveal", () => {
+    let store = reachTrumpReveal(2);
+    const before = store;
+    const trumpCleared = snapForHand(2, { trumpUpcard: null });
+    store = reduceHandPresentation(store, { type: "serverUpdate", snapshot: trumpCleared });
+    const step = traceTrumpRevealReconStep(before, store, trumpCleared, "serverUpdate");
+
+    assert.ok(step.clearTrumpBranchExecuted);
+    assert.equal(store.phase, "drawPlayer");
+    const retry = traceRevealRetryGate({
+      store,
+      snapshot: trumpCleared,
+      hasOnAdvanceReveal: true,
+    });
+    assert.ok(retry.retryTimerArmed);
+    assert.equal(retry.guardBlockedRetry, false);
+  });
+
+  it("hand 2 repeated reveal -> draw after settlement", () => {
+    let store = createHandPresentationStore(snapForHand(1));
+    store = walkRevealToDrawPlayerReady(snapForHand(1));
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snapForHand(1), phase: "draw" },
+    });
+
+    store = settleHandToNextHandReset(store, snapForHand(1, { phase: "play" }));
+    store = openNextHandReveal(store, snapForHand(2));
+    store = walkRevealToDrawPlayerReady(snapForHand(2));
+
+    assert.equal(store.handNumber, 2);
+    assert.equal(store.phase, "drawPlayer");
+    assert.ok(revealPresentationReady(store, snapForHand(2)));
+
+    const { attemptCount, finalServerPhase } = simulateRevealAdvanceRetry({
+      serverPhase: "reveal",
+      handNumber: 2,
+      revealPresentationReady: true,
+      onAdvanceReveal: () => {},
+      maxMs: 0,
+    });
+    assert.equal(attemptCount, 1);
+    assert.equal(finalServerPhase, "draw");
   });
 });
 

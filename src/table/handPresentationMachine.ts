@@ -945,6 +945,34 @@ function reduceHandPresentationCore(
         });
       }
 
+      // Server already advanced to draw while reveal presentation is still holding
+      // (hand 2+ churn, participation auto-advance, or another client). Catch up
+      // immediately — the pendingSnapshot early-return below would otherwise defer
+      // until the trump hold timer while the retry effect stops (server !== reveal).
+      if (
+        snapshot.phase === "draw" &&
+        (store.phase === "trumpReveal" ||
+          store.phase === "trumpMerge" ||
+          (store.phase === "ante" && store.dealPresentationComplete))
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("handPresentation", "server-draw-fast-forward-reveal", {
+            handNumber: store.handNumber,
+            fromPhase: store.phase,
+            trumpRevealActive: store.trumpRevealActive,
+            trumpMergeActive: store.trumpMergeActive,
+          });
+        }
+        return {
+          ...beginDrawSequence(store, snapshot, heroDrawDiscardCount, heroDrawReplaceCount),
+          trumpRevealActive: false,
+          trumpMergeActive: false,
+          trumpMergedIntoHand: true,
+          pendingSnapshot: null,
+          prevSnapshot: snapshot,
+        };
+      }
+
       if (isHandPresentingPhase(store.phase) && store.phase !== "drawPlayer") {
         return {
           ...store,
