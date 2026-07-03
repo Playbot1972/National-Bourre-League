@@ -1,6 +1,6 @@
 import { gsap } from "gsap";
 import { prefersReducedMotion } from "../trickTiming";
-import { logPresentationPhase } from "../gameFlowDebug";
+import { logGameFlow } from "../gameFlowDebug";
 import { setSettleMotionActive } from "../presentationMotionBusy";
 
 const CHIP_COUNT = 5;
@@ -100,20 +100,20 @@ export function runSettlePresentationMotion(options: SettleMotionOptions): () =>
   };
 
   if (!fromEl || !toEl || prefersReducedMotion()) {
-    logPresentationPhase("settle-motion-skip", { kind, reason: "missing-target-or-reduced-motion" });
+    logGameFlow("settleMotion", "skip", { kind, reason: "missing-target-or-reduced-motion" });
     finish();
     return finish;
   }
 
   setSettleMotionActive(true);
-  logPresentationPhase("settle-motion-start", { kind });
+  logGameFlow("settleMotion", "start", { kind });
 
   const chips = settleChipElements(fromEl, toEl, CHIP_COUNT);
   const duration = Math.max(0.2, durationMs / 1000);
 
   const tl = flyChips(chips, duration, () => {
     cleanupChips(chips);
-    logPresentationPhase("settle-motion-complete", { kind });
+    logGameFlow("settleMotion", "complete", { kind });
     finish();
   });
 
