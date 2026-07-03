@@ -2,8 +2,9 @@ name: Rollback deploy
 
 on:
   push:
+    branches: [main]
     tags:
-      - "rollback/**"
+      - "rollback/*"
   workflow_dispatch:
     inputs:
       ref:
@@ -24,13 +25,20 @@ permissions:
 
 jobs:
   rollback:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/rollback/') ||
+      contains(github.event.head_commit.message, '[rollback-deploy]')
     runs-on: ubuntu-latest
     steps:
       - name: Resolve rollback ref
         id: target
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${GITHUB_REF}" == refs/tags/rollback/* ]]; then
             echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "reset_main=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "ref=40e699f" >> "$GITHUB_OUTPUT"
             echo "reset_main=false" >> "$GITHUB_OUTPUT"
           else
             echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
