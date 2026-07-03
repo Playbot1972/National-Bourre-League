@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { runSettlePresentationMotion } from "../animations/settlePresentationMotion";
 import type { HandPresentationApi } from "../handPresentationApi";
-import { SETTLE_BOURRE_PENALTY_MS, SETTLE_POT_PAYOUT_MS } from "../handPresentationTiming";
+import { SETTLE_BOURRE_PENALTY_MS, SETTLE_MOTION_STALL_MS, SETTLE_POT_PAYOUT_MS } from "../handPresentationTiming";
 import type { HandPresentationModel } from "../handPresentationMachine";
 import { shouldAnimateSettlePotPayout } from "../handPresentationMachine";
 
@@ -52,6 +52,23 @@ export function useHandSettlePresentation({
   const payoutStartedRef = useRef(false);
   const penaltyStartedRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const fallbackTimerRef = useRef<number | null>(null);
+
+  const clearFallbackTimer = () => {
+    if (fallbackTimerRef.current != null) {
+      window.clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+  };
+
+  const armCompletionFallback = (api: HandPresentationApi, kind: "payout" | "penalty") => {
+    clearFallbackTimer();
+    fallbackTimerRef.current = window.setTimeout(() => {
+      fallbackTimerRef.current = null;
+      if (kind === "payout") api.notifySettlePayoutComplete();
+      else api.notifySettlePenaltyComplete();
+    }, SETTLE_MOTION_STALL_MS);
+  };
 
   const {
     phase,
@@ -61,12 +78,13 @@ export function useHandSettlePresentation({
     displayPotAmount,
   } = handPresentation;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (phase !== "settle") {
       payoutStartedRef.current = false;
       penaltyStartedRef.current = false;
       cleanupRef.current?.();
       cleanupRef.current = null;
+      clearFallbackTimer();
       return;
     }
 
@@ -85,12 +103,14 @@ export function useHandSettlePresentation({
         return;
       }
 
+      armCompletionFallback(api, "payout");
       cleanupRef.current = runSettlePresentationMotion({
         kind: "potPayout",
         fromEl: resolvePotEl(root),
         toEl: resolveWinnerSeatEl(root, settleWinnerIds),
         durationMs: SETTLE_POT_PAYOUT_MS,
         onComplete: () => {
+          clearFallbackTimer();
           api.notifySettlePayoutComplete();
         },
       });
@@ -99,12 +119,14 @@ export function useHandSettlePresentation({
 
     if (settleSubPhase === "bourrePenalty" && settleBourreIds.length > 0 && !penaltyStartedRef.current) {
       penaltyStartedRef.current = true;
+      armCompletionFallback(api, "penalty");
       cleanupRef.current = runSettlePresentationMotion({
         kind: "bourrePenalty",
         fromEl: resolveBourreSeatEl(root, settleBourreIds),
         toEl: resolvePotEl(root),
         durationMs: SETTLE_BOURRE_PENALTY_MS,
         onComplete: () => {
+          clearFallbackTimer();
           api.notifySettlePenaltyComplete();
         },
       });
@@ -128,6 +150,7 @@ export function useHandSettlePresentation({
     () => () => {
       cleanupRef.current?.();
       cleanupRef.current = null;
+      clearFallbackTimer();
     },
     [],
   );

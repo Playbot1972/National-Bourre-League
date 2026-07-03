@@ -803,6 +803,16 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.settlePenaltyComplete, true);
   });
+
+  it("does not coalesce away settlePayoutComplete updates", () => {
+    const store = withPhaseSettle(createHandPresentationStore({ ...baseSnap, phase: "play" }), {
+      settleSubPhase: "potPayout",
+      settlePayoutComplete: false,
+    });
+    const next = reduceHandPresentation(store, { type: "settlePayoutComplete" });
+    assert.notEqual(store, next);
+    assert.equal(next.settlePayoutComplete, true);
+  });
 });
 
 function withPhaseSettle(

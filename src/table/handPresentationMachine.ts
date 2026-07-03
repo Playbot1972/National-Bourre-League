@@ -644,7 +644,10 @@ export function handPresentationVisibleEqual(
     a.nextHandResetActive === b.nextHandResetActive &&
     a.settleSubPhase === b.settleSubPhase &&
     a.pendingHandSettle === b.pendingHandSettle &&
-    a.displayPotAmount === b.displayPotAmount
+    a.displayPotAmount === b.displayPotAmount &&
+    a.dealPresentationComplete === b.dealPresentationComplete &&
+    a.settlePayoutComplete === b.settlePayoutComplete &&
+    a.settlePenaltyComplete === b.settlePenaltyComplete
   );
 }
 
