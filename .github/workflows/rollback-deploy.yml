@@ -10,7 +10,7 @@ on:
       ref:
         description: Git ref to deploy (commit SHA or tag)
         required: true
-        default: "40e699f"
+        default: "40e699f1f029f1d359a4eaa4fd4dce6515d407e5"
       reset_main:
         description: Force-reset main branch to this ref after deploy
         type: boolean
@@ -28,7 +28,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.ref, 'refs/tags/rollback/') ||
-      contains(github.event.head_commit.message, '[rollback-deploy]')
+      startsWith(github.event.head_commit.message, '[rollback-deploy]')
     runs-on: ubuntu-latest
     steps:
       - name: Resolve rollback ref
@@ -38,7 +38,7 @@ jobs:
             echo "ref=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
             echo "reset_main=false" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "push" ]; then
-            echo "ref=40e699f" >> "$GITHUB_OUTPUT"
+            echo "ref=40e699f1f029f1d359a4eaa4fd4dce6515d407e5" >> "$GITHUB_OUTPUT"
             echo "reset_main=false" >> "$GITHUB_OUTPUT"
           else
             echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
