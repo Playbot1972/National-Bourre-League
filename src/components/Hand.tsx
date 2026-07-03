@@ -6,6 +6,7 @@ import type { CardGestureMode } from "./useCardGestureHandlers";
 import { useCardGestureHandlers } from "./useCardGestureHandlers";
 import { cardKey } from "../game/cardUtils";
 import { cardWidthForHandSize, computeHandFanOverlapPx } from "./handLayout";
+import { resolveHandPlayCardInteraction } from "./handPlayInteraction";
 import "./Hand.css";
 
 export interface HandCardInteraction {
@@ -88,21 +89,17 @@ function HandCard({
   const isMyTurn = interaction?.isMyTurn === true;
   const legalPlay =
     !interaction?.legalPlayIndices || interaction.legalPlayIndices.includes(index);
-  const legalPlayEligible =
-    isPlayMode && isMyTurn && legalPlay && !interaction?.busy;
-  const reservedPlayVisual =
-    state === "play-preselected" || state === "play-recommended";
-  const playable =
-    interaction?.playableHintFor?.(index) ??
-    (legalPlayEligible &&
-      !reservedPlayVisual &&
-      interaction?.showPlayableHint !== false);
-  const preselectable =
-    isPlayMode &&
-    !isMyTurn &&
-    Boolean(interaction?.allowPlayPreselect) &&
-    legalPlay &&
-    !interaction?.busy;
+  const { playInteractive, playableOutline } = resolveHandPlayCardInteraction({
+    isPlayMode,
+    isMyTurn,
+    legalPlay,
+    busy: Boolean(interaction?.busy),
+    allowPlayPreselect: Boolean(interaction?.allowPlayPreselect),
+    cardState: state,
+    playableHintFor: interaction?.playableHintFor,
+    showPlayableHint: interaction?.showPlayableHint,
+    index,
+  });
   const playing = interaction?.playingIndex === index;
   const illegalTarget =
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
@@ -113,20 +110,21 @@ function HandCard({
   const gestureDisabled =
     Boolean(interaction?.busy) ||
     playing ||
-    (isPlayMode && !isMyTurn && !preselectable) ||
+    (isPlayMode && !isMyTurn && !playInteractive) ||
     (isDrawMode && !isMyTurn);
   const disabled =
     gestureDisabled ||
-    (isPlayMode && !legalPlay && !preselectable) ||
+    (isPlayMode && !legalPlay && !playInteractive) ||
     (isDrawMode && !isMyTurn);
 
   const pointerHandlers = useCardGestureHandlers({
-    disabled: gestureDisabled || (!playable && !preselectable && !isDrawMode && !isPeekMode && !illegalTarget),
+    disabled:
+      gestureDisabled ||
+      (!playInteractive && !isDrawMode && !isPeekMode && !illegalTarget),
     mode: illegalTarget ? "draw-select" : (interaction?.mode ?? "none"),
-    onPlay:
-      playable || preselectable
-        ? (kind) => interaction?.onPlayCard?.(index, kind)
-        : undefined,
+    onPlay: playInteractive
+      ? (kind) => interaction?.onPlayCard?.(index, kind)
+      : undefined,
     onSelect:
       isDrawMode && isMyTurn
         ? () => interaction?.onSelectCard?.(index)
@@ -143,7 +141,7 @@ function HandCard({
     (interaction?.mode !== "none" || illegalTarget);
   const testId =
     isPlayMode && isMyTurn
-      ? playable
+      ? playInteractive
         ? cardTestId
         : "play-button-disabled"
       : cardTestId;
@@ -180,18 +178,22 @@ function HandCard({
         state={disabled && isPlayMode && !illegalTarget ? "disabled" : state}
         badge={badge}
         onClick={!usePointer && onCardClick ? () => onCardClick(card, index) : undefined}
-        onPlayClick={usePointer && playable ? () => interaction?.onPlayCard?.(index, "tap") : undefined}
+        onPlayClick={
+          usePointer && playInteractive
+            ? () => interaction?.onPlayCard?.(index, "tap")
+            : undefined
+        }
         pointerHandlers={usePointer ? pointerHandlers : undefined}
         pressed={pressed}
         playing={playing}
-        playable={playable}
+        playable={playableOutline}
         illegalShake={interaction?.illegalShakeIndex === index}
         illegalFlash={interaction?.illegalFlashIndex === index}
         showPlayableHint={interaction?.showPlayableHint !== false}
         disabled={gestureDisabled && (isPlayMode || isDrawMode) && !illegalTarget}
         data-testid={testId}
         data-card-index={index}
-        data-playable={isPlayMode ? (playable ? "true" : "false") : undefined}
+        data-playable={isPlayMode ? (playInteractive ? "true" : "false") : undefined}
       />
     </div>
   );
