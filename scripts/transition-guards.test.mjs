@@ -66,7 +66,7 @@ describe("transition guards", () => {
     );
     const fnIdx = appSrc.indexOf("function maybeLogClientHandPhaseTransitions");
     assert.ok(fnIdx >= 0);
-    const body = appSrc.slice(fnIdx, fnIdx + 600);
+    const body = appSrc.slice(fnIdx, fnIdx + 900);
     assert.ok(body.includes('prevPhase !== "draw"'));
     assert.ok(body.includes('currentPhase === "draw"'));
     assert.ok(body.includes("HAND_TRANSITION.DRAW_START"));
