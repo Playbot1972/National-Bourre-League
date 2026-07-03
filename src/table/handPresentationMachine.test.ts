@@ -11,7 +11,7 @@ import {
   settleSubPhaseScheduleMs,
   snapshotFromSession,
 } from "./handPresentationMachine";
-import { drawPlayerScheduleMs, handTimingScale, SETTLE_TRICK_TOTALS_MS } from "./handPresentationTiming";
+import { drawPlayerScheduleMs, handTimingScale, SETTLE_TRICK_TOTALS_MS, ANTE_DEAL_STALL_MS } from "./handPresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "./trickTiming";
 
 const baseSnap = snapshotFromSession({
@@ -552,6 +552,24 @@ describe("handPresentationMachine", () => {
     assert.ok(phaseScheduleMs(store, false) > 0);
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+  });
+
+  it("watchdog force-completes stuck ante when deal presentation never signals", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.dealPresentationComplete, false);
+
+    store = {
+      ...store,
+      phaseStartedAt: Date.now() - ANTE_DEAL_STALL_MS - 100,
+    };
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.dealPresentationComplete, true);
     assert.equal(store.phase, "trumpReveal");
   });
 
