@@ -8,6 +8,8 @@ import {
   PRESENTATION_WATCHDOG_MS,
   suppressesHandTurnIndicator,
   ANTE_DEAL_STALL_MS,
+  HAND_RESET_MS,
+  TRUMP_REVEAL_HOLD_MS,
   SETTLE_BOURRE_CALLOUT_MS,
   SETTLE_BOURRE_PENALTY_MS,
   SETTLE_MOTION_STALL_MS,
@@ -769,6 +771,36 @@ function reduceHandPresentationCore(
         return advanceHandPhase({
           ...store,
           dealPresentationComplete: true,
+          pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot,
+        });
+      }
+      if (
+        store.phase === "handReset" &&
+        Date.now() - store.phaseStartedAt >= HAND_RESET_MS
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("handPresentation", "hand-reset-stall-force-advance", {
+            handNumber: store.handNumber,
+            blockedMs: Date.now() - store.phaseStartedAt,
+          });
+        }
+        return advanceHandPhase({
+          ...store,
+          pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot,
+        });
+      }
+      if (
+        store.phase === "trumpReveal" &&
+        Date.now() - store.phaseStartedAt >= TRUMP_REVEAL_HOLD_MS
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("handPresentation", "trump-reveal-stall-force-advance", {
+            handNumber: store.handNumber,
+            blockedMs: Date.now() - store.phaseStartedAt,
+          });
+        }
+        return advanceHandPhase({
+          ...store,
           pendingSnapshot: store.pendingSnapshot ?? store.prevSnapshot,
         });
       }

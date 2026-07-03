@@ -11,7 +11,7 @@ import {
   settleSubPhaseScheduleMs,
   snapshotFromSession,
 } from "./handPresentationMachine";
-import { drawPlayerScheduleMs, handTimingScale, SETTLE_TRICK_TOTALS_MS, ANTE_DEAL_STALL_MS } from "./handPresentationTiming";
+import { drawPlayerScheduleMs, handTimingScale, SETTLE_TRICK_TOTALS_MS, ANTE_DEAL_STALL_MS, TRUMP_REVEAL_HOLD_MS } from "./handPresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "./trickTiming";
 
 const baseSnap = snapshotFromSession({
@@ -571,6 +571,25 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.dealPresentationComplete, true);
     assert.equal(store.phase, "trumpReveal");
+  });
+
+  it("watchdog force-advances stuck trumpReveal after hold elapses", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+
+    store = {
+      ...store,
+      phaseStartedAt: Date.now() - TRUMP_REVEAL_HOLD_MS - 100,
+    };
+    store = reduceHandPresentation(store, { type: "watchdog" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpMergedIntoHand, true);
   });
 
   it("marks trumpMergedIntoHand when ante skips trump reveal (no upcard)", () => {
