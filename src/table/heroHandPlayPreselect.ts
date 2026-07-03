@@ -21,19 +21,30 @@ export interface TapAutoplayPlanInput {
 
 export interface TapAutoplayPlan {
   nextSelection: number | null;
-  shouldArmAutoplay: boolean;
+  /** On-turn legal tap — submit immediately (no preselect timer). */
+  shouldImmediatePlay: boolean;
+  /** Out-of-turn legal tap — queue selection only. */
+  shouldQueueSelection: boolean;
   shouldCancelAutoplay: boolean;
   isDeselect: boolean;
 }
 
-/** Pure tap selection + autoplay arm plan for hero hand play phase. */
+/** Pure tap selection + play plan for hero hand play phase. */
 export function planTapAutoplay(input: TapAutoplayPlanInput): TapAutoplayPlan {
   const nextSelection = togglePlayPreselectIndex(input.selectedPlay, input.tappedIndex);
   const isDeselect = nextSelection === null && input.selectedPlay === input.tappedIndex;
-  const shouldArmAutoplay =
+  const shouldImmediatePlay =
     nextSelection !== null && input.isMyTurn && input.isLegal && !isDeselect;
+  const shouldQueueSelection =
+    nextSelection !== null && !input.isMyTurn && input.isLegal && !isDeselect;
   const shouldCancelAutoplay = isDeselect || nextSelection !== input.selectedPlay;
-  return { nextSelection, shouldArmAutoplay, shouldCancelAutoplay, isDeselect };
+  return {
+    nextSelection,
+    shouldImmediatePlay,
+    shouldQueueSelection,
+    shouldCancelAutoplay,
+    isDeselect,
+  };
 }
 
 /** Swipe should submit immediately only when on-turn and legal. */

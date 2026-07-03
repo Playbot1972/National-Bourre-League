@@ -23,7 +23,7 @@ test("togglePlayPreselectIndex supports deselect before timer would fire", () =>
   assert.equal(selected, null);
 });
 
-test("planTapAutoplay selects legal on-turn card and arms autoplay", () => {
+test("planTapAutoplay selects legal on-turn card for immediate play", () => {
   const plan = planTapAutoplay({
     selectedPlay: null,
     tappedIndex: 2,
@@ -31,7 +31,8 @@ test("planTapAutoplay selects legal on-turn card and arms autoplay", () => {
     isLegal: true,
   });
   assert.equal(plan.nextSelection, 2);
-  assert.equal(plan.shouldArmAutoplay, true);
+  assert.equal(plan.shouldImmediatePlay, true);
+  assert.equal(plan.shouldQueueSelection, false);
   assert.equal(plan.isDeselect, false);
 });
 
@@ -43,7 +44,7 @@ test("planTapAutoplay deselects same selected card", () => {
     isLegal: true,
   });
   assert.equal(plan.nextSelection, null);
-  assert.equal(plan.shouldArmAutoplay, false);
+  assert.equal(plan.shouldImmediatePlay, false);
   assert.equal(plan.isDeselect, true);
   assert.equal(plan.shouldCancelAutoplay, true);
 });
@@ -56,7 +57,7 @@ test("planTapAutoplay switches selection from A to B", () => {
     isLegal: true,
   });
   assert.equal(plan.nextSelection, 3);
-  assert.equal(plan.shouldArmAutoplay, true);
+  assert.equal(plan.shouldImmediatePlay, true);
   assert.equal(plan.shouldCancelAutoplay, true);
 });
 
@@ -68,10 +69,11 @@ test("planTapAutoplay does not arm for illegal card", () => {
     isLegal: false,
   });
   assert.equal(plan.nextSelection, 4);
-  assert.equal(plan.shouldArmAutoplay, false);
+  assert.equal(plan.shouldImmediatePlay, false);
+  assert.equal(plan.shouldQueueSelection, false);
 });
 
-test("planTapAutoplay does not arm out of turn", () => {
+test("planTapAutoplay queues out of turn without immediate play", () => {
   const plan = planTapAutoplay({
     selectedPlay: null,
     tappedIndex: 2,
@@ -79,7 +81,8 @@ test("planTapAutoplay does not arm out of turn", () => {
     isLegal: true,
   });
   assert.equal(plan.nextSelection, 2);
-  assert.equal(plan.shouldArmAutoplay, false);
+  assert.equal(plan.shouldImmediatePlay, false);
+  assert.equal(plan.shouldQueueSelection, true);
 });
 
 test("shouldSwipeImmediatePlay requires on-turn and legal", () => {
