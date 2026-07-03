@@ -107,6 +107,7 @@ export function useHandPresentation({
   const timersRef = useRef<number[]>([]);
   const heroKeysRef = useRef<string[]>([]);
   const advanceArmedKeyRef = useRef<string | null>(null);
+  const armedHandNumberRef = useRef(store.handNumber);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -180,6 +181,16 @@ export function useHandPresentation({
 
   useEffect(() => {
     const reduced = prefersReducedMotion();
+    if (armedHandNumberRef.current !== store.handNumber) {
+      armedHandNumberRef.current = store.handNumber;
+      heroKeysRef.current = [];
+      clearTimers();
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useHandPresentation", "hand-boundary-reset", {
+          handNumber: store.handNumber,
+        });
+      }
+    }
     const phaseKey = `${store.handNumber}:${store.phase}:${store.animatingDrawPlayerId ?? ""}:${store.drawAnimSubPhase}:${store.phaseStartedAt}`;
     const delay = phaseScheduleMs(store, reduced);
     const motionGatedSettle =
@@ -200,7 +211,7 @@ export function useHandPresentation({
       return;
     }
 
-    if (advanceArmedKeyRef.current === phaseKey) {
+    if (advanceArmedKeyRef.current === phaseKey && timersRef.current.length > 0) {
       if (isGameFlowDebugEnabled()) {
         logGameFlow("useHandPresentation", "advancePhase-timer-skip-duplicate", { phaseKey });
       }
@@ -262,6 +273,8 @@ export function useHandPresentation({
           });
         }
         dispatch({ type: "watchdog" });
+        const remainingMs = Math.max(80, delay - (Date.now() - armedAt.phaseStartedAt));
+        schedule(() => dispatch({ type: "advancePhase" }), remainingMs);
         return;
       }
 

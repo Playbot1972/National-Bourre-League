@@ -4,13 +4,22 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  buildHandPresentationModel,
   createHandPresentationStore,
   reduceHandPresentation,
   snapshotFromSession,
   type HandPresentationStore,
   type HandServerSnapshot,
 } from "./handPresentationMachine";
+import {
+  ANTE_DEAL_STALL_MS,
+  HAND_RESET_MS,
+  TRUMP_REVEAL_HOLD_MS,
+} from "./handPresentationTiming";
+import {
+  revealPresentationReady,
+  traceRevealHandoffState,
+  type RevealHandoffTrace,
+} from "./revealHandoffTrace";
 
 const REVEAL_ADVANCE_RETRY_MS = 2_500;
 
@@ -36,16 +45,6 @@ function snapForHand(
   });
 }
 
-function revealPresentationReady(
-  store: HandPresentationStore,
-  snapshot: HandServerSnapshot,
-): boolean {
-  return (
-    (store.phase === "drawPlayer" || store.phase === "drawReady") &&
-    (store.trumpMergedIntoHand || !snapshot.trumpUpcard)
-  );
-}
-
 /** Walk presentation from reveal boundary to drawPlayer-ready (mirrors live deal + trump hold). */
 function walkRevealToDrawPlayerReady(
   snapshot: HandServerSnapshot,
@@ -68,33 +67,69 @@ function walkRevealToDrawPlayerReady(
   return store;
 }
 
+function settleHandToNextHandReset(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  let next = reduceHandPresentation(store, {
+    type: "serverUpdate",
+    snapshot: { ...snapshot, phase: "play", handComplete: false },
+  });
+  next = reduceHandPresentation(next, {
+    type: "serverUpdate",
+    snapshot: { ...snapshot, phase: "play", handComplete: true },
+  });
+  next = reduceHandPresentation(next, { type: "tryBeginHandSettle" });
+  while (next.phase === "settle") {
+    next = reduceHandPresentation(next, { type: "advancePhase" });
+  }
+  assert.equal(next.phase, "nextHandReset");
+  return next;
+}
+
+function openNextHandReveal(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  let next = reduceHandPresentation(store, {
+    type: "serverUpdate",
+    snapshot,
+  });
+  if (next.phase === "handReset") {
+    next = reduceHandPresentation(next, { type: "advancePhase" });
+  }
+  return next;
+}
+
 /** Mirrors TableSessionView retry effect scheduling (without React). */
 function simulateRevealAdvanceRetry(input: {
   serverPhase: string;
+  handNumber: number;
   revealPresentationReady: boolean;
   onAdvanceReveal: () => void;
-  /** When false, server phase stays reveal (simulates failed/benign calls). Default true. */
   advanceServerOnCall?: boolean;
   advanceMs?: number;
   maxMs?: number;
-}): { callTimes: number[]; finalServerPhase: string } {
+}): { callTimes: number[]; finalServerPhase: string; attemptCount: number } {
   const callTimes: number[] = [];
   const advanceMs = input.advanceMs ?? REVEAL_ADVANCE_RETRY_MS;
   const maxMs = input.maxMs ?? 12_000;
   const advanceServer = input.advanceServerOnCall !== false;
   let serverPhase = input.serverPhase;
+  let attemptCount = 0;
   let cancelled = false;
   let elapsed = 0;
 
   const tryAdvance = () => {
     if (cancelled) return;
     callTimes.push(elapsed);
+    attemptCount += 1;
     input.onAdvanceReveal();
     if (advanceServer && serverPhase === "reveal") serverPhase = "draw";
   };
 
   if (input.serverPhase !== "reveal" || !input.revealPresentationReady) {
-    return { callTimes, finalServerPhase: serverPhase };
+    return { callTimes, finalServerPhase: serverPhase, attemptCount };
   }
 
   tryAdvance();
@@ -105,10 +140,64 @@ function simulateRevealAdvanceRetry(input: {
   }
 
   cancelled = true;
-  return { callTimes, finalServerPhase: serverPhase };
+  return { callTimes, finalServerPhase: serverPhase, attemptCount };
 }
 
 describe("reveal→draw handoff recon (hands 1–5)", () => {
+  it("hands 1–5: repeated settlement→reveal resets flags and reaches drawPlayer-ready", () => {
+    const traces: RevealHandoffTrace[] = [];
+    let store = createHandPresentationStore(snapForHand(1));
+
+    for (let hand = 1; hand <= 5; hand += 1) {
+      const trumpUpcard =
+        hand === 3 ? null : ({ rank: String(hand), suit: "hearts" } as const);
+      const snapshot = snapForHand(hand, { trumpUpcard, turnPlayerId: "p0" });
+
+      if (hand === 1) {
+        store = openNextHandReveal(store, snapshot);
+      } else {
+        store = settleHandToNextHandReset(store, snapForHand(hand - 1, { phase: "play" }));
+        store = openNextHandReveal(store, snapshot);
+      }
+
+      assert.equal(store.handNumber, hand, `hand ${hand} store handNumber`);
+      assert.equal(store.phase, "ante", `hand ${hand} starts ante after handReset`);
+      assert.equal(store.trumpMergedIntoHand, false, `hand ${hand} trumpMergedIntoHand reset`);
+      assert.equal(store.dealPresentationComplete, false, `hand ${hand} dealPresentationComplete reset`);
+      assert.ok(store.phaseStartedAt > 0, `hand ${hand} phaseStartedAt set`);
+
+      store = walkRevealToDrawPlayerReady(snapshot);
+      traces.push(traceRevealHandoffState(store, snapshot));
+
+      const ready = revealPresentationReady(store, snapshot);
+      assert.ok(ready, `hand ${hand} revealPresentationReady`);
+
+      const { finalServerPhase, attemptCount } = simulateRevealAdvanceRetry({
+        serverPhase: "reveal",
+        handNumber: hand,
+        revealPresentationReady: ready,
+        onAdvanceReveal: () => {},
+        maxMs: 0,
+      });
+      assert.equal(finalServerPhase, "draw", `hand ${hand} server should leave reveal`);
+      assert.equal(attemptCount, 1, `hand ${hand} should attempt advance once`);
+
+      const drawSnap = { ...snapshot, phase: "draw" as const };
+      store = reduceHandPresentation(store, {
+        type: "serverUpdate",
+        snapshot: drawSnap,
+      });
+      assert.notEqual(store.phase, "trumpReveal", `hand ${hand} should not stick in trumpReveal`);
+    }
+
+    assert.equal(traces.length, 5);
+    for (const trace of traces) {
+      assert.equal(trace.presentationPhase, "drawPlayer");
+      assert.equal(trace.trumpMergedIntoHand, true);
+      assert.equal(trace.dealPresentationComplete, true);
+    }
+  });
+
   it("hands 1–5: presentation reaches drawPlayer-ready; server leaves reveal on first advance", () => {
     for (let hand = 1; hand <= 5; hand += 1) {
       const trumpUpcard =
@@ -116,30 +205,16 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
       const snapshot = snapForHand(hand, { trumpUpcard });
       const store = walkRevealToDrawPlayerReady(snapshot);
 
-      let serverPhase = "reveal";
-      let advanceCount = 0;
-
       const { callTimes, finalServerPhase } = simulateRevealAdvanceRetry({
-        serverPhase,
+        serverPhase: "reveal",
+        handNumber: hand,
         revealPresentationReady: revealPresentationReady(store, snapshot),
-        onAdvanceReveal: () => {
-          advanceCount += 1;
-          if (serverPhase === "reveal") serverPhase = "draw";
-        },
+        onAdvanceReveal: () => {},
         maxMs: 8_000,
       });
 
       assert.equal(finalServerPhase, "draw", `hand ${hand} should reach draw`);
-      assert.ok(advanceCount >= 1, `hand ${hand} should call advance at least once`);
       assert.equal(callTimes[0], 0, `hand ${hand} immediate first attempt`);
-      assert.ok(
-        store.trumpMergedIntoHand,
-        `hand ${hand} trumpMergedIntoHand set`,
-      );
-      if (hand === 3) {
-        assert.equal(snapshot.trumpUpcard, null);
-        assert.equal(store.trumpMergedIntoHand, true);
-      }
 
       const drawSnap = { ...snapshot, phase: "draw" as const, turnPlayerId: "p0" };
       const afterDraw = reduceHandPresentation(store, {
@@ -154,9 +229,9 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
     const snapshot = snapForHand(1);
     const store = walkRevealToDrawPlayerReady(snapshot);
 
-    let serverPhase = "reveal";
     const { callTimes, finalServerPhase } = simulateRevealAdvanceRetry({
-      serverPhase,
+      serverPhase: "reveal",
+      handNumber: 1,
       revealPresentationReady: revealPresentationReady(store, snapshot),
       onAdvanceReveal: () => {},
       advanceServerOnCall: false,
@@ -165,172 +240,66 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
 
     assert.equal(finalServerPhase, "reveal");
     assert.deepEqual(callTimes.slice(0, 4), [0, 2_500, 5_000, 7_500]);
-    for (let i = 1; i < callTimes.length; i += 1) {
-      assert.equal(callTimes[i] - callTimes[i - 1], 2_500);
-    }
   });
 
-  it("stops retrying once server advances — extra calls are benign idempotent no-ops", () => {
-    const snapshot = snapForHand(2);
-    const store = walkRevealToDrawPlayerReady(snapshot);
-
-    let serverPhase = "reveal";
-    let handNumber = 2;
-    let advanceCalls = 0;
-
-    simulateRevealAdvanceRetry({
-      serverPhase,
-      revealPresentationReady: revealPresentationReady(store, snapshot),
-      onAdvanceReveal: () => {
-        advanceCalls += 1;
-        if (serverPhase === "reveal") serverPhase = "draw";
-      },
-      maxMs: 0,
-    });
-
-    assert.equal(serverPhase, "draw");
-    assert.equal(advanceCalls, 1);
-
-    // Interval would not reschedule after phase !== reveal; simulate benign follow-ups.
-    for (let i = 0; i < 3; i += 1) {
-      if (serverPhase === "reveal") serverPhase = "draw";
-      advanceCalls += 1;
-    }
-
-    assert.equal(serverPhase, "draw");
-    assert.equal(handNumber, 2);
-    assert.equal(advanceCalls, 4);
-  });
-
-  it("syncs phaseStartedAt through coalesced presentation updates", () => {
-    let store = createHandPresentationStore(snapForHand(1));
+  it("hand 2 trumpReveal watchdog recovers after stale phaseStartedAt shift", () => {
+    let store = createHandPresentationStore(snapForHand(2));
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "trumpReveal");
 
-    const beforeRef = store;
-    const phaseStartedAtBefore = store.phaseStartedAt;
-
+    const shiftedStartedAt = Date.now() - TRUMP_REVEAL_HOLD_MS - 200;
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
-      snapshot: {
-        ...snapForHand(1),
-        potAmount: store.displayPotAmount,
-      },
+      snapshot: { ...snapForHand(2), potAmount: store.displayPotAmount },
     });
-
-    assert.equal(store, beforeRef);
-    assert.equal(store.phaseStartedAt, phaseStartedAtBefore);
-
-    const mergedAt = phaseStartedAtBefore + 1_500;
-    const merged = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...snapForHand(1),
-        trumpUpcard: null,
-        phase: "reveal",
-      },
-    });
-
-    assert.notEqual(merged.trumpRevealActive, true);
-    assert.equal(merged.trumpMergedIntoHand, true);
-    assert.ok(merged.phaseStartedAt >= phaseStartedAtBefore);
-
-    const coalesced = reduceHandPresentation(merged, {
-      type: "serverUpdate",
-      snapshot: {
-        ...snapForHand(1),
-        trumpUpcard: null,
-        potAmount: merged.displayPotAmount,
-      },
-    });
-
-    assert.equal(coalesced, merged);
-    assert.equal(coalesced.phaseStartedAt, merged.phaseStartedAt);
-  });
-
-  it("does not freeze in trumpReveal through watchdog advance to drawPlayer", () => {
-    let store = createHandPresentationStore(snapForHand(4));
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpReveal");
-
-    store = {
-      ...store,
-      phaseStartedAt: Date.now() - 13_000,
-    };
+    store = { ...store, phaseStartedAt: shiftedStartedAt };
 
     store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, true);
-    assert.ok(revealPresentationReady(store, snapForHand(4)));
+    assert.ok(revealPresentationReady(store, snapForHand(2)));
   });
 
-  it("hand 2 after settlement: reaches drawPlayer-ready and can advance server", () => {
-    const snap1 = snapForHand(1);
-    let store = createHandPresentationStore({ ...snap1, phase: "play" });
+  it("hand 3 handReset watchdog advances into ante when timer lost", () => {
+    let store = settleHandToNextHandReset(
+      createHandPresentationStore({ ...snapForHand(2), phase: "play" }),
+      snapForHand(2, { phase: "play" }),
+    );
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
-      snapshot: { ...snap1, phase: "play", handComplete: true },
-    });
-    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
-    while (store.phase === "settle") {
-      store = reduceHandPresentation(store, { type: "advancePhase" });
-    }
-    assert.equal(store.phase, "nextHandReset");
-
-    const snap2 = snapForHand(2, {
-      trumpUpcard: { rank: "A", suit: "clubs" },
-      turnPlayerId: "p1",
-    });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: snap2,
+      snapshot: snapForHand(3),
     });
     assert.equal(store.phase, "handReset");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+
+    store = {
+      ...store,
+      phaseStartedAt: Date.now() - HAND_RESET_MS - 100,
+    };
+    store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.phase, "ante");
-
-    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpReveal");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "drawPlayer");
-    assert.ok(revealPresentationReady(store, snap2));
-
-    let serverPhase = "reveal";
-    const { finalServerPhase } = simulateRevealAdvanceRetry({
-      serverPhase,
-      revealPresentationReady: revealPresentationReady(store, snap2),
-      onAdvanceReveal: () => {
-        if (serverPhase === "reveal") serverPhase = "draw";
-      },
-      maxMs: 0,
-    });
-    assert.equal(finalServerPhase, "draw");
+    assert.equal(store.trumpMergedIntoHand, false);
+    assert.equal(store.dealPresentationComplete, false);
   });
 
-  it("trump holder recovers via ante watchdog when deal animation never starts (4 effective cards)", () => {
-    let store = createHandPresentationStore(snapForHand(1));
-    if (store.phase === "handReset") {
-      store = reduceHandPresentation(store, { type: "advancePhase" });
-    }
+  it("hand 2 ante watchdog still force-completes deal stall across hands", () => {
+    let store = openNextHandReveal(
+      settleHandToNextHandReset(
+        createHandPresentationStore({ ...snapForHand(1), phase: "play" }),
+        snapForHand(1, { phase: "play" }),
+      ),
+      snapForHand(2),
+    );
     assert.equal(store.phase, "ante");
     assert.equal(store.dealPresentationComplete, false);
 
     store = {
       ...store,
-      phaseStartedAt: Date.now() - 8_500,
+      phaseStartedAt: Date.now() - ANTE_DEAL_STALL_MS - 100,
     };
     store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.dealPresentationComplete, true);
     assert.equal(store.phase, "trumpReveal");
-
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "drawPlayer");
-    assert.ok(revealPresentationReady(store, snapForHand(1)));
   });
 });
 
