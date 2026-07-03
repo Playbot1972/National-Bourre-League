@@ -13,6 +13,8 @@ import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
   planTapAutoplay,
+  resolveManualOrRecommendedPlayState,
+  shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
 import { logPlayClick } from "./playClickDebug";
@@ -806,13 +808,12 @@ export function HeroHand({
     return <HeroHandReserve className={className} />;
   }
 
-  const showBestPlayRecommendation =
-    showBestPlayControl &&
-    inPlayPhase &&
-    bestPlayEnabled &&
-    selectedPlay === null &&
-    recommendedPlayIndex !== null &&
-    recommendedPlayIndex >= 0;
+  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
+    showBestPlayControl,
+    inPlayPhase,
+    bestPlayEnabled,
+    recommendedPlayIndex,
+  });
 
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";
@@ -822,8 +823,13 @@ export function HeroHand({
     if (inDrawPhase && selectedDraw.has(i)) {
       return "draw-selected";
     }
-    if (inPlayPhase && selectedPlay === i) return "play-preselected";
-    if (showBestPlayRecommendation && recommendedPlayIndex === i) return "play-recommended";
+    const manualOrRecommended = resolveManualOrRecommendedPlayState({
+      cardIndex: i,
+      selectedPlay,
+      showBestPlayRecommendation,
+      recommendedPlayIndex,
+    });
+    if (manualOrRecommended) return manualOrRecommended;
     if (inPlayPhase && legalPlayIndices && !legalPlayIndices.includes(i)) return "muted";
     return "default";
   };

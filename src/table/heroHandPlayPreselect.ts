@@ -52,6 +52,41 @@ export function shouldSwipeImmediatePlay(isMyTurn: boolean, isLegal: boolean): b
   return isMyTurn && isLegal;
 }
 
+/** Best Play highlight gate — independent of manual selectedPlay / preselect state. */
+export function shouldShowBestPlayRecommendation(input: {
+  showBestPlayControl: boolean;
+  inPlayPhase: boolean;
+  bestPlayEnabled: boolean;
+  recommendedPlayIndex: number | null;
+}): boolean {
+  return (
+    input.showBestPlayControl &&
+    input.inPlayPhase &&
+    input.bestPlayEnabled &&
+    input.recommendedPlayIndex !== null &&
+    input.recommendedPlayIndex >= 0
+  );
+}
+
+/**
+ * Manual preselect vs Best Play card styling — separate paths; preselect wins on same index.
+ */
+export function resolveManualOrRecommendedPlayState(input: {
+  cardIndex: number;
+  selectedPlay: number | null;
+  showBestPlayRecommendation: boolean;
+  recommendedPlayIndex: number | null;
+}): "play-preselected" | "play-recommended" | null {
+  if (input.selectedPlay === input.cardIndex) return "play-preselected";
+  if (
+    input.showBestPlayRecommendation &&
+    input.recommendedPlayIndex === input.cardIndex
+  ) {
+    return "play-recommended";
+  }
+  return null;
+}
+
 /** True when index is in the server-derived legal play set (Pagat Bourré rules). */
 export function isLegalPlayIndex(index: number, legalPlayIndices?: number[]): boolean {
   if (!legalPlayIndices) return true;
