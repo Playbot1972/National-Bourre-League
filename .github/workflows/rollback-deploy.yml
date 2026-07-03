@@ -1,0 +1,126 @@
+name: Rollback deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy (commit SHA or tag)
+        required: true
+        default: "40e699f"
+      reset_main:
+        description: Force-reset main branch to this ref after deploy
+        type: boolean
+        default: true
+
+concurrency:
+  group: firebase-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rollback ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check Firebase secrets and validate service account JSON
+        id: cfg
+        env:
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          missing=""
+          for name in PROJECT_ID API_KEY AUTH_DOMAIN APP_ID SERVICE_ACCOUNT; do
+            eval "val=\$$name"
+            if [ -z "$val" ]; then
+              missing="$missing FIREBASE_${name}"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Rollback deploy blocked — missing GitHub Actions secrets:$missing"
+            exit 1
+          fi
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          node scripts/validate-service-account-key.mjs "$RUNNER_TEMP/firebase-sa.json" --project "$PROJECT_ID"
+          rm -f "$RUNNER_TEMP/firebase-sa.json"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Show rollback target version
+        if: steps.cfg.outputs.ready == 'true'
+        run: |
+          echo "Rolling back to ref ${{ inputs.ref }}"
+          node -p "JSON.parse(require('fs').readFileSync('package.json','utf8')).version"
+
+      - name: Write production Firebase config
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          BUILD_CHANNEL: production
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
+        run: node scripts/write-firebase-config.js
+
+      - name: Build hosting bundle (no version bump)
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          BUILD_CHANNEL: production
+          FORCE_DEPLOY: "1"
+        run: npm run build:hosting
+
+      - name: Authenticate to Google Cloud
+        if: steps.cfg.outputs.ready == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Setup gcloud SDK
+        if: steps.cfg.outputs.ready == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Deploy Hosting
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          FORCE_DEPLOY: "1"
+        run: |
+          chmod +x scripts/ci-firebase-hosting-deploy.sh
+          bash scripts/ci-firebase-hosting-deploy.sh hosting
+
+      - name: Verify production hosting
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm run verify:prod
+
+      - name: Reset main to rollback ref
+        if: steps.cfg.outputs.ready == 'true' && inputs.reset_main == true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git push origin "HEAD:refs/heads/main" --force
