@@ -46,6 +46,7 @@ export function createServerBotAdvanceRuntime(deps) {
       handNumber: ctx.handNumber ?? 0,
       trickNumber: ctx.trickNumber ?? null,
       turnPlayerId: ctx.turnPlayerId ?? null,
+      remainingHandCount: ctx.remainingHandCount ?? null,
     };
   }
 
@@ -145,6 +146,13 @@ export function createServerBotAdvanceRuntime(deps) {
           void execute(latest, deps.getScores(), actorId, { reason, delayPlan: plan });
         },
         log: {
+          delayChosen: (extra) =>
+            logPlayDelay("bot-delay-chosen", session, scores, {
+              requester: actorId,
+              owner: "server",
+              trigger: reason,
+              ...extra,
+            }),
           armed: (extra) =>
             logPlayDelay("bot-think-armed", session, scores, {
               requester: actorId,
@@ -193,6 +201,8 @@ export function createServerBotAdvanceRuntime(deps) {
           delayMs: result.delayMs,
           chosenBotDelayMs: result.chosenDelayMs,
           elapsedSinceTurnMs: result.elapsedSinceTurnMs,
+          remainingHandCount: result.remainingHandCount,
+          isLastCard: result.isLastCard,
           handPhase,
           generation: result.generation,
           action: "scheduled",

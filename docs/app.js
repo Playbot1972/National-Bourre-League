@@ -2874,6 +2874,7 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     handNumber: ctx.handNumber ?? 0,
     trickNumber: ctx.trickNumber ?? null,
     turnPlayerId: turnId,
+    remainingHandCount: ctx.remainingHandCount ?? null,
   };
   const expectedTurnKey = botPlayTurnKey(playCtx);
 
@@ -2909,6 +2910,14 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
       void plan;
     },
     log: {
+      delayChosen: (extra) =>
+        logBotOrchestrator("bot-delay-chosen", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
       armed: (extra) =>
         logBotOrchestrator("bot-think-armed", {
           ...ctx,
@@ -2963,6 +2972,8 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
       delayMs: result.delayMs,
       chosenBotDelayMs: result.chosenDelayMs,
       elapsedSinceTurnMs: result.elapsedSinceTurnMs,
+      remainingHandCount: result.remainingHandCount,
+      isLastCard: result.isLastCard,
       generation: result.generation,
       action: "scheduled",
     });
@@ -3130,6 +3141,8 @@ function snapshotGameFlowContext(s, scores) {
   const actionOrder = ch?.actionOrder ?? participants;
   const turnId = ch?.turnPlayerId ?? null;
   const turnIndex = turnId ? actionOrder.indexOf(turnId) : -1;
+  const remainingHandCount =
+    turnId && ch ? cardsRemainingInHand(ch, turnId) : null;
   return {
     handNumber: sessionHandNumber(s),
     handPhase: ch?.phase ?? null,
@@ -3137,6 +3150,8 @@ function snapshotGameFlowContext(s, scores) {
     trickPlays: ch?.currentTrick?.plays?.length ?? 0,
     turnPlayerId: turnId,
     turnIndex,
+    remainingHandCount,
+    isLastCard: remainingHandCount === 1,
     dealerId: resolveHandDealerId(s?.dealerId ?? null, ch),
     actionOrder,
     drawCompleted: (ch?.drawCompletedIds ?? []).length,
