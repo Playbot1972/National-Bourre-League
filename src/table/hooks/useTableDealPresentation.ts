@@ -52,11 +52,7 @@ export function useTableDealPresentation({
     const root = tableRootRef.current;
     if (!root) return;
 
-    const inDealPhase =
-      session.phase === "reveal" ||
-      session.phase === "decision" ||
-      session.phase === "draw" ||
-      session.phase === "play";
+    const inDealPhase = session.phase === "reveal" || session.phase === "decision";
 
     const cardCount = dealSourceCards?.length ?? heroCards.length;
     if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {

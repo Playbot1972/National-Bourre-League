@@ -211,7 +211,6 @@ export function useHandPresentation({
     if (delay <= 0) {
       if (store.phase === "ante" && !store.dealPresentationComplete) {
         const anteStallKey = `ante-stall:${phaseKey}`;
-        if (advanceArmedKeyRef.current === anteStallKey) return;
         advanceArmedKeyRef.current = anteStallKey;
         const blockedMs = Date.now() - store.phaseStartedAt;
         const waitMs = Math.max(0, ANTE_DEAL_STALL_MS - blockedMs);
@@ -262,6 +261,7 @@ export function useHandPresentation({
             },
           });
         }
+        dispatch({ type: "watchdog" });
         return;
       }
 

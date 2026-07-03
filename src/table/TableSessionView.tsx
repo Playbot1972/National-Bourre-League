@@ -632,7 +632,7 @@ export function TableSessionView({
   );
 
   const revealPresentationReady =
-    handPresentation.phase === "drawPlayer" &&
+    (handPresentation.phase === "drawPlayer" || handPresentation.phase === "drawReady") &&
     (handPresentation.trumpMergedIntoHand || !session.trumpUpcard);
 
   useEffect(() => {

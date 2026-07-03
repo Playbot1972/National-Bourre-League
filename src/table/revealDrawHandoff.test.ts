@@ -41,7 +41,7 @@ function revealPresentationReady(
   snapshot: HandServerSnapshot,
 ): boolean {
   return (
-    store.phase === "drawPlayer" &&
+    (store.phase === "drawPlayer" || store.phase === "drawReady") &&
     (store.trumpMergedIntoHand || !snapshot.trumpUpcard)
   );
 }
@@ -266,6 +266,50 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
     assert.equal(store.phase, "drawPlayer");
     assert.equal(store.trumpMergedIntoHand, true);
     assert.ok(revealPresentationReady(store, snapForHand(4)));
+  });
+
+  it("hand 2 after settlement: reaches drawPlayer-ready and can advance server", () => {
+    const snap1 = snapForHand(1);
+    let store = createHandPresentationStore({ ...snap1, phase: "play" });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...snap1, phase: "play", handComplete: true },
+    });
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    while (store.phase === "settle") {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
+    assert.equal(store.phase, "nextHandReset");
+
+    const snap2 = snapForHand(2, {
+      trumpUpcard: { rank: "A", suit: "clubs" },
+      turnPlayerId: "p1",
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: snap2,
+    });
+    assert.equal(store.phase, "handReset");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "ante");
+
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.ok(revealPresentationReady(store, snap2));
+
+    let serverPhase = "reveal";
+    const { finalServerPhase } = simulateRevealAdvanceRetry({
+      serverPhase,
+      revealPresentationReady: revealPresentationReady(store, snap2),
+      onAdvanceReveal: () => {
+        if (serverPhase === "reveal") serverPhase = "draw";
+      },
+      maxMs: 0,
+    });
+    assert.equal(finalServerPhase, "draw");
   });
 
   it("trump holder recovers via ante watchdog when deal animation never starts (4 effective cards)", () => {

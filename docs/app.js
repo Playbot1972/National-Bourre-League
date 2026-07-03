@@ -1013,9 +1013,25 @@ let handoffRecoveryInFlight = false;
 const appRoundAdvanceLock = createTransitionLock();
 /** Last hand phase observed on the open session — client-side transition logging only. */
 let clientObservedHandPhase = null;
+/** Last hand number observed — reset private hand when the table advances to a new hand. */
+let clientObservedHandNumber = null;
+
+function maybeResetPrivateHandForHandChange(sessionObj) {
+  if (!sessionObj || sessionObj.id !== openSessionId) return;
+  const handNumber = sessionHandNumber(sessionObj);
+  if (
+    clientObservedHandNumber != null &&
+    clientObservedHandNumber !== handNumber
+  ) {
+    openPrivateHand = null;
+    privateHandSnapSeen = false;
+  }
+  clientObservedHandNumber = handNumber;
+}
 
 function maybeLogClientHandPhaseTransitions(sessionObj) {
   if (!sessionObj || sessionObj.id !== openSessionId || !currentRoomId) return;
+  maybeResetPrivateHandForHandChange(sessionObj);
   const currentHand = getSessionCurrentHand(sessionObj);
   const currentPhase = currentHand?.phase ?? null;
   const prevPhase = clientObservedHandPhase;
@@ -3767,6 +3783,7 @@ function openSession(sessionId) {
   openScores = [];
   openHands = [];
   clientObservedHandPhase = null;
+  clientObservedHandNumber = null;
   tableFeedbackSnapshot = null;
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
