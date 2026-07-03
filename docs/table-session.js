@@ -15845,7 +15845,7 @@ function dh({ session: e, heroCards: t, dealSourceCards: n, privateHandReady: r 
 	}, [e.handNumber, i]), (0, l.useLayoutEffect)(() => {
 		let o = i.current;
 		if (!o) return;
-		let l = e.phase === "reveal" || e.phase === "decision" || e.phase === "draw" || e.phase === "play", u = n?.length ?? t.length;
+		let l = e.phase === "reveal" || e.phase === "decision", u = n?.length ?? t.length;
 		if (!l || !r || u < 5) return;
 		let d = `${e.handNumber}:${u}:${e.participantIds.join(",")}`;
 		if (c.current === d) {
@@ -18052,11 +18052,9 @@ function d_({ session: e, enrollmentActive: t, potAmount: n, handComplete: r, tr
 		}
 		if (y(), n <= 0) {
 			if (p.phase === "ante" && !p.dealPresentationComplete) {
-				let e = `ante-stall:${t}`;
-				if (_.current === e) return;
-				_.current = e;
-				let n = Date.now() - p.phaseStartedAt;
-				b(() => m({ type: "watchdog" }), Math.max(0, im - n));
+				_.current = `ante-stall:${t}`;
+				let e = Date.now() - p.phaseStartedAt;
+				b(() => m({ type: "watchdog" }), Math.max(0, im - e));
 			}
 			return;
 		}
@@ -18086,7 +18084,7 @@ function d_({ session: e, enrollmentActive: t, potAmount: n, handComplete: r, tr
 						drawAnimSubPhase: e.drawAnimSubPhase,
 						phaseStartedAt: e.phaseStartedAt
 					}
-				});
+				}), m({ type: "watchdog" });
 				return;
 			}
 			Nd() && Q("useHandPresentation", "advancePhase-timer", {
@@ -19663,7 +19661,7 @@ function xv({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 			onDismiss: D
 		}),
 		x ? /* @__PURE__ */ (0, C.jsx)(Xg, { ...je }) : /* @__PURE__ */ (0, C.jsx)(Ug, { ...je })
-	] }), Ne = N.phase === "drawPlayer" && (N.trumpMergedIntoHand || !e.trumpUpcard);
+	] }), Ne = (N.phase === "drawPlayer" || N.phase === "drawReady") && (N.trumpMergedIntoHand || !e.trumpUpcard);
 	return (0, l.useEffect)(() => {
 		if (e.phase !== "reveal" || !Ne || !y.onAdvanceReveal) return;
 		let t = !1, n = () => {
