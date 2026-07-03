@@ -6,6 +6,8 @@ import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
   planTapAutoplay,
+  resolveManualOrRecommendedPlayState,
+  shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
   togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
@@ -89,6 +91,58 @@ test("shouldSwipeImmediatePlay requires on-turn and legal", () => {
   assert.equal(shouldSwipeImmediatePlay(true, true), true);
   assert.equal(shouldSwipeImmediatePlay(false, true), false);
   assert.equal(shouldSwipeImmediatePlay(true, false), false);
+});
+
+test("shouldShowBestPlayRecommendation ignores selectedPlay preselect state", () => {
+  const base = {
+    showBestPlayControl: true,
+    inPlayPhase: true,
+    bestPlayEnabled: true,
+    recommendedPlayIndex: 2,
+  };
+  assert.equal(shouldShowBestPlayRecommendation(base), true);
+});
+
+test("resolveManualOrRecommendedPlayState keeps best-play visible while another card is preselected", () => {
+  assert.equal(
+    resolveManualOrRecommendedPlayState({
+      cardIndex: 1,
+      selectedPlay: 3,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    null,
+  );
+  assert.equal(
+    resolveManualOrRecommendedPlayState({
+      cardIndex: 2,
+      selectedPlay: 3,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    "play-recommended",
+  );
+  assert.equal(
+    resolveManualOrRecommendedPlayState({
+      cardIndex: 3,
+      selectedPlay: 3,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    "play-preselected",
+  );
+});
+
+test("resolveManualOrRecommendedPlayState prefers preselect when same card is recommended", () => {
+  assert.equal(
+    resolveManualOrRecommendedPlayState({
+      cardIndex: 2,
+      selectedPlay: 2,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    "play-preselected",
+  );
 });
 
 test("isLegalPlayIndex allows any index when legality list is absent", () => {
