@@ -629,32 +629,34 @@ export function TableSessionView({
     </>
   );
 
-  const revealAdvancedRef = useRef(false);
-  useEffect(() => {
-    revealAdvancedRef.current = false;
-  }, [session.handNumber, session.sessionId]);
+  const revealPresentationReady =
+    handPresentation.phase === "drawPlayer" &&
+    (handPresentation.trumpMergedIntoHand || !session.trumpUpcard);
 
   useEffect(() => {
     if (session.phase !== "reveal") return;
-    if (!handPresentation.trumpMergedIntoHand) return;
-    if (handPresentation.phase !== "drawPlayer") return;
-    if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
+    if (!revealPresentationReady || !actions.onAdvanceReveal) return;
 
-    const advance = actions.onAdvanceReveal();
-    void Promise.resolve(advance).then(
-      () => {
-        revealAdvancedRef.current = true;
-      },
-      () => {
-        revealAdvancedRef.current = false;
-      },
-    );
+    let cancelled = false;
+
+    const tryAdvance = () => {
+      if (cancelled) return;
+      actions.onAdvanceReveal?.();
+    };
+
+    tryAdvance();
+    const intervalId = window.setInterval(tryAdvance, 2_500);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, [
     session.phase,
     session.handNumber,
     session.sessionId,
-    handPresentation.trumpMergedIntoHand,
-    handPresentation.phase,
+    session.trumpUpcard,
+    revealPresentationReady,
     actions,
   ]);
 

@@ -672,6 +672,7 @@ function applyInternalHandPresentationFields(
   target.settleTricksByPlayer = source.settleTricksByPlayer;
   target.settleWinnerIds = source.settleWinnerIds;
   target.settleBourreIds = source.settleBourreIds;
+  target.phaseStartedAt = source.phaseStartedAt;
 }
 
 function coalesceHandPresentationStore(
@@ -1047,7 +1048,11 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       if (snap?.phase === "draw") {
         return beginDrawSequence(store, snap, 0, 0);
       }
-      return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
+      return withPhase(store, "drawPlayer", {
+        anteAnimActive: false,
+        trumpMergedIntoHand: true,
+        pendingSnapshot: null,
+      });
 
     case "trumpReveal": {
       if (snap?.phase === "draw") {
