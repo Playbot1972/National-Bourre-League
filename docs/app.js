@@ -48,6 +48,7 @@ import {
   logBotOrchestrator,
 } from "./bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
+import { createBotPlayDelayState, resolveBotAdvanceDelayMs } from "./bot-play-delay.js";
 import {
   logHandLifecycleTransition,
   isPagatHandClock,
@@ -991,6 +992,9 @@ function getServerBotAdvance() {
 }
 let pendingRobotWake = false;
 let robotPresentationUnsub = null;
+/** Client legacy bot play think delay (1–3s per turn). */
+let clientBotPlayDelayState = createBotPlayDelayState();
+let clientBotPlayTimer = null;
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
 const TRICK_PIPELINE_MS = 1850 + 1080 + 230;
@@ -2834,6 +2838,52 @@ function clearSessionOrchestrationSchedule() {
   sessionOrchestrationCoalesce = false;
 }
 
+function clearClientBotPlayTimer() {
+  if (clientBotPlayTimer) {
+    clearTimeout(clientBotPlayTimer);
+    clientBotPlayTimer = null;
+  }
+}
+
+function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "client-play" } = {}) {
+  if (robotActionInFlight || clientBotPlayTimer) return;
+  const ctx = snapshotGameFlowContext(s, scores);
+  const nowMs = Date.now();
+  const plan = resolveBotAdvanceDelayMs({
+    handPhase: "play",
+    playDelayState: clientBotPlayDelayState,
+    ctx: {
+      handNumber: ctx.handNumber,
+      trickNumber: ctx.trickNumber,
+      turnPlayerId: turnId,
+    },
+    nowMs,
+    lastCompletedAtMs: lastRobotTrickAt,
+    trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
+  });
+  logBotOrchestrator("schedule-client-play", {
+    ...ctx,
+    turnPlayerId: turnId,
+    trigger: reason,
+    delayMs: plan.delayMs,
+    chosenBotDelayMs: plan.chosenDelayMs,
+    elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
+    trickGapRemainingMs: plan.trickGapRemainingMs,
+    action: "scheduled",
+  });
+  clientBotPlayTimer = setTimeout(() => {
+    clientBotPlayTimer = null;
+    if (robotActionInFlight) return;
+    lastRobotTrickAt = Date.now();
+    robotActionInFlight = true;
+    robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
+      .catch((e) => console.warn("robot play:", e))
+      .finally(() => {
+        finishRobotAction();
+      });
+  }, plan.delayMs);
+}
+
 function stopRobotPresentationSubscription() {
   if (robotPresentationUnsub) {
     robotPresentationUnsub();
@@ -3101,7 +3151,10 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     return;
   }
 
-  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) return;
+  if (now - lastRobotTrickAt < ROBOT_TRICK_INTERVAL_MS) {
+    const phaseGate = getSessionCurrentHand(s)?.phase;
+    if (phaseGate !== "play") return;
+  }
 
   const pending = s.pendingCoWinSettlement;
   if (pending?.winnerIds?.length >= 2) {
@@ -3192,13 +3245,10 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
       isRobotPlayerId(turnId) &&
       participants.includes(turnId)
     ) {
-      lastRobotTrickAt = now;
-      robotActionInFlight = true;
-      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
-        .catch((e) => console.warn("auto trick-5 lead:", e))
-        .finally(() => {
-          finishRobotAction();
-        });
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("processRobotActions", "robot-play-card", snapshotGameFlowContext(s, scores));
+      }
+      scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason: "auto-trick-5-lead" });
       return;
     }
 
@@ -3206,13 +3256,7 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
       if (isGameFlowDebugEnabled()) {
         logGameFlow("processRobotActions", "robot-play-card", snapshotGameFlowContext(s, scores));
       }
-      lastRobotTrickAt = now;
-      robotActionInFlight = true;
-      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
-        .catch((e) => console.warn("robot play:", e))
-        .finally(() => {
-          finishRobotAction();
-        });
+      scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason: "robot-play-card" });
     }
     return;
   }

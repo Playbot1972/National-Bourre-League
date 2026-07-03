@@ -34,16 +34,16 @@ describe("app.js bot paths", () => {
     "utf8",
   );
 
-  it("server path uses scheduleServerBotAdvance before legacy robotPlayCard", () => {
+  it("server path uses scheduleServerBotAdvance before legacy client bot play schedule", () => {
     const idx = src.indexOf("function processRobotActionsInner");
     assert.ok(idx >= 0);
     const slice = src.slice(idx, idx + 7000);
     assert.ok(slice.includes("shouldRequestServerBotAdvance"));
     assert.ok(slice.includes("scheduleServerBotAdvance"));
     const serverIdx = slice.indexOf("scheduleServerBotAdvance");
-    const playIdx = slice.indexOf("robotPlayCard");
+    const playIdx = slice.indexOf("scheduleClientBotPlayCard");
     assert.ok(serverIdx >= 0 && playIdx >= 0);
-    assert.ok(serverIdx < playIdx, "server schedule must precede legacy robotPlayCard");
+    assert.ok(serverIdx < playIdx, "server schedule must precede legacy client bot play schedule");
   });
 
   it("does not call robotSubmitDraw when server authority requests advance", () => {
@@ -61,7 +61,8 @@ describe("app.js bot paths", () => {
     assert.ok(runtimeSrc.includes("advance_in_flight"));
     assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
     assert.ok(runtimeSrc.includes("let inFlight = false"));
-    assert.ok(runtimeSrc.includes("pendingWake"));
+    assert.ok(runtimeSrc.includes("chosenBotDelayMs"));
+    assert.ok(runtimeSrc.includes("bot-play-delay.js"));
   });
 
   it("advanceSessionBots is wired only through bot orchestration runtime", () => {
