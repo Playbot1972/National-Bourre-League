@@ -888,12 +888,34 @@ function reduceHandPresentationCore(
       const prevTrump = trumpKey(prev.trumpUpcard);
       const nextTrump = trumpKey(snapshot.trumpUpcard);
       if (prevTrump && !nextTrump && !store.trumpMergeActive) {
-        return {
-          ...store,
+        const trumpCleared = {
           trumpRevealActive: false,
-          trumpMergeActive: true,
           trumpMergedIntoHand: true,
           prevSnapshot: snapshot,
+        };
+        // Server cleared trump (merged into holder) while reveal presentation is still
+        // holding — advance to drawPlayer so revealPresentationReady can fire. Leaving
+        // phase on trumpReveal and resetting phaseStartedAt blocked the watchdog on
+        // hand 2+ when Firestore kept delivering churn snapshots.
+        if (store.phase === "trumpReveal" || store.phase === "trumpMerge") {
+          if (snapshot.phase === "draw") {
+            return {
+              ...beginDrawSequence(store, snapshot, heroDrawDiscardCount, heroDrawReplaceCount),
+              ...trumpCleared,
+              trumpMergeActive: false,
+              pendingSnapshot: null,
+            };
+          }
+          return withPhase(store, "drawPlayer", {
+            ...trumpCleared,
+            trumpMergeActive: false,
+            pendingSnapshot: null,
+          });
+        }
+        return {
+          ...store,
+          ...trumpCleared,
+          trumpMergeActive: true,
           pendingSnapshot: snapshot,
           phaseStartedAt: Date.now(),
         };

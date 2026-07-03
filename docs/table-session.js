@@ -16633,15 +16633,29 @@ function Og(e, t) {
 				} : e;
 			}
 			let o = Jh(a.trumpUpcard), s = Jh(n.trumpUpcard);
-			if (o && !s && !e.trumpMergeActive) return {
-				...e,
-				trumpRevealActive: !1,
-				trumpMergeActive: !0,
-				trumpMergedIntoHand: !0,
-				prevSnapshot: n,
-				pendingSnapshot: n,
-				phaseStartedAt: Date.now()
-			};
+			if (o && !s && !e.trumpMergeActive) {
+				let t = {
+					trumpRevealActive: !1,
+					trumpMergedIntoHand: !0,
+					prevSnapshot: n
+				};
+				return e.phase === "trumpReveal" || e.phase === "trumpMerge" ? n.phase === "draw" ? {
+					...bg(e, n, r, i),
+					...t,
+					trumpMergeActive: !1,
+					pendingSnapshot: null
+				} : $h(e, "drawPlayer", {
+					...t,
+					trumpMergeActive: !1,
+					pendingSnapshot: null
+				}) : {
+					...e,
+					...t,
+					trumpMergeActive: !0,
+					pendingSnapshot: n,
+					phaseStartedAt: Date.now()
+				};
+			}
 			if (n.phase === "play" && e.phase !== "play") return $h(e, "play", {
 				displayDrawCompletedIds: [...n.drawCompletedIds],
 				animatingDrawPlayerId: null,

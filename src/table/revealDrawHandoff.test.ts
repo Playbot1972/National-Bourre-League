@@ -242,6 +242,46 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
     assert.deepEqual(callTimes.slice(0, 4), [0, 2_500, 5_000, 7_500]);
   });
 
+  it("hand 2+ advances to drawPlayer when server clears trump during trumpReveal", () => {
+    for (const hand of [2, 3, 4, 5]) {
+      let store = createHandPresentationStore(snapForHand(hand));
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+      store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+      assert.equal(store.phase, "trumpReveal", `hand ${hand} should be in trumpReveal`);
+
+      const trumpCleared = {
+        ...snapForHand(hand, { trumpUpcard: null }),
+        phase: "reveal" as const,
+      };
+      store = reduceHandPresentation(store, { type: "serverUpdate", snapshot: trumpCleared });
+
+      assert.equal(store.phase, "drawPlayer", `hand ${hand} should leave trumpReveal`);
+      assert.ok(
+        revealPresentationReady(store, trumpCleared),
+        `hand ${hand} revealPresentationReady after trump clear`,
+      );
+    }
+  });
+
+  it("hand 2 repeated trump-clear snapshots do not reset reveal advance gate", () => {
+    let store = createHandPresentationStore(snapForHand(2));
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+
+    const trumpCleared = { ...snapForHand(2, { trumpUpcard: null }), phase: "reveal" as const };
+    for (let i = 0; i < 6; i += 1) {
+      store = reduceHandPresentation(store, {
+        type: "serverUpdate",
+        snapshot: { ...trumpCleared, potAmount: 3 + i },
+      });
+      assert.equal(store.phase, "drawPlayer", `churn snapshot ${i} should stay drawPlayer`);
+      assert.ok(revealPresentationReady(store, trumpCleared));
+    }
+  });
+
   it("hand 2 trumpReveal watchdog recovers after stale phaseStartedAt shift", () => {
     let store = createHandPresentationStore(snapForHand(2));
     store = reduceHandPresentation(store, { type: "advancePhase" });
