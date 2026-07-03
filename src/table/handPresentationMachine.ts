@@ -887,17 +887,25 @@ function reduceHandPresentationCore(
 
       const prevTrump = trumpKey(prev.trumpUpcard);
       const nextTrump = trumpKey(snapshot.trumpUpcard);
-      if (prevTrump && !nextTrump && !store.trumpMergeActive) {
+      if (prevTrump && !nextTrump) {
         const trumpCleared = {
           trumpRevealActive: false,
           trumpMergedIntoHand: true,
           prevSnapshot: snapshot,
         };
         // Server cleared trump (merged into holder) while reveal presentation is still
-        // holding — advance to drawPlayer so revealPresentationReady can fire. Leaving
-        // phase on trumpReveal and resetting phaseStartedAt blocked the watchdog on
-        // hand 2+ when Firestore kept delivering churn snapshots.
+        // holding — advance to drawPlayer so revealPresentationReady can fire. Do not
+        // gate on trumpMergeActive here: a spurious ante-phase clear can set that flag
+        // and block hand 2+ handoff while trump is still visible on the table.
         if (store.phase === "trumpReveal" || store.phase === "trumpMerge") {
+          if (isGameFlowDebugEnabled()) {
+            logGameFlow("handPresentation", "trump-clear-advance-reveal", {
+              handNumber: store.handNumber,
+              fromPhase: store.phase,
+              serverPhase: snapshot.phase,
+              trumpMergeActive: store.trumpMergeActive,
+            });
+          }
           if (snapshot.phase === "draw") {
             return {
               ...beginDrawSequence(store, snapshot, heroDrawDiscardCount, heroDrawReplaceCount),
@@ -912,13 +920,14 @@ function reduceHandPresentationCore(
             pendingSnapshot: null,
           });
         }
-        return {
-          ...store,
-          ...trumpCleared,
-          trumpMergeActive: true,
-          pendingSnapshot: snapshot,
-          phaseStartedAt: Date.now(),
-        };
+        if (!store.trumpMergeActive) {
+          return {
+            ...store,
+            ...trumpCleared,
+            trumpMergeActive: false,
+            pendingSnapshot: snapshot,
+          };
+        }
       }
 
       // Authoritative play phase must not wait on draw/trump presentation.
@@ -937,7 +946,11 @@ function reduceHandPresentationCore(
       }
 
       if (isHandPresentingPhase(store.phase) && store.phase !== "drawPlayer") {
-        return { ...store, pendingSnapshot: snapshot };
+        return {
+          ...store,
+          pendingSnapshot: snapshot,
+          prevSnapshot: snapshot,
+        };
       }
 
       if (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done") {
@@ -1095,6 +1108,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       if (store.trumpRevealActive || snap?.trumpUpcard) {
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
+          trumpMergeActive: false,
           anteAnimActive: false,
           pendingSnapshot: null,
         });

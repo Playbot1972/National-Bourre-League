@@ -16633,13 +16633,18 @@ function Og(e, t) {
 				} : e;
 			}
 			let o = Jh(a.trumpUpcard), s = Jh(n.trumpUpcard);
-			if (o && !s && !e.trumpMergeActive) {
+			if (o && !s) {
 				let t = {
 					trumpRevealActive: !1,
 					trumpMergedIntoHand: !0,
 					prevSnapshot: n
 				};
-				return e.phase === "trumpReveal" || e.phase === "trumpMerge" ? n.phase === "draw" ? {
+				if (e.phase === "trumpReveal" || e.phase === "trumpMerge") return Z() && Q("handPresentation", "trump-clear-advance-reveal", {
+					handNumber: e.handNumber,
+					fromPhase: e.phase,
+					serverPhase: n.phase,
+					trumpMergeActive: e.trumpMergeActive
+				}), n.phase === "draw" ? {
 					...bg(e, n, r, i),
 					...t,
 					trumpMergeActive: !1,
@@ -16648,12 +16653,12 @@ function Og(e, t) {
 					...t,
 					trumpMergeActive: !1,
 					pendingSnapshot: null
-				}) : {
+				});
+				if (!e.trumpMergeActive) return {
 					...e,
 					...t,
-					trumpMergeActive: !0,
-					pendingSnapshot: n,
-					phaseStartedAt: Date.now()
+					trumpMergeActive: !1,
+					pendingSnapshot: n
 				};
 			}
 			if (n.phase === "play" && e.phase !== "play") return $h(e, "play", {
@@ -16667,7 +16672,12 @@ function Og(e, t) {
 				prevSnapshot: n,
 				pendingSnapshot: null
 			});
-			if (Yh(e.phase) && e.phase !== "drawPlayer" || e.phase === "drawPlayer" && e.drawAnimSubPhase !== "done") return {
+			if (Yh(e.phase) && e.phase !== "drawPlayer") return {
+				...e,
+				pendingSnapshot: n,
+				prevSnapshot: n
+			};
+			if (e.phase === "drawPlayer" && e.drawAnimSubPhase !== "done") return {
 				...e,
 				pendingSnapshot: n
 			};
@@ -16751,6 +16761,7 @@ function kg(e) {
 		}
 		case "ante": return e.dealPresentationComplete ? e.trumpRevealActive || n?.trumpUpcard ? $h(e, "trumpReveal", {
 			trumpRevealActive: !0,
+			trumpMergeActive: !1,
 			anteAnimActive: !1,
 			pendingSnapshot: null
 		}) : n?.phase === "draw" ? bg(e, n, 0, 0) : $h(e, "drawPlayer", {

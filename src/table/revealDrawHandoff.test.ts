@@ -18,7 +18,9 @@ import {
 import {
   revealPresentationReady,
   traceRevealHandoffState,
+  traceTrumpRevealReconStep,
   type RevealHandoffTrace,
+  type TrumpRevealReconStep,
 } from "./revealHandoffTrace";
 
 const REVEAL_ADVANCE_RETRY_MS = 2_500;
@@ -340,6 +342,117 @@ describe("reveal→draw handoff recon (hands 1–5)", () => {
     store = reduceHandPresentation(store, { type: "watchdog" });
     assert.equal(store.dealPresentationComplete, true);
     assert.equal(store.phase, "trumpReveal");
+  });
+});
+
+describe("trump visible freeze recon (hands 2–5)", () => {
+  function applyServerUpdate(
+    store: HandPresentationStore,
+    snapshot: HandServerSnapshot,
+  ): { store: HandPresentationStore; step: TrumpRevealReconStep } {
+    const before = store;
+    const next = reduceHandPresentation(store, { type: "serverUpdate", snapshot });
+    return {
+      store: next,
+      step: traceTrumpRevealReconStep(before, next, snapshot, "serverUpdate"),
+    };
+  }
+
+  it("hands 2–5: spurious ante trump flicker then clear during trumpReveal still advances", () => {
+    for (let hand = 2; hand <= 5; hand += 1) {
+      let store = openNextHandReveal(
+        settleHandToNextHandReset(
+          createHandPresentationStore({ ...snapForHand(hand - 1), phase: "play" }),
+          snapForHand(hand - 1, { phase: "play" }),
+        ),
+        snapForHand(hand),
+      );
+      assert.equal(store.phase, "ante", `hand ${hand} ante`);
+
+      const flickerClear = snapForHand(hand, { trumpUpcard: null });
+      ({ store } = applyServerUpdate(store, flickerClear));
+      assert.equal(store.trumpMergedIntoHand, true, `hand ${hand} merged after flicker`);
+      assert.equal(store.trumpMergeActive, false, `hand ${hand} no stale merge flag on ante`);
+
+      store = reduceHandPresentation(store, { type: "serverUpdate", snapshot: snapForHand(hand) });
+      store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+      assert.equal(store.phase, "trumpReveal", `hand ${hand} trumpReveal`);
+      assert.equal(store.trumpMergeActive, false, `hand ${hand} merge flag cleared entering reveal`);
+
+      const trumpStillVisible = snapForHand(hand);
+      const beforeClear = store;
+      const trumpCleared = snapForHand(hand, { trumpUpcard: null });
+      const { store: afterClear, step } = applyServerUpdate(store, trumpCleared);
+
+      assert.equal(beforeClear.phase, "trumpReveal");
+      assert.ok(step.clearTrumpBranchExecuted, `hand ${hand} clear-trump branch`);
+      assert.ok(step.phaseAdvancedToDraw, `hand ${hand} advanced to draw presentation`);
+      assert.equal(afterClear.phase, "drawPlayer");
+      assert.equal(afterClear.trumpMergeActive, false);
+      assert.ok(step.revealPresentationReady, `hand ${hand} retry gate armed`);
+      assert.equal(step.revertedToTrumpReveal, false);
+    }
+  });
+
+  it("hands 2–5: drawPlayer-ready state is not re-coalesced back to trumpReveal", () => {
+    for (let hand = 2; hand <= 5; hand += 1) {
+      let store = walkRevealToDrawPlayerReady(snapForHand(hand));
+      assert.equal(store.phase, "drawPlayer");
+
+      for (let churn = 0; churn < 5; churn += 1) {
+        const snapshot = { ...snapForHand(hand), potAmount: 5 + churn };
+        const { store: next, step } = applyServerUpdate(store, snapshot);
+        store = next;
+        assert.notEqual(store.phase, "trumpReveal", `hand ${hand} churn ${churn}`);
+        assert.equal(step.revertedToTrumpReveal, false, `hand ${hand} churn ${churn}`);
+      }
+    }
+  });
+
+  it("hands 2–5: trumpMergedIntoHand is not left true while phase stays trumpReveal after clear", () => {
+    for (let hand = 2; hand <= 5; hand += 1) {
+      let store = createHandPresentationStore(snapForHand(hand));
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+      store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+      assert.equal(store.phase, "trumpReveal");
+
+      store = reduceHandPresentation(store, {
+        type: "serverUpdate",
+        snapshot: snapForHand(hand, { trumpUpcard: null }),
+      });
+
+      assert.notEqual(store.phase, "trumpReveal", `hand ${hand} must leave trumpReveal`);
+      assert.equal(store.trumpMergedIntoHand, true);
+      assert.ok(
+        revealPresentationReady(store, snapForHand(hand, { trumpUpcard: null })),
+        `hand ${hand} revealPresentationReady`,
+      );
+    }
+  });
+
+  it("hand 2: retry effect arms immediately when trump clears while still on reveal", () => {
+    let store = createHandPresentationStore(snapForHand(2));
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+
+    const trumpCleared = snapForHand(2, { trumpUpcard: null });
+    store = reduceHandPresentation(store, { type: "serverUpdate", snapshot: trumpCleared });
+    const ready = revealPresentationReady(store, trumpCleared);
+    assert.ok(ready);
+
+    const { callTimes, attemptCount } = simulateRevealAdvanceRetry({
+      serverPhase: "reveal",
+      handNumber: 2,
+      revealPresentationReady: ready,
+      onAdvanceReveal: () => {},
+      maxMs: 0,
+    });
+    assert.equal(attemptCount, 1);
+    assert.deepEqual(callTimes, [0]);
   });
 });
 
