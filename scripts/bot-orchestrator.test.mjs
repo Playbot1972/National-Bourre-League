@@ -61,8 +61,8 @@ describe("app.js bot paths", () => {
     assert.ok(runtimeSrc.includes("advance_in_flight"));
     assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
     assert.ok(runtimeSrc.includes("let inFlight = false"));
-    assert.ok(runtimeSrc.includes("chosenBotDelayMs"));
-    assert.ok(runtimeSrc.includes("bot-play-delay.js"));
+    assert.ok(runtimeSrc.includes("bot-think-armed"));
+    assert.ok(runtimeSrc.includes("createBotThinkScheduleState"));
   });
 
   it("advanceSessionBots is wired only through bot orchestration runtime", () => {

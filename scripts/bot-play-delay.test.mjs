@@ -5,6 +5,7 @@ import {
   BOT_PLAY_DELAY_MAX_MS,
   botPlayTurnKey,
   createBotPlayDelayState,
+  createBotThinkScheduleState,
   resolveBotAdvanceDelayMs,
 } from "../docs/bot-play-delay.js";
 
@@ -24,16 +25,12 @@ describe("bot play delay", () => {
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 10_000,
-      lastCompletedAtMs: 0,
-      trickIntervalMs: 0,
     });
     const retry = state.resolvePlayDelayMs({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 10_500,
-      lastCompletedAtMs: 0,
-      trickIntervalMs: 0,
     });
     assert.equal(first.chosenDelayMs, retry.chosenDelayMs);
     assert.ok(first.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
@@ -49,8 +46,6 @@ describe("bot play delay", () => {
       trickNumber: 2,
       turnPlayerId: "bot_x",
       nowMs: 0,
-      lastCompletedAtMs: -10_000,
-      trickIntervalMs: 0,
     });
     assert.equal(at.chosenDelayMs, chosen);
     assert.equal(at.delayMs, chosen);
@@ -60,25 +55,22 @@ describe("bot play delay", () => {
       trickNumber: 2,
       turnPlayerId: "bot_x",
       nowMs: 500,
-      lastCompletedAtMs: -10_000,
-      trickIntervalMs: 0,
     });
     assert.equal(earlyRetry.delayMs, chosen - 500);
     assert.ok(earlyRetry.delayMs >= 500);
   });
 
-  it("respects trick interval floor in play phase", () => {
+  it("play phase delay ignores trick interval floor", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     const result = resolveBotAdvanceDelayMs({
       handPhase: "play",
       playDelayState: state,
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 5_000,
-      lastCompletedAtMs: 4_000,
-      trickIntervalMs: 3_000,
     });
-    assert.equal(result.trickGapRemainingMs, 2_000);
-    assert.equal(result.delayMs, 2_000);
+    assert.equal(result.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.equal(result.delayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.equal(result.trickGapRemainingMs, 0);
   });
 
   it("clears delay map when hand number changes", () => {
@@ -89,16 +81,12 @@ describe("bot play delay", () => {
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 0,
-      lastCompletedAtMs: 0,
-      trickIntervalMs: 0,
     });
     const b = state.resolvePlayDelayMs({
       handNumber: 2,
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 0,
-      lastCompletedAtMs: 0,
-      trickIntervalMs: 0,
     });
     assert.notEqual(a.chosenDelayMs, b.chosenDelayMs);
   });
@@ -110,9 +98,108 @@ describe("bot play delay", () => {
       playDelayState: state,
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 1_000,
-      lastCompletedAtMs: 0,
-      trickIntervalMs: 3_000,
     });
     assert.equal(draw.delayMs, 150);
+  });
+});
+
+describe("bot think schedule", () => {
+  it("arms random delay between 1000 and 3000 ms", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
+    const armed = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(armed.action, "armed");
+    assert.ok(armed.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
+  });
+
+  it("coalesces duplicate schedule for same turn key", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const first = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    const second = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 100,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(first.action, "armed");
+    assert.equal(second.action, "coalesced");
+  });
+
+  it("cancels pending think on turn change", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    const canceled = schedule.cancelPending({ reason: "turn_change" });
+    assert.equal(canceled, true);
+    assert.equal(schedule.pendingTurnKey, null);
+  });
+
+  it("rejects fire when shouldFire returns false", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    let fired = false;
+    let rejected = false;
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => false,
+      onFire: () => {
+        fired = true;
+      },
+      log: {
+        rejected: () => {
+          rejected = true;
+        },
+      },
+    });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    assert.equal(fired, false);
+    assert.equal(rejected, true);
+  });
+
+  it("fires after delay when presentation would be clear", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    let fired = false;
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {
+        fired = true;
+      },
+    });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    assert.equal(fired, true);
+  });
+
+  it("supersedes pending think when trick changes", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    const next = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1" },
+      nowMs: 50,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(next.action, "armed");
+    assert.equal(next.turnKey, "1:2:bot_1");
   });
 });

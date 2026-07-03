@@ -12,6 +12,35 @@ export function togglePlayPreselectIndex(
   return current === clicked ? null : clicked;
 }
 
+export interface TapAutoplayPlanInput {
+  selectedPlay: number | null;
+  tappedIndex: number;
+  isMyTurn: boolean;
+  isLegal: boolean;
+}
+
+export interface TapAutoplayPlan {
+  nextSelection: number | null;
+  shouldArmAutoplay: boolean;
+  shouldCancelAutoplay: boolean;
+  isDeselect: boolean;
+}
+
+/** Pure tap selection + autoplay arm plan for hero hand play phase. */
+export function planTapAutoplay(input: TapAutoplayPlanInput): TapAutoplayPlan {
+  const nextSelection = togglePlayPreselectIndex(input.selectedPlay, input.tappedIndex);
+  const isDeselect = nextSelection === null && input.selectedPlay === input.tappedIndex;
+  const shouldArmAutoplay =
+    nextSelection !== null && input.isMyTurn && input.isLegal && !isDeselect;
+  const shouldCancelAutoplay = isDeselect || nextSelection !== input.selectedPlay;
+  return { nextSelection, shouldArmAutoplay, shouldCancelAutoplay, isDeselect };
+}
+
+/** Swipe should submit immediately only when on-turn and legal. */
+export function shouldSwipeImmediatePlay(isMyTurn: boolean, isLegal: boolean): boolean {
+  return isMyTurn && isLegal;
+}
+
 /** True when index is in the server-derived legal play set (Pagat Bourré rules). */
 export function isLegalPlayIndex(index: number, legalPlayIndices?: number[]): boolean {
   if (!legalPlayIndices) return true;

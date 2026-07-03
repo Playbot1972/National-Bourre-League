@@ -5,6 +5,8 @@ import {
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  planTapAutoplay,
+  shouldSwipeImmediatePlay,
   togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
@@ -19,6 +21,71 @@ test("togglePlayPreselectIndex supports deselect before timer would fire", () =>
   let selected: number | null = 3;
   selected = togglePlayPreselectIndex(selected, 3);
   assert.equal(selected, null);
+});
+
+test("planTapAutoplay selects legal on-turn card and arms autoplay", () => {
+  const plan = planTapAutoplay({
+    selectedPlay: null,
+    tappedIndex: 2,
+    isMyTurn: true,
+    isLegal: true,
+  });
+  assert.equal(plan.nextSelection, 2);
+  assert.equal(plan.shouldArmAutoplay, true);
+  assert.equal(plan.isDeselect, false);
+});
+
+test("planTapAutoplay deselects same selected card", () => {
+  const plan = planTapAutoplay({
+    selectedPlay: 2,
+    tappedIndex: 2,
+    isMyTurn: true,
+    isLegal: true,
+  });
+  assert.equal(plan.nextSelection, null);
+  assert.equal(plan.shouldArmAutoplay, false);
+  assert.equal(plan.isDeselect, true);
+  assert.equal(plan.shouldCancelAutoplay, true);
+});
+
+test("planTapAutoplay switches selection from A to B", () => {
+  const plan = planTapAutoplay({
+    selectedPlay: 1,
+    tappedIndex: 3,
+    isMyTurn: true,
+    isLegal: true,
+  });
+  assert.equal(plan.nextSelection, 3);
+  assert.equal(plan.shouldArmAutoplay, true);
+  assert.equal(plan.shouldCancelAutoplay, true);
+});
+
+test("planTapAutoplay does not arm for illegal card", () => {
+  const plan = planTapAutoplay({
+    selectedPlay: null,
+    tappedIndex: 4,
+    isMyTurn: true,
+    isLegal: false,
+  });
+  assert.equal(plan.nextSelection, 4);
+  assert.equal(plan.shouldArmAutoplay, false);
+});
+
+test("planTapAutoplay does not arm out of turn", () => {
+  const plan = planTapAutoplay({
+    selectedPlay: null,
+    tappedIndex: 2,
+    isMyTurn: false,
+    isLegal: true,
+  });
+  assert.equal(plan.nextSelection, 2);
+  assert.equal(plan.shouldArmAutoplay, false);
+});
+
+test("shouldSwipeImmediatePlay requires on-turn and legal", () => {
+  assert.equal(shouldSwipeImmediatePlay(true, true), true);
+  assert.equal(shouldSwipeImmediatePlay(false, true), false);
+  assert.equal(shouldSwipeImmediatePlay(true, false), false);
 });
 
 test("isLegalPlayIndex allows any index when legality list is absent", () => {

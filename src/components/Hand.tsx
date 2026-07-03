@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { PlayingCard, type CardState } from "./PlayingCard";
 import type { Card } from "../types";
+import type { CardGestureKind } from "./cardGesture";
 import type { CardGestureMode } from "./useCardGestureHandlers";
 import { useCardGestureHandlers } from "./useCardGestureHandlers";
 import { cardKey } from "../game/cardUtils";
@@ -20,7 +21,7 @@ export interface HandCardInteraction {
   /** Allow queueing a play selection before it is the local player's turn. */
   allowPlayPreselect?: boolean;
   trickPlayOriginPlayerId?: string | null;
-  onPlayCard?: (index: number) => void;
+  onPlayCard?: (index: number, gesture?: CardGestureKind) => void;
   onSelectCard?: (index: number) => void;
   onIllegalPlay?: (index: number) => void;
   onPeek?: (index: number | null) => void;
@@ -112,7 +113,9 @@ function HandCard({
     disabled: gestureDisabled || (!playable && !preselectable && !isDrawMode && !isPeekMode && !illegalTarget),
     mode: illegalTarget ? "draw-select" : (interaction?.mode ?? "none"),
     onPlay:
-      playable || preselectable ? () => interaction?.onPlayCard?.(index) : undefined,
+      playable || preselectable
+        ? (kind) => interaction?.onPlayCard?.(index, kind)
+        : undefined,
     onSelect:
       isDrawMode && isMyTurn
         ? () => interaction?.onSelectCard?.(index)
@@ -165,7 +168,7 @@ function HandCard({
         state={disabled && isPlayMode && !illegalTarget ? "disabled" : state}
         badge={badge}
         onClick={!usePointer && onCardClick ? () => onCardClick(card, index) : undefined}
-        onPlayClick={usePointer && playable ? () => interaction?.onPlayCard?.(index) : undefined}
+        onPlayClick={usePointer && playable ? () => interaction?.onPlayCard?.(index, "tap") : undefined}
         pointerHandlers={usePointer ? pointerHandlers : undefined}
         pressed={pressed}
         playing={playing}

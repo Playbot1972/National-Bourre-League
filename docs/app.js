@@ -48,7 +48,10 @@ import {
   logBotOrchestrator,
 } from "./bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
-import { createBotPlayDelayState, resolveBotAdvanceDelayMs } from "./bot-play-delay.js";
+import {
+  botPlayTurnKey,
+  createBotThinkScheduleState,
+} from "./bot-play-delay.js";
 import {
   logHandLifecycleTransition,
   isPagatHandClock,
@@ -993,8 +996,7 @@ function getServerBotAdvance() {
 let pendingRobotWake = false;
 let robotPresentationUnsub = null;
 /** Client legacy bot play think delay (1–3s per turn). */
-let clientBotPlayDelayState = createBotPlayDelayState();
-let clientBotPlayTimer = null;
+const clientBotThinkSchedule = createBotThinkScheduleState();
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
 const TRICK_PIPELINE_MS = 1850 + 1080 + 230;
@@ -2839,49 +2841,132 @@ function clearSessionOrchestrationSchedule() {
 }
 
 function clearClientBotPlayTimer() {
-  if (clientBotPlayTimer) {
-    clearTimeout(clientBotPlayTimer);
-    clientBotPlayTimer = null;
-  }
+  clientBotThinkSchedule.cancelPending({ reason: "clear" });
 }
 
 function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "client-play" } = {}) {
-  if (robotActionInFlight || clientBotPlayTimer) return;
-  const ctx = snapshotGameFlowContext(s, scores);
-  const nowMs = Date.now();
-  const plan = resolveBotAdvanceDelayMs({
-    handPhase: "play",
-    playDelayState: clientBotPlayDelayState,
-    ctx: {
-      handNumber: ctx.handNumber,
-      trickNumber: ctx.trickNumber,
+  if (robotActionInFlight) return;
+  if (shouldBlockRobotForPresentation(s, scores)) {
+    clientBotThinkSchedule.cancelPending({
+      reason: "presentation_blocked",
+      onCanceled: (extra) =>
+        logBotOrchestrator("bot-think-canceled", {
+          ...snapshotGameFlowContext(s, scores),
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+    });
+    logBotOrchestrator("skip-request", {
+      ...snapshotGameFlowContext(s, scores),
       turnPlayerId: turnId,
-    },
-    nowMs,
-    lastCompletedAtMs: lastRobotTrickAt,
-    trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
-  });
-  logBotOrchestrator("schedule-client-play", {
-    ...ctx,
+      reason: "presentation_blocked",
+      owner: "client",
+      trigger: reason,
+      action: "blocked",
+    });
+    return;
+  }
+
+  const ctx = snapshotGameFlowContext(s, scores);
+  const playCtx = {
+    handNumber: ctx.handNumber ?? 0,
+    trickNumber: ctx.trickNumber ?? null,
     turnPlayerId: turnId,
-    trigger: reason,
-    delayMs: plan.delayMs,
-    chosenBotDelayMs: plan.chosenDelayMs,
-    elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
-    trickGapRemainingMs: plan.trickGapRemainingMs,
-    action: "scheduled",
+  };
+  const expectedTurnKey = botPlayTurnKey(playCtx);
+
+  const result = clientBotThinkSchedule.armPlayThink({
+    ctx: playCtx,
+    nowMs: Date.now(),
+    shouldFire: () => {
+      if (robotActionInFlight) return false;
+      if (!currentRoomId || !openSessionId) return false;
+      const latest = currentSessions.find((x) => x.id === openSessionId);
+      if (!latest || latest.status === "final") return false;
+      if (shouldBlockRobotForPresentation(latest, openScores)) return false;
+      const latestCtx = snapshotGameFlowContext(latest, openScores);
+      const latestTurnId = latestCtx.turnPlayerId;
+      if (latestTurnId !== turnId) return false;
+      return (
+        botPlayTurnKey({
+          handNumber: latestCtx.handNumber ?? 0,
+          trickNumber: latestCtx.trickNumber ?? null,
+          turnPlayerId: latestTurnId,
+        }) === expectedTurnKey
+      );
+    },
+    onFire: ({ plan }) => {
+      if (robotActionInFlight) return;
+      lastRobotTrickAt = Date.now();
+      robotActionInFlight = true;
+      robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
+        .catch((e) => console.warn("robot play:", e))
+        .finally(() => {
+          finishRobotAction();
+        });
+      void plan;
+    },
+    log: {
+      armed: (extra) =>
+        logBotOrchestrator("bot-think-armed", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          action: "scheduled",
+          ...extra,
+        }),
+      coalesced: (extra) =>
+        logBotOrchestrator("schedule-client-play", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          action: "coalesced",
+          ...extra,
+        }),
+      canceled: (extra) =>
+        logBotOrchestrator("bot-think-canceled", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+      accepted: (extra) =>
+        logBotOrchestrator("bot-think-fire-accepted", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+      rejected: (extra) =>
+        logBotOrchestrator("bot-think-fire-rejected", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+    },
   });
-  clientBotPlayTimer = setTimeout(() => {
-    clientBotPlayTimer = null;
-    if (robotActionInFlight) return;
-    lastRobotTrickAt = Date.now();
-    robotActionInFlight = true;
-    robotPlayCard(currentRoomId, openSessionId, { playerId: turnId, actorId })
-      .catch((e) => console.warn("robot play:", e))
-      .finally(() => {
-        finishRobotAction();
-      });
-  }, plan.delayMs);
+
+  if (result.action === "armed") {
+    logBotOrchestrator("schedule-client-play", {
+      ...ctx,
+      turnPlayerId: turnId,
+      owner: "client",
+      trigger: reason,
+      delayMs: result.delayMs,
+      chosenBotDelayMs: result.chosenDelayMs,
+      elapsedSinceTurnMs: result.elapsedSinceTurnMs,
+      generation: result.generation,
+      action: "scheduled",
+    });
+  }
 }
 
 function stopRobotPresentationSubscription() {
