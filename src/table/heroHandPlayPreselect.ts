@@ -4,6 +4,14 @@ import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";
 import type { Card, Suit } from "../types";
 
+/** Toggle play preselection — click same card to clear, different card to switch. */
+export function togglePlayPreselectIndex(
+  current: number | null,
+  clicked: number,
+): number | null {
+  return current === clicked ? null : clicked;
+}
+
 /** True when index is in the server-derived legal play set (Pagat Bourré rules). */
 export function isLegalPlayIndex(index: number, legalPlayIndices?: number[]): boolean {
   if (!legalPlayIndices) return true;

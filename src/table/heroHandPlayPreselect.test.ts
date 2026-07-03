@@ -5,8 +5,21 @@ import {
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  togglePlayPreselectIndex,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
+
+test("togglePlayPreselectIndex selects, switches, and deselects", () => {
+  assert.equal(togglePlayPreselectIndex(null, 2), 2);
+  assert.equal(togglePlayPreselectIndex(2, 2), null);
+  assert.equal(togglePlayPreselectIndex(2, 4), 4);
+});
+
+test("togglePlayPreselectIndex supports deselect before timer would fire", () => {
+  let selected: number | null = 3;
+  selected = togglePlayPreselectIndex(selected, 3);
+  assert.equal(selected, null);
+});
 
 test("isLegalPlayIndex allows any index when legality list is absent", () => {
   assert.equal(isLegalPlayIndex(2, undefined), true);

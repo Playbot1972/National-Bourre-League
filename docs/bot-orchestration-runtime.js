@@ -5,8 +5,11 @@
 
 import { assertBotAdvanceNotInFlight } from "./session-startup.js";
 import { logBotOrchestrator } from "./bot-orchestrator.js";
-
-const BOT_ADVANCE_DEBOUNCE_MS = 150;
+import {
+  BOT_ADVANCE_DEBOUNCE_MS,
+  createBotPlayDelayState,
+  resolveBotAdvanceDelayMs,
+} from "./bot-play-delay.js";
 
 /**
  * @param {object} deps
@@ -28,12 +31,32 @@ export function createServerBotAdvanceRuntime(deps) {
   let scheduledTimer = null;
   let pendingWake = false;
   let lastCompletedAt = 0;
+  const playDelayState = createBotPlayDelayState();
 
   function clearSchedule() {
     if (scheduledTimer) {
       clearTimeout(scheduledTimer);
       scheduledTimer = null;
     }
+  }
+
+  function playDelayContext(session, scores) {
+    const ctx = deps.snapshotContext(session, scores);
+    return {
+      handNumber: ctx.handNumber ?? 0,
+      trickNumber: ctx.trickNumber ?? null,
+      turnPlayerId: ctx.turnPlayerId ?? null,
+    };
+  }
+
+  function logPlayDelay(event, session, scores, extra = {}) {
+    const ctx = deps.snapshotContext(session, scores);
+    logBotOrchestrator(event, {
+      handNumber: ctx.handNumber ?? null,
+      trickNumber: ctx.trickNumber ?? null,
+      turnPlayerId: ctx.turnPlayerId ?? null,
+      ...extra,
+    });
   }
 
   function schedule(session, scores, actorId, { reason = "snapshot" } = {}) {
@@ -57,30 +80,41 @@ export function createServerBotAdvanceRuntime(deps) {
       return;
     }
     if (deps.shouldBlockForPresentation(session, scores)) {
+      const ctx = deps.snapshotContext(session, scores);
       logBotOrchestrator("skip-request", {
         reason: "presentation_blocked",
         requester: actorId,
         owner: "server",
         trigger: reason,
-        ...deps.snapshotContext(session, scores),
+        action: "blocked",
+        ...ctx,
       });
       return;
     }
 
     const handPhase = deps.getHandPhase?.(session) ?? null;
-    const trickInterval = deps.trickIntervalMs ?? 0;
-    const minGap = handPhase === "play" ? trickInterval : 0;
-    const elapsed = Date.now() - lastCompletedAt;
-    const delay = Math.max(BOT_ADVANCE_DEBOUNCE_MS, minGap > 0 ? minGap - elapsed : 0);
+    const nowMs = Date.now();
+    const delayPlan = resolveBotAdvanceDelayMs({
+      handPhase,
+      playDelayState,
+      ctx: playDelayContext(session, scores),
+      nowMs,
+      lastCompletedAtMs: lastCompletedAt,
+      trickIntervalMs: deps.trickIntervalMs ?? 0,
+    });
+    const delay = delayPlan.delayMs;
 
     if (inFlight) {
       pendingWake = true;
-      logBotOrchestrator("coalesce-request", {
+      logPlayDelay("coalesce-request", session, scores, {
         reason: "advance_in_flight",
         requester: actorId,
         owner: "server",
         trigger: reason,
         delayMs: delay,
+        chosenBotDelayMs: delayPlan.chosenDelayMs,
+        elapsedSinceTurnMs: delayPlan.elapsedSinceTurnMs,
+        action: "blocked",
       });
       return;
     }
@@ -88,19 +122,23 @@ export function createServerBotAdvanceRuntime(deps) {
     clearSchedule();
     scheduledTimer = setTimeout(() => {
       scheduledTimer = null;
-      void execute(session, scores, actorId, { reason });
+      void execute(session, scores, actorId, { reason, delayPlan });
     }, delay);
 
-    logBotOrchestrator("schedule-request", {
+    logPlayDelay("schedule-request", session, scores, {
       requester: actorId,
       owner: "server",
       trigger: reason,
       delayMs: delay,
-      ...deps.snapshotContext(session, scores),
+      chosenBotDelayMs: delayPlan.chosenDelayMs,
+      elapsedSinceTurnMs: delayPlan.elapsedSinceTurnMs,
+      trickGapRemainingMs: delayPlan.trickGapRemainingMs,
+      handPhase,
+      action: "scheduled",
     });
   }
 
-  async function execute(session, scores, actorId, { reason = "snapshot" } = {}) {
+  async function execute(session, scores, actorId, { reason = "snapshot", delayPlan = null } = {}) {
     if (inFlight) {
       assertBotAdvanceNotInFlight(true, { source: "executeServerBotAdvance", reason });
       return;
@@ -115,16 +153,28 @@ export function createServerBotAdvanceRuntime(deps) {
     if (!deps.sessionNeedsBotDriver(sessionObj, scores)) return;
     if (deps.shouldBlockForPresentation(sessionObj, scores)) {
       pendingWake = true;
+      logPlayDelay("skip-request", sessionObj, scores, {
+        reason: "presentation_blocked",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        action: "blocked",
+        chosenBotDelayMs: delayPlan?.chosenDelayMs ?? null,
+        elapsedSinceTurnMs: delayPlan?.elapsedSinceTurnMs ?? null,
+      });
       return;
     }
 
     inFlight = true;
     const ctx = deps.snapshotContext(sessionObj, scores, { trigger: reason });
-    logBotOrchestrator("request", {
+    logPlayDelay("request", sessionObj, scores, {
       requester: actorId,
       owner: "server",
       roomId,
       sessionId,
+      action: "executed",
+      chosenBotDelayMs: delayPlan?.chosenDelayMs ?? null,
+      elapsedSinceTurnMs: delayPlan?.elapsedSinceTurnMs ?? null,
       ...ctx,
     });
 
@@ -134,21 +184,23 @@ export function createServerBotAdvanceRuntime(deps) {
         trigger: reason,
       });
       lastCompletedAt = Date.now();
-      logBotOrchestrator("complete", {
+      logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,
         owner: "server",
         roomId,
         sessionId,
         result,
+        action: "executed",
         ...ctx,
       });
     } catch (err) {
-      logBotOrchestrator("error", {
+      logPlayDelay("error", sessionObj, scores, {
         requester: actorId,
         owner: "server",
         roomId,
         sessionId,
         message: err?.message ?? String(err),
+        action: "error",
         ...ctx,
       });
       console.warn("advanceSessionBots:", err);
