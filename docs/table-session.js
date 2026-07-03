@@ -16672,6 +16672,19 @@ function Og(e, t) {
 				prevSnapshot: n,
 				pendingSnapshot: null
 			});
+			if (n.phase === "draw" && (e.phase === "trumpReveal" || e.phase === "trumpMerge" || e.phase === "ante" && e.dealPresentationComplete)) return Z() && Q("handPresentation", "server-draw-fast-forward-reveal", {
+				handNumber: e.handNumber,
+				fromPhase: e.phase,
+				trumpRevealActive: e.trumpRevealActive,
+				trumpMergeActive: e.trumpMergeActive
+			}), {
+				...bg(e, n, r, i),
+				trumpRevealActive: !1,
+				trumpMergeActive: !1,
+				trumpMergedIntoHand: !0,
+				pendingSnapshot: null,
+				prevSnapshot: n
+			};
 			if (Yh(e.phase) && e.phase !== "drawPlayer") return {
 				...e,
 				pendingSnapshot: n,
