@@ -380,7 +380,7 @@ export function HeroHand({
   );
 
   const executePlay = useCallback(
-    async (index: number, source: "tap-autoplay" | "swipe" | "hold" = "tap-autoplay") => {
+    async (index: number, source: "tap" | "tap-autoplay" | "swipe" | "hold" = "tap-autoplay") => {
       if (playLockRef.current || busy || !onPlayCard) {
         logPlayClick({
           event: "submit-rejected",
