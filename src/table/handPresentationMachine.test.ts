@@ -555,6 +555,19 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "trumpReveal");
   });
 
+  it("marks trumpMergedIntoHand when ante skips trump reveal (no upcard)", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: null,
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "dealPresentationComplete" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpMergedIntoHand, true);
+  });
+
   it("nextHandReset advances into handReset when next hand is on reveal", () => {
     let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 1 });
     store = reduceHandPresentation(store, {
