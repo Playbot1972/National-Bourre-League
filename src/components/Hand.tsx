@@ -16,7 +16,9 @@ export interface HandCardInteraction {
   illegalShakeIndex?: number | null;
   illegalFlashIndex?: number | null;
   busy?: boolean;
-  /** Skip ambient playable hint animation on hero hand. */
+  /** Per-card legal-play outline (tier 3); overrides default playable when set. */
+  playableHintFor?: (index: number) => boolean;
+  /** Skip ambient playable hint when playableHintFor is not provided. */
   showPlayableHint?: boolean;
   /** Allow queueing a play selection before it is the local player's turn. */
   allowPlayPreselect?: boolean;
@@ -86,7 +88,15 @@ function HandCard({
   const isMyTurn = interaction?.isMyTurn === true;
   const legalPlay =
     !interaction?.legalPlayIndices || interaction.legalPlayIndices.includes(index);
-  const playable = isPlayMode && isMyTurn && legalPlay && !interaction?.busy;
+  const legalPlayEligible =
+    isPlayMode && isMyTurn && legalPlay && !interaction?.busy;
+  const reservedPlayVisual =
+    state === "play-preselected" || state === "play-recommended";
+  const playable =
+    interaction?.playableHintFor?.(index) ??
+    (legalPlayEligible &&
+      !reservedPlayVisual &&
+      interaction?.showPlayableHint !== false);
   const preselectable =
     isPlayMode &&
     !isMyTurn &&
@@ -98,6 +108,7 @@ function HandCard({
     isPlayMode && isMyTurn && !legalPlay && !interaction?.busy && !playing;
   const isDrawSelected = isDrawMode && state === "draw-selected";
   const isDrawRecommended = isDrawMode && state === "draw-recommended";
+  const isPlayPreselected = state === "play-preselected";
   const isPlayRecommended = state === "play-recommended";
   const gestureDisabled =
     Boolean(interaction?.busy) ||
@@ -144,6 +155,7 @@ function HandCard({
         peekActive ? "hand__slot--peek" : "",
         isDrawSelected ? "hand__slot--draw-selected" : "",
         isDrawRecommended ? "hand__slot--draw-recommended" : "",
+        isPlayPreselected ? "hand__slot--play-preselected" : "",
         isPlayRecommended ? "hand__slot--play-recommended" : "",
         slotClassFor?.(card, index) ?? "",
       ]

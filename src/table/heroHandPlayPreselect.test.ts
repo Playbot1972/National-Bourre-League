@@ -6,6 +6,7 @@ import {
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
   planTapAutoplay,
+  resolveHeroPlayCardVisualTier,
   resolveManualOrRecommendedPlayState,
   shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
@@ -103,7 +104,68 @@ test("shouldShowBestPlayRecommendation ignores selectedPlay preselect state", ()
   assert.equal(shouldShowBestPlayRecommendation(base), true);
 });
 
-test("resolveManualOrRecommendedPlayState keeps best-play visible while another card is preselected", () => {
+test("resolveHeroPlayCardVisualTier applies styling precedence", () => {
+  const base = {
+    inPlayPhase: true,
+    isMyTurn: true,
+    busy: false,
+    isLegal: true,
+    showBestPlayRecommendation: true,
+    recommendedPlayIndex: 2,
+  };
+  assert.equal(
+    resolveHeroPlayCardVisualTier({ ...base, cardIndex: 3, selectedPlay: 3 }),
+    "play-preselected",
+  );
+  assert.equal(
+    resolveHeroPlayCardVisualTier({ ...base, cardIndex: 2, selectedPlay: 3 }),
+    "play-recommended",
+  );
+  assert.equal(
+    resolveHeroPlayCardVisualTier({ ...base, cardIndex: 4, selectedPlay: 3, isLegal: true }),
+    "legal-playable",
+  );
+  assert.equal(
+    resolveHeroPlayCardVisualTier({
+      ...base,
+      cardIndex: 2,
+      selectedPlay: 2,
+      recommendedPlayIndex: 2,
+    }),
+    "play-preselected",
+  );
+});
+
+test("resolveHeroPlayCardVisualTier keeps legal outline off selected and recommended cards", () => {
+  assert.equal(
+    resolveHeroPlayCardVisualTier({
+      inPlayPhase: true,
+      isMyTurn: true,
+      busy: false,
+      cardIndex: 1,
+      selectedPlay: 1,
+      isLegal: true,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    "play-preselected",
+  );
+  assert.notEqual(
+    resolveHeroPlayCardVisualTier({
+      inPlayPhase: true,
+      isMyTurn: true,
+      busy: false,
+      cardIndex: 2,
+      selectedPlay: 1,
+      isLegal: true,
+      showBestPlayRecommendation: true,
+      recommendedPlayIndex: 2,
+    }),
+    "legal-playable",
+  );
+});
+
+test("resolveManualOrRecommendedPlayState maps manual and recommended tiers only", () => {
   assert.equal(
     resolveManualOrRecommendedPlayState({
       cardIndex: 1,

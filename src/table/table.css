@@ -1308,6 +1308,17 @@
   transform: translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04);
 }
 
+.btable-hero__hand-row .hand__slot--play-preselected {
+  transform:
+    translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04)
+    rotateZ(calc(var(--fan-offset, 0) * 5deg));
+  z-index: 22 !important;
+}
+
+.btable-hero__hand-row .hand__slot--play-preselected .pcard--play-preselected {
+  transform: none;
+}
+
 .btable-hero__hand-row .hand__slot--play-recommended {
   transform:
     translateY(-8px) rotateX(6deg) rotateY(-2deg) scale(1.02)
