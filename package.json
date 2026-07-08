@@ -80,9 +80,17 @@
     "start": "npm run dev:local",
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
-    "verify:prod": "node scripts/verify-production.mjs"
+    "verify:prod": "node scripts/verify-production.mjs",
+    "build:cap": "npm run build && npx cap sync",
+    "cap:sync": "npx cap sync",
+    "cap:open:android": "npx cap open android",
+    "cap:open:ios": "npx cap open ios"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "gsap": "^3.12.7",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
