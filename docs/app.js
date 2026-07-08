@@ -296,7 +296,8 @@ function setMode(nextMode) {
   passwordField.hidden = reset;
   passwordInput.required = !reset;
   forgotPasswordBtn.hidden = signup || reset;
-  passwordManagerHint.hidden = signup || reset;
+  passwordManagerHint.hidden =
+    signup || reset || window.Capacitor?.isNativePlatform?.() === true;
   if (resetGoogleHint) resetGoogleHint.hidden = !reset;
   if (resetConfirmField) resetConfirmField.hidden = !reset;
   if (resetConfirmPassword && !reset) resetConfirmPassword.checked = false;

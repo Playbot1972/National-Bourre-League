@@ -32,6 +32,14 @@ const {
   browserPopupRedirectResolver,
 } = await import(`${CDN}/firebase-auth.js`);
 
+function isCapacitorNative() {
+  try {
+    return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Match authDomain to the page host on custom domains (fixes iOS Safari sign-out on refresh). */
 function resolveAuthDomain(config) {
   if (typeof location === "undefined") return config.authDomain;
@@ -147,6 +155,10 @@ export async function lookupSignInMethods(email) {
 
 function passwordResetContinueUrl() {
   if (typeof location === "undefined") return undefined;
+  // Packaged app runs at https://localhost — reset links must open production web.
+  if (isCapacitorNative()) {
+    return "https://www.booray.win/social/";
+  }
   const host = location.hostname.toLowerCase();
   if (host === "localhost" || host === "127.0.0.1") {
     return `${location.origin}${location.pathname}`;
