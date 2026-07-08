@@ -81,9 +81,10 @@
     "verify:local": "node scripts/verify-local-dev.mjs",
     "verify:local:prereq": "node scripts/verify-local-dev.mjs --prereq",
     "verify:prod": "node scripts/verify-production.mjs",
+    "verify:cap:social": "node scripts/verify-capacitor-social-bundle.mjs --deep --fresh",
     "build:cap:web": "npm run version:sync && npm run icons:generate && npm run check:social && npm run build && npm run build:game && npm run build:money && npm run build:table && npm run build:settlement && npm run build:session-startup && node scripts/prepare-hosting.js",
-    "build:cap": "npm run build:cap:web && npx cap sync",
-    "cap:sync": "npx cap sync",
+    "build:cap": "npm run build:cap:web && npm run verify:cap:social && npx cap sync",
+    "cap:sync": "npm run verify:cap:social && npx cap sync",
     "cap:assets": "node scripts/prepare-capacitor-assets.mjs && npx capacitor-assets generate --assetPath assets/capacitor --ios --android",
     "cap:open:android": "npx cap open android",
     "cap:open:ios": "npx cap open ios"
