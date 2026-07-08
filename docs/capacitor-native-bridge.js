@@ -1,11 +1,25 @@
 /**
- * Capacitor native bridge — optional light haptics for tap / select / confirm.
- * Loaded only in the packaged app; no-op in browser/PWA.
- * Respects existing nbl-feedback prefs via table feedback service (hapticsMode).
+ * Capacitor native bridge — optional light haptics + native-only nav guards.
+ * Loaded in the packaged app; no-op in browser/PWA.
  */
 (function installCapacitorNativeBridge() {
   const cap = typeof window !== "undefined" ? window.Capacitor : undefined;
   if (!cap?.isNativePlatform?.()) return;
+
+  function neutralizeHostingRootLinks() {
+    for (const anchor of document.querySelectorAll('a[href="/"]')) {
+      // Hosting uses "/" for the React tutorial; native webDir is dist/social root.
+      anchor.hidden = true;
+      anchor.setAttribute("aria-hidden", "true");
+      anchor.tabIndex = -1;
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", neutralizeHostingRootLinks, { once: true });
+  } else {
+    neutralizeHostingRootLinks();
+  }
 
   const haptics = cap.Plugins?.Haptics;
   if (!haptics?.impact) return;
@@ -13,7 +27,6 @@
   /** Light impact only — tap, select, confirm (see src/table/feedback/haptics.ts). */
   window.BourreHaptics = {
     impact(style) {
-      // Tap, card select, and action confirm use light intensity only.
       if (style !== "light") return;
       try {
         void haptics.impact({ style: "LIGHT" });

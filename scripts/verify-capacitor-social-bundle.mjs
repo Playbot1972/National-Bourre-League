@@ -129,7 +129,7 @@ function flagCapacitorRisks(indexHtml) {
   if (indexHtml.includes('href="/"') || indexHtml.includes("href='/'")) {
     risks.push({
       kind: "absolute-nav",
-      detail: 'index.html links to href="/" (tutorial) — escapes dist/social root in Capacitor',
+      detail: 'index.html links to href="/" (hosting tutorial path) — hidden in native by capacitor-native-bridge.js',
       severity: "info",
     });
   }
