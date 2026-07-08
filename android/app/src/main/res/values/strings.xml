@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Booray</string>
+    <string name="title_activity_main">Booray</string>
+    <string name="package_name">win.booray.app</string>
+    <string name="custom_url_scheme">win.booray.app</string>
+</resources>
