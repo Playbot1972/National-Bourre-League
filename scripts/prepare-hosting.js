@@ -39,11 +39,14 @@ function assertFirebaseConfigComplete(src) {
 
 const firebaseConfigPath = join("docs", "firebase-config.js");
 const firebaseConfig = readFileSync(firebaseConfigPath, "utf8");
-if (
+const hasPlaceholderKeys =
   firebaseConfig.includes("REPLACE_WITH_YOUR_API_KEY") ||
-  firebaseConfig.includes("REPLACE_WITH_YOUR_APP_ID") ||
-  firebaseConfig.includes("demo-national-bourre-league")
-) {
+  firebaseConfig.includes("REPLACE_WITH_YOUR_APP_ID");
+const hasStaticDemoProjectOnly =
+  /export const firebaseConfig\s*=\s*\{[\s\S]*?projectId:\s*["']demo-national-bourre-league["']/.test(
+    firebaseConfig,
+  );
+if (hasPlaceholderKeys || hasStaticDemoProjectOnly) {
   console.error(
     "docs/firebase-config.js still has placeholder values — auth will fail in production.",
   );
