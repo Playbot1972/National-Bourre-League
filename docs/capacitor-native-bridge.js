@@ -6,19 +6,22 @@
   const cap = typeof window !== "undefined" ? window.Capacitor : undefined;
   if (!cap?.isNativePlatform?.()) return;
 
-  function neutralizeHostingRootLinks() {
+  function patchNativeHostingAssumptions() {
     for (const anchor of document.querySelectorAll('a[href="/"]')) {
       // Hosting uses "/" for the React tutorial; native webDir is dist/social root.
       anchor.hidden = true;
       anchor.setAttribute("aria-hidden", "true");
       anchor.tabIndex = -1;
     }
+
+    const passwordHint = document.getElementById("password-manager-hint");
+    if (passwordHint) passwordHint.hidden = true;
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", neutralizeHostingRootLinks, { once: true });
+    document.addEventListener("DOMContentLoaded", patchNativeHostingAssumptions, { once: true });
   } else {
-    neutralizeHostingRootLinks();
+    patchNativeHostingAssumptions();
   }
 
   const haptics = cap.Plugins?.Haptics;

@@ -12,6 +12,14 @@ function isLoopbackHost(hostname) {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+function isCapacitorNative() {
+  try {
+    return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Opt-in when the page is served on a forwarded dev host (not loopback). */
 function emulatorOptInFromPage() {
   if (typeof window === "undefined") return false;
@@ -31,6 +39,8 @@ function emulatorOptInFromPage() {
  */
 export function useFirebaseEmulators() {
   if (typeof location === "undefined") return false;
+  // Capacitor serves the bundle from https://localhost — not a dev emulator session.
+  if (isCapacitorNative()) return false;
   const host = location.hostname.toLowerCase();
   if (isLoopbackHost(host)) return true;
   if (emulatorOptInFromPage()) return true;
