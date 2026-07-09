@@ -42,12 +42,13 @@
 
   window.__nblNative = { hideSplash };
 
-  const firebaseAuthAvailable =
-    typeof cap.isPluginAvailable === "function"
-      ? cap.isPluginAvailable("FirebaseAuthentication")
-      : Boolean(cap.Plugins?.FirebaseAuthentication);
+  const pluginHeaders = Array.isArray(cap.PluginHeaders) ? cap.PluginHeaders : [];
+  const nativeHeader = pluginHeaders.some((header) => header?.name === "FirebaseAuthentication");
+  const jsPluginsEntry = Boolean(cap.Plugins?.FirebaseAuthentication);
   console.info("[nbl-native]", "plugin-check", {
-    FirebaseAuthentication: firebaseAuthAvailable,
+    FirebaseAuthentication: nativeHeader || jsPluginsEntry,
+    nativeHeader,
+    jsPluginsEntry,
   });
 
   if (document.readyState === "loading") {

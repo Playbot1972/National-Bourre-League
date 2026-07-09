@@ -7,33 +7,37 @@ function r(e, t) {
 	t === void 0 ? console.info("[nbl-auth]", e) : console.info("[nbl-auth]", e, t);
 }
 function i(t) {
-	return typeof t.isPluginAvailable == "function" ? t.isPluginAvailable(e) : typeof t.Plugins?.[e]?.signInWithGoogle == "function";
+	return Array.isArray(t.PluginHeaders) && t.PluginHeaders.some((t) => t?.name === e);
 }
-function a() {
+function a(t) {
+	return typeof t.Plugins?.[e]?.signInWithGoogle == "function" || i(t) ? !0 : typeof t.isPluginAvailable == "function" ? t.isPluginAvailable(e) : !1;
+}
+function o() {
 	let t = n();
 	if (!t?.isNativePlatform?.()) {
 		let e = /* @__PURE__ */ Error("Native Google sign-in requires the Capacitor app.");
 		throw e.code = "auth/native-not-capacitor", e;
 	}
-	let a = i(t);
+	let o = i(t), s = a(t);
 	if (r("plugin-availability-check", {
-		available: a,
+		available: s,
+		nativeHeader: o,
 		platform: typeof t.getPlatform == "function" ? t.getPlatform() : "unknown",
+		hasNativePromise: typeof t.nativePromise == "function",
 		hasRegisterPlugin: typeof t.registerPlugin == "function",
 		hasPluginsEntry: !!t.Plugins?.[e]
-	}), !a) {
+	}), !s) {
 		let e = /* @__PURE__ */ Error("FirebaseAuthentication native plugin is unavailable. Run npm run build:cap, npx cap sync ios, then rebuild in Xcode.");
 		throw e.code = "auth/native-firebase-plugin-unavailable", e;
 	}
-	let o = t.Plugins?.[e];
-	if (typeof o?.signInWithGoogle == "function") return o;
-	if (typeof t.registerPlugin != "function") {
-		let e = /* @__PURE__ */ Error("Capacitor registerPlugin is unavailable in this WebView.");
-		throw e.code = "auth/native-capacitor-register-missing", e;
-	}
-	return t.registerPlugin(e);
+	let c = t.Plugins?.[e];
+	if (typeof c?.signInWithGoogle == "function") return c;
+	if (o && typeof t.nativePromise == "function") return r("plugin-bridge-nativePromise"), { signInWithGoogle: () => t.nativePromise(e, "signInWithGoogle", {}) };
+	if (typeof t.registerPlugin == "function") return t.registerPlugin(e);
+	let l = /* @__PURE__ */ Error("Capacitor native bridge cannot reach FirebaseAuthentication. Rebuild with npm run build:cap.");
+	throw l.code = "auth/native-capacitor-bridge-missing", l;
 }
-function o(e, n) {
+function s(e, n) {
 	return new Promise((r, i) => {
 		let a = setTimeout(() => {
 			let e = Error(n);
@@ -46,11 +50,11 @@ function o(e, n) {
 		});
 	});
 }
-async function s() {
+async function c() {
 	r("plugin-call-start");
-	let e = a();
+	let e = o();
 	try {
-		let t = await o(e.signInWithGoogle(), "Native Google sign-in timed out. In Xcode: add GoogleService-Info.plist to the App target and register the REVERSED_CLIENT_ID URL scheme (see docs/NATIVE_IOS_GOOGLE_AUTH.md)."), n = t?.credential?.idToken;
+		let t = await s(e.signInWithGoogle(), "Native Google sign-in timed out. In Xcode: add GoogleService-Info.plist to the App target and register the REVERSED_CLIENT_ID URL scheme (see docs/NATIVE_IOS_GOOGLE_AUTH.md)."), n = t?.credential?.idToken;
 		if (!n) {
 			let e = /* @__PURE__ */ Error("Native Google sign-in returned no id token. Verify GoogleService-Info.plist and the REVERSED_CLIENT_ID URL scheme in Xcode.");
 			throw e.code = "auth/native-google-no-token", r("plugin-call-error", {
@@ -74,4 +78,4 @@ async function s() {
 	}
 }
 //#endregion
-export { s as nativeGoogleSignIn };
+export { c as nativeGoogleSignIn };

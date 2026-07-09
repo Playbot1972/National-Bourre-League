@@ -319,6 +319,7 @@ export function describeAuthError(error) {
       return "Google sign-in timed out. In Xcode, add GoogleService-Info.plist to the App target and register the REVERSED_CLIENT_ID URL scheme.";
     case "auth/native-not-capacitor":
     case "auth/native-capacitor-register-missing":
+    case "auth/native-capacitor-bridge-missing":
       return "Google sign-in is only available in the native app build.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";

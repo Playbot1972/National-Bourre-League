@@ -82,6 +82,8 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 
 **iOS 16.4+ WebView inspectability:** Capacitor sets `WKWebView.isInspectable` from `ios.webContentsDebuggingEnabled` in `capacitor.config.ts` (on by default; set `CAPACITOR_WEB_DEBUG=0` before `cap sync` to disable). After changing this, run `npm run build:cap` and rebuild in Xcode. If the Develop menu shows the app but the console is empty, the WebView was not inspectable — rebuild with the updated config.
 
+**`plugin-check` at boot:** `jsPluginsEntry: false` is normal before Google sign-in. Look for `nativeHeader: true`. If both are `false`, the Firebase auth plugin is not linked in Xcode — run `npm run build:cap` and rebuild.
+
 ### Capture after tapping Continue with Google
 
 1. **Mac Safari:** menu **Develop** → **[Your iPhone]** → select **Booray** / `capacitor://localhost`

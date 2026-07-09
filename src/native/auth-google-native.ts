@@ -17,6 +17,12 @@ type CapacitorGlobal = {
   isPluginAvailable?: (name: string) => boolean;
   getPlatform?: () => string;
   Plugins?: Record<string, unknown>;
+  PluginHeaders?: ReadonlyArray<{ name?: string }>;
+  nativePromise?: (
+    pluginName: string,
+    methodName: string,
+    options?: Record<string, unknown>,
+  ) => Promise<GoogleSignInResult>;
   registerPlugin?: (name: string, impl?: object) => FirebaseAuthenticationPlugin;
 };
 
@@ -38,12 +44,21 @@ function logAuth(event: string, detail?: Record<string, unknown>) {
   }
 }
 
+function hasNativePluginHeader(cap: CapacitorGlobal): boolean {
+  return (
+    Array.isArray(cap.PluginHeaders) &&
+    cap.PluginHeaders.some((header) => header?.name === PLUGIN_NAME)
+  );
+}
+
 function pluginAvailable(cap: CapacitorGlobal): boolean {
+  const plugin = cap.Plugins?.[PLUGIN_NAME] as FirebaseAuthenticationPlugin | undefined;
+  if (typeof plugin?.signInWithGoogle === "function") return true;
+  if (hasNativePluginHeader(cap)) return true;
   if (typeof cap.isPluginAvailable === "function") {
     return cap.isPluginAvailable(PLUGIN_NAME);
   }
-  const plugin = cap.Plugins?.[PLUGIN_NAME] as FirebaseAuthenticationPlugin | undefined;
-  return typeof plugin?.signInWithGoogle === "function";
+  return false;
 }
 
 function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
@@ -55,10 +70,13 @@ function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
     throw err;
   }
 
+  const nativeHeader = hasNativePluginHeader(cap);
   const available = pluginAvailable(cap);
   logAuth("plugin-availability-check", {
     available,
+    nativeHeader,
     platform: typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown",
+    hasNativePromise: typeof cap.nativePromise === "function",
     hasRegisterPlugin: typeof cap.registerPlugin === "function",
     hasPluginsEntry: Boolean(cap.Plugins?.[PLUGIN_NAME]),
   });
@@ -76,14 +94,23 @@ function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
     return existing;
   }
 
-  if (typeof cap.registerPlugin !== "function") {
-    const err = new Error("Capacitor registerPlugin is unavailable in this WebView.");
-    (err as CodedError).code = "auth/native-capacitor-register-missing";
-    throw err;
+  // iOS Capacitor runtime exposes nativePromise + PluginHeaders (no registerPlugin).
+  if (nativeHeader && typeof cap.nativePromise === "function") {
+    logAuth("plugin-bridge-nativePromise");
+    return {
+      signInWithGoogle: () => cap.nativePromise!(PLUGIN_NAME, "signInWithGoogle", {}),
+    };
   }
 
-  // Native-only proxy — no web implementation (avoids WKWebView popup/redirect no-op).
-  return cap.registerPlugin(PLUGIN_NAME);
+  if (typeof cap.registerPlugin === "function") {
+    return cap.registerPlugin(PLUGIN_NAME);
+  }
+
+  const err = new Error(
+    "Capacitor native bridge cannot reach FirebaseAuthentication. Rebuild with npm run build:cap.",
+  );
+  (err as CodedError).code = "auth/native-capacitor-bridge-missing";
+  throw err;
 }
 
 function pluginCallTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
