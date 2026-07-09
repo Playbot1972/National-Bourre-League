@@ -15,6 +15,7 @@ import {
   signOutUser,
   describeAuthError,
   usingEmulator,
+  isCapacitorNative,
 } from "./auth.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
@@ -266,6 +267,26 @@ const resetGoogleHint = $("#reset-google-hint");
 const resetConfirmField = $('[data-field="reset-confirm"]');
 const resetConfirmPassword = $("#reset-confirm-password");
 const authTabs = $(".modal__tabs", authModal);
+const googleSigninBtn = $("#google-signin");
+
+/** TEMP(native-auth-debug): remove after iOS auth QA — logs submit disabled state. */
+const AUTH_NATIVE_DEBUG = isCapacitorNative();
+
+function logAuthSubmitDebug(trigger) {
+  if (!AUTH_NATIVE_DEBUG) return;
+  console.info("[nbl-auth-debug]", trigger, {
+    mode,
+    submitDisabled: submitBtn.disabled,
+    submitBusy: submitBtn.dataset.busy === "true",
+    googleDisabled: googleSigninBtn?.disabled === true,
+    emailLen: emailInput.value.length,
+    passwordLen: passwordInput.value.length,
+    nameLen: $("#auth-name").value.length,
+    nameFieldHidden: nameField.hidden,
+    emailValid: emailInput.validity?.valid,
+    passwordValid: passwordInput.validity?.valid,
+  });
+}
 
 let mode = "signin"; // "signin" | "signup" | "reset"
 
@@ -311,6 +332,12 @@ function setMode(nextMode) {
   tabSignup.classList.toggle("is-active", signup);
   clearError();
   clearSuccess();
+  logAuthSubmitDebug("setMode");
+}
+
+function restoreSubmitLabel() {
+  submitBtn.textContent =
+    mode === "reset" ? "Send reset email" : mode === "signup" ? "Create account" : "Sign in";
 }
 
 function showError(message) {
@@ -336,12 +363,16 @@ function clearSuccess() {
 function setBusy(busy) {
   submitBtn.disabled = busy;
   submitBtn.dataset.busy = busy ? "true" : "false";
+  if (googleSigninBtn) googleSigninBtn.disabled = busy;
+  if (!busy) restoreSubmitLabel();
+  logAuthSubmitDebug(busy ? "setBusy(true)" : "setBusy(false)");
 }
 
 authForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   clearError();
   clearSuccess();
+  logAuthSubmitDebug("submit");
   const email = emailInput.value.trim();
   const password = passwordInput.value;
   const name = $("#auth-name").value.trim();
@@ -407,13 +438,24 @@ authForm.addEventListener("submit", async (event) => {
 $("#google-signin").addEventListener("click", async () => {
   clearError();
   setBusy(true);
+  let webRedirecting = false;
   try {
     const user = await signInWithGoogle();
-    if (user) closeAuth();
-    else submitBtn.textContent = "Redirecting to Google…";
+    if (user) {
+      closeAuth();
+      return;
+    }
+    // Web-only: signInWithRedirect navigates away; keep busy until unload.
+    if (!isCapacitorNative()) {
+      webRedirecting = true;
+      submitBtn.textContent = "Redirecting to Google…";
+    }
   } catch (err) {
+    console.error("[nbl-auth] Google sign-in:", err);
     showError(describeAuthError(err));
-    setBusy(false);
+  } finally {
+    if (!webRedirecting) setBusy(false);
+    logAuthSubmitDebug("google-signin-done");
   }
 });
 
@@ -430,6 +472,14 @@ $$("[data-close-auth]").forEach((el) => el.addEventListener("click", closeAuth))
 $$("[data-open-auth]").forEach((el) =>
   el.addEventListener("click", () => openAuth(el.dataset.openAuth || "signin")),
 );
+
+if (AUTH_NATIVE_DEBUG) {
+  for (const el of [emailInput, passwordInput, $("#auth-name")]) {
+    el?.addEventListener("input", () => logAuthSubmitDebug("input"));
+  }
+  logAuthSubmitDebug("auth-module-ready");
+}
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !authModal.hidden) closeAuth();
 });

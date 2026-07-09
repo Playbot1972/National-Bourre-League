@@ -32,7 +32,7 @@ const {
   browserPopupRedirectResolver,
 } = await import(`${CDN}/firebase-auth.js`);
 
-function isCapacitorNative() {
+export function isCapacitorNative() {
   try {
     return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
   } catch {
@@ -60,12 +60,20 @@ const appConfig = {
 // (e.g. firestore.js) so they don't call initializeApp again.
 export const app = initializeApp(appConfig);
 
+const nativeApp = isCapacitorNative();
+
 let auth;
 try {
-  auth = initializeAuth(app, {
-    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-    popupRedirectResolver: browserPopupRedirectResolver,
-  });
+  // WKWebView (Capacitor iOS): localStorage persistence is more reliable than IndexedDB.
+  auth = initializeAuth(
+    app,
+    nativeApp
+      ? { persistence: browserLocalPersistence }
+      : {
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+          popupRedirectResolver: browserPopupRedirectResolver,
+        },
+  );
 } catch (err) {
   if (err?.code === "auth/already-initialized") {
     auth = getAuth(app);
@@ -126,11 +134,45 @@ export async function signInWithEmail({ email, password }) {
   return normalizeUser(cred.user);
 }
 
-/** Sign in with Google via full-page redirect (reliable on custom domains + Chrome). */
+/**
+ * Native Google sign-in — requires @capacitor-firebase/authentication (not installed yet).
+ * TODO(native-google): npm install @capacitor-firebase/authentication firebase
+ *   npx cap sync ios
+ *   Add GoogleService-Info.plist to ios/App/App/
+ *   Firebase Console → Authentication → Google → enable
+ *   ios/App/App/AppDelegate.swift — Firebase configure per plugin docs
+ */
+async function signInWithGoogleNative() {
+  const plugin = window.Capacitor?.Plugins?.FirebaseAuthentication;
+  if (!plugin?.signInWithGoogle) {
+    const err = new Error(
+      "Native Google sign-in plugin not installed (@capacitor-firebase/authentication).",
+    );
+    err.code = "auth/native-google-not-configured";
+    throw err;
+  }
+  const result = await plugin.signInWithGoogle();
+  const idToken = result?.credential?.idToken ?? result?.idToken;
+  if (!idToken) {
+    const err = new Error("Native Google sign-in returned no id token.");
+    err.code = "auth/native-google-no-token";
+    throw err;
+  }
+  const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
+  const cred = GoogleAuthProvider.credential(idToken);
+  const userCred = await signInWithCredential(auth, cred);
+  return normalizeUser(userCred.user);
+}
+
+/** Sign in with Google — web redirect/popup; native plugin path (no popup/redirect). */
 export async function signInWithGoogle() {
   if (usingEmulator) {
     const cred = await signInWithPopup(auth, googleProvider);
     return normalizeUser(cred.user);
+  }
+
+  if (isCapacitorNative()) {
+    return signInWithGoogleNative();
   }
 
   await signInWithRedirect(auth, googleProvider);
@@ -232,6 +274,10 @@ export function describeAuthError(error) {
       return "Could not send reset email (site URL not authorized). Contact the host.";
     case "auth/argument-error":
       return "Google sign-in could not start. Hard refresh and try again.";
+    case "auth/native-google-not-configured":
+      return "Google sign-in is not set up in the iPhone app yet. Use email sign-in for now.";
+    case "auth/native-google-no-token":
+      return "Google sign-in did not complete. Try again or use email sign-in.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
