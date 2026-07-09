@@ -314,3 +314,15 @@ test("effectiveDrawDiscardIndices uses Best Play preselection in selectedDraw", 
     [2, 3],
   );
 });
+
+test("effectiveDrawDiscardIndices ignores stale selectedDraw mirror when Best Play untouched", () => {
+  assert.deepEqual(
+    effectiveDrawDiscardIndices({
+      selectedDraw: new Set([1, 2]),
+      drawSelectionTouched: false,
+      bestPlayEnabled: true,
+      recommendedDiscardIndices: [4, 5],
+    }),
+    [4, 5],
+  );
+});

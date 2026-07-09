@@ -275,7 +275,13 @@ export function HeroHand({
     ) {
       return;
     }
-    setSelectedDraw(new Set(recommendedDiscardIndices));
+    const next = recommendedDiscardIndices;
+    setSelectedDraw((prev) => {
+      if (prev.size === next.length && next.every((index) => prev.has(index))) {
+        return prev;
+      }
+      return new Set(next);
+    });
   }, [
     bestPlayEnabled,
     inDrawPhase,
@@ -712,16 +718,13 @@ export function HeroHand({
       saveBestPlayEnabled(enabled);
       if (enabled) {
         setDrawSelectionTouched(false);
-        if (inDrawPhase && !drawCompleted) {
-          setSelectedDraw(new Set(recommendedDiscardIndices));
-        }
         return;
       }
       if (!drawSelectionTouched) {
         setSelectedDraw(new Set());
       }
     },
-    [drawSelectionTouched, inDrawPhase, drawCompleted, recommendedDiscardIndices],
+    [drawSelectionTouched],
   );
 
   const showBestPlayControl =

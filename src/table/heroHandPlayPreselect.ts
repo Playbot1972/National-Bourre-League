@@ -202,12 +202,13 @@ export interface DrawDiscardSelectionInput {
   recommendedDiscardIndices: number[];
 }
 
-/** Indices submitted on Draw — uses selectedDraw (including Best Play preselection). */
+/** Indices submitted on Draw — manual picks win when touched; otherwise live Best Play hints. */
 export function effectiveDrawDiscardIndices(input: DrawDiscardSelectionInput): number[] {
-  const manual = [...input.selectedDraw].sort((a, b) => a - b);
-  if (input.drawSelectionTouched || manual.length > 0) return manual;
+  if (input.drawSelectionTouched) {
+    return [...input.selectedDraw].sort((a, b) => a - b);
+  }
   if (input.bestPlayEnabled) {
     return [...input.recommendedDiscardIndices].sort((a, b) => a - b);
   }
-  return [];
+  return [...input.selectedDraw].sort((a, b) => a - b);
 }
