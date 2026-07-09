@@ -2219,10 +2219,13 @@ body.table-play-active .footer {
   display: none;
 }
 
-body.table-play-active .topbar,
-body.table-play-active .main {
-  content-visibility: hidden;
-  contain-intrinsic-size: 0 480px;
+/* Mobile web perf only — Capacitor uses html.capacitor-native rules in capacitor-mobile-perf.css */
+@media (max-width: 900px), ((hover: none) and (pointer: coarse)) {
+  body.table-play-active .topbar,
+  body.table-play-active .main {
+    content-visibility: hidden;
+    contain-intrinsic-size: 0 480px;
+  }
 }
 
 .table-play-overlay__bar {
@@ -2321,6 +2324,19 @@ body.table-play-active .main {
   min-height: 0;
   width: 100%;
   max-width: 100%;
+}
+
+/* Desktop overlay — keep seat avatars visible outside the scaled stage box */
+@media (min-width: 901px) {
+  .table-play-overlay .btable-desktop__viewport,
+  .table-play-overlay .btable-desktop__scale,
+  .table-play-overlay .btable-wrap__table-area,
+  .table-play-overlay .btable-wrap__stage-scaler,
+  .table-play-overlay .table-stage-fit,
+  .table-play-overlay .table-stage,
+  .table-play-overlay .btable__seats {
+    overflow: visible;
+  }
 }
 
 .table-play-overlay .btable-wrap {

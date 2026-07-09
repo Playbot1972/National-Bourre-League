@@ -211,13 +211,22 @@
   overflow: visible;
 }
 
-.btable__seats .bseat {
-  pointer-events: auto;
+
+/*
+ * Seat slots — hooks for per-count CSS. Avoid display:contents here: desktop overlay
+ * scales via .btable-desktop__scale transform and contents children can fail to paint.
+ */
+.btable__seat-slot {
+  display: block;
+  position: static;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
 }
 
-/* Seat slots — structural hooks for per-count CSS positioning (display: contents keeps JS coords) */
-.btable__seat-slot {
-  display: contents;
+.btable__seat-slot .bseat {
+  pointer-events: auto;
 }
 
 /* Play zone — never clip trick land / card flight animations */
@@ -2586,6 +2595,18 @@
   min-height: 0;
   flex: 1;
   overflow: visible;
+}
+
+@media (min-width: 901px) {
+  .table-play-overlay .btable-desktop__viewport,
+  .table-play-overlay .btable-desktop__scale,
+  .table-play-overlay .btable-wrap__table-area,
+  .table-play-overlay .btable-wrap__stage-scaler,
+  .table-play-overlay .table-stage-fit,
+  .table-play-overlay .table-stage,
+  .table-play-overlay .btable__seats {
+    overflow: visible;
+  }
 }
 
 /* Phones / narrow tablets: racetrack table (rounded rect, compact aspect from JS) */
