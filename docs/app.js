@@ -2865,20 +2865,27 @@ function clearClientBotPlayTimer() {
 
 function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "client-play" } = {}) {
   if (robotActionInFlight) return;
+  const ctx = snapshotGameFlowContext(s, scores);
+  const playCtx = {
+    handNumber: ctx.handNumber ?? 0,
+    trickNumber: ctx.trickNumber ?? null,
+    turnPlayerId: turnId,
+    remainingHandCount: ctx.remainingHandCount ?? null,
+  };
   if (shouldBlockRobotForPresentation(s, scores)) {
-    clientBotThinkSchedule.cancelPending({
-      reason: "presentation_blocked",
-      onCanceled: (extra) =>
-        logBotOrchestrator("bot-think-canceled", {
-          ...snapshotGameFlowContext(s, scores),
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
+    clientBotThinkSchedule.playDelayState.markTurnEligible({
+      ...playCtx,
+      nowMs: Date.now(),
+    });
+    logBotOrchestrator("bot-turn-start", {
+      ...ctx,
+      turnPlayerId: turnId,
+      owner: "client",
+      trigger: reason,
+      action: "waiting_presentation",
     });
     logBotOrchestrator("skip-request", {
-      ...snapshotGameFlowContext(s, scores),
+      ...ctx,
       turnPlayerId: turnId,
       reason: "presentation_blocked",
       owner: "client",
@@ -2888,14 +2895,17 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     return;
   }
 
-  const ctx = snapshotGameFlowContext(s, scores);
-  const playCtx = {
-    handNumber: ctx.handNumber ?? 0,
-    trickNumber: ctx.trickNumber ?? null,
-    turnPlayerId: turnId,
-    remainingHandCount: ctx.remainingHandCount ?? null,
-  };
   const expectedTurnKey = botPlayTurnKey(playCtx);
+  clientBotThinkSchedule.playDelayState.markTurnEligible({
+    ...playCtx,
+    nowMs: Date.now(),
+  });
+  logBotOrchestrator("bot-turn-start", {
+    ...ctx,
+    turnPlayerId: turnId,
+    owner: "client",
+    trigger: reason,
+  });
 
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,

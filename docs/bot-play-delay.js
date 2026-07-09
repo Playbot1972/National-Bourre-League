@@ -1,11 +1,11 @@
 /**
- * Bot play-phase think delay — random 1–3s per turn instance; last card plays within 1s.
+ * Bot play-phase think delay — brief pause so plays do not feel instant; much faster than humans.
  */
 
-export const BOT_PLAY_DELAY_MIN_MS = 1000;
-export const BOT_PLAY_DELAY_MAX_MS = 3000;
-export const BOT_PLAY_LAST_CARD_MIN_MS = 250;
-export const BOT_PLAY_LAST_CARD_MAX_MS = 1000;
+export const BOT_PLAY_DELAY_MIN_MS = 250;
+export const BOT_PLAY_DELAY_MAX_MS = 700;
+export const BOT_PLAY_LAST_CARD_MIN_MS = 100;
+export const BOT_PLAY_LAST_CARD_MAX_MS = 300;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {

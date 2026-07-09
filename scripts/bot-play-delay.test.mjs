@@ -20,7 +20,7 @@ describe("bot play delay", () => {
     );
   });
 
-  it("normal bot turn delay is 1000–3000ms", () => {
+  it("normal bot turn delay is 250–700ms", () => {
     const picked = pickBotPlayDelayMs(3, () => 0.5);
     assert.equal(picked.isLastCard, false);
     assert.equal(picked.remainingHandCount, 3);
@@ -28,7 +28,7 @@ describe("bot play delay", () => {
     assert.ok(picked.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("last-card bot turn delay is <= 1000ms", () => {
+  it("last-card bot turn delay is <= 300ms", () => {
     const picked = pickBotPlayDelayMs(1, () => 0.99);
     assert.equal(picked.isLastCard, true);
     assert.equal(picked.remainingHandCount, 1);
@@ -56,7 +56,7 @@ describe("bot play delay", () => {
     assert.equal(first.chosenDelayMs, retry.chosenDelayMs);
     assert.ok(first.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
     assert.ok(first.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
-    assert.equal(retry.delayMs, first.chosenDelayMs - 500);
+    assert.equal(retry.delayMs, Math.max(0, first.chosenDelayMs - 500));
   });
 
   it("last-card delay is cached separately from normal delay for same turn key", () => {
@@ -81,7 +81,7 @@ describe("bot play delay", () => {
     assert.ok(lastCard.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
   });
 
-  it("never schedules before 1s from turn eligibility on normal retries", () => {
+  it("credits elapsed wait time against the chosen delay", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     const chosen = BOT_PLAY_DELAY_MIN_MS;
     const at = state.resolvePlayDelayMs({
@@ -94,15 +94,32 @@ describe("bot play delay", () => {
     assert.equal(at.chosenDelayMs, chosen);
     assert.equal(at.delayMs, chosen);
 
-    const earlyRetry = state.resolvePlayDelayMs({
+    const laterRetry = state.resolvePlayDelayMs({
       handNumber: 1,
       trickNumber: 2,
       turnPlayerId: "bot_x",
       remainingHandCount: 3,
-      nowMs: 500,
+      nowMs: chosen - 50,
     });
-    assert.equal(earlyRetry.delayMs, chosen - 500);
-    assert.ok(earlyRetry.delayMs >= 500);
+    assert.equal(laterRetry.delayMs, 50);
+  });
+
+  it("presentation wait can consume the full think delay", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    const afterPresentation = state.resolvePlayDelayMs({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
+    });
+    assert.equal(afterPresentation.delayMs, 0);
   });
 
   it("play phase delay ignores trick interval floor", () => {
@@ -151,7 +168,7 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
-  it("arms random delay between 1000 and 3000 ms for normal turns", () => {
+  it("arms random delay between 250 and 700 ms for normal turns", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
@@ -165,7 +182,7 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("arms last-card delay within 1 second", () => {
+  it("arms last-card delay within 300ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.99 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 5, turnPlayerId: "bot_1", remainingHandCount: 1 },

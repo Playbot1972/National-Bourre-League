@@ -1008,9 +1008,26 @@ async function getDealingRule(db, roomId) {
 const BOT_ADVANCE_MAX_STEPS = 64;
 
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
+  const startedAt = Date.now();
+  console.info(
+    "[nbl-bot]",
+    "turn-start",
+    JSON.stringify({ kind: "draw", playerId, roomId, sessionId }),
+  );
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   const sessionData = sessionSnap.data() || {};
   const ch = getSessionCurrentHand(sessionData) || {};
+  console.info(
+    "[nbl-bot]",
+    "state-loaded",
+    JSON.stringify({
+      kind: "draw",
+      playerId,
+      phase: ch.phase ?? null,
+      turnPlayerId: ch.turnPlayerId ?? null,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
   const embedded = embeddedPrivateHandData(sessionData, playerId);
   let privateHand;
   if (embedded?.cards) {
@@ -1026,6 +1043,11 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
   if (botShouldFoldDraw(effective, ch.trumpSuit)) {
+    console.info(
+      "[nbl-bot]",
+      "decision-made",
+      JSON.stringify({ kind: "draw_fold", playerId, elapsedMs: Date.now() - startedAt }),
+    );
     return handleFoldDraw(db, { roomId, sessionId, playerId, actorId });
   }
   const deckSeed = ch.deckSeed;
@@ -1033,12 +1055,56 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
   const pile = pileFromPublicHand(ch, deck);
   const deckRemaining = totalAvailableReplacements(pile);
   const discardIndices = botDrawDiscardIndices(effective, ch.trumpSuit, maxDraw, deckRemaining);
-  return runSubmitDrawTransaction(db, { roomId, sessionId, playerId, discardIndices });
+  console.info(
+    "[nbl-bot]",
+    "decision-made",
+    JSON.stringify({
+      kind: "draw",
+      playerId,
+      discardCount: discardIndices.length,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
+  console.info(
+    "[nbl-bot]",
+    "submit-sent",
+    JSON.stringify({ kind: "draw", playerId, discardCount: discardIndices.length }),
+  );
+  const result = await runSubmitDrawTransaction(db, { roomId, sessionId, playerId, discardIndices });
+  console.info(
+    "[nbl-bot]",
+    "submit-resolved",
+    JSON.stringify({
+      kind: "draw",
+      playerId,
+      phase: result?.phase ?? null,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
+  return result;
 }
 
 async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
+  const startedAt = Date.now();
+  console.info(
+    "[nbl-bot]",
+    "turn-start",
+    JSON.stringify({ kind: "play", playerId, roomId, sessionId }),
+  );
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
   const ch = sessionSnap.data()?.currentHand || {};
+  console.info(
+    "[nbl-bot]",
+    "state-loaded",
+    JSON.stringify({
+      kind: "play",
+      playerId,
+      phase: ch.phase ?? null,
+      turnPlayerId: ch.turnPlayerId ?? null,
+      trickNumber: ch.currentTrick?.trickNumber ?? null,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
   const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
   if (!privateSnap.exists) {
     throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
@@ -1047,12 +1113,38 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   const ctx = buildPlayValidationState({ hand, publicHand: ch });
   const cardIndex = botPlayCardIndex(hand, ctx);
+  console.info(
+    "[nbl-bot]",
+    "decision-made",
+    JSON.stringify({
+      kind: "play",
+      playerId,
+      cardIndex,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
+  console.info(
+    "[nbl-bot]",
+    "submit-sent",
+    JSON.stringify({ kind: "play", playerId, cardIndex }),
+  );
   const { handComplete } = await runPlayCardTransaction(db, {
     roomId,
     sessionId,
     playerId,
     cardIndex,
   });
+  console.info(
+    "[nbl-bot]",
+    "submit-resolved",
+    JSON.stringify({
+      kind: "play",
+      playerId,
+      cardIndex,
+      handComplete,
+      elapsedMs: Date.now() - startedAt,
+    }),
+  );
   if (handComplete) {
     return finalizeHandFromCardPlay(db, roomId, sessionId, actorId);
   }
