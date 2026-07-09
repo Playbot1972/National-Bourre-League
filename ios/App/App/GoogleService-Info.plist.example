@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  EXAMPLE ONLY — do not commit the real GoogleService-Info.plist (contains API keys).
+
+  iOS native Google sign-in setup:
+  1. Firebase Console → Project settings → Your apps → Add iOS app
+     Bundle ID: win.booray.app
+  2. Download GoogleService-Info.plist
+  3. Drag into Xcode: ios/App/App/ (Copy items if needed, target App)
+  4. Copy REVERSED_CLIENT_ID from the plist → Xcode → App target → Info → URL Types → URL Schemes
+  5. Firebase Console → Authentication → Sign-in method → Google → Enabled
+  6. npm run build:cap && npx cap open ios → Run on device
+
+  Full checklist: docs/NATIVE_IOS_GOOGLE_AUTH.md
+-->
+<plist version="1.0">
+<dict>
+  <key>CLIENT_ID</key>
+  <string>REPLACE_WITH_IOS_CLIENT_ID.apps.googleusercontent.com</string>
+  <key>REVERSED_CLIENT_ID</key>
+  <string>com.googleusercontent.apps.REPLACE_WITH_REVERSED_CLIENT_ID</string>
+  <key>API_KEY</key>
+  <string>REPLACE_WITH_IOS_API_KEY</string>
+  <key>GCM_SENDER_ID</key>
+  <string>693332013350</string>
+  <key>PLIST_VERSION</key>
+  <string>1</string>
+  <key>BUNDLE_ID</key>
+  <string>win.booray.app</string>
+  <key>PROJECT_ID</key>
+  <string>national-bourre-league</string>
+  <key>STORAGE_BUCKET</key>
+  <string>national-bourre-league.firebasestorage.app</string>
+  <key>IS_ADS_ENABLED</key>
+  <false/>
+  <key>IS_ANALYTICS_ENABLED</key>
+  <false/>
+  <key>IS_APPINVITE_ENABLED</key>
+  <true/>
+  <key>IS_GCM_ENABLED</key>
+  <true/>
+  <key>IS_SIGNIN_ENABLED</key>
+  <true/>
+  <key>GOOGLE_APP_ID</key>
+  <string>1:693332013350:ios:REPLACE_WITH_IOS_APP_ID</string>
+</dict>
+</plist>

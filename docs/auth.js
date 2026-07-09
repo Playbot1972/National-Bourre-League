@@ -32,11 +32,21 @@ const {
   browserPopupRedirectResolver,
 } = await import(`${CDN}/firebase-auth.js`);
 
-function isCapacitorNative() {
+export function isCapacitorNative() {
   try {
     return typeof window !== "undefined" && window.Capacitor?.isNativePlatform?.() === true;
   } catch {
     return false;
+  }
+}
+
+/** Native-only auth diagnostics — no secrets or tokens. */
+function logNativeAuth(event, detail) {
+  if (!isCapacitorNative()) return;
+  if (detail !== undefined) {
+    console.info("[nbl-auth]", event, detail);
+  } else {
+    console.info("[nbl-auth]", event);
   }
 }
 
@@ -60,12 +70,20 @@ const appConfig = {
 // (e.g. firestore.js) so they don't call initializeApp again.
 export const app = initializeApp(appConfig);
 
+const nativeApp = isCapacitorNative();
+
 let auth;
 try {
-  auth = initializeAuth(app, {
-    persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-    popupRedirectResolver: browserPopupRedirectResolver,
-  });
+  // WKWebView (Capacitor iOS): localStorage persistence is more reliable than IndexedDB.
+  auth = initializeAuth(
+    app,
+    nativeApp
+      ? { persistence: browserLocalPersistence }
+      : {
+          persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+          popupRedirectResolver: browserPopupRedirectResolver,
+        },
+  );
 } catch (err) {
   if (err?.code === "auth/already-initialized") {
     auth = getAuth(app);
@@ -91,6 +109,14 @@ if (usingEmulator) {
   console.warn(
     "[nbl-dev] Auth emulator not configured — sign-in will hit production and may fail offline. Use http://localhost:8080 or ?emulators=1",
   );
+}
+
+if (nativeApp) {
+  logNativeAuth("auth-init", {
+    usingEmulator,
+    persistence: "browserLocal",
+    authDomain: appConfig.authDomain,
+  });
 }
 
 const googleProvider = new GoogleAuthProvider();
@@ -126,20 +152,71 @@ export async function signInWithEmail({ email, password }) {
   return normalizeUser(cred.user);
 }
 
-/** Sign in with Google via full-page redirect (reliable on custom domains + Chrome). */
+/**
+ * Native Google sign-in via @capacitor-firebase/authentication (built to auth-google-native.js).
+ * Does not use signInWithPopup or signInWithRedirect.
+ *
+ * Google tap log stages (Safari Web Inspector filter: nbl-auth):
+ *   google-button-tapped → busy-set → native-branch-selected → plugin-call-start →
+ *   plugin-availability-check → plugin-call-resolved|plugin-call-error →
+ *   firebase-credential-start → firebase-credential-success|firebase-credential-error → busy-cleared
+ * See docs/NATIVE_IOS_GOOGLE_AUTH.md § Capture auth logs on iPhone.
+ */
+async function signInWithGoogleNative() {
+  logNativeAuth("native-branch-selected");
+  let nativeModule;
+  try {
+    nativeModule = await import("./auth-google-native.js");
+  } catch (importErr) {
+    const err = new Error(
+      "Native Google auth bundle missing. Run npm run build:cap.",
+    );
+    err.code = "auth/native-google-not-configured";
+    logNativeAuth("plugin-call-error", {
+      code: err.code,
+      message: err.message,
+      phase: "import-auth-google-native",
+    });
+    throw err;
+  }
+
+  try {
+    const { idToken, accessToken } = await nativeModule.nativeGoogleSignIn();
+    logNativeAuth("firebase-credential-start", { hasIdToken: Boolean(idToken) });
+    const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
+    const cred = GoogleAuthProvider.credential(idToken, accessToken);
+    const userCred = await signInWithCredential(auth, cred);
+    logNativeAuth("firebase-credential-success", {
+      hasUser: Boolean(userCred?.user),
+    });
+    return normalizeUser(userCred.user);
+  } catch (err) {
+    logNativeAuth("firebase-credential-error", {
+      code: err?.code ?? null,
+      message: err?.message ?? String(err),
+    });
+    throw err;
+  }
+}
+
+/** Sign in with Google — web redirect/popup; native plugin path (no popup/redirect). */
 export async function signInWithGoogle() {
   if (usingEmulator) {
     const cred = await signInWithPopup(auth, googleProvider);
     return normalizeUser(cred.user);
   }
 
+  if (isCapacitorNative()) {
+    return signInWithGoogleNative();
+  }
+
   await signInWithRedirect(auth, googleProvider);
   return null;
 }
 
-/** Call on page load to finish a Google redirect sign-in. */
+/** Call on page load to finish a Google redirect sign-in (web only). */
 export async function completeGoogleRedirectSignIn() {
-  if (usingEmulator) return null;
+  if (usingEmulator || isCapacitorNative()) return null;
   const result = await getRedirectResult(auth);
   return result?.user ? normalizeUser(result.user) : null;
 }
@@ -232,6 +309,18 @@ export function describeAuthError(error) {
       return "Could not send reset email (site URL not authorized). Contact the host.";
     case "auth/argument-error":
       return "Google sign-in could not start. Hard refresh and try again.";
+    case "auth/native-google-not-configured":
+      return "Google sign-in needs a fresh native build (npm run build:cap) and GoogleService-Info.plist in Xcode.";
+    case "auth/native-google-no-token":
+      return "Google sign-in did not complete. Add GoogleService-Info.plist to the Xcode App target and the REVERSED_CLIENT_ID URL scheme.";
+    case "auth/native-firebase-plugin-unavailable":
+      return "Native Google plugin is missing. Run npm run build:cap, npx cap sync ios, then rebuild in Xcode.";
+    case "auth/native-google-timeout":
+      return "Google sign-in timed out. In Xcode, add GoogleService-Info.plist to the App target and register the REVERSED_CLIENT_ID URL scheme.";
+    case "auth/native-not-capacitor":
+    case "auth/native-capacitor-register-missing":
+    case "auth/native-capacitor-bridge-missing":
+      return "Google sign-in is only available in the native app build.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
