@@ -2096,6 +2096,16 @@
   transform-origin: center center;
 }
 
+@media (hover: none) and (pointer: coarse) {
+  .bseat__avatar {
+    transition: transform 180ms ease;
+  }
+
+  .btable__seats .bseat {
+    contain: layout paint;
+  }
+}
+
 .bseat__avatar--initials,
 .bseat__avatar--blank {
   display: flex;

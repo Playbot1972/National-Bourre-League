@@ -205,10 +205,15 @@ button {
     flex-wrap: wrap;
     align-items: center;
     gap: 8px 10px;
-    padding: 10px clamp(12px, 3vw, 20px);
+    padding:
+      max(10px, env(safe-area-inset-top, 0px))
+      clamp(12px, 3vw, 20px)
+      10px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .brand {
@@ -237,6 +242,35 @@ button {
   .nav__link {
     font-size: 13px;
     padding: 6px 10px;
+    min-height: 44px;
+    min-width: 44px;
+    justify-content: center;
+  }
+
+  .theme-toggle {
+    width: 44px;
+    height: 44px;
+  }
+
+  .profile__trigger {
+    min-height: 44px;
+  }
+
+  .modal__close {
+    min-width: 44px;
+    min-height: 44px;
+    display: grid;
+    place-items: center;
+  }
+
+  .btn--sm {
+    min-height: 44px;
+  }
+
+  .session-tab {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 
   .auth-controls {
@@ -252,6 +286,7 @@ button {
     min-width: 0;
     box-sizing: border-box;
     padding-inline: clamp(12px, 3vw, 20px);
+    padding-bottom: max(64px, calc(48px + env(safe-area-inset-bottom, 0px)));
   }
 
   .join-form {
@@ -279,6 +314,31 @@ button {
     width: auto;
     max-width: none;
     transform: none;
+  }
+
+  .table-play-overlay {
+    background-attachment: scroll;
+  }
+
+  .rank-card,
+  .mini-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 110px;
+  }
+
+  .subpanel,
+  .rules-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 200px;
+  }
+
+  .footer {
+    padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-version {
+    bottom: max(10px, env(safe-area-inset-bottom, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
   }
 }
 
@@ -2157,6 +2217,12 @@ body.table-play-active {
 body.table-play-active .app-version,
 body.table-play-active .footer {
   display: none;
+}
+
+body.table-play-active .topbar,
+body.table-play-active .main {
+  content-visibility: hidden;
+  contain-intrinsic-size: 0 480px;
 }
 
 .table-play-overlay__bar {

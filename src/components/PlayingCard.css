@@ -529,6 +529,15 @@
   display: none;
 }
 
+@media (hover: none) and (pointer: coarse) {
+  /* box-shadow transitions repaint every frame on mobile — transform/filter only */
+  .pcard {
+    transition:
+      transform 420ms var(--pcard-ease),
+      filter 280ms ease;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pcard--playable {
     animation: none;

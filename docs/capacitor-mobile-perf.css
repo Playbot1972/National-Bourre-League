@@ -1,0 +1,95 @@
+/**
+ * Capacitor-native performance overrides — scoped to html.capacitor-native only.
+ * Loaded for all clients; rules apply after bridge adds the root class on native.
+ */
+
+/* WKWebView: fixed backgrounds repaint the full viewport on scroll. */
+html.capacitor-native body,
+html.capacitor-native .table-play-overlay {
+  background-attachment: scroll;
+}
+
+/* Blur compositing is costly on mobile GPUs — use solid surfaces instead. */
+html.capacitor-native .topbar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.capacitor-native .modal__backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Shell chrome under the full-screen table overlay does not need to paint. */
+html.capacitor-native body.table-play-active .topbar,
+html.capacitor-native body.table-play-active .main {
+  content-visibility: hidden;
+  contain-intrinsic-size: 0 480px;
+}
+
+/* Isolate seat layout during live play — fewer cross-seat invalidations. */
+html.capacitor-native .btable__seats .bseat {
+  contain: layout paint;
+}
+
+/* Trick fly-in cards are transform-driven — hint compositor without layout props. */
+html.capacitor-native .btrick__play--fly-from-hand .pcard,
+html.capacitor-native .btrick__play--land .pcard {
+  will-change: transform, opacity;
+}
+
+html.capacitor-native .btrick__play--settled .pcard,
+html.capacitor-native .btrick__play--static-landed .pcard {
+  will-change: auto;
+}
+
+/* Native status bar / home indicator — topbar sits below notch. */
+html.capacitor-native .topbar {
+  padding-top: max(10px, env(safe-area-inset-top, 0px));
+}
+
+html.capacitor-native .footer {
+  padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
+}
+
+html.capacitor-native .app-version {
+  bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+}
+
+/* HIG minimum tap targets on native shell controls. */
+html.capacitor-native .nav__link {
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
+}
+
+html.capacitor-native .theme-toggle {
+  width: 44px;
+  height: 44px;
+}
+
+html.capacitor-native .profile__trigger {
+  min-height: 44px;
+}
+
+html.capacitor-native .modal__close {
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+}
+
+html.capacitor-native .btn--sm {
+  min-height: 44px;
+}
+
+html.capacitor-native .session-tab {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+html.capacitor-native .table-play-overlay__bar .btn--sm {
+  min-height: 44px;
+}
