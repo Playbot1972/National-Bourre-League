@@ -155,7 +155,7 @@ This project uses **Swift Package Manager** (Capacitor 8), not CocoaPods. No `Po
 
 | Symptom | Fix |
 | --- | --- |
-| `[nbl-native] plugin-check` → `FirebaseAuthentication: false` | Run `npm run build:cap`, `npx cap sync ios`, rebuild in Xcode |
+| `[nbl-native] plugin-check` → `nativeHeader: false` | Run `npm run build:cap` (creates SPM symlink), then Xcode **Product → Clean Build Folder** and rebuild |
 | `plugin-call-error` or 45s timeout, no Google picker | Add **GoogleService-Info.plist** to App target + **REVERSED_CLIENT_ID** URL scheme |
 | Google tap shows config error | Run `npm run build:cap`; add **GoogleService-Info.plist** to Xcode target |
 | Google picker then fails / no return | Add **REVERSED_CLIENT_ID** URL scheme |

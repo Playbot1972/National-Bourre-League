@@ -58,6 +58,15 @@ if (!pkgSwift.includes("CapacitorFirebaseAuthentication")) {
   ok.push("ios/App/CapApp-SPM/Package.swift: Firebase auth plugin linked");
 }
 
+const capAppSpmSwift = "ios/App/CapApp-SPM/Sources/CapApp-SPM/CapApp-SPM.swift";
+if (!existsSync(join(root, capAppSpmSwift))) {
+  errors.push(`missing ${capAppSpmSwift} — SPM plugin force-link`);
+} else if (!read(capAppSpmSwift).includes("FirebaseAuthenticationPlugin")) {
+  errors.push(`${capAppSpmSwift}: missing FirebaseAuthenticationPlugin force-link`);
+} else {
+  ok.push(`${capAppSpmSwift}: Firebase plugin SPM force-link present`);
+}
+
 // native Google bundle
 for (const file of ["docs/auth-google-native.js", "src/native/auth-google-native.ts"]) {
   if (!existsSync(join(root, file))) {
