@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { HeroHand } from "./HeroHand";
 import { BigPotBrewingIndicator } from "./BigPotBrewingIndicator";
 import { isHeroCardAreaEmpty } from "./heroCardArea";
@@ -127,6 +128,25 @@ export function CardTable({
   const handTiming = handTimingScale();
   const sessionKey = session.sessionId;
   const wrapRef = useStageFit({ aspect: tableAspect, sessionKey });
+  useEffect(() => {
+    if (typeof window === "undefined" || localStorage.getItem("tableSeatDebug") !== "1") return;
+    const root = wrapRef.current;
+    if (!root) return;
+    const avatars = root.querySelectorAll<HTMLElement>(".bseat__avatar-wrap");
+    const visible = [...avatars].filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }).length;
+    console.debug("[table-seats]", {
+      playersProp: players.length,
+      feltPlayers: feltPlayers.length,
+      rotated: rotated.length,
+      domSeats: root.querySelectorAll(".bseat").length,
+      visibleAvatars: visible,
+      inOverlay: Boolean(root.closest(".table-play-overlay")),
+      desktopShell: Boolean(root.closest(".btable-desktop")),
+    });
+  }, [players.length, feltPlayers.length, rotated.length, wrapRef]);
   const { cards: discardPileCards, pileIndexRef, commitDiscardCards } = useDiscardPileState({
     handNumber: session.handNumber,
     sessionPhase: session.phase,

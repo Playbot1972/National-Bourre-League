@@ -236,3 +236,13 @@ describe("app.js UI wiring", () => {
     assert.ok(src.includes('from "./table-intents.js"'));
   });
 });
+
+describe("table seat layout CSS", () => {
+  const css = readFileSync(fileURLToPath(new URL("../src/table/table.css", import.meta.url)), "utf8");
+
+  it("does not use display:contents on seat slots (desktop scale transform paint bug)", () => {
+    const slotBlock = css.match(/\.btable__seat-slot\s*\{[^}]+\}/)?.[0] ?? "";
+    assert.ok(slotBlock.length > 0, "expected .btable__seat-slot rule");
+    assert.equal(/display:\s*contents/.test(slotBlock), false);
+  });
+});
