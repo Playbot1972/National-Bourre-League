@@ -95,17 +95,40 @@ if (!signInWithGoogleFn) {
 // Built bridge calls plugin API (not web popup)
 if (existsSync(join(root, "docs/auth-google-native.js"))) {
   const nativeJs = read("docs/auth-google-native.js");
+  const nativeBytes = readFileSync(join(root, "docs/auth-google-native.js")).length;
   if (!nativeJs.includes("signInWithGoogle")) {
     errors.push("docs/auth-google-native.js: missing signInWithGoogle call");
-  } else if (nativeJs.includes("signInWithPopupOrRedirect")) {
+  } else if (
+    nativeJs.includes("signInWithPopupOrRedirect") ||
+    nativeJs.includes("signInWithPopup") ||
+    nativeJs.includes("signInWithRedirect")
+  ) {
     errors.push(
-      "docs/auth-google-native.js: bundles web popup fallback — rebuild with window.Capacitor.registerPlugin only",
+      "docs/auth-google-native.js: bundles web popup/redirect fallback — rebuild with window.Capacitor.registerPlugin only",
     );
   } else if (!nativeJs.includes("plugin-call-start")) {
     errors.push("docs/auth-google-native.js: missing native plugin diagnostics — run npm run build:auth-native");
+  } else if (!nativeJs.includes("registerPlugin") && !nativeJs.includes("Plugins")) {
+    errors.push(
+      "docs/auth-google-native.js: must use window.Capacitor.Plugins or registerPlugin (no @capacitor-firebase bundle)",
+    );
+  } else if (nativeBytes > 50_000) {
+    errors.push(
+      `docs/auth-google-native.js: bundle too large (${nativeBytes} bytes) — likely still bundles web SDK; rebuild auth-native`,
+    );
   } else {
-    ok.push("docs/auth-google-native.js: calls native FirebaseAuthentication.signInWithGoogle");
+    ok.push("docs/auth-google-native.js: native Capacitor bridge only (no web popup/redirect)");
   }
+}
+
+// Stage logs for device QA
+for (const [file, marker, message] of [
+  ["docs/app.js", "google-button-tapped", "google tap log"],
+  ["docs/auth.js", "native-branch-selected", "native branch log"],
+  ["docs/auth.js", "firebase-credential-start", "firebase credential log"],
+  ["docs/capacitor-native-bridge.js", "plugin-check", "boot plugin-check log"],
+]) {
+  requireIncludes(file, marker, message);
 }
 
 // Example plist template (not the real secret file)
