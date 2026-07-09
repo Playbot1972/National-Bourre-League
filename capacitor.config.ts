@@ -11,6 +11,22 @@ const config: CapacitorConfig = {
       backgroundColor: '#000000',
       showSpinner: false,
     },
+    FirebaseAuthentication: {
+      authDomain: 'booray.win',
+      skipNativeAuth: false,
+      providers: ['google.com'],
+    },
+  },
+  experimental: {
+    ios: {
+      spm: {
+        packageOptions: {
+          '@capacitor-firebase/authentication': {
+            symlink: true,
+          },
+        },
+      },
+    },
   },
 };
 

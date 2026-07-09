@@ -135,31 +135,24 @@ export async function signInWithEmail({ email, password }) {
 }
 
 /**
- * Native Google sign-in — requires @capacitor-firebase/authentication (not installed yet).
- * TODO(native-google): npm install @capacitor-firebase/authentication firebase
- *   npx cap sync ios
- *   Add GoogleService-Info.plist to ios/App/App/
- *   Firebase Console → Authentication → Google → enable
- *   ios/App/App/AppDelegate.swift — Firebase configure per plugin docs
+ * Native Google sign-in via @capacitor-firebase/authentication (built to auth-google-native.js).
+ * Does not use signInWithPopup or signInWithRedirect.
  */
 async function signInWithGoogleNative() {
-  const plugin = window.Capacitor?.Plugins?.FirebaseAuthentication;
-  if (!plugin?.signInWithGoogle) {
+  let nativeModule;
+  try {
+    nativeModule = await import("./auth-google-native.js");
+  } catch {
     const err = new Error(
-      "Native Google sign-in plugin not installed (@capacitor-firebase/authentication).",
+      "Native Google auth bundle missing. Run npm run build:cap.",
     );
     err.code = "auth/native-google-not-configured";
     throw err;
   }
-  const result = await plugin.signInWithGoogle();
-  const idToken = result?.credential?.idToken ?? result?.idToken;
-  if (!idToken) {
-    const err = new Error("Native Google sign-in returned no id token.");
-    err.code = "auth/native-google-no-token";
-    throw err;
-  }
+
+  const { idToken, accessToken } = await nativeModule.nativeGoogleSignIn();
   const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
-  const cred = GoogleAuthProvider.credential(idToken);
+  const cred = GoogleAuthProvider.credential(idToken, accessToken);
   const userCred = await signInWithCredential(auth, cred);
   return normalizeUser(userCred.user);
 }
@@ -179,9 +172,9 @@ export async function signInWithGoogle() {
   return null;
 }
 
-/** Call on page load to finish a Google redirect sign-in. */
+/** Call on page load to finish a Google redirect sign-in (web only). */
 export async function completeGoogleRedirectSignIn() {
-  if (usingEmulator) return null;
+  if (usingEmulator || isCapacitorNative()) return null;
   const result = await getRedirectResult(auth);
   return result?.user ? normalizeUser(result.user) : null;
 }
@@ -275,7 +268,7 @@ export function describeAuthError(error) {
     case "auth/argument-error":
       return "Google sign-in could not start. Hard refresh and try again.";
     case "auth/native-google-not-configured":
-      return "Google sign-in is not set up in the iPhone app yet. Use email sign-in for now.";
+      return "Google sign-in needs a fresh native build (npm run build:cap) and GoogleService-Info.plist in Xcode.";
     case "auth/native-google-no-token":
       return "Google sign-in did not complete. Try again or use email sign-in.";
     default:
