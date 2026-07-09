@@ -11,10 +11,14 @@
   if (!cap?.isNativePlatform?.()) return;
 
   /** Bump when boot diagnostics change — confirms device loaded latest web bundle. */
-  const BRIDGE_DIAG_REVISION = 3;
+  const BRIDGE_DIAG_REVISION = 4;
+
+  const platform =
+    typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown";
+  document.documentElement.classList.add("capacitor-native", `capacitor-${platform}`);
 
   console.info("[nbl-native]", "bridge-loading", {
-    platform: typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown",
+    platform,
     diagRevision: BRIDGE_DIAG_REVISION,
   });
 
