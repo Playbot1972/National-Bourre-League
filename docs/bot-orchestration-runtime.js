@@ -99,21 +99,36 @@ export function createServerBotAdvanceRuntime(deps) {
       });
       return;
     }
+    const handPhase = deps.getHandPhase?.(session) ?? null;
+
     if (deps.shouldBlockForPresentation(session, scores)) {
-      cancelPlayThink(session, scores, "presentation_blocked");
-      const ctx = deps.snapshotContext(session, scores);
+      if (handPhase === "play") {
+        const ctx = playDelayContext(session, scores);
+        thinkSchedule.playDelayState.markTurnEligible({
+          ...ctx,
+          nowMs: Date.now(),
+        });
+        logPlayDelay("bot-turn-start", session, scores, {
+          requester: actorId,
+          owner: "server",
+          trigger: reason,
+          action: "waiting_presentation",
+          turnPlayerId: ctx.turnPlayerId,
+        });
+      } else {
+        cancelPlayThink(session, scores, "presentation_blocked");
+      }
       logBotOrchestrator("skip-request", {
         reason: "presentation_blocked",
         requester: actorId,
         owner: "server",
         trigger: reason,
         action: "blocked",
-        ...ctx,
+        handPhase,
+        ...deps.snapshotContext(session, scores),
       });
       return;
     }
-
-    const handPhase = deps.getHandPhase?.(session) ?? null;
 
     if (inFlight) {
       pendingWake = true;
@@ -129,7 +144,18 @@ export function createServerBotAdvanceRuntime(deps) {
 
     if (handPhase === "play") {
       const ctx = playDelayContext(session, scores);
+      thinkSchedule.playDelayState.markTurnEligible({
+        ...ctx,
+        nowMs: Date.now(),
+      });
       const expectedTurnKey = botPlayTurnKey(ctx);
+      logPlayDelay("bot-turn-start", session, scores, {
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        turnPlayerId: ctx.turnPlayerId,
+        handPhase,
+      });
       const result = thinkSchedule.armPlayThink({
         ctx,
         nowMs: Date.now(),
