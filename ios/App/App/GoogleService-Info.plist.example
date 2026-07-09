@@ -11,6 +11,8 @@
   4. Copy REVERSED_CLIENT_ID from the plist → Xcode → App target → Info → URL Types → URL Schemes
   5. Firebase Console → Authentication → Sign-in method → Google → Enabled
   6. npm run build:cap && npx cap open ios → Run on device
+
+  Full checklist: docs/NATIVE_IOS_GOOGLE_AUTH.md
 -->
 <plist version="1.0">
 <dict>

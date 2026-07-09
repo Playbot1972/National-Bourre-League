@@ -20,6 +20,7 @@ const CSS_URL_RE = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi;
 const FRESHNESS_SOURCES = [
   "app.js",
   "auth.js",
+  "auth-google-native.js",
   "table-session.js",
   "game-engine.js",
   "capacitor-native-bridge.js",
