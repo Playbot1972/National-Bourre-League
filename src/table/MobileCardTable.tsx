@@ -36,6 +36,7 @@ import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
+import { isHeroDrawOrPlayTurn } from "./localAction";
 import {
   displayLiveBankroll,
   isPlayerAtBourreRisk,
@@ -437,10 +438,14 @@ export function MobileCardTable({
           isInHand={Boolean(selfPlayer?.inHand)}
           isDealer={Boolean(selfPlayer?.isDealer)}
           signedIn={Boolean(currentUserId)}
-          isMyTurn={
-            Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
-            !suppressTurn
-          }
+          isMyTurn={isHeroDrawOrPlayTurn({
+            currentUserId,
+            session,
+            suppressTurn: Boolean(suppressTurn),
+            handComplete,
+            enrollmentActive,
+            selfPlayer,
+          })}
           dealStaggerMs={handTiming.dealCardStaggerMs}
           drawAnimSubPhase={
             handPresentation.animatingDrawPlayerId === currentUserId

@@ -25,7 +25,7 @@ import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { InactivityHelper } from "./InactivityHelper";
-import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
@@ -318,9 +318,14 @@ export function TableSessionView({
     !showCoWinSettlement &&
     selfPlayer?.isOut === true &&
     Boolean(actions.onRebuy);
-  const isMyTurn =
-    Boolean(currentUserId && session.turnPlayerId === currentUserId) &&
-    !suppressTurn;
+  const isMyTurn = isHeroDrawOrPlayTurn({
+    currentUserId,
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+    enrollmentActive,
+    selfPlayer,
+  });
 
   const localActionRequired = isLocalActionRequiredNow({
     currentUserId,

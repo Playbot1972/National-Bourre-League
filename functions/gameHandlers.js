@@ -1660,6 +1660,12 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
     assertCanSubmitHandAction(sessionData, "submit_draw", playerId, playerId);
 
     const currentHand = getSessionCurrentHand(sessionData);
+    console.info("[nbl-draw]", "server-preflight", {
+      playerId,
+      turnPlayerId: currentHand.turnPlayerId ?? null,
+      phase: currentHand.phase ?? null,
+      drawCompletedIds: [...(currentHand.drawCompletedIds ?? [])],
+    });
 
     const handData = await readPrivateHandInTransaction(
       tx,

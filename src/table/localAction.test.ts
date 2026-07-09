@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalActionRequiredNow, localActionActivityKey } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import type { TablePlayer } from "./types";
 
 const self: TablePlayer = {
@@ -79,6 +79,44 @@ describe("isLocalActionRequiredNow", () => {
           phase: "draw",
           turnPlayerId: "me",
           drawCompletedIds: ["me"],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+
+  it("isHeroDrawOrPlayTurn is false when draw already completed even if turn id matches", () => {
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "draw",
+          turnPlayerId: "me",
+          drawCompletedIds: ["me"],
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: false,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+
+  it("isHeroDrawOrPlayTurn is false when it is not the local draw turn", () => {
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "draw",
+          turnPlayerId: "p2",
+          drawCompletedIds: [],
+          participantIds: ["me", "p2"],
         },
         suppressTurn: false,
         handComplete: false,

@@ -22,6 +22,7 @@ describe("table-action-feedback", () => {
     assert.equal(isBenignTableActionError(new Error("Decision step did not apply")), true);
     assert.equal(isBenignTableActionError(new Error("Not in reveal phase")), true);
     assert.equal(isBenignTableActionError(new Error("Draw already completed")), true);
+    assert.equal(isBenignTableActionError(new Error("Not your turn to draw")), true);
     assert.equal(
       isBenignTableActionError({
         code: "functions/failed-precondition",

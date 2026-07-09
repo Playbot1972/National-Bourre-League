@@ -18,6 +18,7 @@ export function isBenignTableActionError(err) {
     lower.includes("decision step did not apply") ||
     lower.includes("enrollment step did not apply") ||
     lower.includes("draw already completed") ||
+    lower.includes("not your turn to draw") ||
     lower.includes("not in draw phase") ||
     lower.includes("not in trick-play") ||
     lower.includes("illegal phase transition")
@@ -147,6 +148,15 @@ export function isStaleTableActionError(errorContext, session) {
     session.currentTrickLen != null &&
     session.currentTrickLen !== errorContext.currentTrickLen &&
     (errorContext.actionKind === "play" || errorContext.phase === "play")
+  ) {
+    return true;
+  }
+
+  if (
+    errorContext.actionKind === "draw" &&
+    errorContext.turnPlayerId != null &&
+    session.turnPlayerId != null &&
+    errorContext.turnPlayerId !== session.turnPlayerId
   ) {
     return true;
   }

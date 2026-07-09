@@ -86,6 +86,49 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   return false;
 }
 
+/** Hero draw/play controls — same gate as server `canSubmitHandAction`. */
+export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
+  const uid = input.currentUserId;
+  if (!uid || input.handComplete || input.suppressTurn) return false;
+
+  const snapshot = buildHandFlowSnapshot({
+    session: {
+      currentHand: {
+        phase: input.session.phase ?? undefined,
+        turnPlayerId: input.session.turnPlayerId ?? undefined,
+        drawCompletedIds: input.session.drawCompletedIds,
+        participantIds: input.session.participantIds ?? [],
+        tricksByPlayer: {},
+      },
+      handEnrollment: input.session.handEnrollment ?? null,
+    },
+    suppressTurn: input.suppressTurn,
+  });
+
+  if (snapshot.phase === HAND_FLOW_PHASE.DRAW) {
+    return canSubmitHandAction({
+      snapshot,
+      action: "submit_draw",
+      playerId: uid,
+      actorId: uid,
+      suppressTurn: input.suppressTurn,
+      drawCompletedIds: input.session.drawCompletedIds,
+    }).ok;
+  }
+
+  if (snapshot.phase === HAND_FLOW_PHASE.PLAY) {
+    return canSubmitHandAction({
+      snapshot,
+      action: "play_card",
+      playerId: uid,
+      actorId: uid,
+      suppressTurn: input.suppressTurn,
+    }).ok;
+  }
+
+  return Boolean(input.session.turnPlayerId === uid);
+}
+
 /** Stable key for reminder scheduler resets across phase/turn changes. */
 export function localActionActivityKey(input: LocalActionInput): string {
   const enrollment = input.session.handEnrollment;
