@@ -10,8 +10,12 @@
   const cap = typeof window !== "undefined" ? window.Capacitor : undefined;
   if (!cap?.isNativePlatform?.()) return;
 
+  /** Bump when boot diagnostics change — confirms device loaded latest web bundle. */
+  const BRIDGE_DIAG_REVISION = 3;
+
   console.info("[nbl-native]", "bridge-loading", {
     platform: typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown",
+    diagRevision: BRIDGE_DIAG_REVISION,
   });
 
   function patchNativeHostingAssumptions() {

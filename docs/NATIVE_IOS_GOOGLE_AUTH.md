@@ -99,8 +99,8 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 
 In order (filter `nbl-native`):
 
-1. `bridge-loading`
-2. `plugin-check` — must show `FirebaseAuthentication: true`
+1. `bridge-loading` — expect `diagRevision: 3` (older builds omit this or show `plugin-check` without `nativeHeader`)
+2. `plugin-check` — must show `FirebaseAuthentication: true` and `nativeHeader: true`
 3. `dom-content-loaded` or `dom-already-ready`
 4. `app-boot-start`
 5. `app-boot-ready`
@@ -155,6 +155,7 @@ This project uses **Swift Package Manager** (Capacitor 8), not CocoaPods. No `Po
 
 | Symptom | Fix |
 | --- | --- |
+| `bridge-loading` without `diagRevision` or `plugin-check` without `nativeHeader` | Stale web bundle — `git pull`, `npm run build:cap`, Xcode **Clean Build Folder**, rebuild |
 | `[nbl-native] plugin-check` → `nativeHeader: false` | Run `npm run build:cap` (creates SPM symlink), then Xcode **Product → Clean Build Folder** and rebuild |
 | `plugin-call-error` or 45s timeout, no Google picker | Add **GoogleService-Info.plist** to App target + **REVERSED_CLIENT_ID** URL scheme |
 | Google tap shows config error | Run `npm run build:cap`; add **GoogleService-Info.plist** to Xcode target |
