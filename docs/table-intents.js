@@ -5,6 +5,11 @@
 
 import { LOCAL_HAND_ACTION } from "./local-hand-commit.js";
 import {
+  buildHandFlowSnapshot,
+  canSubmitHandAction,
+  HAND_FLOW_PHASE,
+} from "./session-startup.js";
+import {
   isBenignTableActionError,
   isStaleTableActionError,
 } from "./table-action-feedback.js";
@@ -20,6 +25,64 @@ function totalTricksPlayed(tricksByPlayer, participantIds) {
 
 function isHandComplete(tricksByPlayer, participantIds) {
   return totalTricksPlayed(tricksByPlayer, participantIds) >= MAX_TRICKS_PER_HAND;
+}
+
+function drawBlockedMessage(reason) {
+  if (reason === "not_your_turn") return "Not your turn to draw";
+  if (reason === "draw_already_complete") return "Draw already completed";
+  if (reason === "not_draw") return "Not in draw phase";
+  if (reason === "presentation_blocked") return "Wait for the table animation to finish";
+  return `Draw blocked (${reason ?? "unknown"})`;
+}
+
+function logDrawPreflight({ playerId, currentHand, source }) {
+  console.info("[nbl-draw]", "preflight", {
+    source,
+    playerId,
+    turnPlayerId: currentHand?.turnPlayerId ?? null,
+    phase: currentHand?.phase ?? null,
+    drawCompletedIds: [...(currentHand?.drawCompletedIds ?? [])],
+  });
+}
+
+function assertClientDrawAllowed(auth, currentHand, { source = "client" } = {}) {
+  if (!auth?.uid || !currentHand) {
+    return new Error("Sign in to draw");
+  }
+  logDrawPreflight({ playerId: auth.uid, currentHand, source });
+  const snapshot = buildHandFlowSnapshot({
+    session: {
+      currentHand: {
+        phase: currentHand.phase ?? undefined,
+        turnPlayerId: currentHand.turnPlayerId ?? undefined,
+        drawCompletedIds: currentHand.drawCompletedIds ?? [],
+        participantIds: currentHand.participantIds ?? [],
+        tricksByPlayer: {},
+      },
+      handEnrollment: null,
+    },
+  });
+  const result = canSubmitHandAction({
+    snapshot,
+    action: "submit_draw",
+    playerId: auth.uid,
+    actorId: auth.uid,
+    drawCompletedIds: currentHand.drawCompletedIds ?? [],
+  });
+  if (result.ok) return null;
+  return new Error(drawBlockedMessage(result.reason));
+}
+
+async function resolveDrawHand(deps) {
+  if (typeof deps.fetchCurrentHand === "function") {
+    try {
+      const fresh = await deps.fetchCurrentHand();
+      if (fresh) return fresh;
+    } catch (err) {
+      console.warn("[nbl-draw] fetchCurrentHand failed:", err?.message ?? err);
+    }
+  }
+  return deps.getCurrentHand();
 }
 
 /**
@@ -264,66 +327,91 @@ export function createTableIntentHandlers(deps) {
     onSubmitDraw(discardIndices) {
       const auth = requireAuth("Sign in to draw");
       if (!auth) return Promise.reject(new Error("Sign in to draw"));
-      const currentHand = deps.getCurrentHand();
-      const maxDraw = currentHand?.maxDrawDiscards ?? 5;
-      if (discardIndices.length > maxDraw) {
-        const err = new Error(`You may discard at most ${maxDraw} cards`);
-        deps.setTableActionFeedback({ status: "error", message: err.message });
-        return Promise.reject(err);
+      if (deps.hasLocalHandActionCommit?.(LOCAL_HAND_ACTION.DRAW)) {
+        console.info("[nbl-draw]", "blocked-in-flight", { playerId: auth.uid });
+        return Promise.reject(new Error("Draw already in progress"));
       }
-      deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-      captureActionStart("draw");
-      deps.setTableActionFeedback({
-        status: "loading",
-        message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
-      });
-      return deps
-        .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
-          playerId: auth.uid,
-          discardIndices,
-          actorId: auth.uid,
-        })
-        .then(() => {
-          if (discardIndices.length > 0) deps.markPendingDrawShuffle();
-          clearActionStart();
+      return Promise.resolve()
+        .then(() => resolveDrawHand(deps))
+        .then((currentHand) => {
+          const blockErr = assertClientDrawAllowed(auth, currentHand, { source: "submit" });
+          if (blockErr) {
+            deps.setTableActionFeedback({ status: "error", message: blockErr.message });
+            return Promise.reject(blockErr);
+          }
+          const maxDraw = currentHand?.maxDrawDiscards ?? 5;
+          if (discardIndices.length > maxDraw) {
+            const err = new Error(`You may discard at most ${maxDraw} cards`);
+            deps.setTableActionFeedback({ status: "error", message: err.message });
+            return Promise.reject(err);
+          }
+          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+          captureActionStart("draw");
           deps.setTableActionFeedback({
-            status: "success",
-            message: discardIndices.length
-              ? `Drew ${discardIndices.length} replacement card(s)`
-              : "Standing pat",
+            status: "loading",
+            message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
           });
-          const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
-          if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
-        })
-        .catch((e) => {
-          deps.clearLocalHandCommit();
-          setActionError(e, "Could not submit draw", "draw");
-          throw e;
+          return deps
+            .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
+              playerId: auth.uid,
+              discardIndices,
+              actorId: auth.uid,
+            })
+            .then(() => {
+              if (discardIndices.length > 0) deps.markPendingDrawShuffle();
+              clearActionStart();
+              deps.setTableActionFeedback({
+                status: "success",
+                message: discardIndices.length
+                  ? `Drew ${discardIndices.length} replacement card(s)`
+                  : "Standing pat",
+              });
+              const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+              if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
+            })
+            .catch((e) => {
+              deps.clearLocalHandCommit();
+              setActionError(e, "Could not submit draw", "draw");
+              throw e;
+            });
         });
     },
 
     onPassDraw() {
       const auth = requireAuth("Sign in to draw");
       if (!auth) return Promise.reject(new Error("Sign in to draw"));
-      deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
-      captureActionStart("draw");
-      deps.setTableActionFeedback({ status: "loading", message: "Standing pat…" });
-      return deps
-        .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
-          playerId: auth.uid,
-          discardIndices: [],
-          actorId: auth.uid,
-        })
-        .then(() => {
-          clearActionStart();
-          deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
-          const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
-          if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
-        })
-        .catch((e) => {
-          deps.clearLocalHandCommit();
-          setActionError(e, "Could not stand pat", "draw");
-          throw e;
+      if (deps.hasLocalHandActionCommit?.(LOCAL_HAND_ACTION.DRAW)) {
+        console.info("[nbl-draw]", "blocked-in-flight", { playerId: auth.uid });
+        return Promise.reject(new Error("Draw already in progress"));
+      }
+      return Promise.resolve()
+        .then(() => resolveDrawHand(deps))
+        .then((currentHand) => {
+          const blockErr = assertClientDrawAllowed(auth, currentHand, { source: "pass" });
+          if (blockErr) {
+            deps.setTableActionFeedback({ status: "error", message: blockErr.message });
+            return Promise.reject(blockErr);
+          }
+          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+          captureActionStart("draw");
+          deps.setTableActionFeedback({ status: "loading", message: "Standing pat…" });
+          return deps
+            .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
+              playerId: auth.uid,
+              discardIndices: [],
+              actorId: auth.uid,
+            })
+            .then(() => {
+              clearActionStart();
+              deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
+              const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
+              if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
+            })
+            .catch((e) => {
+              deps.clearLocalHandCommit();
+              setActionError(e, "Could not stand pat", "draw");
+              throw e;
+            });
         });
     },
 

@@ -478,11 +478,14 @@ function Ce(e, t, n) {
 function we(e, t, n) {
 	let r = [...new Set([...e.drawCompletedIds ?? [], n])], i = e.participantIds;
 	if (!R(i, r)) {
-		let i = I(t, n);
+		let a = L({
+			...e,
+			drawCompletedIds: r
+		}, i, r) ?? I(t, n);
 		return {
 			...e,
 			drawCompletedIds: r,
-			turnPlayerId: i,
+			turnPlayerId: a,
 			pendingDrawDiscards: []
 		};
 	}

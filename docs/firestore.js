@@ -2019,6 +2019,13 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
     assertCanSubmitHandAction(sessionData, "submit_draw", playerId, actorId);
 
     const currentHand = getSessionCurrentHand(sessionData);
+    console.info("[nbl-draw]", "client-preflight", {
+      playerId,
+      actorId,
+      turnPlayerId: currentHand.turnPlayerId ?? null,
+      phase: currentHand.phase ?? null,
+      drawCompletedIds: [...(currentHand.drawCompletedIds ?? [])],
+    });
 
     const handData = await readPrivateHandInTransaction(tx, roomId, sessionId, sessionData, playerId);
     if (!handData) throw new Error("Private hand not found");

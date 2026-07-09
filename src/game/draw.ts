@@ -262,7 +262,12 @@ export function advanceAfterDraw(
   const participantIds = publicHand.participantIds;
 
   if (!allDrawsComplete(participantIds, drawCompletedIds)) {
-    const nextTurn = nextPlayerInOrder(actionOrder, completingPlayerId);
+    const nextTurn =
+      firstUnresolvedDrawTurn(
+        { ...publicHand, drawCompletedIds },
+        participantIds,
+        drawCompletedIds,
+      ) ?? nextPlayerInOrder(actionOrder, completingPlayerId);
     return {
       ...publicHand,
       drawCompletedIds,

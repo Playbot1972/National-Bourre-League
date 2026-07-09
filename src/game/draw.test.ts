@@ -152,3 +152,19 @@ describe("draw completion tracking", () => {
     assert.equal(allDrawsComplete(["p1", "p2", "p3"], ["p1", "p2", "p3"]), true);
   });
 });
+
+describe("advanceAfterDraw turn advance", () => {
+  it("skips players who already completed draw", () => {
+    const pub = {
+      phase: HAND_PHASE.DRAW,
+      participantIds: ["p1", "p2", "p3"],
+      dealerId: "p1",
+      drawCompletedIds: ["p2"],
+      tricksByPlayer: { p1: 0, p2: 0, p3: 0 },
+      actionOrder: ["p2", "p3", "p1"],
+    };
+    const next = advanceAfterDraw(pub, pub.actionOrder, "p1");
+    assert.deepEqual(next.drawCompletedIds, ["p2", "p1"]);
+    assert.equal(next.turnPlayerId, "p3");
+  });
+});

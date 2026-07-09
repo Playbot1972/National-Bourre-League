@@ -1149,6 +1149,24 @@ function getTableIntentHandlers() {
       getCurrentSessions: () => currentSessions,
       getHandPhase: () => getSessionCurrentHand(resolveActiveSession())?.phase ?? null,
       getCurrentHand: () => getSessionCurrentHand(resolveActiveSession()),
+      fetchCurrentHand: async () => {
+        const roomId = currentRoomId;
+        const sessionId = openSessionId;
+        if (!roomId || !sessionId) return null;
+        const sessionObj = await getSession(roomId, sessionId);
+        if (!sessionObj) return null;
+        return getSessionCurrentHand(sessionObj);
+      },
+      hasLocalHandActionCommit: (kind) => {
+        const sessionObj = resolveActiveSession();
+        if (!localHandActionCommit || !sessionObj || !session?.uid) return false;
+        return (
+          localHandActionCommit.kind === kind &&
+          localHandActionCommit.sessionId === openSessionId &&
+          localHandActionCommit.handNumber === sessionHandNumber(sessionObj) &&
+          localHandActionCommit.playerId === session.uid
+        );
+      },
       getSessionCurrentHand,
       setTableActionFeedback,
       showRoomsError,
