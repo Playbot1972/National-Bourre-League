@@ -11278,8 +11278,7 @@ function Qo(e, t, n, r = Infinity, i = []) {
 	return o.length ? Uo(o.map((t) => e[t]), t, n, r).map((e) => o[e]) : [];
 }
 function $o(e) {
-	let t = [...e.selectedDraw].sort((e, t) => e - t);
-	return e.drawSelectionTouched || t.length > 0 ? t : e.bestPlayEnabled ? [...e.recommendedDiscardIndices].sort((e, t) => e - t) : [];
+	return e.drawSelectionTouched ? [...e.selectedDraw].sort((e, t) => e - t) : e.bestPlayEnabled ? [...e.recommendedDiscardIndices].sort((e, t) => e - t) : [...e.selectedDraw].sort((e, t) => e - t);
 }
 //#endregion
 //#region src/table/feedback/soundPacks.ts
@@ -11868,7 +11867,9 @@ function Jc({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 		z,
 		Re
 	]), (0, l.useEffect)(() => {
-		!de || !Pe || s || Oe || R(new Set(f));
+		if (!de || !Pe || s || Oe) return;
+		let e = f;
+		R((t) => t.size === e.length && e.every((e) => t.has(e)) ? t : new Set(e));
 	}, [
 		de,
 		Pe,
@@ -12088,16 +12089,11 @@ function Jc({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 		}, _o.illegalFlash), oe("Illegal play");
 	}, [Re]), nt = (0, l.useCallback)((e) => {
 		if (fe(e), Co(e), e) {
-			G(!1), Pe && !s && R(new Set(f));
+			G(!1);
 			return;
 		}
 		Oe || R(/* @__PURE__ */ new Set());
-	}, [
-		Oe,
-		Pe,
-		s,
-		f
-	]), rt = a && r && (Pe || Fe), it = (0, l.useMemo)(() => $o({
+	}, [Oe]), rt = a && r && (Pe || Fe), it = (0, l.useMemo)(() => $o({
 		selectedDraw: L,
 		drawSelectionTouched: Oe,
 		bestPlayEnabled: de,
