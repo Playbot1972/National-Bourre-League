@@ -44,6 +44,11 @@ requireIncludes(
   "FirebaseAuthentication google.com provider configured",
 );
 requireIncludes("capacitor.config.ts", "authDomain: 'booray.win'", "authDomain booray.win");
+requireIncludes(
+  "capacitor.config.ts",
+  "webContentsDebuggingEnabled",
+  "ios.webContentsDebuggingEnabled for Safari Web Inspector",
+);
 
 // iOS SPM (no Podfile — project uses Swift Package Manager)
 const pkgSwift = read("ios/App/CapApp-SPM/Package.swift");

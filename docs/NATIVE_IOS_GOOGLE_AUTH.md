@@ -80,6 +80,8 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 3. **Mac Safari:** Safari → Settings → Advanced → enable **Show features for web developers**
 4. Run the app from Xcode on the iPhone (leave it on the sign-in screen)
 
+**iOS 16.4+ WebView inspectability:** Capacitor sets `WKWebView.isInspectable` from `ios.webContentsDebuggingEnabled` in `capacitor.config.ts` (on by default; set `CAPACITOR_WEB_DEBUG=0` before `cap sync` to disable). After changing this, run `npm run build:cap` and rebuild in Xcode. If the Develop menu shows the app but the console is empty, the WebView was not inspectable — rebuild with the updated config.
+
 ### Capture after tapping Continue with Google
 
 1. **Mac Safari:** menu **Develop** → **[Your iPhone]** → select **Booray** / `capacitor://localhost`
