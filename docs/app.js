@@ -188,6 +188,11 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
+import {
+  blurActiveTextEntry,
+  describeActiveElement,
+  shouldRestoreRoomDetailFocus,
+} from "./keyboard-focus.js";
 import { gameSetupStepLabel } from "./game-setup-ui.js";
 import {
   formatAnteStake,
@@ -941,7 +946,7 @@ async function triggerSessionPlay(_source = "manual") {
 }
 
 function applyRoomSetupFocus() {
-  if (!roomSetupFocus || roomDetailView.hidden) return;
+  if (!roomSetupFocus || roomDetailView.hidden || tablePlayOpen) return;
   const focus = roomSetupFocus;
   roomSetupFocus = null;
   window.requestAnimationFrame(() => {
@@ -954,7 +959,9 @@ function applyRoomSetupFocus() {
     target.classList.add("game-setup-panel--focus");
     target.scrollIntoView({ behavior: "smooth", block: "start" });
     if (focus === "add-players" || focus === "game-setup") {
-      $("#add-player-name", roomDetailView)?.focus();
+      if (!tablePlayOpen) {
+        $("#add-player-name", roomDetailView)?.focus();
+      }
     }
     window.setTimeout(() => {
       target.classList.remove("game-setup-panel--focus");
@@ -2661,6 +2668,15 @@ async function openTablePlay() {
 
   const overlay = $("#table-play-overlay");
   if (!overlay) return;
+
+  logGameFlow("table", "open-table-play-focus", {
+    before: describeActiveElement(document.activeElement),
+  });
+  const blurred = blurActiveTextEntry(document);
+  if (blurred) {
+    logGameFlow("table", "open-table-play-blur", { blurred });
+  }
+
   tablePlayOpen = true;
   overlay.hidden = false;
   document.body.classList.add("table-play-active");
@@ -4106,7 +4122,7 @@ function renderRoomDetail() {
     mountSessionPanel(openSessionObj, isOwner);
   }
   scheduleTableSessionSync(openSessionObj);
-  if (editingNotes) {
+  if (shouldRestoreRoomDetailFocus(tablePlayOpen) && editingNotes) {
     const notesEl = $("#session-notes", roomDetailView);
     if (notesEl) {
       notesEl.value = editingNotes.value;
@@ -4118,7 +4134,7 @@ function renderRoomDetail() {
       }
     }
   }
-  if (editingHouseRule) {
+  if (shouldRestoreRoomDetailFocus(tablePlayOpen) && editingHouseRule) {
     const ruleEl = document.getElementById(editingHouseRule.id);
     if (ruleEl) {
       ruleEl.value = editingHouseRule.value;
@@ -4130,7 +4146,7 @@ function renderRoomDetail() {
       }
     }
   }
-  if (editingAddPlayer) {
+  if (shouldRestoreRoomDetailFocus(tablePlayOpen) && editingAddPlayer) {
     const addPlayerEl = $("#add-player-name", roomDetailView);
     const robotEl = $("#add-player-robot", roomDetailView);
     if (addPlayerEl) {
