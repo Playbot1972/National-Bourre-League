@@ -441,7 +441,9 @@ authForm.addEventListener("submit", async (event) => {
 $("#google-signin").addEventListener("click", async () => {
   clearError();
   if (AUTH_NATIVE_DEBUG) {
-    console.info("[nbl-auth]", "google-button-tapped");
+    console.info("[nbl-auth]", "google-button-tapped", {
+      disabled: googleSigninBtn?.disabled === true,
+    });
   }
   setBusy(true);
   let webRedirecting = false;

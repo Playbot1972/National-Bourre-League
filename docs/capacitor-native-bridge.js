@@ -38,6 +38,14 @@
 
   window.__nblNative = { hideSplash };
 
+  const firebaseAuthAvailable =
+    typeof cap.isPluginAvailable === "function"
+      ? cap.isPluginAvailable("FirebaseAuthentication")
+      : Boolean(cap.Plugins?.FirebaseAuthentication);
+  console.info("[nbl-native]", "plugin-check", {
+    FirebaseAuthentication: firebaseAuthAvailable,
+  });
+
   if (document.readyState === "loading") {
     document.addEventListener(
       "DOMContentLoaded",

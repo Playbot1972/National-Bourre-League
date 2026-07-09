@@ -97,8 +97,14 @@ if (existsSync(join(root, "docs/auth-google-native.js"))) {
   const nativeJs = read("docs/auth-google-native.js");
   if (!nativeJs.includes("signInWithGoogle")) {
     errors.push("docs/auth-google-native.js: missing signInWithGoogle call");
+  } else if (nativeJs.includes("signInWithPopupOrRedirect")) {
+    errors.push(
+      "docs/auth-google-native.js: bundles web popup fallback — rebuild with window.Capacitor.registerPlugin only",
+    );
+  } else if (!nativeJs.includes("plugin-call-start")) {
+    errors.push("docs/auth-google-native.js: missing native plugin diagnostics — run npm run build:auth-native");
   } else {
-    ok.push("docs/auth-google-native.js: calls FirebaseAuthentication.signInWithGoogle");
+    ok.push("docs/auth-google-native.js: calls native FirebaseAuthentication.signInWithGoogle");
   }
 }
 

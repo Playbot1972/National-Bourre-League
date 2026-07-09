@@ -69,7 +69,7 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 2. Return to app signed in (rooms list loads)
 3. **Create account** / **Sign in** (email) — submit button enables after typing; not stuck on “Redirecting to Google…”
 
-Safari Web Inspector: filter `[nbl-auth-debug]` for native submit-state logs (temporary).
+Safari Web Inspector: filter `[nbl-auth]` or `[nbl-native]` — expect `google-button-tapped` → `native-branch-selected` → `plugin-call-start` → `plugin-call-resolved` → `firebase-credential-success`.
 
 ## iOS dependency model
 

@@ -157,7 +157,7 @@ export async function signInWithEmail({ email, password }) {
  * Does not use signInWithPopup or signInWithRedirect.
  */
 async function signInWithGoogleNative() {
-  logNativeAuth("native-google-start");
+  logNativeAuth("native-branch-selected");
   let nativeModule;
   try {
     nativeModule = await import("./auth-google-native.js");
@@ -166,7 +166,7 @@ async function signInWithGoogleNative() {
       "Native Google auth bundle missing. Run npm run build:cap.",
     );
     err.code = "auth/native-google-not-configured";
-    logNativeAuth("native-google-error", {
+    logNativeAuth("plugin-call-error", {
       code: err.code,
       message: err.message,
       phase: "import-auth-google-native",
@@ -176,16 +176,16 @@ async function signInWithGoogleNative() {
 
   try {
     const { idToken, accessToken } = await nativeModule.nativeGoogleSignIn();
-    logNativeAuth("native-google-plugin-resolved", { hasIdToken: Boolean(idToken) });
+    logNativeAuth("firebase-credential-start", { hasIdToken: Boolean(idToken) });
     const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
     const cred = GoogleAuthProvider.credential(idToken, accessToken);
     const userCred = await signInWithCredential(auth, cred);
-    logNativeAuth("native-google-firebase-linked", {
+    logNativeAuth("firebase-credential-success", {
       hasUser: Boolean(userCred?.user),
     });
     return normalizeUser(userCred.user);
   } catch (err) {
-    logNativeAuth("native-google-error", {
+    logNativeAuth("firebase-credential-error", {
       code: err?.code ?? null,
       message: err?.message ?? String(err),
     });
@@ -306,7 +306,14 @@ export function describeAuthError(error) {
     case "auth/native-google-not-configured":
       return "Google sign-in needs a fresh native build (npm run build:cap) and GoogleService-Info.plist in Xcode.";
     case "auth/native-google-no-token":
-      return "Google sign-in did not complete. Try again or use email sign-in.";
+      return "Google sign-in did not complete. Add GoogleService-Info.plist to the Xcode App target and the REVERSED_CLIENT_ID URL scheme.";
+    case "auth/native-firebase-plugin-unavailable":
+      return "Native Google plugin is missing. Run npm run build:cap, npx cap sync ios, then rebuild in Xcode.";
+    case "auth/native-google-timeout":
+      return "Google sign-in timed out. In Xcode, add GoogleService-Info.plist to the App target and register the REVERSED_CLIENT_ID URL scheme.";
+    case "auth/native-not-capacitor":
+    case "auth/native-capacitor-register-missing":
+      return "Google sign-in is only available in the native app build.";
     default:
       return (error && error.message) || "Something went wrong. Please try again.";
   }
