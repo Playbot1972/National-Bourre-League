@@ -5112,15 +5112,30 @@ var Bc = l("FirebaseAuthentication", { web: () => Promise.resolve().then(() => (
 //#endregion
 //#region src/native/auth-google-native.ts
 async function Vc() {
-	let e = await Bc.signInWithGoogle(), t = e?.credential?.idToken;
-	if (!t) {
-		let e = /* @__PURE__ */ Error("Native Google sign-in returned no id token.");
-		throw e.code = "auth/native-google-no-token", e;
+	console.info("[nbl-auth]", "native-google-plugin-call-start");
+	try {
+		let e = await Bc.signInWithGoogle(), t = e?.credential?.idToken;
+		if (!t) {
+			let e = /* @__PURE__ */ Error("Native Google sign-in returned no id token.");
+			throw e.code = "auth/native-google-no-token", console.info("[nbl-auth]", "native-google-plugin-error", {
+				code: e.code,
+				message: e.message
+			}), e;
+		}
+		return console.info("[nbl-auth]", "native-google-plugin-call-resolved", {
+			hasIdToken: !0,
+			hasAccessToken: !!e.credential?.accessToken
+		}), {
+			idToken: t,
+			accessToken: e.credential?.accessToken ?? void 0
+		};
+	} catch (e) {
+		let t = e;
+		throw console.info("[nbl-auth]", "native-google-plugin-error", {
+			code: t?.code ?? null,
+			message: t?.message ?? String(e)
+		}), e;
 	}
-	return {
-		idToken: t,
-		accessToken: e.credential?.accessToken ?? void 0
-	};
 }
 //#endregion
 export { Vc as nativeGoogleSignIn };

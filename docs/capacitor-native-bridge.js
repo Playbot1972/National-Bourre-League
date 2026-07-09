@@ -1,10 +1,14 @@
 /**
- * Capacitor native bridge — optional light haptics + native-only nav guards.
+ * Capacitor native bridge — splash hide, haptics, native-only nav guards, startup logs.
  * Loaded in the packaged app; no-op in browser/PWA.
  */
 (function installCapacitorNativeBridge() {
   const cap = typeof window !== "undefined" ? window.Capacitor : undefined;
   if (!cap?.isNativePlatform?.()) return;
+
+  console.info("[nbl-native] bridge loading", {
+    platform: typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown",
+  });
 
   function patchNativeHostingAssumptions() {
     for (const anchor of document.querySelectorAll('a[href="/"]')) {
@@ -18,10 +22,34 @@
     if (passwordHint) passwordHint.hidden = true;
   }
 
+  function hideSplash() {
+    const splash = cap.Plugins?.SplashScreen;
+    if (!splash?.hide) {
+      console.warn("[nbl-native] SplashScreen.hide unavailable");
+      return;
+    }
+    void splash
+      .hide({ fadeOutDuration: 200 })
+      .then(() => console.info("[nbl-native] splash hidden"))
+      .catch((err) => {
+        console.warn("[nbl-native] splash hide failed", err?.message ?? String(err));
+      });
+  }
+
+  window.__nblNative = { hideSplash };
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", patchNativeHostingAssumptions, { once: true });
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        patchNativeHostingAssumptions();
+        console.info("[nbl-native] DOMContentLoaded");
+      },
+      { once: true },
+    );
   } else {
     patchNativeHostingAssumptions();
+    console.info("[nbl-native] DOM already ready");
   }
 
   const haptics = cap.Plugins?.Haptics;

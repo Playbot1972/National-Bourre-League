@@ -7,9 +7,11 @@ const config: CapacitorConfig = {
   webDir: 'dist/social',
   plugins: {
     SplashScreen: {
-      launchAutoHide: true,
+      /** Hide manually when app boot completes — avoids auto-timeout warning. */
+      launchAutoHide: false,
       backgroundColor: '#000000',
       showSpinner: false,
+      launchFadeOutDuration: 300,
     },
     FirebaseAuthentication: {
       authDomain: 'booray.win',

@@ -365,6 +365,9 @@ function setBusy(busy) {
   submitBtn.dataset.busy = busy ? "true" : "false";
   if (googleSigninBtn) googleSigninBtn.disabled = busy;
   if (!busy) restoreSubmitLabel();
+  if (AUTH_NATIVE_DEBUG) {
+    console.info("[nbl-auth]", busy ? "busy-set" : "busy-cleared");
+  }
   logAuthSubmitDebug(busy ? "setBusy(true)" : "setBusy(false)");
 }
 
@@ -437,6 +440,9 @@ authForm.addEventListener("submit", async (event) => {
 
 $("#google-signin").addEventListener("click", async () => {
   clearError();
+  if (AUTH_NATIVE_DEBUG) {
+    console.info("[nbl-auth]", "google-button-tapped");
+  }
   setBusy(true);
   let webRedirecting = false;
   try {
@@ -4726,6 +4732,17 @@ $("#create-league").addEventListener("click", () => {
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
+function hideNativeSplashWhenReady() {
+  if (!isCapacitorNative()) return;
+  window.__nblNative?.hideSplash?.();
+}
+
+if (isCapacitorNative()) {
+  console.info("[nbl-native]", "app-boot-start", {
+    platform: window.Capacitor?.getPlatform?.() ?? "unknown",
+  });
+}
+
 mountVersionFooter(VERSION_DISPLAY_LABEL, BUILD_STAMPED_AT);
 startVersionUpdateWatcher();
 
@@ -4736,6 +4753,11 @@ bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
 showView();
+hideNativeSplashWhenReady();
+
+if (isCapacitorNative()) {
+  console.info("[nbl-native]", "app-boot-ready");
+}
 
 completeGoogleRedirectSignIn().catch((err) => {
   console.error("Google redirect sign-in:", err);

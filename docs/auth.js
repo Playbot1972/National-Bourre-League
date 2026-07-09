@@ -40,6 +40,16 @@ export function isCapacitorNative() {
   }
 }
 
+/** Native-only auth diagnostics — no secrets or tokens. */
+function logNativeAuth(event, detail) {
+  if (!isCapacitorNative()) return;
+  if (detail !== undefined) {
+    console.info("[nbl-auth]", event, detail);
+  } else {
+    console.info("[nbl-auth]", event);
+  }
+}
+
 /** Match authDomain to the page host on custom domains (fixes iOS Safari sign-out on refresh). */
 function resolveAuthDomain(config) {
   if (typeof location === "undefined") return config.authDomain;
@@ -101,6 +111,14 @@ if (usingEmulator) {
   );
 }
 
+if (nativeApp) {
+  logNativeAuth("auth-init", {
+    usingEmulator,
+    persistence: "browserLocal",
+    authDomain: appConfig.authDomain,
+  });
+}
+
 const googleProvider = new GoogleAuthProvider();
 
 /**
@@ -139,22 +157,40 @@ export async function signInWithEmail({ email, password }) {
  * Does not use signInWithPopup or signInWithRedirect.
  */
 async function signInWithGoogleNative() {
+  logNativeAuth("native-google-start");
   let nativeModule;
   try {
     nativeModule = await import("./auth-google-native.js");
-  } catch {
+  } catch (importErr) {
     const err = new Error(
       "Native Google auth bundle missing. Run npm run build:cap.",
     );
     err.code = "auth/native-google-not-configured";
+    logNativeAuth("native-google-error", {
+      code: err.code,
+      message: err.message,
+      phase: "import-auth-google-native",
+    });
     throw err;
   }
 
-  const { idToken, accessToken } = await nativeModule.nativeGoogleSignIn();
-  const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
-  const cred = GoogleAuthProvider.credential(idToken, accessToken);
-  const userCred = await signInWithCredential(auth, cred);
-  return normalizeUser(userCred.user);
+  try {
+    const { idToken, accessToken } = await nativeModule.nativeGoogleSignIn();
+    logNativeAuth("native-google-plugin-resolved", { hasIdToken: Boolean(idToken) });
+    const { signInWithCredential } = await import(`${CDN}/firebase-auth.js`);
+    const cred = GoogleAuthProvider.credential(idToken, accessToken);
+    const userCred = await signInWithCredential(auth, cred);
+    logNativeAuth("native-google-firebase-linked", {
+      hasUser: Boolean(userCred?.user),
+    });
+    return normalizeUser(userCred.user);
+  } catch (err) {
+    logNativeAuth("native-google-error", {
+      code: err?.code ?? null,
+      message: err?.message ?? String(err),
+    });
+    throw err;
+  }
 }
 
 /** Sign in with Google — web redirect/popup; native plugin path (no popup/redirect). */
