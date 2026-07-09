@@ -126,6 +126,7 @@ for (const [file, marker, message] of [
   ["docs/app.js", "google-button-tapped", "google tap log"],
   ["docs/auth.js", "native-branch-selected", "native branch log"],
   ["docs/auth.js", "firebase-credential-start", "firebase credential log"],
+  ["docs/capacitor-native-bridge.js", "bridge-loading", "boot bridge-loading log"],
   ["docs/capacitor-native-bridge.js", "plugin-check", "boot plugin-check log"],
 ]) {
   requireIncludes(file, marker, message);

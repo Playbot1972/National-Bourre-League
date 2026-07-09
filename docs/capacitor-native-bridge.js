@@ -1,12 +1,16 @@
 /**
  * Capacitor native bridge — splash hide, haptics, native-only nav guards, startup logs.
  * Loaded in the packaged app; no-op in browser/PWA.
+ *
+ * Native boot log stages (Safari Web Inspector filter: nbl-native):
+ *   bridge-loading → plugin-check → dom-content-loaded|dom-already-ready → splash-hidden
+ * See docs/NATIVE_IOS_GOOGLE_AUTH.md § Capture auth logs on iPhone.
  */
 (function installCapacitorNativeBridge() {
   const cap = typeof window !== "undefined" ? window.Capacitor : undefined;
   if (!cap?.isNativePlatform?.()) return;
 
-  console.info("[nbl-native] bridge loading", {
+  console.info("[nbl-native]", "bridge-loading", {
     platform: typeof cap.getPlatform === "function" ? cap.getPlatform() : "unknown",
   });
 
@@ -30,7 +34,7 @@
     }
     void splash
       .hide({ fadeOutDuration: 200 })
-      .then(() => console.info("[nbl-native] splash hidden"))
+      .then(() => console.info("[nbl-native]", "splash-hidden"))
       .catch((err) => {
         console.warn("[nbl-native] splash hide failed", err?.message ?? String(err));
       });
@@ -51,13 +55,13 @@
       "DOMContentLoaded",
       () => {
         patchNativeHostingAssumptions();
-        console.info("[nbl-native] DOMContentLoaded");
+        console.info("[nbl-native]", "dom-content-loaded");
       },
       { once: true },
     );
   } else {
     patchNativeHostingAssumptions();
-    console.info("[nbl-native] DOM already ready");
+    console.info("[nbl-native]", "dom-already-ready");
   }
 
   const haptics = cap.Plugins?.Haptics;

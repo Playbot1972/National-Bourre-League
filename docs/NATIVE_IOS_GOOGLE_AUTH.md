@@ -69,7 +69,79 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 2. Return to app signed in (rooms list loads)
 3. **Create account** / **Sign in** (email) — submit button enables after typing; not stuck on “Redirecting to Google…”
 
-Safari Web Inspector: filter `[nbl-auth]` or `[nbl-native]` — expect `google-button-tapped` → `native-branch-selected` → `plugin-call-start` → `plugin-call-resolved` → `firebase-credential-success`.
+## Capture auth logs on iPhone
+
+**Use Safari Web Inspector, not the Xcode console.** Xcode shows native/iOS noise; `[nbl-auth]` / `[nbl-native]` logs come from the Capacitor WebView JavaScript layer.
+
+### Setup (once per session)
+
+1. **iPhone:** Settings → Safari → Advanced → **Web Inspector** ON
+2. Connect iPhone to Mac with USB; trust the computer if prompted
+3. **Mac Safari:** Safari → Settings → Advanced → enable **Show features for web developers**
+4. Run the app from Xcode on the iPhone (leave it on the sign-in screen)
+
+### Capture after tapping Continue with Google
+
+1. **Mac Safari:** menu **Develop** → **[Your iPhone]** → select **Booray** / `capacitor://localhost`
+2. Open the **Console** tab
+3. Click **Clear** (trash icon)
+4. In the filter box, type exactly: **`nbl-auth`**
+5. On iPhone, tap **Continue with Google** once
+6. Copy the **first 5–10 lines** that appear (right-click → Copy or select text)
+
+**Boot / plugin check only:** clear console, filter **`nbl-native`**, reload the app, confirm `plugin-check` shows `FirebaseAuthentication: true` before tapping Google.
+
+### Expected `[nbl-native]` boot sequence
+
+In order (filter `nbl-native`):
+
+1. `bridge-loading`
+2. `plugin-check` — must show `FirebaseAuthentication: true`
+3. `dom-content-loaded` or `dom-already-ready`
+4. `app-boot-start`
+5. `app-boot-ready`
+6. `splash-hidden`
+
+Also on boot (filter `nbl-auth`): `auth-init`
+
+### Expected `[nbl-auth]` sequence after Google tap
+
+In order (filter `nbl-auth`):
+
+1. `google-button-tapped`
+2. `busy-set`
+3. `native-branch-selected`
+4. `plugin-call-start`
+5. `plugin-availability-check` — `available` should be `true`
+6. `plugin-call-resolved` **or** `plugin-call-error`
+7. `firebase-credential-start`
+8. `firebase-credential-success` **or** `firebase-credential-error`
+9. `busy-cleared`
+
+### Interpret the last visible stage
+
+| Last `[nbl-auth]` line you see | Meaning |
+| --- | --- |
+| *(none)* | Wrong inspector target, old build, or filter typo — see paste line below |
+| `google-button-tapped` only | Handler ran; check `busy-set` and whether button was already disabled |
+| Stops before `native-branch-selected` | Tap handler did not reach `signInWithGoogle()` |
+| Stops at `plugin-call-start` / `plugin-availability-check` | Native plugin missing or misconfigured — rebuild + `cap sync ios` |
+| `plugin-call-error` | Read `code` and `message` in the log object |
+| Stops at `plugin-call-resolved`, no `firebase-credential-*` | JS bridge returned; Firebase credential step not reached |
+| `firebase-credential-error` | Plugin OK; Firebase `signInWithCredential` failed — read `code` / `message` |
+| `firebase-credential-success` | Sign-in completed in JS — UI should close auth modal |
+
+### What to paste back
+
+**If logs appear** — paste the first 5–10 `[nbl-auth]` lines after the tap (include the stage name and any `{ code, message }` object on errors).
+
+**If no logs appear** — paste exactly this single line:
+
+```
+no [nbl-auth] lines appear
+```
+
+Also note whether `nbl-native` filter shows `plugin-check` with `FirebaseAuthentication: true` or `false` on app reload.
 
 ## iOS dependency model
 

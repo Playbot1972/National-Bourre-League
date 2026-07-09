@@ -155,6 +155,12 @@ export async function signInWithEmail({ email, password }) {
 /**
  * Native Google sign-in via @capacitor-firebase/authentication (built to auth-google-native.js).
  * Does not use signInWithPopup or signInWithRedirect.
+ *
+ * Google tap log stages (Safari Web Inspector filter: nbl-auth):
+ *   google-button-tapped → busy-set → native-branch-selected → plugin-call-start →
+ *   plugin-availability-check → plugin-call-resolved|plugin-call-error →
+ *   firebase-credential-start → firebase-credential-success|firebase-credential-error → busy-cleared
+ * See docs/NATIVE_IOS_GOOGLE_AUTH.md § Capture auth logs on iPhone.
  */
 async function signInWithGoogleNative() {
   logNativeAuth("native-branch-selected");
