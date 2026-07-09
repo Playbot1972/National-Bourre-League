@@ -20,8 +20,15 @@ type CapacitorGlobal = {
   registerPlugin?: (name: string, impl?: object) => FirebaseAuthenticationPlugin;
 };
 
+type CodedError = Error & { code?: string };
+
 const PLUGIN_NAME = "FirebaseAuthentication";
 const PLUGIN_CALL_TIMEOUT_MS = 45_000;
+
+function getWindowCapacitor(): CapacitorGlobal | undefined {
+  if (typeof globalThis === "undefined") return undefined;
+  return (globalThis as typeof globalThis & { Capacitor?: CapacitorGlobal }).Capacitor;
+}
 
 function logAuth(event: string, detail?: Record<string, unknown>) {
   if (detail !== undefined) {
@@ -40,13 +47,11 @@ function pluginAvailable(cap: CapacitorGlobal): boolean {
 }
 
 function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
-  const cap = (typeof window !== "undefined" ? window.Capacitor : undefined) as
-    | CapacitorGlobal
-    | undefined;
+  const cap = getWindowCapacitor();
 
   if (!cap?.isNativePlatform?.()) {
     const err = new Error("Native Google sign-in requires the Capacitor app.");
-    (err as Error & { code?: string }).code = "auth/native-not-capacitor";
+    (err as CodedError).code = "auth/native-not-capacitor";
     throw err;
   }
 
@@ -62,7 +67,7 @@ function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
     const err = new Error(
       "FirebaseAuthentication native plugin is unavailable. Run npm run build:cap, npx cap sync ios, then rebuild in Xcode.",
     );
-    (err as Error & { code?: string }).code = "auth/native-firebase-plugin-unavailable";
+    (err as CodedError).code = "auth/native-firebase-plugin-unavailable";
     throw err;
   }
 
@@ -73,7 +78,7 @@ function getFirebaseAuthenticationPlugin(): FirebaseAuthenticationPlugin {
 
   if (typeof cap.registerPlugin !== "function") {
     const err = new Error("Capacitor registerPlugin is unavailable in this WebView.");
-    (err as Error & { code?: string }).code = "auth/native-capacitor-register-missing";
+    (err as CodedError).code = "auth/native-capacitor-register-missing";
     throw err;
   }
 
@@ -85,7 +90,7 @@ function pluginCallTimeout<T>(promise: Promise<T>, message: string): Promise<T> 
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       const err = new Error(message);
-      (err as Error & { code?: string }).code = "auth/native-google-timeout";
+      (err as CodedError).code = "auth/native-google-timeout";
       reject(err);
     }, PLUGIN_CALL_TIMEOUT_MS);
 
@@ -117,10 +122,10 @@ export async function nativeGoogleSignIn(): Promise<{
 
     const idToken = result?.credential?.idToken;
     if (!idToken) {
-      const err = new Error(
+      const err: CodedError = new Error(
         "Native Google sign-in returned no id token. Verify GoogleService-Info.plist and the REVERSED_CLIENT_ID URL scheme in Xcode.",
       );
-      (err as Error & { code?: string }).code = "auth/native-google-no-token";
+      err.code = "auth/native-google-no-token";
       logAuth("plugin-call-error", {
         code: err.code,
         message: err.message,
@@ -138,7 +143,7 @@ export async function nativeGoogleSignIn(): Promise<{
       accessToken: result.credential?.accessToken ?? undefined,
     };
   } catch (err) {
-    const e = err as Error & { code?: string };
+    const e = err as CodedError;
     logAuth("plugin-call-error", {
       code: e?.code ?? null,
       message: e?.message ?? String(err),
