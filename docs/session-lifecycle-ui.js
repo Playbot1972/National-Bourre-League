@@ -5,6 +5,7 @@
 
 import { getSessionCurrentHand, getSessionEnrollment } from "./firestore.js";
 import { isClearedPreDealHand } from "./session-startup.js";
+import { isHandTransitionDebugEnabled, logHandTransition } from "./hand-transition-debug.js";
 
 export function logHandLifecycleTransition(transition) {
   if (typeof console !== "undefined" && console.info) {
@@ -13,6 +14,9 @@ export function logHandLifecycleTransition(transition) {
         transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
       }`,
     );
+  }
+  if (isHandTransitionDebugEnabled()) {
+    logHandTransition("lifecycle_transition", transition);
   }
 }
 
