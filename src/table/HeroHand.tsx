@@ -10,10 +10,13 @@ import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
+  buildPlayActivityKey,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  parsePlayActivityKey,
   planTapAutoplay,
   resolveHeroPlayCardVisualTier,
+  shouldClearQueuedPlayOnActivityChange,
   shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
@@ -147,7 +150,20 @@ export function HeroHand({
   const preselectTimerRef = useRef<number | null>(null);
   const pendingPlayIndexRef = useRef<number | null>(null);
   const autoplayGenerationRef = useRef(0);
-  const playActivityKey = `${handNumber}:${trickNumber ?? 0}:${turnPlayerId ?? ""}:${phase ?? ""}`;
+  const playClickLogRef = useRef({
+    handNumber: 0,
+    trickNumber: null as number | null,
+    turnPlayerId: null as string | null,
+    isMyTurn: false,
+    busy: false,
+    selectedPlay: null as number | null,
+  });
+  const playActivityKey = buildPlayActivityKey({
+    handNumber,
+    trickNumber,
+    turnPlayerId,
+    phase: phase ?? null,
+  });
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
@@ -164,6 +180,15 @@ export function HeroHand({
   const inPlayPhase = phase === "play";
   const busy =
     localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
+
+  playClickLogRef.current = {
+    handNumber,
+    trickNumber,
+    turnPlayerId,
+    isMyTurn,
+    busy,
+    selectedPlay,
+  };
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
@@ -220,22 +245,23 @@ export function HeroHand({
       window.clearTimeout(preselectTimerRef.current);
       preselectTimerRef.current = null;
       if (reason) {
+        const ctx = playClickLogRef.current;
         logPlayClick({
           event: "tap-autoplay-canceled",
           reason,
-          handNumber,
-          trickNumber,
-          turnPlayerId,
-          selectedPlay,
+          handNumber: ctx.handNumber,
+          trickNumber: ctx.trickNumber,
+          turnPlayerId: ctx.turnPlayerId,
+          selectedPlay: ctx.selectedPlay,
           generation: autoplayGenerationRef.current,
-          isMyTurn,
+          isMyTurn: ctx.isMyTurn,
           playLock: playLockRef.current,
-          busy,
+          busy: ctx.busy,
         });
       }
     }
     pendingPlayIndexRef.current = null;
-  }, [busy, handNumber, isMyTurn, selectedPlay, trickNumber, turnPlayerId]);
+  }, []);
 
   const bumpAutoplayGeneration = useCallback(() => {
     autoplayGenerationRef.current += 1;
@@ -321,16 +347,34 @@ export function HeroHand({
   const prevPlayActivityKeyRef = useRef(playActivityKey);
   useEffect(() => {
     if (prevPlayActivityKeyRef.current === playActivityKey) return;
+    const prevCtx = parsePlayActivityKey(prevPlayActivityKeyRef.current);
+    const nextCtx = parsePlayActivityKey(playActivityKey);
     prevPlayActivityKeyRef.current = playActivityKey;
     bumpAutoplayGeneration();
     clearPreselectTimer("play-activity-change");
-    setSelectedPlay(null);
-  }, [playActivityKey, bumpAutoplayGeneration, clearPreselectTimer]);
+    if (shouldClearQueuedPlayOnActivityChange(prevCtx, nextCtx)) {
+      logPlayClick({
+        event: "queue-cleared",
+        reason: "hand-or-phase-change",
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        selectedPlay,
+      });
+      setSelectedPlay(null);
+    }
+  }, [
+    playActivityKey,
+    bumpAutoplayGeneration,
+    clearPreselectTimer,
+    handNumber,
+    trickNumber,
+    turnPlayerId,
+  ]);
 
   useEffect(() => {
     if (actionFeedback?.status === "success") {
       setPlayingIndex(null);
-      setSelectedPlay(null);
       clearPreselectTimer();
       playLockRef.current = false;
     } else if (actionFeedback?.status === "error") {
@@ -558,7 +602,7 @@ export function HeroHand({
       setLocalError(null);
       notifyUserActivity();
       logPlayClick({
-        event: "tap-select",
+        event: plan.shouldQueueSelection ? "queue-set" : "tap-select",
         handNumber,
         trickNumber,
         turnPlayerId,
