@@ -2105,13 +2105,10 @@
   transform-origin: center center;
 }
 
+/* Touch — trim avatar transition; avoid contain:paint on 0×0 .bseat (clips avatars). */
 @media (hover: none) and (pointer: coarse) {
   .bseat__avatar {
     transition: transform 180ms ease;
-  }
-
-  .btable__seats .bseat {
-    contain: layout paint;
   }
 }
 

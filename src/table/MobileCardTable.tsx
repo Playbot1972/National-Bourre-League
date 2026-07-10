@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import type { TableEvent } from "./hooks/useTableEvents";
 import { HeroHand } from "./HeroHand";
 import { BigPotBrewingIndicator } from "./BigPotBrewingIndicator";
@@ -143,6 +144,28 @@ export function MobileCardTable({
   const handTiming = handTimingScale();
   const sessionKey = session.sessionId;
   const wrapRef = useMobileStageFit({ aspect: tableAspect, sessionKey });
+  useEffect(() => {
+    if (typeof window === "undefined" || localStorage.getItem("tableSeatDebug") !== "1") return;
+    const root = wrapRef.current;
+    if (!root) return;
+    const avatars = root.querySelectorAll<HTMLElement>(".bseat__avatar-wrap");
+    const painted = [...avatars].filter((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return false;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      return Boolean(hit?.closest(".bseat__avatar-wrap"));
+    }).length;
+    console.debug("[table-seats-mobile]", {
+      playersProp: players.length,
+      rotated: rotated.length,
+      domSeats: root.querySelectorAll(".bseat").length,
+      paintedAvatars: painted,
+      inOverlay: Boolean(root.closest(".table-play-overlay")),
+      mobileShell: Boolean(root.closest(".btable-mobile")),
+    });
+  }, [players.length, rotated.length, wrapRef]);
   const { cards: discardPileCards, pileIndexRef, commitDiscardCards } = useDiscardPileState({
     handNumber: session.handNumber,
     sessionPhase: session.phase,
