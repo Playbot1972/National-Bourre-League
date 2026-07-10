@@ -245,4 +245,13 @@ describe("table seat layout CSS", () => {
     assert.ok(slotBlock.length > 0, "expected .btable__seat-slot rule");
     assert.equal(/display:\s*contents/.test(slotBlock), false);
   });
+
+  it("does not use contain:paint on .bseat in touch media (0×0 seat clips avatars)", () => {
+    const touchBlock =
+      css.match(
+        /@media\s*\(hover:\s*none\)\s*and\s*\(pointer:\s*coarse\)\s*\{[\s\S]*?\n\}/,
+      )?.[0] ?? "";
+    assert.ok(touchBlock.length > 0, "expected touch pointer media block");
+    assert.equal(/\.btable__seats\s+\.bseat[\s\S]*contain:\s*[^;]*paint/.test(touchBlock), false);
+  });
 });

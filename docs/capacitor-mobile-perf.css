@@ -27,11 +27,6 @@ html.capacitor-native body.table-play-active .main {
   contain-intrinsic-size: 0 480px;
 }
 
-/* Isolate seat layout during live play — fewer cross-seat invalidations. */
-html.capacitor-native .btable__seats .bseat {
-  contain: layout paint;
-}
-
 /* Trick fly-in cards are transform-driven — hint compositor without layout props. */
 html.capacitor-native .btrick__play--fly-from-hand .pcard,
 html.capacitor-native .btrick__play--land .pcard {

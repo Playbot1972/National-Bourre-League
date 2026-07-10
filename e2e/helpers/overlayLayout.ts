@@ -113,6 +113,29 @@ export async function readOverlayGameplayMetrics(page: Page) {
   });
 }
 
+/** True when every seat avatar center hits the avatar (painted), not clipped by contain:paint. */
+export async function expectOverlaySeatsPainted(page: Page): Promise<void> {
+  const unpainted = await page.evaluate(() => {
+    const overlay = document.querySelector("#table-play-overlay");
+    if (!overlay) return -1;
+    const seats = overlay.querySelectorAll<HTMLElement>(".bseat__avatar-wrap");
+    let miss = 0;
+    for (const seat of seats) {
+      const r = seat.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) {
+        miss += 1;
+        continue;
+      }
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      if (!hit?.closest(".bseat__avatar-wrap")) miss += 1;
+    }
+    return miss;
+  });
+  expect(unpainted, `${unpainted} seat avatar(s) not painted at center`).toBe(0);
+}
+
 /** True when every seat avatar is inside the overlay visual viewport. */
 export async function expectOverlaySeatsInViewport(page: Page): Promise<void> {
   const clipped = await page.evaluate(() => {
@@ -195,6 +218,7 @@ export async function expectMobileOverlayGameplayFits(
   expect(metrics!.isMobileLayout, "mobile overlay should use mobile layout path").toBe(true);
   expect(await overlayHorizontalOverflow(page)).toBeLessThanOrEqual(2);
   await expectOverlaySeatsInViewport(page);
+  await expectOverlaySeatsPainted(page);
 
   if (opts.portrait) {
     expect(metrics!.layoutMode).toBe("portrait");
