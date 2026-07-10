@@ -13,6 +13,7 @@ import {
   isBenignTableActionError,
   isStaleTableActionError,
 } from "./table-action-feedback.js";
+import { logHandTransition } from "./hand-transition-debug.js";
 
 const MAX_TRICKS_PER_HAND = 5;
 
@@ -246,6 +247,12 @@ export function createTableIntentHandlers(deps) {
       const auth = requireAuth("Sign in to pass.");
       if (!auth) return;
       const handPhase = deps.getHandPhase();
+      logHandTransition("im_out_fired", {
+        source: "onPassEnrollment",
+        playerId: auth.uid,
+        handPhase,
+        action: "pass_enrollment",
+      });
       const kind =
         handPhase === "decision"
           ? LOCAL_HAND_ACTION.DECISION_PASS
@@ -418,6 +425,12 @@ export function createTableIntentHandlers(deps) {
     onFoldDraw() {
       const auth = requireAuth("Sign in to fold");
       if (!auth) return Promise.reject(new Error("Sign in to fold"));
+      logHandTransition("im_out_fired", {
+        source: "onFoldDraw",
+        playerId: auth.uid,
+        handPhase: deps.getHandPhase?.() ?? null,
+        action: "draw_fold",
+      });
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
       captureActionStart("fold");
       deps.setTableActionFeedback({ status: "loading", message: "Folding out…" });

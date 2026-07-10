@@ -72,6 +72,15 @@ import {
 } from "./room-detail-view.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
+  analyzeHandTransitionAnomalies,
+  isHandTransitionDebugEnabled,
+  logHandTransition,
+  logHandTransitionBoot,
+  markHandDealDispatched,
+  markHandShuffleStart,
+  snapshotHandTransitionState,
+} from "./hand-transition-debug.js";
+import {
   clearSessionSetupSheetSnap,
   initSessionSetupSheet,
   resetSessionSetupSheet,
@@ -1111,12 +1120,26 @@ async function openNextHandEnrollment(sessionObj) {
 
   try {
     setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
+    markHandShuffleStart({
+      sessionId: openSessionId,
+      handCount: sessionObj.handCount ?? 0,
+      roomId: currentRoomId,
+    });
     await ensureHandEnrollment(currentRoomId, openSessionId, {
       members: currentMembers,
       roster: tableReadyRoster(sessionObj),
     });
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
+    const dealStarted = sessionHandDealStarted(refreshed);
+    const dealHand = getSessionCurrentHand(refreshed);
+    markHandDealDispatched({
+      sessionId: openSessionId,
+      handCount: refreshed.handCount ?? 0,
+      dealStarted,
+      phase: dealHand?.phase ?? null,
+      participantIds: dealHand?.participantIds ?? [],
+    });
     await syncTableSession(refreshed);
     const autoDealt = isSessionAutoDealtNextHand(refreshed);
     scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
@@ -1137,6 +1160,11 @@ async function openNextHandEnrollment(sessionObj) {
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
+    logHandTransition("shuffle_failed", {
+      sessionId: openSessionId,
+      message: err?.message ?? String(err),
+      code: err?.code ?? null,
+    });
     const message = formatClientGameError(err, "Could not open the next join window");
     setTableActionFeedback(
       { status: "error", message },
@@ -3752,7 +3780,7 @@ function buildTableSessionProps(s) {
       ? (lastHand.bourreIds || []).filter(Boolean)
       : [];
 
-  return {
+  const tableProps = {
     session: {
       sessionId: s.id,
       handNumber: (s.handCount ?? 0) + 1,
@@ -3822,6 +3850,41 @@ function buildTableSessionProps(s) {
     currentUserId: myUid,
     actions: getTableIntentHandlers(),
   };
+  maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback);
+  return tableProps;
+}
+let lastHandTransitionSnapKey = "";
+
+function maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback) {
+  if (!isHandTransitionDebugEnabled()) return;
+  const snap = snapshotHandTransitionState({
+    session: s,
+    scores: displayScores,
+    myUid: session?.uid ?? null,
+    privateHandCards: privateHeroCards,
+    privateHandSnapSeen,
+    sessionHandDealStarted: sessionHandDealStarted(s),
+    tableActionFeedback,
+  });
+  const snapKey = JSON.stringify({
+    sessionId: snap.sessionId,
+    handCount: snap.handCount,
+    phase: snap.phase,
+    waitingCount: snap.decisionWaitingCount || snap.enrollmentWaitingCount,
+    turn: snap.decisionTurn || snap.enrollmentTurn,
+    participantIds: snap.participantIds,
+    eligiblePlayerIds: snap.eligiblePlayerIds,
+    outPlayerIds: snap.outPlayerIds,
+    heroPrivateCardCount: snap.heroPrivateCardCount,
+    tableFeedback: snap.tableFeedback,
+  });
+  if (snapKey === lastHandTransitionSnapKey) return;
+  lastHandTransitionSnapKey = snapKey;
+  logHandTransition("table_snapshot", {
+    waitingCount: snap.decisionWaitingCount || snap.enrollmentWaitingCount,
+    ...snap,
+  });
+  analyzeHandTransitionAnomalies(snap);
 }
 
 async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
@@ -4799,6 +4862,7 @@ bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
 showView();
+logHandTransitionBoot();
 hideNativeSplashWhenReady();
 
 if (isCapacitorNative()) {
