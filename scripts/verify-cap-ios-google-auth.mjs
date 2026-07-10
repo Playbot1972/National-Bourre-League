@@ -44,11 +44,15 @@ requireIncludes(
   "FirebaseAuthentication google.com provider configured",
 );
 requireIncludes("capacitor.config.ts", "authDomain: 'booray.win'", "authDomain booray.win");
-requireIncludes(
-  "capacitor.config.ts",
-  "webContentsDebuggingEnabled",
-  "ios.webContentsDebuggingEnabled for Safari Web Inspector",
-);
+// Release builds must not leave WebView inspectability enabled by default
+const capConfig = read("capacitor.config.ts");
+if (capConfig.includes("CAPACITOR_WEB_DEBUG !== '0'")) {
+  errors.push("capacitor.config.ts: webContentsDebuggingEnabled must default off (opt-in CAPACITOR_WEB_DEBUG=1)");
+} else if (!capConfig.includes("CAPACITOR_WEB_DEBUG === '1'")) {
+  warnings.push("capacitor.config.ts: expected opt-in CAPACITOR_WEB_DEBUG=1 for device debugging");
+} else {
+  ok.push("capacitor.config.ts: webContentsDebuggingEnabled opt-in only (release-safe default)");
+}
 
 // iOS SPM (no Podfile — project uses Swift Package Manager)
 const pkgSwift = read("ios/App/CapApp-SPM/Package.swift");
@@ -164,6 +168,11 @@ if (existsSync(join(root, "ios/App/App/GoogleService-Info.plist"))) {
 }
 
 const infoPlist = read("ios/App/App/Info.plist");
+if (!infoPlist.includes("ITSAppUsesNonExemptEncryption")) {
+  errors.push("Info.plist: missing ITSAppUsesNonExemptEncryption (set false for standard HTTPS-only apps)");
+} else {
+  ok.push("Info.plist: ITSAppUsesNonExemptEncryption present");
+}
 if (!infoPlist.includes("CFBundleURLTypes")) {
   warnings.push(
     "Info.plist: CFBundleURLTypes not set — add REVERSED_CLIENT_ID URL scheme in Xcode after downloading plist",

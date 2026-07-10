@@ -55,7 +55,7 @@ Required for Google OAuth return to the app.
 ### 5. Build and run on device
 
 ```bash
-npm run build:cap
+npm run build:cap:release
 npx cap open ios
 ```
 
@@ -80,7 +80,7 @@ In Xcode: scheme **App** → your **iPhone** → **⌘R**
 3. **Mac Safari:** Safari → Settings → Advanced → enable **Show features for web developers**
 4. Run the app from Xcode on the iPhone (leave it on the sign-in screen)
 
-**iOS 16.4+ WebView inspectability:** Capacitor sets `WKWebView.isInspectable` from `ios.webContentsDebuggingEnabled` in `capacitor.config.ts` (on by default; set `CAPACITOR_WEB_DEBUG=0` before `cap sync` to disable). After changing this, run `npm run build:cap` and rebuild in Xcode. If the Develop menu shows the app but the console is empty, the WebView was not inspectable — rebuild with the updated config.
+**iOS 16.4+ WebView inspectability:** Capacitor sets `WKWebView.isInspectable` from `ios.webContentsDebuggingEnabled` in `capacitor.config.ts` (**off by default** for release). For local device auth debugging only: `CAPACITOR_WEB_DEBUG=1 npm run build:cap`. **App Store / RC builds:** use `npm run build:cap:release` (forces `CAPACITOR_WEB_DEBUG=0`). Rebuild in Xcode after changing this.
 
 **`plugin-check` at boot:** `jsPluginsEntry: false` is normal before Google sign-in. Look for `nativeHeader: true`. If both are `false`, the Firebase auth plugin is not linked in Xcode — run `npm run build:cap` and rebuild.
 

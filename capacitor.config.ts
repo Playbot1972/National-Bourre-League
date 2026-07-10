@@ -8,11 +8,10 @@ const config: CapacitorConfig = {
   ios: {
     /**
      * WKWebView.isInspectable (iOS 16.4+) for Safari Web Inspector.
-     * Capacitor SPM ignores the app DEBUG flag — without this, Release/device
-     * builds may attach but show an empty or unusable console.
-     * Set CAPACITOR_WEB_DEBUG=0 before cap sync to disable for production.
+     * Off by default for App Store / release builds. Opt in for local device QA:
+     *   CAPACITOR_WEB_DEBUG=1 npm run build:cap
      */
-    webContentsDebuggingEnabled: process.env.CAPACITOR_WEB_DEBUG !== '0',
+    webContentsDebuggingEnabled: process.env.CAPACITOR_WEB_DEBUG === '1',
   },
   plugins: {
     SplashScreen: {
