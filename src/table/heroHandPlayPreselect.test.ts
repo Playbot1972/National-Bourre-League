@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildPlayActivityKey,
   computeRecommendedDiscardIndices,
   computeRecommendedPlayIndex,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
+  parsePlayActivityKey,
   planTapAutoplay,
   resolveHeroPlayCardVisualTier,
   resolveManualOrRecommendedPlayState,
+  shouldClearQueuedPlayOnActivityChange,
   shouldShowBestPlayRecommendation,
   shouldSwipeImmediatePlay,
   togglePlayPreselectIndex,
@@ -92,6 +95,42 @@ test("shouldSwipeImmediatePlay requires on-turn and legal", () => {
   assert.equal(shouldSwipeImmediatePlay(true, true), true);
   assert.equal(shouldSwipeImmediatePlay(false, true), false);
   assert.equal(shouldSwipeImmediatePlay(true, false), false);
+});
+
+test("shouldClearQueuedPlayOnActivityChange keeps queue across turn/trick advances", () => {
+  const base = { handNumber: 1, trickNumber: 2, turnPlayerId: "p1", phase: "play" };
+  assert.equal(
+    shouldClearQueuedPlayOnActivityChange(
+      base,
+      { ...base, turnPlayerId: "p2" },
+    ),
+    false,
+  );
+  assert.equal(
+    shouldClearQueuedPlayOnActivityChange(
+      base,
+      { ...base, trickNumber: 3 },
+    ),
+    false,
+  );
+});
+
+test("shouldClearQueuedPlayOnActivityChange clears on hand or phase boundary", () => {
+  const base = { handNumber: 1, trickNumber: 2, turnPlayerId: "p1", phase: "play" };
+  assert.equal(
+    shouldClearQueuedPlayOnActivityChange(base, { ...base, handNumber: 2 }),
+    true,
+  );
+  assert.equal(
+    shouldClearQueuedPlayOnActivityChange(base, { ...base, phase: "draw" }),
+    true,
+  );
+});
+
+test("buildPlayActivityKey round-trips through parsePlayActivityKey", () => {
+  const ctx = { handNumber: 3, trickNumber: 4, turnPlayerId: "bot_1", phase: "play" };
+  const key = buildPlayActivityKey(ctx);
+  assert.deepEqual(parsePlayActivityKey(key), ctx);
 });
 
 test("shouldShowBestPlayRecommendation ignores selectedPlay preselect state", () => {

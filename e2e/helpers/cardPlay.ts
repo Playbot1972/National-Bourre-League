@@ -49,6 +49,29 @@ async function dispatchPointer(
   );
 }
 
+/** Wait until clockwise deal animation reveals the target hero card for interaction. */
+export async function waitForHeroCardInteractive(page: Page, cardIndex = 0) {
+  await page.waitForFunction(
+    (idx) => {
+      const card = document.querySelector(
+        `[data-testid="hero-hand"] .pcard[data-card-index="${idx}"]`,
+      );
+      if (!card) return false;
+      const style = getComputedStyle(card);
+      return style.visibility === "visible" && style.pointerEvents !== "none";
+    },
+    cardIndex,
+    { timeout: 20_000 },
+  );
+}
+
+/** Tap to queue a play when it is not yet the hero's turn (preselect). */
+export async function tapPreselectCard(page: Page, card: Locator) {
+  await card.scrollIntoViewIfNeeded();
+  await card.click();
+  await page.waitForTimeout(150);
+}
+
 /** Single tap / click on a playable card. */
 export async function tapPlayCard(page: Page, card: Locator, { useTouch = false } = {}) {
   const pointerType: PointerKind = useTouch ? "touch" : "mouse";

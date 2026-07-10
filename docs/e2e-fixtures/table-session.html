@@ -58,6 +58,7 @@
       /** Pagat flow: legacy `enrollment` maps to post-deal decision. */
       const phase = phaseParam === "enrollment" ? "decision" : phaseParam;
       const tick = params.get("tick") !== "0";
+      let playTurnId = params.get("turn") || "p0";
       void tick;
 
       let actionFeedback = null;
@@ -96,7 +97,7 @@
       function buildPlayers() {
         const onDecisionClock = selfNeedsDecision();
         const turnId =
-          phase === "draw" ? "p0" : phase === "play" ? "p0" : null;
+          phase === "draw" ? "p0" : phase === "play" ? playTurnId : null;
 
         return ids.map((id) => {
           const isSelf = id === "p0";
@@ -157,7 +158,7 @@
           phase: cardsDealt ? phase : null,
           trumpSuit: cardsDealt ? "hearts" : null,
           trumpUpcard: cardsDealt ? { rank: "7", suit: "hearts" } : null,
-          turnPlayerId: phase === "draw" ? "p0" : phase === "play" ? "p0" : null,
+          turnPlayerId: phase === "draw" ? "p0" : phase === "play" ? playTurnId : null,
           remainingDeckCount: phase === "draw" ? 28 : null,
           maxDrawDiscards: 4,
           handEnrollment:
@@ -203,7 +204,7 @@
           currentUserId: "p0",
           heroCards,
           privateHandReady: cardsDealt,
-          legalPlayIndices: phase === "play" ? [0, 1, 2] : null,
+          legalPlayIndices: phase === "play" ? [0, 1, 2, 3, 4] : null,
           actionFeedback,
           actions: {
             onToggleInHand: (inHand) => {
@@ -259,6 +260,11 @@
       function render() {
         mountTableSession(root, buildProps());
       }
+
+      window.__fixtureAdvancePlayTurn = (nextTurnId) => {
+        playTurnId = nextTurnId;
+        render();
+      };
 
       render();
     </script>

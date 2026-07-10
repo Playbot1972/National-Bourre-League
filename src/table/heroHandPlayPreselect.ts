@@ -52,6 +52,38 @@ export function shouldSwipeImmediatePlay(isMyTurn: boolean, isLegal: boolean): b
   return isMyTurn && isLegal;
 }
 
+export interface PlayActivityContext {
+  handNumber: number;
+  trickNumber: number | null;
+  turnPlayerId: string | null;
+  phase: string | null;
+}
+
+export function buildPlayActivityKey(ctx: PlayActivityContext): string {
+  return `${ctx.handNumber}:${ctx.trickNumber ?? 0}:${ctx.turnPlayerId ?? ""}:${ctx.phase ?? ""}`;
+}
+
+/**
+ * Out-of-turn pre-play queue survives opponent turn/trick advances.
+ * Clear only on hand or phase boundaries (new hand or leaving play context).
+ */
+export function shouldClearQueuedPlayOnActivityChange(
+  prev: PlayActivityContext,
+  next: PlayActivityContext,
+): boolean {
+  return prev.handNumber !== next.handNumber || (prev.phase ?? "") !== (next.phase ?? "");
+}
+
+export function parsePlayActivityKey(key: string): PlayActivityContext {
+  const [handNumber, trickNumber, turnPlayerId, phase] = key.split(":");
+  return {
+    handNumber: Number(handNumber) || 0,
+    trickNumber: trickNumber === "" || trickNumber === "0" ? null : Number(trickNumber),
+    turnPlayerId: turnPlayerId || null,
+    phase: phase || null,
+  };
+}
+
 /** Best Play highlight gate — independent of manual selectedPlay / preselect state. */
 export function shouldShowBestPlayRecommendation(input: {
   showBestPlayControl: boolean;
