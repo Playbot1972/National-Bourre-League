@@ -10,6 +10,7 @@ import "./App.css";
 export type Screen = "home" | "rules" | "tutorial" | "room";
 
 const SOCIAL_BASE = "/social/";
+const VALID_SCREENS = new Set<Screen>(["home", "rules", "tutorial", "room"]);
 
 const MAIN_NAV: { label: string; href: string; active?: boolean }[] = [
   { label: "Tutorial", href: "/", active: true },
@@ -20,11 +21,13 @@ const MAIN_NAV: { label: string; href: string; active?: boolean }[] = [
   { label: "Leagues", href: `${SOCIAL_BASE}#leagues` },
 ];
 
-const LEARN_SUBNAV: { label: string; screen: Screen }[] = [
-  { label: "Rules", screen: "rules" },
-  { label: "Tutorial", screen: "tutorial" },
-  { label: "Private room", screen: "room" },
-];
+function screenFromLocation(): Screen {
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (view && VALID_SCREENS.has(view as Screen)) {
+    return view as Screen;
+  }
+  return "home";
+}
 
 function shouldCheckForUpdates() {
   const host = window.location.hostname;
@@ -32,13 +35,28 @@ function shouldCheckForUpdates() {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>(screenFromLocation);
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
     initTheme();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (screen === "home") {
+      if (!params.has("view")) return;
+      params.delete("view");
+      const qs = params.toString();
+      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+      window.history.replaceState(null, "", next);
+      return;
+    }
+    if (params.get("view") === screen) return;
+    params.set("view", screen);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [screen]);
 
   useEffect(() => {
     if (!shouldCheckForUpdates()) return;
@@ -90,62 +108,44 @@ export default function App() {
         </div>
       ) : null}
       <header className="app__header">
-        <div className="app__header-row">
-          <button
-            className="app__brand"
-            onClick={() => setScreen("home")}
-            aria-label="National Bourré League home"
-          >
-            <span className="app__brand-mark">♠</span>
-            <span className="app__brand-text">
-              National <em>Bourré</em> League
-            </span>
-          </button>
-          <nav className="app__nav app__nav--primary" aria-label="Primary">
-            {MAIN_NAV.map((item) => (
-              <a
-                key={item.label}
-                className={`app__nav-link${item.active ? " is-active" : ""}`}
-                href={item.href}
-                aria-current={item.active ? "page" : undefined}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-pressed={theme === "light"}
-            aria-label={
-              theme === "light"
-                ? "Switch to dark mode"
-                : "Switch to light mode (US currency)"
-            }
-            title={theme === "light" ? "Dark mode" : "Light mode · US currency"}
-          >
-            <span className="theme-toggle__icon" aria-hidden="true">
-              {theme === "light" ? "☾" : "☀"}
-            </span>
-          </button>
-        </div>
-        <nav className="app__subnav" aria-label="Learn section">
-          {LEARN_SUBNAV.map((item) => (
-            <button
-              key={item.screen}
-              type="button"
-              className={`app__nav-link${screen === item.screen ? " is-active" : ""}`}
-              onClick={() => setScreen(item.screen)}
-              aria-current={screen === item.screen ? "page" : undefined}
+        <button
+          className="app__brand"
+          onClick={() => setScreen("home")}
+          aria-label="National Bourré League home"
+        >
+          <span className="app__brand-mark">♠</span>
+          <span className="app__brand-text">
+            National <em>Bourré</em> League
+          </span>
+        </button>
+        <nav className="app__nav app__nav--primary" aria-label="Primary">
+          {MAIN_NAV.map((item) => (
+            <a
+              key={item.label}
+              className={`app__nav-link${item.active ? " is-active" : ""}`}
+              href={item.href}
+              aria-current={item.active ? "page" : undefined}
             >
               {item.label}
-            </button>
+            </a>
           ))}
-          <a className="app__nav-link" href={SOCIAL_BASE}>
-            Social
-          </a>
         </nav>
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-pressed={theme === "light"}
+          aria-label={
+            theme === "light"
+              ? "Switch to dark mode"
+              : "Switch to light mode (US currency)"
+          }
+          title={theme === "light" ? "Dark mode" : "Light mode · US currency"}
+        >
+          <span className="theme-toggle__icon" aria-hidden="true">
+            {theme === "light" ? "☾" : "☀"}
+          </span>
+        </button>
       </header>
 
       <main className="app__main">

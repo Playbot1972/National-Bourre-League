@@ -113,8 +113,43 @@
 
       <!-- Private Rooms (protected) -->
       <section class="view" id="view-rooms" hidden>
-        <span class="eyebrow">Private Rooms</span>
-        <h2>Your private rooms</h2>
+        <span class="eyebrow">Rooms</span>
+        <h2>Private rooms</h2>
+        <div class="rooms-scope-tabs session-tabs" role="tablist" aria-label="Room types">
+          <button
+            type="button"
+            class="session-tab is-active"
+            id="rooms-scope-online"
+            data-rooms-scope="online"
+            role="tab"
+            aria-selected="true"
+            aria-controls="rooms-online-panel"
+          >
+            My rooms
+          </button>
+          <button
+            type="button"
+            class="session-tab"
+            id="rooms-scope-practice"
+            data-rooms-scope="practice"
+            role="tab"
+            aria-selected="false"
+            aria-controls="rooms-practice-panel"
+          >
+            Practice room
+          </button>
+        </div>
+        <div id="rooms-practice-panel" class="rooms-scope-panel" role="tabpanel" hidden>
+          <div class="panel rooms-practice-card">
+            <h3>Practice room</h3>
+            <p class="muted">
+              In-memory scorekeeping to learn the table flow — no sign-in required.
+              For live games with friends, use <strong>My rooms</strong>.
+            </p>
+            <a class="btn btn--primary" href="/?view=room">Open practice room</a>
+          </div>
+        </div>
+        <div id="rooms-online-panel" class="rooms-scope-panel" role="tabpanel">
         <div class="protected" data-protected>
           <div class="locked" data-locked hidden>
             <p>Sign in to view and create private rooms.</p>
@@ -152,6 +187,7 @@
             <!-- Detail view (rendered by app.js) -->
             <div id="room-detail-view" hidden></div>
           </div>
+        </div>
         </div>
       </section>
 

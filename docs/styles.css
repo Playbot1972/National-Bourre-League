@@ -932,6 +932,15 @@ body.room-detail-open .room-actions {
   line-height: 1.45;
 }
 
+.rooms-scope-tabs {
+  margin: 12px 0 16px;
+}
+
+.rooms-practice-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
 .game-setup-panel__step {
   margin: 0 0 6px;
   padding: 8px 12px;
