@@ -93,18 +93,20 @@ function playEventSound(payload: CardAudioEventPayload): void {
   const soundKey = soundKeyForEvent(payload.type);
   if (!shouldPlaySoundEvent(prefs.soundMode, soundKey)) return;
 
+  const meta = { source: "AudioManager", action: payload.type };
+
   switch (payload.type) {
     case "card:played":
-      playCardPlaceSound(payload.intensityTier);
+      playCardPlaceSound(payload.intensityTier, meta);
       break;
     case "card:lead-change":
-      playLeadChangeSound(payload.intensityTier);
+      playLeadChangeSound(payload.intensityTier, meta);
       break;
     case "trick:won":
-      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1, Boolean(payload.isLocalPlayer));
+      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1, Boolean(payload.isLocalPlayer), meta);
       break;
     case "trick:collected":
-      playTrickCollectSound();
+      playTrickCollectSound(meta);
       break;
   }
 }

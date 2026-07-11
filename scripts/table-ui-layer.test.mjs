@@ -13,7 +13,8 @@ describe("table UI layer modules", () => {
     const calls = [];
     const api = {
       playTrickWinFeedback: () => calls.push("trick"),
-      playBigWinFeedback: () => calls.push("big"),
+      playPotWinFeedback: () => calls.push("pot"),
+      playBigWinFeedback: () => calls.push("pot"),
       playShuffleFeedback: () => calls.push("shuffle"),
     };
     const prev = {

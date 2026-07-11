@@ -18,7 +18,8 @@ describe("feedback prefs", () => {
     assert.equal(shouldPlaySoundEvent("minimal", "draw"), false);
     assert.equal(shouldPlaySoundEvent("minimal", "gameStart"), false);
     assert.equal(shouldPlaySoundEvent("minimal", "trickWin"), true);
-    assert.equal(shouldPlaySoundEvent("minimal", "bigWin"), true);
+    assert.equal(shouldPlaySoundEvent("minimal", "potWin"), true);
+    assert.equal(shouldPlaySoundEvent("minimal", "handWin"), true);
     assert.equal(shouldPlaySoundEvent("minimal", "bourre"), true);
   });
 
