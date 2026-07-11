@@ -35,10 +35,11 @@ describe("audioAudit", () => {
         timestamp: 2,
       },
       {
-        triggerType: "procedural-only",
-        action: "draw-replace",
+        triggerType: "action",
+        action: "draw",
         event: "draw",
-        result: "procedural-only",
+        result: "asset-played",
+        filename: "draw.wav",
         timestamp: 3,
       },
     ];
@@ -51,8 +52,9 @@ describe("audioAudit", () => {
 
     const draw = groups.find((g) => g.event === "draw");
     assert.ok(draw);
-    assert.equal(draw!.triggerType, "procedural-only");
-    assert.equal(draw!.results["procedural-only"], 1);
+    assert.equal(draw!.triggerType, "action");
+    assert.equal(draw!.results["asset-played"], 1);
+    assert.deepEqual(draw!.filenames, ["draw.wav"]);
   });
 });
 
@@ -61,9 +63,17 @@ describe("sound trigger classification", () => {
     assert.equal(SOUND_EVENT_TRIGGER_TYPE.cardSelect, "action");
     assert.equal(SOUND_EVENT_TRIGGER_TYPE.cardIllegal, "action");
     assert.equal(SOUND_EVENT_TRIGGER_TYPE.uiButton, "action");
-    assert.equal(SOUND_EVENT_TRIGGER_TYPE.bigWin, "action");
-    assert.equal(SOUND_EVENT_TRIGGER_TYPE.bourre, "action");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.draw, "action");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.fold, "action");
     assert.equal(SOUND_EVENT_TRIGGER_TYPE.gameStart, "action");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.openRoom, "action");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.deleteRoom, "action");
+  });
+
+  it("classifies outcome-driven events", () => {
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.potWin, "outcome");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.handWin, "outcome");
+    assert.equal(SOUND_EVENT_TRIGGER_TYPE.bourre, "outcome");
   });
 
   it("classifies animation-driven events", () => {
@@ -74,9 +84,8 @@ describe("sound trigger classification", () => {
     assert.equal(SOUND_EVENT_TRIGGER_TYPE.trickCollect, "animation");
   });
 
-  it("keeps draw procedural-only with no asset", () => {
-    assert.equal(SOUND_EVENT_TRIGGER_TYPE.draw, "procedural-only");
-    assert.equal(resolveSoundAsset("classic", "draw"), null);
+  it("maps draw to draw.wav asset", () => {
+    assert.equal(resolveSoundAsset("classic", "draw"), "draw");
   });
 
   it("maps representative animation card place to tiered WAV", () => {

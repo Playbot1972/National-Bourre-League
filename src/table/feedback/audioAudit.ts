@@ -14,7 +14,7 @@ export type TableAudioFallbackReason =
   | "deduped"
   | "skipped-muted";
 
-export type AudioAuditTriggerType = "action" | "animation" | "procedural-only";
+export type AudioAuditTriggerType = "action" | "animation" | "outcome";
 
 export type AudioAuditResult =
   | "asset-played"

@@ -13,27 +13,26 @@ chmod +x scripts/copy-table-sounds.sh
 Until files are copied, procedural Web Audio fallbacks in `src/table/feedback/audio.ts`
 remain active.
 
-## Classic pack (15 files)
+## Classic pack (16 files)
 
 | File | Sound ID | Event |
 | --- | --- | --- |
 | `card-place-normal.wav` | `card-place-normal` | Card lands in trick (tier 0) |
 | `card-place-soft.wav` | `card-place-soft` | Card lands (tier 1) |
-| `card-place-heavy.wav` | `card-place-heavy` | Card lands (tier 2) |
+| `card-place-heavy.wav` | `card-place-heavy` | Card lands (tier 2), fold |
 | `lead-sweetener-light.wav` | `lead-sweetener-light` | Takes trick lead (tier 0–1) |
 | `lead-sweetener-strong.wav` | `lead-sweetener-strong` | Takes trick lead (tier 2) |
 | `trick-win-normal.wav` | `trick-win-normal` | Trick resolved |
 | `trick-win-big.wav` | `trick-win-big` | Local player wins trick |
-| `hand-win-stinger.wav` | `hand-win-stinger` | Local player wins hand / pot |
-| `card-shuffle-normal.wav` | `card-shuffle-normal` | Hand deal shuffle |
-| `card-shuffle-final.wav` | `card-shuffle-final` | Final deal shuffle sting (`shuffleFinal`) |
+| `hand-win-stinger.wav` | `hand-win-stinger` | Pot / main hand win (`potWin`) |
+| `card-shuffle-normal.wav` | `card-shuffle-normal` | Hand deal shuffle, game start |
+| `card-shuffle-final.wav` | `card-shuffle-final` | Final shuffle sting, open room |
 | `card-select.wav` | `card-select` | Card tap / queue in hand |
-| `card-illegal.wav` | `card-illegal` | Illegal play attempt |
-| `ui-button-press.wav` | `ui-button-press` | Draw / pat / fold + game start |
-| `coin-chime-light.wav` | `coin-chime-light` | Trick collected to pile |
-| `victory-jingle.wav` | `victory-jingle` | Bourré moment |
-
-**Procedural only:** `draw` (no dedicated asset yet).
+| `card-illegal.wav` | `card-illegal` | Illegal play, delete room |
+| `ui-button-press.wav` | `ui-button-press` | Stand pat and other UI buttons |
+| `coin-chime-light.wav` | `coin-chime-light` | Trick collected, hand win |
+| `draw.wav` | `draw` | Draw action / replacement |
+| `Fahhh.wav` | `Fahhh` | Bourré moment |
 
 ## Premium packs
 
@@ -79,17 +78,17 @@ printTableAudioAuditSummary()  // grouped by action/event + filenames
 resetTableAudioAudit()         // clear buffer
 ```
 
-Each record includes `triggerType` (`action` | `animation` | `procedural-only`),
+Each record includes `triggerType` (`action` | `animation` | `outcome`),
 `event`, `result` (`asset-played`, `procedural-fallback`, …), and `filename` when known.
 
 **Trigger layers:**
 
 | Layer | API | Examples |
 | --- | --- | --- |
-| Action | `playActionSound` via `service.ts` | card tap, UI buttons, hand win |
+| Action | `playActionSound` via `service.ts` | card tap, draw, fold, open/delete room |
 | Animation | `playAnimationSound` via `AudioManager` | card land, trick won, shuffle |
-| Procedural-only | `draw` event | draw replacement (no WAV asset) |
+| Outcome | `playOutcomeSound` via `service.ts` | pot win, hand win, bourré |
 
-**Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, and bourré only.
+**Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, hand wins, and bourré only.
 
 Keep files short and normalized for mobile speakers. See **Production format** in the implementation notes for WAV vs MP3 guidance.

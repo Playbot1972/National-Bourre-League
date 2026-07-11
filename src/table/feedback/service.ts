@@ -1,10 +1,14 @@
 import {
-  playBigWinSound,
   playBourreSound,
   playCardIllegalSound,
   playCardSelectSound,
+  playDeleteRoomSound,
   playDrawSound,
+  playFoldSound,
   playGameStartSound,
+  playHandWinSound,
+  playOpenRoomSound,
+  playPotWinSound,
   playShuffleSound,
   playTrickWinSound,
   playUiButtonSound,
@@ -29,9 +33,13 @@ export const DEAL_ANIM_DURATION_MS = 500;
 const SHUFFLE_COOLDOWN_MS = 700;
 const DRAW_COOLDOWN_MS = 500;
 const TRICK_WIN_COOLDOWN_MS = 450;
-const BIG_WIN_COOLDOWN_MS = 1200;
+const POT_WIN_COOLDOWN_MS = 1200;
+const HAND_WIN_COOLDOWN_MS = 800;
 const BOURRE_COOLDOWN_MS = 2000;
 const GAME_START_COOLDOWN_MS = 1500;
+const OPEN_ROOM_COOLDOWN_MS = 1200;
+const DELETE_ROOM_COOLDOWN_MS = 800;
+const FOLD_COOLDOWN_MS = 400;
 const ILLEGAL_ACTION_COOLDOWN_MS = 280;
 const CARD_SELECT_COOLDOWN_MS = 90;
 const UI_BUTTON_COOLDOWN_MS = 120;
@@ -39,9 +47,13 @@ const UI_BUTTON_COOLDOWN_MS = 120;
 let lastShuffleAt = 0;
 let lastDrawAt = 0;
 let lastTrickWinAt = 0;
-let lastBigWinAt = 0;
+let lastPotWinAt = 0;
+let lastHandWinAt = 0;
 let lastBourreAt = 0;
 let lastGameStartAt = 0;
+let lastOpenRoomAt = 0;
+let lastDeleteRoomAt = 0;
+let lastFoldAt = 0;
 let lastIllegalActionAt = 0;
 let lastCardSelectAt = 0;
 let lastUiButtonAt = 0;
@@ -89,9 +101,7 @@ export function initGameFeedback(): void {
 }
 
 export interface ShuffleFeedbackOptions {
-  /** Delay before audio/haptic to match deal animation (ms). */
   delayMs?: number;
-  /** Use the heavier final shuffle sting (e.g. last deal card). */
   variant?: "normal" | "final";
 }
 
@@ -131,9 +141,9 @@ export function playDrawFeedback(): void {
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;
-  maybePlaySound("draw", () => playDrawSound({ source: "playDrawFeedback", action: "draw-replace" }), {
+  maybePlaySound("draw", () => playDrawSound({ source: "playDrawFeedback", action: "draw" }), {
     source: "playDrawFeedback",
-    action: "draw-replace",
+    action: "draw",
   });
   fireHaptic("light");
 }
@@ -150,15 +160,31 @@ export function playTrickWinFeedback(): void {
   fireHaptic("medium");
 }
 
-export function playBigWinFeedback(): void {
+export function playPotWinFeedback(): void {
   const now = Date.now();
-  if (now - lastBigWinAt < BIG_WIN_COOLDOWN_MS) return;
-  lastBigWinAt = now;
-  maybePlaySound("bigWin", () => playBigWinSound({ source: "playBigWinFeedback", action: "hand-win" }), {
-    source: "playBigWinFeedback",
-    action: "hand-win",
+  if (now - lastPotWinAt < POT_WIN_COOLDOWN_MS) return;
+  lastPotWinAt = now;
+  maybePlaySound("potWin", () => playPotWinSound({ source: "playPotWinFeedback", action: "pot-win" }), {
+    source: "playPotWinFeedback",
+    action: "pot-win",
   });
   fireHaptic("strong");
+}
+
+/** @deprecated Use playPotWinFeedback */
+export function playBigWinFeedback(): void {
+  playPotWinFeedback();
+}
+
+export function playHandWinFeedback(): void {
+  const now = Date.now();
+  if (now - lastHandWinAt < HAND_WIN_COOLDOWN_MS) return;
+  lastHandWinAt = now;
+  maybePlaySound("handWin", () => playHandWinSound({ source: "playHandWinFeedback", action: "hand-win" }), {
+    source: "playHandWinFeedback",
+    action: "hand-win",
+  });
+  fireHaptic("medium");
 }
 
 export function playBourreFeedback(): void {
@@ -181,6 +207,44 @@ export function playGameStartFeedback(): void {
     () => playGameStartSound({ source: "playGameStartFeedback", action: "game-start" }),
     { source: "playGameStartFeedback", action: "game-start" },
   );
+  fireHaptic("light");
+}
+
+export function playOpenRoomFeedback(): void {
+  unlockIfInteractive();
+  const now = Date.now();
+  if (now - lastOpenRoomAt < OPEN_ROOM_COOLDOWN_MS) return;
+  lastOpenRoomAt = now;
+  maybePlaySound(
+    "openRoom",
+    () => playOpenRoomSound({ source: "playOpenRoomFeedback", action: "open-room" }),
+    { source: "playOpenRoomFeedback", action: "open-room" },
+  );
+  fireHaptic("light");
+}
+
+export function playDeleteRoomFeedback(): void {
+  unlockIfInteractive();
+  const now = Date.now();
+  if (now - lastDeleteRoomAt < DELETE_ROOM_COOLDOWN_MS) return;
+  lastDeleteRoomAt = now;
+  maybePlaySound(
+    "deleteRoom",
+    () => playDeleteRoomSound({ source: "playDeleteRoomFeedback", action: "delete-room" }),
+    { source: "playDeleteRoomFeedback", action: "delete-room" },
+  );
+  fireHaptic("light");
+}
+
+export function playFoldFeedback(): void {
+  unlockIfInteractive();
+  const now = Date.now();
+  if (now - lastFoldAt < FOLD_COOLDOWN_MS) return;
+  lastFoldAt = now;
+  maybePlaySound("fold", () => playFoldSound({ source: "playFoldFeedback", action: "fold" }), {
+    source: "playFoldFeedback",
+    action: "fold",
+  });
   fireHaptic("light");
 }
 

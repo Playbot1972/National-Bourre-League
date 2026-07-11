@@ -11,8 +11,8 @@ import {
 } from "./soundPacks";
 
 describe("sound asset registry", () => {
-  it("lists all 15 classic WAV assets", () => {
-    assert.equal(ALL_SOUND_ASSET_IDS.length, 15);
+  it("lists all 16 classic WAV assets", () => {
+    assert.equal(ALL_SOUND_ASSET_IDS.length, 16);
     for (const id of ALL_SOUND_ASSET_IDS) {
       assert.match(SOUND_ASSET_FILES[id], /\.wav$/);
     }
@@ -44,8 +44,14 @@ describe("sound asset registry", () => {
     );
   });
 
-  it("keeps draw procedural-only", () => {
-    assert.equal(resolveSoundAsset("classic", "draw"), null);
+  it("resolves draw to draw.wav asset", () => {
+    assert.equal(resolveSoundAsset("classic", "draw"), "draw");
+    assert.equal(SOUND_ASSET_FILES.draw, "draw.wav");
+  });
+
+  it("resolves bourre to Fahhh.wav exactly", () => {
+    assert.equal(resolveSoundAsset("classic", "bourre"), "Fahhh");
+    assert.equal(SOUND_ASSET_FILES.Fahhh, "Fahhh.wav");
   });
 
   it("resolves hosting paths under ./sounds/ in non-browser builds", () => {
@@ -85,9 +91,15 @@ describe("sound asset registry", () => {
   });
 
   it("documents event-to-asset mapping for QA", () => {
-    assert.equal(SOUND_EVENT_TO_ASSET.bigWin, "hand-win-stinger");
+    assert.equal(SOUND_EVENT_TO_ASSET.potWin, "hand-win-stinger");
+    assert.equal(SOUND_EVENT_TO_ASSET.handWin, "coin-chime-light");
     assert.equal(SOUND_EVENT_TO_ASSET.trickCollect, "coin-chime-light");
     assert.equal(SOUND_EVENT_TO_ASSET.cardIllegal, "card-illegal");
     assert.equal(SOUND_EVENT_TO_ASSET.shuffleFinal, "card-shuffle-final");
+    assert.equal(SOUND_EVENT_TO_ASSET.openRoom, "card-shuffle-final");
+    assert.equal(SOUND_EVENT_TO_ASSET.fold, "card-place-heavy");
+    assert.equal(SOUND_EVENT_TO_ASSET.gameStart, "card-shuffle-normal");
+    assert.equal(SOUND_EVENT_TO_ASSET.deleteRoom, "card-illegal");
+    assert.equal(SOUND_EVENT_TO_ASSET.bourre, "Fahhh");
   });
 });

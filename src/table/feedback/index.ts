@@ -3,9 +3,14 @@ export {
   playShuffleFeedback,
   playDrawFeedback,
   playTrickWinFeedback,
+  playPotWinFeedback,
   playBigWinFeedback,
+  playHandWinFeedback,
   playBourreFeedback,
   playGameStartFeedback,
+  playOpenRoomFeedback,
+  playDeleteRoomFeedback,
+  playFoldFeedback,
   playIllegalActionFeedback,
   playCardSelectFeedback,
   playUiButtonFeedback,
@@ -28,6 +33,7 @@ export {
   printTableAudioAuditSummary,
   playActionSound,
   playAnimationSound,
+  playOutcomeSound,
 } from "./audio";
 export { hapticsSupported } from "./haptics";
 export {

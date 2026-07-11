@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copy the 15 table WAV assets from a local folder (default: ~/Downloads) into docs/sounds/.
+# Copy the 16 table WAV assets from a local folder (default: ~/Downloads) into docs/sounds/.
 set -euo pipefail
 
 SRC="${1:-$HOME/Downloads}"
@@ -20,7 +20,8 @@ FILES=(
   card-illegal.wav
   ui-button-press.wav
   coin-chime-light.wav
-  victory-jingle.wav
+  draw.wav
+  Fahhh.wav
 )
 
 mkdir -p "$DEST"

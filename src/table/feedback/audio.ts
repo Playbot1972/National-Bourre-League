@@ -470,9 +470,13 @@ const PROCEDURAL_BY_EVENT: Record<SoundEventKey, (packId: SoundPackId, ctx?: Sou
   leadChange: (packId, ctx) => playProceduralLeadChange(packId, ctx?.intensityTier ?? 0),
   trickWin: (packId, ctx) => playProceduralTrickWin(packId, ctx?.volumeScale ?? 1),
   trickCollect: (packId) => playProceduralTrickCollect(packId),
-  bigWin: (packId) => playProceduralBigWin(packId),
+  handWin: (packId) => playProceduralTrickCollect(packId),
+  potWin: (packId) => playProceduralBigWin(packId),
   bourre: (packId) => playProceduralBourre(packId),
-  gameStart: (packId) => playProceduralGameStart(packId),
+  gameStart: (packId) => playProceduralShuffle(packId),
+  openRoom: (packId) => playProceduralShuffle(packId),
+  deleteRoom: (packId) => playProceduralCardIllegal(packId),
+  fold: (packId, ctx) => playProceduralCardPlace(packId, 2),
   cardSelect: (packId) => playProceduralCardSelect(packId),
   cardIllegal: (packId) => playProceduralCardIllegal(packId),
   uiButton: (packId) => playProceduralUiTap(packId),
@@ -486,9 +490,13 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   leadChange: { current: false },
   trickWin: { current: false },
   trickCollect: { current: false },
-  bigWin: { current: false },
+  handWin: { current: false },
+  potWin: { current: false },
   bourre: { current: false },
   gameStart: { current: false },
+  openRoom: { current: false },
+  deleteRoom: { current: false },
+  fold: { current: false },
   cardSelect: { current: false },
   cardIllegal: { current: false },
   uiButton: { current: false },
@@ -502,9 +510,13 @@ const RESET_MS: Record<SoundEventKey, number> = {
   leadChange: 180,
   trickWin: 320,
   trickCollect: 280,
-  bigWin: 580,
+  handWin: 320,
+  potWin: 580,
   bourre: 520,
   gameStart: 320,
+  openRoom: 400,
+  deleteRoom: 200,
+  fold: 200,
   cardSelect: 100,
   cardIllegal: 200,
   uiButton: 120,
@@ -518,9 +530,13 @@ const VOLUME: Record<SoundEventKey, number> = {
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
-  bigWin: 0.6,
+  handWin: 0.4,
+  potWin: 0.6,
   bourre: 0.5,
   gameStart: 0.42,
+  openRoom: 0.5,
+  deleteRoom: 0.4,
+  fold: 0.42,
   cardSelect: 0.32,
   cardIllegal: 0.4,
   uiButton: 0.36,
@@ -648,40 +664,43 @@ async function playSoundEvent(
   }
 }
 
-/** User/game intent — fires on tap, button press, or session milestone. */
+/** User/game intent — tap, button, room/session actions. */
 export function playActionSound(
   event: SoundEventKey,
   ctx: SoundResolveContext = {},
   meta: PlaySoundMeta = {},
 ): void {
   const expected = SOUND_EVENT_TRIGGER_TYPE[event];
-  if (expected === "animation") {
+  if (expected !== "action") {
     logTableAudio("trigger-mismatch", { event, expected, got: "action", ...meta });
   }
-  void playSoundEvent(
-    event,
-    expected === "procedural-only" ? "procedural-only" : "action",
-    ctx,
-    meta,
-  );
+  void playSoundEvent(event, "action", ctx, meta);
 }
 
-/** Visual impact — fires from animation land, reveal, or deal timing hooks. */
+/** Visual impact — card land, trick resolve, deal shuffle. */
 export function playAnimationSound(
   event: SoundEventKey,
   ctx: SoundResolveContext = {},
   meta: PlaySoundMeta = {},
 ): void {
   const expected = SOUND_EVENT_TRIGGER_TYPE[event];
-  if (expected === "action" || expected === "procedural-only") {
+  if (expected !== "animation") {
     logTableAudio("trigger-mismatch", { event, expected, got: "animation", ...meta });
   }
-  void playSoundEvent(
-    event,
-    expected === "procedural-only" ? "procedural-only" : "animation",
-    ctx,
-    meta,
-  );
+  void playSoundEvent(event, "animation", ctx, meta);
+}
+
+/** Hand/session outcome — pot win, hand win, bourré. */
+export function playOutcomeSound(
+  event: SoundEventKey,
+  ctx: SoundResolveContext = {},
+  meta: PlaySoundMeta = {},
+): void {
+  const expected = SOUND_EVENT_TRIGGER_TYPE[event];
+  if (expected !== "outcome") {
+    logTableAudio("trigger-mismatch", { event, expected, got: "outcome", ...meta });
+  }
+  void playSoundEvent(event, "outcome", ctx, meta);
 }
 
 export function playShuffleSound(
@@ -729,16 +748,37 @@ export function playTrickWinSound(
   );
 }
 
+export function playPotWinSound(meta: PlaySoundMeta = {}): void {
+  playOutcomeSound("potWin", {}, { ...meta, action: meta.action ?? "pot-win" });
+}
+
+/** @deprecated Use playPotWinSound */
 export function playBigWinSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("bigWin", {}, { ...meta, action: meta.action ?? "hand-win" });
+  playPotWinSound(meta);
+}
+
+export function playHandWinSound(meta: PlaySoundMeta = {}): void {
+  playOutcomeSound("handWin", {}, { ...meta, action: meta.action ?? "hand-win" });
 }
 
 export function playBourreSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("bourre", {}, { ...meta, action: meta.action ?? "bourre" });
+  playOutcomeSound("bourre", {}, { ...meta, action: meta.action ?? "bourre" });
 }
 
 export function playGameStartSound(meta: PlaySoundMeta = {}): void {
   playActionSound("gameStart", {}, { ...meta, action: meta.action ?? "game-start" });
+}
+
+export function playOpenRoomSound(meta: PlaySoundMeta = {}): void {
+  playActionSound("openRoom", {}, { ...meta, action: meta.action ?? "open-room" });
+}
+
+export function playDeleteRoomSound(meta: PlaySoundMeta = {}): void {
+  playActionSound("deleteRoom", {}, { ...meta, action: meta.action ?? "delete-room" });
+}
+
+export function playFoldSound(meta: PlaySoundMeta = {}): void {
+  playActionSound("fold", {}, { ...meta, action: meta.action ?? "fold" });
 }
 
 export function playCardSelectSound(meta: PlaySoundMeta = {}): void {
