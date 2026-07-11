@@ -9,31 +9,12 @@
   top: 0;
   z-index: 10;
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0;
-  padding: 0;
+  align-items: center;
+  gap: 16px;
+  padding: 14px clamp(16px, 4vw, 48px);
   background: var(--surface-topbar);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--surface-topbar-border);
-}
-
-.app__header-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 14px clamp(16px, 4vw, 48px) 10px;
-  width: 100%;
-}
-
-.app__subnav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 8px clamp(16px, 4vw, 48px) 10px;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-panel-muted);
 }
 
 .app__brand {
@@ -387,10 +368,10 @@
     max-width: 100%;
   }
 
-  .app__header-row {
+  .app__header {
     flex-wrap: wrap;
     gap: 8px 10px;
-    padding: 10px clamp(12px, 3vw, 20px) 8px;
+    padding: 10px clamp(12px, 3vw, 20px);
   }
 
   .app__brand {
@@ -410,15 +391,6 @@
     flex: 1 1 100%;
     margin-left: 0;
     max-width: 100%;
-  }
-
-  .app__subnav {
-    padding: 8px clamp(12px, 3vw, 20px) 10px;
-    gap: 4px;
-  }
-
-  .theme-toggle {
-    margin-left: 0;
   }
 
   .app__nav-link {

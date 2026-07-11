@@ -613,25 +613,63 @@ function renderSession() {
 // ---------------------------------------------------------------------------
 const PROTECTED = new Set(["rooms", "leaderboard", "leagues"]);
 
+function parseRoute() {
+  const raw = location.hash.replace("#", "") || "home";
+  if (raw === "rooms-practice") {
+    return { view: "rooms", roomsScope: "practice" };
+  }
+  return { view: raw, roomsScope: "online" };
+}
+
+function applyRoomsScope(scope) {
+  const online = scope !== "practice";
+  const onlinePanel = $("#rooms-online-panel");
+  const practicePanel = $("#rooms-practice-panel");
+  const onlineTab = $("#rooms-scope-online");
+  const practiceTab = $("#rooms-scope-practice");
+  onlinePanel?.toggleAttribute("hidden", !online);
+  practicePanel?.toggleAttribute("hidden", online);
+  onlineTab?.classList.toggle("is-active", online);
+  practiceTab?.classList.toggle("is-active", !online);
+  onlineTab?.setAttribute("aria-selected", online ? "true" : "false");
+  practiceTab?.setAttribute("aria-selected", online ? "false" : "true");
+}
+
 function showView() {
-  let view = location.hash.replace("#", "") || "home";
-  if (PROTECTED.has(view) && !isAuthed()) {
+  const { view, roomsScope } = parseRoute();
+  let effectiveView = view;
+  const practiceRoomsPublic = view === "rooms" && roomsScope === "practice";
+  if (PROTECTED.has(view) && !practiceRoomsPublic && !isAuthed()) {
     openAuth("signin");
-    view = "home";
+    effectiveView = "home";
     location.hash = "#home";
   }
   $$(".view").forEach((sec) => {
-    sec.hidden = sec.id !== `view-${view}`;
+    sec.hidden = sec.id !== `view-${effectiveView}`;
   });
   $$(".nav__link").forEach((link) => {
-    link.classList.toggle("is-active", link.getAttribute("href") === `#${view}`);
+    const href = link.getAttribute("href");
+    const active =
+      href === `#${effectiveView}` ||
+      (href === "#rooms" && effectiveView === "rooms");
+    link.classList.toggle("is-active", active);
   });
-  if (view === "rules") {
+  if (effectiveView === "rooms") {
+    applyRoomsScope(roomsScope);
+  }
+  if (effectiveView === "rules") {
     renderRulesView($("#rules-root"));
   }
 }
 
 window.addEventListener("hashchange", showView);
+
+$(".rooms-scope-tabs")?.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-rooms-scope]");
+  if (!tab) return;
+  const scope = tab.getAttribute("data-rooms-scope");
+  location.hash = scope === "practice" ? "#rooms-practice" : "#rooms";
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
