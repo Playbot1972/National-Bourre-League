@@ -62,12 +62,8 @@ export function isSessionAutoDealtNextHand(sessionObj) {
 
 export function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
   const handNum = (sessionObj?.handCount ?? 0) + 1;
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
   if (isSessionAutoDealtNextHand(sessionObj)) {
-    if (phase === "reveal" || phase === "decision") {
-      return `Hand #${handNum} — see your cards, then play or pass`;
-    }
-    return `Hand #${handNum} — dealing next hand…`;
+    return null;
   }
   return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
 }

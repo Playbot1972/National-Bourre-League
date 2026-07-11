@@ -1253,10 +1253,13 @@ async function openNextHandEnrollment(sessionObj) {
     scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
     const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
     const dealerLabel = dealerSc?.displayName ?? "dealer";
-    setTableActionFeedback({
-      status: "success",
-      message: nextHandOpenFeedbackMessage(refreshed, dealerLabel),
-    });
+    const nextHandMessage = nextHandOpenFeedbackMessage(refreshed, dealerLabel);
+    if (nextHandMessage) {
+      setTableActionFeedback({
+        status: "success",
+        message: nextHandMessage,
+      });
+    }
     const api = await ensureTableFeedbackApi();
     api?.playShuffleFeedback?.({ delayMs: 80 });
     logHandLifecycleTransition({
@@ -2933,6 +2936,17 @@ function commitLocalHandAction(kind, { discardCount = 0 } = {}) {
   scheduleTableSessionSync(sessionObj);
 }
 
+function restoreRoomDetailAfterTable() {
+  if (!currentRoomId) return;
+  silentTableEntry = false;
+  document.body.classList.remove("table-entry-silent");
+  document.body.classList.add("room-detail-open");
+  if (roomsListView) roomsListView.hidden = true;
+  if (roomsIntro) roomsIntro.hidden = true;
+  if (roomDetailView) roomDetailView.hidden = false;
+  scheduleRenderRoomDetail();
+}
+
 function closeTablePlay() {
   tablePlayOpen = false;
   localHandActionCommit = null;
@@ -2951,6 +2965,7 @@ function closeTablePlay() {
   } catch {
     /* ignore */
   }
+  restoreRoomDetailAfterTable();
   const openSessionObj = resolveOpenSessionObj();
   if (openSessionObj) {
     syncTableSession(openSessionObj);
