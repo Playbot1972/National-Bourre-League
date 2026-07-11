@@ -212,3 +212,22 @@ export function normalizeSoundPackId(value: unknown): SoundPackId {
   if (value === "wood" || value === "arcade") return value;
   return DEFAULT_SOUND_PACK_ID;
 }
+
+/** Whether an event is action-driven, animation-driven, or procedural-only. */
+export type SoundTriggerType = "action" | "animation" | "procedural-only";
+
+export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> = {
+  shuffle: "animation",
+  shuffleFinal: "animation",
+  draw: "procedural-only",
+  cardPlace: "animation",
+  leadChange: "animation",
+  trickWin: "animation",
+  trickCollect: "animation",
+  bigWin: "action",
+  bourre: "action",
+  gameStart: "action",
+  cardSelect: "action",
+  cardIllegal: "action",
+  uiButton: "action",
+};

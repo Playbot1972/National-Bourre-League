@@ -68,6 +68,28 @@ localStorage.setItem("nbl-table-audio-debug", "1"); // reload table
 Logs are prefixed `[table-audio]` and report resolve URLs, probe failures,
 `play()` rejections, and procedural fallback reasons.
 
+### Runtime audit buffer
+
+Every play attempt is recorded on `window.__nblTableAudioAudit` (last 300 entries).
+Helpers are installed on first audio unlock:
+
+```js
+getTableAudioAudit()           // full buffer
+printTableAudioAuditSummary()  // grouped by action/event + filenames
+resetTableAudioAudit()         // clear buffer
+```
+
+Each record includes `triggerType` (`action` | `animation` | `procedural-only`),
+`event`, `result` (`asset-played`, `procedural-fallback`, …), and `filename` when known.
+
+**Trigger layers:**
+
+| Layer | API | Examples |
+| --- | --- | --- |
+| Action | `playActionSound` via `service.ts` | card tap, UI buttons, hand win |
+| Animation | `playAnimationSound` via `AudioManager` | card land, trick won, shuffle |
+| Procedural-only | `draw` event | draw replacement (no WAV asset) |
+
 **Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, and bourré only.
 
 Keep files short and normalized for mobile speakers. See **Production format** in the implementation notes for WAV vs MP3 guidance.

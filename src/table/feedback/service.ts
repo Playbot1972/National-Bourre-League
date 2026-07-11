@@ -19,6 +19,8 @@ import {
   type FeedbackPrefs,
 } from "./prefs";
 import type { SoundEventKey } from "./soundPacks";
+import { recordTableAudioAudit } from "./audioAudit";
+import { SOUND_EVENT_TRIGGER_TYPE } from "./soundPacks";
 
 /** Align with `.bpot__card` deal-in stagger in table.css */
 export const DEAL_ANIM_STAGGER_MS = 80;
@@ -56,9 +58,23 @@ function fireHaptic(intensity: "light" | "medium" | "strong"): void {
   triggerHaptic(intensity);
 }
 
-function maybePlaySound(event: SoundEventKey, playFn: () => void): void {
+function maybePlaySound(
+  event: SoundEventKey,
+  playFn: () => void,
+  meta: { source: string; action?: string } = { source: "service" },
+): void {
   const prefs = readPrefs();
-  if (!shouldPlaySoundEvent(prefs.soundMode, event)) return;
+  if (!shouldPlaySoundEvent(prefs.soundMode, event)) {
+    recordTableAudioAudit({
+      triggerType: SOUND_EVENT_TRIGGER_TYPE[event],
+      event,
+      result: "skipped-muted",
+      fallbackReason: `soundMode:${prefs.soundMode}`,
+      source: meta.source,
+      action: meta.action ?? event,
+    });
+    return;
+  }
   playFn();
 }
 
@@ -97,8 +113,10 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
     shuffleTimer = null;
     lastShuffleAt = Date.now();
     const variant = options.variant ?? "normal";
-    maybePlaySound(variant === "final" ? "shuffleFinal" : "shuffle", () =>
-      playShuffleSound(variant),
+    maybePlaySound(
+      variant === "final" ? "shuffleFinal" : "shuffle",
+      () => playShuffleSound(variant, { source: "playShuffleFeedback", action: "deal-shuffle" }),
+      { source: "playShuffleFeedback", action: "deal-shuffle" },
     );
     fireHaptic("light");
   }, delayMs);
@@ -113,7 +131,10 @@ export function playDrawFeedback(): void {
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;
-  maybePlaySound("draw", playDrawSound);
+  maybePlaySound("draw", () => playDrawSound({ source: "playDrawFeedback", action: "draw-replace" }), {
+    source: "playDrawFeedback",
+    action: "draw-replace",
+  });
   fireHaptic("light");
 }
 
@@ -121,7 +142,11 @@ export function playTrickWinFeedback(): void {
   const now = Date.now();
   if (now - lastTrickWinAt < TRICK_WIN_COOLDOWN_MS) return;
   lastTrickWinAt = now;
-  maybePlaySound("trickWin", playTrickWinSound);
+  maybePlaySound(
+    "trickWin",
+    () => playTrickWinSound(1, true, { source: "playTrickWinFeedback", action: "trick-won" }),
+    { source: "playTrickWinFeedback", action: "trick-won" },
+  );
   fireHaptic("medium");
 }
 
@@ -129,7 +154,10 @@ export function playBigWinFeedback(): void {
   const now = Date.now();
   if (now - lastBigWinAt < BIG_WIN_COOLDOWN_MS) return;
   lastBigWinAt = now;
-  maybePlaySound("bigWin", playBigWinSound);
+  maybePlaySound("bigWin", () => playBigWinSound({ source: "playBigWinFeedback", action: "hand-win" }), {
+    source: "playBigWinFeedback",
+    action: "hand-win",
+  });
   fireHaptic("strong");
 }
 
@@ -137,7 +165,10 @@ export function playBourreFeedback(): void {
   const now = Date.now();
   if (now - lastBourreAt < BOURRE_COOLDOWN_MS) return;
   lastBourreAt = now;
-  maybePlaySound("bourre", playBourreSound);
+  maybePlaySound("bourre", () => playBourreSound({ source: "playBourreFeedback", action: "bourre" }), {
+    source: "playBourreFeedback",
+    action: "bourre",
+  });
   fireHaptic("medium");
 }
 
@@ -145,7 +176,11 @@ export function playGameStartFeedback(): void {
   const now = Date.now();
   if (now - lastGameStartAt < GAME_START_COOLDOWN_MS) return;
   lastGameStartAt = now;
-  maybePlaySound("gameStart", playGameStartSound);
+  maybePlaySound(
+    "gameStart",
+    () => playGameStartSound({ source: "playGameStartFeedback", action: "game-start" }),
+    { source: "playGameStartFeedback", action: "game-start" },
+  );
   fireHaptic("light");
 }
 
@@ -154,7 +189,11 @@ export function playIllegalActionFeedback(): void {
   const now = Date.now();
   if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
   lastIllegalActionAt = now;
-  maybePlaySound("cardIllegal", playCardIllegalSound);
+  maybePlaySound(
+    "cardIllegal",
+    () => playCardIllegalSound({ source: "playIllegalActionFeedback", action: "card-illegal" }),
+    { source: "playIllegalActionFeedback", action: "card-illegal" },
+  );
   fireHaptic("light");
 }
 
@@ -163,7 +202,11 @@ export function playCardSelectFeedback(): void {
   const now = Date.now();
   if (now - lastCardSelectAt < CARD_SELECT_COOLDOWN_MS) return;
   lastCardSelectAt = now;
-  maybePlaySound("cardSelect", playCardSelectSound);
+  maybePlaySound(
+    "cardSelect",
+    () => playCardSelectSound({ source: "playCardSelectFeedback", action: "card-select" }),
+    { source: "playCardSelectFeedback", action: "card-select" },
+  );
 }
 
 export function playUiButtonFeedback(): void {
@@ -171,7 +214,11 @@ export function playUiButtonFeedback(): void {
   const now = Date.now();
   if (now - lastUiButtonAt < UI_BUTTON_COOLDOWN_MS) return;
   lastUiButtonAt = now;
-  maybePlaySound("uiButton", playUiButtonSound);
+  maybePlaySound(
+    "uiButton",
+    () => playUiButtonSound({ source: "playUiButtonFeedback", action: "ui-button" }),
+    { source: "playUiButtonFeedback", action: "ui-button" },
+  );
 }
 
 export function playActionSuccessFeedback(): void {
