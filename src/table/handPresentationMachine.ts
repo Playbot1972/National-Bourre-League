@@ -561,15 +561,14 @@ function reduceHandPresentationCore(
 
       const prevTrump = trumpKey(prev.trumpUpcard);
       const nextTrump = trumpKey(snapshot.trumpUpcard);
-      if (prevTrump && !nextTrump && !store.trumpMergeActive) {
+      if (prevTrump && !nextTrump && !store.trumpMergedIntoHand) {
         return {
           ...store,
           trumpRevealActive: false,
-          trumpMergeActive: true,
+          trumpMergeActive: false,
           trumpMergedIntoHand: true,
           prevSnapshot: snapshot,
           pendingSnapshot: snapshot,
-          phaseStartedAt: Date.now(),
         };
       }
 

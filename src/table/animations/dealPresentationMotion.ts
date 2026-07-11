@@ -115,6 +115,11 @@ export function revealDealCard(
     doc
       .querySelector<HTMLElement>("[data-trump-deal-target]")
       ?.classList.add("deal-card--revealed");
+    doc
+      .querySelector<HTMLElement>(
+        `[data-deal-seat="${playerId}"][data-deal-round="${roundIndex}"]`,
+      )
+      ?.classList.add("deal-card--revealed");
     return;
   }
   const slot = doc.querySelector<HTMLElement>(

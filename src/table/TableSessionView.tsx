@@ -459,7 +459,7 @@ export function TableSessionView({
     revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
     trumpMergeActive: heroHandDisplay.trumpMergeActive,
     trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
-    hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
+    hideCenterTrump: heroHandDisplay.hideCenterTrumpForHolder,
     showTrumpSuitReminder,
     trumpHolderPresentation,
     privateHandReady,
