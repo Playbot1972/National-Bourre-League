@@ -505,8 +505,8 @@ export function TableSessionView({
 
   useEffect(() => {
     if (session.phase !== "reveal") return;
-    if (!handPresentation.trumpMergedIntoHand) return;
-    if (handPresentation.phase !== "drawPlayer") return;
+    if (handPresentation.anteAnimActive || handPresentation.trumpRevealActive) return;
+    if (handPresentation.phase !== "drawPlayer" && handPresentation.phase !== "drawReady") return;
     if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
 
     const advance = actions.onAdvanceReveal();
@@ -522,7 +522,8 @@ export function TableSessionView({
     session.phase,
     session.handNumber,
     session.sessionId,
-    handPresentation.trumpMergedIntoHand,
+    handPresentation.anteAnimActive,
+    handPresentation.trumpRevealActive,
     handPresentation.phase,
     actions,
   ]);

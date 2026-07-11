@@ -465,6 +465,7 @@ export type HandPresentationEvent =
       heroDrawReplaceCount?: number;
     }
   | { type: "advancePhase" }
+  | { type: "completeTrumpMerge" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
@@ -511,6 +512,15 @@ function reduceHandPresentationCore(
     case "clearEnrollmentPulse":
       if (!Object.keys(store.enrollmentPulse).length) return store;
       return { ...store, enrollmentPulse: {} };
+
+    case "completeTrumpMerge":
+      if (!store.trumpMergeActive) return store;
+      return {
+        ...store,
+        trumpMergeActive: false,
+        trumpMergedIntoHand: true,
+        phase: store.phase === "trumpMerge" ? "drawPlayer" : store.phase,
+      };
 
     case "watchdog":
       if (store.pendingHandSettle && store.phase === "play") {
@@ -561,12 +571,12 @@ function reduceHandPresentationCore(
 
       const prevTrump = trumpKey(prev.trumpUpcard);
       const nextTrump = trumpKey(snapshot.trumpUpcard);
-      if (prevTrump && !nextTrump && !store.trumpMergedIntoHand) {
+      if (prevTrump && !nextTrump && !store.trumpMergedIntoHand && !store.trumpMergeActive) {
         return {
           ...store,
           trumpRevealActive: false,
-          trumpMergeActive: false,
-          trumpMergedIntoHand: true,
+          trumpMergeActive: true,
+          trumpMergedIntoHand: false,
           prevSnapshot: snapshot,
           pendingSnapshot: snapshot,
         };
@@ -747,32 +757,20 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
           ...beginDrawSequence(store, snap, 0, 0),
           trumpRevealActive: false,
           trumpMergeActive: false,
-          trumpMergedIntoHand: true,
+          trumpMergedIntoHand: false,
           pendingSnapshot: null,
         };
       }
       return withPhase(store, "drawPlayer", {
         trumpRevealActive: false,
         trumpMergeActive: false,
-        trumpMergedIntoHand: true,
+        trumpMergedIntoHand: false,
         pendingSnapshot: null,
       });
     }
 
     case "trumpMerge":
-      if (snap?.phase === "draw") {
-        return {
-          ...beginDrawSequence(store, snap, 0, 0),
-          trumpMergeActive: false,
-          trumpMergedIntoHand: true,
-        };
-      }
-      return withPhase(store, "drawPlayer", {
-        trumpRevealActive: false,
-        trumpMergeActive: false,
-        trumpMergedIntoHand: true,
-        pendingSnapshot: null,
-      });
+      return store;
 
     case "drawPlayer": {
       if (store.drawAnimSubPhase === "discard" && store.drawReplaceCount > 0) {
