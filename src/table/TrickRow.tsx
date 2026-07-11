@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { TrickPlaySlot } from "./TrickPlaySlot";
+import { TrickPlaySlot, type CardLandedAudioCallbackInput } from "./TrickPlaySlot";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { resolveTrickLayoutCardCount } from "./trickRowLayout";
@@ -18,6 +18,8 @@ interface TrickRowProps {
   peakCardCount?: number;
   /** Seated players in the hand — reserves full trick width from trick start. */
   participantCount?: number;
+  currentUserId?: string | null;
+  onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
 }
 
 /** Public trick cards only — never hole cards. */
@@ -32,6 +34,8 @@ export function TrickRow({
   instantTrickPlays = false,
   peakCardCount = 0,
   participantCount = 0,
+  currentUserId = null,
+  onCardLanded,
 }: TrickRowProps) {
   useEffect(() => {
     if (!isGameFlowDebugEnabled()) return;
@@ -137,6 +141,8 @@ export function TrickRow({
               leaderPlayerId={leaderPlayerId}
               winnerPlayerId={winnerPlayerId}
               instantPlace={instantTrickPlays}
+              currentUserId={currentUserId}
+              onCardLanded={onCardLanded}
             />
           ))}
         </div>

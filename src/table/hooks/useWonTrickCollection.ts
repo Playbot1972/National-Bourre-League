@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import type { TrickPresentation } from "./useTrickPresentation";
+import type { TrickCollectedAudioInput } from "../../audio/audioEvents";
 import {
   animateTrickCardsToWonPile,
   clearWonTrickCollectionArtifacts,
@@ -18,6 +19,7 @@ export interface UseWonTrickCollectionInput {
   sessionPhase?: string | null;
   handComplete?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
+  onTrickCollectionStart?: (input: Omit<TrickCollectedAudioInput, "playerCount">) => void;
 }
 
 const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
@@ -31,6 +33,7 @@ export function useWonTrickCollection({
   sessionPhase = null,
   handComplete = false,
   tableRootRef,
+  onTrickCollectionStart,
 }: UseWonTrickCollectionInput): void {
   const lastCollectKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
@@ -119,6 +122,10 @@ export function useWonTrickCollection({
     const rakeDelay = TRICK_RAKE_MS;
     setTrickCollectionActive(true);
     const rakeTimer = window.setTimeout(() => {
+      onTrickCollectionStart?.({
+        trickId: frozen.trickNumber,
+        winningSeat: winnerId,
+      });
       animateTrickCardsToWonPile(cardEls, {
         winnerPlayerId: winnerId,
         trickKey,
@@ -140,6 +147,7 @@ export function useWonTrickCollection({
     trickPresentation.displayTricksByPlayer,
     handNumber,
     tableRootRef,
+    onTrickCollectionStart,
   ]);
 
   useEffect(() => () => clearTrickCleanupTimer(), []);

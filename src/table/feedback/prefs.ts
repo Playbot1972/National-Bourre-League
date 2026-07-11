@@ -77,7 +77,11 @@ export function shouldPlaySoundEvent(mode: SoundMode, event: SoundEventKey): boo
   if (mode === "off") return false;
   if (mode === "on") return true;
   // Minimal — only meaningful gameplay moments, skip ambient cues
-  return event === "trickWin" || event === "bigWin" || event === "bourre";
+  return (
+    event === "trickWin" ||
+    event === "bigWin" ||
+    event === "bourre"
+  );
 }
 
 type PrefsListener = (prefs: FeedbackPrefs) => void;
