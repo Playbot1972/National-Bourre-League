@@ -731,6 +731,11 @@
   transition: transform var(--trick-card-shift-ms) var(--trick-ease-shift);
 }
 
+/* Slot shift only — card transform is owned by fly/settle keyframes until landed */
+.btrick__play .pcard {
+  transition-property: box-shadow, filter, opacity;
+}
+
 .btrick__name {
   font-size: 8px;
   max-width: 52px;
@@ -4138,6 +4143,21 @@
 
 [data-gsap-motion="true"] .bseat--draw-receive .bseat__hole-cards {
   animation: none;
+}
+
+[data-gsap-motion="true"] .btable-hero--dealing .hand__slot,
+[data-gsap-motion="true"] .btable-hero--dealing .hand__slot .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-selected .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-selected,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot--draw-recommended .pcard,
+[data-gsap-motion="true"] .btable-hero--draw-discard .hand__slot .pcard--draw-recommended,
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot,
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard {
+  animation: none !important;
+}
+
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard {
+  transition-property: box-shadow, filter, opacity !important;
 }
 
 [data-gsap-motion="true"] .center-play__discard-card {

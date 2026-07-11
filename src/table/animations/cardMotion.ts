@@ -233,7 +233,8 @@ export function animateDrawReceive(
         duration,
         ease: PREMIUM_EASE_BOUNCE,
         onComplete: () => {
-          gsap.set(el, { clearProps: "transform,opacity,willChange" });
+          gsap.set(el, { transition: "none" });
+          gsap.set(el, { clearProps: "transform,opacity,willChange,transition" });
         },
       },
       i * stagger,

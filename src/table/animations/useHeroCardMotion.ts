@@ -69,6 +69,7 @@ export function useHeroCardMotion(
   const dealtRef = useRef(false);
   const playLiftRef = useRef<number | null>(null);
   const discardFlyKeyRef = useRef<string | null>(null);
+  const receiveFlyKeyRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
     initCardMotion(handRootRef.current?.closest(".btable-wrap") ?? document);
@@ -97,6 +98,7 @@ export function useHeroCardMotion(
   useLayoutEffect(() => {
     if (drawAnimSubPhase === "discard") {
       if (drawDiscardCount <= 0) return;
+      receiveFlyKeyRef.current = null;
       cardKeysBeforeDrawRef.current = cards.map(cardKey);
       const root = handRootRef.current;
       const tableRoot = tableRootRef?.current ?? root?.closest(".btable-wrap");
@@ -133,17 +135,25 @@ export function useHeroCardMotion(
       const root = handRootRef.current;
       const cardEls = handCards(root);
       const prev = new Set(cardKeysBeforeDrawRef.current);
-      const newCards = cards
+      const replacements = cards
         .map((c, i) => ({ key: cardKey(c), el: cardEls[i] }))
-        .filter((row): row is { key: string; el: HTMLElement } => Boolean(row.el) && !prev.has(row.key))
-        .map((row) => row.el);
+        .filter((row): row is { key: string; el: HTMLElement } => Boolean(row.el) && !prev.has(row.key));
+      if (!replacements.length) return;
+      const receiveKeys = replacements
+        .map((row) => row.key)
+        .sort()
+        .join(",");
+      const flyKey = `${handNumber}:${playerId ?? ""}:receive:${drawReplaceCount}:${receiveKeys}`;
+      if (receiveFlyKeyRef.current === flyKey) return;
+      receiveFlyKeyRef.current = flyKey;
       const deck = readDeckOrigin(root ?? document);
-      if (newCards.length && deck) animateDrawReceive(newCards, deck);
+      if (deck) animateDrawReceive(replacements.map((row) => row.el), deck);
       return;
     }
 
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
       discardFlyKeyRef.current = null;
+      receiveFlyKeyRef.current = null;
       cardKeysBeforeDrawRef.current = cards.map(cardKey);
     }
   }, [

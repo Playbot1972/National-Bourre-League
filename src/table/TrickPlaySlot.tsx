@@ -8,7 +8,6 @@ import {
 } from "./trickPlayFly";
 import {
   prefersReducedMotion,
-  TRICK_CARD_SETTLE_MS,
   TRICK_CARD_TRAVEL_MS,
 } from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
@@ -190,7 +189,6 @@ export function TrickPlaySlot({
 
     const reduced = prefersReducedMotion();
     const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
-    const settleMs = reduced ? Math.round(TRICK_CARD_SETTLE_MS * 0.55) : TRICK_CARD_SETTLE_MS;
     flightStartedRef.current = true;
 
     const slotRect = slot.getBoundingClientRect();
@@ -200,21 +198,19 @@ export function TrickPlaySlot({
     setFlyMode("pending");
 
     if (isGameFlowDebugEnabled()) {
-      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs, settleMs });
+      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs });
     }
 
     const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
-    const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
     const doneTimer = window.setTimeout(() => {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
       }, audioCtx);
-    }, travelMs + settleMs);
+    }, travelMs);
 
     return () => {
       window.clearTimeout(showTimer);
-      window.clearTimeout(settleTimer);
       window.clearTimeout(doneTimer);
     };
   }, [hasLanded, instantPlace, isLanding, isLivePhase, play.playerId, playKey]);
