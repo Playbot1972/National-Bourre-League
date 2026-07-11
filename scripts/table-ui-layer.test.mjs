@@ -9,7 +9,7 @@ import { createTableIntentHandlers } from "../docs/table-intents.js";
 import { applyTableFeedbackDiff } from "../docs/table-feedback.js";
 
 describe("table UI layer modules", () => {
-  it("applyTableFeedbackDiff fires trick win feedback only", () => {
+  it("applyTableFeedbackDiff does not fire trick win from snapshot (animation-synced)", () => {
     const calls = [];
     const api = {
       playTrickWinFeedback: () => calls.push("trick"),
@@ -29,7 +29,7 @@ describe("table UI layer modules", () => {
     };
     const next = { ...prev, myTricks: 2 };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
-    assert.deepEqual(calls, ["trick"]);
+    assert.deepEqual(calls, []);
   });
 
   it("applyTableFeedbackDiff fires draw feedback on hero card change after draw", () => {
