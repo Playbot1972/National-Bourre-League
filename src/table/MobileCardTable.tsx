@@ -510,11 +510,6 @@ export function MobileCardTable({
           skipHeroDealMotion={clockwiseDealing}
         />
         </div>
-        {enrollmentActive && !selfPlayer?.inHand && (
-          <p className="btable-mobile-hero-dock__hint muted small">
-            Tap I&apos;m in above to join this hand
-          </p>
-        )}
       </div>
     </div>
   );

@@ -55,8 +55,6 @@ function measureSessionChromePx(wrap: HTMLElement, nativeMobile: boolean): numbe
   if (status) chrome += status.getBoundingClientRect().height;
   if (foot && foot.offsetParent !== null) chrome += foot.getBoundingClientRect().height;
   if (settle && settle.offsetParent !== null) chrome += settle.getBoundingClientRect().height;
-  // Reserve space for turn-stack lines without measuring their live height (trick-resolve toggles).
-  chrome += 24;
   if (nativeMobile) chrome += 4;
   return chrome;
 }

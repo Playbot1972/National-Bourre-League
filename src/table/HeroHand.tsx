@@ -993,9 +993,9 @@ export function HeroHand({
         {renderBestPlayCheckbox()}
       </div>
       {inPlayPhase && !isMyTurn && selectedPlay !== null && (
-        <p className="btable-hero__hint" data-testid="play-preselect-hint">
+        <span className="btable-sr-only" data-testid="play-preselect-hint">
           Your selected card will play on your turn
-        </p>
+        </span>
       )}
       {feedbackError && (
         <p className="btable-hero__error" role="alert">

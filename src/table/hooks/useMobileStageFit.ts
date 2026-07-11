@@ -34,7 +34,6 @@ function measureMobileChromePx(wrap: HTMLElement): number {
   let chrome = 0;
   if (headRow) chrome += headRow.getBoundingClientRect().height;
   if (status) chrome += status.getBoundingClientRect().height;
-  chrome += 24;
   const mobileShell = session.querySelector<HTMLElement>(".btable-mobile");
   if (mobileShell) {
     const sessionRect = session.getBoundingClientRect();

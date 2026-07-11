@@ -3233,6 +3233,96 @@
   align-items: center;
 }
 
+.btable-stage__overlay {
+  position: absolute;
+  top: clamp(4px, 1vmin, 10px);
+  left: 50%;
+  z-index: 24;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(92%, 420px);
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.btable-stage__overlay > * {
+  margin: 0;
+  pointer-events: none;
+}
+
+.btable-stage__turn {
+  margin: 0;
+  color: var(--gold-400, #e6b450);
+  font-size: 15px;
+  font-weight: 600;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65);
+}
+
+.btable-stage__turn--yours {
+  color: var(--gold-300, #f4d58d);
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+
+.btable-stage__turn--waiting {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(244, 213, 141, 0.82);
+}
+
+.btable-stage__action-cue {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-900, #14110f);
+  background: linear-gradient(160deg, var(--gold-300, #e6b450), var(--gold-400, #d4af37));
+  border: 1px solid rgba(244, 213, 141, 0.45);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+
+.btable-stage__feedback {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+}
+
+.btable-stage__feedback--loading {
+  background: rgba(20, 17, 15, 0.82);
+  border: 1px solid rgba(244, 213, 141, 0.35);
+  color: var(--gold-300, #f4d58d);
+}
+
+.btable-stage__feedback--error {
+  background: rgba(40, 12, 12, 0.9);
+  border: 1px solid rgba(220, 100, 100, 0.5);
+  color: #ffd4d4;
+}
+
+.btable-stage__feedback--success {
+  background: rgba(12, 36, 24, 0.9);
+  border: 1px solid rgba(82, 183, 136, 0.45);
+  color: #b8f0d0;
+}
+
+.btable-stage__feedback--pulse {
+  animation: bfeedback-pulse 0.45s ease;
+}
+
+.btable-stage__feedback--pulse-error {
+  animation: bfeedback-pulse-error 0.5s ease;
+}
+
 .btable-desktop {
   width: 100%;
   flex: 1;
