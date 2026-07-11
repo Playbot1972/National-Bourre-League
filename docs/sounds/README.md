@@ -1,64 +1,60 @@
 # Table sound assets
 
-Drop final MP3 files here for production audio. The table feedback service loads
-these at runtime and falls back to procedural Web Audio when a file is missing.
+Art-directed WAV files for the table feedback service. Loaded at runtime from
+`./sounds/*.wav` (social app root → `/social/sounds/` after deploy).
 
-## Classic pack (default)
+Install from your Downloads folder:
 
-| File | Event |
-| --- | --- |
-| `shuffle.mp3` | Hand deal |
-| `draw.mp3` | Draw / discard replacement |
-| `card-place.mp3` | Card lands in trick (base thock) |
-| `lead-change.mp3` | Card takes trick lead (sweetener layer) |
-| `trick-win.mp3` | Trick resolved / winner reveal |
-| `trick-collect.mp3` | Trick cards collected to won pile |
-| `big-win.mp3` | Local player wins the hand / pot |
-| `bourre.mp3` | Local player goes bourré |
-| `game-start.mp3` | Table / game start confirmation |
+```bash
+chmod +x scripts/copy-table-sounds.sh
+./scripts/copy-table-sounds.sh ~/Downloads
+```
+
+Until files are copied, procedural Web Audio fallbacks in `src/table/feedback/audio.ts`
+remain active.
+
+## Classic pack (15 files)
+
+| File | Sound ID | Event |
+| --- | --- | --- |
+| `card-place-normal.wav` | `card-place-normal` | Card lands in trick (tier 0) |
+| `card-place-soft.wav` | `card-place-soft` | Card lands (tier 1) |
+| `card-place-heavy.wav` | `card-place-heavy` | Card lands (tier 2) |
+| `lead-sweetener-light.wav` | `lead-sweetener-light` | Takes trick lead (tier 0–1) |
+| `lead-sweetener-strong.wav` | `lead-sweetener-strong` | Takes trick lead (tier 2) |
+| `trick-win-normal.wav` | `trick-win-normal` | Trick resolved |
+| `trick-win-big.wav` | `trick-win-big` | Local player wins trick |
+| `hand-win-stinger.wav` | `hand-win-stinger` | Local player wins hand / pot |
+| `card-shuffle-normal.wav` | `card-shuffle-normal` | Hand deal shuffle |
+| `card-shuffle-final.wav` | `card-shuffle-final` | Final deal shuffle sting (`shuffleFinal`) |
+| `card-select.wav` | `card-select` | Card tap / queue in hand |
+| `card-illegal.wav` | `card-illegal` | Illegal play attempt |
+| `ui-button-press.wav` | `ui-button-press` | Draw / pat / fold + game start |
+| `coin-chime-light.wav` | `coin-chime-light` | Trick collected to pile |
+| `victory-jingle.wav` | `victory-jingle` | Bourré moment |
+
+**Procedural only:** `draw` (no dedicated asset yet).
 
 ## Premium packs
 
-Optional themed packs live in subfolders:
+Optional themed overrides use the same filenames under:
 
 | Folder | Theme |
 | --- | --- |
-| `packs/wood/` | Warm wood & felt cues |
-| `packs/arcade/` | Bright arcade chimes |
+| `packs/wood/` | Warm wood & felt |
+| `packs/arcade/` | Bright arcade |
 
-Each pack folder uses the same filenames as the classic pack table above.
+## Architecture
 
-**Hosting path:** `./sounds/*.mp3` or `./sounds/packs/{wood,arcade}/*.mp3` relative to the social app root (`docs/` → `/social/sounds/` after deploy).
+| Layer | Module |
+| --- | --- |
+| Asset registry | `src/table/feedback/soundPacks.ts` |
+| Playback + preload | `src/table/feedback/audio.ts` |
+| Cooldowns + unlock | `src/table/feedback/service.ts` |
+| Animation sync | `src/audio/AudioManager.ts` + `useCardAudio` |
 
-**Sound level:** Users can set On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, and bourré only (skips per-card place/lead/collect cues).
+Preload runs after the first user gesture (`unlockAudio` → `preloadSoundAssets`).
 
-Procedural synthesis in `src/table/feedback/audio.ts` remains the fallback until art-directed assets are checked in.
+**Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, and bourré only.
 
-Keep files short (&lt; 50 KB each) and normalized for mobile speakers.
-
-## Adaptive card audio (animation-synced)
-
-Layered card audio is driven by `src/audio/AudioManager.ts` + `src/table/hooks/useCardAudio.ts`:
-
-| Event | Sync point | Sound role |
-| --- | --- | --- |
-| `card:played` | `TrickPlaySlot` fly-complete (card lands) | Neutral thock |
-| `card:lead-change` | Same land moment when card becomes best-in-trick (not card 1) | Thock + sweetener |
-| `trick:won` | `winnerReveal` presentation phase | Distinct win stinger |
-| `trick:collected` | GSAP collection starts (after `TRICK_RAKE_MS`) | Soft gather whoosh |
-
-## Free asset candidates (not yet checked in)
-
-Production should use a coherent set from royalty-free sources. Suggested starting points:
-
-| Role | Search terms | Suggested sources |
-| --- | --- | --- |
-| Card place / thock | "playing card put down", "card place leather" | [ZapSplat Playing Cards pack](https://www.zapsplat.com/sound-effect-category/playing-cards/) (check license tier) |
-| Lead sweetener | "coin chime", "ui select heavy", "positive ui accent" | [Pixabay Sound Effects](https://pixabay.com/sound-effects/search/ui/) (Pixabay License) |
-| Trick win | "win chime", "success fanfare short" | [Kenney Interface Sounds](https://kenney.nl/assets/interface-sounds) (CC0) |
-| Trick collect | "cards pickup", "soft whoosh short" | ZapSplat playing-cards pickups / [Freesound](https://freesound.org) (verify per-file license) |
-| Shuffle / deal | "cards shuffle professional" | ZapSplat shuffle, Freesound CC0 recordings |
-
-**Selection rules:** Prefer WAV sources, normalize levels (place &lt; lead &lt; trick win), avoid long tails, document exact URL + license per file when adding to the repo.
-
-**Current status:** Procedural fallbacks only — no third-party audio files are committed yet.
+Keep files short and normalized for mobile speakers. See **Production format** in the implementation notes for WAV vs MP3 guidance.

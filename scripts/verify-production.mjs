@@ -151,6 +151,41 @@ async function checkAppStoreLegalPages() {
   return { ok: true, detail: "privacy.html + support.html reachable" };
 }
 
+/** @returns {Promise<CheckResult>} */
+async function checkSoundAssets() {
+  const samples = [
+    "/social/sounds/card-place-normal.wav",
+    "/social/sounds/trick-win-normal.wav",
+    "/social/sounds/MANIFEST.json",
+  ];
+  const details = [];
+  for (const path of samples) {
+    const res = await fetch(`${ORIGIN}${path}`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      redirect: "follow",
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      return { ok: false, detail: `HTTP ${res.status} for ${path} — sounds not published` };
+    }
+    const ct = res.headers.get("content-type") ?? "";
+    if (path.endsWith(".wav") && !ct.includes("audio")) {
+      details.push(`${path} content-type=${ct || "unknown"}`);
+    }
+  }
+  const { ok, body } = await fetchPath("/social/table-session.js");
+  if (!ok || !body.includes("card-place-normal.wav")) {
+    return {
+      ok: false,
+      detail: "table-session.js missing WAV asset registry paths",
+    };
+  }
+  return {
+    ok: true,
+    detail: `3 sample assets + MANIFEST reachable${details.length ? ` (${details.join("; ")})` : ""}`,
+  };
+}
+
 /**
  * @param {string} label
  * @param {CheckResult} result
@@ -180,12 +215,16 @@ print("Table session bundle", tableBundle);
 const legalPages = await checkAppStoreLegalPages();
 print("App Store legal pages", legalPages);
 
+const soundAssets = await checkSoundAssets();
+print("Sound assets (hosting)", soundAssets);
+
 const passed =
   version.ok &&
   buildMeta.ok &&
   firebase.ok &&
   social.ok &&
   tableBundle.ok &&
-  legalPages.ok;
+  legalPages.ok &&
+  soundAssets.ok;
 console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
 process.exit(passed ? 0 : 1);
