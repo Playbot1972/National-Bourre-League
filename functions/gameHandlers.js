@@ -56,6 +56,7 @@ import {
   assertSettlementEntryAllowed,
   assertSessionChipConserved,
   checkInvariant,
+  buildSoleSurvivorSessionEnd,
 } from "./vendor/session-startup.js";
 import { nextRiskStake } from "./vendor/risk-stakes.js";
 import {
@@ -621,6 +622,27 @@ function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
     ...(patch.nextDealFunding != null
       ? { nextDealFunding: patch.nextDealFunding }
       : { nextDealFunding: FieldValue.delete() }),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
+function applySoleSurvivorEndInTransaction(tx, ref, db, roomId, sessionId, endResult) {
+  if (endResult.scorePatches) {
+    for (const [playerId, scorePatch] of Object.entries(endResult.scorePatches)) {
+      tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
+        ...scorePatch,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+  }
+  tx.update(ref, {
+    status: "final",
+    carryOverPot: 0,
+    nextDealFunding: FieldValue.delete(),
+    handEnrollment: FieldValue.delete(),
+    liveEnrollment: FieldValue.delete(),
+    currentHand: emptyPreDealHand(),
+    pendingCoWinSettlement: FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 }
@@ -1395,7 +1417,26 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       freshScoreById,
       dealExtras.buyIn,
     );
-    if (eligibleIds.length < 1) return;
+    if (eligibleIds.length < 2) {
+      if (eligibleIds.length === 1) {
+        const winnerId = eligibleIds[0];
+        const currentHand = getSessionCurrentHand(freshData) ?? {};
+        const endResult = buildSoleSurvivorSessionEnd({
+          winnerId,
+          carryIn: freshData.carryOverPot || 0,
+          postedAntes: currentHand.postedAntes ?? {},
+          scoreById: freshScoreById,
+          buyInFallback: dealExtras.buyIn,
+          sortedPlayerIds: dealExtras.sortedIds,
+        });
+        await primePatchScoreReads(tx, db, roomId, sessionId, {
+          scorePatches: endResult.scorePatches,
+        });
+        applySoleSurvivorEndInTransaction(tx, ref, db, roomId, sessionId, endResult);
+        dealResult = { status: "sole_survivor_final", winnerId };
+      }
+      return;
+    }
     let autoPatch = buildDealCompletionPatch(
       freshData.dealerId,
       eligibleIds,

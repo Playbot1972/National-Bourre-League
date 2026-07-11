@@ -199,6 +199,7 @@ import {
   assertSessionChipConserved,
   assertHandFlowConsistent,
   assertBotAdvanceNotInFlight,
+  buildSoleSurvivorSessionEnd,
 } from "./session-startup.js";
 
 const CDN = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}`;
@@ -1560,6 +1561,80 @@ function buildSoloWinPatch(winnerId, sessionData, dealContext) {
     currentHand: emptyPreDealHand(),
     sortedPlayerIds: dealContext.sortedPlayerIds,
     newDealerId,
+  };
+}
+
+/**
+ * End the session when only one bankroll-positive player remains.
+ * Awards carry / posted pot without a new contested-hand ante; does not bump handCount.
+ */
+export async function tryFinalizeSessionForSolvency(roomId, sessionId) {
+  const sessionRef = sessionDoc(roomId, sessionId);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return { status: "missing" };
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") return { status: "already_final" };
+
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  const sortedIds = seatPlayerIds(sessionData, scoreSnap);
+  const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings);
+  const eligible = eligibleIdsForAnteCollection(sortedIds, scoreById, buyIn);
+
+  if (eligible.length >= 2) return { status: "contested" };
+
+  if (eligible.length < 1) {
+    await finalizeSession(roomId, sessionId);
+    logHandTransition("sole_survivor_finalized", {
+      winnerId: null,
+      potAwarded: 0,
+      handCount: sessionData.handCount ?? 0,
+      reason: "no_eligible_players",
+    });
+    return { status: "finalized", winnerId: null, potAwarded: 0 };
+  }
+
+  const winnerId = eligible[0];
+  const currentHand = getSessionCurrentHand(sessionData) ?? {};
+  const endResult = buildSoleSurvivorSessionEnd({
+    winnerId,
+    carryIn: sessionData.carryOverPot || 0,
+    postedAntes: currentHand.postedAntes ?? {},
+    scoreById,
+    buyInFallback: buyIn,
+    sortedPlayerIds: sortedIds,
+  });
+
+  const batch = writeBatch(db);
+  for (const [pid, patch] of Object.entries(endResult.scorePatches)) {
+    batch.update(scoreDoc(roomId, sessionId, pid), {
+      ...patch,
+      updatedAt: serverTimestamp(),
+    });
+  }
+  batch.update(sessionRef, {
+    status: "final",
+    carryOverPot: 0,
+    nextDealFunding: deleteField(),
+    handEnrollment: deleteField(),
+    [LIVE_ENROLLMENT_FIELD]: deleteField(),
+    currentHand: emptyPreDealHand(),
+    pendingCoWinSettlement: deleteField(),
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+
+  logHandTransition("sole_survivor_finalized", {
+    winnerId,
+    potAwarded: endResult.potAwarded,
+    handCount: sessionData.handCount ?? 0,
+  });
+
+  return {
+    status: "finalized",
+    winnerId,
+    potAwarded: endResult.potAwarded,
   };
 }
 
@@ -3980,6 +4055,7 @@ export async function ensureHandEnrollment(roomId, sessionId, { members, roster 
     await attemptAutoDeal(roomId, sessionId);
     data = await waitForSessionHandDeal(roomId, sessionId);
     if (sessionHandDealStarted(data)) return;
+    if (data?.status === "final") return;
   }
 
   if (!sessionHandDealStarted(data)) {
@@ -4104,6 +4180,15 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
     handCount: data.handCount ?? 0,
     eligibleCount: eligibleForNextHand.length,
   });
+  if (eligibleForNextHand.length < 2) {
+    if (eligibleForNextHand.length === 1) {
+      const endResult = await tryFinalizeSessionForSolvency(roomId, sessionId);
+      if (endResult.status === "finalized" || endResult.status === "already_final") {
+        return;
+      }
+    }
+    return;
+  }
   await runEnrollmentStepTransaction(
     roomId,
     sessionId,

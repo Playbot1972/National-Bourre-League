@@ -4,7 +4,6 @@ import { GSAP_DURATIONS } from "./motionTokens";
 import {
   animateDrawReceive,
   animateFoldOut,
-  animatePlayLift,
   animateStandPat,
   dealCardsFromDeck,
   killCardMotion,
@@ -192,7 +191,8 @@ export function useHeroCardMotion(
     }
     const target = cardEls[playingIndex];
     if (target) {
-      animatePlayLift(target);
+      // CSS .pcard--playing owns transform during submit — clear any GSAP lift first.
+      killCardMotion(target);
       playLiftRef.current = playingIndex;
     }
   }, [playingIndex, cards, handRootRef]);

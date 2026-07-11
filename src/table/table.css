@@ -4044,12 +4044,10 @@
   pointer-events: none;
   z-index: 4;
   overflow: visible;
-  will-change: transform, opacity;
 }
 
 .won-trick-fly-packet__card {
   pointer-events: none;
-  will-change: left, top;
 }
 
 .won-trick-fly-packet__card .pcard {

@@ -75,6 +75,13 @@ export {
 
 export { forceInvariantsForTests, isInvariantsStrict, logInvariantViolation } from "./invariantDebug";
 
+export {
+  buildSoleSurvivorSessionEnd,
+  countEligibleForNextHand,
+  shouldFinalizeForSoleSurvivor,
+  shouldOpenNextHandEnrollment,
+} from "./sessionSolvency";
+
 export function isStaleLiveDealSnapshot(sessionData: SessionHandView | null | undefined): boolean {
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   if (!livePublic?.phase) return false;

@@ -99,13 +99,11 @@
 .btable-hero--dealing .hand__slot {
   animation: bdeal-to-hand var(--anim-deal-ms) var(--premium-ease-out) backwards;
   animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
-  will-change: transform, opacity;
 }
 
 .btable-hero--dealing .hand__slot .pcard {
   animation: bdeal-card-flip var(--anim-deal-ms) var(--premium-ease-out) backwards;
   animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
-  will-change: transform, opacity;
 }
 
 @keyframes bdeal-in-premium {
