@@ -215,14 +215,28 @@ export function PotCenter({
 
         {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
 
-        <div className="center-play__phase" aria-live="polite">
-          <span
-            className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}
-            data-testid="phase-tag-center"
-            data-phase={phase ?? "waiting"}
-          >
-            {phaseLabel}
-          </span>
+        <div
+          className={[
+            "center-play__phase",
+            phase === "play" ? "center-play__phase--play" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          aria-live="polite"
+        >
+          {phase === "play" ? (
+            <span className="btable-sr-only" data-testid="phase-tag-center" data-phase="play">
+              {phaseLabel}
+            </span>
+          ) : (
+            <span
+              className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}
+              data-testid="phase-tag-center"
+              data-phase={phase ?? "waiting"}
+            >
+              {phaseLabel}
+            </span>
+          )}
           {hasTrumpCard && trumpSuit && (
             <span className="center-play__trump-suit muted small">
               {formatTrumpSuit(trumpSuit)}
