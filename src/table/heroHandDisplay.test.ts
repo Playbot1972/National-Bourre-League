@@ -21,7 +21,7 @@ const effective = raw.slice(0, 4);
 const trumpUpcard = { rank: "A", suit: "hearts" };
 
 describe("heroHandDisplay", () => {
-  it("keeps a stable five-card fan for trump holder while trump is on the table", () => {
+  it("shows four effective cards for trump holder while trump is on the table", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
       effectiveHeroCards: effective,
@@ -36,15 +36,15 @@ describe("heroHandDisplay", () => {
         trumpMergedIntoHand: false,
       },
     });
-    assert.equal(state.displayCards.length, 5);
-    assert.equal(state.revealedTrumpIndex, 4);
-    assert.equal(state.hideCenterTrumpForHolder, true);
+    assert.equal(state.displayCards.length, 4);
+    assert.equal(state.revealedTrumpIndex, null);
+    assert.equal(state.hideCenterTrumpForHolder, false);
     assert.equal(state.trumpMergeActive, false);
-    assert.equal(state.trumpDisabledIndex, 4);
-    assert.equal(state.indexMode, "display");
+    assert.equal(state.trumpDisabledIndex, null);
+    assert.equal(state.indexMode, "effective");
   });
 
-  it("maps effective draw/play indices to display positions", () => {
+  it("maps effective draw/play indices to display positions during merge", () => {
     assert.equal(findTrumpDisplayIndex(raw, trumpUpcard), 4);
     assert.equal(effectiveIndexToDisplayIndex(0, 4), 0);
     assert.equal(effectiveIndexToDisplayIndex(3, 4), 3);
@@ -55,47 +55,7 @@ describe("heroHandDisplay", () => {
     assert.deepEqual(mapDisplayIndicesToEffective([4], 4), []);
   });
 
-  it("defers suit reminder while trump upcard remains on the table", () => {
-    const state = resolveHeroHandDisplay({
-      rawHeroCards: raw,
-      effectiveHeroCards: effective,
-      playerId: "dealer",
-      trumpHolderId: "dealer",
-      trumpUpcard,
-      trumpSuit: "hearts",
-      phase: "draw",
-      handPresentation: {
-        trumpRevealActive: false,
-        trumpMergeActive: true,
-        trumpMergedIntoHand: true,
-      },
-    });
-    assert.equal(state.revealedTrumpIndex, 4);
-    assert.equal(state.showTrumpSuitReminder, false);
-    assert.equal(state.trumpMergeActive, false);
-  });
-
-  it("builds a legacy five-card fan when private hand omits trump", () => {
-    const state = resolveHeroHandDisplay({
-      rawHeroCards: effective,
-      effectiveHeroCards: effective,
-      playerId: "dealer",
-      trumpHolderId: "dealer",
-      trumpUpcard,
-      trumpSuit: "hearts",
-      phase: "draw",
-      handPresentation: {
-        trumpRevealActive: false,
-        trumpMergeActive: false,
-        trumpMergedIntoHand: false,
-      },
-    });
-    assert.equal(state.displayCards.length, 5);
-    assert.equal(state.revealedTrumpIndex, 4);
-    assert.equal(state.indexMode, "display");
-  });
-
-  it("returns effective hand after trump upcard clears", () => {
+  it("exposes merge target at fifth slot when trump merge is active", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
       effectiveHeroCards: raw,
@@ -107,6 +67,28 @@ describe("heroHandDisplay", () => {
       handPresentation: {
         trumpRevealActive: false,
         trumpMergeActive: true,
+        trumpMergedIntoHand: false,
+      },
+    });
+    assert.equal(state.displayCards.length, 5);
+    assert.equal(state.revealedTrumpIndex, 4);
+    assert.equal(state.trumpMergeActive, true);
+    assert.equal(state.trumpDisabledIndex, 4);
+    assert.equal(state.indexMode, "display");
+  });
+
+  it("returns effective hand after trump merge completes", () => {
+    const state = resolveHeroHandDisplay({
+      rawHeroCards: raw,
+      effectiveHeroCards: raw,
+      playerId: "dealer",
+      trumpHolderId: "dealer",
+      trumpUpcard: null,
+      trumpSuit: "hearts",
+      phase: "draw",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: false,
         trumpMergedIntoHand: true,
       },
     });

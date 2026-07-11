@@ -43,6 +43,8 @@ interface PotCenterProps {
   trumpReminderPulse?: number;
   /** Hide center trump card when the holder already shows it in their fan. */
   hideCenterTrump?: boolean;
+  /** Keep center trump visible while the holder merge fly is in flight. */
+  trumpMergeActive?: boolean;
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
   instantTrickPlays?: boolean;
@@ -82,6 +84,7 @@ export function PotCenter({
   potTick = 0,
   trumpReminderPulse = 0,
   hideCenterTrump = false,
+  trumpMergeActive = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
   instantTrickPlays = false,
   peakTrickPlayCount = 0,
@@ -115,12 +118,13 @@ export function PotCenter({
       return;
     }
     if (!displayTrumpUpcard) return;
+    if (trumpMergeActive) return;
     if (trickPlaysPending || trickResolving) {
       const id = window.setTimeout(() => setDisplayTrumpUpcard(null), CARD_LAND_MS + 200);
       return () => window.clearTimeout(id);
     }
     setDisplayTrumpUpcard(null);
-  }, [trumpUpcard, trickPlaysPending, trickResolving, displayTrumpUpcard]);
+  }, [trumpUpcard, trickPlaysPending, trickResolving, displayTrumpUpcard, trumpMergeActive]);
 
   const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
   const showTrumpSuitReminder =

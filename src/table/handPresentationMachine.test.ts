@@ -46,7 +46,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergeActive, false);
   });
 
-  it("latches trump merged without replaying merge animation when server clears upcard", () => {
+  it("starts trump merge when server clears upcard on first opening action", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "draw",
@@ -62,9 +62,13 @@ describe("handPresentationMachine", () => {
         trumpSuit: "hearts",
       },
     });
+    assert.equal(store.trumpMergeActive, true);
+    assert.equal(store.trumpMergedIntoHand, false);
+    assert.equal(store.trumpRevealActive, false);
+
+    store = reduceHandPresentation(store, { type: "completeTrumpMerge" });
     assert.equal(store.trumpMergeActive, false);
     assert.equal(store.trumpMergedIntoHand, true);
-    assert.equal(store.trumpRevealActive, false);
   });
 
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
@@ -103,7 +107,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, true);
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpMergedIntoHand, false);
     assert.equal(store.trumpMergeActive, false);
     assert.equal(store.trumpRevealActive, false);
   });
@@ -512,7 +516,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "trumpReveal");
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpMergedIntoHand, false);
   });
 
   it("starts reveal presentation when prior hand ended in play with stale trump state", () => {

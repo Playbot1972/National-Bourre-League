@@ -33,6 +33,7 @@ import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
+import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
@@ -201,6 +202,15 @@ export function MobileCardTable({
     privateHandReady,
     tableRootRef: wrapRef,
   });
+  const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
+  const isTrumpHolder =
+    currentUserId != null && trumpHolderId != null && currentUserId === trumpHolderId;
+  useTrumpMergePresentation({
+    tableRootRef: wrapRef,
+    trumpMergeActive: handPresentation.trumpMergeActive,
+    isTrumpHolder,
+    onComplete: handPresentation.completeTrumpMerge,
+  });
   const cardAudio = useCardAudio({
     trickPresentation,
     currentUserId,
@@ -362,6 +372,7 @@ export function MobileCardTable({
               playerNames={playerNames}
               anteAnimActive={handPresentation.anteAnimActive}
               trumpRevealActive={handPresentation.trumpRevealActive}
+              trumpMergeActive={handPresentation.trumpMergeActive}
               hideCenterTrump={hideCenterTrump}
               showTrumpSuitReminder={showTrumpSuitReminder}
               drawAnimPlayerId={handPresentation.animatingDrawPlayerId}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer, useRef, useCallback } from "react";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
@@ -41,7 +41,9 @@ export interface UseHandPresentationInput {
   actionOrder?: string[];
 }
 
-export type HandPresentation = HandPresentationModel;
+export type HandPresentation = HandPresentationModel & {
+  completeTrumpMerge: () => void;
+};
 
 export function useHandPresentation({
   session,
@@ -262,5 +264,9 @@ export function useHandPresentation({
     return () => window.clearTimeout(id);
   }, [store.phase, store.pendingHandSettle, trickPipelineActive, forceTrickHandEndDrain]);
 
-  return buildHandPresentationModel(store);
+  const completeTrumpMerge = useCallback(() => {
+    dispatch({ type: "completeTrumpMerge" });
+  }, []);
+
+  return { ...buildHandPresentationModel(store), completeTrumpMerge };
 }

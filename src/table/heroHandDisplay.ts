@@ -80,33 +80,17 @@ export function mapDisplayIndicesToEffective(
     .sort((a, b) => a - b);
 }
 
-function buildStableHolderFan(
-  rawHeroCards: SerializedCard[],
-  effectiveHeroCards: SerializedCard[],
-  trumpUpcard: SerializedCard,
-): { cards: SerializedCard[]; trumpDisplayIndex: number } {
-  const trumpDisplayIndex = findTrumpDisplayIndex(rawHeroCards, trumpUpcard);
-  if (trumpDisplayIndex != null) {
-    return { cards: rawHeroCards, trumpDisplayIndex };
-  }
-  return {
-    cards: [...effectiveHeroCards, trumpUpcard],
-    trumpDisplayIndex: effectiveHeroCards.length,
-  };
-}
-
 /**
- * Presentation-only hero hand. The trump holder keeps a stable five-card fan while
- * the public trump upcard is on the table — the trump slot is revealed in-hand and
- * the center duplicate is hidden. No second merge animation when the server clears
- * the upcard because the card never left the fan.
+ * Presentation-only hero hand.
+ * While trump is on the table the holder shows four cards; center trump stays public.
+ * After the first opening action the server clears trumpUpcard and we fly it into slot 5.
  */
 export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDisplayState {
   const isHolder = Boolean(
     input.playerId && input.trumpHolderId && input.playerId === input.trumpHolderId,
   );
   const hasTrumpOnTable = Boolean(input.trumpUpcard);
-  const trumpUpcard = input.trumpUpcard;
+  const { trumpMergeActive, trumpMergedIntoHand } = input.handPresentation;
 
   const defaultReminder =
     !hasTrumpOnTable && Boolean(input.trumpSuit) && input.phase === "play";
@@ -124,24 +108,30 @@ export function resolveHeroHandDisplay(input: HeroHandDisplayInput): HeroHandDis
     };
   }
 
-  const { trumpMergedIntoHand } = input.handPresentation;
-
-  if (hasTrumpOnTable && trumpUpcard) {
-    const { cards, trumpDisplayIndex } = buildStableHolderFan(
-      input.rawHeroCards,
-      input.effectiveHeroCards,
-      trumpUpcard,
-    );
-
+  if (trumpMergeActive && !hasTrumpOnTable) {
+    const trumpDisplayIndex = Math.max(0, input.effectiveHeroCards.length - 1);
     return {
-      displayCards: cards,
+      displayCards: input.effectiveHeroCards,
       revealedTrumpIndex: trumpDisplayIndex,
-      trumpMergeActive: false,
-      trumpMergedIntoHand,
-      hideCenterTrumpForHolder: true,
+      trumpMergeActive: true,
+      trumpMergedIntoHand: false,
+      hideCenterTrumpForHolder: false,
       showTrumpSuitReminder: false,
       trumpDisabledIndex: trumpDisplayIndex,
       indexMode: "display",
+    };
+  }
+
+  if (hasTrumpOnTable) {
+    return {
+      displayCards: input.effectiveHeroCards,
+      revealedTrumpIndex: null,
+      trumpMergeActive: false,
+      trumpMergedIntoHand,
+      hideCenterTrumpForHolder: false,
+      showTrumpSuitReminder: false,
+      trumpDisabledIndex: null,
+      indexMode: "effective",
     };
   }
 
