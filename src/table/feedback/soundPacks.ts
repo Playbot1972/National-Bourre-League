@@ -4,7 +4,10 @@ export type SoundPackId = "classic" | "wood" | "arcade";
 export type SoundEventKey =
   | "shuffle"
   | "draw"
+  | "cardPlace"
+  | "leadChange"
   | "trickWin"
+  | "trickCollect"
   | "bigWin"
   | "bourre"
   | "gameStart";
@@ -26,7 +29,10 @@ const PACK_SUBDIRS: Record<SoundPackId, string> = {
 const SOUND_FILENAMES: Record<SoundEventKey, string> = {
   shuffle: "shuffle.mp3",
   draw: "draw.mp3",
+  cardPlace: "card-place.mp3",
+  leadChange: "lead-change.mp3",
   trickWin: "trick-win.mp3",
+  trickCollect: "trick-collect.mp3",
   bigWin: "big-win.mp3",
   bourre: "bourre.mp3",
   gameStart: "game-start.mp3",

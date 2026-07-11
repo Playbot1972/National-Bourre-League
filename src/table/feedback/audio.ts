@@ -193,19 +193,53 @@ function playProceduralDraw(packId: SoundPackId): void {
   scheduleTone(ctx, masterGain, packId === "arcade" ? 660 : 520, t0 + 0.05, 0.08, 0.05, "triangle");
 }
 
-function playProceduralTrickWin(packId: SoundPackId): void {
+function playProceduralCardPlace(packId: SoundPackId, intensityTier: number): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
   const t0 = ctx.currentTime;
+  const depth = 1 + intensityTier * 0.06;
+  const center = packId === "wood" ? 680 / depth : packId === "arcade" ? 1100 : 900;
+  scheduleNoiseBurst(ctx, masterGain, t0, 0.035, 0.05, center);
+  scheduleTone(ctx, masterGain, center * 0.55, t0 + 0.01, 0.04, 0.03, "triangle");
+}
+
+function playProceduralLeadChange(packId: SoundPackId, intensityTier: number): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  const tierScale = 1 - intensityTier * 0.04;
   if (packId === "arcade") {
-    scheduleTone(ctx, masterGain, 1046.5, t0, 0.1, 0.1, "square");
-    scheduleTone(ctx, masterGain, 1318.51, t0 + 0.08, 0.14, 0.08, "square");
+    scheduleTone(ctx, masterGain, 880 * tierScale, t0, 0.07, 0.055, "square");
+    scheduleTone(ctx, masterGain, 1174.66 * tierScale, t0 + 0.05, 0.1, 0.04, "square");
+    return;
+  }
+  const base = (packId === "wood" ? 620 : 740) * tierScale;
+  scheduleTone(ctx, masterGain, base, t0, 0.08, 0.045, "sine");
+  scheduleTone(ctx, masterGain, base * 1.335, t0 + 0.05, 0.12, 0.035, "triangle");
+}
+
+function playProceduralTrickCollect(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  scheduleNoiseBurst(ctx, masterGain, t0, 0.08, 0.04, packId === "wood" ? 520 : 760);
+  scheduleTone(ctx, masterGain, packId === "arcade" ? 440 : 330, t0 + 0.04, 0.14, 0.035, "sine");
+}
+
+function playProceduralTrickWin(packId: SoundPackId, volumeScale = 1): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  const gainScale = Math.min(1.2, volumeScale);
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 1046.5, t0, 0.1, 0.1 * gainScale, "square");
+    scheduleTone(ctx, masterGain, 1318.51, t0 + 0.08, 0.14, 0.08 * gainScale, "square");
     return;
   }
   const base = packId === "wood" ? 740 : 880;
-  scheduleTone(ctx, masterGain, base, t0, 0.12, 0.09, "sine");
-  scheduleTone(ctx, masterGain, base * 1.335, t0 + 0.07, 0.16, 0.07, "triangle");
-  scheduleTone(ctx, masterGain, base * 2, t0 + 0.14, 0.1, 0.04, "sine");
+  scheduleTone(ctx, masterGain, base, t0, 0.12, 0.09 * gainScale, "sine");
+  scheduleTone(ctx, masterGain, base * 1.335, t0 + 0.07, 0.16, 0.07 * gainScale, "triangle");
+  scheduleTone(ctx, masterGain, base * 2, t0 + 0.14, 0.1, 0.04 * gainScale, "sine");
 }
 
 function playProceduralBigWin(packId: SoundPackId): void {
@@ -251,7 +285,10 @@ function playProceduralGameStart(packId: SoundPackId): void {
 const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
   shuffle: playProceduralShuffle,
   draw: playProceduralDraw,
-  trickWin: playProceduralTrickWin,
+  cardPlace: (packId) => playProceduralCardPlace(packId, 0),
+  leadChange: (packId) => playProceduralLeadChange(packId, 0),
+  trickWin: (packId) => playProceduralTrickWin(packId, 1),
+  trickCollect: playProceduralTrickCollect,
   bigWin: playProceduralBigWin,
   bourre: playProceduralBourre,
   gameStart: playProceduralGameStart,
@@ -260,7 +297,10 @@ const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
 const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   shuffle: { current: false },
   draw: { current: false },
+  cardPlace: { current: false },
+  leadChange: { current: false },
   trickWin: { current: false },
+  trickCollect: { current: false },
   bigWin: { current: false },
   bourre: { current: false },
   gameStart: { current: false },
@@ -269,7 +309,10 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
 const RESET_MS: Record<SoundEventKey, number> = {
   shuffle: 360,
   draw: 280,
+  cardPlace: 120,
+  leadChange: 180,
   trickWin: 320,
+  trickCollect: 280,
   bigWin: 580,
   bourre: 520,
   gameStart: 320,
@@ -278,7 +321,10 @@ const RESET_MS: Record<SoundEventKey, number> = {
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
   draw: 0.45,
+  cardPlace: 0.38,
+  leadChange: 0.42,
   trickWin: 0.55,
+  trickCollect: 0.4,
   bigWin: 0.6,
   bourre: 0.5,
   gameStart: 0.42,
@@ -312,8 +358,62 @@ export function playDrawSound(): void {
   void playSoundEvent("draw");
 }
 
-export function playTrickWinSound(): void {
-  void playSoundEvent("trickWin");
+export function playCardPlaceSound(intensityTier = 0): void {
+  void playCardAudioEvent("cardPlace", intensityTier);
+}
+
+export function playLeadChangeSound(intensityTier = 0): void {
+  void playCardAudioEvent("leadChange", intensityTier);
+}
+
+export function playTrickCollectSound(): void {
+  void playSoundEvent("trickCollect");
+}
+
+export function playTrickWinSound(volumeScale = 1): void {
+  void playTrickWinEvent(volumeScale);
+}
+
+async function playCardAudioEvent(event: "cardPlace" | "leadChange", intensityTier: number): Promise<void> {
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetSrc = soundAssetPath(packId, event);
+  try {
+    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
+    if (!played && userGestureUnlocked) {
+      if (event === "cardPlace") playProceduralCardPlace(packId, intensityTier);
+      else playProceduralLeadChange(packId, intensityTier);
+    }
+  } catch {
+    /* never block gameplay */
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
+  }
+}
+
+async function playTrickWinEvent(volumeScale: number): Promise<void> {
+  const event: SoundEventKey = "trickWin";
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetSrc = soundAssetPath(packId, event);
+  try {
+    const played = await tryPlayAsset(assetSrc, VOLUME[event] * volumeScale);
+    if (!played && userGestureUnlocked) {
+      playProceduralTrickWin(packId, volumeScale);
+    }
+  } catch {
+    /* never block gameplay */
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
+  }
 }
 
 export function playBigWinSound(): void {

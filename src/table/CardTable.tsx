@@ -26,6 +26,7 @@ import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
+import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
@@ -181,12 +182,20 @@ export function CardTable({
     privateHandReady,
     tableRootRef: wrapRef,
   });
+  const cardAudio = useCardAudio({
+    trickPresentation,
+    currentUserId,
+    participantCount,
+    trickNumber: session.currentTrick?.trickNumber ?? trickPresentation.frozenTrick?.trickNumber ?? 1,
+    sessionPhase: session.phase,
+  });
   useWonTrickCollection({
     trickPresentation,
     handNumber: session.handNumber,
     sessionPhase: session.phase,
     handComplete,
     tableRootRef: wrapRef,
+    onTrickCollectionStart: cardAudio.onTrickCollectionStart,
   });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -343,6 +352,8 @@ export function CardTable({
             instantTrickPlays={instantTrickPlays}
             peakTrickPlayCount={trickPresentation.peakPlayCount}
             discardPileCards={discardPileCards}
+            currentUserId={currentUserId}
+            onCardLanded={cardAudio.onCardLanded}
           />
         </div>
 

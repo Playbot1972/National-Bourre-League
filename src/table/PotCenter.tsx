@@ -5,6 +5,7 @@ import { formatHandPhase, formatTrumpSuit } from "./handUi";
 import { currentTrickLeaderId } from "./trickTiming";
 import { formatAnteStake, formatRiskStake } from "./logic";
 import { TrickRow } from "./TrickRow";
+import type { CardLandedAudioCallbackInput } from "./TrickPlaySlot";
 import { DiscardPile } from "./DiscardPile";
 import type { DiscardPileCard } from "./discardPileModel";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
@@ -48,6 +49,8 @@ interface PotCenterProps {
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
   discardPileCards?: DiscardPileCard[];
+  currentUserId?: string | null;
+  onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
 }
 
 export function PotCenter({
@@ -83,6 +86,8 @@ export function PotCenter({
   instantTrickPlays = false,
   peakTrickPlayCount = 0,
   discardPileCards = [],
+  currentUserId = null,
+  onCardLanded,
 }: PotCenterProps) {
   const phaseLabel = formatHandPhase(phase, enrollmentActive);
   const trickLeaderPlayerId =
@@ -261,6 +266,8 @@ export function PotCenter({
               instantTrickPlays={instantTrickPlays}
               peakCardCount={peakTrickPlayCount}
               participantCount={participantCount}
+              currentUserId={currentUserId}
+              onCardLanded={onCardLanded}
             />
           </div>
           {finalTrickEcho && (
