@@ -24,6 +24,7 @@ import { logPlayClick } from "./playClickDebug";
 import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
+import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
@@ -220,6 +221,11 @@ export function HeroHand({
       setPendingDiscardIndices([]);
     }
   }, [drawAnimSubPhase]);
+
+  useEffect(() => {
+    setHeroPlayMotionActive(playingIndex !== null);
+    return () => setHeroPlayMotionActive(false);
+  }, [playingIndex]);
 
   useHeroCardMotion(handRootRef, {
     dealing,

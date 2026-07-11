@@ -587,6 +587,7 @@
   position: relative;
   z-index: 6;
   padding-top: clamp(8px, 2vmin, 16px);
+  contain: layout style;
 }
 
 .hand-panel .hand--fan {

@@ -12,9 +12,9 @@ import {
   tableAspectForMobileViewport,
 } from "../stageFit";
 import {
-  isDealPresentationActive,
-  isTrickCollectionActive,
-} from "../presentationMotionBusy";
+  isStageFitMeasurementFrozen,
+  subscribeStageFitMotionFreeze,
+} from "../stageFitMotionFreeze";
 import { useTableTheme } from "../theme/useTableTheme";
 import { useMobileTable } from "../useMobileTable";
 
@@ -113,6 +113,7 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
     const visualViewport = window.visualViewport;
 
     const apply = () => {
+      if (isStageFitMeasurementFrozen()) return;
       const inOverlay = Boolean(wrap.closest(".table-play-overlay"));
       const portrait =
         typeof window !== "undefined" &&
@@ -269,7 +270,7 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
 
     let rafId: number | null = null;
     const scheduleApply = () => {
-      if (isDealPresentationActive() || isTrickCollectionActive()) return;
+      if (isStageFitMeasurementFrozen()) return;
       if (rafId != null) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = null;
@@ -278,20 +279,22 @@ export function useStageFit({ aspect, enabled = true, sessionKey }: UseStageFitO
     };
 
     const ro = new ResizeObserver(scheduleApply);
-    const hero = wrap.querySelector<HTMLElement>(".hand-panel");
-    if (hero) ro.observe(hero);
     const hostEl = stageFitHost(wrap, nativeMobile);
     if (hostEl instanceof HTMLElement) ro.observe(hostEl);
     if (viewport instanceof HTMLElement && viewport !== hostEl) ro.observe(viewport);
     const main = wrap.closest(".table-play-overlay__main");
     if (main instanceof HTMLElement && main !== hostEl) ro.observe(main);
     scheduleApply();
+    const unsubFreeze = subscribeStageFitMotionFreeze(() => {
+      if (!isStageFitMeasurementFrozen()) scheduleApply();
+    });
     const onViewportChange = () => scheduleApply();
     window.addEventListener("orientationchange", onViewportChange);
     visualViewport?.addEventListener("resize", onViewportChange);
     visualViewport?.addEventListener("scroll", onViewportChange);
     return () => {
       if (rafId != null) window.cancelAnimationFrame(rafId);
+      unsubFreeze();
       ro.disconnect();
       window.removeEventListener("orientationchange", onViewportChange);
       visualViewport?.removeEventListener("resize", onViewportChange);

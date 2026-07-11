@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { TrickPlaySlot } from "./TrickPlaySlot";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
+import { resolveTrickLayoutCardCount } from "./trickRowLayout";
 
 interface TrickRowProps {
   displayPlays: TrickPlay[];
@@ -15,6 +16,8 @@ interface TrickRowProps {
   instantTrickPlays?: boolean;
   /** Peak play count — reserves trick row width so the center cluster does not reflow mid-trick. */
   peakCardCount?: number;
+  /** Seated players in the hand — reserves full trick width from trick start. */
+  participantCount?: number;
 }
 
 /** Public trick cards only — never hole cards. */
@@ -28,6 +31,7 @@ export function TrickRow({
   variant = "live",
   instantTrickPlays = false,
   peakCardCount = 0,
+  participantCount = 0,
 }: TrickRowProps) {
   useEffect(() => {
     if (!isGameFlowDebugEnabled()) return;
@@ -37,9 +41,13 @@ export function TrickRow({
     });
   }, [displayPlays.length, presentationPhase]);
 
-  const layoutCardCount = Math.max(displayPlays.length, peakCardCount, 1);
+  const { layoutCardCount, trickActive } = resolveTrickLayoutCardCount(
+    displayPlays.length,
+    peakCardCount,
+    participantCount,
+  );
 
-  if (displayPlays.length === 0) {
+  if (displayPlays.length === 0 && !trickActive) {
     return (
       <div
         className="btrick btrick--empty muted small"
@@ -51,6 +59,27 @@ export function TrickRow({
       >
         <div className="btrick__surface">
           <span className="btrick__placeholder">Trick</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (displayPlays.length === 0 && trickActive) {
+    return (
+      <div
+        className="btrick btrick--reserved muted small"
+        aria-hidden="true"
+        data-testid="trick-row"
+        data-trick-phase={presentationPhase}
+        data-trick-card-count="0"
+        data-trick-layout-count={layoutCardCount}
+        data-trick-variant={variant}
+      >
+        <div className="btrick__surface">
+          <div
+            className="btrick__cards btrick__cards--reserved"
+            style={{ ["--trick-card-count" as string]: layoutCardCount }}
+          />
         </div>
       </div>
     );
