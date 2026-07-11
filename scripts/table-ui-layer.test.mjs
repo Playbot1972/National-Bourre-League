@@ -33,7 +33,7 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
-  it("applyTableFeedbackDiff fires draw feedback on hero card change after draw", () => {
+  it("applyTableFeedbackDiff clears pending draw shuffle on hero card change without duplicate draw audio", () => {
     const calls = [];
     const api = {
       playDrawFeedback: () => calls.push("draw"),
@@ -55,8 +55,9 @@ describe("table UI layer modules", () => {
       drawCompletedIds: ["a"],
       heroCardKeys: "a,b,d",
     };
-    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: true });
-    assert.deepEqual(calls, ["draw"]);
+    const result = applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: true });
+    assert.deepEqual(calls, []);
+    assert.equal(result.clearPendingDrawShuffle, true);
   });
 
   it("applyTableFeedbackDiff fires bourre feedback when local player goes bourré", () => {

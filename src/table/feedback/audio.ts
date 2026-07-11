@@ -11,6 +11,7 @@ import {
   filenameFromAudioUrl,
   installTableAudioAuditHelpers,
   logTableAudio,
+  recordAudioPlayMonitor,
   recordTableAudioAudit,
   type AudioAuditResult,
   type AudioAuditTriggerType,
@@ -179,25 +180,48 @@ async function probeAsset(src: string): Promise<{ ok: boolean; reason?: TableAud
     return { ok, reason: ok ? undefined : "probe-failed" };
   }
   if (typeof window === "undefined") return { ok: false, reason: "probe-failed" };
+
+  const mark = (ok: boolean, reason?: TableAudioFallbackReason) => {
+    assetAvailability.set(src, ok);
+    return { ok, reason };
+  };
+
   try {
-    const res = await fetch(src, { method: "HEAD", cache: "no-store" });
-    const ct = res.headers.get("content-type");
-    if (!res.ok) {
-      logTableAudio("probe-failed", { src, status: res.status, contentType: ct });
-      assetAvailability.set(src, false);
-      return { ok: false, reason: "probe-failed" };
+    const head = await fetch(src, { method: "HEAD", cache: "no-store" });
+    const headCt = head.headers.get("content-type");
+    if (head.ok && isAudioContentType(headCt)) {
+      return mark(true);
     }
-    if (!isAudioContentType(ct)) {
-      logTableAudio("probe-bad-content-type", { src, contentType: ct });
-      assetAvailability.set(src, false);
-      return { ok: false, reason: "bad-content-type" };
+
+    // Some static hosts omit Content-Type on HEAD — confirm with a tiny ranged GET.
+    const ranged = await fetch(src, {
+      headers: { Range: "bytes=0-15" },
+      cache: "no-store",
+    });
+    const rangedCt = ranged.headers.get("content-type");
+    if (ranged.ok && isAudioContentType(rangedCt)) {
+      logTableAudio("probe-get-ok", { src, contentType: rangedCt });
+      return mark(true);
     }
-    assetAvailability.set(src, true);
-    return { ok: true };
+    if (ranged.ok && src.toLowerCase().endsWith(".wav") && !rangedCt?.toLowerCase().includes("text/html")) {
+      logTableAudio("probe-wav-extension-ok", { src, contentType: rangedCt });
+      return mark(true);
+    }
+
+    logTableAudio("probe-failed", {
+      src,
+      headStatus: head.status,
+      headContentType: headCt,
+      getStatus: ranged.status,
+      getContentType: rangedCt,
+    });
+    if (!head.ok && !ranged.ok) {
+      return mark(false, "probe-failed");
+    }
+    return mark(false, "bad-content-type");
   } catch (err) {
     logTableAudio("probe-network-error", { src, err: String(err) });
-    assetAvailability.set(src, false);
-    return { ok: false, reason: "probe-failed" };
+    return mark(false, "probe-failed");
   }
 }
 
@@ -257,7 +281,9 @@ async function tryPlayAsset(
     clip.volume = Math.min(1, Math.max(0, volume));
     clip.currentTime = 0;
     await clip.play();
-    logTableAudio("played-asset", { src, volume, filename: filenameFromAudioUrl(src) });
+    const filename = filenameFromAudioUrl(src);
+    logTableAudio("played-asset", { src, volume, filename });
+    recordAudioPlayMonitor({ src, filename, volume });
     return { ok: true };
   } catch (err) {
     logTableAudio("play-rejected", { src, err: String(err) });
@@ -574,6 +600,19 @@ async function playSoundEvent(
   const packId = getActivePackId();
   const assetId = resolveSoundAsset(packId, event, ctx);
   let fallbackReason: TableAudioFallbackReason | null = null;
+
+  if (!userGestureUnlocked) {
+    logTableAudio("skip-locked", { event });
+    recordPlayAudit(triggerType, event, meta, "skipped-muted", {
+      fallbackReason: "audio-locked",
+      tier: ctx.intensityTier,
+    });
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
+    return;
+  }
+
   try {
     let played = false;
     let playedUrl: string | undefined;
@@ -596,15 +635,6 @@ async function playSoundEvent(
       } else {
         fallbackReason = result.reason ?? "play-rejected";
       }
-    }
-
-    if (!userGestureUnlocked) {
-      logTableAudio("skip-procedural-locked", { event });
-      recordPlayAudit(triggerType, event, meta, "skipped-muted", {
-        fallbackReason: "audio-locked",
-        tier: ctx.intensityTier,
-      });
-      return;
     }
 
     if (played) {
@@ -808,4 +838,6 @@ export {
   getTableAudioAudit,
   printTableAudioAuditSummary,
   installTableAudioAuditHelpers,
+  resetAudioPlayMonitor,
+  getAudioPlayMonitor,
 } from "./audioAudit";

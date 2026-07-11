@@ -44,12 +44,22 @@ export interface AudioAuditRecord {
 
 const MAX_AUDIT_RECORDS = 300;
 
+export interface AudioPlayMonitorRecord {
+  src: string;
+  filename?: string;
+  volume?: number;
+  timestamp: number;
+}
+
 declare global {
   interface Window {
     __nblTableAudioAudit?: AudioAuditRecord[];
+    __nblAudioPlayMonitor?: AudioPlayMonitorRecord[];
     resetTableAudioAudit?: () => void;
     getTableAudioAudit?: () => AudioAuditRecord[];
     printTableAudioAuditSummary?: () => void;
+    resetAudioPlayMonitor?: () => void;
+    getAudioPlayMonitor?: () => AudioPlayMonitorRecord[];
   }
 }
 
@@ -186,9 +196,33 @@ export function printTableAudioAuditSummary(): void {
 }
 
 /** Install DevTools helpers on window (idempotent). */
+export function recordAudioPlayMonitor(record: Omit<AudioPlayMonitorRecord, "timestamp">): void {
+  if (typeof window === "undefined") return;
+  if (!window.__nblAudioPlayMonitor) {
+    window.__nblAudioPlayMonitor = [];
+  }
+  window.__nblAudioPlayMonitor.push({
+    ...record,
+    filename: record.filename ?? filenameFromAudioUrl(record.src),
+    timestamp: Date.now(),
+  });
+}
+
+export function resetAudioPlayMonitor(): void {
+  if (typeof window === "undefined") return;
+  window.__nblAudioPlayMonitor = [];
+}
+
+export function getAudioPlayMonitor(): AudioPlayMonitorRecord[] {
+  if (typeof window === "undefined") return [];
+  return [...(window.__nblAudioPlayMonitor ?? [])];
+}
+
 export function installTableAudioAuditHelpers(): void {
   if (typeof window === "undefined") return;
   window.resetTableAudioAudit = resetTableAudioAudit;
   window.getTableAudioAudit = getTableAudioAudit;
   window.printTableAudioAuditSummary = printTableAudioAuditSummary;
+  window.resetAudioPlayMonitor = resetAudioPlayMonitor;
+  window.getAudioPlayMonitor = getAudioPlayMonitor;
 }

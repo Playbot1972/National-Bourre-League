@@ -81,6 +81,10 @@ describe("sound asset registry", () => {
       resolveSoundAssetsRoot("http://127.0.0.1:8080/"),
       "http://127.0.0.1:8080/sounds/",
     );
+    assert.equal(
+      resolveSoundAssetsRoot("http://127.0.0.1:8080/e2e-fixtures/table-audio"),
+      "http://127.0.0.1:8080/sounds/",
+    );
   });
 
   it("rejects SPA HTML content-types during asset probe", () => {
@@ -101,5 +105,29 @@ describe("sound asset registry", () => {
     assert.equal(SOUND_EVENT_TO_ASSET.gameStart, "card-shuffle-normal");
     assert.equal(SOUND_EVENT_TO_ASSET.deleteRoom, "card-illegal");
     assert.equal(SOUND_EVENT_TO_ASSET.bourre, "Fahhh");
+  });
+
+  it("resolves intended single-asset events to exact filenames", () => {
+    const singles: Array<[Parameters<typeof resolveSoundAsset>[1], string]> = [
+      ["cardSelect", "card-select.wav"],
+      ["cardIllegal", "card-illegal.wav"],
+      ["draw", "draw.wav"],
+      ["uiButton", "ui-button-press.wav"],
+      ["fold", "card-place-heavy.wav"],
+      ["gameStart", "card-shuffle-normal.wav"],
+      ["openRoom", "card-shuffle-final.wav"],
+      ["deleteRoom", "card-illegal.wav"],
+      ["shuffle", "card-shuffle-normal.wav"],
+      ["shuffleFinal", "card-shuffle-final.wav"],
+      ["trickCollect", "coin-chime-light.wav"],
+      ["handWin", "coin-chime-light.wav"],
+      ["potWin", "hand-win-stinger.wav"],
+      ["bourre", "Fahhh.wav"],
+    ];
+    for (const [event, expectedFile] of singles) {
+      const assetId = resolveSoundAsset("classic", event, {});
+      assert.ok(assetId, `missing asset for ${event}`);
+      assert.equal(SOUND_ASSET_FILES[assetId!], expectedFile, event);
+    }
   });
 });
