@@ -23,6 +23,7 @@ import {
   playTrickWinSound,
 } from "../table/feedback/audio";
 import { triggerHaptic } from "../table/feedback/haptics";
+import { logTableAudio } from "../table/feedback/audioAudit";
 import { shouldUseHaptics } from "../table/feedback/prefs";
 import type { SoundEventKey } from "../table/feedback/soundPacks";
 
@@ -92,6 +93,8 @@ function playEventSound(payload: CardAudioEventPayload): void {
   const prefs = getFeedbackPrefs();
   const soundKey = soundKeyForEvent(payload.type);
   if (!shouldPlaySoundEvent(prefs.soundMode, soundKey)) return;
+
+  logTableAudio("requested", { key: soundKey, source: "AudioManager", action: payload.type });
 
   const meta = { source: "AudioManager", action: payload.type };
 

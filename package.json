@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "social": "npx serve docs -l 8080",
+    "social": "node scripts/serve-social.mjs",
     "presocial": "node scripts/ensure-repo-root.mjs",
     "icons:generate": "node scripts/generate-icons.mjs",
     "icons:import": "node scripts/import-logo.mjs",

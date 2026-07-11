@@ -10,7 +10,7 @@ import { resolveSoundAsset, SOUND_EVENT_TRIGGER_TYPE } from "./soundPacks";
 describe("audioAudit", () => {
   it("extracts filename from resolved asset URL", () => {
     assert.equal(
-      filenameFromAudioUrl("https://booray.win/social/sounds/card-select.wav"),
+      filenameFromAudioUrl("https://booray.win/sounds/card-select.wav"),
       "card-select.wav",
     );
     assert.equal(filenameFromAudioUrl("./sounds/trick-win-big.wav"), "trick-win-big.wav");

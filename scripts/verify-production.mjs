@@ -154,9 +154,9 @@ async function checkAppStoreLegalPages() {
 /** @returns {Promise<CheckResult>} */
 async function checkSoundAssets() {
   const samples = [
-    "/social/sounds/card-place-normal.wav",
-    "/social/sounds/trick-win-normal.wav",
-    "/social/sounds/MANIFEST.json",
+    "/sounds/card-place-normal.wav",
+    "/sounds/trick-win-normal.wav",
+    "/sounds/MANIFEST.json",
   ];
   const details = [];
   for (const path of samples) {
