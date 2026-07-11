@@ -1,9 +1,31 @@
-import {
-  deriveScoreNet,
-  eligibleIdsForAnteCollection,
-  scoreBankroll,
-} from "../game/money/core";
-import type { ScoreById } from "../game/money/types";
+import type { ScoreById, ScoreRow } from "../game/money/types";
+
+function scoreBankroll(score: ScoreRow | undefined, buyInFallback = 0): number {
+  if (score?.bankroll != null && Number.isFinite(Number(score.bankroll))) {
+    return Math.max(0, Number(score.bankroll));
+  }
+  const buyIn = Math.max(0, Number(buyInFallback) || 0);
+  const net = Number(score?.net) || 0;
+  return buyIn > 0 ? Math.max(0, buyIn + net) : Math.max(0, net);
+}
+
+function deriveScoreNet(bankroll: number, buyInFallback = 0): number {
+  const buyIn = Math.max(0, Number(buyInFallback) || 0);
+  const br = Math.max(0, Number(bankroll) || 0);
+  return br - buyIn;
+}
+
+function eligibleIdsForAnteCollection(
+  participantIds: string[],
+  scoreById: ScoreById,
+  buyInFallback = 0,
+): string[] {
+  return (participantIds || []).filter((pid) => {
+    const row = scoreById?.[pid];
+    if (row?.out === true) return false;
+    return scoreBankroll(row, buyInFallback) > 0;
+  });
+}
 
 /** Bankroll-positive, non-out seats that may fund a contested next hand. */
 export function countEligibleForNextHand(
