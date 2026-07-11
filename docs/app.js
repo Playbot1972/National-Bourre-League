@@ -161,6 +161,7 @@ import {
   tricksForPlayer,
   resolveActionOrder,
   getPrivateHand,
+  tryFinalizeSessionForSolvency,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -224,6 +225,7 @@ import {
   resolveCurrentHandChoicePlayerId,
   assertHandFlowConsistent,
   shouldAutoOpenNextHand,
+  countEligibleForNextHand,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -1096,7 +1098,62 @@ function sessionNeedsEnrollmentDriver(sessionObj) {
 
 function sessionNeedsNextHandEnrollment(sessionObj) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  return shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
+  if (!shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen })) return false;
+  return eligibleCountForOpenSession(sessionObj) >= 2;
+}
+
+function eligibleCountForOpenSession(sessionObj) {
+  if (!sessionObj || !openScores?.length) return 0;
+  const buyIn = resolveSessionBuyIn(
+    sessionObj,
+    normalizeBourreSettings(currentRoom?.bourreSettings).buyInAmount,
+  );
+  const sortedIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  const scoreById = Object.fromEntries(openScores.map((sc) => [sc.playerId, sc]));
+  return countEligibleForNextHand(sortedIds, scoreById, buyIn);
+}
+
+async function handleSoleSurvivorSessionEnd(sessionObj) {
+  if (!currentRoomId || !openSessionId || !sessionObj || sessionObj.status === "final") {
+    return false;
+  }
+  if (eligibleCountForOpenSession(sessionObj) !== 1) return false;
+
+  cancelNextHandOpenTimer();
+  try {
+    const result = await tryFinalizeSessionForSolvency(currentRoomId, openSessionId);
+    if (result.status !== "finalized" && result.status !== "already_final") return false;
+
+    const scores = await getSessionScores(currentRoomId, openSessionId);
+    if (scores.length > 0) {
+      await completeSessionWithApeScores(currentRoomId, openSessionId, scores);
+    }
+    scheduleSessionCleanup(openSessionId);
+    const winner = scores.find((sc) => (sc.playerId ?? sc.id) === result.winnerId);
+    setTableActionFeedback({
+      status: "success",
+      message: winner
+        ? `Session complete — ${winner.displayName} wins the table.`
+        : "Session complete.",
+    });
+    logHandLifecycleTransition({
+      from: "handoffToNextDeal",
+      to: "settle",
+      reason: "sole survivor — session finalized without contested next hand",
+    });
+    const refreshed =
+      (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
+    await syncTableSession(refreshed);
+    closeTablePlay();
+    renderRoomDetail();
+    return true;
+  } catch (err) {
+    console.warn("handleSoleSurvivorSessionEnd:", err);
+    const message = formatClientGameError(err, "Could not complete the session");
+    setTableActionFeedback({ status: "error", message }, getActionErrorContext("settlement"));
+    showRoomsError(message);
+    return false;
+  }
 }
 
 function cancelNextHandOpenTimer() {
@@ -1110,7 +1167,19 @@ function cancelNextHandOpenTimer() {
 async function openNextHandEnrollment(sessionObj) {
   if (!currentRoomId || !openSessionId || !tablePlayOpen || nextHandOpenInFlight) return;
   if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
-  if (tableReadyPlayerCount(sessionObj) < 2) return;
+
+  const eligibleCount = eligibleCountForOpenSession(sessionObj);
+  if (eligibleCount < 2) {
+    if (eligibleCount === 1) {
+      nextHandOpenInFlight = true;
+      try {
+        await handleSoleSurvivorSessionEnd(sessionObj);
+      } finally {
+        nextHandOpenInFlight = false;
+      }
+    }
+    return;
+  }
 
   nextHandOpenInFlight = true;
   cancelNextHandOpenTimer();
@@ -1212,6 +1281,15 @@ function maybeRecoverHandLifecycle(sessionObj) {
   }
 
   if (!tablePlayOpen) return;
+
+  const eligibleCount = eligibleCountForOpenSession(sessionObj);
+  if (eligibleCount < 2) {
+    cancelNextHandOpenTimer();
+    if (eligibleCount === 1 && !nextHandOpenInFlight) {
+      void handleSoleSurvivorSessionEnd(sessionObj);
+    }
+    return;
+  }
 
   if (nextHandOpenInFlight || nextHandOpenTimer) return;
 
