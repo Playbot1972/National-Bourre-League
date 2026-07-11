@@ -1,125 +1,42 @@
-# Table sound assets
+# Table sound assets (legacy pointer)
 
-Art-directed WAV files for the table feedback service. Loaded at runtime from
-`./sounds/*.wav` (social app root → `/social/sounds/` after deploy).
+Runtime WAV files live in **`public/sounds/`** and are served at **`/sounds/`** on the site root
+(Vite copies `public/` → `dist/`; Firebase Hosting serves `dist/sounds/`).
 
-Install from your Downloads folder:
+Install or refresh assets from your Downloads folder:
 
 ```bash
 chmod +x scripts/copy-table-sounds.sh
 ./scripts/copy-table-sounds.sh ~/Downloads
 ```
 
-Until files are copied, procedural Web Audio fallbacks in `src/table/feedback/audio.ts`
+Verify on disk and after hosting build:
+
+```bash
+npm run verify:sounds
+npm run verify:sounds:dist   # after npm run build:hosting
+```
+
+Until files are present, procedural Web Audio fallbacks in `src/table/feedback/audio.ts`
 remain active.
 
-## Classic pack (16 files)
+See **`public/sounds/MANIFEST.json`** for the canonical file list and
+`src/table/feedback/soundPacks.ts` for event → filename mapping.
 
-| File | Sound ID | Event |
-| --- | --- | --- |
-| `card-place-normal.wav` | `card-place-normal` | Card lands in trick (tier 0) |
-| `card-place-soft.wav` | `card-place-soft` | Card lands (tier 1) |
-| `card-place-heavy.wav` | `card-place-heavy` | Card lands (tier 2), fold |
-| `lead-sweetener-light.wav` | `lead-sweetener-light` | Takes trick lead (tier 0–1) |
-| `lead-sweetener-strong.wav` | `lead-sweetener-strong` | Takes trick lead (tier 2) |
-| `trick-win-normal.wav` | `trick-win-normal` | Trick resolved |
-| `trick-win-big.wav` | `trick-win-big` | Local player wins trick |
-| `hand-win-stinger.wav` | `hand-win-stinger` | Pot / main hand win (`potWin`) |
-| `card-shuffle-normal.wav` | `card-shuffle-normal` | Hand deal shuffle, game start |
-| `card-shuffle-final.wav` | `card-shuffle-final` | Final shuffle sting, open room |
-| `card-select.wav` | `card-select` | Card tap / queue in hand |
-| `card-illegal.wav` | `card-illegal` | Illegal play, delete room |
-| `ui-button-press.wav` | `ui-button-press` | Stand pat and other UI buttons |
-| `coin-chime-light.wav` | `coin-chime-light` | Trick collected, hand win |
-| `draw.wav` | `draw` | Draw action / replacement |
-| `Fahhh.wav` | `Fahhh` | Bourré moment |
+## Local dev
 
-## Premium packs
+`npm run social` serves the static social app from `docs/` and mounts `public/sounds/` at
+`/sounds/*` via `scripts/serve-social.mjs`.
 
-Optional themed overrides use the same filenames under:
+## Debug
 
-| Folder | Theme |
-| --- | --- |
-| `packs/wood/` | Warm wood & felt |
-| `packs/arcade/` | Bright arcade |
-
-## Architecture
-
-| Layer | Module |
-| --- | --- |
-| Asset registry | `src/table/feedback/soundPacks.ts` |
-| Playback + preload | `src/table/feedback/audio.ts` |
-| Cooldowns + unlock | `src/table/feedback/service.ts` |
-| Animation sync | `src/audio/AudioManager.ts` + `useCardAudio` |
-
-Preload runs after the first user gesture (`unlockAudio` → `preloadSoundAssets`).
-Clips are warmed at near-silent volume during unlock so delayed table callbacks
-(e.g. deal shuffle timers) can still play hosted WAVs.
-
-### Debug logging
-
-In DevTools console, enable verbose audio routing:
+Table footer includes a **Test card-select.wav** button. Enable verbose console logging:
 
 ```js
 localStorage.setItem("nbl-table-audio-debug", "1"); // reload table
 ```
 
-Logs are prefixed `[table-audio]` and report resolve URLs, probe failures,
-`play()` rejections, and procedural fallback reasons.
-
-### Runtime audit buffer
-
-Every play attempt is recorded on `window.__nblTableAudioAudit` (last 300 entries).
-Helpers are installed on first audio unlock:
-
-```js
-getTableAudioAudit()           // full buffer
-printTableAudioAuditSummary()  // grouped by action/event + filenames
-resetTableAudioAudit()         // clear buffer
-```
-
-Each record includes `triggerType` (`action` | `animation` | `outcome`),
-`event`, `result` (`asset-played`, `procedural-fallback`, …), and `filename` when known.
-
-### Manual verification flow
-
-1. Open the table or `/e2e-fixtures/table-audio` on localhost:8080.
-2. In DevTools console:
-   ```js
-   localStorage.setItem("nbl-table-audio-debug", "1");
-   location.reload();
-   ```
-3. Perform an action (draw, fold, open room, win hand, bourré, etc.).
-4. Inspect results:
-   ```js
-   printTableAudioAuditSummary();
-   getTableAudioAudit().slice(-5);
-   getAudioPlayMonitor?.().slice(-3);
-   ```
-5. Confirm each row shows `result: asset-played` and the **filename** matches the
-   intended mapping below. If `procedural-fallback` appears, check `fallbackReason`
-   (`bad-content-type`, `probe-failed`, `audio-locked`, …).
-
-| Event | Expected filename |
-| --- | --- |
-| cardSelect | card-select.wav |
-| draw | draw.wav |
-| fold | card-place-heavy.wav |
-| gameStart | card-shuffle-normal.wav |
-| openRoom | card-shuffle-final.wav |
-| potWin | hand-win-stinger.wav |
-| bourre | Fahhh.wav |
+Logs are prefixed `[table-audio]` and report requested keys, resolved `src`, `onload`,
+`onloaderror`, `onplay`, and `onplayerror`.
 
 Automated browser coverage: `npm run test:e2e:audio`.
-
-**Trigger layers:**
-
-| Layer | API | Examples |
-| --- | --- | --- |
-| Action | `playActionSound` via `service.ts` | card tap, draw, fold, open/delete room |
-| Animation | `playAnimationSound` via `AudioManager` | card land, trick won, shuffle |
-| Outcome | `playOutcomeSound` via `service.ts` | pot win, hand win, bourré |
-
-**Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, hand wins, and bourré only.
-
-Keep files short and normalized for mobile speakers. See **Production format** in the implementation notes for WAV vs MP3 guidance.

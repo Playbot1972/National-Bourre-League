@@ -54,25 +54,29 @@ describe("sound asset registry", () => {
     assert.equal(SOUND_ASSET_FILES.Fahhh, "Fahhh.wav");
   });
 
-  it("resolves hosting paths under ./sounds/ in non-browser builds", () => {
+  it("resolves site-root /sounds/ paths in non-browser builds", () => {
     assert.equal(
       soundAssetUrl("classic", "card-place-normal"),
-      "./sounds/card-place-normal.wav",
+      "/sounds/card-place-normal.wav",
     );
   });
 
-  it("pins sounds root under /social/ even without trailing slash", () => {
+  it("pins sounds root at site /sounds/ regardless of page path", () => {
     assert.equal(
       resolveSoundAssetsRoot("https://booray.win/social"),
-      "https://booray.win/social/sounds/",
+      "https://booray.win/sounds/",
     );
     assert.equal(
       resolveSoundAssetsRoot("https://booray.win/social/"),
-      "https://booray.win/social/sounds/",
+      "https://booray.win/sounds/",
     );
     assert.equal(
       resolveSoundAssetsRoot("https://booray.win/social/index.html"),
-      "https://booray.win/social/sounds/",
+      "https://booray.win/sounds/",
+    );
+    assert.equal(
+      resolveSoundAssetsRoot("https://booray.win/"),
+      "https://booray.win/sounds/",
     );
   });
 

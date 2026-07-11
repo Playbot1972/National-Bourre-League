@@ -108,9 +108,9 @@ from `mount.tsx` for `docs/app.js` snapshot diffing).
 | `playTrickWinFeedback()` | Local player wins a trick |
 | `playBigWinFeedback()` | Local player wins hand / pot |
 
-**Sound assets:** Drop MP3s in `docs/sounds/` (`shuffle.mp3`, `trick-win.mp3`,
-`big-win.mp3`). Runtime loader tries assets first; procedural Web Audio is the
-fallback until files are checked in (see `docs/sounds/README.md`).
+**Sound assets:** Drop WAVs in `public/sounds/` (served at `/sounds/` on the site root).
+Runtime loader tries assets first; procedural Web Audio is the fallback when files are
+missing or fail to load (see `docs/sounds/README.md`).
 
 **User prefs:** `localStorage` key `nbl-feedback` — sound on/off, haptics
 on/minimal/off. Settings in table footer + session sidebar.
