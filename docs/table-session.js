@@ -13523,10 +13523,12 @@ function Fu({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 									className: [
 										"bseat__trick-badge",
 										p === 0 ? "bseat__trick-badge--zero" : "",
+										S && p === 0 ? "bseat__trick-badge--bourre-risk" : "",
 										e.isWinner || e.isTrickCapture ? "bseat__trick-badge--tick" : ""
 									].filter(Boolean).join(" "),
-									"aria-label": `${p} tricks won`,
-									title: `${p} trick${p === 1 ? "" : "s"} won`,
+									"aria-label": S ? C ? `${p} tricks won — you need this trick to avoid bourré` : `${p} tricks won — at risk of bourré` : `${p} tricks won`,
+									title: S ? C ? "Win this trick or go bourré" : "Must win this trick" : `${p} trick${p === 1 ? "" : "s"} won`,
+									"data-testid": "seat-trick-badge",
 									children: p
 								}),
 								e.inHand && !e.isSelf && /* @__PURE__ */ (0, g.jsx)("span", {
@@ -13585,13 +13587,6 @@ function Fu({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 										}, n);
 									})
 								}),
-								S && /* @__PURE__ */ (0, g.jsx)("span", {
-									className: "bseat__bourre-pressure-badge",
-									"data-testid": "bourre-pressure-badge",
-									"aria-label": C ? "You need this trick to avoid bourré" : "At risk of bourré",
-									title: C ? "Win this trick or go bourré" : "Must win this trick",
-									children: C ? "Bourré risk!" : "0 tricks"
-								}),
 								x && !S && /* @__PURE__ */ (0, g.jsx)("span", {
 									className: "bseat__bourre-badge",
 									"data-testid": "bourre-marker-badge",
@@ -13633,10 +13628,6 @@ function Fu({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 										e.inHand && /* @__PURE__ */ (0, g.jsx)("span", {
 											className: "bseat__in-badge",
 											title: "In this hand"
-										}),
-										S && /* @__PURE__ */ (0, g.jsx)("span", {
-											className: "bseat__bourre-pressure-ring",
-											"aria-hidden": "true"
 										}),
 										b && !S && /* @__PURE__ */ (0, g.jsx)("span", {
 											className: "bseat__bourre-ring",
