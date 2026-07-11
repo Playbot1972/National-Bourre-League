@@ -10727,7 +10727,7 @@ function Ha(e, { dealing: t, dealStaggerMs: n, drawAnimSubPhase: r, drawDiscardC
 	]), (0, l.useLayoutEffect)(() => {
 		if (r === "discard") {
 			if (i <= 0) return;
-			v.current = d.map(Ba);
+			S.current = null, v.current = d.map(Ba);
 			let t = e.current, n = m?.current ?? t?.closest(".btable-wrap"), r = za(t, o);
 			if (!r.length || !n || !p) return;
 			let a = `${f}:${p}:discard:${r.length}:${o.join(",")}`;
@@ -14466,7 +14466,7 @@ function Jd(e) {
 function Yd(e, t, n, r) {
 	let i = n instanceof Document ? n : n.ownerDocument ?? document;
 	if (r && e === r && t === 4) {
-		i.querySelector("[data-trump-deal-target]")?.classList.add("deal-card--revealed");
+		i.querySelector("[data-trump-deal-target]")?.classList.add("deal-card--revealed"), i.querySelector(`[data-deal-seat="${e}"][data-deal-round="${t}"]`)?.classList.add("deal-card--revealed");
 		return;
 	}
 	i.querySelector(`[data-deal-seat="${e}"][data-deal-round="${t}"]`)?.classList.add("deal-card--revealed");
@@ -16847,14 +16847,13 @@ function am(e, t) {
 				return n.phase === "reveal" ? nm(e, n) : e;
 			}
 			let o = Ip(a.trumpUpcard), s = Ip(n.trumpUpcard);
-			if (o && !s && !e.trumpMergeActive) return {
+			if (o && !s && !e.trumpMergedIntoHand) return {
 				...e,
 				trumpRevealActive: !1,
-				trumpMergeActive: !0,
+				trumpMergeActive: !1,
 				trumpMergedIntoHand: !0,
 				prevSnapshot: n,
-				pendingSnapshot: n,
-				phaseStartedAt: Date.now()
+				pendingSnapshot: n
 			};
 			if (n.phase === "play" && e.phase !== "play") return Vp(e, "play", {
 				displayDrawCompletedIds: [...n.drawCompletedIds],
@@ -18166,46 +18165,77 @@ function Xm({ session: e, players: t, splitSharePerWinner: n, currentUserId: r, 
 }
 //#endregion
 //#region src/table/heroHandDisplay.ts
-function Zm(e, t) {
-	return [...e];
+function Zm(e) {
+	return `${e.rank}-${e.suit}`;
 }
 function Qm(e, t) {
-	return [...e].sort((e, t) => e - t);
+	if (!t?.rank || !t?.suit) return null;
+	let n = Zm(t), r = e.findIndex((e) => Zm(e) === n);
+	return r >= 0 ? r : null;
 }
-function $m(e) {
-	let t = !!(e.playerId && e.trumpHolderId && e.playerId === e.trumpHolderId), n = !!e.trumpUpcard, r = !n && !!e.trumpSuit && e.phase === "play";
-	if (!t || !n) return {
+function $m(e, t) {
+	return t == null || e < t ? e : e + 1;
+}
+function eh(e, t) {
+	return t == null ? e : e === t ? null : e > t ? e - 1 : e;
+}
+function th(e, t) {
+	return e.map((e) => $m(e, t));
+}
+function nh(e, t) {
+	return e.map((e) => eh(e, t)).filter((e) => e != null).sort((e, t) => e - t);
+}
+function rh(e, t, n) {
+	let r = Qm(e, n);
+	return r == null ? {
+		cards: [...t, n],
+		trumpDisplayIndex: t.length
+	} : {
+		cards: e,
+		trumpDisplayIndex: r
+	};
+}
+function ih(e) {
+	let t = !!(e.playerId && e.trumpHolderId && e.playerId === e.trumpHolderId), n = !!e.trumpUpcard, r = e.trumpUpcard, i = !n && !!e.trumpSuit && e.phase === "play";
+	if (!t) return {
 		displayCards: e.effectiveHeroCards,
 		revealedTrumpIndex: null,
 		trumpMergeActive: !1,
 		trumpMergedIntoHand: !1,
 		hideCenterTrumpForHolder: !1,
-		showTrumpSuitReminder: r,
+		showTrumpSuitReminder: i,
 		trumpDisabledIndex: null,
 		indexMode: "effective"
 	};
-	let { trumpMergeActive: i, trumpMergedIntoHand: a } = e.handPresentation, o = pp({
-		trumpHolderId: e.trumpHolderId,
-		trumpUpcard: e.trumpUpcard,
-		trumpSuit: e.trumpSuit,
-		phase: e.phase,
-		handPresentation: e.handPresentation
-	});
+	let { trumpMergedIntoHand: a } = e.handPresentation;
+	if (n && r) {
+		let { cards: t, trumpDisplayIndex: n } = rh(e.rawHeroCards, e.effectiveHeroCards, r);
+		return {
+			displayCards: t,
+			revealedTrumpIndex: n,
+			trumpMergeActive: !1,
+			trumpMergedIntoHand: a,
+			hideCenterTrumpForHolder: !0,
+			showTrumpSuitReminder: !1,
+			trumpDisabledIndex: n,
+			indexMode: "display"
+		};
+	}
 	return {
 		displayCards: e.effectiveHeroCards,
 		revealedTrumpIndex: null,
-		trumpMergeActive: i,
+		trumpMergeActive: !1,
 		trumpMergedIntoHand: a,
-		hideCenterTrumpForHolder: o.hideCenterTrump,
-		showTrumpSuitReminder: o.showTrumpSuitReminder,
+		hideCenterTrumpForHolder: !1,
+		showTrumpSuitReminder: i,
 		trumpDisabledIndex: null,
 		indexMode: "effective"
 	};
 }
 //#endregion
 //#region src/table/TableSessionView.tsx
-var eh = [], th = [], nh = [];
-function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabel: i, showCoWinSettlement: a, splitPotEnabled: o = !1, rebuyEnabled: s = !1, splitSharePerWinner: c = 0, enrollmentActive: u = !1, currentUserId: d, heroCards: f = th, rawHeroCards: p = th, privateHandReady: m = !1, legalPlayIndices: h, recentBourreIds: _ = nh, handComplete: v = !1, actionFeedback: y, actions: b }) {
+var ah = [], oh = [], sh = [];
+function ch({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabel: i, showCoWinSettlement: a, splitPotEnabled: o = !1, rebuyEnabled: s = !1, splitSharePerWinner: c = 0, enrollmentActive: u = !1, currentUserId: d, heroCards: f = oh, rawHeroCards: p = oh, privateHandReady: m = !1, legalPlayIndices: h, recentBourreIds: _ = sh, handComplete: v = !1, actionFeedback: y, actions: b }) {
 	let { settings: x } = Zc(), S = Nd(), [C, w] = (0, l.useState)(!1), T = e.participantIds.length, { events: E, dismissEvent: D, pushReaction: O } = Fp({
 		session: e,
 		potMetrics: n,
@@ -18227,8 +18257,8 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		trickPipelineActive: j.isPipelineActive,
 		forceTrickHandEndDrain: M,
 		heroCards: f,
-		enrolledIds: e.handEnrollment?.enrolledIds ?? eh,
-		declinedIds: e.handEnrollment?.declinedIds ?? eh,
+		enrolledIds: e.handEnrollment?.enrolledIds ?? ah,
+		declinedIds: e.handEnrollment?.declinedIds ?? ah,
 		actionOrder: e.actionOrder ?? e.handEnrollment?.orderedPlayerIds ?? e.participantIds
 	}), ee = Am(e.phase, e.trumpUpcard, j.displayPlays.length), te = bl(N.isPresenting, N.phase, e.phase), [P, F] = (0, l.useState)(0);
 	(0, l.useEffect)(() => ol(() => F((e) => e + 1)), []), (0, l.useEffect)(() => {
@@ -18275,7 +18305,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		N.trumpRevealActive,
 		N.trumpMergeActive,
 		N.trumpMergedIntoHand
-	]), L = (0, l.useMemo)(() => $m({
+	]), L = (0, l.useMemo)(() => ih({
 		rawHeroCards: p,
 		effectiveHeroCards: f,
 		playerId: d,
@@ -18300,7 +18330,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		N.trumpRevealActive,
 		N.trumpMergeActive,
 		N.trumpMergedIntoHand
-	]), R = L.displayCards, z = (0, l.useMemo)(() => !h?.length || L.indexMode === "effective" ? h : Zm(h, L.trumpDisabledIndex), [
+	]), R = L.displayCards, z = (0, l.useMemo)(() => !h?.length || L.indexMode === "effective" ? h : th(h, L.trumpDisabledIndex), [
 		h,
 		L.indexMode,
 		L.trumpDisabledIndex
@@ -18312,7 +18342,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 			leadSuit: e.leadSuit ?? null,
 			cinchEnabled: e.cinchEnabled === !0
 		}, h);
-		return t == null ? null : L.indexMode === "effective" ? t : Zm([t], L.trumpDisabledIndex)[0] ?? null;
+		return t == null ? null : L.indexMode === "effective" ? t : th([t], L.trumpDisabledIndex)[0] ?? null;
 	}, [
 		h,
 		f,
@@ -18324,8 +18354,8 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		L.trumpDisabledIndex
 	]), re = (0, l.useMemo)(() => {
 		if (e.phase !== "draw" || !f.length) return [];
-		let t = f.map(Wa), n = L.indexMode === "display" && L.trumpDisabledIndex != null ? Qm([L.trumpDisabledIndex], L.trumpDisabledIndex) : L.trumpDisabledIndex == null ? [] : [L.trumpDisabledIndex], r = Zo(t, e.trumpSuit ?? "clubs", e.maxDrawDiscards ?? 4, e.remainingDeckCount ?? Infinity, n);
-		return L.indexMode === "effective" ? r : Zm(r, L.trumpDisabledIndex);
+		let t = f.map(Wa), n = L.indexMode === "display" && L.trumpDisabledIndex != null ? nh([L.trumpDisabledIndex], L.trumpDisabledIndex) : L.trumpDisabledIndex == null ? [] : [L.trumpDisabledIndex], r = Zo(t, e.trumpSuit ?? "clubs", e.maxDrawDiscards ?? 4, e.remainingDeckCount ?? Infinity, n);
+		return L.indexMode === "effective" ? r : th(r, L.trumpDisabledIndex);
 	}, [
 		e.phase,
 		f,
@@ -18392,7 +18422,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		},
 		onSubmitDraw: (e) => {
 			if (!b.onSubmitDraw) return;
-			let t = L.indexMode === "display" ? Qm(e, L.trumpDisabledIndex) : e;
+			let t = L.indexMode === "display" ? nh(e, L.trumpDisabledIndex) : e;
 			return b.onSubmitDraw(t);
 		},
 		onPassDraw: b.onPassDraw,
@@ -18400,7 +18430,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		onPlayCard: (e) => {
 			if (!b.onPlayCard) return;
 			if (L.indexMode !== "display") return b.onPlayCard(e);
-			let t = Qm([e], L.trumpDisabledIndex)[0];
+			let t = nh([e], L.trumpDisabledIndex)[0];
 			if (t != null) return b.onPlayCard(t);
 		},
 		onReaction: ve
@@ -18420,7 +18450,7 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 		revealedTrumpIndex: L.revealedTrumpIndex,
 		trumpMergeActive: L.trumpMergeActive,
 		trumpDisabledIndex: L.trumpDisabledIndex,
-		hideCenterTrump: ne.hideCenterTrump,
+		hideCenterTrump: L.hideCenterTrumpForHolder,
 		showTrumpSuitReminder: fe,
 		trumpHolderPresentation: ne,
 		privateHandReady: m,
@@ -18589,12 +18619,12 @@ function rh({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 }
 //#endregion
 //#region src/table/mount.tsx
-var ih = null, ah = null;
-function oh(e, t) {
-	Dc(), aa(e), ah !== e && (ih?.unmount(), ih = (0, u.createRoot)(e), ah = e), ih.render(/* @__PURE__ */ (0, g.jsx)(Xc, { children: /* @__PURE__ */ (0, g.jsx)(rh, { ...t }) }));
+var lh = null, uh = null;
+function dh(e, t) {
+	Dc(), aa(e), uh !== e && (lh?.unmount(), lh = (0, u.createRoot)(e), uh = e), lh.render(/* @__PURE__ */ (0, g.jsx)(Xc, { children: /* @__PURE__ */ (0, g.jsx)(ch, { ...t }) }));
 }
-function sh() {
-	ah && (pf(ah), Vd(ah)), ih?.unmount(), ih = null, ah = null, Tl(), sl();
+function fh() {
+	uh && (pf(uh), Vd(uh)), lh?.unmount(), lh = null, uh = null, Tl(), sl();
 }
 //#endregion
-export { Vd as clearDrawFlyGhosts, pf as clearWonTrickCollectionArtifacts, Sl as evaluateBotPresentationGate, xl as forceReleasePresentationForBots, ls as getFeedbackPrefs, vl as getTablePresentationBlockReason, El as getTrickAnimationBusyState, bl as handPresentingBlocksBots, Dc as initGameFeedback, Ol as isTablePresentationBusy, Cl as isTablePresentationBusyForBots, Dl as isTrickAnimationBusy, oh as mountTableSession, jc as playBigWinFeedback, Mc as playBourreFeedback, kc as playDrawFeedback, Nc as playGameStartFeedback, Oc as playShuffleFeedback, Ac as playTrickWinFeedback, us as saveFeedbackPrefs, ps as subscribeFeedbackPrefs, kl as subscribeTrickAnimationBusy, sh as unmountTableSession };
+export { Vd as clearDrawFlyGhosts, pf as clearWonTrickCollectionArtifacts, Sl as evaluateBotPresentationGate, xl as forceReleasePresentationForBots, ls as getFeedbackPrefs, vl as getTablePresentationBlockReason, El as getTrickAnimationBusyState, bl as handPresentingBlocksBots, Dc as initGameFeedback, Ol as isTablePresentationBusy, Cl as isTablePresentationBusyForBots, Dl as isTrickAnimationBusy, dh as mountTableSession, jc as playBigWinFeedback, Mc as playBourreFeedback, kc as playDrawFeedback, Nc as playGameStartFeedback, Oc as playShuffleFeedback, Ac as playTrickWinFeedback, us as saveFeedbackPrefs, ps as subscribeFeedbackPrefs, kl as subscribeTrickAnimationBusy, fh as unmountTableSession };

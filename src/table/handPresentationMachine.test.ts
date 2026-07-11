@@ -46,6 +46,27 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergeActive, false);
   });
 
+  it("latches trump merged without replaying merge animation when server clears upcard", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "draw",
+      trumpRevealActive: true,
+      trumpMergedIntoHand: false,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        trumpUpcard: null,
+        trumpSuit: "hearts",
+      },
+    });
+    assert.equal(store.trumpMergeActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpRevealActive, false);
+  });
+
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
