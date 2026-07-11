@@ -9,6 +9,23 @@ import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
 
+const SOCIAL_BASE = "/social/";
+
+const MAIN_NAV: { label: string; href: string; active?: boolean }[] = [
+  { label: "Tutorial", href: "/", active: true },
+  { label: "Home", href: `${SOCIAL_BASE}#home` },
+  { label: "Rules", href: `${SOCIAL_BASE}#rules` },
+  { label: "Rooms", href: `${SOCIAL_BASE}#rooms` },
+  { label: "Leaderboard", href: `${SOCIAL_BASE}#leaderboard` },
+  { label: "Leagues", href: `${SOCIAL_BASE}#leagues` },
+];
+
+const LEARN_SUBNAV: { label: string; screen: Screen }[] = [
+  { label: "Rules", screen: "rules" },
+  { label: "Tutorial", screen: "tutorial" },
+  { label: "Private room", screen: "room" },
+];
+
 function shouldCheckForUpdates() {
   const host = window.location.hostname;
   return host !== "localhost" && host !== "127.0.0.1";
@@ -73,39 +90,28 @@ export default function App() {
         </div>
       ) : null}
       <header className="app__header">
-        <button
-          className="app__brand"
-          onClick={() => setScreen("home")}
-          aria-label="National Bourré League home"
-        >
-          <span className="app__brand-mark">♠</span>
-          <span className="app__brand-text">
-            National <em>Bourré</em> League
-          </span>
-        </button>
-        <div className="app__header-actions">
-          <nav className="app__nav" aria-label="Primary">
-            <button
-              className={`app__nav-link ${screen === "rules" ? "is-active" : ""}`}
-              onClick={() => setScreen("rules")}
-            >
-              Rules
-            </button>
-            <button
-              className={`app__nav-link ${screen === "tutorial" ? "is-active" : ""}`}
-              onClick={() => setScreen("tutorial")}
-            >
-              Tutorial
-            </button>
-            <button
-              className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
-              onClick={() => setScreen("room")}
-            >
-              Private room
-            </button>
-            <a className="app__nav-link app__nav-link--external" href="/social/">
-              Social
-            </a>
+        <div className="app__header-row">
+          <button
+            className="app__brand"
+            onClick={() => setScreen("home")}
+            aria-label="National Bourré League home"
+          >
+            <span className="app__brand-mark">♠</span>
+            <span className="app__brand-text">
+              National <em>Bourré</em> League
+            </span>
+          </button>
+          <nav className="app__nav app__nav--primary" aria-label="Primary">
+            {MAIN_NAV.map((item) => (
+              <a
+                key={item.label}
+                className={`app__nav-link${item.active ? " is-active" : ""}`}
+                href={item.href}
+                aria-current={item.active ? "page" : undefined}
+              >
+                {item.label}
+              </a>
+            ))}
           </nav>
           <button
             type="button"
@@ -124,6 +130,22 @@ export default function App() {
             </span>
           </button>
         </div>
+        <nav className="app__subnav" aria-label="Learn section">
+          {LEARN_SUBNAV.map((item) => (
+            <button
+              key={item.screen}
+              type="button"
+              className={`app__nav-link${screen === item.screen ? " is-active" : ""}`}
+              onClick={() => setScreen(item.screen)}
+              aria-current={screen === item.screen ? "page" : undefined}
+            >
+              {item.label}
+            </button>
+          ))}
+          <a className="app__nav-link" href={SOCIAL_BASE}>
+            Social
+          </a>
+        </nav>
       </header>
 
       <main className="app__main">
