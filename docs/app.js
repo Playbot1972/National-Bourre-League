@@ -913,6 +913,8 @@ let creatingSession = false;
 let roomSetupFocus = null;
 /** Prevents duplicate Play Now fast-start while in flight. */
 let playNowInFlight = false;
+/** Suppress room-detail roster UI while Play Now assembles the table in the background. */
+let silentTableEntry = false;
 /** Debounced auto-play after Add Player. */
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
@@ -2343,13 +2345,10 @@ async function runPlayNowFlow() {
 
   playNowInFlight = true;
   setPlayNowBusy(true);
-  showRoomsError("Setting up your table…", "info");
 
   let createdRoomId = null;
 
   try {
-    goToPrivateRooms();
-
     const roomName = pickVacationRoomName(myRooms.map((r) => r.name).filter(Boolean));
     createdRoomId = await createRoom({
       owner: session,
@@ -2358,7 +2357,7 @@ async function runPlayNowFlow() {
       bourreSettings: playNowBourreSettings(),
     });
 
-    openRoom(createdRoomId);
+    openRoom(createdRoomId, { silent: true });
 
     await waitUntil(
       () =>
@@ -2406,6 +2405,8 @@ async function runPlayNowFlow() {
     await triggerSessionPlay("play-now");
   } catch (err) {
     console.error("runPlayNowFlow:", err);
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
     const hint =
       createdRoomId != null
         ? "Play Now could not finish — your room is open; finish setup or tap Play Now again."
@@ -2417,6 +2418,10 @@ async function runPlayNowFlow() {
   } finally {
     playNowInFlight = false;
     setPlayNowBusy(false);
+    if (!tablePlayOpen) {
+      silentTableEntry = false;
+      document.body.classList.remove("table-entry-silent");
+    }
   }
 }
 
@@ -2545,7 +2550,8 @@ $("#rooms-list").addEventListener("keydown", (e) => {
   }
 });
 
-function openRoom(roomId) {
+function openRoom(roomId, options = {}) {
+  const silent = options.silent === true;
   clearDetailSubs();
   roomGoneHandled = false;
   currentRoomId = roomId;
@@ -2555,14 +2561,21 @@ function openRoom(roomId) {
   openSessionId = null;
   openScores = [];
 
-  document.body.classList.add("room-detail-open");
-  roomsListView.hidden = true;
-  if (roomsIntro) roomsIntro.hidden = true;
-  roomDetailView.hidden = false;
+  if (silent) {
+    silentTableEntry = true;
+    document.body.classList.add("table-entry-silent");
+  } else {
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
+    document.body.classList.add("room-detail-open");
+    roomsListView.hidden = true;
+    if (roomsIntro) roomsIntro.hidden = true;
+    roomDetailView.hidden = false;
+    roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
+  }
   pendingRoomBuyInOverride = null;
   pendingRoomAnteOverride = null;
   pendingRoomBourreOverrides = null;
-  roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
@@ -2724,10 +2737,12 @@ function updateTablePlayTitle(openSessionObj) {
   const titleEl = $("#table-play-overlay-title");
   if (!titleEl) return;
   if (!openSessionObj || openSessionObj.status === "final") {
-    titleEl.textContent = "Live table";
+    titleEl.textContent = "Live Table";
     return;
   }
-  titleEl.textContent = `Hand #${(openSessionObj.handCount ?? 0) + 1} · live table`;
+  const handNum = (openSessionObj.handCount ?? 0) + 1;
+  const tableName = openSessionObj.sessionName || "Live Table";
+  titleEl.textContent = `Hand #${handNum} · Live Table · ${tableName}`;
 }
 
 function abortTablePlayStartup() {
@@ -2783,6 +2798,8 @@ async function openTablePlay() {
   }
 
   tablePlayOpen = true;
+  silentTableEntry = false;
+  document.body.classList.remove("table-entry-silent");
   overlay.hidden = false;
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
@@ -2909,6 +2926,10 @@ function bindTablePlayControls() {
 
   $("#close-table-play")?.addEventListener("click", () => {
     closeTablePlay();
+  });
+
+  $("#open-table-settings")?.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("nbl-open-table-settings"));
   });
 
   document.addEventListener("keydown", (e) => {
@@ -4099,7 +4120,7 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
   return created
     .map((sessionObj) => {
       const active = sessionObj.id === activeSessionId;
-      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
+      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}" aria-current="${active ? "true" : "false"}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
     })
     .join("");
 }
@@ -4116,6 +4137,7 @@ function scheduleRenderRoomDetail() {
 
 function renderRoomDetail() {
   if (!currentRoomId || roomDetailView.hidden) return;
+  if (silentTableEntry && !tablePlayOpen) return;
   if (!currentRoom) {
     roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
     return;
@@ -4378,7 +4400,7 @@ function buildUnifiedGameSetupHtml({
   const actions =
     hasActiveSession && openSessionObj.status !== "final"
       ? `<footer class="game-setup-panel__actions" data-testid="session-action-pills">
-          <button type="button" class="btn btn--primary btn--block game-setup-panel__play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
+          <button type="button" class="btn btn--primary btn--block btn--cta-orb game-setup-panel__play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
           ${
             isOwner
               ? `<button type="button" class="btn btn--sm game-setup-panel__stats" id="complete-session" title="Complete session and update Ape Scores">Update Stats</button>`

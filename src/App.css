@@ -82,8 +82,8 @@
 
 [data-theme="light"] .app__nav-link.is-active,
 [data-theme="light"] .app__brand-mark {
-  background: linear-gradient(160deg, #a68952, #8b7342);
-  color: #faf6ea;
+  background: linear-gradient(160deg, #c9a227, #a68952);
+  color: #1a1208;
 }
 
 [data-theme="light"] .app__brand-text em {

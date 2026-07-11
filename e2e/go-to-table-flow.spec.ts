@@ -42,7 +42,7 @@ test.describe("Go to Table — bot flow (2–8 players)", () => {
 
     const overlay = page.locator("#table-play-overlay");
     await expect(overlay.getByTestId("hero-hand")).toBeVisible({ timeout: 15_000 });
-    await expect(overlay.locator(".btable-session__phase-tag")).toContainText(/draw/i);
+    await expect(overlay.getByTestId("phase-tag")).toHaveAttribute("data-phase", "draw");
     await expect(overlay.getByTestId("hero-hand")).not.toContainText("Loading your cards", {
       timeout: 30_000,
     });

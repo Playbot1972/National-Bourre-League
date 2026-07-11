@@ -229,19 +229,13 @@ export function PotCenter({
             .join(" ")}
           aria-live="polite"
         >
-          {phase === "play" ? (
-            <span className="btable-sr-only" data-testid="phase-tag-center" data-phase="play">
-              {phaseLabel}
-            </span>
-          ) : (
-            <span
-              className={`bpot__phase-tag bpot__phase-tag--${phase ?? "waiting"}`}
-              data-testid="phase-tag-center"
-              data-phase={phase ?? "waiting"}
-            >
-              {phaseLabel}
-            </span>
-          )}
+          <span
+            className="btable-sr-only"
+            data-testid="phase-tag-center"
+            data-phase={phase ?? "waiting"}
+          >
+            {phaseLabel}
+          </span>
           {hasTrumpCard && trumpSuit && (
             <span className="center-play__trump-suit muted small">
               {formatTrumpSuit(trumpSuit)}

@@ -10,7 +10,6 @@ import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
   formatHandPhase,
-  formatLocalActionCue,
   isCardsDealtPhase,
   isDecisionPhase,
   isRevealPhase,
@@ -58,7 +57,7 @@ export function TableSessionView({
   players,
   potMetrics,
   mySessionNet,
-  leaderLabel,
+  leaderLabel: _leaderLabel,
   showCoWinSettlement,
   splitPotEnabled = false,
   rebuyEnabled = false,
@@ -334,12 +333,6 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
-  const actionCue =
-    localActionRequired &&
-    !handComplete &&
-    (enrollmentActive || session.phase === "decision")
-      ? formatLocalActionCue(session.phase, enrollmentActive)
-      : null;
 
   const turnReminderActivityKey = localActionActivityKey({
     currentUserId,
@@ -547,6 +540,12 @@ export function TableSessionView({
     return () => window.removeEventListener("keydown", onKey);
   }, [settings.hotkeys]);
 
+  useEffect(() => {
+    const openSettings = () => setSettingsOpen(true);
+    window.addEventListener("nbl-open-table-settings", openSettings);
+    return () => window.removeEventListener("nbl-open-table-settings", openSettings);
+  }, []);
+
   return (
     <div
       className={[
@@ -562,34 +561,10 @@ export function TableSessionView({
       data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
       data-hand-complete={handComplete ? "true" : "false"}
     >
-      <header className="btable-session__head">
-        <div className="btable-session__head-row">
-          <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
-          {session.phase !== "play" ? (
-            <span
-              className={`btable-session__phase-tag btable-session__phase-tag--${session.phase ?? "waiting"}`}
-              data-testid="phase-tag"
-              data-phase={session.phase ?? "waiting"}
-            >
-              {phaseLabel}
-            </span>
-          ) : (
-            <span className="btable-sr-only" data-testid="phase-tag" data-phase="play">
-              {phaseLabel}
-            </span>
-          )}
-          <button
-            type="button"
-            className="btable-session__gear btn btn--sm"
-            data-testid="settings-button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Table appearance settings"
-            title={`Settings (${settings.hotkeys.toggleSettings})`}
-          >
-            ⚙
-          </button>
-        </div>
-        <p className="btable-session__status">{leaderLabel}</p>
+      <header className="btable-session__head" aria-hidden="true">
+        <span className="btable-sr-only" data-testid="phase-tag" data-phase={session.phase ?? "waiting"}>
+          {phaseLabel}
+        </span>
       </header>
 
       {!nativeMobile && (
@@ -608,7 +583,6 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
-              actionCue={actionCue}
             />
             {gameplayStage}
           </div>
@@ -623,7 +597,6 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
-              actionCue={actionCue}
             />
             {gameplayStage}
           </div>

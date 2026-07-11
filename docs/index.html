@@ -127,7 +127,7 @@
             </p>
             <div class="room-actions">
               <div class="room-actions__primary">
-                <button class="btn btn--primary" id="play-now" type="button" data-testid="play-now" aria-busy="false">
+                <button class="btn btn--primary btn--cta-orb" id="play-now" type="button" data-testid="play-now" aria-busy="false">
                   Play Now
                 </button>
                 <button class="btn" id="create-room" type="button">+ Create a room</button>
@@ -349,8 +349,30 @@
     <!-- Live table — landscape play surface (hand results stay in session panel) -->
     <div id="table-play-overlay" class="table-play-overlay" hidden>
       <header class="table-play-overlay__bar">
-        <button type="button" class="btn btn--sm" id="close-table-play">← Hand results</button>
-        <span class="table-play-overlay__title" id="table-play-overlay-title">Live table</span>
+        <div class="table-play-overlay__bar-start">
+          <button
+            type="button"
+            class="table-chrome-btn"
+            id="close-table-play"
+            aria-label="Back to hand results"
+            title="Back to hand results"
+          >
+            <span class="table-chrome-btn__icon" aria-hidden="true">←</span>
+          </button>
+        </div>
+        <h1 class="table-play-overlay__title" id="table-play-overlay-title">Live Table</h1>
+        <div class="table-play-overlay__bar-end">
+          <button
+            type="button"
+            class="table-chrome-btn"
+            id="open-table-settings"
+            data-testid="settings-button"
+            aria-label="Table appearance settings"
+            title="Table settings"
+          >
+            <span class="table-chrome-btn__icon" aria-hidden="true">⚙</span>
+          </button>
+        </div>
       </header>
       <p class="table-play-overlay__rotate muted small" role="note" hidden>
         Landscape gives more room for 6–8 players.

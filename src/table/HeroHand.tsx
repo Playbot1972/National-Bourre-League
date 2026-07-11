@@ -1010,7 +1010,7 @@ export function HeroHand({
           <div className="btable-hero__actions btable-hero__actions--triple">
             <button
               type="button"
-              className="btn btn--sm btn--primary"
+              className="btn btn--sm btn--action-draw"
               data-testid="draw-button"
               disabled={busy}
               aria-busy={busy}
@@ -1020,7 +1020,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm btn--secondary-muted"
+              className="btn btn--sm btn--action-pat"
               data-testid="pass-draw-button"
               disabled={busy}
               onClick={() => runPassDraw()}
@@ -1029,7 +1029,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm btn--secondary-muted"
+              className="btn btn--sm btn--action-out"
               data-testid="im-out-button"
               disabled={busy}
               onClick={() => runFoldDraw()}
