@@ -26,11 +26,13 @@ export {
   type ShuffleFeedbackOptions,
 } from "./service";
 
-export { audioSupported, isTableAudioDebugEnabled, logTableAudio } from "./audio";
+export { audioSupported, isTableAudioDebugEnabled, logTableAudio, unlockAudio } from "./audio";
 export {
   resetTableAudioAudit,
   getTableAudioAudit,
   printTableAudioAuditSummary,
+  resetAudioPlayMonitor,
+  getAudioPlayMonitor,
   playActionSound,
   playAnimationSound,
   playOutcomeSound,

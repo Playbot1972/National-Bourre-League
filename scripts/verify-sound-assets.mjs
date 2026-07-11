@@ -3,6 +3,7 @@
  * Verify docs/sounds/ matches MANIFEST.json and soundPacks registry.
  * Optionally checks dist/social/sounds/ after build:hosting.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -71,6 +72,33 @@ for (const file of expectedSorted) {
 }
 if (process.exitCode !== 1) {
   pass("soundPacks.ts registry matches MANIFEST filenames");
+}
+
+// Warn when distinct events share identical audio bytes (audible mismatch risk).
+const hashByFile = new Map();
+for (const file of onDisk) {
+  const buf = readFileSync(join(SOUNDS_DIR, file));
+  const hash = createHash("md5").update(buf).digest("hex");
+  hashByFile.set(file, hash);
+}
+const hashGroups = new Map();
+for (const [file, hash] of hashByFile) {
+  const group = hashGroups.get(hash) ?? [];
+  group.push(file);
+  hashGroups.set(hash, group);
+}
+for (const files of hashGroups.values()) {
+  if (files.length < 2) continue;
+  console.warn(`WARN  identical audio bytes: ${files.join(" == ")}`);
+}
+if (
+  hashByFile.get("draw.wav") &&
+  hashByFile.get("ui-button-press.wav") &&
+  hashByFile.get("draw.wav") === hashByFile.get("ui-button-press.wav")
+) {
+  console.warn(
+    "WARN  draw.wav is byte-identical to ui-button-press.wav — replace with a unique draw asset for audible parity",
+  );
 }
 
 if (process.argv.includes("--dist")) {
