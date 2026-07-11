@@ -1241,16 +1241,33 @@
 .btable-hero__actions .btn {
   min-height: 44px;
   min-width: 44px;
+  border-radius: 999px;
+  font-weight: 600;
 }
 
-.btable-hero__actions .btn--secondary-muted {
-  opacity: 0.78;
-  border-color: var(--border-faint, rgba(244, 213, 141, 0.22));
-  color: var(--text-muted, rgba(244, 213, 141, 0.72));
+.btable-hero__actions .btn--action-draw {
+  background: linear-gradient(160deg, #3ecf7a, #2a9d5c);
+  border-color: transparent;
+  color: #0a1a10;
 }
 
-.btable-hero__actions .btn--secondary-muted:hover:not(:disabled) {
-  opacity: 1;
+.btable-hero__actions .btn--action-pat {
+  background: linear-gradient(160deg, var(--gold-300, #f4d58d), var(--gold-400, #e6b450));
+  border-color: transparent;
+  color: var(--ink-900, #1a1208);
+}
+
+.btable-hero__actions .btn--action-out {
+  background: linear-gradient(160deg, #e86a6a, #c0392b);
+  border-color: transparent;
+  color: #fff8f6;
+}
+
+.btable-hero__actions .btn--action-draw:hover:not(:disabled),
+.btable-hero__actions .btn--action-pat:hover:not(:disabled),
+.btable-hero__actions .btn--action-out:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
 }
 
 .btable-hero__actions {
@@ -3151,6 +3168,10 @@
 /* Premium table room — Smart HUD, avatars, splashes, desktop shell   */
 /* ------------------------------------------------------------------ */
 
+.table-play-overlay .btable-session__head {
+  display: none !important;
+}
+
 .btable-session__gear {
   margin-left: auto;
   min-width: 32px;
@@ -3167,7 +3188,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  --turn-rail-top: clamp(2px, calc(9% - 2.5rem), 8%);
+  --turn-rail-top: clamp(0px, calc(9% - 2.5rem - 4.125rem), 4%);
 }
 
 .btable-stage__overlay {
