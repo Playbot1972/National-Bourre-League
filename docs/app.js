@@ -1188,7 +1188,6 @@ async function openNextHandEnrollment(sessionObj) {
   tableFeedbackSnapshot = null;
 
   try {
-    setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
     markHandShuffleStart({
       sessionId: openSessionId,
       handCount: sessionObj.handCount ?? 0,
@@ -2789,9 +2788,6 @@ async function openTablePlay() {
   updateTablePlayTitle(openSessionObj);
 
   const needsDeal = startupAnalysis.needsEnrollment;
-  if (needsDeal) {
-    setTableActionFeedback({ status: "loading", message: "Dealing first hand…" });
-  }
 
   try {
     const repaired = await prepareSessionForTableOpen(currentRoomId, openSessionId);
@@ -2809,9 +2805,6 @@ async function openTablePlay() {
         roster: tableReadyRoster(mergedSession),
       });
     }
-    if (needsDeal) {
-      setTableActionFeedback({ status: "success", message: "" });
-    }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
     let recovered = false;
@@ -2824,9 +2817,6 @@ async function openTablePlay() {
     if (!recovered) {
       showTableStartupFailure(startupAnalysis, err);
       return;
-    }
-    if (needsDeal) {
-      setTableActionFeedback({ status: "success", message: "" });
     }
   }
 
