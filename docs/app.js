@@ -70,6 +70,16 @@ import {
   readGameSetupBourreFromDom,
   mergeBourreSettingsWithPending,
 } from "./room-detail-view.js";
+import {
+  buildRoomDetailHash,
+  buildRoomsListHash,
+  buildRoomTableHash,
+  parseRoomsLocationHash,
+  ROOM_NAV_DETAIL,
+  ROOM_NAV_LIST,
+  ROOM_NAV_TABLE,
+  roomNavStateForLayer,
+} from "./room-nav.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
 import {
   analyzeHandTransitionAnomalies,
@@ -614,11 +624,18 @@ function renderSession() {
 const PROTECTED = new Set(["rooms", "leaderboard", "leagues"]);
 
 function parseRoute() {
-  const raw = location.hash.replace("#", "") || "home";
-  if (raw === "rooms-practice") {
-    return { view: "rooms", roomsScope: "practice" };
+  const hash = location.hash.replace(/^#/, "") || "home";
+  const [path] = hash.split("?", 2);
+  const { roomId, tableOpen } = parseRoomsLocationHash(location.hash);
+  if (path === "rooms-practice") {
+    return { view: "rooms", roomsScope: "practice", roomId: null, tableOpen: false };
   }
-  return { view: raw, roomsScope: "online" };
+  return {
+    view: path || "home",
+    roomsScope: "online",
+    roomId: path === "rooms" ? roomId : null,
+    tableOpen: path === "rooms" && tableOpen,
+  };
 }
 
 function applyRoomsScope(scope) {
@@ -656,6 +673,7 @@ function showView() {
   });
   if (effectiveView === "rooms") {
     applyRoomsScope(roomsScope);
+    scheduleApplyRoomNavFromLocation();
   }
   if (effectiveView === "rules") {
     renderRulesView($("#rules-root"));
@@ -663,6 +681,10 @@ function showView() {
 }
 
 window.addEventListener("hashchange", showView);
+window.addEventListener("popstate", () => {
+  if (applyingRoomNav) return;
+  scheduleApplyRoomNavFromLocation();
+});
 
 $(".rooms-scope-tabs")?.addEventListener("click", (e) => {
   const tab = e.target.closest("[data-rooms-scope]");
@@ -788,7 +810,7 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.addEventListener("click", (e) => {
     if (e.target.closest("#back-to-rooms")) {
       e.preventDefault();
-      closeRoom();
+      collapseRoomToList();
       return;
     }
     const deleteRoomBtn = e.target.closest("#delete-room");
@@ -953,6 +975,8 @@ let roomSetupFocus = null;
 let playNowInFlight = false;
 /** Suppress room-detail roster UI while Play Now assembles the table in the background. */
 let silentTableEntry = false;
+/** Guards popstate ↔ programmatic history updates from re-entrancy loops. */
+let applyingRoomNav = false;
 /** Debounced auto-play after Add Player. */
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
@@ -2033,11 +2057,168 @@ function isRoomOwner(room, uid) {
   return room.role === "owner" && room.ownerId === uid;
 }
 
-function renderRoomsList() {
+let applyRoomNavTimer = 0;
+
+function scheduleApplyRoomNavFromLocation() {
+  if (applyRoomNavTimer) clearTimeout(applyRoomNavTimer);
+  applyRoomNavTimer = window.setTimeout(() => {
+    applyRoomNavTimer = 0;
+    applyRoomNavFromLocation();
+  }, 0);
+}
+
+function pushRoomNavHistory(hash, layer, roomId = null, { replace = false } = {}) {
+  if (applyingRoomNav) return;
+  applyingRoomNav = true;
+  const state = roomNavStateForLayer(layer, roomId);
+  const fn = replace ? history.replaceState : history.pushState;
+  fn.call(history, state, "", hash);
+  applyingRoomNav = false;
+}
+
+function showRoomListUi() {
   document.body.classList.remove("room-detail-open");
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
   if (roomsIntro) roomsIntro.hidden = false;
+}
+
+function showRoomDetailUi() {
+  document.body.classList.add("room-detail-open");
+  roomsListView.hidden = true;
+  if (roomsIntro) roomsIntro.hidden = true;
+  roomDetailView.hidden = false;
+}
+
+function seedRoomsListHistory({ replace = true } = {}) {
+  const { view, roomId } = parseRoute();
+  if (view !== "rooms" || roomId) return;
+  if (history.state?.nblRoomNav) return;
+  pushRoomNavHistory(buildRoomsListHash(), ROOM_NAV_LIST, null, { replace });
+}
+
+function navigateToRoomDetail(roomId, { replace = false } = {}) {
+  pushRoomNavHistory(buildRoomDetailHash(roomId), ROOM_NAV_DETAIL, roomId, { replace });
+}
+
+function navigateToRoomTable(roomId, { replace = false } = {}) {
+  pushRoomNavHistory(buildRoomTableHash(roomId), ROOM_NAV_TABLE, roomId, { replace });
+}
+
+function navigateToRoomListFromUi() {
+  const { view, roomId } = parseRoute();
+  if (view !== "rooms" || !roomId) return;
+  applyingRoomNav = true;
+  history.replaceState(roomNavStateForLayer(ROOM_NAV_LIST), "", buildRoomsListHash());
+  applyingRoomNav = false;
+}
+
+function navigateAwayFromTable() {
+  const { roomId, tableOpen } = parseRoute();
+  applyingRoomNav = true;
+  try {
+    if (history.state?.nblRoomNav === ROOM_NAV_TABLE || tableOpen) {
+      history.back();
+      return;
+    }
+    if (roomId) {
+      history.replaceState(
+        roomNavStateForLayer(ROOM_NAV_DETAIL, roomId),
+        "",
+        buildRoomDetailHash(roomId),
+      );
+    }
+    teardownTableOverlay({ restoreDetail: true });
+  } finally {
+    applyingRoomNav = false;
+  }
+}
+
+function teardownTableOverlay({ restoreDetail = true } = {}) {
+  if (!tablePlayOpen) return;
+  tablePlayOpen = false;
+  localHandActionCommit = null;
+  cancelNextHandOpenTimer();
+  stopTablePlaySideEffects();
+  const overlay = $("#table-play-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("table-play-active");
+  try {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+  } catch {
+    /* ignore */
+  }
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    /* ignore */
+  }
+  if (restoreDetail) restoreRoomDetailAfterTable();
+}
+
+function teardownRoomState() {
+  clearPendingSelfJoin();
+  pendingOpenSessions.clear();
+  clearDetailSubs();
+  stopEnrollmentTimer();
+  stopSessionCleanupTimers();
+  clearSessionAutoPlayTimer();
+  sessionPlayInFlight = false;
+  teardownTableOverlay({ restoreDetail: false });
+  unmountTableSessionHost();
+  resetSessionSetupSheet();
+  currentRoomId = null;
+  openSessionId = null;
+  currentRoom = null;
+  currentMembers = [];
+  currentSessions = [];
+  openScores = [];
+  openHands = [];
+}
+
+function applyRoomNavFromLocation() {
+  const { view, roomId, tableOpen } = parseRoute();
+  if (view !== "rooms") {
+    if (currentRoomId || tablePlayOpen) teardownRoomState();
+    return;
+  }
+
+  if (!roomId) {
+    if (currentRoomId || tablePlayOpen) teardownRoomState();
+    renderRoomsList();
+    return;
+  }
+
+  if (tableOpen) {
+    if (currentRoomId !== roomId) {
+      openRoom(roomId, { fromHistory: true, silent: true });
+    }
+    if (!tablePlayOpen) {
+      void openTablePlayFromNav();
+    }
+    return;
+  }
+
+  if (tablePlayOpen) {
+    teardownTableOverlay({ restoreDetail: false });
+  }
+  if (currentRoomId !== roomId) {
+    openRoom(roomId, { fromHistory: true });
+    return;
+  }
+  showRoomDetailUi();
+  scheduleRenderRoomDetail();
+}
+
+async function openTablePlayFromNav() {
+  const openSessionObj = resolveOpenSessionObj();
+  const startupAnalysis = analyzeTableStartup(openSessionObj, tableReadyPlayerCount(openSessionObj));
+  if (!startupAnalysis.canOpenTable) return;
+  await openTablePlay({ fromHistory: true });
+}
+
+function renderRoomsList() {
+  showRoomListUi();
   const list = $("#rooms-list");
   if (myRooms.length === 0) {
     list.innerHTML = `<p class="muted">No rooms yet. Create one to get an invite code.</p>`;
@@ -2593,6 +2774,7 @@ $("#rooms-list").addEventListener("keydown", (e) => {
 
 function openRoom(roomId, options = {}) {
   const silent = options.silent === true;
+  const fromHistory = options.fromHistory === true;
   clearDetailSubs();
   roomGoneHandled = false;
   currentRoomId = roomId;
@@ -2608,11 +2790,12 @@ function openRoom(roomId, options = {}) {
   } else {
     silentTableEntry = false;
     document.body.classList.remove("table-entry-silent");
-    document.body.classList.add("room-detail-open");
-    roomsListView.hidden = true;
-    if (roomsIntro) roomsIntro.hidden = true;
-    roomDetailView.hidden = false;
+    showRoomDetailUi();
     roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
+    if (!fromHistory) {
+      seedRoomsListHistory();
+      navigateToRoomDetail(roomId);
+    }
   }
   pendingRoomBuyInOverride = null;
   pendingRoomAnteOverride = null;
@@ -2724,20 +2907,14 @@ async function handleRoomUnavailable(roomId) {
   closeRoom();
 }
 
-function closeRoom() {
-  clearPendingSelfJoin();
-  pendingOpenSessions.clear();
-  clearDetailSubs();
-  stopEnrollmentTimer();
-  stopSessionCleanupTimers();
-  clearSessionAutoPlayTimer();
-  sessionPlayInFlight = false;
-  closeTablePlay();
-  unmountTableSessionHost();
-  resetSessionSetupSheet();
-  currentRoomId = null;
-  openSessionId = null;
+function collapseRoomToList({ fromHistory = false } = {}) {
+  teardownRoomState();
   renderRoomsList();
+  if (!fromHistory) navigateToRoomListFromUi();
+}
+
+function closeRoom(options = {}) {
+  collapseRoomToList(options);
 }
 
 /** Lazy-loaded React card table bundle (built via npm run build:table). */
@@ -2812,7 +2989,7 @@ function showTableStartupFailure(analysis, err) {
   roomDetailView?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-async function openTablePlay() {
+async function openTablePlay({ fromHistory = false } = {}) {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const readyCount = tableReadyPlayerCount(openSessionObj);
   let startupAnalysis = analyzeTableStartup(openSessionObj, readyCount);
@@ -2898,6 +3075,10 @@ async function openTablePlay() {
   } catch {
     /* orientation lock optional */
   }
+
+  if (!fromHistory && currentRoomId) {
+    navigateToRoomTable(currentRoomId, { replace: silentTableEntry });
+  }
 }
 
 function sessionHandNumber(sessionObj) {
@@ -2940,36 +3121,29 @@ function restoreRoomDetailAfterTable() {
   if (!currentRoomId) return;
   silentTableEntry = false;
   document.body.classList.remove("table-entry-silent");
-  document.body.classList.add("room-detail-open");
-  if (roomsListView) roomsListView.hidden = true;
-  if (roomsIntro) roomsIntro.hidden = true;
-  if (roomDetailView) roomDetailView.hidden = false;
+  showRoomDetailUi();
   scheduleRenderRoomDetail();
 }
 
+function syncRoomUrlToDetailIfNeeded() {
+  const { roomId, tableOpen } = parseRoute();
+  if (!roomId || !tableOpen) return;
+  applyingRoomNav = true;
+  history.replaceState(
+    roomNavStateForLayer(ROOM_NAV_DETAIL, roomId),
+    "",
+    buildRoomDetailHash(roomId),
+  );
+  applyingRoomNav = false;
+}
+
 function closeTablePlay() {
-  tablePlayOpen = false;
-  localHandActionCommit = null;
-  cancelNextHandOpenTimer();
-  stopTablePlaySideEffects();
-  const overlay = $("#table-play-overlay");
-  if (overlay) overlay.hidden = true;
-  document.body.classList.remove("table-play-active");
-  try {
-    if (document.fullscreenElement) document.exitFullscreen?.();
-  } catch {
-    /* ignore */
-  }
-  try {
-    screen.orientation?.unlock?.();
-  } catch {
-    /* ignore */
-  }
-  restoreRoomDetailAfterTable();
+  teardownTableOverlay({ restoreDetail: true });
   const openSessionObj = resolveOpenSessionObj();
   if (openSessionObj) {
     syncTableSession(openSessionObj);
   }
+  syncRoomUrlToDetailIfNeeded();
 }
 
 function bindTablePlayControls() {
@@ -2978,7 +3152,7 @@ function bindTablePlayControls() {
   overlay.dataset.bound = "1";
 
   $("#close-table-play")?.addEventListener("click", () => {
-    closeTablePlay();
+    navigateAwayFromTable();
   });
 
   $("#open-table-settings")?.addEventListener("click", () => {
@@ -2986,7 +3160,7 @@ function bindTablePlayControls() {
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && tablePlayOpen) closeTablePlay();
+    if (e.key === "Escape" && tablePlayOpen) navigateAwayFromTable();
   });
 
   document.addEventListener("fullscreenchange", () => {
@@ -5024,6 +5198,7 @@ onAuthChange((user) => {
   if (user) {
     startRoomsSubscription();
     startLeaderboardSubscription();
+    scheduleApplyRoomNavFromLocation();
   } else if (wasAuthed) {
     stopRoomsSubscription();
     stopLeaderboardSubscription();
