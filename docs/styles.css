@@ -1197,31 +1197,64 @@ body.room-detail-open .room-actions {
   color: var(--ink-900);
   font-weight: 600;
   border-color: transparent;
+  overflow: visible;
 }
 
-/* Premium selection orb — matches avatar rim weight */
-@keyframes nbl-selection-orb-spin {
+/* Premium perimeter orbit — small orb travels the pill outline; pill stays fixed */
+@keyframes nbl-pill-orb-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes nbl-pill-orb-travel-fallback {
   from {
-    transform: rotate(0deg);
+    transform: translate(-50%, -50%) rotate(0deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
   }
   to {
-    transform: rotate(360deg);
+    transform: translate(-50%, -50%) rotate(360deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
   }
 }
 
-.session-tab.is-active::before,
-.btn--cta-orb::before {
+.session-tab.is-active,
+.btn--cta-orb {
+  isolation: isolate;
+}
+
+.session-tab.is-active::after,
+.btn--cta-orb::after {
   content: "";
   position: absolute;
-  inset: -3px;
-  border-radius: inherit;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   pointer-events: none;
-  border: 2px solid transparent;
-  border-top-color: #4da3ff;
-  border-right-color: rgba(77, 163, 255, 0.45);
-  border-bottom-color: rgba(77, 163, 255, 0.12);
-  border-left-color: rgba(77, 163, 255, 0.28);
-  animation: nbl-selection-orb-spin 2.6s linear infinite;
+  z-index: 2;
+  background: radial-gradient(circle at 32% 28%, #a8d4ff 0%, #4da3ff 55%, #2b7fd4 100%);
+  box-shadow:
+    0 0 4px rgba(77, 163, 255, 0.5),
+    inset 0 0 1px rgba(255, 255, 255, 0.35);
+  offset-path: rect(-3px calc(100% + 3px) calc(100% + 3px) -3px round 999px);
+  offset-anchor: center;
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  animation: nbl-pill-orb-travel 2.8s linear infinite;
+  will-change: offset-distance;
+}
+
+@supports not (offset-path: rect(0 100% 100% 0 round 999px)) {
+  .session-tab.is-active::after,
+  .btn--cta-orb::after {
+    top: 50%;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    offset-path: none;
+    transform-origin: center center;
+    animation: nbl-pill-orb-travel-fallback 2.8s linear infinite;
+    will-change: transform;
+  }
 }
 
 .btn--cta-orb {
@@ -1230,10 +1263,14 @@ body.room-detail-open .room-actions {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .session-tab.is-active::before,
-  .btn--cta-orb::before {
+  .session-tab.is-active::after,
+  .btn--cta-orb::after {
     animation: none;
-    border-color: rgba(77, 163, 255, 0.65);
+    offset-path: none;
+    top: 0;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    transform: translate(-50%, calc(-1 * var(--nbl-pill-orbit-r)));
     opacity: 0.85;
   }
 }
