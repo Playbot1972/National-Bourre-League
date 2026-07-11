@@ -13056,97 +13056,93 @@ function Au() {
 //#endregion
 //#region src/table/TrickPlaySlot.tsx
 function ju(e, t, n, r, i, a) {
-	if (r.current = !1, e(!0), t("static"), n(null), i && dl() && Y("TrickPlaySlot", "fly-complete", i), a?.onCardLanded && !a.audioFiredRef.current) {
+	if (r.current = !1, e(!0), t("static"), n(null), i && dl() && Y("TrickPlaySlot", "fly-complete", i), a?.onCardLandedRef.current && !a.audioFiredRef.current) {
 		a.audioFiredRef.current = !0;
-		let e = a.leaderPlayerId != null && a.play.playerId === a.leaderPlayerId;
-		a.onCardLanded({
-			cardId: `${a.play.playerId}:${a.play.card.rank}:${a.play.card.suit}`,
-			playerId: a.play.playerId,
-			cardIndex: a.index,
-			cardsInTrick: a.displayCount,
-			takesLead: e,
-			isLocalPlayer: a.currentUserId === a.play.playerId
+		let e = a.playRef.current, t = a.leaderPlayerIdRef.current, n = t != null && e.playerId === t;
+		a.onCardLandedRef.current({
+			cardId: `${e.playerId}:${e.card.rank}:${e.card.suit}`,
+			playerId: e.playerId,
+			cardIndex: a.indexRef.current,
+			cardsInTrick: a.displayCountRef.current,
+			takesLead: n,
+			isLocalPlayer: a.currentUserIdRef.current === e.playerId
 		});
 	}
 }
 function Mu({ play: e, index: t, presentationPhase: n, displayCount: r, playerName: i, leaderPlayerId: a = null, winnerPlayerId: o = null, instantPlace: s = !1, currentUserId: c = null, onCardLanded: u }) {
-	let d = (0, l.useRef)(null), [f, p] = (0, l.useState)("static"), [m, h] = (0, l.useState)(null), [v, y] = (0, l.useState)(!1), b = (0, l.useRef)(!1), x = (0, l.useRef)(!1), S = $a(e), C = a != null && e.playerId === a, w = o != null && e.playerId === o, T = n === "live", E = t === r - 1 && T, D = v, O = C && (n === "live" || n === "trickComplete"), k = O || w && n !== "live" && n !== "trickComplete";
+	let d = (0, l.useRef)(null), [f, p] = (0, l.useState)("static"), [m, h] = (0, l.useState)(null), [v, y] = (0, l.useState)(!1), b = (0, l.useRef)(!1), x = (0, l.useRef)(!1), S = (0, l.useRef)(u), C = (0, l.useRef)(a), w = (0, l.useRef)(c), T = (0, l.useRef)(r), E = (0, l.useRef)(t), D = (0, l.useRef)(e);
+	S.current = u, C.current = a, w.current = c, T.current = r, E.current = t, D.current = e;
+	let O = $a(e), k = a != null && e.playerId === a, A = o != null && e.playerId === o, j = n === "live", M = t === r - 1 && j, N = v, ee = k && (n === "live" || n === "trickComplete"), te = ee || A && n !== "live" && n !== "trickComplete";
 	(0, l.useLayoutEffect)(() => {
 		dl() && Y("TrickPlaySlot", "play-enter", {
-			playKey: S,
+			playKey: O,
 			index: t,
 			instantPlace: s,
-			isLanding: E
+			isLanding: M
 		}), y(!1), b.current = !1, x.current = !1, p("static"), h(null);
-	}, [S]), (0, l.useLayoutEffect)(() => {
-		if (v) return;
+	}, [O]), (0, l.useLayoutEffect)(() => {
+		if (v || b.current) return;
 		let n = {
-			onCardLanded: u,
-			play: e,
-			index: t,
-			displayCount: r,
-			leaderPlayerId: a,
-			currentUserId: c,
+			onCardLandedRef: S,
+			playRef: D,
+			indexRef: E,
+			displayCountRef: T,
+			leaderPlayerIdRef: C,
+			currentUserIdRef: w,
 			audioFiredRef: x
 		};
-		if (s || !T) {
+		if (s || !j) {
 			ju(y, p, h, b, {
-				playKey: S,
+				playKey: O,
 				index: t
 			}, n);
 			return;
 		}
-		if (!E) {
+		if (!M) {
 			ju(y, p, h, b, {
-				playKey: S,
+				playKey: O,
 				index: t
 			}, n);
 			return;
 		}
 		if (typeof document > "u") return;
-		let i = d.current;
+		let r = d.current;
+		if (!r) return;
+		let i = r.querySelector(".pcard");
 		if (!i) return;
-		let o = i.querySelector(".pcard");
-		if (!o) return;
-		let l = so(e.playerId, S);
-		if (!l) {
+		let a = so(e.playerId, O);
+		if (!a) {
 			ju(y, p, h, b, {
-				playKey: S,
+				playKey: O,
 				index: t
 			}, n);
 			return;
 		}
-		let f = Au(), m = f ? 217 : 395, g = f ? 91 : 165;
-		b.current = !0, h(uo(l, i.getBoundingClientRect(), o.getBoundingClientRect())), p("pending"), dl() && Y("TrickPlaySlot", "fly-start", {
-			playKey: S,
+		let o = Au(), c = o ? 217 : 395, l = o ? 91 : 165;
+		b.current = !0, h(uo(a, r.getBoundingClientRect(), i.getBoundingClientRect())), p("pending"), dl() && Y("TrickPlaySlot", "fly-start", {
+			playKey: O,
 			index: t,
-			travelMs: m,
-			settleMs: g
+			travelMs: c,
+			settleMs: l
 		});
-		let _ = window.setTimeout(() => p("travel"), 0), C = window.setTimeout(() => p("settle"), m), w = window.setTimeout(() => {
+		let u = window.setTimeout(() => p("travel"), 0), f = window.setTimeout(() => p("settle"), c), m = window.setTimeout(() => {
 			ju(y, p, h, b, {
-				playKey: S,
+				playKey: O,
 				index: t
 			}, n);
-		}, m + g);
+		}, c + l);
 		return () => {
-			window.clearTimeout(_), window.clearTimeout(C), window.clearTimeout(w);
+			window.clearTimeout(u), window.clearTimeout(f), window.clearTimeout(m);
 		};
 	}, [
 		v,
 		s,
-		E,
-		T,
+		M,
+		j,
 		e.playerId,
-		S,
-		u,
-		a,
-		c,
-		r,
-		t,
-		e
+		O
 	]);
-	let A = {
+	let P = {
 		"--slot-index": t,
 		zIndex: 10 + t,
 		...m ? {
@@ -13159,21 +13155,21 @@ function Mu({ play: e, index: t, presentationPhase: n, displayCount: r, playerNa
 		className: [
 			"btrick__play",
 			v ? "btrick__play--landed" : "",
-			D ? "btrick__play--settled" : "",
+			N ? "btrick__play--settled" : "",
 			v && f === "static" ? "btrick__play--static-landed" : "",
 			f === "travel" ? "btrick__play--fly-from-hand" : "",
 			f === "pending" ? "btrick__play--fly-pending" : "",
 			f === "land" ? "btrick__play--land" : "",
 			f === "settle" ? "btrick__play--settle" : "",
-			O ? "btrick__play--leading" : "",
-			k ? "btrick__play--winner" : ""
+			ee ? "btrick__play--leading" : "",
+			te ? "btrick__play--winner" : ""
 		].filter(Boolean).join(" "),
-		style: A,
+		style: P,
 		"data-slot-index": t,
 		children: [/* @__PURE__ */ (0, g.jsx)(_, {
 			card: Wa(e.card),
 			size: "sm",
-			state: k ? "winner" : "default"
+			state: te ? "winner" : "default"
 		}), /* @__PURE__ */ (0, g.jsx)("span", {
 			className: "btrick__name muted small",
 			children: i
