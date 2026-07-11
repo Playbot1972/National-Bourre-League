@@ -44,7 +44,6 @@ export function runTrumpMergeIntoHeroHand(
   document.body.appendChild(ghost);
 
   const sourceWrap = sourceCard.closest<HTMLElement>("[data-trump-deal-target]");
-  const targetSlot = targetCard.closest<HTMLElement>(".hand__slot");
   gsap.set(sourceCard, { opacity: 0 });
   if (sourceWrap) gsap.set(sourceWrap, { opacity: 0 });
   gsap.set(targetCard, { opacity: 0 });
