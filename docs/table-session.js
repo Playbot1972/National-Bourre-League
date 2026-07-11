@@ -13301,10 +13301,15 @@ function ku({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 				}),
 				i === "draw" ? /* @__PURE__ */ (0, g.jsx)(Ou, { cards: te }) : null,
 				/* @__PURE__ */ (0, g.jsxs)("div", {
-					className: "center-play__phase",
+					className: ["center-play__phase", i === "play" ? "center-play__phase--play" : ""].filter(Boolean).join(" "),
 					"aria-live": "polite",
 					children: [
-						/* @__PURE__ */ (0, g.jsx)("span", {
+						i === "play" ? /* @__PURE__ */ (0, g.jsx)("span", {
+							className: "btable-sr-only",
+							"data-testid": "phase-tag-center",
+							"data-phase": "play",
+							children: P
+						}) : /* @__PURE__ */ (0, g.jsx)("span", {
 							className: `bpot__phase-tag bpot__phase-tag--${i ?? "waiting"}`,
 							"data-testid": "phase-tag-center",
 							"data-phase": i ?? "waiting",
@@ -17166,33 +17171,33 @@ function nm({ actionRequired: e, activityKey: t }) {
 //#endregion
 //#region src/table/TableSceneOverlay.tsx
 function rm({ actionFeedback: e, feedbackErrorPulse: t = 0, feedbackSuccessPulse: n = 0, turnLabel: r = null, isMyTurn: i = !1, showTurn: a = !1, actionCue: o = null }) {
-	let s = e && e.status !== "idle" && !(e.status === "loading" && !e.message?.trim());
-	return s || a && r || o ? /* @__PURE__ */ (0, g.jsxs)("div", {
-		className: "btable-stage__overlay",
+	let s = e && e.status !== "idle" && !(e.status === "loading" && !e.message?.trim()), c = a && !!r, l = s || o;
+	return !l && !c ? null : /* @__PURE__ */ (0, g.jsxs)(g.Fragment, { children: [l && /* @__PURE__ */ (0, g.jsxs)("div", {
+		className: "btable-stage__overlay btable-stage__overlay--chrome",
 		"aria-live": "polite",
-		children: [
-			s && /* @__PURE__ */ (0, g.jsx)("div", {
-				className: [
-					`btable-stage__feedback btable-stage__feedback--${e.status}`,
-					e.status === "error" ? "btable-stage__feedback--pulse-error" : "",
-					e.status === "success" ? "btable-stage__feedback--pulse" : ""
-				].filter(Boolean).join(" "),
-				"data-testid": "feedback-banner",
-				role: e.status === "error" ? "alert" : "status",
-				children: e.message
-			}, e.status === "error" ? `feedback-error-${t}` : e.status === "success" ? `feedback-success-${n}` : `feedback-${e.status}`),
-			a && r && /* @__PURE__ */ (0, g.jsx)("p", {
-				className: ["btable-stage__turn", i ? "btable-stage__turn--yours" : "btable-stage__turn--waiting"].join(" "),
-				"data-testid": "turn-indicator",
-				children: r
-			}),
-			o && /* @__PURE__ */ (0, g.jsx)("p", {
-				className: "btable-stage__action-cue",
-				"data-testid": "action-cue",
-				children: o
-			})
-		]
-	}) : null;
+		children: [s && /* @__PURE__ */ (0, g.jsx)("div", {
+			className: [
+				`btable-stage__feedback btable-stage__feedback--${e.status}`,
+				e.status === "error" ? "btable-stage__feedback--pulse-error" : "",
+				e.status === "success" ? "btable-stage__feedback--pulse" : ""
+			].filter(Boolean).join(" "),
+			"data-testid": "feedback-banner",
+			role: e.status === "error" ? "alert" : "status",
+			children: e.message
+		}, e.status === "error" ? `feedback-error-${t}` : e.status === "success" ? `feedback-success-${n}` : `feedback-${e.status}`), o && /* @__PURE__ */ (0, g.jsx)("p", {
+			className: "btable-stage__action-cue",
+			"data-testid": "action-cue",
+			children: o
+		})]
+	}), c && /* @__PURE__ */ (0, g.jsx)("div", {
+		className: "btable-stage__overlay btable-stage__overlay--turn",
+		"aria-live": "polite",
+		children: /* @__PURE__ */ (0, g.jsx)("p", {
+			className: ["btable-stage__turn", i ? "btable-stage__turn--yours" : "btable-stage__turn--waiting"].join(" "),
+			"data-testid": "turn-indicator",
+			children: r
+		})
+	})] });
 }
 //#endregion
 //#region src/table/hooks/useTrumpTrickMotionGate.ts
@@ -18206,7 +18211,12 @@ function Mm({ session: e, players: t, potMetrics: n, mySessionNet: r, leaderLabe
 							className: "btable-session__title",
 							children: ["Hand #", e.handNumber]
 						}),
-						/* @__PURE__ */ (0, g.jsx)("span", {
+						e.phase === "play" ? /* @__PURE__ */ (0, g.jsx)("span", {
+							className: "btable-sr-only",
+							"data-testid": "phase-tag",
+							"data-phase": "play",
+							children: ae
+						}) : /* @__PURE__ */ (0, g.jsx)("span", {
 							className: `btable-session__phase-tag btable-session__phase-tag--${e.phase ?? "waiting"}`,
 							"data-testid": "phase-tag",
 							"data-phase": e.phase ?? "waiting",

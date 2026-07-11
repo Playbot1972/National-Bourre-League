@@ -565,13 +565,19 @@ export function TableSessionView({
       <header className="btable-session__head">
         <div className="btable-session__head-row">
           <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
-          <span
-            className={`btable-session__phase-tag btable-session__phase-tag--${session.phase ?? "waiting"}`}
-            data-testid="phase-tag"
-            data-phase={session.phase ?? "waiting"}
-          >
-            {phaseLabel}
-          </span>
+          {session.phase !== "play" ? (
+            <span
+              className={`btable-session__phase-tag btable-session__phase-tag--${session.phase ?? "waiting"}`}
+              data-testid="phase-tag"
+              data-phase={session.phase ?? "waiting"}
+            >
+              {phaseLabel}
+            </span>
+          ) : (
+            <span className="btable-sr-only" data-testid="phase-tag" data-phase="play">
+              {phaseLabel}
+            </span>
+          )}
           <button
             type="button"
             className="btable-session__gear btn btn--sm"
