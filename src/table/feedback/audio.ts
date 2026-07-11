@@ -6,8 +6,10 @@
  */
 
 import { getFeedbackPrefs } from "./prefs";
+import { logTableAudio, type TableAudioFallbackReason } from "./audioDebug";
 import {
   allSoundAssetUrls,
+  isAudioContentType,
   resolveSoundAsset,
   soundAssetUrl,
   type SoundAssetId,
@@ -20,8 +22,10 @@ let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let userGestureUnlocked = false;
 
+/** Template clips — warmed on unlock so delayed callbacks can still play(). */
 const clipCache = new Map<string, HTMLAudioElement>();
 const assetAvailability = new Map<string, boolean>();
+const warmedClips = new Set<string>();
 
 function getActivePackId(): SoundPackId {
   return getFeedbackPrefs().soundPackId;
@@ -75,17 +79,96 @@ function getClip(src: string): HTMLAudioElement | null {
   }
 }
 
+function borrowClip(src: string): HTMLAudioElement | null {
+  const template = getClip(src);
+  if (!template) return null;
+  if (template.paused && template.currentTime < 0.01) {
+    return template;
+  }
+  try {
+    const clone = new Audio(src);
+    clone.preload = "auto";
+    return clone;
+  } catch {
+    return null;
+  }
+}
+
+function waitForCanPlay(clip: HTMLAudioElement, timeoutMs = 2500): Promise<void> {
+  if (clip.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("canplay-timeout"));
+    }, timeoutMs);
+    const onReady = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("media-error"));
+    };
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      clip.removeEventListener("canplaythrough", onReady);
+      clip.removeEventListener("error", onError);
+    };
+    clip.addEventListener("canplaythrough", onReady, { once: true });
+    clip.addEventListener("error", onError, { once: true });
+    try {
+      clip.load();
+    } catch {
+      cleanup();
+      reject(new Error("load-failed"));
+    }
+  });
+}
+
+async function warmupClip(src: string): Promise<boolean> {
+  if (warmedClips.has(src)) return true;
+  const clip = getClip(src);
+  if (!clip) return false;
+  try {
+    await waitForCanPlay(clip);
+    const prevVol = clip.volume;
+    clip.volume = 0.001;
+    clip.currentTime = 0;
+    await clip.play();
+    clip.pause();
+    clip.currentTime = 0;
+    clip.volume = prevVol;
+    warmedClips.add(src);
+    logTableAudio("warmed", { src });
+    return true;
+  } catch (err) {
+    logTableAudio("warmup-failed", { src, err: String(err) });
+    return false;
+  }
+}
+
 async function probeAsset(src: string): Promise<boolean> {
   if (assetAvailability.has(src)) {
     return assetAvailability.get(src) === true;
   }
   if (typeof window === "undefined") return false;
   try {
-    const res = await fetch(src, { method: "HEAD" });
-    const ok = res.ok;
+    const res = await fetch(src, { method: "HEAD", cache: "no-store" });
+    const ct = res.headers.get("content-type");
+    const ok = res.ok && isAudioContentType(ct);
+    if (!ok) {
+      logTableAudio("probe-failed", {
+        src,
+        status: res.status,
+        contentType: ct,
+      });
+    }
     assetAvailability.set(src, ok);
     return ok;
-  } catch {
+  } catch (err) {
+    logTableAudio("probe-network-error", { src, err: String(err) });
     assetAvailability.set(src, false);
     return false;
   }
@@ -118,25 +201,32 @@ export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
       } catch {
         /* optional preload */
       }
+      await warmupClip(src);
     }),
   );
 }
 
 async function tryPlayAsset(src: string, volume = 0.55): Promise<boolean> {
-  if (!userGestureUnlocked) return false;
-  const clip = getClip(src);
-  if (!clip) return false;
+  if (!userGestureUnlocked) {
+    logTableAudio("play-blocked", { src, reason: "audio-locked" });
+    return false;
+  }
+  const clip = borrowClip(src);
+  if (!clip) {
+    logTableAudio("play-blocked", { src, reason: "no-clip" });
+    return false;
+  }
   try {
+    if (clip.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForCanPlay(clip);
+    }
     clip.volume = Math.min(1, Math.max(0, volume));
     clip.currentTime = 0;
-    const playPromise = clip.play();
-    if (playPromise) {
-      void playPromise.catch(() => {
-        /* autoplay policy — swallow */
-      });
-    }
+    await clip.play();
+    logTableAudio("played-asset", { src, volume });
     return true;
-  } catch {
+  } catch (err) {
+    logTableAudio("play-rejected", { src, err: String(err) });
     return false;
   }
 }
@@ -145,10 +235,13 @@ async function tryPlayAssetId(
   packId: SoundPackId,
   assetId: SoundAssetId,
   volume = 0.55,
-): Promise<boolean> {
+): Promise<{ ok: boolean; reason?: TableAudioFallbackReason; src?: string }> {
   const src = await resolvePlayableAssetUrl(packId, assetId);
-  if (!src) return false;
-  return tryPlayAsset(src, volume);
+  if (!src) {
+    return { ok: false, reason: "probe-failed" };
+  }
+  const ok = await tryPlayAsset(src, volume);
+  return ok ? { ok: true, src } : { ok: false, reason: "play-rejected", src };
 }
 
 function scheduleTone(
@@ -406,18 +499,40 @@ async function playSoundEvent(
   flag.current = true;
   const packId = getActivePackId();
   const assetId = resolveSoundAsset(packId, event, ctx);
+  let fallbackReason: TableAudioFallbackReason | null = null;
   try {
     let played = false;
-    if (assetId) {
+    if (!assetId) {
+      fallbackReason = "procedural-only";
+      logTableAudio("resolve", { event, assetId: null, reason: fallbackReason });
+    } else {
       const volume =
         event === "trickWin" ? VOLUME[event] * (ctx.volumeScale ?? 1) : VOLUME[event];
-      played = await tryPlayAssetId(packId, assetId, volume);
+      const src = soundAssetUrl(packId, assetId);
+      logTableAudio("resolve", { event, assetId, src });
+      const result = await tryPlayAssetId(packId, assetId, volume);
+      played = result.ok;
+      if (!played) {
+        fallbackReason = result.reason ?? "play-rejected";
+      }
     }
-    if (!played && userGestureUnlocked) {
+    if (!userGestureUnlocked) {
+      logTableAudio("skip-procedural-locked", { event });
+      return;
+    }
+    if (!played) {
+      logTableAudio("fallback-procedural", {
+        event,
+        reason: fallbackReason ?? "play-rejected",
+        assetId,
+      });
       PROCEDURAL_BY_EVENT[event](packId, ctx);
     }
-  } catch {
-    /* never block gameplay */
+  } catch (err) {
+    logTableAudio("play-error", { event, err: String(err) });
+    if (userGestureUnlocked) {
+      PROCEDURAL_BY_EVENT[event](packId, ctx);
+    }
   } finally {
     window.setTimeout(() => {
       flag.current = false;
@@ -488,7 +603,11 @@ export function isAudioUnlocked(): boolean {
   return userGestureUnlocked;
 }
 
-/** Clear asset probe cache when user switches sound packs. */
+/** Clear asset probe + clip caches when user switches sound packs. */
 export function resetSoundAssetCache(): void {
   assetAvailability.clear();
+  warmedClips.clear();
+  clipCache.clear();
 }
+
+export { isTableAudioDebugEnabled, logTableAudio } from "./audioDebug";
