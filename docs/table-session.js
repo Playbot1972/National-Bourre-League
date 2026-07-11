@@ -10462,7 +10462,7 @@ function Ea(e, t) {
 			duration: i,
 			ease: F,
 			onComplete: () => {
-				K.set(e, { clearProps: "transform,opacity,willChange" });
+				K.set(e, { transition: "none" }), K.set(e, { clearProps: "transform,opacity,willChange,transition" });
 			}
 		}, n * a);
 	}), r;
@@ -10700,7 +10700,7 @@ function Va(e) {
 	return e ? [...e.querySelectorAll(".hand__slot .pcard")] : [];
 }
 function Ha(e, { dealing: t, dealStaggerMs: n, drawAnimSubPhase: r, drawDiscardCount: i = 0, drawReplaceCount: a = 0, pendingDiscardIndices: o, standPatPulse: s, foldOutPulse: c, playingIndex: u, cards: d, handNumber: f = 0, playerId: p = null, tableRootRef: m, pileIndexRef: h, onDiscardCommitted: g, skipHeroDealMotion: _ = !1 }) {
-	let v = (0, l.useRef)([]), y = (0, l.useRef)(!1), b = (0, l.useRef)(null), x = (0, l.useRef)(null);
+	let v = (0, l.useRef)([]), y = (0, l.useRef)(!1), b = (0, l.useRef)(null), x = (0, l.useRef)(null), S = (0, l.useRef)(null);
 	(0, l.useLayoutEffect)(() => {
 		aa(e.current?.closest(".btable-wrap") ?? document);
 	}, [e]), (0, l.useLayoutEffect)(() => {
@@ -10750,11 +10750,16 @@ function Ha(e, { dealing: t, dealStaggerMs: n, drawAnimSubPhase: r, drawDiscardC
 			let t = e.current, n = Va(t), r = new Set(v.current), i = d.map((e, t) => ({
 				key: Ba(e),
 				el: n[t]
-			})).filter((e) => !!e.el && !r.has(e.key)).map((e) => e.el), o = Sa(t ?? document);
-			i.length && o && Ea(i, o);
+			})).filter((e) => !!e.el && !r.has(e.key));
+			if (!i.length) return;
+			let o = i.map((e) => e.key).sort().join(","), s = `${f}:${p ?? ""}:receive:${a}:${o}`;
+			if (S.current === s) return;
+			S.current = s;
+			let c = Sa(t ?? document);
+			c && Ea(i.map((e) => e.el), c);
 			return;
 		}
-		(r === "done" || r === null) && (x.current = null, v.current = d.map(Ba));
+		(r === "done" || r === null) && (x.current = null, S.current = null, v.current = d.map(Ba));
 	}, [
 		r,
 		i,
@@ -13118,21 +13123,20 @@ function Mu({ play: e, index: t, presentationPhase: n, displayCount: r, playerNa
 			}, n);
 			return;
 		}
-		let o = Au(), c = o ? 217 : 395, l = o ? 91 : 165;
+		let o = Au() ? 217 : 395;
 		b.current = !0, h(uo(a, r.getBoundingClientRect(), i.getBoundingClientRect())), p("pending"), dl() && Y("TrickPlaySlot", "fly-start", {
 			playKey: O,
 			index: t,
-			travelMs: c,
-			settleMs: l
+			travelMs: o
 		});
-		let u = window.setTimeout(() => p("travel"), 0), f = window.setTimeout(() => p("settle"), c), m = window.setTimeout(() => {
+		let c = window.setTimeout(() => p("travel"), 0), l = window.setTimeout(() => {
 			ju(y, p, h, b, {
 				playKey: O,
 				index: t
 			}, n);
-		}, c + l);
+		}, o);
 		return () => {
-			window.clearTimeout(u), window.clearTimeout(f), window.clearTimeout(m);
+			window.clearTimeout(c), window.clearTimeout(l);
 		};
 	}, [
 		v,
