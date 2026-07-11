@@ -51,7 +51,7 @@ describe("app.js table focus wiring", () => {
   const src = readFileSync(fileURLToPath(new URL("../docs/app.js", import.meta.url)), "utf8");
 
   it("openTablePlay blurs text focus before showing overlay", () => {
-    const idx = src.indexOf("async function openTablePlay()");
+    const idx = src.indexOf("async function openTablePlay(");
     assert.ok(idx >= 0);
     const body = src.slice(idx, idx + 900);
     assert.ok(body.includes("blurActiveTextEntry(document)"));
