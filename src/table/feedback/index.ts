@@ -7,6 +7,8 @@ export {
   playBourreFeedback,
   playGameStartFeedback,
   playIllegalActionFeedback,
+  playCardSelectFeedback,
+  playUiButtonFeedback,
   playActionSuccessFeedback,
   getFeedbackPrefs,
   saveFeedbackPrefs,
@@ -21,5 +23,5 @@ export {
 
 export { audioSupported } from "./audio";
 export { hapticsSupported } from "./haptics";
-export { SOUND_PACK_LABELS, type SoundPackId } from "./soundPacks";
+export { SOUND_PACK_LABELS, ALL_SOUND_ASSET_IDS, type SoundAssetId, type SoundPackId } from "./soundPacks";
 export type { FeedbackPrefs, HapticsMode, SoundMode } from "./prefs";

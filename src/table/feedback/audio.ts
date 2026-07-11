@@ -1,16 +1,19 @@
 /**
  * Table feedback audio — pack-aware, asset-first with procedural fallback.
  *
- * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
+ * Assets live under docs/sounds/ (classic WAV set) or docs/sounds/packs/{wood,arcade}/.
  * Procedural synthesis remains the fallback when files are missing.
  */
 
 import { getFeedbackPrefs } from "./prefs";
 import {
-  allSoundAssetPaths,
-  soundAssetPath,
+  allSoundAssetUrls,
+  resolveSoundAsset,
+  soundAssetUrl,
+  type SoundAssetId,
   type SoundEventKey,
   type SoundPackId,
+  type SoundResolveContext,
 } from "./soundPacks";
 
 let audioCtx: AudioContext | null = null;
@@ -88,11 +91,25 @@ async function probeAsset(src: string): Promise<boolean> {
   }
 }
 
+/** Resolve pack override, then fall back to classic assets. */
+async function resolvePlayableAssetUrl(
+  packId: SoundPackId,
+  assetId: SoundAssetId,
+): Promise<string | null> {
+  const primary = soundAssetUrl(packId, assetId);
+  if (await probeAsset(primary)) return primary;
+  if (packId !== "classic") {
+    const classic = soundAssetUrl("classic", assetId);
+    if (await probeAsset(classic)) return classic;
+  }
+  return null;
+}
+
 export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
   if (!userGestureUnlocked) return;
   const pack = packId ?? getActivePackId();
   await Promise.all(
-    allSoundAssetPaths(pack).map(async (src) => {
+    allSoundAssetUrls(pack).map(async (src) => {
       if (!(await probeAsset(src))) return;
       const clip = getClip(src);
       if (!clip) return;
@@ -107,17 +124,31 @@ export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
 
 async function tryPlayAsset(src: string, volume = 0.55): Promise<boolean> {
   if (!userGestureUnlocked) return false;
-  if (!(await probeAsset(src))) return false;
   const clip = getClip(src);
   if (!clip) return false;
   try {
-    clip.volume = volume;
+    clip.volume = Math.min(1, Math.max(0, volume));
     clip.currentTime = 0;
-    await clip.play();
+    const playPromise = clip.play();
+    if (playPromise) {
+      void playPromise.catch(() => {
+        /* autoplay policy — swallow */
+      });
+    }
     return true;
   } catch {
     return false;
   }
+}
+
+async function tryPlayAssetId(
+  packId: SoundPackId,
+  assetId: SoundAssetId,
+  volume = 0.55,
+): Promise<boolean> {
+  const src = await resolvePlayableAssetUrl(packId, assetId);
+  if (!src) return false;
+  return tryPlayAsset(src, volume);
 }
 
 function scheduleTone(
@@ -282,20 +313,47 @@ function playProceduralGameStart(packId: SoundPackId): void {
   scheduleTone(ctx, masterGain, packId === "wood" ? 523.25 : 554.37, t0 + 0.12, 0.16, 0.08, "triangle");
 }
 
-const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
-  shuffle: playProceduralShuffle,
-  draw: playProceduralDraw,
-  cardPlace: (packId) => playProceduralCardPlace(packId, 0),
-  leadChange: (packId) => playProceduralLeadChange(packId, 0),
-  trickWin: (packId) => playProceduralTrickWin(packId, 1),
-  trickCollect: playProceduralTrickCollect,
-  bigWin: playProceduralBigWin,
-  bourre: playProceduralBourre,
-  gameStart: playProceduralGameStart,
+function playProceduralUiTap(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  scheduleTone(ctx, masterGain, packId === "arcade" ? 520 : 440, t0, 0.05, 0.04, "triangle");
+}
+
+function playProceduralCardSelect(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  scheduleTone(ctx, masterGain, packId === "wood" ? 560 : 640, t0, 0.06, 0.035, "sine");
+}
+
+function playProceduralCardIllegal(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  scheduleTone(ctx, masterGain, packId === "arcade" ? 180 : 220, t0, 0.1, 0.07, "square");
+  scheduleNoiseBurst(ctx, masterGain, t0 + 0.04, 0.06, 0.05, 400);
+}
+
+const PROCEDURAL_BY_EVENT: Record<SoundEventKey, (packId: SoundPackId, ctx?: SoundResolveContext) => void> = {
+  shuffle: (packId) => playProceduralShuffle(packId),
+  shuffleFinal: (packId) => playProceduralShuffle(packId),
+  draw: (packId) => playProceduralDraw(packId),
+  cardPlace: (packId, ctx) => playProceduralCardPlace(packId, ctx?.intensityTier ?? 0),
+  leadChange: (packId, ctx) => playProceduralLeadChange(packId, ctx?.intensityTier ?? 0),
+  trickWin: (packId, ctx) => playProceduralTrickWin(packId, ctx?.volumeScale ?? 1),
+  trickCollect: (packId) => playProceduralTrickCollect(packId),
+  bigWin: (packId) => playProceduralBigWin(packId),
+  bourre: (packId) => playProceduralBourre(packId),
+  gameStart: (packId) => playProceduralGameStart(packId),
+  cardSelect: (packId) => playProceduralCardSelect(packId),
+  cardIllegal: (packId) => playProceduralCardIllegal(packId),
+  uiButton: (packId) => playProceduralUiTap(packId),
 };
 
 const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   shuffle: { current: false },
+  shuffleFinal: { current: false },
   draw: { current: false },
   cardPlace: { current: false },
   leadChange: { current: false },
@@ -304,10 +362,14 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   bigWin: { current: false },
   bourre: { current: false },
   gameStart: { current: false },
+  cardSelect: { current: false },
+  cardIllegal: { current: false },
+  uiButton: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
   shuffle: 360,
+  shuffleFinal: 420,
   draw: 280,
   cardPlace: 120,
   leadChange: 180,
@@ -316,10 +378,14 @@ const RESET_MS: Record<SoundEventKey, number> = {
   bigWin: 580,
   bourre: 520,
   gameStart: 320,
+  cardSelect: 100,
+  cardIllegal: 200,
+  uiButton: 120,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
+  shuffleFinal: 0.58,
   draw: 0.45,
   cardPlace: 0.38,
   leadChange: 0.42,
@@ -328,18 +394,29 @@ const VOLUME: Record<SoundEventKey, number> = {
   bigWin: 0.6,
   bourre: 0.5,
   gameStart: 0.42,
+  cardSelect: 0.32,
+  cardIllegal: 0.4,
+  uiButton: 0.36,
 };
 
-async function playSoundEvent(event: SoundEventKey): Promise<void> {
+async function playSoundEvent(
+  event: SoundEventKey,
+  ctx: SoundResolveContext = {},
+): Promise<void> {
   const flag = playingFlags[event];
   if (flag.current) return;
   flag.current = true;
   const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
+  const assetId = resolveSoundAsset(packId, event, ctx);
   try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
+    let played = false;
+    if (assetId) {
+      const volume =
+        event === "trickWin" ? VOLUME[event] * (ctx.volumeScale ?? 1) : VOLUME[event];
+      played = await tryPlayAssetId(packId, assetId, volume);
+    }
     if (!played && userGestureUnlocked) {
-      PROCEDURAL_BY_EVENT[event](packId);
+      PROCEDURAL_BY_EVENT[event](packId, ctx);
     }
   } catch {
     /* never block gameplay */
@@ -350,8 +427,8 @@ async function playSoundEvent(event: SoundEventKey): Promise<void> {
   }
 }
 
-export function playShuffleSound(): void {
-  void playSoundEvent("shuffle");
+export function playShuffleSound(variant: "normal" | "final" = "normal"): void {
+  void playSoundEvent(variant === "final" ? "shuffleFinal" : "shuffle");
 }
 
 export function playDrawSound(): void {
@@ -359,61 +436,19 @@ export function playDrawSound(): void {
 }
 
 export function playCardPlaceSound(intensityTier = 0): void {
-  void playCardAudioEvent("cardPlace", intensityTier);
+  void playSoundEvent("cardPlace", { intensityTier });
 }
 
 export function playLeadChangeSound(intensityTier = 0): void {
-  void playCardAudioEvent("leadChange", intensityTier);
+  void playSoundEvent("leadChange", { intensityTier });
 }
 
 export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
 }
 
-export function playTrickWinSound(volumeScale = 1): void {
-  void playTrickWinEvent(volumeScale);
-}
-
-async function playCardAudioEvent(event: "cardPlace" | "leadChange", intensityTier: number): Promise<void> {
-  const flag = playingFlags[event];
-  if (flag.current) return;
-  flag.current = true;
-  const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
-  try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
-    if (!played && userGestureUnlocked) {
-      if (event === "cardPlace") playProceduralCardPlace(packId, intensityTier);
-      else playProceduralLeadChange(packId, intensityTier);
-    }
-  } catch {
-    /* never block gameplay */
-  } finally {
-    window.setTimeout(() => {
-      flag.current = false;
-    }, RESET_MS[event]);
-  }
-}
-
-async function playTrickWinEvent(volumeScale: number): Promise<void> {
-  const event: SoundEventKey = "trickWin";
-  const flag = playingFlags[event];
-  if (flag.current) return;
-  flag.current = true;
-  const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
-  try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event] * volumeScale);
-    if (!played && userGestureUnlocked) {
-      playProceduralTrickWin(packId, volumeScale);
-    }
-  } catch {
-    /* never block gameplay */
-  } finally {
-    window.setTimeout(() => {
-      flag.current = false;
-    }, RESET_MS[event]);
-  }
+export function playTrickWinSound(volumeScale = 1, isLocalPlayer = false): void {
+  void playSoundEvent("trickWin", { volumeScale, isLocalPlayer });
 }
 
 export function playBigWinSound(): void {
@@ -426,6 +461,18 @@ export function playBourreSound(): void {
 
 export function playGameStartSound(): void {
   void playSoundEvent("gameStart");
+}
+
+export function playCardSelectSound(): void {
+  void playSoundEvent("cardSelect");
+}
+
+export function playCardIllegalSound(): void {
+  void playSoundEvent("cardIllegal");
+}
+
+export function playUiButtonSound(): void {
+  void playSoundEvent("uiButton");
 }
 
 export function audioSupported(): boolean {
