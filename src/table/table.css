@@ -1820,6 +1820,14 @@
     0 0 0 1px rgba(255, 200, 210, 0.18);
 }
 
+.bseat__trick-badge--bourre-risk {
+  opacity: 1;
+  box-shadow:
+    0 0 0 2px rgba(231, 76, 60, 0.55),
+    0 2px 8px rgba(231, 76, 60, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
 /*
  * Opponents (seat index 1+, players 2–8) — trick counter on the right edge of the avatar.
  * Hero seat (index 0) keeps the default left placement.
@@ -2337,44 +2345,6 @@
   pointer-events: none;
 }
 
-.bseat__bourre-pressure-badge {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 3;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #fff8f0;
-  background: linear-gradient(160deg, #c0392b, #e74c3c);
-  border: 1px solid rgba(0, 0, 0, 0.3);
-  white-space: nowrap;
-  pointer-events: none;
-  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.35);
-}
-
-.bseat--bourre-pressure-self .bseat__bourre-pressure-badge {
-  font-size: 9px;
-  padding: 3px 9px;
-  animation: bourre-pressure-badge-hold 2.4s ease-in-out 1;
-}
-
-@keyframes bourre-pressure-badge-hold {
-  0%,
-  100% {
-    opacity: 0.92;
-    transform: translateX(-50%) scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.04);
-  }
-}
-
 .bseat__bourre-ring {
   position: absolute;
   inset: -4px;
@@ -2382,27 +2352,6 @@
   border: 2px solid #e74c3c;
   pointer-events: none;
   animation: bourre-attention-pulse 1.2s ease-out 2;
-}
-
-.bseat__bourre-pressure-ring {
-  position: absolute;
-  inset: -5px;
-  border-radius: 50%;
-  border: 2px solid rgba(231, 76, 60, 0.85);
-  pointer-events: none;
-  animation: bourre-pressure-ring-pulse 1.8s ease-in-out 2;
-}
-
-@keyframes bourre-pressure-ring-pulse {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.95;
-    transform: scale(1.04);
-  }
 }
 
 @keyframes bourre-attention-pulse {
@@ -2425,21 +2374,8 @@
   outline: 1px solid rgba(231, 76, 60, 0.65);
 }
 
-.bseat--bourre-pressure .bseat__avatar-wrap {
-  outline: 1px solid rgba(231, 76, 60, 0.55);
-}
-
-.bseat--bourre-pressure-self .bseat__avatar-wrap {
-  outline: 2px solid rgba(231, 76, 60, 0.85);
-  box-shadow:
-    0 0 0 3px rgba(231, 76, 60, 0.25),
-    0 4px 16px rgba(231, 76, 60, 0.3);
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .bseat__bourre-ring,
-  .bseat__bourre-pressure-ring,
-  .bseat--bourre-pressure-self .bseat__bourre-pressure-badge {
+  .bseat__bourre-ring {
     animation: none;
     opacity: 0.9;
   }
