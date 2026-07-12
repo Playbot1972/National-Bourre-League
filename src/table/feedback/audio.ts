@@ -427,6 +427,19 @@ function playProceduralBourre(packId: SoundPackId): void {
   scheduleTone(ctx, masterGain, packId === "wood" ? 140 : 165, t0 + 0.18, 0.32, 0.08, type);
 }
 
+function playProceduralGameStart(packId: SoundPackId): void {
+  const ctx = getAudioContext();
+  if (!ctx || !masterGain) return;
+  const t0 = ctx.currentTime;
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 440, t0, 0.08, 0.07, "square");
+    scheduleTone(ctx, masterGain, 554.37, t0 + 0.1, 0.12, 0.08, "square");
+    return;
+  }
+  scheduleTone(ctx, masterGain, packId === "wood" ? 392 : 440, t0, 0.1, 0.07, "sine");
+  scheduleTone(ctx, masterGain, packId === "wood" ? 523.25 : 554.37, t0 + 0.12, 0.16, 0.08, "triangle");
+}
+
 function playProceduralUiTap(packId: SoundPackId): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
@@ -463,7 +476,7 @@ const PROCEDURAL_BY_EVENT: Record<SoundEventKey, (packId: SoundPackId, ctx?: Sou
   gameStart: (packId) => playProceduralShuffle(packId),
   openRoom: (packId) => playProceduralShuffle(packId),
   deleteRoom: (packId) => playProceduralCardIllegal(packId),
-  fold: (packId) => playProceduralCardPlace(packId, 2),
+  fold: (packId, ctx) => playProceduralCardPlace(packId, 2),
   cardSelect: (packId) => playProceduralCardSelect(packId),
   cardIllegal: (packId) => playProceduralCardIllegal(packId),
   uiButton: (packId) => playProceduralUiTap(packId),
