@@ -12178,11 +12178,11 @@ var ns = [
 	"hand-win-stinger": "hand-win-stinger.mp3",
 	"card-shuffle-normal": "card-shuffle-normal.mp3",
 	"card-shuffle-final": "card-shuffle-final.mp3",
-	"card-select": "card-select.wav",
+	"card-select": "card-select.mp3",
 	"card-illegal": "card-illegal.mp3",
 	"ui-button-press": "ui-button-press.mp3",
 	"coin-chime-light": "coin-chime-light.mp3",
-	draw: "draw.wav",
+	draw: "draw.mp3",
 	Fahhh: "Fahhh.mp3"
 }, is = {
 	classic: "",

@@ -81,7 +81,7 @@ export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
   "lead-sweetener-strong": "/sounds/lead-sweetener-strong.mp3",
   "trick-win-normal": "/sounds/trick-win-normal.mp3",
   "card-shuffle-normal": "/sounds/card-shuffle-normal.mp3",
-  "card-select": "/sounds/card-select.wav",
+  "card-select": "/sounds/card-select.mp3",
   "ui-button-press": "/sounds/ui-button-press.mp3",
 };
 
@@ -117,11 +117,11 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "hand-win-stinger": "hand-win-stinger.mp3",
   "card-shuffle-normal": "card-shuffle-normal.mp3",
   "card-shuffle-final": "card-shuffle-final.mp3",
-  "card-select": "card-select.wav",
+  "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
   "ui-button-press": "ui-button-press.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
-  draw: "draw.wav",
+  draw: "draw.mp3",
   Fahhh: "Fahhh.mp3",
 };
 
