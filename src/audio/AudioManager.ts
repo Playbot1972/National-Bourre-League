@@ -1,8 +1,16 @@
 /**
- * Centralized card-table audio — event-driven, deduped, non-blocking.
- * Syncs to animation milestones via useCardAudio / TrickPlaySlot callbacks.
+ * Centralized table audio — Howler singleton for /sounds/*.wav plus
+ * event-driven card animation dispatch (deduped, non-blocking).
  */
 
+import { Howl } from "howler";
+import {
+  ALL_SOUND_ASSET_IDS,
+  SOUND_ASSET_FILES,
+  resolveSoundAsset,
+  type SoundAssetId,
+  type SoundEventKey,
+} from "../table/feedback/soundPacks";
 import {
   type CardAudioEventPayload,
   type CardAudioEventType,
@@ -15,16 +23,98 @@ import {
   TRICK_COLLECTED_OFFSET_MS,
   TRICK_WON_OFFSET_MS,
 } from "./audioTiming";
-import { getFeedbackPrefs, shouldPlaySoundEvent } from "../table/feedback/prefs";
 import {
-  playCardPlaceSound,
-  playLeadChangeSound,
-  playTrickCollectSound,
-  playTrickWinSound,
-} from "../table/feedback/audio";
+  getFeedbackPrefs,
+  shouldPlaySoundEvent,
+  shouldUseHaptics,
+} from "../table/feedback/prefs";
 import { triggerHaptic } from "../table/feedback/haptics";
-import { shouldUseHaptics } from "../table/feedback/prefs";
-import type { SoundEventKey } from "../table/feedback/soundPacks";
+
+const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
+  "card-place-normal": 0.38,
+  "card-place-soft": 0.34,
+  "card-place-heavy": 0.42,
+  "lead-sweetener-light": 0.42,
+  "lead-sweetener-strong": 0.46,
+  "trick-win-normal": 0.55,
+  "trick-win-big": 0.6,
+  "coin-chime-light": 0.4,
+  "hand-win-stinger": 0.6,
+  "card-shuffle-normal": 0.55,
+  "card-shuffle-final": 0.55,
+  "card-select": 0.45,
+  "card-illegal": 0.5,
+  "ui-button-press": 0.4,
+  draw: 0.45,
+  Fahhh: 0.5,
+};
+
+function debugLog(...args: unknown[]): void {
+  console.log("[nbl-audio]", ...args);
+}
+
+export class AudioManager {
+  private static instance: AudioManager | null = null;
+
+  private readonly howls = new Map<SoundAssetId, Howl>();
+  private unlocked = false;
+
+  static get(): AudioManager {
+    if (!AudioManager.instance) {
+      AudioManager.instance = new AudioManager();
+    }
+    return AudioManager.instance;
+  }
+
+  private constructor() {
+    for (const name of ALL_SOUND_ASSET_IDS) {
+      this.register(name);
+    }
+  }
+
+  private register(name: SoundAssetId): void {
+    const src = `/sounds/${SOUND_ASSET_FILES[name]}`;
+    debugLog("register", name, src);
+    const howl = new Howl({
+      src: [src],
+      volume: DEFAULT_VOLUME[name] ?? 0.55,
+      preload: true,
+      onloaderror: (_id, err) => {
+        console.error("sound load error", name, err);
+      },
+      onplayerror: (_id, err) => {
+        console.error("sound play error", name, err);
+        howl.once("unlock", () => {
+          howl.play();
+        });
+      },
+    });
+    this.howls.set(name, howl);
+  }
+
+  unlock(): void {
+    this.unlocked = true;
+    debugLog("unlock");
+  }
+
+  isUnlocked(): boolean {
+    return this.unlocked;
+  }
+
+  play(name: SoundAssetId, options?: { volume?: number }): boolean {
+    debugLog("play", name);
+    const howl = this.howls.get(name);
+    if (!howl) {
+      console.error("[nbl-audio] missing sound", name);
+      return false;
+    }
+    if (options?.volume != null) {
+      howl.volume(options.volume);
+    }
+    howl.play();
+    return true;
+  }
+}
 
 const playedKeys = new Map<string, number>();
 const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -88,6 +178,25 @@ export function clearCardAudioDedupe(): void {
   pendingTimers.clear();
 }
 
+const EVENT_VOLUME: Partial<Record<SoundEventKey, number>> = {
+  cardPlace: 0.38,
+  leadChange: 0.42,
+  trickWin: 0.55,
+  trickCollect: 0.4,
+};
+
+function playFeedbackEvent(
+  event: SoundEventKey,
+  ctx: { intensityTier?: number; volumeScale?: number; isLocalPlayer?: boolean } = {},
+): void {
+  const packId = getFeedbackPrefs().soundPackId;
+  const assetId = resolveSoundAsset(packId, event, ctx);
+  if (!assetId) return;
+  const base = EVENT_VOLUME[event] ?? 0.55;
+  const volume = event === "trickWin" ? base * (ctx.volumeScale ?? 1) : base;
+  AudioManager.get().play(assetId, { volume });
+}
+
 function playEventSound(payload: CardAudioEventPayload): void {
   const prefs = getFeedbackPrefs();
   const soundKey = soundKeyForEvent(payload.type);
@@ -95,16 +204,19 @@ function playEventSound(payload: CardAudioEventPayload): void {
 
   switch (payload.type) {
     case "card:played":
-      playCardPlaceSound(payload.intensityTier);
+      playFeedbackEvent("cardPlace", { intensityTier: payload.intensityTier });
       break;
     case "card:lead-change":
-      playLeadChangeSound(payload.intensityTier);
+      playFeedbackEvent("leadChange", { intensityTier: payload.intensityTier });
       break;
     case "trick:won":
-      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1);
+      playFeedbackEvent("trickWin", {
+        volumeScale: payload.isLocalPlayer ? 1.08 : 1,
+        isLocalPlayer: payload.isLocalPlayer,
+      });
       break;
     case "trick:collected":
-      playTrickCollectSound();
+      playFeedbackEvent("trickCollect");
       break;
   }
 }

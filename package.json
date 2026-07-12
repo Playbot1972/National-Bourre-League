@@ -104,6 +104,7 @@
     "@capacitor/splash-screen": "^8.0.1",
     "firebase": "^11.10.0",
     "gsap": "^3.12.7",
+    "howler": "^2.2.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
@@ -112,6 +113,7 @@
     "@eslint/js": "^10.0.1",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@playwright/test": "^1.52.0",
+    "@types/howler": "^2.2.13",
     "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
