@@ -17,21 +17,16 @@
         playGameStartFeedback,
         playOpenRoomFeedback,
         playPotWinFeedback,
-        playIllegalActionFeedback,
-        playUiButtonFeedback,
-        playShuffleFeedback,
-        playAnimationSound,
-        playActionSound,
         unlockAudio,
         getTableAudioAudit,
         resetTableAudioAudit,
         resetAudioPlayMonitor,
-        resetSoundAssetCache,
         getAudioPlayMonitor,
       } from "/table-session.js";
 
       initGameFeedback();
 
+      /** Unlock HTMLAudioElement + Web Audio for automated/browser tests. */
       async function unlockAudioForTest() {
         document.body.click();
         await unlockAudio();
@@ -59,7 +54,6 @@
         reset: () => {
           resetTableAudioAudit?.();
           resetAudioPlayMonitor?.();
-          resetSoundAssetCache?.();
         },
         getAudit: () => getTableAudioAudit?.() ?? [],
         getPlayMonitor: () => getAudioPlayMonitor?.() ?? [],
@@ -71,21 +65,6 @@
         playOpenRoom: () => playOpenRoomFeedback(),
         playPotWin: () => playPotWinFeedback(),
         playBourre: () => playBourreFeedback(),
-        playIllegal: () => playIllegalActionFeedback(),
-        playUiButton: () => playUiButtonFeedback(),
-        playShuffle: () => playShuffleFeedback({ delayMs: 0 }),
-        playCardPlace: () =>
-          playAnimationSound("cardPlace", { intensityTier: 0 }, { action: "card-land", source: "fixture" }),
-        playLeadChange: () =>
-          playAnimationSound("leadChange", { intensityTier: 0 }, { action: "take-lead", source: "fixture" }),
-        playTrickWin: () =>
-          playAnimationSound(
-            "trickWin",
-            { isLocalPlayer: true, volumeScale: 1.08 },
-            { action: "trick-won", source: "fixture" },
-          ),
-        playTrickCollect: () =>
-          playAnimationSound("trickCollect", {}, { action: "trick-collect", source: "fixture" }),
       };
     </script>
   </body>

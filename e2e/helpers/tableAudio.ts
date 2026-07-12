@@ -29,25 +29,9 @@ export async function resetTableAudio(page: Page) {
   });
 }
 
-export type TableAudioPlayFn =
-  | "playCardSelect"
-  | "playDraw"
-  | "playFold"
-  | "playGameStart"
-  | "playOpenRoom"
-  | "playPotWin"
-  | "playBourre"
-  | "playIllegal"
-  | "playUiButton"
-  | "playShuffle"
-  | "playCardPlace"
-  | "playLeadChange"
-  | "playTrickWin"
-  | "playTrickCollect";
-
 export async function playAndExpectAsset(
   page: Page,
-  playFn: TableAudioPlayFn,
+  playFn: "playCardSelect" | "playDraw" | "playFold" | "playGameStart" | "playOpenRoom" | "playPotWin" | "playBourre",
   event: string,
   expectedFilename: string,
 ) {
@@ -62,13 +46,6 @@ export async function playAndExpectAsset(
           playOpenRoom: () => void;
           playPotWin: () => void;
           playBourre: () => void;
-          playIllegal: () => void;
-          playUiButton: () => void;
-          playShuffle: () => void;
-          playCardPlace: () => void;
-          playLeadChange: () => void;
-          playTrickWin: () => void;
-          playTrickCollect: () => void;
           waitForAudit: (
             event: string,
             filename: string,

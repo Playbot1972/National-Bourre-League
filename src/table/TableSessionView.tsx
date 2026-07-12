@@ -8,7 +8,6 @@ import { EventReactions } from "./EventReactions";
 import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { SoundDebugButton } from "./feedback/SoundDebugButton";
-import { SoundAuditPanel } from "./feedback/SoundAuditPanel";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
   formatHandPhase,
@@ -636,7 +635,6 @@ export function TableSessionView({
       <footer className="btable-session__foot muted small">
         <FeedbackSettings compact />
         <SoundDebugButton />
-        <SoundAuditPanel />
         {showRebuyOffer && (
           <div className="btable-session__rebuy-offer">
             <p className="btable-session__rebuy-copy">You&apos;re out — rebuy to join the next hand.</p>

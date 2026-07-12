@@ -141,8 +141,6 @@ function borrowClip(
 export async function unlockAudio(): Promise<void> {
   ensureAuditHelpers();
   userGestureUnlocked = true;
-  // Drop stale probe results (e.g. pre-deploy 404s) so play path retries hosted WAVs.
-  assetAvailability.clear();
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === "suspended") {
@@ -211,18 +209,22 @@ async function warmupClip(src: string): Promise<boolean> {
 }
 
 async function probeAsset(src: string): Promise<{ ok: boolean; reason?: TableAudioFallbackReason }> {
-  // Only cache confirmed-good URLs — failed probes must not block later play attempts.
-  if (assetAvailability.get(src) === true) {
-    return { ok: true };
+  if (assetAvailability.has(src)) {
+    const ok = assetAvailability.get(src) === true;
+    return { ok, reason: ok ? undefined : "probe-failed" };
   }
   if (typeof window === "undefined") return { ok: false, reason: "probe-failed" };
+
+  const mark = (ok: boolean, reason?: TableAudioFallbackReason) => {
+    assetAvailability.set(src, ok);
+    return { ok, reason };
+  };
 
   try {
     const head = await fetch(src, { method: "HEAD", cache: "no-store" });
     const headCt = head.headers.get("content-type");
     if (head.ok && isAudioContentType(headCt)) {
-      assetAvailability.set(src, true);
-      return { ok: true };
+      return mark(true);
     }
 
     // Some static hosts omit Content-Type on HEAD — confirm with a tiny ranged GET.
@@ -233,13 +235,11 @@ async function probeAsset(src: string): Promise<{ ok: boolean; reason?: TableAud
     const rangedCt = ranged.headers.get("content-type");
     if (ranged.ok && isAudioContentType(rangedCt)) {
       logTableAudio("probe-get-ok", { src, contentType: rangedCt });
-      assetAvailability.set(src, true);
-      return { ok: true };
+      return mark(true);
     }
     if (ranged.ok && src.toLowerCase().endsWith(".wav") && !rangedCt?.toLowerCase().includes("text/html")) {
       logTableAudio("probe-wav-extension-ok", { src, contentType: rangedCt });
-      assetAvailability.set(src, true);
-      return { ok: true };
+      return mark(true);
     }
 
     logTableAudio("probe-failed", {
@@ -250,25 +250,30 @@ async function probeAsset(src: string): Promise<{ ok: boolean; reason?: TableAud
       getContentType: rangedCt,
     });
     if (!head.ok && !ranged.ok) {
-      return { ok: false, reason: "probe-failed" };
+      return mark(false, "probe-failed");
     }
-    return { ok: false, reason: "bad-content-type" };
+    return mark(false, "bad-content-type");
   } catch (err) {
     logTableAudio("probe-network-error", { src, err: String(err) });
-    return { ok: false, reason: "probe-failed" };
+    return mark(false, "probe-failed");
   }
 }
 
-/** Play path — try hosted WAV(s) directly; probe is preload-only. */
-async function resolvePlayUrls(
+/** Resolve pack override, then fall back to classic assets. */
+async function resolvePlayableAssetUrl(
   packId: SoundPackId,
   assetId: SoundAssetId,
-): Promise<string[]> {
-  const urls = [soundAssetUrl(packId, assetId)];
+): Promise<{ url: string | null; reason?: TableAudioFallbackReason }> {
+  const primary = soundAssetUrl(packId, assetId);
+  const primaryProbe = await probeAsset(primary);
+  if (primaryProbe.ok) return { url: primary };
   if (packId !== "classic") {
-    urls.push(soundAssetUrl("classic", assetId));
+    const classic = soundAssetUrl("classic", assetId);
+    const classicProbe = await probeAsset(classic);
+    if (classicProbe.ok) return { url: classic };
+    return { url: null, reason: classicProbe.reason ?? primaryProbe.reason };
   }
-  return urls;
+  return { url: null, reason: primaryProbe.reason };
 }
 
 export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
@@ -330,19 +335,15 @@ async function tryPlayAssetId(
   volume = 0.55,
   event?: SoundEventKey,
 ): Promise<{ ok: boolean; reason?: TableAudioFallbackReason; src?: string }> {
-  const playMeta = { key: event, event };
-  const urls = await resolvePlayUrls(packId, assetId);
-  let lastReason: TableAudioFallbackReason | undefined;
-  for (const url of urls) {
-    const playResult = await tryPlayAsset(url, volume, playMeta);
-    if (playResult.ok) {
-      assetAvailability.set(url, true);
-      return { ok: true, src: url };
-    }
-    lastReason = playResult.reason ?? "play-rejected";
-    logTableAudio("play-attempt-failed", { url, event, reason: lastReason });
+  const resolved = await resolvePlayableAssetUrl(packId, assetId);
+  if (!resolved.url) {
+    return { ok: false, reason: resolved.reason ?? "probe-failed" };
   }
-  return { ok: false, reason: lastReason ?? "play-rejected", src: urls[0] };
+  const playMeta = { key: event, event };
+  const playResult = await tryPlayAsset(resolved.url, volume, playMeta);
+  return playResult.ok
+    ? { ok: true, src: resolved.url }
+    : { ok: false, reason: playResult.reason ?? "play-rejected", src: resolved.url };
 }
 
 function scheduleTone(
@@ -683,10 +684,6 @@ async function playSoundEvent(
         filename: playedFilename,
         tier: ctx.intensityTier,
       });
-      return;
-    }
-
-    if (fallbackReason === "audio-locked") {
       return;
     }
 
