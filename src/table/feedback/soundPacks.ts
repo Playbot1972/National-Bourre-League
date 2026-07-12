@@ -53,6 +53,39 @@ export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
 
 export const DEFAULT_SOUND_PACK_ID: SoundPackId = "classic";
 
+/**
+ * Batch 1 — migrated to public/sounds WAV via Howler (/sounds/*.wav).
+ * Deferred keys (trick-win-big, card-place-soft, etc.) are not in this set.
+ */
+export const BATCH1_WAV_ASSET_IDS = [
+  "card-place-normal",
+  "card-place-heavy",
+  "lead-sweetener-light",
+  "lead-sweetener-strong",
+  "trick-win-normal",
+  "card-shuffle-normal",
+  "card-select",
+  "ui-button-press",
+] as const satisfies readonly SoundAssetId[];
+
+export type Batch1WavAssetId = (typeof BATCH1_WAV_ASSET_IDS)[number];
+
+export function isBatch1WavAsset(assetId: SoundAssetId): assetId is Batch1WavAssetId {
+  return (BATCH1_WAV_ASSET_IDS as readonly string[]).includes(assetId);
+}
+
+/** Grep-friendly batch-1 key → site-root WAV URL. */
+export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
+  "card-place-normal": "/sounds/card-place-normal.wav",
+  "card-place-heavy": "/sounds/card-place-heavy.wav",
+  "lead-sweetener-light": "/sounds/lead-sweetener-light.wav",
+  "lead-sweetener-strong": "/sounds/lead-sweetener-strong.wav",
+  "trick-win-normal": "/sounds/trick-win-normal.wav",
+  "card-shuffle-normal": "/sounds/card-shuffle-normal.wav",
+  "card-select": "/sounds/card-select.wav",
+  "ui-button-press": "/sounds/ui-button-press.wav",
+};
+
 /** Every committed classic asset — registered once in AudioManager. */
 export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-place-normal",
@@ -167,12 +200,12 @@ export function resolveSoundAsset(
       return "draw";
     case "cardPlace":
       if (tier >= 2) return "card-place-heavy";
-      if (tier === 1) return "card-place-soft";
+      // Batch 1: tier 1 (soft) deferred — alias to normal.
       return "card-place-normal";
     case "leadChange":
       return tier >= 2 ? "lead-sweetener-strong" : "lead-sweetener-light";
     case "trickWin":
-      if (ctx.isLocalPlayer || (ctx.volumeScale ?? 1) > 1.02) return "trick-win-big";
+      // Batch 1: trick-win-big deferred — always normal for now.
       return "trick-win-normal";
     case "trickCollect":
     case "handWin":

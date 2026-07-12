@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getFeedbackPrefs, shouldPlaySoundEvent, shouldUseHaptics } from "./prefs";
 import { normalizeCardPackId } from "../theme/cardPacks";
-import { normalizeSoundPackId } from "./soundPacks";
+import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset } from "./soundPacks";
 import { loadTableSettings, DEFAULT_TABLE_SETTINGS } from "../theme/settings";
 
 describe("feedback prefs", () => {
@@ -43,6 +43,30 @@ describe("sound pack registry", () => {
     assert.equal(normalizeSoundPackId("unknown"), "classic");
     assert.equal(normalizeSoundPackId("wood"), "wood");
     assert.equal(normalizeSoundPackId("arcade"), "arcade");
+  });
+
+  it("batch-1 assets resolve to /sounds/*.wav (no .mp3, no /public prefix)", () => {
+    for (const id of BATCH1_WAV_ASSET_IDS) {
+      assert.equal(isBatch1WavAsset(id), true);
+      const url = soundAssetUrl(DEFAULT_SOUND_PACK_ID, id);
+      assert.equal(url, BATCH1_WAV_URLS[id]);
+      assert.match(url, /^\/sounds\/[\w-]+\.wav$/);
+      assert.doesNotMatch(url, /\.mp3$/);
+      assert.doesNotMatch(url, /^\/public\//);
+    }
+    assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.wav");
+  });
+
+  it("batch-1 trickWin always resolves to trick-win-normal (trick-win-big deferred)", () => {
+    assert.equal(
+      resolveSoundAsset("classic", "trickWin", { isLocalPlayer: true, volumeScale: 1.5 }),
+      "trick-win-normal",
+    );
+  });
+
+  it("batch-1 cardPlace tier 1 aliases to card-place-normal (soft deferred)", () => {
+    assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-normal");
+    assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
   });
 });
 

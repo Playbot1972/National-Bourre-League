@@ -6,6 +6,7 @@
 import { AudioManager } from "../../audio/AudioManager";
 import { getFeedbackPrefs } from "./prefs";
 import {
+  isBatch1WavAsset,
   resolveSoundAsset,
   soundAssetUrl,
   type SoundAssetId,
@@ -119,22 +120,30 @@ function playResolvedAsset(
   packId: SoundPackId,
 ): boolean {
   const path = soundAssetUrl(packId, assetId);
+  const batch1 = isBatch1WavAsset(assetId);
   audioTrace("request", event, {
-    assetId,
-    path,
+    key: assetId,
+    resolvedUrl: path,
+    fallback: false,
+    batch1,
     volume,
     packId,
     unlocked: userGestureUnlocked,
   });
 
   if (!userGestureUnlocked) {
-    audioFail(event, "audio-not-unlocked", { assetId, path });
+    audioFail(event, "audio-not-unlocked", { key: assetId, resolvedUrl: path, batch1 });
+    return false;
+  }
+
+  if (batch1 && path !== `/sounds/${assetId}.wav`) {
+    audioFail(event, "batch1-url-mismatch", { key: assetId, resolvedUrl: path });
     return false;
   }
 
   const played = AudioManager.get().play(assetId, { volume, event, path });
   if (!played) {
-    audioFail(event, "howler-play-failed", { assetId, path });
+    audioFail(event, "howler-play-failed", { key: assetId, resolvedUrl: path, batch1 });
   }
   return played;
 }
