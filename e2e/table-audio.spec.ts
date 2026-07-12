@@ -72,6 +72,12 @@ test.describe("Table audio — asset mapping (browser E2E)", () => {
       await page.click("body");
       await unlockTableAudio(page);
       await resetTableAudio(page);
+      await page.evaluate((fn) => {
+        const api = (window as unknown as { __nblTableAudioTest: Record<string, () => void> })
+          .__nblTableAudioTest;
+        api[fn]();
+      }, playFn);
+      await page.waitForTimeout(600);
       const audit = await page.evaluate(
         () =>
           (window as unknown as {
@@ -80,11 +86,57 @@ test.describe("Table audio — asset mapping (browser E2E)", () => {
             };
           }).__nblTableAudioTest.getAudit(),
       );
-      const buttonMisuse = audit.filter(
+      const rows = audit.filter((row) => row.event === event);
+      const buttonMisuse = rows.filter(
         (row) => row.filename === "ui-button-press.wav" && row.result === "asset-played",
       );
       expect(buttonMisuse, `${event} must not play ui-button-press.wav`).toHaveLength(0);
     }
+  });
+
+  test("gameplay audit rows never set usedFallback", async ({ page }) => {
+    for (const { playFn, event } of GAMEPLAY_EVENTS) {
+      await page.click("body");
+      await unlockTableAudio(page);
+      await resetTableAudio(page);
+      await page.evaluate((fn) => {
+        const api = (window as unknown as { __nblTableAudioTest: Record<string, () => void> })
+          .__nblTableAudioTest;
+        api[fn]();
+      }, playFn);
+      await page.waitForTimeout(600);
+      const audit = await page.evaluate(
+        () =>
+          (window as unknown as {
+            __nblTableAudioTest: {
+              getAudit: () => { event: string; usedFallback?: boolean; result: string }[];
+            };
+          }).__nblTableAudioTest.getAudit(),
+      );
+      const rows = audit.filter((row) => row.event === event);
+      const fallbackRows = rows.filter((row) => row.usedFallback === true);
+      expect(fallbackRows, `${playFn} usedFallback must be false`).toHaveLength(0);
+    }
+  });
+
+  test("audio-locked play does not use procedural fallback", async ({ page }) => {
+    await openTableAudioFixture(page);
+    await resetTableAudio(page);
+    await page.evaluate(() => {
+      const api = (window as unknown as { __nblTableAudioTest: { playCardSelectLocked: () => void } })
+        .__nblTableAudioTest;
+      api.playCardSelectLocked();
+    });
+    await page.waitForTimeout(500);
+    const audit = await page.evaluate(
+      () =>
+        (window as unknown as {
+          __nblTableAudioTest: { getAudit: () => { result: string; usedFallback?: boolean }[] };
+        }).__nblTableAudioTest.getAudit(),
+    );
+    expect(audit.some((row) => row.result === "skipped-muted")).toBe(true);
+    expect(audit.some((row) => row.result.includes("procedural"))).toBe(false);
+    expect(audit.some((row) => row.usedFallback === true)).toBe(false);
   });
 
   test("draw.wav is not byte-identical to ui-button-press.wav", async ({ page }) => {

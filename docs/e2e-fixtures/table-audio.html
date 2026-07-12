@@ -86,6 +86,9 @@
           ),
         playTrickCollect: () =>
           playAnimationSound("trickCollect", {}, { action: "trick-collect", source: "fixture" }),
+        /** Bypasses service unlockIfInteractive — tests audio-locked path. */
+        playCardSelectLocked: () =>
+          playActionSound("cardSelect", {}, { action: "locked-test", source: "fixture" }),
       };
     </script>
   </body>

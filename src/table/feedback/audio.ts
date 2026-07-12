@@ -10,6 +10,7 @@ import { getFeedbackPrefs } from "./prefs";
 import {
   filenameFromAudioUrl,
   installTableAudioAuditHelpers,
+  isProceduralAuditResult,
   logTableAudio,
   recordAudioPlayMonitor,
   recordTableAudioAudit,
@@ -21,6 +22,7 @@ import {
   allSoundAssetUrls,
   isAudioContentType,
   resolveSoundAsset,
+  SOUND_ASSET_FILES,
   SOUND_EVENT_TRIGGER_TYPE,
   soundAssetUrl,
   type SoundAssetId,
@@ -602,8 +604,11 @@ function recordPlayAudit(
   extra: {
     url?: string;
     filename?: string;
+    resolvedFile?: string;
+    assetId?: SoundAssetId | null;
     fallbackReason?: string;
     tier?: number;
+    usedFallback?: boolean;
   } = {},
 ): void {
   recordTableAudioAudit({
@@ -614,6 +619,9 @@ function recordPlayAudit(
     result,
     url: extra.url,
     filename: extra.filename ?? filenameFromAudioUrl(extra.url),
+    resolvedFile: extra.resolvedFile,
+    assetId: extra.assetId ?? undefined,
+    usedFallback: extra.usedFallback ?? isProceduralAuditResult(result),
     fallbackReason: extra.fallbackReason,
     tier: extra.tier,
     variant: meta.variant,
@@ -659,19 +667,28 @@ async function playSoundEvent(
 
     if (!assetId) {
       fallbackReason = "procedural-only";
-      logTableAudio("resolve", { event, assetId: null, reason: fallbackReason, triggerType, ...meta });
+      logTableAudio("resolve", { event, key: event, assetId: null, reason: fallbackReason, triggerType, ...meta });
     } else {
       const volume =
         event === "trickWin" ? VOLUME[event] * (ctx.volumeScale ?? 1) : VOLUME[event];
+      const resolvedFile = SOUND_ASSET_FILES[assetId];
       const src = soundAssetUrl(packId, assetId);
-      playedFilename = filenameFromAudioUrl(src);
-      logTableAudio("requested", { key: event, event, assetId, src, triggerType, ...meta });
-      logTableAudio("resolve", { key: event, event, assetId, src, triggerType, ...meta });
+      playedFilename = resolvedFile;
+      logTableAudio("requested", {
+        key: event,
+        event,
+        assetId,
+        resolvedFile,
+        src,
+        triggerType,
+        ...meta,
+      });
+      logTableAudio("resolve", { key: event, event, assetId, resolvedFile, src, triggerType, ...meta });
       const result = await tryPlayAssetId(packId, assetId, volume, event);
       played = result.ok;
       playedUrl = result.src;
       if (result.ok) {
-        playedFilename = filenameFromAudioUrl(playedUrl) ?? playedFilename;
+        playedFilename = filenameFromAudioUrl(playedUrl) ?? resolvedFile;
       } else {
         fallbackReason = result.reason ?? "play-rejected";
       }
@@ -681,6 +698,9 @@ async function playSoundEvent(
       recordPlayAudit(triggerType, event, meta, "asset-played", {
         url: playedUrl,
         filename: playedFilename,
+        resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : playedFilename,
+        assetId,
+        usedFallback: false,
         tier: ctx.intensityTier,
       });
       return;
@@ -694,9 +714,12 @@ async function playSoundEvent(
       fallbackReason === "procedural-only" ? "procedural-only" : "procedural-fallback";
 
     logTableAudio("fallback-procedural", {
+      key: event,
       event,
       reason: fallbackReason ?? "play-rejected",
       assetId,
+      resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : undefined,
+      usedFallback: true,
       triggerType,
       ...meta,
     });
@@ -704,6 +727,9 @@ async function playSoundEvent(
     recordPlayAudit(triggerType, event, meta, auditResult, {
       url: playedUrl,
       filename: playedFilename,
+      resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : undefined,
+      assetId,
+      usedFallback: true,
       fallbackReason: fallbackReason ?? undefined,
       tier: ctx.intensityTier,
     });
