@@ -1,24 +1,20 @@
 /**
- * Table feedback audio — pack-aware, asset-first with procedural fallback.
- *
- * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
- * Procedural synthesis remains the fallback when files are missing.
+ * Table feedback audio — Howler WAV assets at /sounds/ with procedural fallback.
  */
 
+import { AudioManager } from "../../audio/AudioManager";
 import { getFeedbackPrefs } from "./prefs";
 import {
-  allSoundAssetPaths,
-  soundAssetPath,
+  resolveSoundAsset,
+  type SoundAssetId,
   type SoundEventKey,
   type SoundPackId,
+  type SoundResolveContext,
 } from "./soundPacks";
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let userGestureUnlocked = false;
-
-const clipCache = new Map<string, HTMLAudioElement>();
-const assetAvailability = new Map<string, boolean>();
 
 function getActivePackId(): SoundPackId {
   return getFeedbackPrefs().soundPackId;
@@ -45,6 +41,7 @@ function getAudioContext(): AudioContext | null {
 
 export async function unlockAudio(): Promise<void> {
   userGestureUnlocked = true;
+  AudioManager.get().unlock();
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === "suspended") {
@@ -54,70 +51,11 @@ export async function unlockAudio(): Promise<void> {
       /* requires user gesture on some browsers */
     }
   }
-  void preloadSoundAssets();
 }
 
-function getClip(src: string): HTMLAudioElement | null {
-  if (typeof window === "undefined") return null;
-  try {
-    let clip = clipCache.get(src);
-    if (!clip) {
-      clip = new Audio(src);
-      clip.preload = "auto";
-      clipCache.set(src, clip);
-    }
-    return clip;
-  } catch {
-    return null;
-  }
-}
-
-async function probeAsset(src: string): Promise<boolean> {
-  if (assetAvailability.has(src)) {
-    return assetAvailability.get(src) === true;
-  }
-  if (typeof window === "undefined") return false;
-  try {
-    const res = await fetch(src, { method: "HEAD" });
-    const ok = res.ok;
-    assetAvailability.set(src, ok);
-    return ok;
-  } catch {
-    assetAvailability.set(src, false);
-    return false;
-  }
-}
-
-export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
+export async function preloadSoundAssets(_packId?: SoundPackId): Promise<void> {
   if (!userGestureUnlocked) return;
-  const pack = packId ?? getActivePackId();
-  await Promise.all(
-    allSoundAssetPaths(pack).map(async (src) => {
-      if (!(await probeAsset(src))) return;
-      const clip = getClip(src);
-      if (!clip) return;
-      try {
-        clip.load();
-      } catch {
-        /* optional preload */
-      }
-    }),
-  );
-}
-
-async function tryPlayAsset(src: string, volume = 0.55): Promise<boolean> {
-  if (!userGestureUnlocked) return false;
-  if (!(await probeAsset(src))) return false;
-  const clip = getClip(src);
-  if (!clip) return false;
-  try {
-    clip.volume = volume;
-    clip.currentTime = 0;
-    await clip.play();
-    return true;
-  } catch {
-    return false;
-  }
+  AudioManager.get().unlock();
 }
 
 function scheduleTone(
@@ -284,61 +222,112 @@ function playProceduralGameStart(packId: SoundPackId): void {
 
 const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
   shuffle: playProceduralShuffle,
+  shuffleFinal: playProceduralShuffle,
   draw: playProceduralDraw,
   cardPlace: (packId) => playProceduralCardPlace(packId, 0),
   leadChange: (packId) => playProceduralLeadChange(packId, 0),
   trickWin: (packId) => playProceduralTrickWin(packId, 1),
   trickCollect: playProceduralTrickCollect,
+  handWin: playProceduralTrickCollect,
+  potWin: playProceduralBigWin,
   bigWin: playProceduralBigWin,
   bourre: playProceduralBourre,
   gameStart: playProceduralGameStart,
+  openRoom: playProceduralShuffle,
+  deleteRoom: (packId) => playProceduralCardPlace(packId, 0),
+  fold: (packId) => playProceduralCardPlace(packId, 2),
+  cardSelect: playProceduralDraw,
+  cardIllegal: (packId) => playProceduralCardPlace(packId, 0),
+  uiButton: playProceduralDraw,
 };
 
 const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   shuffle: { current: false },
+  shuffleFinal: { current: false },
   draw: { current: false },
   cardPlace: { current: false },
   leadChange: { current: false },
   trickWin: { current: false },
   trickCollect: { current: false },
+  handWin: { current: false },
+  potWin: { current: false },
   bigWin: { current: false },
   bourre: { current: false },
   gameStart: { current: false },
+  openRoom: { current: false },
+  deleteRoom: { current: false },
+  fold: { current: false },
+  cardSelect: { current: false },
+  cardIllegal: { current: false },
+  uiButton: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
   shuffle: 360,
+  shuffleFinal: 360,
   draw: 280,
   cardPlace: 120,
   leadChange: 180,
   trickWin: 320,
   trickCollect: 280,
+  handWin: 280,
+  potWin: 580,
   bigWin: 580,
   bourre: 520,
   gameStart: 320,
+  openRoom: 360,
+  deleteRoom: 280,
+  fold: 280,
+  cardSelect: 200,
+  cardIllegal: 280,
+  uiButton: 200,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
+  shuffleFinal: 0.55,
   draw: 0.45,
   cardPlace: 0.38,
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
+  handWin: 0.4,
+  potWin: 0.6,
   bigWin: 0.6,
   bourre: 0.5,
   gameStart: 0.42,
+  openRoom: 0.55,
+  deleteRoom: 0.5,
+  fold: 0.42,
+  cardSelect: 0.45,
+  cardIllegal: 0.5,
+  uiButton: 0.4,
 };
 
-async function playSoundEvent(event: SoundEventKey): Promise<void> {
+function playResolvedAsset(
+  assetId: SoundAssetId,
+  volume: number,
+  event: SoundEventKey,
+  packId: SoundPackId,
+): boolean {
+  if (!userGestureUnlocked) return false;
+  const played = AudioManager.get().play(assetId, { volume });
+  if (!played && userGestureUnlocked) {
+    PROCEDURAL_BY_EVENT[event](packId);
+  }
+  return played;
+}
+
+async function playSoundEvent(event: SoundEventKey, ctx: SoundResolveContext = {}): Promise<void> {
   const flag = playingFlags[event];
   if (flag.current) return;
   flag.current = true;
   const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
+  const assetId = resolveSoundAsset(packId, event, ctx);
   try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
-    if (!played && userGestureUnlocked) {
+    if (assetId) {
+      playResolvedAsset(assetId, VOLUME[event], event, packId);
+    } else if (userGestureUnlocked) {
       PROCEDURAL_BY_EVENT[event](packId);
     }
   } catch {
@@ -359,11 +348,11 @@ export function playDrawSound(): void {
 }
 
 export function playCardPlaceSound(intensityTier = 0): void {
-  void playCardAudioEvent("cardPlace", intensityTier);
+  void playCardAudioEvent("cardPlace", { intensityTier });
 }
 
 export function playLeadChangeSound(intensityTier = 0): void {
-  void playCardAudioEvent("leadChange", intensityTier);
+  void playCardAudioEvent("leadChange", { intensityTier });
 }
 
 export function playTrickCollectSound(): void {
@@ -374,17 +363,21 @@ export function playTrickWinSound(volumeScale = 1): void {
   void playTrickWinEvent(volumeScale);
 }
 
-async function playCardAudioEvent(event: "cardPlace" | "leadChange", intensityTier: number): Promise<void> {
+async function playCardAudioEvent(
+  event: "cardPlace" | "leadChange",
+  ctx: SoundResolveContext,
+): Promise<void> {
   const flag = playingFlags[event];
   if (flag.current) return;
   flag.current = true;
   const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
+  const assetId = resolveSoundAsset(packId, event, ctx);
   try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
-    if (!played && userGestureUnlocked) {
-      if (event === "cardPlace") playProceduralCardPlace(packId, intensityTier);
-      else playProceduralLeadChange(packId, intensityTier);
+    if (assetId) {
+      playResolvedAsset(assetId, VOLUME[event], event, packId);
+    } else if (userGestureUnlocked) {
+      if (event === "cardPlace") playProceduralCardPlace(packId, ctx.intensityTier ?? 0);
+      else playProceduralLeadChange(packId, ctx.intensityTier ?? 0);
     }
   } catch {
     /* never block gameplay */
@@ -401,10 +394,11 @@ async function playTrickWinEvent(volumeScale: number): Promise<void> {
   if (flag.current) return;
   flag.current = true;
   const packId = getActivePackId();
-  const assetSrc = soundAssetPath(packId, event);
+  const assetId = resolveSoundAsset(packId, event, { volumeScale });
   try {
-    const played = await tryPlayAsset(assetSrc, VOLUME[event] * volumeScale);
-    if (!played && userGestureUnlocked) {
+    if (assetId) {
+      playResolvedAsset(assetId, VOLUME[event] * volumeScale, event, packId);
+    } else if (userGestureUnlocked) {
       playProceduralTrickWin(packId, volumeScale);
     }
   } catch {
@@ -429,21 +423,14 @@ export function playGameStartSound(): void {
 }
 
 export function audioSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    Boolean(
-      window.AudioContext ??
-        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ??
-        typeof Audio !== "undefined",
-    )
-  );
+  return typeof window !== "undefined";
 }
 
 export function isAudioUnlocked(): boolean {
   return userGestureUnlocked;
 }
 
-/** Clear asset probe cache when user switches sound packs. */
+/** No-op — Howler caches sounds in AudioManager. */
 export function resetSoundAssetCache(): void {
-  assetAvailability.clear();
+  /* Howler singleton retains loaded clips */
 }
