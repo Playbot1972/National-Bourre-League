@@ -146,8 +146,7 @@ export function resolveSoundAssetsRoot(pageHref: string): string {
     const rootPath = page.pathname.slice(0, socialIdx + "/social".length);
     return `${page.origin}${rootPath.replace(/\/$/, "")}/sounds/`;
   }
-  // Local docs static server — WAVs always live at site root /sounds/
-  return `${page.origin}/sounds/`;
+  return new URL("./sounds/", pageHref).href;
 }
 
 /** Absolute URL to a pack asset (docs/ → /social/sounds/ after deploy). */

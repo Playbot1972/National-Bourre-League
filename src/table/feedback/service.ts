@@ -199,7 +199,6 @@ export function playBourreFeedback(): void {
 }
 
 export function playGameStartFeedback(): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastGameStartAt < GAME_START_COOLDOWN_MS) return;
   lastGameStartAt = now;

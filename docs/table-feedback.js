@@ -27,7 +27,7 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
   if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
     if (next.heroCardKeys !== prev.heroCardKeys) {
       clearPendingDrawShuffle = true;
-      // Draw audio is action-driven from HeroHand draw button (draw.wav).
+      api.playDrawFeedback?.();
     }
   }
 

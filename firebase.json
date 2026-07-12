@@ -58,15 +58,6 @@
         ]
       },
       {
-        "source": "/social/sounds/**",
-        "headers": [
-          {
-            "key": "Content-Type",
-            "value": "audio/wav"
-          }
-        ]
-      },
-      {
         "source": "/social/index.html",
         "headers": [
           {

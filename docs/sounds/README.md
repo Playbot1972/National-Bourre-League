@@ -81,37 +81,6 @@ resetTableAudioAudit()         // clear buffer
 Each record includes `triggerType` (`action` | `animation` | `outcome`),
 `event`, `result` (`asset-played`, `procedural-fallback`, …), and `filename` when known.
 
-### Manual verification flow
-
-1. Open the table or `/e2e-fixtures/table-audio` on localhost:8080.
-2. In DevTools console:
-   ```js
-   localStorage.setItem("nbl-table-audio-debug", "1");
-   location.reload();
-   ```
-3. Perform an action (draw, fold, open room, win hand, bourré, etc.).
-4. Inspect results:
-   ```js
-   printTableAudioAuditSummary();
-   getTableAudioAudit().slice(-5);
-   getAudioPlayMonitor?.().slice(-3);
-   ```
-5. Confirm each row shows `result: asset-played` and the **filename** matches the
-   intended mapping below. If `procedural-fallback` appears, check `fallbackReason`
-   (`bad-content-type`, `probe-failed`, `audio-locked`, …).
-
-| Event | Expected filename |
-| --- | --- |
-| cardSelect | card-select.wav |
-| draw | draw.wav |
-| fold | card-place-heavy.wav |
-| gameStart | card-shuffle-normal.wav |
-| openRoom | card-shuffle-final.wav |
-| potWin | hand-win-stinger.wav |
-| bourre | Fahhh.wav |
-
-Automated browser coverage: `npm run test:e2e:audio`.
-
 **Trigger layers:**
 
 | Layer | API | Examples |
