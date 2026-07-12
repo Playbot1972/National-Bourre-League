@@ -22,6 +22,11 @@ export type SoundAssetId =
   | "ui-button-press"
   | "coin-chime-light"
   | "draw"
+  | "draw1"
+  | "draw2"
+  | "draw3"
+  | "draw4"
+  | "draw5"
   | "Fahhh";
 
 /** Event-driven keys used by feedback service and prefs. */
@@ -102,6 +107,11 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "ui-button-press",
   "coin-chime-light",
   "draw",
+  "draw1",
+  "draw2",
+  "draw3",
+  "draw4",
+  "draw5",
   "Fahhh",
 ] as const;
 
@@ -122,8 +132,36 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "ui-button-press": "ui-button-press.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
   draw: "draw.mp3",
+  draw1: "draw1.mp3",
+  draw2: "draw2.mp3",
+  draw3: "draw3.mp3",
+  draw4: "draw4.mp3",
+  draw5: "draw5.mp3",
   Fahhh: "Fahhh.mp3",
 };
+
+/** Count-based draw confirm cues — 1–5 cards map to draw1.mp3 … draw5.mp3. */
+const DRAW_COUNT_ASSET_BY_COUNT: Record<1 | 2 | 3 | 4 | 5, SoundAssetId> = {
+  1: "draw1",
+  2: "draw2",
+  3: "draw3",
+  4: "draw4",
+  5: "draw5",
+};
+
+export function resolveDrawCountAsset(cardCount: number): SoundAssetId {
+  if (cardCount >= 1 && cardCount <= 5) {
+    return DRAW_COUNT_ASSET_BY_COUNT[cardCount as 1 | 2 | 3 | 4 | 5];
+  }
+  return "draw";
+}
+
+export function drawCountAssetUrl(
+  cardCount: number,
+  packId: SoundPackId = DEFAULT_SOUND_PACK_ID,
+): string {
+  return soundAssetUrl(packId, resolveDrawCountAsset(cardCount));
+}
 
 /** Human-readable mapping for docs and QA. */
 export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAssetId[]> = {

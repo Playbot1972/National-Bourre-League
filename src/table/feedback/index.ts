@@ -2,6 +2,7 @@ export {
   initGameFeedback,
   playShuffleFeedback,
   playDrawFeedback,
+  playDrawCountFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
   playBourreFeedback,

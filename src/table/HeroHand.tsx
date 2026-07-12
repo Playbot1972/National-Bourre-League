@@ -23,6 +23,7 @@ import {
 import { logPlayClick } from "./playClickDebug";
 import {
   playCardSelectFeedback,
+  playDrawCountFeedback,
   playFoldFeedback,
   playIllegalActionFeedback,
   playUiButtonFeedback,
@@ -714,6 +715,7 @@ export function HeroHand({
       setLocalBusy(true);
       setLocalError(null);
       setPendingDiscardIndices([...indices]);
+      playDrawCountFeedback(indices.length);
       try {
         await onSubmitDraw(indices);
         setSelectedDraw(new Set());

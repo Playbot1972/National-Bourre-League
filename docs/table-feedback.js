@@ -27,7 +27,7 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
   if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
     if (next.heroCardKeys !== prev.heroCardKeys) {
       clearPendingDrawShuffle = true;
-      api.playDrawFeedback?.();
+      // Draw audio: count-based cue on Draw button confirm (HeroHand), not snapshot landing.
     }
   }
 

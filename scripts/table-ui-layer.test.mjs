@@ -32,10 +32,11 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
-  it("applyTableFeedbackDiff fires draw feedback on hero card change after draw", () => {
+  it("applyTableFeedbackDiff does not fire draw from snapshot (draw confirm audio only)", () => {
     const calls = [];
     const api = {
       playDrawFeedback: () => calls.push("draw"),
+      playDrawCountFeedback: () => calls.push("draw-count"),
       playShuffleFeedback: () => calls.push("shuffle"),
     };
     const prev = {
@@ -55,7 +56,7 @@ describe("table UI layer modules", () => {
       heroCardKeys: "a,b,d",
     };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: true });
-    assert.deepEqual(calls, ["draw"]);
+    assert.deepEqual(calls, []);
   });
 
   it("applyTableFeedbackDiff fires bourre feedback when local player goes bourré", () => {
