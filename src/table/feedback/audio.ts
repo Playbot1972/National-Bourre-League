@@ -1,5 +1,5 @@
 /**
- * Table feedback audio — Howler WAV assets at /sounds/ only.
+ * Table feedback audio — Howler MP3 assets at /sounds/ only.
  * Migrated cues do not use procedural synthesis; failures log loudly.
  */
 
@@ -136,7 +136,7 @@ function playResolvedAsset(
     return false;
   }
 
-  if (batch1 && path !== `/sounds/${assetId}.wav`) {
+  if (batch1 && path !== soundAssetUrl(packId, assetId)) {
     audioFail(event, "batch1-url-mismatch", { key: assetId, resolvedUrl: path });
     return false;
   }

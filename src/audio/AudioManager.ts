@@ -1,5 +1,5 @@
 /**
- * Centralized table audio — Howler singleton for /sounds/*.wav plus
+ * Centralized table audio — Howler singleton for /sounds/*.mp3 plus
  * event-driven card animation dispatch (deduped, non-blocking).
  */
 

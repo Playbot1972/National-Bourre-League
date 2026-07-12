@@ -12168,22 +12168,22 @@ var ns = [
 	"draw",
 	"Fahhh"
 ], rs = {
-	"card-place-normal": "card-place-normal.wav",
-	"card-place-heavy": "card-place-heavy.wav",
-	"card-place-soft": "card-place-soft.wav",
-	"lead-sweetener-light": "lead-sweetener-light.wav",
-	"lead-sweetener-strong": "lead-sweetener-strong.wav",
-	"trick-win-normal": "trick-win-normal.wav",
-	"trick-win-big": "trick-win-big.wav",
-	"hand-win-stinger": "hand-win-stinger.wav",
-	"card-shuffle-normal": "card-shuffle-normal.wav",
-	"card-shuffle-final": "card-shuffle-final.wav",
-	"card-select": "card-select.wav",
-	"card-illegal": "card-illegal.wav",
-	"ui-button-press": "ui-button-press.wav",
-	"coin-chime-light": "coin-chime-light.wav",
-	draw: "draw.wav",
-	Fahhh: "Fahhh.wav"
+	"card-place-normal": "card-place-normal.mp3",
+	"card-place-heavy": "card-place-heavy.mp3",
+	"card-place-soft": "card-place-soft.mp3",
+	"lead-sweetener-light": "lead-sweetener-light.mp3",
+	"lead-sweetener-strong": "lead-sweetener-strong.mp3",
+	"trick-win-normal": "trick-win-normal.mp3",
+	"trick-win-big": "trick-win-big.mp3",
+	"hand-win-stinger": "hand-win-stinger.mp3",
+	"card-shuffle-normal": "card-shuffle-normal.mp3",
+	"card-shuffle-final": "card-shuffle-final.mp3",
+	"card-select": "card-select.mp3",
+	"card-illegal": "card-illegal.mp3",
+	"ui-button-press": "ui-button-press.mp3",
+	"coin-chime-light": "coin-chime-light.mp3",
+	draw: "draw.mp3",
+	Fahhh: "Fahhh.mp3"
 }, is = {
 	classic: "",
 	wood: "packs/wood/",
@@ -12696,7 +12696,7 @@ function nc(e, t, n, r) {
 		resolvedUrl: i,
 		batch1: a
 	}), !1;
-	if (a && i !== `/sounds/${t}.wav`) return Xs(e, "batch1-url-mismatch", {
+	if (a && i !== os(r, t)) return Xs(e, "batch1-url-mismatch", {
 		key: t,
 		resolvedUrl: i
 	}), !1;
