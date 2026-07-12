@@ -1020,6 +1020,51 @@ async function triggerSessionPlay(_source = "manual") {
   }
 }
 
+/** Room list Play pill — same table entry path as game-setup Play (#open-table-play). */
+async function playRoomFromList(roomId) {
+  if (!session || playNowInFlight || sessionPlayInFlight || tablePlayOpen) return;
+  showRoomsError("");
+  try {
+    if (currentRoomId !== roomId) {
+      openRoom(roomId, { silent: true });
+    } else {
+      silentTableEntry = true;
+      document.body.classList.add("table-entry-silent");
+    }
+    await waitUntil(
+      () =>
+        currentRoomId === roomId &&
+        currentRoom &&
+        openSessionId &&
+        currentMembers.some((m) => m.userId === session.uid),
+      { label: "Room play load" },
+    );
+    const s = resolveActiveSession();
+    const ready = tableReadyPlayerCount(s);
+    const analysis = analyzeTableStartup(s, ready);
+    if (!analysis.canOpenTable || ready < 2) {
+      silentTableEntry = false;
+      document.body.classList.remove("table-entry-silent");
+      showRoomDetailUi();
+      navigateToRoomDetail(roomId);
+      scheduleRenderRoomDetail();
+      roomSetupFocus = ready < 2 ? "add-players" : "game-setup";
+      showTableStartupFailure(
+        analysis,
+        ready < 2 ? { code: "insufficient-players" } : undefined,
+      );
+      return;
+    }
+    await triggerSessionPlay("room-list");
+  } catch (err) {
+    console.error("playRoomFromList:", err);
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
+    openRoom(roomId);
+    showRoomsError(formatClientGameError(err, "Could not open the table. Try again from the room."));
+  }
+}
+
 function applyRoomSetupFocus() {
   if (!roomSetupFocus || roomDetailView.hidden || tablePlayOpen) return;
   const focus = roomSetupFocus;
@@ -2237,7 +2282,7 @@ function renderRoomsList() {
           <span class="mini-card__meta">${escapeHtml(room.role || "player")} · ${escapeHtml(room.status)}</span>
         </div>
         <div class="mini-card__actions" role="group" aria-label="Room actions">
-          <button type="button" class="btn btn--sm btn--play mini-card__action-pill" data-open-room="${room.id}">Play</button>
+          <button type="button" class="btn btn--sm btn--play mini-card__action-pill" data-play-room="${room.id}">Play</button>
           <button type="button" class="btn btn--sm btn--danger mini-card__action-pill" ${actionAttr}="${room.id}">${actionLabel}</button>
         </div>
       </article>`;
@@ -2754,6 +2799,13 @@ $("#join-form").addEventListener("submit", async (e) => {
 
 // Open a room (event delegation on the list).
 $("#rooms-list").addEventListener("click", (e) => {
+  const playBtn = e.target.closest("[data-play-room]");
+  if (playBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    void playRoomFromList(playBtn.dataset.playRoom);
+    return;
+  }
   if (e.target.closest("[data-delete-room]")) {
     e.preventDefault();
     e.stopPropagation();
