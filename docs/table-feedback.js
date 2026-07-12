@@ -27,14 +27,14 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
   if (pendingDrawShuffle && myUid && next.drawCompletedIds.includes(myUid)) {
     if (next.heroCardKeys !== prev.heroCardKeys) {
       clearPendingDrawShuffle = true;
-      // Draw audio is action-driven from HeroHand draw button (draw.wav).
+      api.playDrawFeedback?.();
     }
   }
 
   // Trick-win audio/haptics: animation-synced via useCardAudio at winnerReveal (not server snapshot).
 
   if (next.handComplete && !prev.handComplete && next.myIsWinner) {
-    api.playPotWinFeedback?.() ?? api.playBigWinFeedback?.();
+    api.playBigWinFeedback?.();
   }
 
   if (myUid && next.myBourre && !prev.myBourre) {

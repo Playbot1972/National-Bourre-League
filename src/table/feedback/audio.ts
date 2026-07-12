@@ -1,58 +1,24 @@
 /**
  * Table feedback audio — pack-aware, asset-first with procedural fallback.
  *
- * Entry points:
- * - playActionSound — user/game intent (tap, button, session milestone)
- * - playAnimationSound — visual impact (card land, trick resolve, deal shuffle)
+ * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
+ * Procedural synthesis remains the fallback when files are missing.
  */
 
 import { getFeedbackPrefs } from "./prefs";
 import {
-  filenameFromAudioUrl,
-  installTableAudioAuditHelpers,
-  isProceduralAuditResult,
-  logTableAudio,
-  recordAudioPlayMonitor,
-  recordTableAudioAudit,
-  type AudioAuditResult,
-  type AudioAuditTriggerType,
-  type TableAudioFallbackReason,
-} from "./audioAudit";
-import {
-  allSoundAssetUrls,
-  isAudioContentType,
-  resolveSoundAsset,
-  SOUND_ASSET_FILES,
-  SOUND_EVENT_TRIGGER_TYPE,
-  soundAssetUrl,
-  type SoundAssetId,
+  allSoundAssetPaths,
+  soundAssetPath,
   type SoundEventKey,
   type SoundPackId,
-  type SoundResolveContext,
 } from "./soundPacks";
-
-export interface PlaySoundMeta {
-  action?: string;
-  source?: string;
-  variant?: string;
-}
 
 let audioCtx: AudioContext | null = null;
 let masterGain: GainNode | null = null;
 let userGestureUnlocked = false;
-let auditHelpersInstalled = false;
 
-function ensureAuditHelpers(): void {
-  if (auditHelpersInstalled || typeof window === "undefined") return;
-  installTableAudioAuditHelpers();
-  auditHelpersInstalled = true;
-}
-
-/** Template clips — warmed on unlock so delayed callbacks can still play(). */
 const clipCache = new Map<string, HTMLAudioElement>();
 const assetAvailability = new Map<string, boolean>();
-const warmedClips = new Set<string>();
-const wiredClipDiagnostics = new WeakSet<HTMLAudioElement>();
 
 function getActivePackId(): SoundPackId {
   return getFeedbackPrefs().soundPackId;
@@ -77,74 +43,8 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
-function wireClipDiagnostics(
-  clip: HTMLAudioElement,
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): void {
-  if (wiredClipDiagnostics.has(clip)) return;
-  wiredClipDiagnostics.add(clip);
-  clip.addEventListener("loadeddata", () => {
-    logTableAudio("onload", { src, key: meta.key, event: meta.event });
-  });
-  clip.addEventListener("error", () => {
-    logTableAudio("onloaderror", {
-      src,
-      key: meta.key,
-      event: meta.event,
-      mediaError: clip.error?.code,
-    });
-  });
-  clip.addEventListener("playing", () => {
-    logTableAudio("onplay", { src, key: meta.key, event: meta.event });
-  });
-}
-
-function getClip(
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): HTMLAudioElement | null {
-  if (typeof window === "undefined") return null;
-  try {
-    let clip = clipCache.get(src);
-    if (!clip) {
-      logTableAudio("resolve-src", { src, key: meta.key, event: meta.event });
-      clip = new Audio(src);
-      clip.preload = "auto";
-      wireClipDiagnostics(clip, src, meta);
-      clipCache.set(src, clip);
-    }
-    return clip;
-  } catch {
-    return null;
-  }
-}
-
-function borrowClip(
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): HTMLAudioElement | null {
-  const template = getClip(src, meta);
-  if (!template) return null;
-  if (template.paused && template.currentTime < 0.01) {
-    return template;
-  }
-  try {
-    logTableAudio("resolve-src", { src, key: meta.key, event: meta.event, clone: true });
-    const clone = new Audio(src);
-    clone.preload = "auto";
-    wireClipDiagnostics(clone, src, meta);
-    return clone;
-  } catch {
-    return null;
-  }
-}
-
 export async function unlockAudio(): Promise<void> {
-  ensureAuditHelpers();
   userGestureUnlocked = true;
-  // Drop stale probe results (e.g. pre-deploy 404s) so play path retries hosted WAVs.
-  assetAvailability.clear();
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === "suspended") {
@@ -157,129 +57,43 @@ export async function unlockAudio(): Promise<void> {
   void preloadSoundAssets();
 }
 
-function waitForCanPlay(clip: HTMLAudioElement, timeoutMs = 2500): Promise<void> {
-  if (clip.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("canplay-timeout"));
-    }, timeoutMs);
-    const onReady = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = () => {
-      cleanup();
-      reject(new Error("media-error"));
-    };
-    const cleanup = () => {
-      window.clearTimeout(timer);
-      clip.removeEventListener("canplaythrough", onReady);
-      clip.removeEventListener("error", onError);
-    };
-    clip.addEventListener("canplaythrough", onReady, { once: true });
-    clip.addEventListener("error", onError, { once: true });
-    try {
-      clip.load();
-    } catch {
-      cleanup();
-      reject(new Error("load-failed"));
+function getClip(src: string): HTMLAudioElement | null {
+  if (typeof window === "undefined") return null;
+  try {
+    let clip = clipCache.get(src);
+    if (!clip) {
+      clip = new Audio(src);
+      clip.preload = "auto";
+      clipCache.set(src, clip);
     }
-  });
+    return clip;
+  } catch {
+    return null;
+  }
 }
 
-async function warmupClip(src: string): Promise<boolean> {
-  if (warmedClips.has(src)) return true;
-  const clip = getClip(src);
-  if (!clip) return false;
+async function probeAsset(src: string): Promise<boolean> {
+  if (assetAvailability.has(src)) {
+    return assetAvailability.get(src) === true;
+  }
+  if (typeof window === "undefined") return false;
   try {
-    await waitForCanPlay(clip);
-    const prevVol = clip.volume;
-    clip.volume = 0.001;
-    clip.currentTime = 0;
-    await clip.play();
-    clip.pause();
-    clip.currentTime = 0;
-    clip.volume = prevVol;
-    warmedClips.add(src);
-    logTableAudio("warmed", { src });
-    return true;
-  } catch (err) {
-    logTableAudio("warmup-failed", { src, err: String(err) });
+    const res = await fetch(src, { method: "HEAD" });
+    const ok = res.ok;
+    assetAvailability.set(src, ok);
+    return ok;
+  } catch {
+    assetAvailability.set(src, false);
     return false;
   }
-}
-
-async function probeAsset(src: string): Promise<{ ok: boolean; reason?: TableAudioFallbackReason }> {
-  // Only cache confirmed-good URLs — failed probes must not block later play attempts.
-  if (assetAvailability.get(src) === true) {
-    return { ok: true };
-  }
-  if (typeof window === "undefined") return { ok: false, reason: "probe-failed" };
-
-  try {
-    const head = await fetch(src, { method: "HEAD", cache: "no-store" });
-    const headCt = head.headers.get("content-type");
-    if (head.ok && isAudioContentType(headCt)) {
-      assetAvailability.set(src, true);
-      return { ok: true };
-    }
-
-    // Some static hosts omit Content-Type on HEAD — confirm with a tiny ranged GET.
-    const ranged = await fetch(src, {
-      headers: { Range: "bytes=0-15" },
-      cache: "no-store",
-    });
-    const rangedCt = ranged.headers.get("content-type");
-    if (ranged.ok && isAudioContentType(rangedCt)) {
-      logTableAudio("probe-get-ok", { src, contentType: rangedCt });
-      assetAvailability.set(src, true);
-      return { ok: true };
-    }
-    if (ranged.ok && src.toLowerCase().endsWith(".wav") && !rangedCt?.toLowerCase().includes("text/html")) {
-      logTableAudio("probe-wav-extension-ok", { src, contentType: rangedCt });
-      assetAvailability.set(src, true);
-      return { ok: true };
-    }
-
-    logTableAudio("probe-failed", {
-      src,
-      headStatus: head.status,
-      headContentType: headCt,
-      getStatus: ranged.status,
-      getContentType: rangedCt,
-    });
-    if (!head.ok && !ranged.ok) {
-      return { ok: false, reason: "probe-failed" };
-    }
-    return { ok: false, reason: "bad-content-type" };
-  } catch (err) {
-    logTableAudio("probe-network-error", { src, err: String(err) });
-    return { ok: false, reason: "probe-failed" };
-  }
-}
-
-/** Play path — try hosted WAV(s) directly; probe is preload-only. */
-async function resolvePlayUrls(
-  packId: SoundPackId,
-  assetId: SoundAssetId,
-): Promise<string[]> {
-  const urls = [soundAssetUrl(packId, assetId)];
-  if (packId !== "classic") {
-    urls.push(soundAssetUrl("classic", assetId));
-  }
-  return urls;
 }
 
 export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
   if (!userGestureUnlocked) return;
   const pack = packId ?? getActivePackId();
   await Promise.all(
-    allSoundAssetUrls(pack).map(async (src) => {
-      const probe = await probeAsset(src);
-      if (!probe.ok) return;
+    allSoundAssetPaths(pack).map(async (src) => {
+      if (!(await probeAsset(src))) return;
       const clip = getClip(src);
       if (!clip) return;
       try {
@@ -287,64 +101,23 @@ export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
       } catch {
         /* optional preload */
       }
-      await warmupClip(src);
     }),
   );
 }
 
-async function tryPlayAsset(
-  src: string,
-  volume = 0.55,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): Promise<{ ok: boolean; reason?: TableAudioFallbackReason }> {
-  const key = meta.key ?? meta.event;
-  logTableAudio("requested", { key, src, event: meta.event });
-  if (!userGestureUnlocked) {
-    logTableAudio("play-blocked", { key, src, reason: "audio-locked" });
-    return { ok: false, reason: "audio-locked" };
-  }
-  const clip = borrowClip(src, meta);
-  if (!clip) {
-    logTableAudio("play-blocked", { key, src, reason: "no-clip" });
-    return { ok: false, reason: "media-error" };
-  }
+async function tryPlayAsset(src: string, volume = 0.55): Promise<boolean> {
+  if (!userGestureUnlocked) return false;
+  if (!(await probeAsset(src))) return false;
+  const clip = getClip(src);
+  if (!clip) return false;
   try {
-    if (clip.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-      await waitForCanPlay(clip);
-    }
-    clip.volume = Math.min(1, Math.max(0, volume));
+    clip.volume = volume;
     clip.currentTime = 0;
     await clip.play();
-    const filename = filenameFromAudioUrl(src);
-    logTableAudio("played-asset", { key, src, volume, filename });
-    recordAudioPlayMonitor({ src, filename, volume });
-    return { ok: true };
-  } catch (err) {
-    logTableAudio("onplayerror", { key, src, event: meta.event, err: String(err) });
-    logTableAudio("play-rejected", { key, src, err: String(err) });
-    return { ok: false, reason: "play-rejected" };
+    return true;
+  } catch {
+    return false;
   }
-}
-
-async function tryPlayAssetId(
-  packId: SoundPackId,
-  assetId: SoundAssetId,
-  volume = 0.55,
-  event?: SoundEventKey,
-): Promise<{ ok: boolean; reason?: TableAudioFallbackReason; src?: string }> {
-  const playMeta = { key: event, event };
-  const urls = await resolvePlayUrls(packId, assetId);
-  let lastReason: TableAudioFallbackReason | undefined;
-  for (const url of urls) {
-    const playResult = await tryPlayAsset(url, volume, playMeta);
-    if (playResult.ok) {
-      assetAvailability.set(url, true);
-      return { ok: true, src: url };
-    }
-    lastReason = playResult.reason ?? "play-rejected";
-    logTableAudio("play-attempt-failed", { url, event, reason: lastReason });
-  }
-  return { ok: false, reason: lastReason ?? "play-rejected", src: urls[0] };
 }
 
 function scheduleTone(
@@ -398,6 +171,8 @@ function scheduleNoiseBurst(
   src.start(start);
   src.stop(start + duration + 0.01);
 }
+
+type ProceduralFn = (packId: SoundPackId) => void;
 
 function playProceduralShuffle(packId: SoundPackId): void {
   const ctx = getAudioContext();
@@ -494,256 +269,80 @@ function playProceduralBourre(packId: SoundPackId): void {
   scheduleTone(ctx, masterGain, packId === "wood" ? 140 : 165, t0 + 0.18, 0.32, 0.08, type);
 }
 
-function playProceduralUiTap(packId: SoundPackId): void {
+function playProceduralGameStart(packId: SoundPackId): void {
   const ctx = getAudioContext();
   if (!ctx || !masterGain) return;
   const t0 = ctx.currentTime;
-  scheduleTone(ctx, masterGain, packId === "arcade" ? 520 : 440, t0, 0.05, 0.04, "triangle");
+  if (packId === "arcade") {
+    scheduleTone(ctx, masterGain, 440, t0, 0.08, 0.07, "square");
+    scheduleTone(ctx, masterGain, 554.37, t0 + 0.1, 0.12, 0.08, "square");
+    return;
+  }
+  scheduleTone(ctx, masterGain, packId === "wood" ? 392 : 440, t0, 0.1, 0.07, "sine");
+  scheduleTone(ctx, masterGain, packId === "wood" ? 523.25 : 554.37, t0 + 0.12, 0.16, 0.08, "triangle");
 }
 
-function playProceduralCardSelect(packId: SoundPackId): void {
-  const ctx = getAudioContext();
-  if (!ctx || !masterGain) return;
-  const t0 = ctx.currentTime;
-  scheduleTone(ctx, masterGain, packId === "wood" ? 560 : 640, t0, 0.06, 0.035, "sine");
-}
-
-function playProceduralCardIllegal(packId: SoundPackId): void {
-  const ctx = getAudioContext();
-  if (!ctx || !masterGain) return;
-  const t0 = ctx.currentTime;
-  scheduleTone(ctx, masterGain, packId === "arcade" ? 180 : 220, t0, 0.1, 0.07, "square");
-  scheduleNoiseBurst(ctx, masterGain, t0 + 0.04, 0.06, 0.05, 400);
-}
-
-const PROCEDURAL_BY_EVENT: Record<SoundEventKey, (packId: SoundPackId, ctx?: SoundResolveContext) => void> = {
-  shuffle: (packId) => playProceduralShuffle(packId),
-  shuffleFinal: (packId) => playProceduralShuffle(packId),
-  draw: (packId) => playProceduralDraw(packId),
-  cardPlace: (packId, ctx) => playProceduralCardPlace(packId, ctx?.intensityTier ?? 0),
-  leadChange: (packId, ctx) => playProceduralLeadChange(packId, ctx?.intensityTier ?? 0),
-  trickWin: (packId, ctx) => playProceduralTrickWin(packId, ctx?.volumeScale ?? 1),
-  trickCollect: (packId) => playProceduralTrickCollect(packId),
-  handWin: (packId) => playProceduralTrickCollect(packId),
-  potWin: (packId) => playProceduralBigWin(packId),
-  bourre: (packId) => playProceduralBourre(packId),
-  gameStart: (packId) => playProceduralShuffle(packId),
-  openRoom: (packId) => playProceduralShuffle(packId),
-  deleteRoom: (packId) => playProceduralCardIllegal(packId),
-  fold: (packId) => playProceduralCardPlace(packId, 2),
-  cardSelect: (packId) => playProceduralCardSelect(packId),
-  cardIllegal: (packId) => playProceduralCardIllegal(packId),
-  uiButton: (packId) => playProceduralUiTap(packId),
+const PROCEDURAL_BY_EVENT: Record<SoundEventKey, ProceduralFn> = {
+  shuffle: playProceduralShuffle,
+  draw: playProceduralDraw,
+  cardPlace: (packId) => playProceduralCardPlace(packId, 0),
+  leadChange: (packId) => playProceduralLeadChange(packId, 0),
+  trickWin: (packId) => playProceduralTrickWin(packId, 1),
+  trickCollect: playProceduralTrickCollect,
+  bigWin: playProceduralBigWin,
+  bourre: playProceduralBourre,
+  gameStart: playProceduralGameStart,
 };
 
 const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   shuffle: { current: false },
-  shuffleFinal: { current: false },
   draw: { current: false },
   cardPlace: { current: false },
   leadChange: { current: false },
   trickWin: { current: false },
   trickCollect: { current: false },
-  handWin: { current: false },
-  potWin: { current: false },
+  bigWin: { current: false },
   bourre: { current: false },
   gameStart: { current: false },
-  openRoom: { current: false },
-  deleteRoom: { current: false },
-  fold: { current: false },
-  cardSelect: { current: false },
-  cardIllegal: { current: false },
-  uiButton: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
   shuffle: 360,
-  shuffleFinal: 420,
   draw: 280,
   cardPlace: 120,
   leadChange: 180,
   trickWin: 320,
   trickCollect: 280,
-  handWin: 320,
-  potWin: 580,
+  bigWin: 580,
   bourre: 520,
   gameStart: 320,
-  openRoom: 400,
-  deleteRoom: 200,
-  fold: 200,
-  cardSelect: 100,
-  cardIllegal: 200,
-  uiButton: 120,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
-  shuffleFinal: 0.58,
   draw: 0.45,
   cardPlace: 0.38,
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
-  handWin: 0.4,
-  potWin: 0.6,
+  bigWin: 0.6,
   bourre: 0.5,
   gameStart: 0.42,
-  openRoom: 0.5,
-  deleteRoom: 0.4,
-  fold: 0.42,
-  cardSelect: 0.32,
-  cardIllegal: 0.4,
-  uiButton: 0.36,
 };
 
-function recordPlayAudit(
-  triggerType: AudioAuditTriggerType,
-  event: SoundEventKey,
-  meta: PlaySoundMeta,
-  result: AudioAuditResult,
-  extra: {
-    url?: string;
-    filename?: string;
-    resolvedFile?: string;
-    assetId?: SoundAssetId | null;
-    fallbackReason?: string;
-    tier?: number;
-    usedFallback?: boolean;
-  } = {},
-): void {
-  recordTableAudioAudit({
-    triggerType,
-    action: meta.action,
-    source: meta.source,
-    event,
-    result,
-    url: extra.url,
-    filename: extra.filename ?? filenameFromAudioUrl(extra.url),
-    resolvedFile: extra.resolvedFile,
-    assetId: extra.assetId ?? undefined,
-    usedFallback: extra.usedFallback ?? isProceduralAuditResult(result),
-    fallbackReason: extra.fallbackReason,
-    tier: extra.tier,
-    variant: meta.variant,
-  });
-}
-
-async function playSoundEvent(
-  event: SoundEventKey,
-  triggerType: AudioAuditTriggerType,
-  ctx: SoundResolveContext = {},
-  meta: PlaySoundMeta = {},
-): Promise<void> {
-  ensureAuditHelpers();
+async function playSoundEvent(event: SoundEventKey): Promise<void> {
   const flag = playingFlags[event];
-  if (flag.current) {
-    recordPlayAudit(triggerType, event, meta, "deduped", {
-      fallbackReason: "deduped",
-      tier: ctx.intensityTier,
-    });
-    return;
-  }
+  if (flag.current) return;
   flag.current = true;
   const packId = getActivePackId();
-  const assetId = resolveSoundAsset(packId, event, ctx);
-  let fallbackReason: TableAudioFallbackReason | null = null;
-
-  if (!userGestureUnlocked) {
-    logTableAudio("skip-locked", { event });
-    recordPlayAudit(triggerType, event, meta, "skipped-muted", {
-      fallbackReason: "audio-locked",
-      tier: ctx.intensityTier,
-    });
-    window.setTimeout(() => {
-      flag.current = false;
-    }, RESET_MS[event]);
-    return;
-  }
-
+  const assetSrc = soundAssetPath(packId, event);
   try {
-    let played = false;
-    let playedUrl: string | undefined;
-    let playedFilename: string | undefined;
-
-    if (!assetId) {
-      fallbackReason = "procedural-only";
-      logTableAudio("resolve", { event, key: event, assetId: null, reason: fallbackReason, triggerType, ...meta });
-    } else {
-      const volume =
-        event === "trickWin" ? VOLUME[event] * (ctx.volumeScale ?? 1) : VOLUME[event];
-      const resolvedFile = SOUND_ASSET_FILES[assetId];
-      const src = soundAssetUrl(packId, assetId);
-      playedFilename = resolvedFile;
-      logTableAudio("requested", {
-        key: event,
-        event,
-        assetId,
-        resolvedFile,
-        src,
-        triggerType,
-        ...meta,
-      });
-      logTableAudio("resolve", { key: event, event, assetId, resolvedFile, src, triggerType, ...meta });
-      const result = await tryPlayAssetId(packId, assetId, volume, event);
-      played = result.ok;
-      playedUrl = result.src;
-      if (result.ok) {
-        playedFilename = filenameFromAudioUrl(playedUrl) ?? resolvedFile;
-      } else {
-        fallbackReason = result.reason ?? "play-rejected";
-      }
+    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
+    if (!played && userGestureUnlocked) {
+      PROCEDURAL_BY_EVENT[event](packId);
     }
-
-    if (played) {
-      recordPlayAudit(triggerType, event, meta, "asset-played", {
-        url: playedUrl,
-        filename: playedFilename,
-        resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : playedFilename,
-        assetId,
-        usedFallback: false,
-        tier: ctx.intensityTier,
-      });
-      return;
-    }
-
-    if (fallbackReason === "audio-locked") {
-      return;
-    }
-
-    const auditResult =
-      fallbackReason === "procedural-only" ? "procedural-only" : "procedural-fallback";
-
-    logTableAudio("fallback-procedural", {
-      key: event,
-      event,
-      reason: fallbackReason ?? "play-rejected",
-      assetId,
-      resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : undefined,
-      usedFallback: true,
-      triggerType,
-      ...meta,
-    });
-
-    recordPlayAudit(triggerType, event, meta, auditResult, {
-      url: playedUrl,
-      filename: playedFilename,
-      resolvedFile: assetId ? SOUND_ASSET_FILES[assetId] : undefined,
-      assetId,
-      usedFallback: true,
-      fallbackReason: fallbackReason ?? undefined,
-      tier: ctx.intensityTier,
-    });
-
-    PROCEDURAL_BY_EVENT[event](packId, ctx);
-  } catch (err) {
-    logTableAudio("play-error", { event, err: String(err) });
-    recordPlayAudit(triggerType, event, meta, "procedural-fallback", {
-      fallbackReason: String(err),
-      tier: ctx.intensityTier,
-    });
-    if (userGestureUnlocked) {
-      PROCEDURAL_BY_EVENT[event](packId, ctx);
-    }
+  } catch {
+    /* never block gameplay */
   } finally {
     window.setTimeout(() => {
       flag.current = false;
@@ -751,133 +350,82 @@ async function playSoundEvent(
   }
 }
 
-/** User/game intent — tap, button, room/session actions. */
-export function playActionSound(
-  event: SoundEventKey,
-  ctx: SoundResolveContext = {},
-  meta: PlaySoundMeta = {},
-): void {
-  const expected = SOUND_EVENT_TRIGGER_TYPE[event];
-  if (expected !== "action") {
-    logTableAudio("trigger-mismatch", { event, expected, got: "action", ...meta });
+export function playShuffleSound(): void {
+  void playSoundEvent("shuffle");
+}
+
+export function playDrawSound(): void {
+  void playSoundEvent("draw");
+}
+
+export function playCardPlaceSound(intensityTier = 0): void {
+  void playCardAudioEvent("cardPlace", intensityTier);
+}
+
+export function playLeadChangeSound(intensityTier = 0): void {
+  void playCardAudioEvent("leadChange", intensityTier);
+}
+
+export function playTrickCollectSound(): void {
+  void playSoundEvent("trickCollect");
+}
+
+export function playTrickWinSound(volumeScale = 1): void {
+  void playTrickWinEvent(volumeScale);
+}
+
+async function playCardAudioEvent(event: "cardPlace" | "leadChange", intensityTier: number): Promise<void> {
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetSrc = soundAssetPath(packId, event);
+  try {
+    const played = await tryPlayAsset(assetSrc, VOLUME[event]);
+    if (!played && userGestureUnlocked) {
+      if (event === "cardPlace") playProceduralCardPlace(packId, intensityTier);
+      else playProceduralLeadChange(packId, intensityTier);
+    }
+  } catch {
+    /* never block gameplay */
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
   }
-  void playSoundEvent(event, "action", ctx, meta);
 }
 
-/** Visual impact — card land, trick resolve, deal shuffle. */
-export function playAnimationSound(
-  event: SoundEventKey,
-  ctx: SoundResolveContext = {},
-  meta: PlaySoundMeta = {},
-): void {
-  const expected = SOUND_EVENT_TRIGGER_TYPE[event];
-  if (expected !== "animation") {
-    logTableAudio("trigger-mismatch", { event, expected, got: "animation", ...meta });
+async function playTrickWinEvent(volumeScale: number): Promise<void> {
+  const event: SoundEventKey = "trickWin";
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetSrc = soundAssetPath(packId, event);
+  try {
+    const played = await tryPlayAsset(assetSrc, VOLUME[event] * volumeScale);
+    if (!played && userGestureUnlocked) {
+      playProceduralTrickWin(packId, volumeScale);
+    }
+  } catch {
+    /* never block gameplay */
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
   }
-  void playSoundEvent(event, "animation", ctx, meta);
 }
 
-/** Hand/session outcome — pot win, hand win, bourré. */
-export function playOutcomeSound(
-  event: SoundEventKey,
-  ctx: SoundResolveContext = {},
-  meta: PlaySoundMeta = {},
-): void {
-  const expected = SOUND_EVENT_TRIGGER_TYPE[event];
-  if (expected !== "outcome") {
-    logTableAudio("trigger-mismatch", { event, expected, got: "outcome", ...meta });
-  }
-  void playSoundEvent(event, "outcome", ctx, meta);
+export function playBigWinSound(): void {
+  void playSoundEvent("bigWin");
 }
 
-export function playShuffleSound(
-  variant: "normal" | "final" = "normal",
-  meta: PlaySoundMeta = {},
-): void {
-  playAnimationSound(variant === "final" ? "shuffleFinal" : "shuffle", {}, {
-    ...meta,
-    variant,
-    action: meta.action ?? "deal-shuffle",
-  });
+export function playBourreSound(): void {
+  void playSoundEvent("bourre");
 }
 
-export function playDrawSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("draw", {}, { ...meta, action: meta.action ?? "draw-replace" });
-}
-
-export function playCardPlaceSound(intensityTier = 0, meta: PlaySoundMeta = {}): void {
-  playAnimationSound("cardPlace", { intensityTier }, {
-    ...meta,
-    action: meta.action ?? "card-land",
-  });
-}
-
-export function playLeadChangeSound(intensityTier = 0, meta: PlaySoundMeta = {}): void {
-  playAnimationSound("leadChange", { intensityTier }, {
-    ...meta,
-    action: meta.action ?? "take-lead",
-  });
-}
-
-export function playTrickCollectSound(meta: PlaySoundMeta = {}): void {
-  playAnimationSound("trickCollect", {}, { ...meta, action: meta.action ?? "trick-collect" });
-}
-
-export function playTrickWinSound(
-  volumeScale = 1,
-  isLocalPlayer = false,
-  meta: PlaySoundMeta = {},
-): void {
-  playAnimationSound(
-    "trickWin",
-    { volumeScale, isLocalPlayer },
-    { ...meta, action: meta.action ?? "trick-won" },
-  );
-}
-
-export function playPotWinSound(meta: PlaySoundMeta = {}): void {
-  playOutcomeSound("potWin", {}, { ...meta, action: meta.action ?? "pot-win" });
-}
-
-/** @deprecated Use playPotWinSound */
-export function playBigWinSound(meta: PlaySoundMeta = {}): void {
-  playPotWinSound(meta);
-}
-
-export function playHandWinSound(meta: PlaySoundMeta = {}): void {
-  playOutcomeSound("handWin", {}, { ...meta, action: meta.action ?? "hand-win" });
-}
-
-export function playBourreSound(meta: PlaySoundMeta = {}): void {
-  playOutcomeSound("bourre", {}, { ...meta, action: meta.action ?? "bourre" });
-}
-
-export function playGameStartSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("gameStart", {}, { ...meta, action: meta.action ?? "game-start" });
-}
-
-export function playOpenRoomSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("openRoom", {}, { ...meta, action: meta.action ?? "open-room" });
-}
-
-export function playDeleteRoomSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("deleteRoom", {}, { ...meta, action: meta.action ?? "delete-room" });
-}
-
-export function playFoldSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("fold", {}, { ...meta, action: meta.action ?? "fold" });
-}
-
-export function playCardSelectSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("cardSelect", {}, { ...meta, action: meta.action ?? "card-select" });
-}
-
-export function playCardIllegalSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("cardIllegal", {}, { ...meta, action: meta.action ?? "card-illegal" });
-}
-
-export function playUiButtonSound(meta: PlaySoundMeta = {}): void {
-  playActionSound("uiButton", {}, { ...meta, action: meta.action ?? "ui-button" });
+export function playGameStartSound(): void {
+  void playSoundEvent("gameStart");
 }
 
 export function audioSupported(): boolean {
@@ -895,19 +443,7 @@ export function isAudioUnlocked(): boolean {
   return userGestureUnlocked;
 }
 
-/** Clear asset probe + clip caches when user switches sound packs. */
+/** Clear asset probe cache when user switches sound packs. */
 export function resetSoundAssetCache(): void {
   assetAvailability.clear();
-  warmedClips.clear();
-  clipCache.clear();
 }
-
-export { isTableAudioDebugEnabled, logTableAudio } from "./audioAudit";
-export {
-  resetTableAudioAudit,
-  getTableAudioAudit,
-  printTableAudioAuditSummary,
-  installTableAudioAuditHelpers,
-  resetAudioPlayMonitor,
-  getAudioPlayMonitor,
-} from "./audioAudit";

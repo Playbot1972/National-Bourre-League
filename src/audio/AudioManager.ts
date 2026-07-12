@@ -23,7 +23,6 @@ import {
   playTrickWinSound,
 } from "../table/feedback/audio";
 import { triggerHaptic } from "../table/feedback/haptics";
-import { logTableAudio } from "../table/feedback/audioAudit";
 import { shouldUseHaptics } from "../table/feedback/prefs";
 import type { SoundEventKey } from "../table/feedback/soundPacks";
 
@@ -94,22 +93,18 @@ function playEventSound(payload: CardAudioEventPayload): void {
   const soundKey = soundKeyForEvent(payload.type);
   if (!shouldPlaySoundEvent(prefs.soundMode, soundKey)) return;
 
-  logTableAudio("requested", { key: soundKey, source: "AudioManager", action: payload.type });
-
-  const meta = { source: "AudioManager", action: payload.type };
-
   switch (payload.type) {
     case "card:played":
-      playCardPlaceSound(payload.intensityTier, meta);
+      playCardPlaceSound(payload.intensityTier);
       break;
     case "card:lead-change":
-      playLeadChangeSound(payload.intensityTier, meta);
+      playLeadChangeSound(payload.intensityTier);
       break;
     case "trick:won":
-      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1, Boolean(payload.isLocalPlayer), meta);
+      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1);
       break;
     case "trick:collected":
-      playTrickCollectSound(meta);
+      playTrickCollectSound();
       break;
   }
 }
