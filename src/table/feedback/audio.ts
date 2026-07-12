@@ -7,6 +7,7 @@ import { AudioManager } from "../../audio/AudioManager";
 import { getFeedbackPrefs } from "./prefs";
 import {
   isBatch1WavAsset,
+  resolveDrawCountAsset,
   resolveSoundAsset,
   soundAssetUrl,
   type SoundAssetId,
@@ -174,7 +175,35 @@ export function playShuffleSound(): void {
 }
 
 export function playDrawSound(): void {
-  void playSoundEvent("draw");
+  void playDrawCountSound(0);
+}
+
+/** Play draw confirm audio for the number of cards drawn (1–5); generic draw fallback otherwise. */
+export function playDrawCountSound(cardCount: number): void {
+  void playDrawCountEvent(cardCount);
+}
+
+async function playDrawCountEvent(cardCount: number): Promise<void> {
+  const event: SoundEventKey = "draw";
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  const assetId = resolveDrawCountAsset(cardCount);
+  try {
+    if (!assetId) {
+      audioFail(event, "no-asset-mapping", { packId, cardCount });
+      return;
+    }
+    audioTrace("draw-count", event, { cardCount, key: assetId });
+    playResolvedAsset(event, assetId, VOLUME[event], packId);
+  } catch (err) {
+    audioFail(event, "play-threw", { error: String(err), cardCount });
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
+  }
 }
 
 export function playCardPlaceSound(intensityTier = 0): void {

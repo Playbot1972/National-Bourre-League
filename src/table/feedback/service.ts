@@ -4,7 +4,7 @@ import {
   playCardIllegalSound,
   playCardSelectSound,
   playDeleteRoomSound,
-  playDrawSound,
+  playDrawCountSound,
   playFoldSound,
   playGameStartSound,
   playOpenRoomSound,
@@ -97,12 +97,17 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
   }, delayMs);
 }
 
-export function playDrawFeedback(): void {
+export function playDrawCountFeedback(cardCount: number): void {
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;
-  maybePlaySound("draw", playDrawSound);
+  maybePlaySound("draw", () => playDrawCountSound(cardCount));
   fireHaptic("light");
+}
+
+/** @deprecated Prefer playDrawCountFeedback on draw confirm; generic fallback only. */
+export function playDrawFeedback(): void {
+  playDrawCountFeedback(0);
 }
 
 export function playTrickWinFeedback(): void {

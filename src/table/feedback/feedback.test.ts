@@ -4,7 +4,18 @@ import { getFeedbackPrefs, shouldPlaySoundEvent, shouldUseHaptics } from "./pref
 import { normalizeCardPackId } from "../theme/cardPacks";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset, SOUND_ASSET_FILES } from "./soundPacks";
+import {
+  normalizeSoundPackId,
+  BATCH1_WAV_ASSET_IDS,
+  BATCH1_WAV_URLS,
+  resolveDrawCountAsset,
+  resolveSoundAsset,
+  soundAssetUrl,
+  drawCountAssetUrl,
+  DEFAULT_SOUND_PACK_ID,
+  isBatch1WavAsset,
+  SOUND_ASSET_FILES,
+} from "./soundPacks";
 import { loadTableSettings, DEFAULT_TABLE_SETTINGS } from "../theme/settings";
 
 describe("feedback prefs", () => {
@@ -71,6 +82,26 @@ describe("sound pack registry", () => {
   it("batch-1 cardPlace tier 1 aliases to card-place-normal (soft deferred)", () => {
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-normal");
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
+  });
+
+  it("draw count 1–5 resolves to /sounds/drawN.mp3", () => {
+    for (let n = 1; n <= 5; n++) {
+      assert.equal(resolveDrawCountAsset(n), `draw${n}`);
+      assert.equal(drawCountAssetUrl(n), `/sounds/draw${n}.mp3`);
+    }
+  });
+
+  it("draw count outside 1–5 falls back to generic draw.mp3", () => {
+    assert.equal(resolveDrawCountAsset(0), "draw");
+    assert.equal(resolveDrawCountAsset(6), "draw");
+    assert.equal(drawCountAssetUrl(0), "/sounds/draw.mp3");
+  });
+
+  it("draw count mp3 files exist in public/sounds", () => {
+    for (let n = 1; n <= 5; n++) {
+      const file = join(process.cwd(), "public/sounds", `draw${n}.mp3`);
+      assert.ok(existsSync(file), `missing ${file}`);
+    }
   });
 
   it("registry asset files exist in public/sounds", () => {
