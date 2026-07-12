@@ -56,7 +56,9 @@ describe("sound pack registry", () => {
       assert.doesNotMatch(url, /^\/public\//);
     }
     assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.mp3");
+    assert.equal(soundAssetUrl("classic", "draw"), "/sounds/draw.mp3");
     assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
+    assert.equal(soundAssetUrl("classic", "card-shuffle-normal"), "/sounds/card-shuffle-normal.mp3");
   });
 
   it("batch-1 trickWin always resolves to trick-win-normal (trick-win-big deferred)", () => {

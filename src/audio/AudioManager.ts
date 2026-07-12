@@ -55,6 +55,16 @@ function debugLog(...args: unknown[]): void {
   console.log("[nbl-audio]", ...args);
 }
 
+/** Dev server or `localStorage.setItem('nbl-audio-debug','1')` — never on by default in production. */
+function isAudioDebugEnabled(): boolean {
+  if (import.meta.env.DEV) return true;
+  try {
+    return localStorage.getItem("nbl-audio-debug") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export class AudioManager {
   private static instance: AudioManager | null = null;
 
@@ -82,6 +92,11 @@ export class AudioManager {
       src: [src],
       volume: DEFAULT_VOLUME[name] ?? 0.55,
       preload: true,
+      onload: isAudioDebugEnabled()
+        ? () => {
+            debugLog("loaded", { key: name, resolvedUrl: src, state: "loaded" });
+          }
+        : undefined,
       onloaderror: (_id, err) => {
         console.error("[nbl-audio] sound load error", {
           key: name,
@@ -90,6 +105,11 @@ export class AudioManager {
           fallback: false,
         });
       },
+      onplay: isAudioDebugEnabled()
+        ? () => {
+            debugLog("playing", { key: name, resolvedUrl: src });
+          }
+        : undefined,
       onplayerror: (_id, err) => {
         console.error("[nbl-audio] sound play error", {
           key: name,
@@ -151,6 +171,14 @@ export class AudioManager {
     }
     try {
       howl.play();
+      if (isAudioDebugEnabled()) {
+        debugLog("play-started", {
+          key: name,
+          resolvedUrl: path,
+          event: options?.event,
+          howlState: howl.state(),
+        });
+      }
       return true;
     } catch (err) {
       console.error("[nbl-audio] play threw", {
