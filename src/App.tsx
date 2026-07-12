@@ -139,7 +139,7 @@ export default function App() {
             void unlockAudio();
             playCardSelectSound();
           }}
-          title="Temporary: test card-select.wav"
+          title="Temporary: test card-select.mp3"
         >
           🔊 Test sound
         </button>

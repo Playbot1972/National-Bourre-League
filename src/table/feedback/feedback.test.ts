@@ -55,7 +55,7 @@ describe("sound pack registry", () => {
       assert.match(url, /^\/sounds\/[\w-]+\.(mp3|wav)$/);
       assert.doesNotMatch(url, /^\/public\//);
     }
-    assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.wav");
+    assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.mp3");
     assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
   });
 
