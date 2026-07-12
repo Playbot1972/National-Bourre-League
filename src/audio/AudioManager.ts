@@ -57,6 +57,7 @@ const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
   draw4: 0.45,
   draw5: 0.45,
   Fahhh: 0.5,
+  timer: 0.48,
 };
 
 function debugLog(...args: unknown[]): void {
