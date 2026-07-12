@@ -123,7 +123,7 @@ export function TableSessionView({
 
   useAnteAudio({
     phase: handPresentation.phase,
-    handNumber: handPresentation.handNumber,
+    handNumber: session.handNumber,
     anteAnimActive: handPresentation.anteAnimActive,
     dealStaggerCount: handPresentation.dealStaggerCount,
   });
