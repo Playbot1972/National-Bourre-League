@@ -100,6 +100,11 @@ export function buildTrickWonPayload(input: TrickWonAudioInput): CardAudioEventP
   };
 }
 
+/** trick-win-normal is winner-only — local client must have won the trick. */
+export function shouldPlayTrickWinNormal(payload: CardAudioEventPayload): boolean {
+  return payload.type === "trick:won" && payload.isLocalPlayer === true;
+}
+
 export function buildTrickCollectedPayload(input: TrickCollectedAudioInput): CardAudioEventPayload {
   return {
     type: "trick:collected",

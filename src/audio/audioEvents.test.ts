@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   buildCardPlayedPayload,
   buildLeadChangePayload,
+  buildTrickCollectedPayload,
   buildTrickWonPayload,
   cardAudioDedupeKey,
   deriveIntensityTier,
+  shouldPlayTrickWinNormal,
 } from "./audioEvents";
 import {
   clearCardAudioDedupe,
@@ -68,6 +70,33 @@ describe("card audio payloads", () => {
     assert.equal(payload.type, "trick:won");
     assert.equal(payload.intensityTier, 2);
     assert.equal(payload.isLocalPlayer, true);
+  });
+
+  it("trick-win-normal plays only when local player won", () => {
+    const localWin = buildTrickWonPayload({
+      trickId: 2,
+      winningSeat: "p1",
+      playerCount: 4,
+      isLocalPlayer: true,
+    });
+    const opponentWin = buildTrickWonPayload({
+      trickId: 2,
+      winningSeat: "p2",
+      playerCount: 4,
+      isLocalPlayer: false,
+    });
+    assert.equal(shouldPlayTrickWinNormal(localWin), true);
+    assert.equal(shouldPlayTrickWinNormal(opponentWin), false);
+    assert.equal(
+      shouldPlayTrickWinNormal(
+        buildTrickCollectedPayload({
+          trickId: 2,
+          winningSeat: "p1",
+          playerCount: 4,
+        }),
+      ),
+      false,
+    );
   });
 
   it("lead-change only when takesLead is true in builder input", () => {

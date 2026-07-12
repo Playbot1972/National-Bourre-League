@@ -17,6 +17,7 @@ import {
   type CardAudioEventPayload,
   type CardAudioEventType,
   cardAudioDedupeKey,
+  shouldPlayTrickWinNormal,
 } from "./audioEvents";
 import {
   AUDIO_DEDUPE_TTL_MS,
@@ -315,12 +316,21 @@ function playEventSound(payload: CardAudioEventPayload): void {
     case "card:lead-change":
       playFeedbackEvent("leadChange", { intensityTier: payload.intensityTier });
       break;
-    case "trick:won":
+    case "trick:won": {
+      const allowed = shouldPlayTrickWinNormal(payload);
+      console.log("[nbl-audio] trick-win-gate", {
+        event: "trickWin",
+        key: "trick-win-normal",
+        allowed,
+        isLocalPlayer: payload.isLocalPlayer ?? false,
+      });
+      if (!allowed) break;
       playFeedbackEvent("trickWin", {
-        volumeScale: payload.isLocalPlayer ? 1.08 : 1,
-        isLocalPlayer: payload.isLocalPlayer,
+        volumeScale: 1.08,
+        isLocalPlayer: true,
       });
       break;
+    }
     case "trick:collected":
       playFeedbackEvent("trickCollect");
       break;
