@@ -21,13 +21,7 @@ import {
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
 import { logPlayClick } from "./playClickDebug";
-import {
-  playCardSelectFeedback,
-  playDrawFeedback,
-  playFoldFeedback,
-  playIllegalActionFeedback,
-  playUiButtonFeedback,
-} from "./feedback";
+import { playCardSelectFeedback, playIllegalActionFeedback, playUiButtonFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
 import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
@@ -1023,7 +1017,7 @@ export function HeroHand({
               disabled={busy}
               aria-busy={busy}
               onClick={() => {
-                playDrawFeedback();
+                playUiButtonFeedback();
                 void runDrawAction(drawSubmitIndices);
               }}
             >
@@ -1047,7 +1041,7 @@ export function HeroHand({
               data-testid="im-out-button"
               disabled={busy}
               onClick={() => {
-                playFoldFeedback();
+                playUiButtonFeedback();
                 void runFoldDraw();
               }}
             >

@@ -2316,8 +2316,6 @@ async function onDeleteRoom(roomId) {
   showRoomsError("");
   try {
     await deleteRoom(roomId, session);
-    const api = await ensureTableFeedbackApi();
-    api?.playDeleteRoomFeedback?.();
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
     console.error(err);
@@ -2794,7 +2792,6 @@ function openRoom(roomId, options = {}) {
     document.body.classList.remove("table-entry-silent");
     showRoomDetailUi();
     roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
-    void ensureTableFeedbackApi().then((api) => api?.playOpenRoomFeedback?.());
     if (!fromHistory) {
       seedRoomsListHistory();
       navigateToRoomDetail(roomId);

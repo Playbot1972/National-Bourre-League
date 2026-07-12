@@ -30,11 +30,10 @@ const expectedFiles = manifest.assets.map((a) => a.file);
 const onDisk = readdirSync(SOUNDS_DIR).filter((f) => f.endsWith(".wav")).sort();
 const expectedSorted = [...expectedFiles].sort();
 
-const expectedCount = expectedFiles.length;
-if (onDisk.length !== expectedCount) {
-  fail(`expected ${expectedCount} WAV files in docs/sounds/, found ${onDisk.length}`);
+if (onDisk.length !== 15) {
+  fail(`expected 15 WAV files in docs/sounds/, found ${onDisk.length}`);
 } else {
-  pass(`docs/sounds/ contains ${expectedCount} WAV files`);
+  pass(`docs/sounds/ contains 15 WAV files`);
 }
 
 for (const file of expectedSorted) {
@@ -57,12 +56,11 @@ if (process.exitCode !== 1) {
 
 // Registry cross-check (import-free: parse SOUND_ASSET_FILES from source)
 const packsSrc = readFileSync(join(ROOT, "src", "table", "feedback", "soundPacks.ts"), "utf8");
-const fileRe = /(?:"([^"]+)"|([A-Za-z_][\w-]*)):\s*"([^"]+\.wav)"/g;
+const fileRe = /"([^"]+)":\s*"([^"]+\.wav)"/g;
 const registryFiles = new Set();
 let m;
 while ((m = fileRe.exec(packsSrc)) !== null) {
-  const file = m[3];
-  if (file.endsWith(".wav")) registryFiles.add(file);
+  if (m[2].endsWith(".wav")) registryFiles.add(m[2]);
 }
 for (const file of expectedSorted) {
   if (!registryFiles.has(file)) {
@@ -78,10 +76,10 @@ if (process.argv.includes("--dist")) {
     fail("dist/social/sounds/ missing — run npm run build:hosting first");
   } else {
     const built = readdirSync(DIST_SOUNDS).filter((f) => f.endsWith(".wav")).sort();
-    if (built.length !== expectedCount) {
-      fail(`dist/social/sounds/ has ${built.length} WAV files, expected ${expectedCount}`);
+    if (built.length !== 15) {
+      fail(`dist/social/sounds/ has ${built.length} WAV files, expected 15`);
     } else {
-      pass(`dist/social/sounds/ contains ${expectedCount} WAV files for hosting`);
+      pass("dist/social/sounds/ contains 15 WAV files for hosting");
     }
     for (const file of expectedSorted) {
       if (!built.includes(file)) fail(`dist missing: ${file}`);

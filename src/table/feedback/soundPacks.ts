@@ -1,7 +1,7 @@
 /**
  * Sound theme registry — maps gameplay events to art-directed WAV assets.
  * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
- * Procedural fallbacks in audio.ts when asset load/play fails.
+ * Procedural fallbacks in audio.ts when a file is missing.
  */
 
 export type SoundPackId = "classic" | "wood" | "arcade";
@@ -22,8 +22,7 @@ export type SoundAssetId =
   | "card-illegal"
   | "ui-button-press"
   | "coin-chime-light"
-  | "draw"
-  | "Fahhh";
+  | "victory-jingle";
 
 /** Event-driven keys used by AudioManager, feedback service, and prefs. */
 export type SoundEventKey =
@@ -34,13 +33,9 @@ export type SoundEventKey =
   | "leadChange"
   | "trickWin"
   | "trickCollect"
-  | "handWin"
-  | "potWin"
+  | "bigWin"
   | "bourre"
   | "gameStart"
-  | "openRoom"
-  | "deleteRoom"
-  | "fold"
   | "cardSelect"
   | "cardIllegal"
   | "uiButton";
@@ -69,8 +64,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-illegal",
   "ui-button-press",
   "coin-chime-light",
-  "draw",
-  "Fahhh",
+  "victory-jingle",
 ] as const;
 
 /** On-disk filenames for each asset ID (classic pack). */
@@ -89,26 +83,23 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-illegal": "card-illegal.wav",
   "ui-button-press": "ui-button-press.wav",
   "coin-chime-light": "coin-chime-light.wav",
-  draw: "draw.wav",
-  Fahhh: "Fahhh.wav",
+  "victory-jingle": "victory-jingle.wav",
 };
 
 /** Human-readable mapping for docs and QA. */
-export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAssetId[]> = {
+export const SOUND_EVENT_TO_ASSET: Record<
+  Exclude<SoundEventKey, "draw">,
+  SoundAssetId | SoundAssetId[]
+> = {
   shuffle: "card-shuffle-normal",
   shuffleFinal: "card-shuffle-final",
-  draw: "draw",
-  cardPlace: ["card-place-soft", "card-place-normal", "card-place-heavy"],
+  cardPlace: ["card-place-normal", "card-place-soft", "card-place-heavy"],
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
-  handWin: "coin-chime-light",
-  potWin: "hand-win-stinger",
-  bourre: "Fahhh",
-  gameStart: "card-shuffle-normal",
-  openRoom: "card-shuffle-final",
-  deleteRoom: "card-illegal",
-  fold: "card-place-heavy",
+  bigWin: "hand-win-stinger",
+  bourre: "victory-jingle",
+  gameStart: "ui-button-press",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
   uiButton: "ui-button-press",
@@ -177,6 +168,7 @@ export function allSoundAssetPaths(packId: SoundPackId): string[] {
 
 /**
  * Pick the art-directed asset for an event.
+ * Returns null for draw (procedural-only until a draw asset is added).
  */
 export function resolveSoundAsset(
   _packId: SoundPackId,
@@ -186,13 +178,11 @@ export function resolveSoundAsset(
   const tier = ctx.intensityTier ?? 0;
   switch (event) {
     case "shuffle":
-    case "gameStart":
       return "card-shuffle-normal";
     case "shuffleFinal":
-    case "openRoom":
       return "card-shuffle-final";
     case "draw":
-      return "draw";
+      return null;
     case "cardPlace":
       if (tier >= 2) return "card-place-heavy";
       if (tier === 1) return "card-place-soft";
@@ -203,21 +193,18 @@ export function resolveSoundAsset(
       if (ctx.isLocalPlayer || (ctx.volumeScale ?? 1) > 1.02) return "trick-win-big";
       return "trick-win-normal";
     case "trickCollect":
-    case "handWin":
       return "coin-chime-light";
-    case "potWin":
+    case "bigWin":
       return "hand-win-stinger";
     case "bourre":
-      return "Fahhh";
+      return "victory-jingle";
+    case "gameStart":
     case "uiButton":
       return "ui-button-press";
     case "cardSelect":
       return "card-select";
     case "cardIllegal":
-    case "deleteRoom":
       return "card-illegal";
-    case "fold":
-      return "card-place-heavy";
   }
 }
 
@@ -225,26 +212,3 @@ export function normalizeSoundPackId(value: unknown): SoundPackId {
   if (value === "wood" || value === "arcade") return value;
   return DEFAULT_SOUND_PACK_ID;
 }
-
-/** Whether an event is action-, animation-, or outcome-driven. */
-export type SoundTriggerType = "action" | "animation" | "outcome";
-
-export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> = {
-  shuffle: "animation",
-  shuffleFinal: "animation",
-  draw: "action",
-  cardPlace: "animation",
-  leadChange: "animation",
-  trickWin: "animation",
-  trickCollect: "animation",
-  handWin: "outcome",
-  potWin: "outcome",
-  bourre: "outcome",
-  gameStart: "action",
-  openRoom: "action",
-  deleteRoom: "action",
-  fold: "action",
-  cardSelect: "action",
-  cardIllegal: "action",
-  uiButton: "action",
-};
