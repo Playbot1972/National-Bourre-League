@@ -18,7 +18,6 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { useAnteAudio } from "./hooks/useAnteAudio";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
@@ -119,13 +118,6 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
-  });
-
-  useAnteAudio({
-    phase: handPresentation.phase,
-    handNumber: session.handNumber,
-    anteAnimActive: handPresentation.anteAnimActive,
-    dealStaggerCount: handPresentation.dealStaggerCount,
   });
 
   const instantTrickPlays = useTrumpTrickMotionGate(

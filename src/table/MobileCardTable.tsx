@@ -33,6 +33,7 @@ import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
+import { useAntePresentation } from "./hooks/useAntePresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import { useCardAudio } from "./hooks/useCardAudio";
@@ -200,6 +201,14 @@ export function MobileCardTable({
     session,
     heroCards,
     privateHandReady,
+    tableRootRef: wrapRef,
+  });
+  const antePresentation = useAntePresentation({
+    phase: handPresentation.phase,
+    handNumber: session.handNumber,
+    anteAnimActive: handPresentation.anteAnimActive,
+    participantIds: session.participantIds,
+    anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
   });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
@@ -371,6 +380,7 @@ export function MobileCardTable({
               showFinalTrickEcho={trickPresentation.showFinalTrickEcho}
               playerNames={playerNames}
               anteAnimActive={handPresentation.anteAnimActive}
+              anteLandedCount={antePresentation.anteLandedCount}
               trumpRevealActive={handPresentation.trumpRevealActive}
               trumpMergeActive={handPresentation.trumpMergeActive}
               hideCenterTrump={hideCenterTrump}
