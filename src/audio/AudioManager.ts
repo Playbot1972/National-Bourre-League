@@ -6,6 +6,7 @@
 import { Howl } from "howler";
 import {
   ALL_SOUND_ASSET_IDS,
+  isBatch1WavAsset,
   SOUND_ASSET_FILES,
   resolveSoundAsset,
   soundAssetUrl,
@@ -75,7 +76,8 @@ export class AudioManager {
 
   private register(name: SoundAssetId): void {
     const src = `/sounds/${SOUND_ASSET_FILES[name]}`;
-    debugLog("register", name, src);
+    const batch1 = isBatch1WavAsset(name);
+    debugLog("register", { key: name, resolvedUrl: src, fallback: false, batch1 });
     const howl = new Howl({
       src: [src],
       volume: DEFAULT_VOLUME[name] ?? 0.55,
@@ -114,7 +116,15 @@ export class AudioManager {
     options?: { volume?: number; event?: SoundEventKey; path?: string },
   ): boolean {
     const path = options?.path ?? `/sounds/${SOUND_ASSET_FILES[name]}`;
-    debugLog("play", { key: name, path, event: options?.event, volume: options?.volume });
+    const batch1 = isBatch1WavAsset(name);
+    debugLog("play", {
+      key: name,
+      resolvedUrl: path,
+      fallback: false,
+      batch1,
+      event: options?.event,
+      volume: options?.volume,
+    });
     const howl = this.howls.get(name);
     if (!howl) {
       console.error("[nbl-audio] missing sound registration", {
@@ -241,7 +251,16 @@ function playFeedbackEvent(
     return;
   }
   const path = soundAssetUrl(packId, assetId);
-  console.log("[nbl-audio] request", { event, assetId, path, packId, ctx });
+  const batch1 = isBatch1WavAsset(assetId);
+  console.log("[nbl-audio] request", {
+    event,
+    key: assetId,
+    resolvedUrl: path,
+    fallback: false,
+    batch1,
+    packId,
+    ctx,
+  });
   const base = EVENT_VOLUME[event] ?? 0.55;
   const volume = event === "trickWin" ? base * (ctx.volumeScale ?? 1) : base;
   const played = AudioManager.get().play(assetId, { volume, event, path });
