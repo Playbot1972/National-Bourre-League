@@ -435,17 +435,19 @@ export function HeroHand({
       setDrawSelectionTouched(true);
       notifyUserActivity();
       setLocalError(null);
-      let selectedCard = false;
+      let playSelectFeedback = false;
       setSelectedDraw((prev) => {
         const next = new Set(prev);
-        if (next.has(index)) next.delete(index);
-        else if (next.size < maxDrawDiscards) {
+        if (next.has(index)) {
+          next.delete(index);
+          playSelectFeedback = true;
+        } else if (next.size < maxDrawDiscards) {
           next.add(index);
-          selectedCard = true;
+          playSelectFeedback = true;
         } else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
         return next;
       });
-      if (selectedCard) playCardSelectFeedback();
+      if (playSelectFeedback) playCardSelectFeedback();
     },
     [busy, maxDrawDiscards, trumpDisabledIndex, notifyUserActivity],
   );
