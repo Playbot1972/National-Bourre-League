@@ -25,7 +25,7 @@ export {
   type ShuffleFeedbackOptions,
 } from "./service";
 
-export { audioSupported } from "./audio";
+export { audioSupported, ensureAudioUnlockedSync, isAudioUnlocked } from "./audio";
 export { hapticsSupported } from "./haptics";
 export { SOUND_PACK_LABELS, type SoundPackId } from "./soundPacks";
 export type { FeedbackPrefs, HapticsMode, SoundMode } from "./prefs";

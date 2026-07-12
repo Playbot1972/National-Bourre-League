@@ -11,6 +11,7 @@ import {
   playShuffleSound,
   playTrickWinSound,
   playUiButtonSound,
+  ensureAudioUnlockedSync,
   unlockAudio,
 } from "./audio";
 import { triggerHaptic } from "./haptics";
@@ -65,7 +66,7 @@ export function initGameFeedback(): void {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
   const unlock = () => {
-    void unlockAudio();
+    ensureAudioUnlockedSync("init-pointerdown");
   };
   window.addEventListener("pointerdown", unlock, { once: true, passive: true });
   window.addEventListener("keydown", unlock, { once: true });
@@ -98,6 +99,7 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
 }
 
 export function playDrawCountFeedback(cardCount: number): void {
+  ensureAudioUnlockedSync("draw-confirm");
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;

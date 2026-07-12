@@ -23,6 +23,7 @@ import {
 import { logPlayClick } from "./playClickDebug";
 import {
   playCardSelectFeedback,
+  ensureAudioUnlockedSync,
   playDrawCountFeedback,
   playFoldFeedback,
   playIllegalActionFeedback,
@@ -706,6 +707,7 @@ export function HeroHand({
   const runDrawAction = useCallback(
     async (indices: number[]) => {
       if (!onSubmitDraw || busy) return;
+      ensureAudioUnlockedSync("draw-button");
       playUiButtonFeedback();
       notifyUserActivity();
       if (indices.length > maxDrawDiscards) {

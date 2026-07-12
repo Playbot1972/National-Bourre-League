@@ -38,10 +38,29 @@ function audioFail(
   console.error("[nbl-audio] FAIL", { event, reason, fallback: false, ...detail });
 }
 
-export async function unlockAudio(): Promise<void> {
+/** Synchronous unlock for the active user-gesture handler — call before play(). */
+export function ensureAudioUnlockedSync(source = "unknown"): boolean {
+  const wasUnlocked = userGestureUnlocked;
   userGestureUnlocked = true;
-  AudioManager.get().unlock();
-  audioTrace("unlock", "shuffle", { unlocked: true });
+  const managerOk = AudioManager.get().unlock();
+  const ctxState = AudioManager.get().getContextState();
+  audioTrace("unlock-attempt", "draw", {
+    source,
+    wasUnlocked,
+    nowUnlocked: userGestureUnlocked,
+    managerOk,
+    ctxState,
+  });
+  return userGestureUnlocked && managerOk;
+}
+
+export async function unlockAudio(): Promise<void> {
+  ensureAudioUnlockedSync("unlockAudio");
+}
+
+/** @internal test helper */
+export function _resetAudioUnlockStateForTests(): void {
+  userGestureUnlocked = false;
 }
 
 export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
@@ -120,6 +139,7 @@ function playResolvedAsset(
   volume: number,
   packId: SoundPackId,
 ): boolean {
+  ensureAudioUnlockedSync(`play:${event}`);
   const path = soundAssetUrl(packId, assetId);
   const batch1 = isBatch1WavAsset(assetId);
   audioTrace("request", event, {
@@ -145,6 +165,8 @@ function playResolvedAsset(
   const played = AudioManager.get().play(assetId, { volume, event, path });
   if (!played) {
     audioFail(event, "howler-play-failed", { key: assetId, resolvedUrl: path, batch1 });
+  } else {
+    audioTrace("play-ok", event, { key: assetId, resolvedUrl: path });
   }
   return played;
 }
@@ -185,6 +207,7 @@ export function playDrawCountSound(cardCount: number): void {
 
 async function playDrawCountEvent(cardCount: number): Promise<void> {
   const event: SoundEventKey = "draw";
+  ensureAudioUnlockedSync("draw-count");
   const flag = playingFlags[event];
   if (flag.current) return;
   flag.current = true;
@@ -195,7 +218,7 @@ async function playDrawCountEvent(cardCount: number): Promise<void> {
       audioFail(event, "no-asset-mapping", { packId, cardCount });
       return;
     }
-    audioTrace("draw-count", event, { cardCount, key: assetId });
+    audioTrace("draw-request", event, { cardCount, key: assetId, unlocked: userGestureUnlocked });
     playResolvedAsset(event, assetId, VOLUME[event], packId);
   } catch (err) {
     audioFail(event, "play-threw", { error: String(err), cardCount });
