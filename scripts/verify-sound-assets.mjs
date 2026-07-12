@@ -100,6 +100,15 @@ if (
     "WARN  draw.wav is byte-identical to ui-button-press.wav — replace with a unique draw asset for audible parity",
   );
 }
+if (
+  hashByFile.get("draw.wav") &&
+  hashByFile.get("card-place-soft.wav") &&
+  hashByFile.get("draw.wav") === hashByFile.get("card-place-soft.wav")
+) {
+  console.warn(
+    "WARN  draw.wav is byte-identical to card-place-soft.wav — replace with a unique draw asset before removing interim copy",
+  );
+}
 
 if (process.argv.includes("--dist")) {
   if (!existsSync(DIST_SOUNDS)) {
