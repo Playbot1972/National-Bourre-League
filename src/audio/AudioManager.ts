@@ -17,6 +17,7 @@ import {
   type CardAudioEventPayload,
   type CardAudioEventType,
   cardAudioDedupeKey,
+  resolveTrickCollectSoundEvent,
   shouldPlayTrickWinNormal,
 } from "./audioEvents";
 import {
@@ -42,6 +43,7 @@ const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
   "trick-win-normal": 0.55,
   "trick-win-big": 0.6,
   "coin-chime-light": 0.4,
+  moneygone: 0.45,
   "hand-win-stinger": 0.6,
   "card-shuffle-normal": 0.55,
   "card-shuffle-final": 0.55,
@@ -300,6 +302,7 @@ const EVENT_VOLUME: Partial<Record<SoundEventKey, number>> = {
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
+  trickCollectOther: 0.45,
 };
 
 function playFeedbackEvent(
@@ -370,9 +373,16 @@ function playEventSound(payload: CardAudioEventPayload): void {
       });
       break;
     }
-    case "trick:collected":
-      playFeedbackEvent("trickCollect");
+    case "trick:collected": {
+      const event = resolveTrickCollectSoundEvent(payload);
+      console.log("[nbl-audio] trick-collect-gate", {
+        event,
+        isLocalPlayer: payload.isLocalPlayer ?? false,
+        winningSeat: payload.winningSeat,
+      });
+      playFeedbackEvent(event);
       break;
+    }
   }
 }
 
