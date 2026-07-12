@@ -198,3 +198,27 @@ export function normalizeSoundPackId(value: unknown): SoundPackId {
   if (value === "wood" || value === "arcade") return value;
   return DEFAULT_SOUND_PACK_ID;
 }
+
+/** Whether an event is action-, animation-, or outcome-driven (see docs/audio-recon.md). */
+export type SoundTriggerType = "action" | "animation" | "outcome";
+
+export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> = {
+  shuffle: "animation",
+  shuffleFinal: "animation",
+  draw: "action",
+  cardPlace: "animation",
+  leadChange: "animation",
+  trickWin: "animation",
+  trickCollect: "animation",
+  handWin: "outcome",
+  potWin: "outcome",
+  bigWin: "outcome",
+  bourre: "outcome",
+  gameStart: "action",
+  openRoom: "action",
+  deleteRoom: "action",
+  fold: "action",
+  cardSelect: "action",
+  cardIllegal: "action",
+  uiButton: "action",
+};

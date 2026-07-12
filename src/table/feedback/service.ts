@@ -1,10 +1,16 @@
 import {
   playBigWinSound,
   playBourreSound,
+  playCardIllegalSound,
+  playCardSelectSound,
+  playDeleteRoomSound,
   playDrawSound,
+  playFoldSound,
   playGameStartSound,
+  playOpenRoomSound,
   playShuffleSound,
   playTrickWinSound,
+  playUiButtonSound,
   unlockAudio,
 } from "./audio";
 import { triggerHaptic } from "./haptics";
@@ -135,7 +141,28 @@ export function playIllegalActionFeedback(): void {
   const now = Date.now();
   if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
   lastIllegalActionAt = now;
+  maybePlaySound("cardIllegal", playCardIllegalSound);
   fireHaptic("light");
+}
+
+export function playOpenRoomFeedback(): void {
+  maybePlaySound("openRoom", playOpenRoomSound);
+}
+
+export function playDeleteRoomFeedback(): void {
+  maybePlaySound("deleteRoom", playDeleteRoomSound);
+}
+
+export function playCardSelectFeedback(): void {
+  maybePlaySound("cardSelect", playCardSelectSound);
+}
+
+export function playUiButtonFeedback(): void {
+  maybePlaySound("uiButton", playUiButtonSound);
+}
+
+export function playFoldFeedback(): void {
+  maybePlaySound("fold", playFoldSound);
 }
 
 export function playActionSuccessFeedback(): void {
