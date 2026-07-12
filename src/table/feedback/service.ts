@@ -1,13 +1,10 @@
 import {
   playBigWinSound,
   playBourreSound,
-  playCardIllegalSound,
-  playCardSelectSound,
   playDrawSound,
   playGameStartSound,
   playShuffleSound,
   playTrickWinSound,
-  playUiButtonSound,
   unlockAudio,
 } from "./audio";
 import { triggerHaptic } from "./haptics";
@@ -31,8 +28,6 @@ const BIG_WIN_COOLDOWN_MS = 1200;
 const BOURRE_COOLDOWN_MS = 2000;
 const GAME_START_COOLDOWN_MS = 1500;
 const ILLEGAL_ACTION_COOLDOWN_MS = 280;
-const CARD_SELECT_COOLDOWN_MS = 90;
-const UI_BUTTON_COOLDOWN_MS = 120;
 
 let lastShuffleAt = 0;
 let lastDrawAt = 0;
@@ -41,8 +36,6 @@ let lastBigWinAt = 0;
 let lastBourreAt = 0;
 let lastGameStartAt = 0;
 let lastIllegalActionAt = 0;
-let lastCardSelectAt = 0;
-let lastUiButtonAt = 0;
 let shuffleTimer: ReturnType<typeof setTimeout> | null = null;
 let initialized = false;
 
@@ -75,8 +68,6 @@ export function initGameFeedback(): void {
 export interface ShuffleFeedbackOptions {
   /** Delay before audio/haptic to match deal animation (ms). */
   delayMs?: number;
-  /** Use the heavier final shuffle sting (e.g. last deal card). */
-  variant?: "normal" | "final";
 }
 
 export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void {
@@ -95,10 +86,7 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
   shuffleTimer = window.setTimeout(() => {
     shuffleTimer = null;
     lastShuffleAt = Date.now();
-    const variant = options.variant ?? "normal";
-    maybePlaySound(variant === "final" ? "shuffleFinal" : "shuffle", () =>
-      playShuffleSound(variant),
-    );
+    maybePlaySound("shuffle", playShuffleSound);
     fireHaptic("light");
   }, delayMs);
 }
@@ -147,22 +135,7 @@ export function playIllegalActionFeedback(): void {
   const now = Date.now();
   if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
   lastIllegalActionAt = now;
-  maybePlaySound("cardIllegal", playCardIllegalSound);
   fireHaptic("light");
-}
-
-export function playCardSelectFeedback(): void {
-  const now = Date.now();
-  if (now - lastCardSelectAt < CARD_SELECT_COOLDOWN_MS) return;
-  lastCardSelectAt = now;
-  maybePlaySound("cardSelect", playCardSelectSound);
-}
-
-export function playUiButtonFeedback(): void {
-  const now = Date.now();
-  if (now - lastUiButtonAt < UI_BUTTON_COOLDOWN_MS) return;
-  lastUiButtonAt = now;
-  maybePlaySound("uiButton", playUiButtonSound);
 }
 
 export function playActionSuccessFeedback(): void {

@@ -101,7 +101,7 @@ function playEventSound(payload: CardAudioEventPayload): void {
       playLeadChangeSound(payload.intensityTier);
       break;
     case "trick:won":
-      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1, Boolean(payload.isLocalPlayer));
+      playTrickWinSound(payload.isLocalPlayer ? 1.08 : 1);
       break;
     case "trick:collected":
       playTrickCollectSound();

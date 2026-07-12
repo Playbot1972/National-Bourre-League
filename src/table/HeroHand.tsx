@@ -21,7 +21,7 @@ import {
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
 import { logPlayClick } from "./playClickDebug";
-import { playCardSelectFeedback, playIllegalActionFeedback, playUiButtonFeedback } from "./feedback";
+import { playIllegalActionFeedback } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
 import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
@@ -429,7 +429,6 @@ export function HeroHand({
       if (busy || trumpDisabledIndex === index) return;
       setDrawSelectionTouched(true);
       notifyUserActivity();
-      playCardSelectFeedback();
       setLocalError(null);
       setSelectedDraw((prev) => {
         const next = new Set(prev);
@@ -608,7 +607,6 @@ export function HeroHand({
       setSelectedPlay(plan.nextSelection);
       setLocalError(null);
       notifyUserActivity();
-      playCardSelectFeedback();
       logPlayClick({
         event: plan.shouldQueueSelection ? "queue-set" : "tap-select",
         handNumber,
@@ -1016,10 +1014,7 @@ export function HeroHand({
               data-testid="draw-button"
               disabled={busy}
               aria-busy={busy}
-              onClick={() => {
-                playUiButtonFeedback();
-                void runDrawAction(drawSubmitIndices);
-              }}
+              onClick={() => runDrawAction(drawSubmitIndices)}
             >
               {busy ? "Drawing…" : `Draw${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
             </button>
@@ -1028,10 +1023,7 @@ export function HeroHand({
               className="btn btn--sm btn--action-pat"
               data-testid="pass-draw-button"
               disabled={busy}
-              onClick={() => {
-                playUiButtonFeedback();
-                void runPassDraw();
-              }}
+              onClick={() => runPassDraw()}
             >
               Stand pat
             </button>
@@ -1040,10 +1032,7 @@ export function HeroHand({
               className="btn btn--sm btn--action-out"
               data-testid="im-out-button"
               disabled={busy}
-              onClick={() => {
-                playUiButtonFeedback();
-                void runFoldDraw();
-              }}
+              onClick={() => runFoldDraw()}
             >
               I&apos;m Out
             </button>
