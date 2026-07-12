@@ -12477,10 +12477,38 @@ var Rs = class e {
 		this.howls.set(e, n);
 	}
 	unlock() {
-		this.unlocked = !0, Is("unlock");
+		this.unlocked = !0;
+		let e = !1;
+		try {
+			let t = Qo.Howler.ctx;
+			t && typeof t.resume == "function" && t.state === "suspended" && (e = !0, t.resume().then(() => {
+				Is("unlock-resume", {
+					state: t.state,
+					ok: !0
+				});
+			}, (e) => {
+				console.error("[nbl-audio] unlock-resume-failed", {
+					state: t.state,
+					error: String(e),
+					fallback: !1
+				});
+			})), Is("unlock", {
+				ctxState: t?.state ?? "none",
+				resumeAttempted: e
+			});
+		} catch (e) {
+			return console.error("[nbl-audio] unlock-failed", {
+				error: String(e),
+				fallback: !1
+			}), !1;
+		}
+		return this.unlocked;
 	}
 	isUnlocked() {
 		return this.unlocked;
+	}
+	getContextState() {
+		return Qo.Howler.ctx?.state ?? "none";
 	}
 	play(e, t) {
 		let n = t?.path ?? `/sounds/${is[e]}`;
@@ -12678,8 +12706,17 @@ function tc(e, t, n = {}) {
 		...n
 	});
 }
-async function nc() {
-	Qs = !0, Rs.get().unlock(), ec("unlock", "shuffle", { unlocked: !0 });
+function nc(e = "unknown") {
+	let t = Qs;
+	Qs = !0;
+	let n = Rs.get().unlock(), r = Rs.get().getContextState();
+	return ec("unlock-attempt", "draw", {
+		source: e,
+		wasUnlocked: t,
+		nowUnlocked: Qs,
+		managerOk: n,
+		ctxState: r
+	}), Qs && n;
 }
 async function rc(e) {
 	Qs && (Rs.get().unlock(), ec("preload", "shuffle", { packId: e ?? $s() }));
@@ -12743,6 +12780,7 @@ var ic = {
 	uiButton: .4
 };
 function sc(e, t, n, r) {
+	nc(`play:${e}`);
 	let i = ls(r, t), a = ns(t);
 	if (ec("request", e, {
 		key: t,
@@ -12766,7 +12804,10 @@ function sc(e, t, n, r) {
 		event: e,
 		path: i
 	});
-	return o || tc(e, "howler-play-failed", {
+	return o ? ec("play-ok", e, {
+		key: t,
+		resolvedUrl: i
+	}) : tc(e, "howler-play-failed", {
 		key: t,
 		resolvedUrl: i,
 		batch1: a
@@ -12801,7 +12842,9 @@ function uc(e) {
 	dc(e);
 }
 async function dc(e) {
-	let t = "draw", n = ic[t];
+	let t = "draw";
+	nc("draw-count");
+	let n = ic[t];
 	if (n.current) return;
 	n.current = !0;
 	let r = $s(), i = os(e);
@@ -12813,9 +12856,10 @@ async function dc(e) {
 			});
 			return;
 		}
-		ec("draw-count", t, {
+		ec("draw-request", t, {
 			cardCount: e,
-			key: i
+			key: i,
+			unlocked: Qs
 		}), sc(t, i, oc[t], r);
 	} catch (n) {
 		tc(t, "play-threw", {
@@ -12897,7 +12941,7 @@ function Uc() {
 	if (zc || typeof window > "u") return;
 	zc = !0;
 	let e = () => {
-		nc();
+		nc("init-pointerdown");
 	};
 	window.addEventListener("pointerdown", e, {
 		once: !0,
@@ -12913,6 +12957,7 @@ function Wc(e = {}) {
 	}, t);
 }
 function Gc(e) {
+	nc("draw-confirm");
 	let t = Date.now();
 	t - Mc < Tc || (Mc = t, Hc("draw", () => uc(e)), Vc("light"));
 }
@@ -13551,7 +13596,7 @@ function iu({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 	Ae.current = (e) => Je(e, "tap-autoplay");
 	let Qe = (0, l.useCallback)(async (e) => {
 		if (!(!h || K)) {
-			if (tl(), Ke(), e.length > c) {
+			if (nc("draw-button"), tl(), Ke(), e.length > c) {
 				se(`You may discard at most ${c} cards`);
 				return;
 			}

@@ -3,7 +3,7 @@
  * event-driven card animation dispatch (deduped, non-blocking).
  */
 
-import { Howl } from "howler";
+import { Howl, Howler } from "howler";
 import {
   ALL_SOUND_ASSET_IDS,
   isBatch1WavAsset,
@@ -63,7 +63,11 @@ function debugLog(...args: unknown[]): void {
 
 /** Dev server or `localStorage.setItem('nbl-audio-debug','1')` — never on by default in production. */
 function isAudioDebugEnabled(): boolean {
-  if (import.meta.env.DEV) return true;
+  try {
+    if (import.meta.env?.DEV) return true;
+  } catch {
+    /* non-Vite (e.g. node tests) */
+  }
   try {
     return localStorage.getItem("nbl-audio-debug") === "1";
   } catch {
@@ -128,13 +132,46 @@ export class AudioManager {
     this.howls.set(name, howl);
   }
 
-  unlock(): void {
+  unlock(): boolean {
     this.unlocked = true;
-    debugLog("unlock");
+    let resumeAttempted = false;
+    let resumeOk: boolean | null = null;
+    try {
+      const ctx = Howler.ctx;
+      if (ctx && typeof ctx.resume === "function" && ctx.state === "suspended") {
+        resumeAttempted = true;
+        void ctx.resume().then(
+          () => {
+            resumeOk = true;
+            debugLog("unlock-resume", { state: ctx.state, ok: true });
+          },
+          (err) => {
+            resumeOk = false;
+            console.error("[nbl-audio] unlock-resume-failed", {
+              state: ctx.state,
+              error: String(err),
+              fallback: false,
+            });
+          },
+        );
+      }
+      debugLog("unlock", {
+        ctxState: ctx?.state ?? "none",
+        resumeAttempted,
+      });
+    } catch (err) {
+      console.error("[nbl-audio] unlock-failed", { error: String(err), fallback: false });
+      return false;
+    }
+    return this.unlocked;
   }
 
   isUnlocked(): boolean {
     return this.unlocked;
+  }
+
+  getContextState(): string {
+    return Howler.ctx?.state ?? "none";
   }
 
   play(
