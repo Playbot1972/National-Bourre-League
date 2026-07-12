@@ -1002,14 +1002,14 @@ body.room-detail-open .room-actions {
 
 .mini-card--with-action {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
+  flex-direction: column;
+  gap: 0;
   padding: 0;
   overflow: hidden;
 }
 
 .mini-card__main {
-  flex: 1;
+  flex: none;
   padding: 14px 16px;
   min-width: 0;
 }
@@ -1018,9 +1018,9 @@ body.room-detail-open .room-actions {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
-  width: 13.5rem;
-  margin-right: 12px;
-  flex-shrink: 0;
+  width: 100%;
+  padding: 0 12px 12px;
+  box-sizing: border-box;
 }
 
 .mini-card__action-pill {
@@ -1028,6 +1028,10 @@ body.room-detail-open .room-actions {
   min-height: 2rem;
   padding: 7px 10px;
   font-size: 13px;
+}
+
+.mini-card__action-pill.btn--play {
+  grid-column: 1;
   justify-self: start;
 }
 
