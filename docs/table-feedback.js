@@ -1,5 +1,5 @@
 /**
- * Table feedback (sound/haptics) — diff snapshots and fire procedural events.
+ * Table feedback (sound/haptics) — diff snapshots and fire table feedback APIs.
  * Feedback only; does not mutate game truth.
  */
 

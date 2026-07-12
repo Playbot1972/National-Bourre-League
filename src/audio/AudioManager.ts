@@ -8,6 +8,7 @@ import {
   ALL_SOUND_ASSET_IDS,
   SOUND_ASSET_FILES,
   resolveSoundAsset,
+  soundAssetUrl,
   type SoundAssetId,
   type SoundEventKey,
 } from "../table/feedback/soundPacks";
@@ -80,12 +81,19 @@ export class AudioManager {
       volume: DEFAULT_VOLUME[name] ?? 0.55,
       preload: true,
       onloaderror: (_id, err) => {
-        console.error("sound load error", name, err);
+        console.error("[nbl-audio] sound load error", {
+          key: name,
+          path: src,
+          error: err,
+          fallback: false,
+        });
       },
       onplayerror: (_id, err) => {
-        console.error("sound play error", name, err);
-        howl.once("unlock", () => {
-          howl.play();
+        console.error("[nbl-audio] sound play error", {
+          key: name,
+          path: src,
+          error: err,
+          fallback: false,
         });
       },
     });
@@ -101,18 +109,49 @@ export class AudioManager {
     return this.unlocked;
   }
 
-  play(name: SoundAssetId, options?: { volume?: number }): boolean {
-    debugLog("play", name);
+  play(
+    name: SoundAssetId,
+    options?: { volume?: number; event?: SoundEventKey; path?: string },
+  ): boolean {
+    const path = options?.path ?? `/sounds/${SOUND_ASSET_FILES[name]}`;
+    debugLog("play", { key: name, path, event: options?.event, volume: options?.volume });
     const howl = this.howls.get(name);
     if (!howl) {
-      console.error("[nbl-audio] missing sound", name);
+      console.error("[nbl-audio] missing sound registration", {
+        key: name,
+        path,
+        event: options?.event,
+        fallback: false,
+      });
+      return false;
+    }
+    const state = howl.state();
+    if (state === "unloaded") {
+      console.error("[nbl-audio] sound not loaded", {
+        key: name,
+        path,
+        event: options?.event,
+        state,
+        fallback: false,
+      });
       return false;
     }
     if (options?.volume != null) {
       howl.volume(options.volume);
     }
-    howl.play();
-    return true;
+    try {
+      howl.play();
+      return true;
+    } catch (err) {
+      console.error("[nbl-audio] play threw", {
+        key: name,
+        path,
+        event: options?.event,
+        error: String(err),
+        fallback: false,
+      });
+      return false;
+    }
   }
 }
 
@@ -191,10 +230,30 @@ function playFeedbackEvent(
 ): void {
   const packId = getFeedbackPrefs().soundPackId;
   const assetId = resolveSoundAsset(packId, event, ctx);
-  if (!assetId) return;
+  if (!assetId) {
+    console.error("[nbl-audio] FAIL", {
+      event,
+      reason: "no-asset-mapping",
+      packId,
+      ctx,
+      fallback: false,
+    });
+    return;
+  }
+  const path = soundAssetUrl(packId, assetId);
+  console.log("[nbl-audio] request", { event, assetId, path, packId, ctx });
   const base = EVENT_VOLUME[event] ?? 0.55;
   const volume = event === "trickWin" ? base * (ctx.volumeScale ?? 1) : base;
-  AudioManager.get().play(assetId, { volume });
+  const played = AudioManager.get().play(assetId, { volume, event, path });
+  if (!played) {
+    console.error("[nbl-audio] FAIL", {
+      event,
+      reason: "howler-play-failed",
+      assetId,
+      path,
+      fallback: false,
+    });
+  }
 }
 
 function playEventSound(payload: CardAudioEventPayload): void {
