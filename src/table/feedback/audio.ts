@@ -136,7 +136,7 @@ function playResolvedAsset(
     return false;
   }
 
-  if (batch1 && path !== `/sounds/${assetId}.wav`) {
+  if (batch1 && path !== soundAssetUrl(packId, assetId)) {
     audioFail(event, "batch1-url-mismatch", { key: assetId, resolvedUrl: path });
     return false;
   }

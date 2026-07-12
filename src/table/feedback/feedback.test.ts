@@ -2,7 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getFeedbackPrefs, shouldPlaySoundEvent, shouldUseHaptics } from "./prefs";
 import { normalizeCardPackId } from "../theme/cardPacks";
-import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset } from "./soundPacks";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset, SOUND_ASSET_FILES } from "./soundPacks";
 import { loadTableSettings, DEFAULT_TABLE_SETTINGS } from "../theme/settings";
 
 describe("feedback prefs", () => {
@@ -45,16 +47,16 @@ describe("sound pack registry", () => {
     assert.equal(normalizeSoundPackId("arcade"), "arcade");
   });
 
-  it("batch-1 assets resolve to /sounds/*.wav (no .mp3, no /public prefix)", () => {
+  it("batch-1 assets resolve to /sounds/* (MP3 where on disk, no /public prefix)", () => {
     for (const id of BATCH1_WAV_ASSET_IDS) {
       assert.equal(isBatch1WavAsset(id), true);
       const url = soundAssetUrl(DEFAULT_SOUND_PACK_ID, id);
       assert.equal(url, BATCH1_WAV_URLS[id]);
-      assert.match(url, /^\/sounds\/[\w-]+\.wav$/);
-      assert.doesNotMatch(url, /\.mp3$/);
+      assert.match(url, /^\/sounds\/[\w-]+\.(mp3|wav)$/);
       assert.doesNotMatch(url, /^\/public\//);
     }
     assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.wav");
+    assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
   });
 
   it("batch-1 trickWin always resolves to trick-win-normal (trick-win-big deferred)", () => {
@@ -67,6 +69,13 @@ describe("sound pack registry", () => {
   it("batch-1 cardPlace tier 1 aliases to card-place-normal (soft deferred)", () => {
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-normal");
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
+  });
+
+  it("registry asset files exist in public/sounds", () => {
+    for (const id of BATCH1_WAV_ASSET_IDS) {
+      const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES[id]);
+      assert.ok(existsSync(file), `missing ${file}`);
+    }
   });
 });
 
