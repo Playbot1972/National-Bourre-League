@@ -54,19 +54,6 @@ Optional themed overrides use the same filenames under:
 | Animation sync | `src/audio/AudioManager.ts` + `useCardAudio` |
 
 Preload runs after the first user gesture (`unlockAudio` → `preloadSoundAssets`).
-Clips are warmed at near-silent volume during unlock so delayed table callbacks
-(e.g. deal shuffle timers) can still play hosted WAVs.
-
-### Debug logging
-
-In DevTools console, enable verbose audio routing:
-
-```js
-localStorage.setItem("nbl-table-audio-debug", "1"); // reload table
-```
-
-Logs are prefixed `[table-audio]` and report resolve URLs, probe failures,
-`play()` rejections, and procedural fallback reasons.
 
 **Sound level:** On / Minimal / Off in table feedback settings. Minimal plays trick wins, pot wins, and bourré only.
 

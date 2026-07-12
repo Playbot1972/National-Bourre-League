@@ -119,35 +119,10 @@ export interface SoundResolveContext {
   isLocalPlayer?: boolean;
 }
 
-/** True when a fetch HEAD/GET response is an audio asset (not SPA HTML). */
-export function isAudioContentType(contentType: string | null): boolean {
-  if (!contentType) return false;
-  const ct = contentType.toLowerCase();
-  return ct.includes("audio/") || ct.includes("application/octet-stream");
-}
-
-/**
- * Absolute `…/sounds/` root for the current page.
- * Pins under `/social/` even when the pathname omits a trailing slash.
- */
-export function resolveSoundAssetsRoot(pageHref: string): string {
-  const page = new URL(pageHref);
-  const socialIdx = page.pathname.indexOf("/social");
-  if (socialIdx >= 0) {
-    const rootPath = page.pathname.slice(0, socialIdx + "/social".length);
-    return `${page.origin}${rootPath.replace(/\/$/, "")}/sounds/`;
-  }
-  return new URL("./sounds/", pageHref).href;
-}
-
-/** Absolute URL to a pack asset (docs/ → /social/sounds/ after deploy). */
+/** Relative to social app root (docs/ → /social/ after deploy). */
 export function soundAssetUrl(packId: SoundPackId, assetId: SoundAssetId): string {
   const subdir = PACK_SUBDIRS[packId] ?? "";
-  const root =
-    typeof document !== "undefined"
-      ? resolveSoundAssetsRoot(document.baseURI)
-      : "./sounds/";
-  return `${root}${subdir}${SOUND_ASSET_FILES[assetId]}`;
+  return `./sounds/${subdir}${SOUND_ASSET_FILES[assetId]}`;
 }
 
 /** @deprecated Use soundAssetUrl — kept for callers migrating from MP3 names. */

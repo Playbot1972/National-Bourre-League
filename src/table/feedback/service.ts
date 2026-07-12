@@ -80,7 +80,6 @@ export interface ShuffleFeedbackOptions {
 }
 
 export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
 
@@ -104,12 +103,7 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
   }, delayMs);
 }
 
-function unlockIfInteractive(): void {
-  void unlockAudio();
-}
-
 export function playDrawFeedback(): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;
@@ -150,7 +144,6 @@ export function playGameStartFeedback(): void {
 }
 
 export function playIllegalActionFeedback(): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
   lastIllegalActionAt = now;
@@ -159,7 +152,6 @@ export function playIllegalActionFeedback(): void {
 }
 
 export function playCardSelectFeedback(): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastCardSelectAt < CARD_SELECT_COOLDOWN_MS) return;
   lastCardSelectAt = now;
@@ -167,7 +159,6 @@ export function playCardSelectFeedback(): void {
 }
 
 export function playUiButtonFeedback(): void {
-  unlockIfInteractive();
   const now = Date.now();
   if (now - lastUiButtonAt < UI_BUTTON_COOLDOWN_MS) return;
   lastUiButtonAt = now;
