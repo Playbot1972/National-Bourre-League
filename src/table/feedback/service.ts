@@ -148,7 +148,6 @@ export function playDrawFeedback(): void {
   fireHaptic("light");
 }
 
-/** @deprecated Trick-win audio is animation-synced via AudioManager / useCardAudio — do not call from snapshot diffs. */
 export function playTrickWinFeedback(): void {
   const now = Date.now();
   if (now - lastTrickWinAt < TRICK_WIN_COOLDOWN_MS) return;

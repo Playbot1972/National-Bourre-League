@@ -246,25 +246,3 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   cardIllegal: "action",
   uiButton: "action",
 };
-
-/** Events that intentionally use UI placeholder WAVs — not gameplay card audio. */
-export const SOUND_UI_ONLY_EVENTS: readonly SoundEventKey[] = ["uiButton", "deleteRoom"] as const;
-
-/** Gameplay events that must never use procedural fallback in normal play. */
-export const SOUND_GAMEPLAY_EVENTS: readonly SoundEventKey[] = [
-  "shuffle",
-  "shuffleFinal",
-  "draw",
-  "cardPlace",
-  "leadChange",
-  "trickWin",
-  "trickCollect",
-  "handWin",
-  "potWin",
-  "bourre",
-  "gameStart",
-  "openRoom",
-  "fold",
-  "cardSelect",
-  "cardIllegal",
-] as const;

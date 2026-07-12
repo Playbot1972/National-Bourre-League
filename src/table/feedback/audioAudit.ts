@@ -32,17 +32,10 @@ export interface AudioAuditRecord {
   triggerType: AudioAuditTriggerType;
   action?: string;
   source?: string;
-  /** Canonical event key (e.g. cardSelect, draw). */
   event: SoundEventKey;
   result: AudioAuditResult;
-  /** Resolved on-disk filename before play (from registry). */
-  resolvedFile?: string;
-  /** Filename actually played when result is asset-played. */
   filename?: string;
   url?: string;
-  assetId?: string;
-  /** True when procedural Web Audio played instead of a hosted WAV. */
-  usedFallback?: boolean;
   fallbackReason?: string;
   tier?: number;
   variant?: string;
@@ -100,6 +93,7 @@ function auditBuffer(): AudioAuditRecord[] {
   return window.__nblTableAudioAudit;
 }
 
+/** Extract basename from a resolved asset URL for audit output. */
 export function filenameFromAudioUrl(url: string | undefined): string | undefined {
   if (!url) return undefined;
   try {
@@ -112,20 +106,11 @@ export function filenameFromAudioUrl(url: string | undefined): string | undefine
   }
 }
 
-/** Whether an audit row indicates procedural/placeholder audio was used. */
-export function isProceduralAuditResult(result: AudioAuditResult): boolean {
-  return result === "procedural-fallback" || result === "procedural-only";
-}
-
 export function recordTableAudioAudit(record: Omit<AudioAuditRecord, "timestamp">): void {
   if (typeof window === "undefined") return;
   const entry: AudioAuditRecord = {
     ...record,
     filename: record.filename ?? filenameFromAudioUrl(record.url),
-    resolvedFile: record.resolvedFile ?? record.filename ?? filenameFromAudioUrl(record.url),
-    usedFallback:
-      record.usedFallback ??
-      (record.result != null && isProceduralAuditResult(record.result)),
     timestamp: Date.now(),
   };
   const buf = auditBuffer();

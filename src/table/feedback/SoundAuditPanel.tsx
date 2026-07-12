@@ -4,10 +4,9 @@ import { getTableAudioAudit, isTableAudioDebugEnabled, type AudioAuditRecord } f
 const VISIBLE_ROWS = 20;
 
 function formatRow(row: AudioAuditRecord): string {
-  const file = row.filename ?? row.resolvedFile ?? "—";
-  const fallback = row.usedFallback ? " [FALLBACK]" : "";
+  const file = row.filename ?? "—";
   const reason = row.fallbackReason ? ` (${row.fallbackReason})` : "";
-  return `${row.event} → ${file} [${row.result}]${fallback}${reason}`;
+  return `${row.event} → ${file} [${row.result}]${reason}`;
 }
 
 /** Last 20 audio audit rows — visible when `localStorage nbl-table-audio-debug=1`. */
@@ -36,9 +35,9 @@ export function SoundAuditPanel() {
           <li
             key={`${row.timestamp}-${row.event}-${idx}`}
             className={
-              row.result === "asset-played" && !row.usedFallback
+              row.result === "asset-played"
                 ? "btable-sound-audit__ok"
-                : row.usedFallback || row.result.includes("procedural")
+                : row.result.includes("procedural")
                   ? "btable-sound-audit__fallback"
                   : undefined
             }

@@ -2,16 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   filenameFromAudioUrl,
-  isProceduralAuditResult,
   summarizeTableAudioAudit,
   type AudioAuditRecord,
 } from "./audioAudit";
-import {
-  resolveSoundAsset,
-  SOUND_EVENT_TRIGGER_TYPE,
-  SOUND_GAMEPLAY_EVENTS,
-  SOUND_UI_ONLY_EVENTS,
-} from "./soundPacks";
+import { resolveSoundAsset, SOUND_EVENT_TRIGGER_TYPE } from "./soundPacks";
 
 describe("audioAudit", () => {
   it("extracts filename from resolved asset URL", () => {
@@ -96,19 +90,5 @@ describe("sound trigger classification", () => {
 
   it("maps representative animation card place to tiered WAV", () => {
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
-  });
-
-  it("classifies procedural audit results", () => {
-    assert.equal(isProceduralAuditResult("procedural-fallback"), true);
-    assert.equal(isProceduralAuditResult("procedural-only"), true);
-    assert.equal(isProceduralAuditResult("asset-played"), false);
-    assert.equal(isProceduralAuditResult("skipped-muted"), false);
-  });
-
-  it("lists gameplay vs UI-only event sets", () => {
-    assert.ok(SOUND_GAMEPLAY_EVENTS.includes("draw"));
-    assert.ok(SOUND_GAMEPLAY_EVENTS.includes("cardPlace"));
-    assert.ok(!SOUND_GAMEPLAY_EVENTS.includes("uiButton"));
-    assert.ok(SOUND_UI_ONLY_EVENTS.includes("uiButton"));
   });
 });
