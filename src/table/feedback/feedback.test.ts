@@ -97,6 +97,18 @@ describe("sound pack registry", () => {
     assert.equal(drawCountAssetUrl(0), "/sounds/draw.mp3");
   });
 
+  it("trickCollect stays coin-chime-light; trickCollectOther maps to moneygone", () => {
+    assert.equal(resolveSoundAsset("classic", "trickCollect"), "coin-chime-light");
+    assert.equal(resolveSoundAsset("classic", "anteChip"), "coin-chime-light");
+    assert.equal(resolveSoundAsset("classic", "handWin"), "coin-chime-light");
+    assert.equal(resolveSoundAsset("classic", "trickCollectOther"), "moneygone");
+  });
+
+  it("moneygone asset file exists in public/sounds", () => {
+    const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES.moneygone);
+    assert.ok(existsSync(file), `missing ${file}`);
+  });
+
   it("draw count mp3 files exist in public/sounds", () => {
     for (let n = 1; n <= 5; n++) {
       const file = join(process.cwd(), "public/sounds", `draw${n}.mp3`);

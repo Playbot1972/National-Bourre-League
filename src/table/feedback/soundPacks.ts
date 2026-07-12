@@ -21,6 +21,7 @@ export type SoundAssetId =
   | "card-illegal"
   | "ui-button-press"
   | "coin-chime-light"
+  | "moneygone"
   | "draw"
   | "draw1"
   | "draw2"
@@ -38,6 +39,7 @@ export type SoundEventKey =
   | "leadChange"
   | "trickWin"
   | "trickCollect"
+  | "trickCollectOther"
   | "anteChip"
   | "handWin"
   | "potWin"
@@ -107,6 +109,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-illegal",
   "ui-button-press",
   "coin-chime-light",
+  "moneygone",
   "draw",
   "draw1",
   "draw2",
@@ -132,6 +135,7 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-illegal": "card-illegal.mp3",
   "ui-button-press": "ui-button-press.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
+  moneygone: "moneygone.mp3",
   draw: "draw.mp3",
   draw1: "draw1.mp3",
   draw2: "draw2.mp3",
@@ -173,6 +177,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
+  trickCollectOther: "moneygone",
   anteChip: "coin-chime-light",
   handWin: "coin-chime-light",
   potWin: "hand-win-stinger",
@@ -250,6 +255,8 @@ export function resolveSoundAsset(
     case "anteChip":
     case "handWin":
       return "coin-chime-light";
+    case "trickCollectOther":
+      return "moneygone";
     case "potWin":
     case "bigWin":
       return "hand-win-stinger";
@@ -283,6 +290,7 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   leadChange: "animation",
   trickWin: "animation",
   trickCollect: "animation",
+  trickCollectOther: "animation",
   anteChip: "animation",
   handWin: "outcome",
   potWin: "outcome",
