@@ -2,7 +2,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { getFeedbackPrefs, shouldPlaySoundEvent, shouldUseHaptics } from "./prefs";
 import { normalizeCardPackId } from "../theme/cardPacks";
-import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset } from "./soundPacks";
+import { existsSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { normalizeSoundPackId, BATCH1_WAV_ASSET_IDS, BATCH1_WAV_URLS, resolveSoundAsset, soundAssetUrl, DEFAULT_SOUND_PACK_ID, isBatch1WavAsset, SOUND_ASSET_FILES, type SoundAssetId } from "./soundPacks";
 import { loadTableSettings, DEFAULT_TABLE_SETTINGS } from "../theme/settings";
 
 describe("feedback prefs", () => {
@@ -67,6 +69,30 @@ describe("sound pack registry", () => {
   it("batch-1 cardPlace tier 1 aliases to card-place-normal (soft deferred)", () => {
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-normal");
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
+  });
+
+  const TOP8_WAV_ASSETS: SoundAssetId[] = [
+    "card-place-normal",
+    "card-place-heavy",
+    "lead-sweetener-light",
+    "trick-win-normal",
+    "trick-win-big",
+    "card-shuffle-normal",
+    "card-select",
+    "card-illegal",
+  ];
+
+  it("top-8 WAV assets exist in public/sounds at registry URLs (not synth placeholders)", () => {
+    const PLACEHOLDER_BYTES = 30948;
+    for (const id of TOP8_WAV_ASSETS) {
+      const url = soundAssetUrl(DEFAULT_SOUND_PACK_ID, id);
+      assert.equal(url, `/sounds/${SOUND_ASSET_FILES[id]}`);
+      const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES[id]);
+      assert.ok(existsSync(file), `missing ${file}`);
+      const size = statSync(file).size;
+      assert.ok(size > 5000, `${id} too small (${size} bytes)`);
+      assert.notEqual(size, PLACEHOLDER_BYTES, `${id} still ${PLACEHOLDER_BYTES}-byte synth placeholder`);
+    }
   });
 });
 
