@@ -1,6 +1,6 @@
 /**
- * Sound registry — maps gameplay events to WAV assets in public/sounds/.
- * Vite serves them at site root: /sounds/{file}.wav
+ * Sound registry — maps gameplay events to assets in public/sounds/.
+ * Vite serves them at site root: /sounds/{file}.mp3 (or .wav when no MP3 on disk).
  */
 
 export type SoundPackId = "classic" | "wood" | "arcade";
@@ -54,8 +54,7 @@ export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
 export const DEFAULT_SOUND_PACK_ID: SoundPackId = "classic";
 
 /**
- * Batch 1 — migrated to public/sounds WAV via Howler (/sounds/*.wav).
- * Deferred keys (trick-win-big, card-place-soft, etc.) are not in this set.
+ * Batch 1 — migrated cues served from public/sounds via Howler (/sounds/*).
  */
 export const BATCH1_WAV_ASSET_IDS = [
   "card-place-normal",
@@ -74,16 +73,16 @@ export function isBatch1WavAsset(assetId: SoundAssetId): assetId is Batch1WavAss
   return (BATCH1_WAV_ASSET_IDS as readonly string[]).includes(assetId);
 }
 
-/** Grep-friendly batch-1 key → site-root WAV URL. */
+/** Grep-friendly batch-1 key → site-root asset URL. */
 export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
-  "card-place-normal": "/sounds/card-place-normal.wav",
-  "card-place-heavy": "/sounds/card-place-heavy.wav",
-  "lead-sweetener-light": "/sounds/lead-sweetener-light.wav",
-  "lead-sweetener-strong": "/sounds/lead-sweetener-strong.wav",
-  "trick-win-normal": "/sounds/trick-win-normal.wav",
-  "card-shuffle-normal": "/sounds/card-shuffle-normal.wav",
+  "card-place-normal": "/sounds/card-place-normal.mp3",
+  "card-place-heavy": "/sounds/card-place-heavy.mp3",
+  "lead-sweetener-light": "/sounds/lead-sweetener-light.mp3",
+  "lead-sweetener-strong": "/sounds/lead-sweetener-strong.mp3",
+  "trick-win-normal": "/sounds/trick-win-normal.mp3",
+  "card-shuffle-normal": "/sounds/card-shuffle-normal.mp3",
   "card-select": "/sounds/card-select.wav",
-  "ui-button-press": "/sounds/ui-button-press.wav",
+  "ui-button-press": "/sounds/ui-button-press.mp3",
 };
 
 /** Every committed classic asset — registered once in AudioManager. */
@@ -108,22 +107,22 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
 
 /** On-disk filenames for each asset ID (classic pack). */
 export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
-  "card-place-normal": "card-place-normal.wav",
-  "card-place-heavy": "card-place-heavy.wav",
-  "card-place-soft": "card-place-soft.wav",
-  "lead-sweetener-light": "lead-sweetener-light.wav",
-  "lead-sweetener-strong": "lead-sweetener-strong.wav",
-  "trick-win-normal": "trick-win-normal.wav",
-  "trick-win-big": "trick-win-big.wav",
-  "hand-win-stinger": "hand-win-stinger.wav",
-  "card-shuffle-normal": "card-shuffle-normal.wav",
-  "card-shuffle-final": "card-shuffle-final.wav",
+  "card-place-normal": "card-place-normal.mp3",
+  "card-place-heavy": "card-place-heavy.mp3",
+  "card-place-soft": "card-place-soft.mp3",
+  "lead-sweetener-light": "lead-sweetener-light.mp3",
+  "lead-sweetener-strong": "lead-sweetener-strong.mp3",
+  "trick-win-normal": "trick-win-normal.mp3",
+  "trick-win-big": "trick-win-big.mp3",
+  "hand-win-stinger": "hand-win-stinger.mp3",
+  "card-shuffle-normal": "card-shuffle-normal.mp3",
+  "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.wav",
-  "card-illegal": "card-illegal.wav",
-  "ui-button-press": "ui-button-press.wav",
-  "coin-chime-light": "coin-chime-light.wav",
+  "card-illegal": "card-illegal.mp3",
+  "ui-button-press": "ui-button-press.mp3",
+  "coin-chime-light": "coin-chime-light.mp3",
   draw: "draw.wav",
-  Fahhh: "Fahhh.wav",
+  Fahhh: "Fahhh.mp3",
 };
 
 /** Human-readable mapping for docs and QA. */
@@ -165,7 +164,7 @@ export interface SoundResolveContext {
 /** Site-root sounds path — Vite public/sounds → /sounds/ */
 export const SOUND_ASSETS_ROOT_PATH = "/sounds/";
 
-/** Root-based URL for a pack asset, e.g. /sounds/card-select.wav */
+/** Root-based URL for a pack asset, e.g. /sounds/card-select.mp3 */
 export function soundAssetUrl(packId: SoundPackId, assetId: SoundAssetId): string {
   const subdir = PACK_SUBDIRS[packId] ?? "";
   return `${SOUND_ASSETS_ROOT_PATH}${subdir}${SOUND_ASSET_FILES[assetId]}`;
