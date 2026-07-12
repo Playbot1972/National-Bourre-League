@@ -2236,7 +2236,10 @@ function renderRoomsList() {
           <span class="mini-card__code">${escapeHtml(room.inviteCode)}</span>
           <span class="mini-card__meta">${escapeHtml(room.role || "player")} · ${escapeHtml(room.status)}</span>
         </div>
-        <button type="button" class="btn btn--sm btn--danger mini-card__action" ${actionAttr}="${room.id}">${actionLabel}</button>
+        <div class="mini-card__actions">
+          <button type="button" class="btn btn--sm btn--play mini-card__action" data-open-room="${room.id}" aria-label="Open ${escapeHtml(room.name)}">▶</button>
+          <button type="button" class="btn btn--sm btn--danger mini-card__action" ${actionAttr}="${room.id}">${actionLabel}</button>
+        </div>
       </article>`;
     })
     .join("");
