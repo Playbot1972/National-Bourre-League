@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Copy the 16 table WAV assets from a local folder (default: ~/Downloads) into public/sounds/.
+# Copy the 16 table WAV assets from a local folder (default: ~/Downloads) into docs/sounds/.
 set -euo pipefail
 
 SRC="${1:-$HOME/Downloads}"
-DEST="$(cd "$(dirname "$0")/.." && pwd)/public/sounds"
+DEST="$(cd "$(dirname "$0")/.." && pwd)/docs/sounds"
 
 FILES=(
   card-place-normal.wav
@@ -41,4 +41,4 @@ if [[ "$missing" -gt 0 ]]; then
   exit 1
 fi
 
-echo "All 16 sounds installed to $DEST"
+echo "All 15 sounds installed to $DEST"

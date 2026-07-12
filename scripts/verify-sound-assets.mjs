@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Verify public/sounds/ matches MANIFEST.json and soundPacks registry.
- * Optionally checks dist/sounds/ after build:hosting.
+ * Verify docs/sounds/ matches MANIFEST.json and soundPacks registry.
+ * Optionally checks dist/social/sounds/ after build:hosting.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = process.cwd();
-const SOUNDS_DIR = join(ROOT, "public", "sounds");
+const SOUNDS_DIR = join(ROOT, "docs", "sounds");
 const MANIFEST_PATH = join(SOUNDS_DIR, "MANIFEST.json");
-const DIST_SOUNDS = join(ROOT, "dist", "sounds");
+const DIST_SOUNDS = join(ROOT, "dist", "social", "sounds");
 
 function fail(msg) {
   console.error(`FAIL  ${msg}`);
@@ -22,7 +22,7 @@ function pass(msg) {
 }
 
 if (!existsSync(MANIFEST_PATH)) {
-  fail("public/sounds/MANIFEST.json missing");
+  fail("docs/sounds/MANIFEST.json missing");
   process.exit(1);
 }
 
@@ -33,9 +33,9 @@ const expectedSorted = [...expectedFiles].sort();
 
 const expectedCount = expectedFiles.length;
 if (onDisk.length !== expectedCount) {
-  fail(`expected ${expectedCount} WAV files in public/sounds/, found ${onDisk.length}`);
+  fail(`expected ${expectedCount} WAV files in docs/sounds/, found ${onDisk.length}`);
 } else {
-  pass(`public/sounds/ contains ${expectedCount} WAV files`);
+  pass(`docs/sounds/ contains ${expectedCount} WAV files`);
 }
 
 for (const file of expectedSorted) {
@@ -103,13 +103,13 @@ if (
 
 if (process.argv.includes("--dist")) {
   if (!existsSync(DIST_SOUNDS)) {
-    fail("dist/sounds/ missing — run npm run build:hosting first");
+    fail("dist/social/sounds/ missing — run npm run build:hosting first");
   } else {
     const built = readdirSync(DIST_SOUNDS).filter((f) => f.endsWith(".wav")).sort();
     if (built.length !== expectedCount) {
-      fail(`dist/sounds/ has ${built.length} WAV files, expected ${expectedCount}`);
+      fail(`dist/social/sounds/ has ${built.length} WAV files, expected ${expectedCount}`);
     } else {
-      pass(`dist/sounds/ contains ${expectedCount} WAV files for hosting`);
+      pass(`dist/social/sounds/ contains ${expectedCount} WAV files for hosting`);
     }
     for (const file of expectedSorted) {
       if (!built.includes(file)) fail(`dist missing: ${file}`);

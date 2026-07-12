@@ -50,7 +50,6 @@ function ensureAuditHelpers(): void {
 const clipCache = new Map<string, HTMLAudioElement>();
 const assetAvailability = new Map<string, boolean>();
 const warmedClips = new Set<string>();
-const wiredClipDiagnostics = new WeakSet<HTMLAudioElement>();
 
 function getActivePackId(): SoundPackId {
   return getFeedbackPrefs().soundPackId;
@@ -75,69 +74,6 @@ function getAudioContext(): AudioContext | null {
   }
 }
 
-function wireClipDiagnostics(
-  clip: HTMLAudioElement,
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): void {
-  if (wiredClipDiagnostics.has(clip)) return;
-  wiredClipDiagnostics.add(clip);
-  clip.addEventListener("loadeddata", () => {
-    logTableAudio("onload", { src, key: meta.key, event: meta.event });
-  });
-  clip.addEventListener("error", () => {
-    logTableAudio("onloaderror", {
-      src,
-      key: meta.key,
-      event: meta.event,
-      mediaError: clip.error?.code,
-    });
-  });
-  clip.addEventListener("playing", () => {
-    logTableAudio("onplay", { src, key: meta.key, event: meta.event });
-  });
-}
-
-function getClip(
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): HTMLAudioElement | null {
-  if (typeof window === "undefined") return null;
-  try {
-    let clip = clipCache.get(src);
-    if (!clip) {
-      logTableAudio("resolve-src", { src, key: meta.key, event: meta.event });
-      clip = new Audio(src);
-      clip.preload = "auto";
-      wireClipDiagnostics(clip, src, meta);
-      clipCache.set(src, clip);
-    }
-    return clip;
-  } catch {
-    return null;
-  }
-}
-
-function borrowClip(
-  src: string,
-  meta: { event?: SoundEventKey; key?: string } = {},
-): HTMLAudioElement | null {
-  const template = getClip(src, meta);
-  if (!template) return null;
-  if (template.paused && template.currentTime < 0.01) {
-    return template;
-  }
-  try {
-    logTableAudio("resolve-src", { src, key: meta.key, event: meta.event, clone: true });
-    const clone = new Audio(src);
-    clone.preload = "auto";
-    wireClipDiagnostics(clone, src, meta);
-    return clone;
-  } catch {
-    return null;
-  }
-}
-
 export async function unlockAudio(): Promise<void> {
   ensureAuditHelpers();
   userGestureUnlocked = true;
@@ -151,6 +87,36 @@ export async function unlockAudio(): Promise<void> {
     }
   }
   void preloadSoundAssets();
+}
+
+function getClip(src: string): HTMLAudioElement | null {
+  if (typeof window === "undefined") return null;
+  try {
+    let clip = clipCache.get(src);
+    if (!clip) {
+      clip = new Audio(src);
+      clip.preload = "auto";
+      clipCache.set(src, clip);
+    }
+    return clip;
+  } catch {
+    return null;
+  }
+}
+
+function borrowClip(src: string): HTMLAudioElement | null {
+  const template = getClip(src);
+  if (!template) return null;
+  if (template.paused && template.currentTime < 0.01) {
+    return template;
+  }
+  try {
+    const clone = new Audio(src);
+    clone.preload = "auto";
+    return clone;
+  } catch {
+    return null;
+  }
 }
 
 function waitForCanPlay(clip: HTMLAudioElement, timeoutMs = 2500): Promise<void> {
@@ -298,17 +264,14 @@ export async function preloadSoundAssets(packId?: SoundPackId): Promise<void> {
 async function tryPlayAsset(
   src: string,
   volume = 0.55,
-  meta: { event?: SoundEventKey; key?: string } = {},
 ): Promise<{ ok: boolean; reason?: TableAudioFallbackReason }> {
-  const key = meta.key ?? meta.event;
-  logTableAudio("requested", { key, src, event: meta.event });
   if (!userGestureUnlocked) {
-    logTableAudio("play-blocked", { key, src, reason: "audio-locked" });
+    logTableAudio("play-blocked", { src, reason: "audio-locked" });
     return { ok: false, reason: "audio-locked" };
   }
-  const clip = borrowClip(src, meta);
+  const clip = borrowClip(src);
   if (!clip) {
-    logTableAudio("play-blocked", { key, src, reason: "no-clip" });
+    logTableAudio("play-blocked", { src, reason: "no-clip" });
     return { ok: false, reason: "media-error" };
   }
   try {
@@ -319,12 +282,11 @@ async function tryPlayAsset(
     clip.currentTime = 0;
     await clip.play();
     const filename = filenameFromAudioUrl(src);
-    logTableAudio("played-asset", { key, src, volume, filename });
+    logTableAudio("played-asset", { src, volume, filename });
     recordAudioPlayMonitor({ src, filename, volume });
     return { ok: true };
   } catch (err) {
-    logTableAudio("onplayerror", { key, src, event: meta.event, err: String(err) });
-    logTableAudio("play-rejected", { key, src, err: String(err) });
+    logTableAudio("play-rejected", { src, err: String(err) });
     return { ok: false, reason: "play-rejected" };
   }
 }
@@ -333,14 +295,12 @@ async function tryPlayAssetId(
   packId: SoundPackId,
   assetId: SoundAssetId,
   volume = 0.55,
-  event?: SoundEventKey,
 ): Promise<{ ok: boolean; reason?: TableAudioFallbackReason; src?: string }> {
   const resolved = await resolvePlayableAssetUrl(packId, assetId);
   if (!resolved.url) {
     return { ok: false, reason: resolved.reason ?? "probe-failed" };
   }
-  const playMeta = { key: event, event };
-  const playResult = await tryPlayAsset(resolved.url, volume, playMeta);
+  const playResult = await tryPlayAsset(resolved.url, volume);
   return playResult.ok
     ? { ok: true, src: resolved.url }
     : { ok: false, reason: playResult.reason ?? "play-rejected", src: resolved.url };
@@ -666,9 +626,8 @@ async function playSoundEvent(
         event === "trickWin" ? VOLUME[event] * (ctx.volumeScale ?? 1) : VOLUME[event];
       const src = soundAssetUrl(packId, assetId);
       playedFilename = filenameFromAudioUrl(src);
-      logTableAudio("requested", { key: event, event, assetId, src, triggerType, ...meta });
-      logTableAudio("resolve", { key: event, event, assetId, src, triggerType, ...meta });
-      const result = await tryPlayAssetId(packId, assetId, volume, event);
+      logTableAudio("resolve", { event, assetId, src, triggerType, ...meta });
+      const result = await tryPlayAssetId(packId, assetId, volume);
       played = result.ok;
       playedUrl = result.src;
       if (result.ok) {

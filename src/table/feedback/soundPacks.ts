@@ -1,6 +1,6 @@
 /**
  * Sound theme registry — maps gameplay events to art-directed WAV assets.
- * Assets live under public/sounds/ (served at /sounds/ on the site root).
+ * Assets live under docs/sounds/ (classic) or docs/sounds/packs/{wood,arcade}/.
  * Procedural fallbacks in audio.ts when asset load/play fails.
  */
 
@@ -135,25 +135,28 @@ export function isAudioContentType(contentType: string | null): boolean {
   return ct.includes("audio/") || ct.includes("application/octet-stream");
 }
 
-/** Site-root sounds path — always `/sounds/` (public/sounds after Vite/hosting build). */
-export const SOUND_ASSETS_ROOT_PATH = "/sounds/";
-
 /**
- * Absolute `/sounds/` root for the current origin.
- * WAVs are served from public/sounds → dist/sounds at deploy (not under /social/).
+ * Absolute `…/sounds/` root for the current page.
+ * Pins under `/social/` even when the pathname omits a trailing slash.
  */
 export function resolveSoundAssetsRoot(pageHref: string): string {
   const page = new URL(pageHref);
-  return `${page.origin}${SOUND_ASSETS_ROOT_PATH}`;
+  const socialIdx = page.pathname.indexOf("/social");
+  if (socialIdx >= 0) {
+    const rootPath = page.pathname.slice(0, socialIdx + "/social".length);
+    return `${page.origin}${rootPath.replace(/\/$/, "")}/sounds/`;
+  }
+  // Local docs static server — WAVs always live at site root /sounds/
+  return `${page.origin}/sounds/`;
 }
 
-/** Absolute URL to a pack asset at site root `/sounds/{file}`. */
+/** Absolute URL to a pack asset (docs/ → /social/sounds/ after deploy). */
 export function soundAssetUrl(packId: SoundPackId, assetId: SoundAssetId): string {
   const subdir = PACK_SUBDIRS[packId] ?? "";
   const root =
     typeof document !== "undefined"
       ? resolveSoundAssetsRoot(document.baseURI)
-      : SOUND_ASSETS_ROOT_PATH;
+      : "./sounds/";
   return `${root}${subdir}${SOUND_ASSET_FILES[assetId]}`;
 }
 
