@@ -1015,16 +1015,25 @@ body.room-detail-open .room-actions {
 }
 
 .mini-card__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
-  gap: 8px;
+  width: 13.5rem;
   margin-right: 12px;
   flex-shrink: 0;
 }
 
-.mini-card__action {
-  align-self: center;
-  flex-shrink: 0;
+.mini-card__action-pill {
+  width: 4.25rem;
+  min-height: 2rem;
+  padding: 7px 10px;
+  font-size: 13px;
+  justify-self: start;
+}
+
+.mini-card__action-pill.btn--danger {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .btn--play {
@@ -1032,7 +1041,6 @@ body.room-detail-open .room-actions {
   border: 1px solid #d4a80a;
   color: #1a1208;
   font-weight: 600;
-  min-width: 2.25rem;
 }
 
 .btn--play:hover {
@@ -1040,13 +1048,13 @@ body.room-detail-open .room-actions {
   border-color: #e6b80f;
 }
 
-.mini-card__action.btn--danger {
+.mini-card__action-pill.btn--danger {
   background: #c62828;
   border-color: #b71c1c;
   color: #fff;
 }
 
-.mini-card__action.btn--danger:hover {
+.mini-card__action-pill.btn--danger:hover {
   background: #d32f2f;
   border-color: #c62828;
   color: #fff;
