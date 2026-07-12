@@ -4035,6 +4035,59 @@
   pointer-events: none;
 }
 
+.center-play--ante-in .bpot__ante-pile {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  width: 52px;
+  height: 36px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.bpot__ante-pile--active {
+  opacity: 1;
+}
+
+.bpot__ante-pile-bill,
+.ante-money-fly__bill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(145deg, #8fd98f 0%, #3fa84a 48%, #2d7a36 100%);
+  color: #f6ffe8;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 2px 5px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(20, 80, 28, 0.55);
+}
+
+.bpot__ante-pile-bill {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(calc(-50% + var(--pile-x, 0px)), calc(-50% + var(--pile-y, 0px)))
+    rotate(var(--pile-rot, 0deg));
+}
+
+.ante-money-fly {
+  position: fixed;
+  pointer-events: none;
+}
+
+.ante-money-fly__bill {
+  width: 100%;
+  height: 100%;
+  transform: rotate(calc(-8deg + var(--ante-money-i, 0) * 4deg));
+}
+
 .bpot__ante-chip {
   position: absolute;
   left: 50%;
@@ -4411,6 +4464,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .bpot__ante-chip,
+  .ante-money-fly,
+  .bpot__ante-pile-bill,
   .center-play__discard-card,
   .bpot__trump--reveal,
   .bseat--enroll-join .bseat__avatar-wrap,

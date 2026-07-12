@@ -33,6 +33,7 @@ interface PotCenterProps {
   showFinalTrickEcho?: boolean;
   playerNames?: Record<string, string>;
   anteAnimActive?: boolean;
+  anteLandedCount?: number;
   trumpRevealActive?: boolean;
   drawAnimPlayerId?: string | null;
   drawAnimSubPhase?: DrawAnimSubPhase;
@@ -75,6 +76,7 @@ export function PotCenter({
   showFinalTrickEcho = false,
   playerNames = {},
   anteAnimActive = false,
+  anteLandedCount = 0,
   trumpRevealActive = false,
   drawAnimPlayerId: _drawAnimPlayerId = null,
   drawAnimSubPhase: _drawAnimSubPhase = "done",
@@ -133,6 +135,18 @@ export function PotCenter({
   const trumpKey = hasTrumpCard ? `${displayTrumpUpcard!.rank}-${displayTrumpUpcard!.suit}` : "trump-slot";
   const finalTrickEcho =
     showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);
+
+  const anteBuilding =
+    anteAnimActive && potMetrics.anteAmount > 0 && participantCount > 0;
+  const displayPotAmount = anteBuilding
+    ? Math.max(
+        0,
+        potMetrics.currentPot -
+          (participantCount - Math.min(anteLandedCount, participantCount)) * potMetrics.anteAmount,
+      )
+    : potMetrics.currentPot;
+  const potPulseKey =
+    anteBuilding && anteLandedCount > 0 ? `ante-pot-${anteLandedCount}` : potTick > 0 ? `pot-${potTick}` : "pot-static";
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
@@ -211,15 +225,11 @@ export function PotCenter({
         data-hand-settling={settleAnimActive ? "true" : "false"}
       >
         {anteAnimActive && (
-          <div className="bpot__ante-chips" aria-hidden="true">
-            {Array.from({ length: Math.min(participantCount, 8) }, (_, i) => (
-              <span
-                key={i}
-                className="bpot__ante-chip"
-                style={{ ["--ante-i" as string]: i }}
-              />
-            ))}
-          </div>
+          <div
+            className="bpot__ante-pile"
+            data-ante-pot-target=""
+            aria-hidden="true"
+          />
         )}
 
         {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
@@ -284,12 +294,14 @@ export function PotCenter({
 
         <dl className="center-play__stats">
           <div
-            className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
+            className={`bpot__stat bpot__stat--pot${
+              potTick > 0 || (anteBuilding && anteLandedCount > 0) ? " bpot__stat--tick" : ""
+            }`}
             data-testid="pot-display"
-            key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
+            key={potPulseKey}
           >
             <dt>Table pot</dt>
-            <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
+            <dd>{formatRiskStake(displayPotAmount)}</dd>
           </div>
           <div className="bpot__stat" data-testid="ante-display">
             <dt>Ante / hand</dt>

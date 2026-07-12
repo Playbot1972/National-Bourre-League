@@ -7,6 +7,7 @@ import {
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
+import { anteSequenceDurationMs } from "./antePresentationTiming";
 
 export interface HandServerSnapshot {
   sessionKey: string;
@@ -889,7 +890,7 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      return anteSequenceDurationMs(Math.max(1, Math.min(store.dealStaggerCount, 8)), reducedMotion);
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":

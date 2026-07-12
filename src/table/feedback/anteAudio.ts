@@ -1,5 +1,5 @@
 /**
- * Per-player ante chip audio — staggered to match `.bpot__ante-chip` CSS (80ms).
+ * Per-player ante chip audio — staggered to match ante money fly-in lands.
  */
 
 /** Matches `animation-delay: calc(var(--ante-i) * 80ms)` in table.css */
