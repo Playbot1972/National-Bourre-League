@@ -5,6 +5,7 @@ import {
   playCardSelectSound,
   playDeleteRoomSound,
   playDrawCountSound,
+  playAnteChipSound,
   playFoldSound,
   playGameStartSound,
   playOpenRoomSound,
@@ -104,6 +105,10 @@ export function playDrawCountFeedback(cardCount: number): void {
   lastDrawAt = now;
   maybePlaySound("draw", () => playDrawCountSound(cardCount));
   fireHaptic("light");
+}
+
+export function playAnteChipFeedback(handNumber: number, playerIndex: number): void {
+  maybePlaySound("anteChip", () => playAnteChipSound(handNumber, playerIndex));
 }
 
 /** @deprecated Prefer playDrawCountFeedback on draw confirm; generic fallback only. */
