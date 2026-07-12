@@ -242,6 +242,30 @@ export function playGameStartSound(): void {
   void playSoundEvent("gameStart");
 }
 
+export function playOpenRoomSound(): void {
+  void playSoundEvent("openRoom");
+}
+
+export function playDeleteRoomSound(): void {
+  void playSoundEvent("deleteRoom");
+}
+
+export function playCardSelectSound(): void {
+  void playSoundEvent("cardSelect");
+}
+
+export function playCardIllegalSound(): void {
+  void playSoundEvent("cardIllegal");
+}
+
+export function playUiButtonSound(): void {
+  void playSoundEvent("uiButton");
+}
+
+export function playFoldSound(): void {
+  void playSoundEvent("fold");
+}
+
 export function audioSupported(): boolean {
   return typeof window !== "undefined";
 }

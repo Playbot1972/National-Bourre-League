@@ -21,7 +21,12 @@ import {
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
 import { logPlayClick } from "./playClickDebug";
-import { playIllegalActionFeedback } from "./feedback";
+import {
+  playCardSelectFeedback,
+  playFoldFeedback,
+  playIllegalActionFeedback,
+  playUiButtonFeedback,
+} from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
 import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
@@ -430,13 +435,17 @@ export function HeroHand({
       setDrawSelectionTouched(true);
       notifyUserActivity();
       setLocalError(null);
+      let selectedCard = false;
       setSelectedDraw((prev) => {
         const next = new Set(prev);
         if (next.has(index)) next.delete(index);
-        else if (next.size < maxDrawDiscards) next.add(index);
-        else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
+        else if (next.size < maxDrawDiscards) {
+          next.add(index);
+          selectedCard = true;
+        } else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
         return next;
       });
+      if (selectedCard) playCardSelectFeedback();
     },
     [busy, maxDrawDiscards, trumpDisabledIndex, notifyUserActivity],
   );
@@ -607,6 +616,7 @@ export function HeroHand({
       setSelectedPlay(plan.nextSelection);
       setLocalError(null);
       notifyUserActivity();
+      if (plan.nextSelection !== null) playCardSelectFeedback();
       logPlayClick({
         event: plan.shouldQueueSelection ? "queue-set" : "tap-select",
         handNumber,
@@ -693,6 +703,7 @@ export function HeroHand({
   const runDrawAction = useCallback(
     async (indices: number[]) => {
       if (!onSubmitDraw || busy) return;
+      playUiButtonFeedback();
       notifyUserActivity();
       if (indices.length > maxDrawDiscards) {
         setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
@@ -715,6 +726,7 @@ export function HeroHand({
 
   const runPassDraw = useCallback(async () => {
     if (!onPassDraw || busy) return;
+    playUiButtonFeedback();
     notifyUserActivity();
     setLocalBusy(true);
     setLocalError(null);
@@ -732,6 +744,7 @@ export function HeroHand({
 
   const runFoldDraw = useCallback(async () => {
     if (!onFoldDraw || busy) return;
+    playFoldFeedback();
     notifyUserActivity();
     setFoldOutPulse(true);
     setLocalBusy(true);

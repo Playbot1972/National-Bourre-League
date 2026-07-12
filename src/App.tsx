@@ -3,10 +3,9 @@ import { HomeScreen } from "./screens/HomeScreen";
 import { RulesScreen } from "./screens/RulesScreen";
 import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
-import { AudioManager } from "./audio/AudioManager";
 import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
-import { unlockAudio } from "./table/feedback/audio";
+import { playCardSelectSound, unlockAudio } from "./table/feedback/audio";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
@@ -138,7 +137,7 @@ export default function App() {
           style={{ marginRight: "0.5rem" }}
           onClick={() => {
             void unlockAudio();
-            AudioManager.get().play("card-select");
+            playCardSelectSound();
           }}
           title="Temporary: test card-select.wav"
         >
