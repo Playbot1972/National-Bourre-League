@@ -135,18 +135,15 @@ export class AudioManager {
   unlock(): boolean {
     this.unlocked = true;
     let resumeAttempted = false;
-    let resumeOk: boolean | null = null;
     try {
       const ctx = Howler.ctx;
       if (ctx && typeof ctx.resume === "function" && ctx.state === "suspended") {
         resumeAttempted = true;
         void ctx.resume().then(
           () => {
-            resumeOk = true;
             debugLog("unlock-resume", { state: ctx.state, ok: true });
           },
           (err) => {
-            resumeOk = false;
             console.error("[nbl-audio] unlock-resume-failed", {
               state: ctx.state,
               error: String(err),

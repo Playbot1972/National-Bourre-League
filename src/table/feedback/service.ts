@@ -12,7 +12,6 @@ import {
   playTrickWinSound,
   playUiButtonSound,
   ensureAudioUnlockedSync,
-  unlockAudio,
 } from "./audio";
 import { triggerHaptic } from "./haptics";
 import {
