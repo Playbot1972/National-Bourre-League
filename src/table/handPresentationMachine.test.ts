@@ -545,6 +545,21 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
   });
+
+  it("ante callback advances directly to trumpReveal (recovery topology)", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(store.phase, "ante");
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "trumpReveal");
+    assert.equal(store.trumpRevealActive, true);
+    assert.equal(phaseScheduleMs(store), 5000);
+  });
 });
 
 describe("trick timing with hand flow", () => {

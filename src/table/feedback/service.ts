@@ -1,6 +1,7 @@
 import {
   playBigWinSound,
   playBourreSound,
+  playBourrePrivatePunishmentSound,
   playCardIllegalSound,
   playCardSelectSound,
   playDeleteRoomSound,
@@ -14,6 +15,7 @@ import {
   playUiButtonSound,
   ensureAudioUnlockedSync,
 } from "./audio";
+import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 import { triggerHaptic } from "./haptics";
 import {
   getFeedbackPrefs,
@@ -75,11 +77,13 @@ export function initGameFeedback(): void {
 export interface ShuffleFeedbackOptions {
   /** Delay before audio/haptic to match deal animation (ms). */
   delayMs?: number;
+  /** Skip cooldown — deal presentation owns this cue after ante. */
+  force?: boolean;
 }
 
 export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void {
   const now = Date.now();
-  if (now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
+  if (!options.force && now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
 
   if (shuffleTimer) {
     clearTimeout(shuffleTimer);
@@ -137,6 +141,20 @@ export function playBourreFeedback(): void {
   if (now - lastBourreAt < BOURRE_COOLDOWN_MS) return;
   lastBourreAt = now;
   maybePlaySound("bourre", playBourreSound);
+  fireHaptic("medium");
+}
+
+/** Local-only bourré punishment — random fahhh/fahhhh; not broadcast to table. */
+export function playBourrePrivatePunishmentFeedback(input: {
+  sessionId: string;
+  handNumber: number;
+  isLocalBourredPlayer: boolean;
+}): void {
+  if (!input.isLocalBourredPlayer) return;
+  const dedupeKey = bourrePrivateDedupeKey(input.sessionId, input.handNumber);
+  maybePlaySound("bourre", () =>
+    playBourrePrivatePunishmentSound(dedupeKey, input.isLocalBourredPlayer),
+  );
   fireHaptic("medium");
 }
 

@@ -4389,13 +4389,11 @@ export async function setHandParticipation(roomId, sessionId, { playerId, inHand
   if (sessionSnap.exists()) {
     const hand = getSessionCurrentHand(sessionSnap.data());
     if (hand?.phase === HAND_PHASE.REVEAL && hand?.handDecision) {
-      await advanceHandReveal(roomId, sessionId);
-      const refreshed = await getDoc(sessionDoc(roomId, sessionId));
-      const nextPhase = getSessionCurrentHand(refreshed.data())?.phase ?? null;
-      if (nextPhase === HAND_PHASE.DRAW || nextPhase === HAND_PHASE.PLAY) {
-        return;
+      if (hand.handDecision.active) {
+        return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
       }
-      return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });
+      await advanceHandReveal(roomId, sessionId);
+      return;
     }
     if (hand?.phase === HAND_PHASE.DECISION && hand?.handDecision?.active) {
       return setHandDecision(roomId, sessionId, { playerId, inHand, discardCount, actorId });

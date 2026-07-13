@@ -11,6 +11,11 @@ export interface ScoreRow {
   total?: number;
   /** Authoritative next-hand funding amount from nextDealFunding — do not recompute. */
   fundingContribution?: number;
+  /** Per-hand flags — reset at next-hand start via prepareForNextHand, not at settlement. */
+  playedThisHand?: boolean;
+  foldedThisHand?: boolean;
+  tricksWonThisHand?: number;
+  isBourreThisHand?: boolean;
 }
 
 export type ScoreById = Record<string, ScoreRow>;
@@ -75,6 +80,8 @@ export interface NextDealFundingSnapshot {
   tiedWinnerIds: string[];
   splitPot: boolean;
   tie: boolean;
+  /** Room split-pot checkbox — when true, tied carry winners still pay next ante. */
+  splitPotOptionEnabled?: boolean;
   fundingContributionByPlayer?: Record<string, number>;
   fundingReasonByPlayer?: Record<string, string>;
   byPlayer: Record<string, NextDealFundingFlags>;

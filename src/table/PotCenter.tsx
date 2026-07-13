@@ -48,6 +48,8 @@ interface PotCenterProps {
   trumpMergeActive?: boolean;
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
+  /** Presentation FSM phase — suppress trump during ante fly-in. */
+  handPresentationPhase?: string;
   instantTrickPlays?: boolean;
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
@@ -88,6 +90,7 @@ export function PotCenter({
   hideCenterTrump = false,
   trumpMergeActive = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
+  handPresentationPhase,
   instantTrickPlays = false,
   peakTrickPlayCount = 0,
   discardPileCards = [],
@@ -128,7 +131,8 @@ export function PotCenter({
     setDisplayTrumpUpcard(null);
   }, [trumpUpcard, trickPlaysPending, trickResolving, displayTrumpUpcard, trumpMergeActive]);
 
-  const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
+  const hasTrumpCard =
+    Boolean(displayTrumpUpcard) && !hideCenterTrump && handPresentationPhase !== "ante";
   const showTrumpSuitReminder =
     showTrumpSuitReminderProp ||
     (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");

@@ -130,6 +130,8 @@ export interface TableSessionData {
   maxDrawDiscards?: number | null;
   cinchEnabled?: boolean;
   postedAntes?: Record<string, number>;
+  /** Dealer-relative ante fly-in order (exempt players omitted). */
+  anteContributorIds?: string[];
   /** Clockwise draw/play order (dealer-relative seat ring). */
   actionOrder?: string[];
   /** Full table seat ring — not join order. */

@@ -70,6 +70,8 @@ export interface ComputeNextHandFundingInput {
   tiedWinnerIds: string[];
   splitPot: boolean;
   tie: boolean;
+  /** Room split-pot checkbox — tied carry winners pay ante when true. */
+  splitPotOptionEnabled?: boolean;
   seatOrder?: string[];
   explicitExemptPlayerIds?: string[];
   bourreReplacementRemainderByPlayer?: Record<string, number>;
@@ -95,6 +97,7 @@ export interface NextDealFundingSnapshot {
   tiedWinnerIds: string[];
   splitPot: boolean;
   tie: boolean;
+  splitPotOptionEnabled?: boolean;
   fundingContributionByPlayer: Record<string, number>;
   fundingReasonByPlayer: Record<string, FundingReason>;
   rebuyContributionByPlayer?: Record<string, number>;
@@ -304,6 +307,7 @@ export function computeFundingContributionByPlayer(
     tie,
     explicitExemptPlayerIds = [],
     bourreReplacementRemainderByPlayer = {},
+    splitPotOptionEnabled = false,
   } = input;
 
   const fundingContributionByPlayer: Record<string, number> = {};
@@ -323,7 +327,12 @@ export function computeFundingContributionByPlayer(
     if (bourrePlayerIds.includes(pid)) {
       fundingContributionByPlayer[pid] = pot;
       fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
-    } else if (tie && !splitPot && tiedWinnerIds.includes(pid)) {
+    } else if (
+      tie &&
+      !splitPot &&
+      !splitPotOptionEnabled &&
+      tiedWinnerIds.includes(pid)
+    ) {
       fundingContributionByPlayer[pid] = 0;
       fundingReasonByPlayer[pid] = "tie_carry_exempt";
     } else if (exempt.has(pid)) {
@@ -391,6 +400,7 @@ export function buildNextDealFunding(
   phase2: ReturnType<typeof applyNextHandFunding>,
   participantIds: string[],
   bourreReplacementRemainderByPlayer: Record<string, number> = {},
+  options: { splitPotOptionEnabled?: boolean } = {},
 ): NextDealFundingSnapshot {
   const byPlayer: NextDealFundingSnapshot["byPlayer"] = {};
 
@@ -420,6 +430,7 @@ export function buildNextDealFunding(
     tiedWinnerIds: [...phase1.tiedWinnerIds],
     splitPot: phase1.splitPot,
     tie: phase1.tie,
+    splitPotOptionEnabled: options.splitPotOptionEnabled === true,
     fundingContributionByPlayer: { ...phase2.fundingContributionByPlayer },
     fundingReasonByPlayer: { ...phase2.fundingReasonByPlayer },
     rebuyContributionByPlayer: { ...(phase2.rebuyContributionByPlayer ?? {}) },
@@ -784,6 +795,7 @@ export function runCanonicalMoneyFlow(opts: {
     tiedWinnerIds: phase1.tiedWinnerIds,
     splitPot: phase1.splitPot,
     tie: phase1.tie,
+    splitPotOptionEnabled: splitPotEnabled,
     explicitExemptPlayerIds,
     bourreReplacementRemainderByPlayer,
   };
@@ -795,6 +807,7 @@ export function runCanonicalMoneyFlow(opts: {
     phase2,
     participants,
     bourreReplacementRemainderByPlayer,
+    { splitPotOptionEnabled: splitPotEnabled },
   );
 
   const result: CanonicalMoneyResult = {

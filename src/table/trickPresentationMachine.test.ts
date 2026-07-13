@@ -6,6 +6,7 @@ import {
   liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
+  shouldReinitTrickPresentationStore,
   trickPlaysArePrefix,
   updatePeakTrickPlays,
 } from "./trickPresentationMachine";
@@ -353,6 +354,81 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.displayPlays.length, 4);
     assert.equal(model.showFinalTrickEcho, false);
+  });
+
+  it("latches hand-end echo when the final trick pipeline returns to live", () => {
+    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "live");
+    assert.equal(store.frozenTrick, null);
+    assert.ok(store.handEndEchoTrick);
+    const model = buildTrickPresentationModel(store, null);
+    assert.equal(model.displayPlays.length, 0);
+    assert.equal(model.showFinalTrickEcho, true);
+    assert.equal(model.trickEchoPlays.length, 4);
+    assert.equal(model.trickEchoWinnerId, "p1");
+    assert.equal(model.trickEchoPhase, "winnerReveal");
+  });
+
+  it("keeps hand-end echo through enrollment phase without reinit", () => {
+    const echo = {
+      trickNumber: 5,
+      leadSuit: "hearts",
+      plays: completedTrick.plays,
+      winnerId: "p1",
+    };
+    assert.equal(
+      shouldReinitTrickPresentationStore({
+        enteredPlay: false,
+        sessionPlayActive: false,
+        pipelineActive: false,
+        handComplete: false,
+        phase: "reveal",
+        participantCount: 4,
+        handEndEchoTrick: echo,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldReinitTrickPresentationStore({
+        enteredPlay: false,
+        sessionPlayActive: false,
+        pipelineActive: false,
+        handComplete: false,
+        phase: "reveal",
+        participantCount: 4,
+        handEndEchoTrick: null,
+      }),
+      true,
+    );
+  });
+
+  it("clears hand-end echo on demand", () => {
+    let store = createTrickPresentationStore({ p1: 5, p2: 0 }, null);
+    store = {
+      ...store,
+      handEndEchoTrick: {
+        trickNumber: 5,
+        leadSuit: "hearts",
+        plays: completedTrick.plays,
+        winnerId: "p1",
+      },
+    };
+    store = reduceTrickPresentation(store, { type: "clearHandEndEcho" });
+    assert.equal(store.handEndEchoTrick, null);
+    assert.equal(buildTrickPresentationModel(store, null).showFinalTrickEcho, false);
   });
 
   it("does not allow live phase until pipeline completes", () => {

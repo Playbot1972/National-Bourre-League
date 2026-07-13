@@ -19,6 +19,7 @@ import {
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
+import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -118,7 +119,14 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
+    anteContributorIds: session.anteContributorIds ?? EMPTY_ENROLLMENT_IDS,
   });
+
+  useEffect(() => {
+    if (handPresentation.phase !== "ante") return;
+    if (!trickPresentation.showFinalTrickEcho) return;
+    trickPresentation.clearHandEndEcho();
+  }, [handPresentation.phase, trickPresentation.showFinalTrickEcho, trickPresentation.clearHandEndEcho]);
 
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
@@ -347,6 +355,14 @@ export function TableSessionView({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+  });
+
+  useTurnTimerWarning({
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+    currentUserId,
+    localActionPending: actionFeedback?.status === "loading",
   });
 
   const showTrumpSuitReminder =

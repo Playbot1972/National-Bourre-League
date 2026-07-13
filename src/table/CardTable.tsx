@@ -365,6 +365,7 @@ export function CardTable({
             trumpMergeActive={handPresentation.trumpMergeActive}
             hideCenterTrump={hideCenterTrump}
             showTrumpSuitReminder={showTrumpSuitReminder}
+            handPresentationPhase={handPresentation.phase}
             drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
             drawAnimSubPhase={handPresentation.drawAnimSubPhase}
             drawDiscardCount={handPresentation.drawDiscardCount}

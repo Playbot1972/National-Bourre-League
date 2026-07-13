@@ -19,15 +19,19 @@ export type SoundAssetId =
   | "card-shuffle-final"
   | "card-select"
   | "card-illegal"
-  | "ui-button-press"
+  | "click"
   | "coin-chime-light"
+  | "moneygone"
   | "draw"
   | "draw1"
   | "draw2"
   | "draw3"
   | "draw4"
   | "draw5"
-  | "Fahhh";
+  | "Fahhh"
+  | "fahhh"
+  | "fahhhh"
+  | "timer";
 
 /** Event-driven keys used by feedback service and prefs. */
 export type SoundEventKey =
@@ -38,6 +42,7 @@ export type SoundEventKey =
   | "leadChange"
   | "trickWin"
   | "trickCollect"
+  | "trickCollectOther"
   | "anteChip"
   | "handWin"
   | "potWin"
@@ -49,7 +54,8 @@ export type SoundEventKey =
   | "fold"
   | "cardSelect"
   | "cardIllegal"
-  | "uiButton";
+  | "uiButton"
+  | "turnTimer";
 
 export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
   classic: "Classic",
@@ -70,7 +76,7 @@ export const BATCH1_WAV_ASSET_IDS = [
   "trick-win-normal",
   "card-shuffle-normal",
   "card-select",
-  "ui-button-press",
+  "click",
 ] as const satisfies readonly SoundAssetId[];
 
 export type Batch1WavAssetId = (typeof BATCH1_WAV_ASSET_IDS)[number];
@@ -88,7 +94,7 @@ export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
   "trick-win-normal": "/sounds/trick-win-normal.mp3",
   "card-shuffle-normal": "/sounds/card-shuffle-normal.mp3",
   "card-select": "/sounds/card-select.mp3",
-  "ui-button-press": "/sounds/ui-button-press.mp3",
+  click: "/sounds/click.mp3",
 };
 
 /** Every committed classic asset — registered once in AudioManager. */
@@ -105,8 +111,9 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-shuffle-final",
   "card-select",
   "card-illegal",
-  "ui-button-press",
+  "click",
   "coin-chime-light",
+  "moneygone",
   "draw",
   "draw1",
   "draw2",
@@ -114,6 +121,9 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "draw4",
   "draw5",
   "Fahhh",
+  "fahhh",
+  "fahhhh",
+  "timer",
 ] as const;
 
 /** On-disk filenames for each asset ID (classic pack). */
@@ -130,8 +140,9 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
-  "ui-button-press": "ui-button-press.mp3",
+  click: "click.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
+  moneygone: "moneygone.mp3",
   draw: "draw.mp3",
   draw1: "draw1.mp3",
   draw2: "draw2.mp3",
@@ -139,6 +150,9 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   draw4: "draw4.mp3",
   draw5: "draw5.mp3",
   Fahhh: "Fahhh.mp3",
+  fahhh: "fahhh.mp3",
+  fahhhh: "fahhhh.mp3",
+  timer: "timer.mp3",
 };
 
 /** Count-based draw confirm cues — 1–5 cards map to draw1.mp3 … draw5.mp3. */
@@ -173,6 +187,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
+  trickCollectOther: "moneygone",
   anteChip: "coin-chime-light",
   handWin: "coin-chime-light",
   potWin: "hand-win-stinger",
@@ -184,7 +199,8 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   fold: "card-place-heavy",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
-  uiButton: "ui-button-press",
+  uiButton: "click",
+  turnTimer: "timer",
 };
 
 const PACK_SUBDIRS: Record<SoundPackId, string> = {
@@ -250,13 +266,15 @@ export function resolveSoundAsset(
     case "anteChip":
     case "handWin":
       return "coin-chime-light";
+    case "trickCollectOther":
+      return "moneygone";
     case "potWin":
     case "bigWin":
       return "hand-win-stinger";
     case "bourre":
       return "Fahhh";
     case "uiButton":
-      return "ui-button-press";
+      return "click";
     case "cardSelect":
       return "card-select";
     case "cardIllegal":
@@ -264,6 +282,8 @@ export function resolveSoundAsset(
       return "card-illegal";
     case "fold":
       return "card-place-heavy";
+    case "turnTimer":
+      return "timer";
   }
 }
 
@@ -283,6 +303,7 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   leadChange: "animation",
   trickWin: "animation",
   trickCollect: "animation",
+  trickCollectOther: "animation",
   anteChip: "animation",
   handWin: "outcome",
   potWin: "outcome",
@@ -295,4 +316,5 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   cardSelect: "action",
   cardIllegal: "action",
   uiButton: "action",
+  turnTimer: "outcome",
 };

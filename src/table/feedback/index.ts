@@ -7,6 +7,7 @@ export {
   playTrickWinFeedback,
   playBigWinFeedback,
   playBourreFeedback,
+  playBourrePrivatePunishmentFeedback,
   playGameStartFeedback,
   playIllegalActionFeedback,
   playOpenRoomFeedback,

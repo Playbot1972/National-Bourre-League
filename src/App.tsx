@@ -5,6 +5,7 @@ import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
+import { bindUiButtonPress } from "./ui/uiButtonPressBinding";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
@@ -42,6 +43,8 @@ export default function App() {
   useEffect(() => {
     initTheme();
   }, []);
+
+  useEffect(() => bindUiButtonPress(), []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
