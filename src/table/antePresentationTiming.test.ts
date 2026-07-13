@@ -11,6 +11,9 @@ import {
 import {
   antePresentationDedupeKey,
   _resetAntePresentationForTests,
+  clearAntePresentationDedupe,
+  killAntePresentation,
+  runAntePresentation,
 } from "./animations/antePresentationMotion";
 
 describe("antePresentationTiming", () => {
@@ -44,5 +47,35 @@ describe("antePresentationMotion dedupe", () => {
     _resetAntePresentationForTests();
     assert.equal(antePresentationDedupeKey(4), "4:ante-motion");
     assert.notEqual(antePresentationDedupeKey(4), antePresentationDedupeKey(5));
+  });
+
+  it("clearAntePresentationDedupe allows restart after effect cleanup", () => {
+    _resetAntePresentationForTests();
+    const root = document.createElement("div");
+    const seat = document.createElement("div");
+    seat.className = "bseat";
+    seat.setAttribute("data-seat-play-origin", "p1");
+    const avatar = document.createElement("div");
+    avatar.className = "bseat__avatar-wrap";
+    avatar.style.width = "40px";
+    avatar.style.height = "40px";
+    seat.appendChild(avatar);
+    root.appendChild(seat);
+    const pile = document.createElement("div");
+    pile.className = "bpot__ante-pile";
+    pile.setAttribute("data-ante-pot-target", "");
+    root.appendChild(pile);
+    document.body.appendChild(root);
+
+    try {
+      assert.equal(runAntePresentation(root, 4, ["p1"], {}), true);
+      assert.equal(runAntePresentation(root, 4, ["p1"], {}), false);
+      killAntePresentation();
+      clearAntePresentationDedupe(4);
+      assert.equal(runAntePresentation(root, 4, ["p1"], {}), true);
+    } finally {
+      root.remove();
+      _resetAntePresentationForTests();
+    }
   });
 });
