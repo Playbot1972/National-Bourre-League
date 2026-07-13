@@ -2,11 +2,19 @@ export {
   initGameFeedback,
   playShuffleFeedback,
   playDrawFeedback,
+  playDrawCountFeedback,
+  playAnteChipFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
   playBourreFeedback,
+  playBourrePrivatePunishmentFeedback,
   playGameStartFeedback,
   playIllegalActionFeedback,
+  playOpenRoomFeedback,
+  playDeleteRoomFeedback,
+  playCardSelectFeedback,
+  playUiButtonFeedback,
+  playFoldFeedback,
   playActionSuccessFeedback,
   getFeedbackPrefs,
   saveFeedbackPrefs,
@@ -19,7 +27,7 @@ export {
   type ShuffleFeedbackOptions,
 } from "./service";
 
-export { audioSupported } from "./audio";
+export { audioSupported, ensureAudioUnlockedSync, isAudioUnlocked } from "./audio";
 export { hapticsSupported } from "./haptics";
 export { SOUND_PACK_LABELS, type SoundPackId } from "./soundPacks";
 export type { FeedbackPrefs, HapticsMode, SoundMode } from "./prefs";

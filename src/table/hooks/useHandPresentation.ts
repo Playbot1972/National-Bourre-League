@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef } from "react";
+import { useEffect, useMemo, useReducer, useRef, useCallback } from "react";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
@@ -9,6 +9,8 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
+import { anteTimingMark } from "../anteTimingDebug";
+import { handOpenLog } from "../handOpeningDebug";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -39,9 +41,14 @@ export interface UseHandPresentationInput {
   enrolledIds?: string[];
   declinedIds?: string[];
   actionOrder?: string[];
+  anteContributorIds?: string[];
 }
 
-export type HandPresentation = HandPresentationModel;
+export type HandPresentation = HandPresentationModel & {
+  completeTrumpMerge: () => void;
+  completeAntePresentation: () => void;
+  completeDealPresentation: () => void;
+};
 
 export function useHandPresentation({
   session,
@@ -54,6 +61,7 @@ export function useHandPresentation({
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
   actionOrder,
+  anteContributorIds = EMPTY_IDS,
 }: UseHandPresentationInput): HandPresentation {
   const snapshot = useMemo(
     (): HandServerSnapshot =>
@@ -73,6 +81,7 @@ export function useHandPresentation({
         carryOverPot: session.carryOverPot,
         enrolledIds,
         declinedIds,
+        anteContributorIds,
       }),
     [
       session,
@@ -82,6 +91,7 @@ export function useHandPresentation({
       enrolledIds,
       declinedIds,
       actionOrder,
+      anteContributorIds,
     ],
   );
 
@@ -211,6 +221,17 @@ export function useHandPresentation({
           drawAnimSubPhase: armedAt.drawAnimSubPhase,
         });
       }
+      if (armedAt.phase === "deal") {
+        handOpenLog("deal-phase-watchdog-advance", { handNumber: armedAt.handNumber, delay });
+      }
+      if (armedAt.phase === "ante") {
+        handOpenLog("ante-phase-timer-advance", { handNumber: armedAt.handNumber, delay });
+        anteTimingMark("deal-start", {
+          handNumber: armedAt.handNumber,
+          source: "ante-phase-timer",
+          scheduledDelayMs: delay,
+        });
+      }
       dispatch({ type: "advancePhase" });
     }, delay);
     const watchdogMs =
@@ -262,5 +283,22 @@ export function useHandPresentation({
     return () => window.clearTimeout(id);
   }, [store.phase, store.pendingHandSettle, trickPipelineActive, forceTrickHandEndDrain]);
 
-  return buildHandPresentationModel(store);
+  const completeTrumpMerge = useCallback(() => {
+    dispatch({ type: "completeTrumpMerge" });
+  }, []);
+
+  const completeAntePresentation = useCallback(() => {
+    dispatch({ type: "completeAntePresentation" });
+  }, []);
+
+  const completeDealPresentation = useCallback(() => {
+    dispatch({ type: "completeDealPresentation" });
+  }, []);
+
+  return {
+    ...buildHandPresentationModel(store),
+    completeTrumpMerge,
+    completeAntePresentation,
+    completeDealPresentation,
+  };
 }

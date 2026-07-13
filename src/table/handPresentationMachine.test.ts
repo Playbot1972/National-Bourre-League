@@ -9,6 +9,7 @@ import {
   snapshotFromSession,
 } from "./handPresentationMachine";
 import { drawPlayerScheduleMs, handTimingScale } from "./handPresentationTiming";
+import { anteSequenceDurationMs } from "./antePresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "./trickTiming";
 
 const baseSnap = snapshotFromSession({
@@ -46,6 +47,76 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergeActive, false);
   });
 
+  it("starts trump merge when server clears upcard on first opening action", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "draw",
+      trumpRevealActive: true,
+      trumpMergedIntoHand: false,
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        trumpUpcard: null,
+        trumpSuit: "hearts",
+      },
+    });
+    assert.equal(store.trumpMergeActive, true);
+    assert.equal(store.trumpMergedIntoHand, false);
+    assert.equal(store.trumpRevealActive, false);
+
+    store = reduceHandPresentation(store, { type: "completeTrumpMerge" });
+    assert.equal(store.trumpMergeActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
+  });
+
+  it("arms ante on initial mount when server snapshot is already reveal", () => {
+    const store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, false);
+    assert.equal(store.dealStaggerCount, 2);
+    assert.equal(store.displayPotAmount, 40);
+  });
+
+  it("re-arms ante on serverUpdate when reveal snapshot has anteAnimActive false", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      participantIds: ["p1", "p2"],
+    });
+    store = {
+      ...store,
+      phase: "ante",
+      anteAnimActive: false,
+      prevSnapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        participantIds: ["p1", "p2"],
+        potAmount: 40,
+      },
+    };
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        participantIds: ["p1", "p2"],
+        potAmount: 40,
+      },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+  });
+
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
@@ -64,10 +135,46 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.phase, "ante");
     assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, false);
+  });
+
+  it("hand-opening order: ante -> deal -> trumpReveal", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, false);
+
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "deal");
+    assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpRevealActive, false);
+
+    store = reduceHandPresentation(store, { type: "completeDealPresentation" });
+    assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
   });
 
-  it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
+  it("ante and deal phases wait for presentation callbacks (no auto timer)", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(phaseScheduleMs(store), 0);
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "deal");
+    assert.equal(phaseScheduleMs(store), 0);
+  });
+
+  it("legacy enrollment closes into draw via ante-first path", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: null,
@@ -76,14 +183,15 @@ describe("handPresentationMachine", () => {
     });
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
-      snapshot: { ...baseSnap, enrollmentActive: false, phase: "draw" },
+      snapshot: { ...baseSnap, enrollmentActive: false, phase: "draw", trumpUpcard: null },
     });
-    assert.equal(store.phase, "trumpReveal");
-    assert.equal(store.trumpRevealActive, true);
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, false);
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "deal");
+    store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, true);
-    assert.equal(store.trumpMergeActive, false);
     assert.equal(store.trumpRevealActive, false);
   });
 
@@ -425,6 +533,7 @@ describe("handPresentationMachine", () => {
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
+    assert.ok(anteSequenceDurationMs(4) >= 2000 && anteSequenceDurationMs(4) <= 4000);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
@@ -484,14 +593,17 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.handNumber, 2);
     assert.equal(store.phase, "ante");
-    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.trumpRevealActive, false);
     assert.equal(store.trumpMergedIntoHand, false);
 
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "deal");
+    store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");
+    assert.equal(store.trumpRevealActive, true);
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, true);
+    assert.equal(store.trumpMergedIntoHand, false);
   });
 
   it("starts reveal presentation when prior hand ended in play with stale trump state", () => {
@@ -517,7 +629,7 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.handNumber, 2);
     assert.equal(store.phase, "ante");
-    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.trumpRevealActive, false);
     assert.equal(store.trumpMergedIntoHand, false);
   });
 });

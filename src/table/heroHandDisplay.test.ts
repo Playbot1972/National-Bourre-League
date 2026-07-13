@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  displayIndexToEffectiveIndex,
+  effectiveIndexToDisplayIndex,
   findTrumpDisplayIndex,
   mapDisplayIndicesToEffective,
   mapEffectiveIndicesToDisplay,
@@ -37,23 +39,51 @@ describe("heroHandDisplay", () => {
     assert.equal(state.displayCards.length, 4);
     assert.equal(state.revealedTrumpIndex, null);
     assert.equal(state.hideCenterTrumpForHolder, false);
+    assert.equal(state.trumpMergeActive, false);
+    assert.equal(state.trumpDisabledIndex, null);
     assert.equal(state.indexMode, "effective");
   });
 
-  it("maps effective draw/play indices to display positions", () => {
+  it("maps effective draw/play indices to display positions during merge", () => {
     assert.equal(findTrumpDisplayIndex(raw, trumpUpcard), 4);
+    assert.equal(effectiveIndexToDisplayIndex(0, 4), 0);
+    assert.equal(effectiveIndexToDisplayIndex(3, 4), 3);
+    assert.equal(displayIndexToEffectiveIndex(4, 4), null);
+    assert.equal(displayIndexToEffectiveIndex(2, 4), 2);
     assert.deepEqual(mapEffectiveIndicesToDisplay([0, 2], 4), [0, 2]);
     assert.deepEqual(mapDisplayIndicesToEffective([0, 2], 4), [0, 2]);
-    assert.deepEqual(mapDisplayIndicesToEffective([4], 4), [4]);
+    assert.deepEqual(mapDisplayIndicesToEffective([4], 4), []);
   });
 
-  it("defers suit reminder while trump upcard remains on the table", () => {
+  it("exposes merge target at fifth slot when trump merge is active", () => {
     const state = resolveHeroHandDisplay({
       rawHeroCards: raw,
-      effectiveHeroCards: effective,
+      effectiveHeroCards: raw,
       playerId: "dealer",
       trumpHolderId: "dealer",
-      trumpUpcard,
+      trumpUpcard: null,
+      trumpSuit: "hearts",
+      phase: "draw",
+      handPresentation: {
+        trumpRevealActive: false,
+        trumpMergeActive: true,
+        trumpMergedIntoHand: false,
+      },
+    });
+    assert.equal(state.displayCards.length, 5);
+    assert.equal(state.revealedTrumpIndex, 4);
+    assert.equal(state.trumpMergeActive, true);
+    assert.equal(state.trumpDisabledIndex, 4);
+    assert.equal(state.indexMode, "display");
+  });
+
+  it("returns effective hand after trump merge completes", () => {
+    const state = resolveHeroHandDisplay({
+      rawHeroCards: raw,
+      effectiveHeroCards: raw,
+      playerId: "dealer",
+      trumpHolderId: "dealer",
+      trumpUpcard: null,
       trumpSuit: "hearts",
       phase: "draw",
       handPresentation: {
@@ -62,46 +92,9 @@ describe("heroHandDisplay", () => {
         trumpMergedIntoHand: true,
       },
     });
+    assert.equal(state.displayCards.length, 5);
     assert.equal(state.revealedTrumpIndex, null);
-    assert.equal(state.showTrumpSuitReminder, false);
-    assert.equal(state.trumpDisabledIndex, null);
-  });
-
-  it("keeps holder fan at four cards while raw private hand catches up", () => {
-    const state = resolveHeroHandDisplay({
-      rawHeroCards: [],
-      effectiveHeroCards: effective,
-      playerId: "dealer",
-      trumpHolderId: "dealer",
-      trumpUpcard,
-      trumpSuit: "hearts",
-      phase: "draw",
-      handPresentation: {
-        trumpRevealActive: false,
-        trumpMergeActive: false,
-        trumpMergedIntoHand: true,
-      },
-    });
-    assert.equal(state.displayCards.length, 4);
-    assert.equal(state.indexMode, "effective");
-  });
-
-  it("shows four effective cards once private hand is fully loaded with trump on table", () => {
-    const state = resolveHeroHandDisplay({
-      rawHeroCards: raw,
-      effectiveHeroCards: effective,
-      playerId: "dealer",
-      trumpHolderId: "dealer",
-      trumpUpcard,
-      trumpSuit: "hearts",
-      phase: "draw",
-      handPresentation: {
-        trumpRevealActive: false,
-        trumpMergeActive: false,
-        trumpMergedIntoHand: true,
-      },
-    });
-    assert.equal(state.displayCards.length, 4);
+    assert.equal(state.trumpMergeActive, false);
     assert.equal(state.indexMode, "effective");
   });
 

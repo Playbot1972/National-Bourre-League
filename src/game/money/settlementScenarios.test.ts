@@ -190,6 +190,24 @@ describe("settlement scenarios — I'm Out / subset participants", () => {
 });
 
 describe("settlement scenarios — ties, split pot, carry", () => {
+  it("2p tie carry with splitPotEnabled ON: leaders pay next ante", () => {
+    const participants = ids(2);
+    const tricks = { p0: 3, p1: 2 };
+    const result = runOneHandCycle({
+      mode: "co_win_carry",
+      winners: ["p0", "p1"],
+      participants,
+      tricksByPlayer: tricks,
+      splitPotEnabled: true,
+    });
+    assert.equal(result.settlement.carryOverPot, ANTE * 2);
+    assert.equal(result.settlement.nextDealFunding.byPlayer.p0.skipNextAnte, false);
+    assert.equal(result.settlement.nextDealFunding.byPlayer.p1.skipNextAnte, false);
+    assert.equal(result.deal.postedAntes.p0, ANTE);
+    assert.equal(result.deal.postedAntes.p1, ANTE);
+    assert.equal(result.deal.nextHandPot, ANTE * 2 + ANTE + ANTE);
+  });
+
   it("3p tie carry (co_win_carry): pot carries, leaders exempt from next ante", () => {
     const participants = ids(3);
     const tricks = { p0: 2, p1: 2, p2: 1 };

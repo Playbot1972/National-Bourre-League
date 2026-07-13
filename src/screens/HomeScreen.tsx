@@ -81,9 +81,9 @@ export function HomeScreen({ onNavigate }: HomeScreenProps) {
             Spin up a private table with an invite code, a player list,
             scorekeeping, and per-player risk points.
           </p>
-          <button className="home__feature-link" onClick={() => onNavigate("room")}>
-            Open a room →
-          </button>
+          <a className="home__feature-link" href="/social/#rooms-practice">
+            Open practice room →
+          </a>
         </article>
         <article className="panel home__feature">
           <span className="home__feature-icon">🦍</span>

@@ -25,7 +25,11 @@ import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
+import { resolveAnteContributorIds } from "./antePresentationOrder";
+import { useAntePresentation } from "./hooks/useAntePresentation";
+import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
+import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
@@ -175,11 +179,42 @@ export function CardTable({
     handPresentation,
     tableRootRef: wrapRef,
   });
-  const clockwiseDealing = useTableDealPresentation({
+  const dealPresentation = useTableDealPresentation({
     session,
     heroCards,
     privateHandReady,
+    handPresentationPhase: handPresentation.phase,
+    onDealPresentationComplete: handPresentation.completeDealPresentation,
     tableRootRef: wrapRef,
+  });
+  const { clockwiseDealing, dealTargetsArmed } = dealPresentation;
+  const antePresentation = useAntePresentation({
+    phase: handPresentation.phase,
+    handNumber: session.handNumber,
+    anteAnimActive: handPresentation.anteAnimActive,
+    session,
+    anteAmount: potMetrics.anteAmount,
+    tableRootRef: wrapRef,
+    onAntePresentationComplete: handPresentation.completeAntePresentation,
+  });
+  const anteContributorCount =
+    session.anteContributorIds?.length ??
+    resolveAnteContributorIds(session, {}, potMetrics.anteAmount).length;
+  const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
+  const isTrumpHolder =
+    currentUserId != null && trumpHolderId != null && currentUserId === trumpHolderId;
+  useTrumpMergePresentation({
+    tableRootRef: wrapRef,
+    trumpMergeActive: handPresentation.trumpMergeActive,
+    isTrumpHolder,
+    onComplete: handPresentation.completeTrumpMerge,
+  });
+  const cardAudio = useCardAudio({
+    trickPresentation,
+    currentUserId,
+    participantCount,
+    trickNumber: session.currentTrick?.trickNumber ?? trickPresentation.frozenTrick?.trickNumber ?? 1,
+    sessionPhase: session.phase,
   });
   useWonTrickCollection({
     trickPresentation,
@@ -187,6 +222,7 @@ export function CardTable({
     sessionPhase: session.phase,
     handComplete,
     tableRootRef: wrapRef,
+    onTrickCollectionStart: cardAudio.onTrickCollectionStart,
   });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
@@ -313,7 +349,11 @@ export function CardTable({
               ...potMetrics,
               currentPot: handPresentation.displayPotAmount,
             }}
-            participantCount={participantCount}
+            participantCount={
+              handPresentation.anteAnimActive && anteContributorCount > 0
+                ? anteContributorCount
+                : participantCount
+            }
             trumpUpcard={session.trumpUpcard}
             trumpSuit={session.trumpSuit}
             phase={session.phase}
@@ -330,8 +370,11 @@ export function CardTable({
             showFinalTrickEcho={trickPresentation.showFinalTrickEcho}
             playerNames={playerNames}
             anteAnimActive={handPresentation.anteAnimActive}
+            anteLandedCount={antePresentation.anteLandedCount}
             trumpRevealActive={handPresentation.trumpRevealActive}
+            trumpMergeActive={handPresentation.trumpMergeActive}
             hideCenterTrump={hideCenterTrump}
+            handPresentationPhase={handPresentation.phase}
             showTrumpSuitReminder={showTrumpSuitReminder}
             drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
             drawAnimSubPhase={handPresentation.drawAnimSubPhase}
@@ -343,6 +386,8 @@ export function CardTable({
             instantTrickPlays={instantTrickPlays}
             peakTrickPlayCount={trickPresentation.peakPlayCount}
             discardPileCards={discardPileCards}
+            currentUserId={currentUserId}
+            onCardLanded={cardAudio.onCardLanded}
           />
         </div>
 
@@ -363,7 +408,7 @@ export function CardTable({
                   player={seatPlayer}
                   region={layout.region}
                   handLane={layout.handLane}
-                  clockwiseDealing={clockwiseDealing}
+                  dealTargetsArmed={dealTargetsArmed}
                   style={{
                     left: `${layout.x}%`,
                     top: `${layout.y}%`,
@@ -449,6 +494,7 @@ export function CardTable({
         onDiscardCommitted={commitDiscardCards}
         onUserActivity={onHeroUserActivity}
         skipHeroDealMotion={clockwiseDealing}
+        handPresentationPhase={handPresentation.phase}
       />
       </div>
     </div>

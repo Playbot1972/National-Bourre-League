@@ -113,8 +113,43 @@
 
       <!-- Private Rooms (protected) -->
       <section class="view" id="view-rooms" hidden>
-        <span class="eyebrow">Private Rooms</span>
-        <h2>Your private rooms</h2>
+        <span class="eyebrow">Rooms</span>
+        <h2>Private rooms</h2>
+        <div class="rooms-scope-tabs session-tabs" role="tablist" aria-label="Room types">
+          <button
+            type="button"
+            class="session-tab is-active"
+            id="rooms-scope-online"
+            data-rooms-scope="online"
+            role="tab"
+            aria-selected="true"
+            aria-controls="rooms-online-panel"
+          >
+            My rooms
+          </button>
+          <button
+            type="button"
+            class="session-tab"
+            id="rooms-scope-practice"
+            data-rooms-scope="practice"
+            role="tab"
+            aria-selected="false"
+            aria-controls="rooms-practice-panel"
+          >
+            Practice room
+          </button>
+        </div>
+        <div id="rooms-practice-panel" class="rooms-scope-panel" role="tabpanel" hidden>
+          <div class="panel rooms-practice-card">
+            <h3>Practice room</h3>
+            <p class="muted">
+              In-memory scorekeeping to learn the table flow — no sign-in required.
+              For live games with friends, use <strong>My rooms</strong>.
+            </p>
+            <a class="btn btn--primary" href="/?view=room">Open practice room</a>
+          </div>
+        </div>
+        <div id="rooms-online-panel" class="rooms-scope-panel" role="tabpanel">
         <div class="protected" data-protected>
           <div class="locked" data-locked hidden>
             <p>Sign in to view and create private rooms.</p>
@@ -127,7 +162,7 @@
             </p>
             <div class="room-actions">
               <div class="room-actions__primary">
-                <button class="btn btn--primary" id="play-now" type="button" data-testid="play-now" aria-busy="false">
+                <button class="btn btn--primary btn--cta-orb" id="play-now" type="button" data-testid="play-now" aria-busy="false">
                   Play Now
                 </button>
                 <button class="btn" id="create-room" type="button">+ Create a room</button>
@@ -152,6 +187,7 @@
             <!-- Detail view (rendered by app.js) -->
             <div id="room-detail-view" hidden></div>
           </div>
+        </div>
         </div>
       </section>
 
@@ -349,8 +385,30 @@
     <!-- Live table — landscape play surface (hand results stay in session panel) -->
     <div id="table-play-overlay" class="table-play-overlay" hidden>
       <header class="table-play-overlay__bar">
-        <button type="button" class="btn btn--sm" id="close-table-play">← Hand results</button>
-        <span class="table-play-overlay__title" id="table-play-overlay-title">Live table</span>
+        <div class="table-play-overlay__bar-start">
+          <button
+            type="button"
+            class="table-chrome-btn"
+            id="close-table-play"
+            aria-label="Back to hand results"
+            title="Back to hand results"
+          >
+            <span class="table-chrome-btn__icon" aria-hidden="true">←</span>
+          </button>
+        </div>
+        <h1 class="table-play-overlay__title" id="table-play-overlay-title">Live Table</h1>
+        <div class="table-play-overlay__bar-end">
+          <button
+            type="button"
+            class="table-chrome-btn"
+            id="open-table-settings"
+            data-testid="settings-button"
+            aria-label="Table appearance settings"
+            title="Table settings"
+          >
+            <span class="table-chrome-btn__icon" aria-hidden="true">⚙</span>
+          </button>
+        </div>
       </header>
       <p class="table-play-overlay__rotate muted small" role="note" hidden>
         Landscape gives more room for 6–8 players.
@@ -361,7 +419,7 @@
     </div>
 
     <footer class="footer">
-      <span>National Bourré League · social features · scores &amp; bragging rights only</span>
+      <span>National Bourré League · social features · scores &amp; bragging rights only · <a href="./privacy.html">Privacy</a> · <a href="./support.html">Support</a></span>
     </footer>
 
     <div class="app-version" id="app-version" aria-label="App version"></div>

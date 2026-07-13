@@ -99,13 +99,11 @@
 .btable-hero--dealing .hand__slot {
   animation: bdeal-to-hand var(--anim-deal-ms) var(--premium-ease-out) backwards;
   animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
-  will-change: transform, opacity;
 }
 
 .btable-hero--dealing .hand__slot .pcard {
   animation: bdeal-card-flip var(--anim-deal-ms) var(--premium-ease-out) backwards;
   animation-delay: calc(var(--deal-card-stagger-ms, var(--anim-deal-stagger-ms)) * var(--card-i, 0));
-  will-change: transform, opacity;
 }
 
 @keyframes bdeal-in-premium {
@@ -592,6 +590,16 @@
 [data-gsap-motion="true"] .btable-hero--stand-pat .hand__slot .pcard,
 [data-gsap-motion="true"] .btable-hero--fold-out .hand__slot .pcard {
   animation: none !important;
+}
+
+/* GSAP owns draw-receive glide — suppress CSS transform transitions on landing */
+[data-gsap-motion="true"] .btable-hero--draw-receive .hand__slot .pcard {
+  transition-property: box-shadow, filter, opacity !important;
+}
+
+/* Trick fly/land uses keyframes — never CSS transform transitions on the card */
+.btrick__play .pcard {
+  transition-property: box-shadow, filter, opacity;
 }
 
 [data-gsap-motion="true"] .btable-hero__hand-row .hand--fan .hand__slot {

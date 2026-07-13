@@ -8,9 +8,9 @@ import {
   SESSION_CHROME_FLOOR_PX,
 } from "../stageFit";
 import {
-  isDealPresentationActive,
-  isTrickCollectionActive,
-} from "../presentationMotionBusy";
+  isStageFitMeasurementFrozen,
+  subscribeStageFitMotionFreeze,
+} from "../stageFitMotionFreeze";
 import { useTableLayoutMode } from "../layout/useTableLayoutMode";
 import { useTableTheme } from "../theme/useTableTheme";
 
@@ -34,7 +34,6 @@ function measureMobileChromePx(wrap: HTMLElement): number {
   let chrome = 0;
   if (headRow) chrome += headRow.getBoundingClientRect().height;
   if (status) chrome += status.getBoundingClientRect().height;
-  chrome += 24;
   const mobileShell = session.querySelector<HTMLElement>(".btable-mobile");
   if (mobileShell) {
     const sessionRect = session.getBoundingClientRect();
@@ -79,6 +78,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
     const visualViewport = window.visualViewport;
 
     const apply = () => {
+      if (isStageFitMeasurementFrozen()) return;
       const host = stageFitHost(wrap);
       const hostRect = host.getBoundingClientRect();
       const hero = wrap.querySelector<HTMLElement>(".btable-mobile-hero-dock");
@@ -175,7 +175,7 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
 
     let rafId: number | null = null;
     const scheduleApply = () => {
-      if (isDealPresentationActive() || isTrickCollectionActive()) return;
+      if (isStageFitMeasurementFrozen()) return;
       if (rafId != null) return;
       rafId = window.requestAnimationFrame(() => {
         rafId = null;
@@ -184,17 +184,19 @@ export function useMobileStageFit({ aspect, sessionKey }: UseMobileStageFitOptio
     };
 
     const ro = new ResizeObserver(scheduleApply);
-    const hero = wrap.querySelector<HTMLElement>(".btable-mobile-hero-dock");
-    if (hero) ro.observe(hero);
     const host = stageFitHost(wrap);
     if (host instanceof HTMLElement) ro.observe(host);
     scheduleApply();
+    const unsubFreeze = subscribeStageFitMotionFreeze(() => {
+      if (!isStageFitMeasurementFrozen()) scheduleApply();
+    });
     const onViewportChange = () => scheduleApply();
     window.addEventListener("orientationchange", onViewportChange);
     visualViewport?.addEventListener("resize", onViewportChange);
     visualViewport?.addEventListener("scroll", onViewportChange);
     return () => {
       if (rafId != null) window.cancelAnimationFrame(rafId);
+      unsubFreeze();
       ro.disconnect();
       window.removeEventListener("orientationchange", onViewportChange);
       visualViewport?.removeEventListener("resize", onViewportChange);

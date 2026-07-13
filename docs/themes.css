@@ -173,9 +173,10 @@
 [data-theme="light"] .btn--primary,
 [data-theme="light"] .nav__link.is-active,
 [data-theme="light"] .tab.is-active,
+[data-theme="light"] .app__nav-link.is-active,
 [data-theme="light"] .brand__mark {
-  background: linear-gradient(160deg, #a68952, #8b7342);
-  color: #faf6ea;
+  background: linear-gradient(160deg, #c9a227, #a68952);
+  color: #1a1208;
 }
 
 [data-theme="light"] .brand__text em,
@@ -190,9 +191,25 @@
 [data-theme="light"] .rules-tab.is-active,
 [data-theme="light"] .modal__tab.is-active,
 [data-theme="light"] .session-tab.is-active,
-[data-theme="light"] .tab.is-active {
-  background: linear-gradient(160deg, #a68952, #8b7342);
-  color: #faf6ea;
+[data-theme="light"] .tab.is-active,
+[data-theme="light"] .app__nav-link.is-active {
+  background: linear-gradient(160deg, #c9a227, #a68952);
+  color: #1a1208;
+}
+
+[data-theme="light"] .btn--action-draw {
+  background: linear-gradient(160deg, #2d9f62, #1f7a4a);
+  color: #f4fff8;
+}
+
+[data-theme="light"] .btn--action-pat {
+  background: linear-gradient(160deg, #c9a227, #a68952);
+  color: #1a1208;
+}
+
+[data-theme="light"] .btn--action-out {
+  background: linear-gradient(160deg, #d64545, #a83232);
+  color: #fff8f6;
 }
 
 [data-theme="light"] .rules-card__num,

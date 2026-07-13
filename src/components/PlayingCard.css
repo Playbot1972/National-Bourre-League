@@ -233,7 +233,6 @@
 
 .pcard--play-preselected {
   transform: translateY(-14px) rotateX(10deg) rotateY(-4deg) scale(1.04);
-  animation: pcard-play-preselect-pulse 680ms ease-in-out infinite;
   z-index: 8;
 }
 .pcard--play-preselected .pcard__surface {
@@ -243,6 +242,7 @@
     0 0 0 3px #36b97c,
     0 0 22px rgba(54, 185, 124, 0.62),
     0 18px 36px rgba(0, 0, 0, 0.42);
+  animation: pcard-play-preselect-pulse 680ms ease-in-out infinite;
 }
 
 .pcard--play-recommended {
@@ -282,10 +282,18 @@
 @keyframes pcard-play-preselect-pulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 6px rgba(54, 185, 124, 0.35));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.92),
+      0 0 0 3px #36b97c,
+      0 0 14px rgba(54, 185, 124, 0.45),
+      0 18px 36px rgba(0, 0, 0, 0.42);
   }
   50% {
-    filter: drop-shadow(0 0 18px rgba(54, 185, 124, 0.82));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.92),
+      0 0 0 3px #36b97c,
+      0 0 24px rgba(54, 185, 124, 0.82),
+      0 18px 36px rgba(0, 0, 0, 0.42);
   }
 }
 
@@ -437,7 +445,6 @@
   transform: translate3d(0, -28px, 16px) rotateX(16deg) rotateY(-14deg) scale(1.05);
   pointer-events: none;
   animation: pcard-play-to-table 520ms var(--pcard-ease-out) forwards;
-  will-change: transform, opacity;
 }
 .pcard--playing .pcard__surface {
   box-shadow:
@@ -543,10 +550,13 @@
     animation: none;
   }
 
+  .pcard--play-preselected .pcard__surface {
+    animation: none;
+  }
+
   .pcard--illegal-shake,
   .pcard--illegal-flash .pcard__surface,
   .pcard--selected,
-  .pcard--play-preselected,
   .pcard--draw-recommended,
   .pcard--draw-selected,
   .pcard--playing {

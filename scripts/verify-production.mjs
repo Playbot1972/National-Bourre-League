@@ -138,6 +138,19 @@ async function checkTableSessionBundle() {
   return { ok: true, detail: `table-session.js includes ${markers.length} presentation-gate markers` };
 }
 
+/** @returns {Promise<CheckResult>} */
+async function checkAppStoreLegalPages() {
+  const privacy = await fetchPath("/social/privacy.html");
+  if (!privacy.ok || !privacy.body.includes("Privacy Policy")) {
+    return { ok: false, detail: "Missing or invalid /social/privacy.html" };
+  }
+  const support = await fetchPath("/social/support.html");
+  if (!support.ok || !support.body.includes("Support")) {
+    return { ok: false, detail: "Missing or invalid /social/support.html" };
+  }
+  return { ok: true, detail: "privacy.html + support.html reachable" };
+}
+
 /**
  * @param {string} label
  * @param {CheckResult} result
@@ -164,6 +177,15 @@ print("Social app", social);
 const tableBundle = await checkTableSessionBundle();
 print("Table session bundle", tableBundle);
 
-const passed = version.ok && buildMeta.ok && firebase.ok && social.ok && tableBundle.ok;
+const legalPages = await checkAppStoreLegalPages();
+print("App Store legal pages", legalPages);
+
+const passed =
+  version.ok &&
+  buildMeta.ok &&
+  firebase.ok &&
+  social.ok &&
+  tableBundle.ok &&
+  legalPages.ok;
 console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
 process.exit(passed ? 0 : 1);

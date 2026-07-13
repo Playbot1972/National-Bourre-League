@@ -17,6 +17,7 @@ import {
   usingEmulator,
   isCapacitorNative,
 } from "./auth.js";
+import { bindUiButtonPress } from "./ui-button-press.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   SESSION_ORCHESTRATION_DEBOUNCE_MS,
@@ -32,6 +33,7 @@ import {
   buildTablePlayerSeatFlags,
   buildEnrollmentLeaderLabel,
   buildTableLeaderLabel,
+  resolveAnteContributorIds,
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
@@ -70,7 +72,26 @@ import {
   readGameSetupBourreFromDom,
   mergeBourreSettingsWithPending,
 } from "./room-detail-view.js";
+import {
+  buildRoomDetailHash,
+  buildRoomsListHash,
+  buildRoomTableHash,
+  parseRoomsLocationHash,
+  ROOM_NAV_DETAIL,
+  ROOM_NAV_LIST,
+  ROOM_NAV_TABLE,
+  roomNavStateForLayer,
+} from "./room-nav.js";
 import { isGameFlowDebugEnabled, logGameFlow } from "./game-flow-debug.js";
+import {
+  analyzeHandTransitionAnomalies,
+  isHandTransitionDebugEnabled,
+  logHandTransition,
+  logHandTransitionBoot,
+  markHandDealDispatched,
+  markHandShuffleStart,
+  snapshotHandTransitionState,
+} from "./hand-transition-debug.js";
 import {
   clearSessionSetupSheetSnap,
   initSessionSetupSheet,
@@ -152,6 +173,7 @@ import {
   tricksForPlayer,
   resolveActionOrder,
   getPrivateHand,
+  tryFinalizeSessionForSolvency,
 } from "./firestore.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -215,6 +237,7 @@ import {
   resolveCurrentHandChoicePlayerId,
   assertHandFlowConsistent,
   shouldAutoOpenNextHand,
+  countEligibleForNextHand,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -602,25 +625,75 @@ function renderSession() {
 // ---------------------------------------------------------------------------
 const PROTECTED = new Set(["rooms", "leaderboard", "leagues"]);
 
+function parseRoute() {
+  const hash = location.hash.replace(/^#/, "") || "home";
+  const [path] = hash.split("?", 2);
+  const { roomId, tableOpen } = parseRoomsLocationHash(location.hash);
+  if (path === "rooms-practice") {
+    return { view: "rooms", roomsScope: "practice", roomId: null, tableOpen: false };
+  }
+  return {
+    view: path || "home",
+    roomsScope: "online",
+    roomId: path === "rooms" ? roomId : null,
+    tableOpen: path === "rooms" && tableOpen,
+  };
+}
+
+function applyRoomsScope(scope) {
+  const online = scope !== "practice";
+  const onlinePanel = $("#rooms-online-panel");
+  const practicePanel = $("#rooms-practice-panel");
+  const onlineTab = $("#rooms-scope-online");
+  const practiceTab = $("#rooms-scope-practice");
+  onlinePanel?.toggleAttribute("hidden", !online);
+  practicePanel?.toggleAttribute("hidden", online);
+  onlineTab?.classList.toggle("is-active", online);
+  practiceTab?.classList.toggle("is-active", !online);
+  onlineTab?.setAttribute("aria-selected", online ? "true" : "false");
+  practiceTab?.setAttribute("aria-selected", online ? "false" : "true");
+}
+
 function showView() {
-  let view = location.hash.replace("#", "") || "home";
-  if (PROTECTED.has(view) && !isAuthed()) {
+  const { view, roomsScope } = parseRoute();
+  let effectiveView = view;
+  const practiceRoomsPublic = view === "rooms" && roomsScope === "practice";
+  if (PROTECTED.has(view) && !practiceRoomsPublic && !isAuthed()) {
     openAuth("signin");
-    view = "home";
+    effectiveView = "home";
     location.hash = "#home";
   }
   $$(".view").forEach((sec) => {
-    sec.hidden = sec.id !== `view-${view}`;
+    sec.hidden = sec.id !== `view-${effectiveView}`;
   });
   $$(".nav__link").forEach((link) => {
-    link.classList.toggle("is-active", link.getAttribute("href") === `#${view}`);
+    const href = link.getAttribute("href");
+    const active =
+      href === `#${effectiveView}` ||
+      (href === "#rooms" && effectiveView === "rooms");
+    link.classList.toggle("is-active", active);
   });
-  if (view === "rules") {
+  if (effectiveView === "rooms") {
+    applyRoomsScope(roomsScope);
+    scheduleApplyRoomNavFromLocation();
+  }
+  if (effectiveView === "rules") {
     renderRulesView($("#rules-root"));
   }
 }
 
 window.addEventListener("hashchange", showView);
+window.addEventListener("popstate", () => {
+  if (applyingRoomNav) return;
+  scheduleApplyRoomNavFromLocation();
+});
+
+$(".rooms-scope-tabs")?.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-rooms-scope]");
+  if (!tab) return;
+  const scope = tab.getAttribute("data-rooms-scope");
+  location.hash = scope === "practice" ? "#rooms-practice" : "#rooms";
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -739,7 +812,7 @@ function bindRoomDetailDelegatedControls() {
   roomDetailView.addEventListener("click", (e) => {
     if (e.target.closest("#back-to-rooms")) {
       e.preventDefault();
-      closeRoom();
+      collapseRoomToList();
       return;
     }
     const deleteRoomBtn = e.target.closest("#delete-room");
@@ -902,6 +975,10 @@ let creatingSession = false;
 let roomSetupFocus = null;
 /** Prevents duplicate Play Now fast-start while in flight. */
 let playNowInFlight = false;
+/** Suppress room-detail roster UI while Play Now assembles the table in the background. */
+let silentTableEntry = false;
+/** Guards popstate ↔ programmatic history updates from re-entrancy loops. */
+let applyingRoomNav = false;
 /** Debounced auto-play after Add Player. */
 let sessionAutoPlayTimer = null;
 /** Prevents duplicate Play triggers (manual + auto). */
@@ -942,6 +1019,51 @@ async function triggerSessionPlay(_source = "manual") {
     showTableStartupFailure(analysis, err);
   } finally {
     sessionPlayInFlight = false;
+  }
+}
+
+/** Room list Play pill — same table entry path as game-setup Play (#open-table-play). */
+async function playRoomFromList(roomId) {
+  if (!session || playNowInFlight || sessionPlayInFlight || tablePlayOpen) return;
+  showRoomsError("");
+  try {
+    if (currentRoomId !== roomId) {
+      openRoom(roomId, { silent: true });
+    } else {
+      silentTableEntry = true;
+      document.body.classList.add("table-entry-silent");
+    }
+    await waitUntil(
+      () =>
+        currentRoomId === roomId &&
+        currentRoom &&
+        openSessionId &&
+        currentMembers.some((m) => m.userId === session.uid),
+      { label: "Room play load" },
+    );
+    const s = resolveActiveSession();
+    const ready = tableReadyPlayerCount(s);
+    const analysis = analyzeTableStartup(s, ready);
+    if (!analysis.canOpenTable || ready < 2) {
+      silentTableEntry = false;
+      document.body.classList.remove("table-entry-silent");
+      showRoomDetailUi();
+      navigateToRoomDetail(roomId);
+      scheduleRenderRoomDetail();
+      roomSetupFocus = ready < 2 ? "add-players" : "game-setup";
+      showTableStartupFailure(
+        analysis,
+        ready < 2 ? { code: "insufficient-players" } : undefined,
+      );
+      return;
+    }
+    await triggerSessionPlay("room-list");
+  } catch (err) {
+    console.error("playRoomFromList:", err);
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
+    openRoom(roomId);
+    showRoomsError(formatClientGameError(err, "Could not open the table. Try again from the room."));
   }
 }
 
@@ -1087,7 +1209,62 @@ function sessionNeedsEnrollmentDriver(sessionObj) {
 
 function sessionNeedsNextHandEnrollment(sessionObj) {
   if (!sessionObj || sessionObj.status === "final") return false;
-  return shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
+  if (!shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen })) return false;
+  return eligibleCountForOpenSession(sessionObj) >= 2;
+}
+
+function eligibleCountForOpenSession(sessionObj) {
+  if (!sessionObj || !openScores?.length) return 0;
+  const buyIn = resolveSessionBuyIn(
+    sessionObj,
+    normalizeBourreSettings(currentRoom?.bourreSettings).buyInAmount,
+  );
+  const sortedIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  const scoreById = Object.fromEntries(openScores.map((sc) => [sc.playerId, sc]));
+  return countEligibleForNextHand(sortedIds, scoreById, buyIn);
+}
+
+async function handleSoleSurvivorSessionEnd(sessionObj) {
+  if (!currentRoomId || !openSessionId || !sessionObj || sessionObj.status === "final") {
+    return false;
+  }
+  if (eligibleCountForOpenSession(sessionObj) !== 1) return false;
+
+  cancelNextHandOpenTimer();
+  try {
+    const result = await tryFinalizeSessionForSolvency(currentRoomId, openSessionId);
+    if (result.status !== "finalized" && result.status !== "already_final") return false;
+
+    const scores = await getSessionScores(currentRoomId, openSessionId);
+    if (scores.length > 0) {
+      await completeSessionWithApeScores(currentRoomId, openSessionId, scores);
+    }
+    scheduleSessionCleanup(openSessionId);
+    const winner = scores.find((sc) => (sc.playerId ?? sc.id) === result.winnerId);
+    setTableActionFeedback({
+      status: "success",
+      message: winner
+        ? `Session complete — ${winner.displayName} wins the table.`
+        : "Session complete.",
+    });
+    logHandLifecycleTransition({
+      from: "handoffToNextDeal",
+      to: "settle",
+      reason: "sole survivor — session finalized without contested next hand",
+    });
+    const refreshed =
+      (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
+    await syncTableSession(refreshed);
+    closeTablePlay();
+    renderRoomDetail();
+    return true;
+  } catch (err) {
+    console.warn("handleSoleSurvivorSessionEnd:", err);
+    const message = formatClientGameError(err, "Could not complete the session");
+    setTableActionFeedback({ status: "error", message }, getActionErrorContext("settlement"));
+    showRoomsError(message);
+    return false;
+  }
 }
 
 function cancelNextHandOpenTimer() {
@@ -1101,7 +1278,19 @@ function cancelNextHandOpenTimer() {
 async function openNextHandEnrollment(sessionObj) {
   if (!currentRoomId || !openSessionId || !tablePlayOpen || nextHandOpenInFlight) return;
   if (!sessionNeedsNextHandEnrollment(sessionObj)) return;
-  if (tableReadyPlayerCount(sessionObj) < 2) return;
+
+  const eligibleCount = eligibleCountForOpenSession(sessionObj);
+  if (eligibleCount < 2) {
+    if (eligibleCount === 1) {
+      nextHandOpenInFlight = true;
+      try {
+        await handleSoleSurvivorSessionEnd(sessionObj);
+      } finally {
+        nextHandOpenInFlight = false;
+      }
+    }
+    return;
+  }
 
   nextHandOpenInFlight = true;
   cancelNextHandOpenTimer();
@@ -1110,24 +1299,42 @@ async function openNextHandEnrollment(sessionObj) {
   tableFeedbackSnapshot = null;
 
   try {
-    setTableActionFeedback({ status: "loading", message: "Shuffling — next hand…" });
+    markHandShuffleStart({
+      sessionId: openSessionId,
+      handCount: sessionObj.handCount ?? 0,
+      roomId: currentRoomId,
+    });
     await ensureHandEnrollment(currentRoomId, openSessionId, {
       members: currentMembers,
       roster: tableReadyRoster(sessionObj),
     });
     const refreshed =
       (await refreshOpenSessionFromServer(currentRoomId, openSessionId)) ?? sessionObj;
+    const dealStarted = sessionHandDealStarted(refreshed);
+    const dealHand = getSessionCurrentHand(refreshed);
+    markHandDealDispatched({
+      sessionId: openSessionId,
+      handCount: refreshed.handCount ?? 0,
+      dealStarted,
+      phase: dealHand?.phase ?? null,
+      participantIds: dealHand?.participantIds ?? [],
+    });
     await syncTableSession(refreshed);
     const autoDealt = isSessionAutoDealtNextHand(refreshed);
     scheduleSessionOrchestration(refreshed, openScores, { reason: "next-hand-open" });
     const dealerSc = openScores.find((sc) => sc.playerId === refreshed.dealerId);
     const dealerLabel = dealerSc?.displayName ?? "dealer";
-    setTableActionFeedback({
-      status: "success",
-      message: nextHandOpenFeedbackMessage(refreshed, dealerLabel),
-    });
+    const nextHandMessage = nextHandOpenFeedbackMessage(refreshed, dealerLabel);
+    if (nextHandMessage) {
+      setTableActionFeedback({
+        status: "success",
+        message: nextHandMessage,
+      });
+    }
     const api = await ensureTableFeedbackApi();
-    api?.playShuffleFeedback?.({ delayMs: 80 });
+    if (!dealStarted) {
+      api?.playShuffleFeedback?.({ delayMs: 80 });
+    }
     logHandLifecycleTransition({
       from: "handoffToNextDeal",
       to: autoDealt ? "deal" : "opening",
@@ -1137,6 +1344,11 @@ async function openNextHandEnrollment(sessionObj) {
     });
   } catch (err) {
     console.warn("openNextHandEnrollment:", err);
+    logHandTransition("shuffle_failed", {
+      sessionId: openSessionId,
+      message: err?.message ?? String(err),
+      code: err?.code ?? null,
+    });
     const message = formatClientGameError(err, "Could not open the next join window");
     setTableActionFeedback(
       { status: "error", message },
@@ -1184,6 +1396,15 @@ function maybeRecoverHandLifecycle(sessionObj) {
   }
 
   if (!tablePlayOpen) return;
+
+  const eligibleCount = eligibleCountForOpenSession(sessionObj);
+  if (eligibleCount < 2) {
+    cancelNextHandOpenTimer();
+    if (eligibleCount === 1 && !nextHandOpenInFlight) {
+      void handleSoleSurvivorSessionEnd(sessionObj);
+    }
+    return;
+  }
 
   if (nextHandOpenInFlight || nextHandOpenTimer) return;
 
@@ -1885,11 +2106,168 @@ function isRoomOwner(room, uid) {
   return room.role === "owner" && room.ownerId === uid;
 }
 
-function renderRoomsList() {
+let applyRoomNavTimer = 0;
+
+function scheduleApplyRoomNavFromLocation() {
+  if (applyRoomNavTimer) clearTimeout(applyRoomNavTimer);
+  applyRoomNavTimer = window.setTimeout(() => {
+    applyRoomNavTimer = 0;
+    applyRoomNavFromLocation();
+  }, 0);
+}
+
+function pushRoomNavHistory(hash, layer, roomId = null, { replace = false } = {}) {
+  if (applyingRoomNav) return;
+  applyingRoomNav = true;
+  const state = roomNavStateForLayer(layer, roomId);
+  const fn = replace ? history.replaceState : history.pushState;
+  fn.call(history, state, "", hash);
+  applyingRoomNav = false;
+}
+
+function showRoomListUi() {
   document.body.classList.remove("room-detail-open");
   roomDetailView.hidden = true;
   roomsListView.hidden = false;
   if (roomsIntro) roomsIntro.hidden = false;
+}
+
+function showRoomDetailUi() {
+  document.body.classList.add("room-detail-open");
+  roomsListView.hidden = true;
+  if (roomsIntro) roomsIntro.hidden = true;
+  roomDetailView.hidden = false;
+}
+
+function seedRoomsListHistory({ replace = true } = {}) {
+  const { view, roomId } = parseRoute();
+  if (view !== "rooms" || roomId) return;
+  if (history.state?.nblRoomNav) return;
+  pushRoomNavHistory(buildRoomsListHash(), ROOM_NAV_LIST, null, { replace });
+}
+
+function navigateToRoomDetail(roomId, { replace = false } = {}) {
+  pushRoomNavHistory(buildRoomDetailHash(roomId), ROOM_NAV_DETAIL, roomId, { replace });
+}
+
+function navigateToRoomTable(roomId, { replace = false } = {}) {
+  pushRoomNavHistory(buildRoomTableHash(roomId), ROOM_NAV_TABLE, roomId, { replace });
+}
+
+function navigateToRoomListFromUi() {
+  const { view, roomId } = parseRoute();
+  if (view !== "rooms" || !roomId) return;
+  applyingRoomNav = true;
+  history.replaceState(roomNavStateForLayer(ROOM_NAV_LIST), "", buildRoomsListHash());
+  applyingRoomNav = false;
+}
+
+function navigateAwayFromTable() {
+  const { roomId, tableOpen } = parseRoute();
+  applyingRoomNav = true;
+  try {
+    if (history.state?.nblRoomNav === ROOM_NAV_TABLE || tableOpen) {
+      history.back();
+      return;
+    }
+    if (roomId) {
+      history.replaceState(
+        roomNavStateForLayer(ROOM_NAV_DETAIL, roomId),
+        "",
+        buildRoomDetailHash(roomId),
+      );
+    }
+    teardownTableOverlay({ restoreDetail: true });
+  } finally {
+    applyingRoomNav = false;
+  }
+}
+
+function teardownTableOverlay({ restoreDetail = true } = {}) {
+  if (!tablePlayOpen) return;
+  tablePlayOpen = false;
+  localHandActionCommit = null;
+  cancelNextHandOpenTimer();
+  stopTablePlaySideEffects();
+  const overlay = $("#table-play-overlay");
+  if (overlay) overlay.hidden = true;
+  document.body.classList.remove("table-play-active");
+  try {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+  } catch {
+    /* ignore */
+  }
+  try {
+    screen.orientation?.unlock?.();
+  } catch {
+    /* ignore */
+  }
+  if (restoreDetail) restoreRoomDetailAfterTable();
+}
+
+function teardownRoomState() {
+  clearPendingSelfJoin();
+  pendingOpenSessions.clear();
+  clearDetailSubs();
+  stopEnrollmentTimer();
+  stopSessionCleanupTimers();
+  clearSessionAutoPlayTimer();
+  sessionPlayInFlight = false;
+  teardownTableOverlay({ restoreDetail: false });
+  unmountTableSessionHost();
+  resetSessionSetupSheet();
+  currentRoomId = null;
+  openSessionId = null;
+  currentRoom = null;
+  currentMembers = [];
+  currentSessions = [];
+  openScores = [];
+  openHands = [];
+}
+
+function applyRoomNavFromLocation() {
+  const { view, roomId, tableOpen } = parseRoute();
+  if (view !== "rooms") {
+    if (currentRoomId || tablePlayOpen) teardownRoomState();
+    return;
+  }
+
+  if (!roomId) {
+    if (currentRoomId || tablePlayOpen) teardownRoomState();
+    renderRoomsList();
+    return;
+  }
+
+  if (tableOpen) {
+    if (currentRoomId !== roomId) {
+      openRoom(roomId, { fromHistory: true, silent: true });
+    }
+    if (!tablePlayOpen) {
+      void openTablePlayFromNav();
+    }
+    return;
+  }
+
+  if (tablePlayOpen) {
+    teardownTableOverlay({ restoreDetail: false });
+  }
+  if (currentRoomId !== roomId) {
+    openRoom(roomId, { fromHistory: true });
+    return;
+  }
+  showRoomDetailUi();
+  scheduleRenderRoomDetail();
+}
+
+async function openTablePlayFromNav() {
+  const openSessionObj = resolveOpenSessionObj();
+  const startupAnalysis = analyzeTableStartup(openSessionObj, tableReadyPlayerCount(openSessionObj));
+  if (!startupAnalysis.canOpenTable) return;
+  await openTablePlay({ fromHistory: true });
+}
+
+function renderRoomsList() {
+  showRoomListUi();
   const list = $("#rooms-list");
   if (myRooms.length === 0) {
     list.innerHTML = `<p class="muted">No rooms yet. Create one to get an invite code.</p>`;
@@ -1907,7 +2285,10 @@ function renderRoomsList() {
           <span class="mini-card__code">${escapeHtml(room.inviteCode)}</span>
           <span class="mini-card__meta">${escapeHtml(room.role || "player")} · ${escapeHtml(room.status)}</span>
         </div>
-        <button type="button" class="btn btn--sm btn--danger mini-card__action" ${actionAttr}="${room.id}">${actionLabel}</button>
+        <div class="mini-card__actions" role="group" aria-label="Room actions">
+          <button type="button" class="btn btn--sm btn--play mini-card__action-pill" data-play-room="${room.id}">Play</button>
+          <button type="button" class="btn btn--sm btn--danger mini-card__action-pill" ${actionAttr}="${room.id}">${actionLabel}</button>
+        </div>
       </article>`;
     })
     .join("");
@@ -1987,6 +2368,8 @@ async function onDeleteRoom(roomId) {
   showRoomsError("");
   try {
     await deleteRoom(roomId, session);
+    const feedbackApi = await ensureTableFeedbackApi();
+    feedbackApi?.playDeleteRoomFeedback?.();
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
     console.error(err);
@@ -2238,13 +2621,10 @@ async function runPlayNowFlow() {
 
   playNowInFlight = true;
   setPlayNowBusy(true);
-  showRoomsError("Setting up your table…", "info");
 
   let createdRoomId = null;
 
   try {
-    goToPrivateRooms();
-
     const roomName = pickVacationRoomName(myRooms.map((r) => r.name).filter(Boolean));
     createdRoomId = await createRoom({
       owner: session,
@@ -2253,7 +2633,7 @@ async function runPlayNowFlow() {
       bourreSettings: playNowBourreSettings(),
     });
 
-    openRoom(createdRoomId);
+    openRoom(createdRoomId, { silent: true });
 
     await waitUntil(
       () =>
@@ -2301,6 +2681,8 @@ async function runPlayNowFlow() {
     await triggerSessionPlay("play-now");
   } catch (err) {
     console.error("runPlayNowFlow:", err);
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
     const hint =
       createdRoomId != null
         ? "Play Now could not finish — your room is open; finish setup or tap Play Now again."
@@ -2312,6 +2694,10 @@ async function runPlayNowFlow() {
   } finally {
     playNowInFlight = false;
     setPlayNowBusy(false);
+    if (!tablePlayOpen) {
+      silentTableEntry = false;
+      document.body.classList.remove("table-entry-silent");
+    }
   }
 }
 
@@ -2417,6 +2803,13 @@ $("#join-form").addEventListener("submit", async (e) => {
 
 // Open a room (event delegation on the list).
 $("#rooms-list").addEventListener("click", (e) => {
+  const playBtn = e.target.closest("[data-play-room]");
+  if (playBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    void playRoomFromList(playBtn.dataset.playRoom);
+    return;
+  }
   if (e.target.closest("[data-delete-room]")) {
     e.preventDefault();
     e.stopPropagation();
@@ -2440,9 +2833,14 @@ $("#rooms-list").addEventListener("keydown", (e) => {
   }
 });
 
-function openRoom(roomId) {
+function openRoom(roomId, options = {}) {
+  const silent = options.silent === true;
+  const fromHistory = options.fromHistory === true;
   clearDetailSubs();
   roomGoneHandled = false;
+  if (tablePlayOpen) {
+    teardownTableOverlay({ restoreDetail: false });
+  }
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -2450,14 +2848,23 @@ function openRoom(roomId) {
   openSessionId = null;
   openScores = [];
 
-  document.body.classList.add("room-detail-open");
-  roomsListView.hidden = true;
-  if (roomsIntro) roomsIntro.hidden = true;
-  roomDetailView.hidden = false;
+  if (silent) {
+    silentTableEntry = true;
+    document.body.classList.add("table-entry-silent");
+  } else {
+    silentTableEntry = false;
+    document.body.classList.remove("table-entry-silent");
+    showRoomDetailUi();
+    roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
+    void ensureTableFeedbackApi().then((api) => api?.playOpenRoomFeedback?.());
+    if (!fromHistory) {
+      seedRoomsListHistory();
+      navigateToRoomDetail(roomId);
+    }
+  }
   pendingRoomBuyInOverride = null;
   pendingRoomAnteOverride = null;
   pendingRoomBourreOverrides = null;
-  roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
 
   detailUnsubs.push(
     subscribeRoom(roomId, (room) => {
@@ -2531,6 +2938,10 @@ function openRoom(roomId) {
           scheduleRenderRoomDetail();
           return;
         }
+        if (sessions.length === 0) {
+          scheduleRenderRoomDetail();
+          return;
+        }
         const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
@@ -2538,6 +2949,7 @@ function openRoom(roomId) {
           openSessionId = null;
           openScores = [];
           openHands = [];
+          if (tablePlayOpen) closeTablePlay();
         }
       }
       if (!openSessionId && sessions.length > 0) {
@@ -2565,20 +2977,14 @@ async function handleRoomUnavailable(roomId) {
   closeRoom();
 }
 
-function closeRoom() {
-  clearPendingSelfJoin();
-  pendingOpenSessions.clear();
-  clearDetailSubs();
-  stopEnrollmentTimer();
-  stopSessionCleanupTimers();
-  clearSessionAutoPlayTimer();
-  sessionPlayInFlight = false;
-  closeTablePlay();
-  unmountTableSessionHost();
-  resetSessionSetupSheet();
-  currentRoomId = null;
-  openSessionId = null;
+function collapseRoomToList({ fromHistory = false } = {}) {
+  teardownRoomState();
   renderRoomsList();
+  if (!fromHistory) navigateToRoomListFromUi();
+}
+
+function closeRoom(options = {}) {
+  collapseRoomToList(options);
 }
 
 /** Lazy-loaded React card table bundle (built via npm run build:table). */
@@ -2619,10 +3025,12 @@ function updateTablePlayTitle(openSessionObj) {
   const titleEl = $("#table-play-overlay-title");
   if (!titleEl) return;
   if (!openSessionObj || openSessionObj.status === "final") {
-    titleEl.textContent = "Live table";
+    titleEl.textContent = "Live Table";
     return;
   }
-  titleEl.textContent = `Hand #${(openSessionObj.handCount ?? 0) + 1} · live table`;
+  const handNum = (openSessionObj.handCount ?? 0) + 1;
+  const tableName = openSessionObj.sessionName || "Live Table";
+  titleEl.textContent = `Hand #${handNum} · Live Table · ${tableName}`;
 }
 
 function abortTablePlayStartup() {
@@ -2651,7 +3059,7 @@ function showTableStartupFailure(analysis, err) {
   roomDetailView?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-async function openTablePlay() {
+async function openTablePlay({ fromHistory = false } = {}) {
   const openSessionObj = currentSessions.find((s) => s.id === openSessionId);
   const readyCount = tableReadyPlayerCount(openSessionObj);
   let startupAnalysis = analyzeTableStartup(openSessionObj, readyCount);
@@ -2678,14 +3086,13 @@ async function openTablePlay() {
   }
 
   tablePlayOpen = true;
+  silentTableEntry = false;
+  document.body.classList.remove("table-entry-silent");
   overlay.hidden = false;
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
 
   const needsDeal = startupAnalysis.needsEnrollment;
-  if (needsDeal) {
-    setTableActionFeedback({ status: "loading", message: "Dealing first hand…" });
-  }
 
   try {
     const repaired = await prepareSessionForTableOpen(currentRoomId, openSessionId);
@@ -2703,9 +3110,6 @@ async function openTablePlay() {
         roster: tableReadyRoster(mergedSession),
       });
     }
-    if (needsDeal) {
-      setTableActionFeedback({ status: "success", message: "" });
-    }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
     let recovered = false;
@@ -2718,9 +3122,6 @@ async function openTablePlay() {
     if (!recovered) {
       showTableStartupFailure(startupAnalysis, err);
       return;
-    }
-    if (needsDeal) {
-      setTableActionFeedback({ status: "success", message: "" });
     }
   }
 
@@ -2743,6 +3144,10 @@ async function openTablePlay() {
     await screen.orientation?.lock?.("landscape");
   } catch {
     /* orientation lock optional */
+  }
+
+  if (!fromHistory && currentRoomId) {
+    navigateToRoomTable(currentRoomId, { replace: silentTableEntry });
   }
 }
 
@@ -2782,28 +3187,33 @@ function commitLocalHandAction(kind, { discardCount = 0 } = {}) {
   scheduleTableSessionSync(sessionObj);
 }
 
+function restoreRoomDetailAfterTable() {
+  if (!currentRoomId) return;
+  silentTableEntry = false;
+  document.body.classList.remove("table-entry-silent");
+  showRoomDetailUi();
+  scheduleRenderRoomDetail();
+}
+
+function syncRoomUrlToDetailIfNeeded() {
+  const { roomId, tableOpen } = parseRoute();
+  if (!roomId || !tableOpen) return;
+  applyingRoomNav = true;
+  history.replaceState(
+    roomNavStateForLayer(ROOM_NAV_DETAIL, roomId),
+    "",
+    buildRoomDetailHash(roomId),
+  );
+  applyingRoomNav = false;
+}
+
 function closeTablePlay() {
-  tablePlayOpen = false;
-  localHandActionCommit = null;
-  cancelNextHandOpenTimer();
-  stopTablePlaySideEffects();
-  const overlay = $("#table-play-overlay");
-  if (overlay) overlay.hidden = true;
-  document.body.classList.remove("table-play-active");
-  try {
-    if (document.fullscreenElement) document.exitFullscreen?.();
-  } catch {
-    /* ignore */
-  }
-  try {
-    screen.orientation?.unlock?.();
-  } catch {
-    /* ignore */
-  }
+  teardownTableOverlay({ restoreDetail: true });
   const openSessionObj = resolveOpenSessionObj();
   if (openSessionObj) {
     syncTableSession(openSessionObj);
   }
+  syncRoomUrlToDetailIfNeeded();
 }
 
 function bindTablePlayControls() {
@@ -2812,11 +3222,15 @@ function bindTablePlayControls() {
   overlay.dataset.bound = "1";
 
   $("#close-table-play")?.addEventListener("click", () => {
-    closeTablePlay();
+    navigateAwayFromTable();
+  });
+
+  $("#open-table-settings")?.addEventListener("click", () => {
+    window.dispatchEvent(new CustomEvent("nbl-open-table-settings"));
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && tablePlayOpen) closeTablePlay();
+    if (e.key === "Escape" && tablePlayOpen) navigateAwayFromTable();
   });
 
   document.addEventListener("fullscreenchange", () => {
@@ -3705,6 +4119,17 @@ function buildTableSessionProps(s) {
     postedAntes,
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
+  const anteContributorIds = resolveAnteContributorIds(
+    {
+      dealerId,
+      participantIds: handParticipantIds,
+      seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
+      actionOrder: resolvedActionOrder ?? undefined,
+      postedAntes,
+    },
+    scoreById,
+    handStake,
+  );
 
   const showCoWinSettlement =
     handComplete &&
@@ -3752,7 +4177,7 @@ function buildTableSessionProps(s) {
       ? (lastHand.bourreIds || []).filter(Boolean)
       : [];
 
-  return {
+  const tableProps = {
     session: {
       sessionId: s.id,
       handNumber: (s.handCount ?? 0) + 1,
@@ -3782,6 +4207,7 @@ function buildTableSessionProps(s) {
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
+      anteContributorIds,
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
     },
@@ -3822,21 +4248,62 @@ function buildTableSessionProps(s) {
     currentUserId: myUid,
     actions: getTableIntentHandlers(),
   };
+  maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback);
+  return tableProps;
+}
+let lastHandTransitionSnapKey = "";
+
+function maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback) {
+  if (!isHandTransitionDebugEnabled()) return;
+  const snap = snapshotHandTransitionState({
+    session: s,
+    scores: displayScores,
+    myUid: session?.uid ?? null,
+    privateHandCards: privateHeroCards,
+    privateHandSnapSeen,
+    sessionHandDealStarted: sessionHandDealStarted(s),
+    tableActionFeedback,
+  });
+  const snapKey = JSON.stringify({
+    sessionId: snap.sessionId,
+    handCount: snap.handCount,
+    phase: snap.phase,
+    waitingCount: snap.decisionWaitingCount || snap.enrollmentWaitingCount,
+    turn: snap.decisionTurn || snap.enrollmentTurn,
+    participantIds: snap.participantIds,
+    eligiblePlayerIds: snap.eligiblePlayerIds,
+    outPlayerIds: snap.outPlayerIds,
+    heroPrivateCardCount: snap.heroPrivateCardCount,
+    tableFeedback: snap.tableFeedback,
+  });
+  if (snapKey === lastHandTransitionSnapKey) return;
+  lastHandTransitionSnapKey = snapKey;
+  logHandTransition("table_snapshot", {
+    waitingCount: snap.decisionWaitingCount || snap.enrollmentWaitingCount,
+    ...snap,
+  });
+  analyzeHandTransitionAnomalies(snap);
 }
 
 async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
-  if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
-    unmountTableSessionHost();
-    if (
-      tablePlayOpen &&
-      sessionObj &&
-      (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2)
-    ) {
-      closeTablePlay();
+  if (tablePlayOpen) {
+    if (!sessionObj) {
+      // Firestore can briefly drop the open session during hand transitions — keep the
+      // mounted table instead of leaving overlay chrome with an empty #table-session-root.
+      if (attempt < 12) {
+        requestAnimationFrame(() => syncTableSession(openSessionObj, { attempt: attempt + 1 }));
+      }
+      return;
     }
+    if (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+      closeTablePlay();
+      return;
+    }
+  } else if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+    unmountTableSessionHost();
     return;
   }
 
@@ -3968,7 +4435,7 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
   return created
     .map((sessionObj) => {
       const active = sessionObj.id === activeSessionId;
-      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
+      return `<button type="button" class="session-tab ${active ? "is-active" : ""}" data-open-session="${sessionObj.id}" aria-label="${escapeHtml(sessionTabLabel(sessionObj))}" aria-current="${active ? "true" : "false"}">${escapeHtml(sessionTabLabel(sessionObj))}</button>`;
     })
     .join("");
 }
@@ -3985,6 +4452,7 @@ function scheduleRenderRoomDetail() {
 
 function renderRoomDetail() {
   if (!currentRoomId || roomDetailView.hidden) return;
+  if (silentTableEntry && !tablePlayOpen) return;
   if (!currentRoom) {
     roomDetailView.innerHTML = `<p class="muted">Loading room…</p>`;
     return;
@@ -4247,7 +4715,7 @@ function buildUnifiedGameSetupHtml({
   const actions =
     hasActiveSession && openSessionObj.status !== "final"
       ? `<footer class="game-setup-panel__actions" data-testid="session-action-pills">
-          <button type="button" class="btn btn--primary btn--block game-setup-panel__play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
+          <button type="button" class="btn btn--primary btn--block btn--cta-orb game-setup-panel__play" id="open-table-play" data-testid="open-table-play" ${playDisabled} title="${playTitle}">Play</button>
           ${
             isOwner
               ? `<button type="button" class="btn btn--sm game-setup-panel__stats" id="complete-session" title="Complete session and update Ape Scores">Update Stats</button>`
@@ -4798,7 +5266,9 @@ bindRoomDetailDelegatedControls();
 bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
+bindUiButtonPress();
 showView();
+logHandTransitionBoot();
 hideNativeSplashWhenReady();
 
 if (isCapacitorNative()) {
@@ -4817,6 +5287,7 @@ onAuthChange((user) => {
   if (user) {
     startRoomsSubscription();
     startLeaderboardSubscription();
+    scheduleApplyRoomNavFromLocation();
   } else if (wasAuthed) {
     stopRoomsSubscription();
     stopLeaderboardSubscription();

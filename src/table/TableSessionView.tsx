@@ -10,8 +10,6 @@ import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
   formatHandPhase,
-  formatLocalActionCue,
-  formatWaitingCue,
   isCardsDealtPhase,
   isDecisionPhase,
   isRevealPhase,
@@ -21,10 +19,11 @@ import {
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
+import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
-import { InactivityHelper } from "./InactivityHelper";
+import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
@@ -59,7 +58,7 @@ export function TableSessionView({
   players,
   potMetrics,
   mySessionNet,
-  leaderLabel,
+  leaderLabel: _leaderLabel,
   showCoWinSettlement,
   splitPotEnabled = false,
   rebuyEnabled = false,
@@ -120,7 +119,14 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
+    anteContributorIds: session.anteContributorIds ?? EMPTY_ENROLLMENT_IDS,
   });
+
+  useEffect(() => {
+    if (handPresentation.phase !== "ante") return;
+    if (!trickPresentation.showFinalTrickEcho) return;
+    trickPresentation.clearHandEndEcho();
+  }, [handPresentation.phase, trickPresentation.showFinalTrickEcho, trickPresentation.clearHandEndEcho]);
 
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
@@ -335,24 +341,6 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
   });
-  const actionCue =
-    localActionRequired &&
-    !handComplete &&
-    (enrollmentActive || session.phase === "decision")
-      ? formatLocalActionCue(session.phase, enrollmentActive)
-      : null;
-  const waitingCue =
-    !actionCue &&
-    !suppressTurn &&
-    !(turnLabel && cardsDealt && trickPresentation.phase === "live")
-      ? formatWaitingCue({
-          phase: session.phase,
-          enrollmentActive,
-          isMyTurn,
-          handComplete,
-          cardsDealt,
-        })
-      : null;
 
   const turnReminderActivityKey = localActionActivityKey({
     currentUserId,
@@ -363,25 +351,18 @@ export function TableSessionView({
     handComplete,
   });
 
-  const [heroHasInteracted, setHeroHasInteracted] = useState(false);
-  useEffect(() => {
-    setHeroHasInteracted(false);
-  }, [turnReminderActivityKey]);
-
-  const handleHeroUserActivity = useCallback(() => {
-    setHeroHasInteracted(true);
-  }, []);
-
-  const inactivityHelperRequired =
-    localActionRequired &&
-    !handComplete &&
-    !heroHasInteracted &&
-    (session.phase === "draw" || session.phase === "play");
-
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+  });
+
+  useTurnTimerWarning({
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+    currentUserId,
+    localActionPending: actionFeedback?.status === "loading",
   });
 
   const showTrumpSuitReminder =
@@ -480,9 +461,8 @@ export function TableSessionView({
         return actions.onPlayCard(effective);
       },
       onReaction: handleReaction,
-      onHeroUserActivity: handleHeroUserActivity,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, handleHeroUserActivity],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
   );
 
   const sharedTableProps = {
@@ -495,7 +475,7 @@ export function TableSessionView({
     revealedTrumpIndex: heroHandDisplay.revealedTrumpIndex,
     trumpMergeActive: heroHandDisplay.trumpMergeActive,
     trumpDisabledIndex: heroHandDisplay.trumpDisabledIndex,
-    hideCenterTrump: trumpHolderPresentation.hideCenterTrump,
+    hideCenterTrump: heroHandDisplay.hideCenterTrumpForHolder,
     showTrumpSuitReminder,
     trumpHolderPresentation,
     privateHandReady,
@@ -541,8 +521,8 @@ export function TableSessionView({
 
   useEffect(() => {
     if (session.phase !== "reveal") return;
-    if (!handPresentation.trumpMergedIntoHand) return;
-    if (handPresentation.phase !== "drawPlayer") return;
+    if (handPresentation.anteAnimActive || handPresentation.trumpRevealActive) return;
+    if (handPresentation.phase !== "drawPlayer" && handPresentation.phase !== "drawReady") return;
     if (revealAdvancedRef.current || !actions.onAdvanceReveal) return;
 
     const advance = actions.onAdvanceReveal();
@@ -558,7 +538,8 @@ export function TableSessionView({
     session.phase,
     session.handNumber,
     session.sessionId,
-    handPresentation.trumpMergedIntoHand,
+    handPresentation.anteAnimActive,
+    handPresentation.trumpRevealActive,
     handPresentation.phase,
     actions,
   ]);
@@ -576,6 +557,12 @@ export function TableSessionView({
     return () => window.removeEventListener("keydown", onKey);
   }, [settings.hotkeys]);
 
+  useEffect(() => {
+    const openSettings = () => setSettingsOpen(true);
+    window.addEventListener("nbl-open-table-settings", openSettings);
+    return () => window.removeEventListener("nbl-open-table-settings", openSettings);
+  }, []);
+
   return (
     <div
       className={[
@@ -591,119 +578,10 @@ export function TableSessionView({
       data-hand-settling={handPresentation.settleAnimActive ? "true" : "false"}
       data-hand-complete={handComplete ? "true" : "false"}
     >
-      {actionFeedback && actionFeedback.status !== "idle" && (
-        <div
-          className={[
-            `btable-session__feedback btable-session__feedback--${actionFeedback.status}`,
-            actionFeedback.status === "error" ? "btable-session__feedback--pulse-error" : "",
-            actionFeedback.status === "success" ? "btable-session__feedback--pulse" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          key={
-            actionFeedback.status === "error"
-              ? `feedback-error-${microinteractions.feedbackErrorPulse}`
-              : actionFeedback.status === "success"
-                ? `feedback-success-${microinteractions.feedbackSuccessPulse}`
-                : `feedback-${actionFeedback.status}`
-          }
-          data-testid="feedback-banner"
-          role={actionFeedback.status === "error" ? "alert" : "status"}
-          aria-live="polite"
-        >
-          {actionFeedback.message}
-        </div>
-      )}
-      <header className="btable-session__head">
-        <div className="btable-session__head-row">
-          <h5 className="btable-session__title">Hand #{session.handNumber}</h5>
-          <span
-            className={`btable-session__phase-tag btable-session__phase-tag--${session.phase ?? "waiting"}`}
-            data-testid="phase-tag"
-            data-phase={session.phase ?? "waiting"}
-          >
-            {phaseLabel}
-          </span>
-          <button
-            type="button"
-            className="btable-session__gear btn btn--sm"
-            data-testid="settings-button"
-            onClick={() => setSettingsOpen(true)}
-            aria-label="Table appearance settings"
-            title={`Settings (${settings.hotkeys.toggleSettings})`}
-          >
-            ⚙
-          </button>
-        </div>
-        <p className="btable-session__status">{leaderLabel}</p>
-        {handPresentation.trumpRevealActive && session.phase === "draw" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
-            Trump revealed — settling into your hand
-          </p>
-        )}
-        {handPresentation.trumpMergeActive && session.phase === "draw" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
-            Trump joining your hand…
-          </p>
-        )}
-        {handPresentation.phase === "drawReady" && (
-          <p className="btable-session__turn muted small" aria-live="polite">
-            Draw complete — first lead coming up
-          </p>
-        )}
-        <div className="btable-session__turn-stack" aria-live="polite">
-          {handPresentation.settleAnimActive && (
-            <p className="btable-session__turn btable-session__turn--settle muted small">
-              Settling the pot…
-            </p>
-          )}
-          <p className="btable-session__turn btable-session__turn--trick-resolve muted small">
-            Trick won — cards collecting before the next lead
-          </p>
-          {handPresentation.settleAnimActive && (
-            <p className="btable-session__turn btable-session__turn--final-trick muted small">
-              Final trick — cards collecting before the pot settles
-            </p>
-          )}
-        </div>
-        {turnLabel && cardsDealt && trickPresentation.phase === "live" && (
-          <p
-            className={[
-              "btable-session__turn",
-              isMyTurn ? "btable-session__turn--yours" : "btable-session__turn--waiting",
-            ].join(" ")}
-            aria-live="polite"
-            data-testid="turn-indicator"
-          >
-            {turnLabel}
-          </p>
-        )}
-        {actionCue && (
-          <p className="btable-session__action-cue" data-testid="action-cue" aria-live="polite">
-            {actionCue}
-          </p>
-        )}
-        <InactivityHelper
-          actionRequired={inactivityHelperRequired}
-          activityKey={turnReminderActivityKey}
-          phase={session.phase}
-          hasUserInteracted={heroHasInteracted}
-        />
-        {waitingCue && (
-          <p className="btable-session__hint btable-session__hint--waiting" data-testid="waiting-cue">
-            {waitingCue}
-          </p>
-        )}
-        {isRevealPhase(session.phase) && (
-          <p className="btable-session__hint muted small" aria-live="polite">
-            Cards dealt — trump revealed. Review your hand…
-          </p>
-        )}
-        {enrollmentActive && !isRevealPhase(session.phase) && (
-          <p className="btable-session__enroll muted small">
-            Tap I&apos;m in or Pass at your seat — clockwise from dealer
-          </p>
-        )}
+      <header className="btable-session__head" aria-hidden="true">
+        <span className="btable-sr-only" data-testid="phase-tag" data-phase={session.phase ?? "waiting"}>
+          {phaseLabel}
+        </span>
       </header>
 
       {!nativeMobile && (
@@ -714,11 +592,31 @@ export function TableSessionView({
 
       {nativeMobile ? (
         <MobileLayoutShell>
-          <div className="btable-stage">{gameplayStage}</div>
+          <div className="btable-stage">
+            <TableSceneOverlay
+              actionFeedback={actionFeedback}
+              feedbackErrorPulse={microinteractions.feedbackErrorPulse}
+              feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
+              turnLabel={turnLabel}
+              isMyTurn={isMyTurn}
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
+            />
+            {gameplayStage}
+          </div>
         </MobileLayoutShell>
       ) : (
         <DesktopLayoutShell>
-          <div className="btable-stage">{gameplayStage}</div>
+          <div className="btable-stage">
+            <TableSceneOverlay
+              actionFeedback={actionFeedback}
+              feedbackErrorPulse={microinteractions.feedbackErrorPulse}
+              feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
+              turnLabel={turnLabel}
+              isMyTurn={isMyTurn}
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
+            />
+            {gameplayStage}
+          </div>
         </DesktopLayoutShell>
       )}
 

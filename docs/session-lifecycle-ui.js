@@ -5,6 +5,7 @@
 
 import { getSessionCurrentHand, getSessionEnrollment } from "./firestore.js";
 import { isClearedPreDealHand } from "./session-startup.js";
+import { isHandTransitionDebugEnabled, logHandTransition } from "./hand-transition-debug.js";
 
 export function logHandLifecycleTransition(transition) {
   if (typeof console !== "undefined" && console.info) {
@@ -13,6 +14,9 @@ export function logHandLifecycleTransition(transition) {
         transition.blockedBy ? ` blockedBy=${transition.blockedBy}` : ""
       }`,
     );
+  }
+  if (isHandTransitionDebugEnabled()) {
+    logHandTransition("lifecycle_transition", transition);
   }
 }
 
@@ -58,12 +62,8 @@ export function isSessionAutoDealtNextHand(sessionObj) {
 
 export function nextHandOpenFeedbackMessage(sessionObj, dealerLabel) {
   const handNum = (sessionObj?.handCount ?? 0) + 1;
-  const phase = getSessionCurrentHand(sessionObj)?.phase ?? null;
   if (isSessionAutoDealtNextHand(sessionObj)) {
-    if (phase === "reveal" || phase === "decision") {
-      return `Hand #${handNum} — see your cards, then play or pass`;
-    }
-    return `Hand #${handNum} — dealing next hand…`;
+    return null;
   }
   return `Hand #${handNum} — I'm in (clockwise from ${dealerLabel})`;
 }

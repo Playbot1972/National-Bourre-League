@@ -21,9 +21,17 @@ import {
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
 import { logPlayClick } from "./playClickDebug";
-import { playIllegalActionFeedback } from "./feedback";
+import {
+  playCardSelectFeedback,
+  ensureAudioUnlockedSync,
+  playDrawCountFeedback,
+  playFoldFeedback,
+  playIllegalActionFeedback,
+  playUiButtonFeedback,
+} from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
 import { useTableTheme } from "./theme/useTableTheme";
+import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
 import type { SerializedCard, TableActionFeedback } from "./types";
 
 interface HeroHandProps {
@@ -65,6 +73,8 @@ interface HeroHandProps {
   onUserActivity?: () => void;
   /** Table-wide clockwise deal — disables hero-only deal motion. */
   skipHeroDealMotion?: boolean;
+  /** Presentation FSM phase — gates deal-in motion vs server `phase`. */
+  handPresentationPhase?: string;
 }
 
 function heroShellClass(
@@ -129,6 +139,7 @@ export function HeroHand({
   onDiscardCommitted,
   onUserActivity,
   skipHeroDealMotion = false,
+  handPresentationPhase,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -200,7 +211,8 @@ export function HeroHand({
 
   useEffect(() => {
     if (skipHeroDealMotion) return;
-    if (!dealtPhase || cards.length === 0) return;
+    if (handPresentationPhase !== "deal") return;
+    if (cards.length === 0) return;
     const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
     const prev = prevCardIdsRef.current;
     const added = [...nextIds].some((id) => !prev.has(id));
@@ -213,13 +225,18 @@ export function HeroHand({
     const dealMs = dealMotionWindowMs(cards.length, dealStaggerMs);
     const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
-  }, [cards, dealtPhase, dealStaggerMs, skipHeroDealMotion]);
+  }, [cards, handPresentationPhase, dealStaggerMs, skipHeroDealMotion]);
 
   useEffect(() => {
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
       setPendingDiscardIndices([]);
     }
   }, [drawAnimSubPhase]);
+
+  useEffect(() => {
+    setHeroPlayMotionActive(playingIndex !== null);
+    return () => setHeroPlayMotionActive(false);
+  }, [playingIndex]);
 
   useHeroCardMotion(handRootRef, {
     dealing,
@@ -424,13 +441,19 @@ export function HeroHand({
       setDrawSelectionTouched(true);
       notifyUserActivity();
       setLocalError(null);
+      let playSelectFeedback = false;
       setSelectedDraw((prev) => {
         const next = new Set(prev);
-        if (next.has(index)) next.delete(index);
-        else if (next.size < maxDrawDiscards) next.add(index);
-        else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
+        if (next.has(index)) {
+          next.delete(index);
+          playSelectFeedback = true;
+        } else if (next.size < maxDrawDiscards) {
+          next.add(index);
+          playSelectFeedback = true;
+        } else setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
         return next;
       });
+      if (playSelectFeedback) playCardSelectFeedback();
     },
     [busy, maxDrawDiscards, trumpDisabledIndex, notifyUserActivity],
   );
@@ -601,6 +624,7 @@ export function HeroHand({
       setSelectedPlay(plan.nextSelection);
       setLocalError(null);
       notifyUserActivity();
+      if (plan.nextSelection !== null) playCardSelectFeedback();
       logPlayClick({
         event: plan.shouldQueueSelection ? "queue-set" : "tap-select",
         handNumber,
@@ -687,6 +711,8 @@ export function HeroHand({
   const runDrawAction = useCallback(
     async (indices: number[]) => {
       if (!onSubmitDraw || busy) return;
+      ensureAudioUnlockedSync("draw-button");
+      playUiButtonFeedback();
       notifyUserActivity();
       if (indices.length > maxDrawDiscards) {
         setLocalError(`You may discard at most ${maxDrawDiscards} cards`);
@@ -695,6 +721,7 @@ export function HeroHand({
       setLocalBusy(true);
       setLocalError(null);
       setPendingDiscardIndices([...indices]);
+      playDrawCountFeedback(indices.length);
       try {
         await onSubmitDraw(indices);
         setSelectedDraw(new Set());
@@ -709,6 +736,7 @@ export function HeroHand({
 
   const runPassDraw = useCallback(async () => {
     if (!onPassDraw || busy) return;
+    playUiButtonFeedback();
     notifyUserActivity();
     setLocalBusy(true);
     setLocalError(null);
@@ -726,6 +754,7 @@ export function HeroHand({
 
   const runFoldDraw = useCallback(async () => {
     if (!onFoldDraw || busy) return;
+    playFoldFeedback();
     notifyUserActivity();
     setFoldOutPulse(true);
     setLocalBusy(true);
@@ -811,6 +840,10 @@ export function HeroHand({
         <p className="btable-hero__fallback muted small">Sign in to see your dealt cards.</p>
       </div>
     );
+  }
+
+  if (handPresentationPhase === "ante" && isInHand) {
+    return <HeroHandReserve className={className} />;
   }
 
   if (!isInHand && !enrollmentActive && !dealtPhase) {
@@ -987,9 +1020,9 @@ export function HeroHand({
         {renderBestPlayCheckbox()}
       </div>
       {inPlayPhase && !isMyTurn && selectedPlay !== null && (
-        <p className="btable-hero__hint" data-testid="play-preselect-hint">
+        <span className="btable-sr-only" data-testid="play-preselect-hint">
           Your selected card will play on your turn
-        </p>
+        </span>
       )}
       {feedbackError && (
         <p className="btable-hero__error" role="alert">
@@ -1004,7 +1037,7 @@ export function HeroHand({
           <div className="btable-hero__actions btable-hero__actions--triple">
             <button
               type="button"
-              className="btn btn--sm btn--primary"
+              className="btn btn--sm btn--action-draw"
               data-testid="draw-button"
               disabled={busy}
               aria-busy={busy}
@@ -1014,7 +1047,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm btn--secondary-muted"
+              className="btn btn--sm btn--action-pat"
               data-testid="pass-draw-button"
               disabled={busy}
               onClick={() => runPassDraw()}
@@ -1023,7 +1056,7 @@ export function HeroHand({
             </button>
             <button
               type="button"
-              className="btn btn--sm btn--secondary-muted"
+              className="btn btn--sm btn--action-out"
               data-testid="im-out-button"
               disabled={busy}
               onClick={() => runFoldDraw()}

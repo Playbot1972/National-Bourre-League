@@ -40,6 +40,10 @@
   --deck-stack-width: clamp(56px, 13vmin, 80px);
 }
 
+.btable-mobile .btable-stage {
+  --turn-rail-top: clamp(0px, calc(8% - 2.25rem - 4.125rem), 3%);
+}
+
 /* Viewport shell — flex column, fills overlay; no page scroll */
 .btable-mobile__viewport {
   flex: 1;

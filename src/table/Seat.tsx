@@ -12,7 +12,8 @@ interface SeatProps {
   region: SeatRegion;
   handLane?: HandLane;
   style: CSSProperties;
-  clockwiseDealing?: boolean;
+  /** Mount deal-target anchors for opponent seats during deal presentation. */
+  dealTargetsArmed?: boolean;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
@@ -24,7 +25,7 @@ export function Seat({
   region,
   handLane = "below",
   style,
-  clockwiseDealing = false,
+  dealTargetsArmed = false,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -120,12 +121,26 @@ export function Seat({
                 className={[
                   "bseat__trick-badge",
                   trickCount === 0 ? "bseat__trick-badge--zero" : "",
+                  bourrePressure && trickCount === 0 ? "bseat__trick-badge--bourre-risk" : "",
                   player.isWinner || player.isTrickCapture ? "bseat__trick-badge--tick" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                aria-label={`${trickCount} tricks won`}
-                title={`${trickCount} trick${trickCount === 1 ? "" : "s"} won`}
+                aria-label={
+                  bourrePressure
+                    ? bourrePressureSelf
+                      ? `${trickCount} tricks won — you need this trick to avoid bourré`
+                      : `${trickCount} tricks won — at risk of bourré`
+                    : `${trickCount} tricks won`
+                }
+                title={
+                  bourrePressure
+                    ? bourrePressureSelf
+                      ? "Win this trick or go bourré"
+                      : "Must win this trick"
+                    : `${trickCount} trick${trickCount === 1 ? "" : "s"} won`
+                }
+                data-testid="seat-trick-badge"
               >
                 {trickCount}
               </span>
@@ -155,7 +170,7 @@ export function Seat({
                 ))}
               </div>
             )}
-            {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
+            {dealTargetsArmed && player.inHand && !player.isSelf && cardsHeld > 0 && (
               <div className="bseat__deal-targets" aria-hidden="true">
                 {Array.from({ length: cardsHeld }, (_, i) => (
                   <span
@@ -208,16 +223,6 @@ export function Seat({
                 })}
               </div>
             )}
-            {bourrePressure && (
-              <span
-                className="bseat__bourre-pressure-badge"
-                data-testid="bourre-pressure-badge"
-                aria-label={bourrePressureSelf ? "You need this trick to avoid bourré" : "At risk of bourré"}
-                title={bourrePressureSelf ? "Win this trick or go bourré" : "Must win this trick"}
-              >
-                {bourrePressureSelf ? "Bourré risk!" : "0 tricks"}
-              </span>
-            )}
             {bourreMarker && !bourrePressure && (
               <span className="bseat__bourre-badge" data-testid="bourre-marker-badge" aria-label="Bourré" title="Bourré">
                 Bourré
@@ -257,9 +262,6 @@ export function Seat({
                 {seatDisplayName}
               </span>
               {player.inHand && <span className="bseat__in-badge" title="In this hand" />}
-              {bourrePressure && (
-                <span className="bseat__bourre-pressure-ring" aria-hidden="true" />
-              )}
               {bourrePulse && !bourrePressure && (
                 <span className="bseat__bourre-ring" aria-hidden="true" />
               )}

@@ -5,9 +5,30 @@ import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
+import { bindUiButtonPress } from "./ui/uiButtonPressBinding";
 import "./App.css";
 
 export type Screen = "home" | "rules" | "tutorial" | "room";
+
+const SOCIAL_BASE = "/social/";
+const VALID_SCREENS = new Set<Screen>(["home", "rules", "tutorial", "room"]);
+
+const MAIN_NAV: { label: string; href: string; active?: boolean }[] = [
+  { label: "Tutorial", href: "/", active: true },
+  { label: "Home", href: `${SOCIAL_BASE}#home` },
+  { label: "Rules", href: `${SOCIAL_BASE}#rules` },
+  { label: "Rooms", href: `${SOCIAL_BASE}#rooms` },
+  { label: "Leaderboard", href: `${SOCIAL_BASE}#leaderboard` },
+  { label: "Leagues", href: `${SOCIAL_BASE}#leagues` },
+];
+
+function screenFromLocation(): Screen {
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (view && VALID_SCREENS.has(view as Screen)) {
+    return view as Screen;
+  }
+  return "home";
+}
 
 function shouldCheckForUpdates() {
   const host = window.location.hostname;
@@ -15,13 +36,30 @@ function shouldCheckForUpdates() {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("home");
+  const [screen, setScreen] = useState<Screen>(screenFromLocation);
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
   useEffect(() => {
     initTheme();
   }, []);
+
+  useEffect(() => bindUiButtonPress(), []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (screen === "home") {
+      if (!params.has("view")) return;
+      params.delete("view");
+      const qs = params.toString();
+      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+      window.history.replaceState(null, "", next);
+      return;
+    }
+    if (params.get("view") === screen) return;
+    params.set("view", screen);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  }, [screen]);
 
   useEffect(() => {
     if (!shouldCheckForUpdates()) return;
@@ -83,47 +121,34 @@ export default function App() {
             National <em>Bourré</em> League
           </span>
         </button>
-        <div className="app__header-actions">
-          <nav className="app__nav" aria-label="Primary">
-            <button
-              className={`app__nav-link ${screen === "rules" ? "is-active" : ""}`}
-              onClick={() => setScreen("rules")}
+        <nav className="app__nav app__nav--primary" aria-label="Primary">
+          {MAIN_NAV.map((item) => (
+            <a
+              key={item.label}
+              className={`app__nav-link${item.active ? " is-active" : ""}`}
+              href={item.href}
+              aria-current={item.active ? "page" : undefined}
             >
-              Rules
-            </button>
-            <button
-              className={`app__nav-link ${screen === "tutorial" ? "is-active" : ""}`}
-              onClick={() => setScreen("tutorial")}
-            >
-              Tutorial
-            </button>
-            <button
-              className={`app__nav-link ${screen === "room" ? "is-active" : ""}`}
-              onClick={() => setScreen("room")}
-            >
-              Private room
-            </button>
-            <a className="app__nav-link app__nav-link--external" href="/social/">
-              Social
+              {item.label}
             </a>
-          </nav>
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-pressed={theme === "light"}
-            aria-label={
-              theme === "light"
-                ? "Switch to dark mode"
-                : "Switch to light mode (US currency)"
-            }
-            title={theme === "light" ? "Dark mode" : "Light mode · US currency"}
-          >
-            <span className="theme-toggle__icon" aria-hidden="true">
-              {theme === "light" ? "☾" : "☀"}
-            </span>
-          </button>
-        </div>
+          ))}
+        </nav>
+        <button
+          type="button"
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-pressed={theme === "light"}
+          aria-label={
+            theme === "light"
+              ? "Switch to dark mode"
+              : "Switch to light mode (US currency)"
+          }
+          title={theme === "light" ? "Dark mode" : "Light mode · US currency"}
+        >
+          <span className="theme-toggle__icon" aria-hidden="true">
+            {theme === "light" ? "☾" : "☀"}
+          </span>
+        </button>
       </header>
 
       <main className="app__main">

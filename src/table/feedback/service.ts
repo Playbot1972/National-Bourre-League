@@ -1,12 +1,21 @@
 import {
   playBigWinSound,
   playBourreSound,
-  playDrawSound,
+  playBourrePrivatePunishmentSound,
+  playCardIllegalSound,
+  playCardSelectSound,
+  playDeleteRoomSound,
+  playDrawCountSound,
+  playAnteChipSound,
+  playFoldSound,
   playGameStartSound,
+  playOpenRoomSound,
   playShuffleSound,
   playTrickWinSound,
-  unlockAudio,
+  playUiButtonSound,
+  ensureAudioUnlockedSync,
 } from "./audio";
+import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 import { triggerHaptic } from "./haptics";
 import {
   getFeedbackPrefs,
@@ -59,7 +68,7 @@ export function initGameFeedback(): void {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
   const unlock = () => {
-    void unlockAudio();
+    ensureAudioUnlockedSync("init-pointerdown");
   };
   window.addEventListener("pointerdown", unlock, { once: true, passive: true });
   window.addEventListener("keydown", unlock, { once: true });
@@ -68,11 +77,13 @@ export function initGameFeedback(): void {
 export interface ShuffleFeedbackOptions {
   /** Delay before audio/haptic to match deal animation (ms). */
   delayMs?: number;
+  /** Skip cooldown — deal presentation owns this cue after ante. */
+  force?: boolean;
 }
 
 export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void {
   const now = Date.now();
-  if (now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
+  if (!options.force && now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
 
   if (shuffleTimer) {
     clearTimeout(shuffleTimer);
@@ -91,12 +102,22 @@ export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void 
   }, delayMs);
 }
 
-export function playDrawFeedback(): void {
+export function playDrawCountFeedback(cardCount: number): void {
+  ensureAudioUnlockedSync("draw-confirm");
   const now = Date.now();
   if (now - lastDrawAt < DRAW_COOLDOWN_MS) return;
   lastDrawAt = now;
-  maybePlaySound("draw", playDrawSound);
+  maybePlaySound("draw", () => playDrawCountSound(cardCount));
   fireHaptic("light");
+}
+
+export function playAnteChipFeedback(handNumber: number, playerIndex: number): void {
+  maybePlaySound("anteChip", () => playAnteChipSound(handNumber, playerIndex));
+}
+
+/** @deprecated Prefer playDrawCountFeedback on draw confirm; generic fallback only. */
+export function playDrawFeedback(): void {
+  playDrawCountFeedback(0);
 }
 
 export function playTrickWinFeedback(): void {
@@ -123,6 +144,20 @@ export function playBourreFeedback(): void {
   fireHaptic("medium");
 }
 
+/** Local-only bourré punishment — random fahhh/fahhhh; not broadcast to table. */
+export function playBourrePrivatePunishmentFeedback(input: {
+  sessionId: string;
+  handNumber: number;
+  isLocalBourredPlayer: boolean;
+}): void {
+  if (!input.isLocalBourredPlayer) return;
+  const dedupeKey = bourrePrivateDedupeKey(input.sessionId, input.handNumber);
+  maybePlaySound("bourre", () =>
+    playBourrePrivatePunishmentSound(dedupeKey, input.isLocalBourredPlayer),
+  );
+  fireHaptic("medium");
+}
+
 export function playGameStartFeedback(): void {
   const now = Date.now();
   if (now - lastGameStartAt < GAME_START_COOLDOWN_MS) return;
@@ -135,7 +170,28 @@ export function playIllegalActionFeedback(): void {
   const now = Date.now();
   if (now - lastIllegalActionAt < ILLEGAL_ACTION_COOLDOWN_MS) return;
   lastIllegalActionAt = now;
+  maybePlaySound("cardIllegal", playCardIllegalSound);
   fireHaptic("light");
+}
+
+export function playOpenRoomFeedback(): void {
+  maybePlaySound("openRoom", playOpenRoomSound);
+}
+
+export function playDeleteRoomFeedback(): void {
+  maybePlaySound("deleteRoom", playDeleteRoomSound);
+}
+
+export function playCardSelectFeedback(): void {
+  maybePlaySound("cardSelect", playCardSelectSound);
+}
+
+export function playUiButtonFeedback(): void {
+  maybePlaySound("uiButton", playUiButtonSound);
+}
+
+export function playFoldFeedback(): void {
+  maybePlaySound("fold", playFoldSound);
 }
 
 export function playActionSuccessFeedback(): void {

@@ -56,12 +56,10 @@ test.describe("Rules regression — fixture (deterministic)", () => {
 
       // Winner (self): no bourré pressure or settled badge at hand end.
       await expectNoSettledBourreBadge(selfSeat);
-      await expect(selfSeat.getByTestId("bourre-pressure-badge")).toHaveCount(0);
       await expectOpponentTrickCount(selfSeat, 5);
 
       // Opponent with 0 tricks: evidence via trick-count badge, not settled marker (isSelf-only UI).
       await expectNoSettledBourreBadge(bourreBotSeat);
-      await expect(bourreBotSeat.getByTestId("bourre-pressure-badge")).toHaveCount(0);
       await expectOpponentTrickCount(bourreBotSeat, 0);
 
       // Passer was not in the hand.
@@ -78,7 +76,7 @@ test.describe("Rules regression — fixture (deterministic)", () => {
   });
 
   test.describe("[fixture UI] final-trick bourré pressure", () => {
-    test("shows pressure badge on 0-trick opponent on trick 5 only (not settled marker)", async ({
+    test("highlights 0-trick opponent via trick counter on trick 5 only (not settled marker)", async ({
       page,
     }) => {
       await openRulesRegressionFixture(page, "premature-bourre", { phase: "play" });
@@ -86,9 +84,11 @@ test.describe("Rules regression — fixture (deterministic)", () => {
       await advanceRulesFixture(page, "finalTrickRisk");
 
       const botSeat = tableRoot(page).getByTestId("seat-top");
-      await expect(botSeat.getByTestId("bourre-pressure-badge")).toHaveCount(1);
+      await expect(botSeat.getByLabel(/0 tricks won — at risk of bourré/i)).toBeVisible();
       await expectNoSettledBourreBadge(botSeat);
-      await expect(tableRoot(page).getByTestId("seat-bottom-self").getByTestId("bourre-pressure-badge")).toHaveCount(0);
+      await expect(
+        tableRoot(page).getByTestId("seat-bottom-self").getByLabel(/at risk of bourré/i),
+      ).toHaveCount(0);
     });
   });
 

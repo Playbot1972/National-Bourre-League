@@ -87,7 +87,6 @@ export async function expectPhaseTag(page: Page, pattern: RegExp) {
 export async function expectNoBourreMarkers(page: Page) {
   const root = tableRoot(page);
   await expect(root.getByTestId("bourre-marker-badge")).toHaveCount(0);
-  await expect(root.getByTestId("bourre-pressure-badge")).toHaveCount(0);
   await expect(root.locator(".bseat--bourre")).toHaveCount(0);
   await expect(root.locator(".bseat--bourre-pressure")).toHaveCount(0);
 }

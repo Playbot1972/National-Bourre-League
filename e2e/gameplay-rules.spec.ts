@@ -16,7 +16,7 @@ test.describe("Gameplay rules — fixture (trick 1 opening lead)", () => {
     await expectOpeningLeadNotDealer(page);
 
     const table = page.locator("#table-root");
-    await expect(table.locator(".btable-session__phase-tag")).toContainText(/play card/i);
+    await expect(table.getByTestId("phase-tag")).toHaveAttribute("data-phase", "play");
   });
 });
 
@@ -35,7 +35,7 @@ test.describe("Gameplay rules — emulator live hand", () => {
 
     const overlay = page.locator("#table-play-overlay");
     await expect(overlay.getByTestId("hero-hand")).toBeVisible({ timeout: 15_000 });
-    await expect(overlay.locator(".btable-session__phase-tag")).toContainText(/draw/i);
+    await expect(overlay.getByTestId("phase-tag")).toHaveAttribute("data-phase", "draw");
     await expect(overlay.getByTestId("draw-button").first()).toBeVisible();
   });
 });

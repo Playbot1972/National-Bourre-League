@@ -8,11 +8,19 @@ import {
 } from "./trickPlayFly";
 import {
   prefersReducedMotion,
-  TRICK_CARD_SETTLE_MS,
   TRICK_CARD_TRAVEL_MS,
 } from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+
+export interface CardLandedAudioCallbackInput {
+  cardId: string;
+  playerId: string;
+  cardIndex: number;
+  cardsInTrick: number;
+  takesLead: boolean;
+  isLocalPlayer: boolean;
+}
 
 type FlyMode = "pending" | "travel" | "settle" | "land" | "static";
 
@@ -26,6 +34,8 @@ interface TrickPlaySlotProps {
   winnerPlayerId?: string | null;
   /** Skip fly animation (trump UI / layout settling). */
   instantPlace?: boolean;
+  currentUserId?: string | null;
+  onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
 }
 
 function completeFlight(
@@ -34,6 +44,15 @@ function completeFlight(
   setCssFly: (value: { dx: number; dy: number } | null) => void,
   flightStartedRef: { current: boolean },
   debug?: { playKey: string; index: number },
+  audio?: {
+    onCardLandedRef: { current: TrickPlaySlotProps["onCardLanded"] };
+    playRef: { current: TrickPlay };
+    indexRef: { current: number };
+    displayCountRef: { current: number };
+    leaderPlayerIdRef: { current: string | null | undefined };
+    currentUserIdRef: { current: string | null | undefined };
+    audioFiredRef: { current: boolean };
+  },
 ) {
   flightStartedRef.current = false;
   setHasLanded(true);
@@ -41,6 +60,21 @@ function completeFlight(
   setCssFly(null);
   if (debug && isGameFlowDebugEnabled()) {
     logGameFlow("TrickPlaySlot", "fly-complete", debug);
+  }
+  if (audio?.onCardLandedRef.current && !audio.audioFiredRef.current) {
+    audio.audioFiredRef.current = true;
+    const landedPlay = audio.playRef.current;
+    const leaderPlayerId = audio.leaderPlayerIdRef.current;
+    const takesLead =
+      leaderPlayerId != null && landedPlay.playerId === leaderPlayerId;
+    audio.onCardLandedRef.current({
+      cardId: `${landedPlay.playerId}:${landedPlay.card.rank}:${landedPlay.card.suit}`,
+      playerId: landedPlay.playerId,
+      cardIndex: audio.indexRef.current,
+      cardsInTrick: audio.displayCountRef.current,
+      takesLead,
+      isLocalPlayer: audio.currentUserIdRef.current === landedPlay.playerId,
+    });
   }
 }
 
@@ -53,12 +87,27 @@ export function TrickPlaySlot({
   leaderPlayerId = null,
   winnerPlayerId = null,
   instantPlace = false,
+  currentUserId = null,
+  onCardLanded,
 }: TrickPlaySlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [flyMode, setFlyMode] = useState<FlyMode>("static");
   const [cssFly, setCssFly] = useState<{ dx: number; dy: number } | null>(null);
   const [hasLanded, setHasLanded] = useState(false);
   const flightStartedRef = useRef(false);
+  const audioFiredRef = useRef(false);
+  const onCardLandedRef = useRef(onCardLanded);
+  const leaderPlayerIdRef = useRef(leaderPlayerId);
+  const currentUserIdRef = useRef(currentUserId);
+  const displayCountRef = useRef(displayCount);
+  const indexRef = useRef(index);
+  const playRef = useRef(play);
+  onCardLandedRef.current = onCardLanded;
+  leaderPlayerIdRef.current = leaderPlayerId;
+  currentUserIdRef.current = currentUserId;
+  displayCountRef.current = displayCount;
+  indexRef.current = index;
+  playRef.current = play;
   const playKey = playFlyKey(play);
   const isLeading = leaderPlayerId != null && play.playerId === leaderPlayerId;
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
@@ -86,18 +135,30 @@ export function TrickPlaySlot({
     }
     setHasLanded(false);
     flightStartedRef.current = false;
+    audioFiredRef.current = false;
     setFlyMode("static");
     setCssFly(null);
   }, [playKey]);
 
   useLayoutEffect(() => {
     if (hasLanded) return;
+    if (flightStartedRef.current) return;
+
+    const audioCtx = {
+      onCardLandedRef,
+      playRef,
+      indexRef,
+      displayCountRef,
+      leaderPlayerIdRef,
+      currentUserIdRef,
+      audioFiredRef,
+    };
 
     if (instantPlace || !isLivePhase) {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
-      });
+      }, audioCtx);
       return;
     }
 
@@ -105,7 +166,7 @@ export function TrickPlaySlot({
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
-      });
+      }, audioCtx);
       return;
     }
 
@@ -122,13 +183,12 @@ export function TrickPlaySlot({
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
-      });
+      }, audioCtx);
       return;
     }
 
     const reduced = prefersReducedMotion();
     const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
-    const settleMs = reduced ? Math.round(TRICK_CARD_SETTLE_MS * 0.55) : TRICK_CARD_SETTLE_MS;
     flightStartedRef.current = true;
 
     const slotRect = slot.getBoundingClientRect();
@@ -138,21 +198,19 @@ export function TrickPlaySlot({
     setFlyMode("pending");
 
     if (isGameFlowDebugEnabled()) {
-      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs, settleMs });
+      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs });
     }
 
     const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
-    const settleTimer = window.setTimeout(() => setFlyMode("settle"), travelMs);
     const doneTimer = window.setTimeout(() => {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
-      });
-    }, travelMs + settleMs);
+      }, audioCtx);
+    }, travelMs);
 
     return () => {
       window.clearTimeout(showTimer);
-      window.clearTimeout(settleTimer);
       window.clearTimeout(doneTimer);
     };
   }, [hasLanded, instantPlace, isLanding, isLivePhase, play.playerId, playKey]);

@@ -932,6 +932,15 @@ body.room-detail-open .room-actions {
   line-height: 1.45;
 }
 
+.rooms-scope-tabs {
+  margin: 12px 0 16px;
+}
+
+.rooms-practice-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
 .game-setup-panel__step {
   margin: 0 0 6px;
   padding: 8px 12px;
@@ -993,22 +1002,66 @@ body.room-detail-open .room-actions {
 
 .mini-card--with-action {
   display: flex;
-  align-items: stretch;
-  gap: 10px;
+  flex-direction: column;
+  gap: 0;
   padding: 0;
   overflow: hidden;
 }
 
 .mini-card__main {
-  flex: 1;
+  flex: none;
   padding: 14px 16px;
   min-width: 0;
 }
 
-.mini-card__action {
-  align-self: center;
-  margin-right: 12px;
-  flex-shrink: 0;
+.mini-card__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  width: 100%;
+  padding: 0 12px 12px;
+  box-sizing: border-box;
+}
+
+.mini-card__action-pill {
+  width: 4.25rem;
+  min-height: 2rem;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.mini-card__action-pill.btn--play {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.mini-card__action-pill.btn--danger {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.btn--play {
+  background: linear-gradient(160deg, #ffd84d, #f5c518);
+  border: 1px solid #d4a80a;
+  color: #1a1208;
+  font-weight: 600;
+}
+
+.btn--play:hover {
+  background: linear-gradient(160deg, #ffe566, #ffcf33);
+  border-color: #e6b80f;
+}
+
+.mini-card__action-pill.btn--danger {
+  background: #c62828;
+  border-color: #b71c1c;
+  color: #fff;
+}
+
+.mini-card__action-pill.btn--danger:hover {
+  background: #d32f2f;
+  border-color: #c62828;
+  color: #fff;
 }
 
 .btn--danger {
@@ -1179,6 +1232,7 @@ body.room-detail-open .room-actions {
   margin-bottom: 14px;
 }
 .session-tab {
+  position: relative;
   background: var(--surface-panel-strong);
   border: 1px solid var(--border-soft);
   color: var(--text-dim);
@@ -1196,6 +1250,110 @@ body.room-detail-open .room-actions {
   color: var(--ink-900);
   font-weight: 600;
   border-color: transparent;
+  overflow: visible;
+}
+
+/* Premium perimeter orbit — small orb travels the pill outline; pill stays fixed */
+@keyframes nbl-pill-orb-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes nbl-pill-orb-travel-fallback {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
+  }
+}
+
+.session-tab.is-active,
+.btn--cta-orb {
+  isolation: isolate;
+}
+
+.session-tab.is-active::after,
+.btn--cta-orb::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at 32% 28%, #a8d4ff 0%, #4da3ff 55%, #2b7fd4 100%);
+  box-shadow:
+    0 0 4px rgba(77, 163, 255, 0.5),
+    inset 0 0 1px rgba(255, 255, 255, 0.35);
+  offset-path: rect(-3px calc(100% + 3px) calc(100% + 3px) -3px round 999px);
+  offset-anchor: center;
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  animation: nbl-pill-orb-travel 2.8s linear infinite;
+  will-change: offset-distance;
+}
+
+@supports not (offset-path: rect(0 100% 100% 0 round 999px)) {
+  .session-tab.is-active::after,
+  .btn--cta-orb::after {
+    top: 50%;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    offset-path: none;
+    transform-origin: center center;
+    animation: nbl-pill-orb-travel-fallback 2.8s linear infinite;
+    will-change: transform;
+  }
+}
+
+.btn--cta-orb {
+  position: relative;
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-tab.is-active::after,
+  .btn--cta-orb::after {
+    animation: none;
+    offset-path: none;
+    top: 0;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    transform: translate(-50%, calc(-1 * var(--nbl-pill-orbit-r)));
+    opacity: 0.85;
+  }
+}
+
+/* Semantic draw-phase actions (table bundle mirrors in table.css) */
+.btn--action-draw {
+  background: linear-gradient(160deg, #3ecf7a, #2a9d5c);
+  border-color: transparent;
+  color: #0a1a10;
+  font-weight: 600;
+}
+
+.btn--action-pat {
+  background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
+  border-color: transparent;
+  color: var(--ink-900);
+  font-weight: 600;
+}
+
+.btn--action-out {
+  background: linear-gradient(160deg, #e86a6a, #c0392b);
+  border-color: transparent;
+  color: #fff8f6;
+  font-weight: 600;
+}
+
+body.table-entry-silent .room-detail,
+body.table-entry-silent #room-detail {
+  visibility: hidden;
+  pointer-events: none;
 }
 .session-tabs--preset {
   align-items: center;
@@ -2229,20 +2387,65 @@ body.table-play-active .footer {
 }
 
 .table-play-overlay__bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border-faint);
   margin-bottom: 6px;
 }
 
+.table-play-overlay__bar-start,
+.table-play-overlay__bar-end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-play-overlay__bar-end {
+  justify-self: end;
+}
+
+.table-chrome-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border-mid);
+  background: var(--surface-chip);
+  color: var(--gold-300);
+  font-size: 18px;
+  line-height: 1;
+  transition: border-color 150ms ease, transform 150ms ease, background 150ms ease;
+}
+
+.table-chrome-btn:hover {
+  border-color: var(--gold-300);
+  transform: translateY(-1px);
+}
+
+.table-chrome-btn__icon {
+  display: block;
+  line-height: 1;
+}
+
 .table-play-overlay__title {
+  margin: 0;
+  justify-self: center;
+  text-align: center;
   font-family: Georgia, serif;
   color: var(--gold-300);
-  font-size: 15px;
+  font-size: clamp(14px, 2.4vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .table-play-overlay__rotate {
@@ -2450,36 +2653,13 @@ body.table-play-active .footer {
     display: none !important;
   }
 
-  /* Keep I'm in + settings visible; collapse verbose status lines in landscape overlay. */
-  .table-play-overlay .btable-session__head {
-    display: flex !important;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 2px 0 4px;
-  }
-
-  .table-play-overlay .btable-session__title,
-  .table-play-overlay .btable-session__phase-tag,
-  .table-play-overlay .btable-session__status,
-  .table-play-overlay .btable-session__turn,
-  .table-play-overlay .btable-session__hint,
-  .table-play-overlay .btable-session__enroll {
-    display: none !important;
-  }
-
-  .table-play-overlay .btable-session__head-row {
-    display: flex !important;
-    align-items: center;
-    gap: 8px;
-  }
-
   .table-play-overlay__rotate {
     display: none !important;
   }
+}
+
+.table-play-overlay .btable-session__head {
+  display: none !important;
 }
 
 /* Mobile gameplay overlay — contain-fit stage; no horizontal pan */
@@ -2543,39 +2723,11 @@ body.table-play-active .footer {
     flex-wrap: wrap;
     justify-content: center;
   }
-
-  .table-play-overlay .btable-session__gear {
-    min-width: 44px;
-    min-height: 44px;
-  }
 }
 
 @media (max-width: 900px) and (orientation: portrait), ((hover: none) and (pointer: coarse) and (orientation: portrait)) {
   .table-play-overlay .btable-session__head {
-    flex-shrink: 0;
-    padding-bottom: 2px;
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 6px 8px;
-    width: 100%;
-  }
-
-  .table-play-overlay .btable-session__status,
-  .table-play-overlay .btable-session__turn,
-  .table-play-overlay .btable-session__hint,
-  .table-play-overlay .btable-session__enroll {
     display: none !important;
-  }
-
-  .table-play-overlay .btable-session__head-row {
-    display: flex !important;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    justify-content: center;
   }
 
   .table-play-overlay .hand-panel {

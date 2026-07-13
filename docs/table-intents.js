@@ -13,6 +13,7 @@ import {
   isBenignTableActionError,
   isStaleTableActionError,
 } from "./table-action-feedback.js";
+import { logHandTransition } from "./hand-transition-debug.js";
 
 const MAX_TRICKS_PER_HAND = 5;
 
@@ -246,6 +247,12 @@ export function createTableIntentHandlers(deps) {
       const auth = requireAuth("Sign in to pass.");
       if (!auth) return;
       const handPhase = deps.getHandPhase();
+      logHandTransition("im_out_fired", {
+        source: "onPassEnrollment",
+        playerId: auth.uid,
+        handPhase,
+        action: "pass_enrollment",
+      });
       const kind =
         handPhase === "decision"
           ? LOCAL_HAND_ACTION.DECISION_PASS
@@ -347,10 +354,7 @@ export function createTableIntentHandlers(deps) {
           }
           deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
           captureActionStart("draw");
-          deps.setTableActionFeedback({
-            status: "loading",
-            message: discardIndices.length ? `Drawing ${discardIndices.length}…` : "Standing pat…",
-          });
+          deps.setTableActionFeedback(null);
           return deps
             .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
               playerId: auth.uid,
@@ -360,12 +364,7 @@ export function createTableIntentHandlers(deps) {
             .then(() => {
               if (discardIndices.length > 0) deps.markPendingDrawShuffle();
               clearActionStart();
-              deps.setTableActionFeedback({
-                status: "success",
-                message: discardIndices.length
-                  ? `Drew ${discardIndices.length} replacement card(s)`
-                  : "Standing pat",
-              });
+              deps.setTableActionFeedback(null);
               const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
               if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
             })
@@ -394,7 +393,7 @@ export function createTableIntentHandlers(deps) {
           }
           deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
           captureActionStart("draw");
-          deps.setTableActionFeedback({ status: "loading", message: "Standing pat…" });
+          deps.setTableActionFeedback(null);
           return deps
             .submitHandDraw(deps.getRoomId(), deps.getSessionId(), {
               playerId: auth.uid,
@@ -403,7 +402,7 @@ export function createTableIntentHandlers(deps) {
             })
             .then(() => {
               clearActionStart();
-              deps.setTableActionFeedback({ status: "success", message: "Standing pat" });
+              deps.setTableActionFeedback(null);
               const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
               if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
             })
@@ -418,9 +417,15 @@ export function createTableIntentHandlers(deps) {
     onFoldDraw() {
       const auth = requireAuth("Sign in to fold");
       if (!auth) return Promise.reject(new Error("Sign in to fold"));
+      logHandTransition("im_out_fired", {
+        source: "onFoldDraw",
+        playerId: auth.uid,
+        handPhase: deps.getHandPhase?.() ?? null,
+        action: "draw_fold",
+      });
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
       captureActionStart("fold");
-      deps.setTableActionFeedback({ status: "loading", message: "Folding out…" });
+      deps.setTableActionFeedback(null);
       return deps
         .foldHandDraw(deps.getRoomId(), deps.getSessionId(), {
           playerId: auth.uid,
@@ -428,10 +433,7 @@ export function createTableIntentHandlers(deps) {
         })
         .then(() => {
           clearActionStart();
-          deps.setTableActionFeedback({
-            status: "success",
-            message: "You're out this hand — ante forfeited",
-          });
+          deps.setTableActionFeedback(null);
           const sessionObj = deps.getCurrentSessions().find((x) => x.id === deps.getSessionId());
           if (sessionObj) deps.wakeBotsAfterHandAction?.(sessionObj);
         })
@@ -447,7 +449,7 @@ export function createTableIntentHandlers(deps) {
       if (!auth) return Promise.reject(new Error("Sign in to play"));
       deps.commitLocalHandAction(LOCAL_HAND_ACTION.PLAY_CARD);
       captureActionStart("play");
-      deps.setTableActionFeedback({ status: "loading", message: "Playing card…" });
+      deps.setTableActionFeedback(null);
       return deps
         .playHandCard(deps.getRoomId(), deps.getSessionId(), {
           playerId: auth.uid,
