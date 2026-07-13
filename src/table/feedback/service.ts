@@ -16,6 +16,7 @@ import {
   ensureAudioUnlockedSync,
 } from "./audio";
 import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
+import { triggerHaptic } from "./haptics";
 import {
   getFeedbackPrefs,
   prefersReducedMotion,
