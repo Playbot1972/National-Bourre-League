@@ -355,6 +355,32 @@ describe("trickPresentationMachine", () => {
     assert.equal(model.showFinalTrickEcho, false);
   });
 
+  it("latches hand-end echo when the final trick pipeline returns to live", () => {
+    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "live");
+    assert.equal(store.frozenTrick, null);
+    assert.ok(store.handEndEchoTrick);
+    const model = buildTrickPresentationModel(store, null);
+    assert.equal(model.displayPlays.length, 0);
+    assert.equal(model.showFinalTrickEcho, true);
+    assert.equal(model.trickEchoPlays.length, 4);
+    assert.equal(model.trickEchoWinnerId, "p1");
+    assert.equal(model.trickEchoPhase, "winnerReveal");
+  });
+
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
     assert.ok(schedule.pipelineMs >= 3100);
