@@ -168,7 +168,6 @@ export function useAntePresentation({
     session.participantIds.join(","),
     session.seatedIds?.join(","),
     session.actionOrder?.join(","),
-    session.anteContributorIds?.join(","),
   ]);
 
   return { anteLandedCount };

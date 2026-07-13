@@ -7,9 +7,11 @@ import {
   killDealPresentation,
   resetDealRevealMarkers,
   runClockwiseDealPresentation,
+  type DealStep,
 } from "../animations/dealPresentationMotion";
 import { handOpenLog } from "../handOpeningDebug";
 import { anteTimingMark } from "../anteTimingDebug";
+import { playShuffleFeedback } from "../feedback";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -21,6 +23,18 @@ export interface UseTableDealPresentationInput {
   handPresentationPhase: string;
   onDealPresentationComplete?: () => void;
   tableRootRef: React.RefObject<HTMLElement | null>;
+}
+
+const DEAL_SEAT_WAIT_FRAMES = 8;
+
+/** First deal-step target in DOM (hero hand mounts after ante reserve). */
+function firstDealStepSeatReady(root: ParentNode, step: DealStep | undefined): boolean {
+  if (!step) return true;
+  return Boolean(
+    root.querySelector(
+      `[data-deal-seat="${step.playerId}"][data-deal-round="${step.roundIndex}"]`,
+    ),
+  );
 }
 
 export function useTableDealPresentation({
@@ -78,48 +92,74 @@ export function useTableDealPresentation({
     const steps = buildClockwiseDealSteps(dealOrder, CARDS_PER_PLAYER);
     if (!steps.length) return;
 
-    lastDealKeyRef.current = dealKey;
-    killDealPresentation();
-    resetDealRevealMarkers(root);
-    root.classList.add("btable-wrap--clockwise-dealing");
-    setClockwiseDealing(true);
-    setDealPresentationActive(true);
-    handOpenLog("deal-start", {
-      handNumber: session.handNumber,
-      stepCount: steps.length,
-      participantCount: dealOrder.length,
-    });
-    anteTimingMark("deal-start", {
-      handNumber: session.handNumber,
-      stepCount: steps.length,
-      source: "deal-presentation-hook",
-    });
-
+    let dealCommitted = false;
+    let rafId = 0;
+    let watchdog = 0;
     const reduced = prefersReducedMotion();
-    const rafId = window.requestAnimationFrame(() => {
+    const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
+    const firstStep = steps[0];
+
+    // Opponent deal targets render only while clockwiseDealing — arm before seat wait.
+    setClockwiseDealing(true);
+
+    const finishDealPresentation = () => {
+      root.classList.remove("btable-wrap--clockwise-dealing");
+      setClockwiseDealing(false);
+      setDealPresentationActive(false);
+      dealCompleteRef.current?.();
+    };
+
+    const beginDealMotion = (frame = 0) => {
+      if (dealCommitted) return;
+      if (!firstDealStepSeatReady(root, firstStep)) {
+        if (frame < DEAL_SEAT_WAIT_FRAMES) {
+          rafId = window.requestAnimationFrame(() => beginDealMotion(frame + 1));
+          return;
+        }
+        handOpenLog("deal-start-deferred-no-seats", {
+          handNumber: session.handNumber,
+          frame,
+          playerId: firstStep?.playerId ?? null,
+        });
+        setClockwiseDealing(false);
+        return;
+      }
+
+      dealCommitted = true;
+      lastDealKeyRef.current = dealKey;
+      killDealPresentation();
+      resetDealRevealMarkers(root);
+      root.classList.add("btable-wrap--clockwise-dealing");
+      setDealPresentationActive(true);
+      handOpenLog("deal-start", {
+        handNumber: session.handNumber,
+        stepCount: steps.length,
+        participantCount: dealOrder.length,
+      });
+      anteTimingMark("deal-start", {
+        handNumber: session.handNumber,
+        stepCount: steps.length,
+        source: "deal-presentation-hook",
+      });
+      playShuffleFeedback({ delayMs: 80 });
+
       runClockwiseDealPresentation({
         steps,
         root,
-        trumpHolderId: session.trumpHolderId ?? session.dealerId ?? null,
+        trumpHolderId,
         onComplete: () => {
-          root.classList.remove("btable-wrap--clockwise-dealing");
-          setClockwiseDealing(false);
-          setDealPresentationActive(false);
           handOpenLog("deal-animation-complete", { handNumber: session.handNumber });
-          dealCompleteRef.current?.();
+          finishDealPresentation();
         },
       });
-    });
 
-    const watchdog = window.setTimeout(
-      () => {
-        root.classList.remove("btable-wrap--clockwise-dealing");
-        setClockwiseDealing(false);
-        setDealPresentationActive(false);
-        dealCompleteRef.current?.();
-      },
-      dealPresentationDurationMs(steps.length, reduced) + 400,
-    );
+      watchdog = window.setTimeout(
+        () => finishDealPresentation(),
+        dealPresentationDurationMs(steps.length, reduced) + 400,
+      );
+    };
+
+    rafId = window.requestAnimationFrame(() => beginDealMotion(0));
 
     return () => {
       window.cancelAnimationFrame(rafId);
@@ -128,6 +168,9 @@ export function useTableDealPresentation({
       root.classList.remove("btable-wrap--clockwise-dealing");
       setDealPresentationActive(false);
       setClockwiseDealing(false);
+      if (!dealCommitted) {
+        lastDealKeyRef.current = null;
+      }
     };
   }, [
     session.handNumber,
