@@ -3,7 +3,7 @@
  * Authoritative game state is unchanged; these values gate UI sequencing.
  */
 
-import { prefersReducedMotion } from "./trickTiming";
+import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
@@ -48,7 +48,7 @@ export const PRESENTATION_WATCHDOG_MS = 12_000;
 export const BOT_DRAW_PRESENTATION_WATCHDOG_MS = 4_000;
 
 /** After the server clears the hand, force settlement if trick presentation is still busy. */
-export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = 4_000;
+export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = FINAL_HAND_TRICK_PRESENTATION_MS;
 
 export type HandPresentationPhase =
   | "idle"
