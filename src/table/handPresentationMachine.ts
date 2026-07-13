@@ -27,6 +27,7 @@ export interface HandServerSnapshot {
   carryOverPot: number;
   enrolledIds: string[];
   declinedIds: string[];
+  anteContributorIds: string[];
 }
 
 export interface HandPresentationModel {
@@ -115,6 +116,7 @@ export function snapshotFromSession(input: {
   carryOverPot?: number;
   enrolledIds?: string[];
   declinedIds?: string[];
+  anteContributorIds?: string[];
 }): HandServerSnapshot {
   return {
     sessionKey: input.sessionId,
@@ -132,6 +134,7 @@ export function snapshotFromSession(input: {
     carryOverPot: input.carryOverPot ?? 0,
     enrolledIds: [...(input.enrolledIds ?? [])],
     declinedIds: [...(input.declinedIds ?? [])],
+    anteContributorIds: [...(input.anteContributorIds ?? [])],
   };
 }
 
@@ -428,6 +431,12 @@ function beginHandSettleFromPending(store: HandPresentationStore): HandPresentat
   });
 }
 
+function antePresentationPlayerCount(snapshot: HandServerSnapshot): number {
+  const contributors = snapshot.anteContributorIds.length;
+  if (contributors > 0) return contributors;
+  return snapshot.participantIds.length;
+}
+
 function beginRevealPresentation(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -451,7 +460,10 @@ function beginRevealPresentation(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
-    dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
+    dealStaggerCount: Math.max(
+      store.dealStaggerCount,
+      antePresentationPlayerCount(snapshot),
+    ),
     prevSnapshot: snapshot,
     displayPotAmount: snapshot.potAmount,
     pendingHandSettle: false,

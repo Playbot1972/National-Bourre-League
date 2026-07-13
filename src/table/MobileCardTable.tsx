@@ -33,6 +33,7 @@ import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
+import { resolveAnteContributorIds } from "./antePresentationOrder";
 import { useAntePresentation } from "./hooks/useAntePresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
@@ -209,10 +210,13 @@ export function MobileCardTable({
     phase: handPresentation.phase,
     handNumber: session.handNumber,
     anteAnimActive: handPresentation.anteAnimActive,
-    participantIds: session.participantIds,
+    session,
     anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
   });
+  const anteContributorCount =
+    session.anteContributorIds?.length ??
+    resolveAnteContributorIds(session, {}, potMetrics.anteAmount).length;
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const isTrumpHolder =
     currentUserId != null && trumpHolderId != null && currentUserId === trumpHolderId;
@@ -365,7 +369,11 @@ export function MobileCardTable({
                 ...potMetrics,
                 currentPot: handPresentation.displayPotAmount,
               }}
-              participantCount={participantCount}
+              participantCount={
+                handPresentation.anteAnimActive && anteContributorCount > 0
+                  ? anteContributorCount
+                  : participantCount
+              }
               trumpUpcard={session.trumpUpcard}
               trumpSuit={session.trumpSuit}
               phase={session.phase}

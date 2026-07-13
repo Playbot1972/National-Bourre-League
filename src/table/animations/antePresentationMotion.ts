@@ -252,10 +252,10 @@ export function runAntePresentation(
     const playerId = ids[i]!;
     const origin = readAnteSeatOrigin(playerId, root);
     if (!origin) continue;
-    const startAt = i * staggerSec;
+    const position = i === 0 ? 0 : `>+${staggerSec}`;
     master.add(
       flyOneAnte(root, playerId, i, origin, target, pile, reduced, callbacks),
-      startAt,
+      position,
     );
   }
 
