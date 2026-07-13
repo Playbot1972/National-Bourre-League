@@ -150,7 +150,7 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
-  it("applyTableFeedbackDiff fires shuffle when trump appears outside reveal", () => {
+  it("applyTableFeedbackDiff skips shuffle when trump appears during opening hand draw", () => {
     const calls = [];
     const api = {
       playShuffleFeedback: () => calls.push("shuffle"),
@@ -165,6 +165,27 @@ describe("table UI layer modules", () => {
       myIsWinner: false,
       myBourre: false,
       heroCardKeys: "",
+    };
+    const next = { ...prev, trumpKey: "A-hearts" };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, []);
+  });
+
+  it("applyTableFeedbackDiff fires shuffle when trump appears mid-hand outside reveal", () => {
+    const calls = [];
+    const api = {
+      playShuffleFeedback: () => calls.push("shuffle"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "draw",
+      trumpKey: null,
+      drawCompletedIds: ["a"],
+      myTricks: 1,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "A-spades,K-hearts",
     };
     const next = { ...prev, trumpKey: "A-hearts" };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
