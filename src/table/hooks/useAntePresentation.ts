@@ -3,6 +3,7 @@ import { resolveAnteContributorIds } from "../antePresentationOrder";
 import { playAnteChipFeedback } from "../feedback";
 import {
   clearAntePile,
+  clearAntePresentationDedupe,
   killAntePresentation,
   runAntePresentation,
 } from "../animations/antePresentationMotion";
@@ -62,6 +63,7 @@ export function useAntePresentation({
 
   useLayoutEffect(() => {
     if (handRef.current !== handNumber) {
+      clearAntePresentationDedupe(handRef.current);
       handRef.current = handNumber;
       setAnteLandedCount(0);
       killAntePresentation();
@@ -149,6 +151,7 @@ export function useAntePresentation({
 
     return () => {
       killAntePresentation();
+      clearAntePresentationDedupe(handNumber);
     };
   }, [
     phase,
@@ -161,7 +164,6 @@ export function useAntePresentation({
     session.seatedIds?.join(","),
     session.actionOrder?.join(","),
     session.anteContributorIds?.join(","),
-    session.postedAntes ? JSON.stringify(session.postedAntes) : "",
   ]);
 
   return { anteLandedCount };

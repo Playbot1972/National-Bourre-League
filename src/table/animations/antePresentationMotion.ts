@@ -276,6 +276,14 @@ export function runAntePresentation(
   return true;
 }
 
+/** Allow the same hand's ante fly-in to restart after effect cleanup (e.g. postedAntes snap). */
+export function clearAntePresentationDedupe(handNumber: number): void {
+  const key = antePresentationDedupeKey(handNumber);
+  if (lastAnteSequenceKey === key) {
+    lastAnteSequenceKey = null;
+  }
+}
+
 /** @internal test helper */
 export function _resetAntePresentationForTests(): void {
   lastAnteSequenceKey = null;
