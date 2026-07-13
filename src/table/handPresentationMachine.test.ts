@@ -150,7 +150,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.anteAnimActive, true);
     assert.equal(store.trumpRevealActive, false);
 
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
     assert.equal(store.phase, "deal");
     assert.equal(store.anteAnimActive, false);
     assert.equal(store.trumpRevealActive, false);
@@ -158,6 +158,20 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
+  });
+
+  it("ante and deal phases wait for presentation callbacks (no auto timer)", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(phaseScheduleMs(store), 0);
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "deal");
+    assert.equal(phaseScheduleMs(store), 0);
   });
 
   it("legacy enrollment closes into draw via ante-first path", () => {
@@ -174,7 +188,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "ante");
     assert.equal(store.anteAnimActive, true);
     assert.equal(store.trumpRevealActive, false);
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
     assert.equal(store.phase, "deal");
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "drawPlayer");
@@ -582,7 +596,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, false);
     assert.equal(store.trumpMergedIntoHand, false);
 
-    store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "completeAntePresentation" });
     assert.equal(store.phase, "deal");
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");

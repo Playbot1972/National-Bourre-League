@@ -194,6 +194,7 @@ export function CardTable({
     session,
     anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
+    onAntePresentationComplete: handPresentation.completeAntePresentation,
   });
   const anteContributorCount =
     session.anteContributorIds?.length ??

@@ -213,6 +213,7 @@ export function MobileCardTable({
     session,
     anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
+    onAntePresentationComplete: handPresentation.completeAntePresentation,
   });
   const anteContributorCount =
     session.anteContributorIds?.length ??

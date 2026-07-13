@@ -129,6 +129,48 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
+  it("applyTableFeedbackDiff skips shuffle when trump appears during reveal (ante presentation)", () => {
+    const calls = [];
+    const api = {
+      playShuffleFeedback: () => calls.push("shuffle"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "reveal",
+      trumpKey: null,
+      drawCompletedIds: [],
+      myTricks: 0,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, trumpKey: "A-hearts" };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, []);
+  });
+
+  it("applyTableFeedbackDiff fires shuffle when trump appears outside reveal", () => {
+    const calls = [];
+    const api = {
+      playShuffleFeedback: () => calls.push("shuffle"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "draw",
+      trumpKey: null,
+      drawCompletedIds: [],
+      myTricks: 0,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, trumpKey: "A-hearts" };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["shuffle"]);
+  });
+
   it("createTableIntentHandlers requires auth before submit", () => {
     const handlers = createTableIntentHandlers({
       getAuth: () => null,
