@@ -77,11 +77,13 @@ export function initGameFeedback(): void {
 export interface ShuffleFeedbackOptions {
   /** Delay before audio/haptic to match deal animation (ms). */
   delayMs?: number;
+  /** Skip cooldown — deal presentation owns this cue after ante. */
+  force?: boolean;
 }
 
 export function playShuffleFeedback(options: ShuffleFeedbackOptions = {}): void {
   const now = Date.now();
-  if (now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
+  if (!options.force && now - lastShuffleAt < SHUFFLE_COOLDOWN_MS) return;
 
   if (shuffleTimer) {
     clearTimeout(shuffleTimer);
