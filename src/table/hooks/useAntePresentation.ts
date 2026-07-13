@@ -6,6 +6,7 @@ import {
   runAntePresentation,
 } from "../animations/antePresentationMotion";
 import { isGameFlowDebugEnabled } from "../gameFlowDebug";
+import { handOpenLog } from "../handOpeningDebug";
 import { prefersReducedMotion } from "../trickTiming";
 
 function anteDebug(message: string, detail: Record<string, unknown>): void {
@@ -32,17 +33,13 @@ export function shouldRunAntePresentation(
   anteAnimActive: boolean,
   anteAmount: number,
 ): boolean {
-  return (
-    anteAnimActive &&
-    anteAmount > 0 &&
-    (phase === "ante" || phase === "trumpReveal")
-  );
+  return anteAnimActive && anteAmount > 0 && phase === "ante";
 }
 
 function anteSkipReason(phase: string, anteAnimActive: boolean, anteAmount: number): string {
   if (!anteAnimActive) return "anteAnimActive-false";
   if (anteAmount <= 0) return "anteAmount-zero";
-  if (phase !== "ante" && phase !== "trumpReveal") return "phase-not-ante-or-trumpReveal";
+  if (phase !== "ante") return "phase-not-ante";
   return "unknown";
 }
 
@@ -103,6 +100,7 @@ export function useAntePresentation({
       playerIds: ids,
       reducedMotion: prefersReducedMotion(),
     });
+    handOpenLog("ante-sequence-start", { handNumber, playerCount: ids.length });
 
     const started = runAntePresentation(root, handNumber, ids, {
       onLaunch: (playerId, playerIndex) => {
@@ -110,6 +108,7 @@ export function useAntePresentation({
       },
       onLand: (playerId, playerIndex) => {
         anteDebug("landed", { handNumber, playerId, playerIndex });
+        handOpenLog("ante-landed", { handNumber, playerId, playerIndex });
         playAnteChipFeedback(handNumber, playerIndex);
         anteDebug("sound-requested", { handNumber, playerId, playerIndex, event: "anteChip" });
         setAnteLandedCount((n) => {
@@ -120,6 +119,7 @@ export function useAntePresentation({
       },
       onComplete: () => {
         anteDebug("sequence-complete", { handNumber });
+        handOpenLog("ante-sequence-complete", { handNumber });
       },
     });
 

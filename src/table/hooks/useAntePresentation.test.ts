@@ -7,21 +7,20 @@ describe("shouldRunAntePresentation", () => {
     assert.equal(shouldRunAntePresentation("ante", true, 2), true);
   });
 
-  it("runs on trumpReveal phase when anteAnimActive (legacy enrollment→draw)", () => {
-    assert.equal(shouldRunAntePresentation("trumpReveal", true, 2), true);
+  it("skips trumpReveal — deal must follow ante first", () => {
+    assert.equal(shouldRunAntePresentation("trumpReveal", true, 2), false);
   });
 
   it("skips when anteAnimActive is false", () => {
     assert.equal(shouldRunAntePresentation("ante", false, 2), false);
-    assert.equal(shouldRunAntePresentation("trumpReveal", false, 2), false);
   });
 
   it("skips when anteAmount is zero", () => {
     assert.equal(shouldRunAntePresentation("ante", true, 0), false);
   });
 
-  it("skips unrelated presentation phases", () => {
+  it("skips unrelated presentation phases including deal", () => {
+    assert.equal(shouldRunAntePresentation("deal", true, 2), false);
     assert.equal(shouldRunAntePresentation("drawPlayer", true, 2), false);
-    assert.equal(shouldRunAntePresentation("play", true, 2), false);
   });
 });
