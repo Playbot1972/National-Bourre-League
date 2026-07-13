@@ -2836,6 +2836,9 @@ function openRoom(roomId, options = {}) {
   const fromHistory = options.fromHistory === true;
   clearDetailSubs();
   roomGoneHandled = false;
+  if (tablePlayOpen) {
+    teardownTableOverlay({ restoreDetail: false });
+  }
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -2933,6 +2936,10 @@ function openRoom(roomId, options = {}) {
           scheduleRenderRoomDetail();
           return;
         }
+        if (sessions.length === 0) {
+          scheduleRenderRoomDetail();
+          return;
+        }
         const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
@@ -2940,6 +2947,7 @@ function openRoom(roomId, options = {}) {
           openSessionId = null;
           openScores = [];
           openHands = [];
+          if (tablePlayOpen) closeTablePlay();
         }
       }
       if (!openSessionId && sessions.length > 0) {
@@ -4279,15 +4287,21 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
-  if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
-    unmountTableSessionHost();
-    if (
-      tablePlayOpen &&
-      sessionObj &&
-      (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2)
-    ) {
-      closeTablePlay();
+  if (tablePlayOpen) {
+    if (!sessionObj) {
+      // Firestore can briefly drop the open session during hand transitions — keep the
+      // mounted table instead of leaving overlay chrome with an empty #table-session-root.
+      if (attempt < 12) {
+        requestAnimationFrame(() => syncTableSession(openSessionObj, { attempt: attempt + 1 }));
+      }
+      return;
     }
+    if (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+      closeTablePlay();
+      return;
+    }
+  } else if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+    unmountTableSessionHost();
     return;
   }
 
