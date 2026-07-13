@@ -9,6 +9,7 @@ import {
   runClockwiseDealPresentation,
 } from "../animations/dealPresentationMotion";
 import { setDealPresentationActive } from "../presentationMotionBusy";
+import { playShuffleFeedback } from "../feedback";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -16,6 +17,8 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
+  /** Block deal until ante presentation completes (v1.03.94 topology). */
+  handPresentationPhase?: string;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -23,6 +26,7 @@ export function useTableDealPresentation({
   session,
   heroCards,
   privateHandReady = false,
+  handPresentationPhase,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
@@ -46,6 +50,10 @@ export function useTableDealPresentation({
   useLayoutEffect(() => {
     const root = tableRootRef.current;
     if (!root) return;
+
+    if (handPresentationPhase === "ante") {
+      return;
+    }
 
     const inDealPhase =
       session.phase === "reveal" ||
@@ -78,6 +86,7 @@ export function useTableDealPresentation({
     root.classList.add("btable-wrap--clockwise-dealing");
     setClockwiseDealing(true);
     setDealPresentationActive(true);
+    playShuffleFeedback({ delayMs: 80, force: true });
 
     const reduced = prefersReducedMotion();
     const rafId = window.requestAnimationFrame(() => {
@@ -117,6 +126,7 @@ export function useTableDealPresentation({
     session.participantIds,
     heroCards.length,
     privateHandReady,
+    handPresentationPhase,
     tableRootRef,
   ]);
 
