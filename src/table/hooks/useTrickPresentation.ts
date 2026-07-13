@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef, useCallback } from "react";
 import {
   CARD_LAND_MS,
   CARD_REVEAL_STAGGER_MS,
@@ -18,6 +18,7 @@ import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
   reduceTrickPresentation,
+  shouldReinitTrickPresentationStore,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
@@ -37,6 +38,7 @@ interface UseTrickPresentationInput {
 export type TrickPresentation = TrickPresentationModel & {
   phase: TrickPresentationPhase;
   forceHandEndDrain: () => void;
+  clearHandEndEcho: () => void;
 };
 
 export function useTrickPresentation({
@@ -95,10 +97,17 @@ export function useTrickPresentation({
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
 
-    const handEnding =
-      handComplete || (phase == null && participantIds.length === 0);
-
-    if (enteredPlay || (!sessionPlayActive && !pipelineActiveRef.current && !handEnding)) {
+    if (
+      shouldReinitTrickPresentationStore({
+        enteredPlay,
+        sessionPlayActive,
+        pipelineActive: pipelineActiveRef.current,
+        handComplete,
+        phase,
+        participantCount: participantIds.length,
+        handEndEchoTrick: storeRef.current.handEndEchoTrick,
+      })
+    ) {
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -324,8 +333,11 @@ export function useTrickPresentation({
   ]);
 
   const model = buildTrickPresentationModel(store, currentTrick);
+  const forceHandEndDrain = useCallback(() => dispatch({ type: "forceHandEndDrain" }), []);
+  const clearHandEndEcho = useCallback(() => dispatch({ type: "clearHandEndEcho" }), []);
   return {
     ...model,
-    forceHandEndDrain: () => dispatch({ type: "forceHandEndDrain" }),
+    forceHandEndDrain,
+    clearHandEndEcho,
   };
 }
