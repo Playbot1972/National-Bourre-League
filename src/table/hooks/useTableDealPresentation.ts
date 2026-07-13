@@ -9,6 +9,7 @@ import {
   runClockwiseDealPresentation,
 } from "../animations/dealPresentationMotion";
 import { handOpenLog } from "../handOpeningDebug";
+import { anteTimingMark } from "../anteTimingDebug";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -87,6 +88,11 @@ export function useTableDealPresentation({
       handNumber: session.handNumber,
       stepCount: steps.length,
       participantCount: dealOrder.length,
+    });
+    anteTimingMark("deal-start", {
+      handNumber: session.handNumber,
+      stepCount: steps.length,
+      source: "deal-presentation-hook",
     });
 
     const reduced = prefersReducedMotion();

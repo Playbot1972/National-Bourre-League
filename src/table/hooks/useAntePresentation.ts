@@ -5,6 +5,7 @@ import {
   killAntePresentation,
   runAntePresentation,
 } from "../animations/antePresentationMotion";
+import { anteTimingMark } from "../anteTimingDebug";
 import { isGameFlowDebugEnabled } from "../gameFlowDebug";
 import { handOpenLog } from "../handOpeningDebug";
 import { prefersReducedMotion } from "../trickTiming";
@@ -94,6 +95,12 @@ export function useAntePresentation({
 
     setAnteLandedCount(0);
 
+    anteTimingMark("sequence-start", {
+      handNumber,
+      playerCount: ids.length,
+      playerIds: ids,
+      reducedMotion: prefersReducedMotion(),
+    });
     anteDebug("sequence-start", {
       handNumber,
       playerCount: ids.length,
@@ -104,12 +111,20 @@ export function useAntePresentation({
 
     const started = runAntePresentation(root, handNumber, ids, {
       onLaunch: (playerId, playerIndex) => {
+        anteTimingMark("player-launch", { handNumber, playerId, playerIndex });
         anteDebug("launched", { handNumber, playerId, playerIndex });
       },
       onLand: (playerId, playerIndex) => {
+        anteTimingMark("player-landed", { handNumber, playerId, playerIndex });
         anteDebug("landed", { handNumber, playerId, playerIndex });
         handOpenLog("ante-landed", { handNumber, playerId, playerIndex });
         playAnteChipFeedback(handNumber, playerIndex);
+        anteTimingMark("sound-requested", {
+          handNumber,
+          playerId,
+          playerIndex,
+          event: "anteChip",
+        });
         anteDebug("sound-requested", { handNumber, playerId, playerIndex, event: "anteChip" });
         setAnteLandedCount((n) => {
           const next = n + 1;
@@ -118,6 +133,7 @@ export function useAntePresentation({
         });
       },
       onComplete: () => {
+        anteTimingMark("sequence-complete", { handNumber });
         anteDebug("sequence-complete", { handNumber });
         handOpenLog("ante-sequence-complete", { handNumber });
       },
