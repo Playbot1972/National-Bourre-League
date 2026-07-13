@@ -2,8 +2,8 @@
  * Per-player ante chip audio — staggered to match ante money fly-in lands.
  */
 
-/** Matches `animation-delay: calc(var(--ante-i) * 80ms)` in table.css */
-export const ANTE_CHIP_SOUND_STAGGER_MS = 80;
+/** Matches sequential ante presentation stagger (~500ms between participants). */
+export const ANTE_CHIP_SOUND_STAGGER_MS = 500;
 
 const MAX_ANTE_CHIP_PLAYERS = 8;
 

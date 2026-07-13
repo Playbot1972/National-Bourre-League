@@ -33,6 +33,7 @@ import {
   buildTablePlayerSeatFlags,
   buildEnrollmentLeaderLabel,
   buildTableLeaderLabel,
+  resolveAnteContributorIds,
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
@@ -4108,6 +4109,17 @@ function buildTableSessionProps(s) {
     postedAntes,
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
+  const anteContributorIds = resolveAnteContributorIds(
+    {
+      dealerId,
+      participantIds: handParticipantIds,
+      seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
+      actionOrder: resolvedActionOrder ?? undefined,
+      postedAntes,
+    },
+    scoreById,
+    handStake,
+  );
 
   const showCoWinSettlement =
     handComplete &&
@@ -4185,6 +4197,7 @@ function buildTableSessionProps(s) {
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
+      anteContributorIds,
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
     },

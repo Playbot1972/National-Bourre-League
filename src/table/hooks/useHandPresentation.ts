@@ -41,6 +41,7 @@ export interface UseHandPresentationInput {
   enrolledIds?: string[];
   declinedIds?: string[];
   actionOrder?: string[];
+  anteContributorIds?: string[];
 }
 
 export type HandPresentation = HandPresentationModel & {
@@ -59,6 +60,7 @@ export function useHandPresentation({
   enrolledIds = EMPTY_IDS,
   declinedIds = EMPTY_IDS,
   actionOrder,
+  anteContributorIds = EMPTY_IDS,
 }: UseHandPresentationInput): HandPresentation {
   const snapshot = useMemo(
     (): HandServerSnapshot =>
@@ -78,6 +80,7 @@ export function useHandPresentation({
         carryOverPot: session.carryOverPot,
         enrolledIds,
         declinedIds,
+        anteContributorIds,
       }),
     [
       session,
@@ -87,6 +90,7 @@ export function useHandPresentation({
       enrolledIds,
       declinedIds,
       actionOrder,
+      anteContributorIds,
     ],
   );
 

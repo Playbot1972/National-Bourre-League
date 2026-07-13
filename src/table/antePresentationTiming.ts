@@ -23,6 +23,9 @@ export const ANTE_PILE_MERGE_MS = 200;
 /** Minimum readable hold after ante motion before deal may begin (ms). */
 export const ANTE_POST_SEQUENCE_HOLD_MS = 180;
 
+/** Gap between each participant's ante — one clear beat at a time. */
+export const ANTE_PARTICIPANT_STAGGER_MS = 500;
+
 /** One chip: pop + travel + bounce (with overlap). */
 export const ANTE_PER_PLAYER_MOTION_MS =
   ANTE_LAUNCH_POP_MS + ANTE_MONEY_TRAVEL_MS + ANTE_LAND_BOUNCE_MS - ANTE_BOUNCE_OVERLAP_MS;
@@ -36,18 +39,12 @@ function scaleMs(ms: number, reducedMotion: boolean): number {
   return Math.round(ms * motionScale * slowScale);
 }
 
-/** Per-player launch stagger — 90–150 ms, tighter on large tables. */
+/** Per-participant gap — fixed ~500ms so each ante is distinct and readable. */
 export function computeAnteStaggerMs(
-  playerCount: number,
+  _playerCount: number,
   reducedMotion = prefersReducedMotion(),
 ): number {
-  const count = Math.max(1, Math.min(8, playerCount));
-  let base = 118;
-  if (count >= 7) base = 88;
-  else if (count >= 6) base = 96;
-  else if (count <= 3) base = 128;
-  const clamped = Math.min(150, Math.max(88, base));
-  return scaleMs(clamped, reducedMotion);
+  return scaleMs(ANTE_PARTICIPANT_STAGGER_MS, reducedMotion);
 }
 
 /**
@@ -69,6 +66,6 @@ export function anteSequenceDurationMs(
   const merge = scaleMs(ANTE_PILE_MERGE_MS, reducedMotion);
   const postHold = scaleMs(ANTE_POST_SEQUENCE_HOLD_MS, reducedMotion);
   const debugHold = isAnteDebugSlowMode() ? ANTE_DEBUG_SLOW_EXTRA_HOLD_MS : 0;
-  const staggered = Math.max(0, count - 1) * stagger;
-  return Math.max(perPlayerMotion + merge + postHold + debugHold, staggered + perPlayerMotion + merge + postHold + debugHold);
+  const gaps = Math.max(0, count - 1) * stagger;
+  return count * perPlayerMotion + gaps + merge + postHold + debugHold;
 }

@@ -4,6 +4,7 @@ import {
   anteSequenceDurationMs,
   computeAnteStaggerMs,
   ANTE_MONEY_TRAVEL_MS,
+  ANTE_PARTICIPANT_STAGGER_MS,
   ANTE_POST_SEQUENCE_HOLD_MS,
   ANTE_PER_PLAYER_MOTION_MS,
 } from "./antePresentationTiming";
@@ -13,24 +14,24 @@ import {
 } from "./animations/antePresentationMotion";
 
 describe("antePresentationTiming", () => {
-  it("staggers within 88–150ms and compresses for 6–8 players", () => {
-    assert.ok(computeAnteStaggerMs(3) >= 88 && computeAnteStaggerMs(3) <= 150);
-    assert.ok(computeAnteStaggerMs(8) < computeAnteStaggerMs(4));
-    assert.equal(computeAnteStaggerMs(8), 88);
+  it("uses ~500ms stagger between participants", () => {
+    assert.equal(computeAnteStaggerMs(3, false), ANTE_PARTICIPANT_STAGGER_MS);
+    assert.equal(computeAnteStaggerMs(8, false), ANTE_PARTICIPANT_STAGGER_MS);
   });
 
-  it("includes per-player motion, merge, and post-ante hold in sequence duration", () => {
+  it("includes per-player motion, gaps, merge, and post-ante hold in sequence duration", () => {
     const total = anteSequenceDurationMs(4, false);
     const stagger = computeAnteStaggerMs(4, false);
-    const expectedMin = 3 * stagger + ANTE_PER_PLAYER_MOTION_MS + ANTE_POST_SEQUENCE_HOLD_MS;
+    const expectedMin =
+      4 * ANTE_PER_PLAYER_MOTION_MS + 3 * stagger + ANTE_POST_SEQUENCE_HOLD_MS;
     assert.ok(total >= expectedMin, `expected >= ${expectedMin}, got ${total}`);
     assert.ok(total >= ANTE_MONEY_TRAVEL_MS);
   });
 
-  it("eight-player ante stays readable without excessive delay", () => {
+  it("eight-player ante stays readable with sequential gaps", () => {
     const total = anteSequenceDurationMs(8, false);
-    assert.ok(total >= 900, `expected >= 900ms, got ${total}`);
-    assert.ok(total <= 1800, `expected <= 1800ms, got ${total}`);
+    assert.ok(total >= 3500, `expected >= 3500ms, got ${total}`);
+    assert.ok(total <= 6000, `expected <= 6000ms, got ${total}`);
   });
 
   it("shortens sequence when reduced motion is requested", () => {

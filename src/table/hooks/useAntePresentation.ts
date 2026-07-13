@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { resolveAnteContributorIds } from "../antePresentationOrder";
 import { playAnteChipFeedback } from "../feedback";
 import {
   clearAntePile,
@@ -19,7 +20,7 @@ export interface UseAntePresentationInput {
   phase: string;
   handNumber: number;
   anteAnimActive: boolean;
-  participantIds: string[];
+  session: Parameters<typeof resolveAnteContributorIds>[0];
   anteAmount: number;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
@@ -52,7 +53,7 @@ export function useAntePresentation({
   phase,
   handNumber,
   anteAnimActive,
-  participantIds,
+  session,
   anteAmount,
   tableRootRef,
 }: UseAntePresentationInput): AntePresentationState {
@@ -87,9 +88,9 @@ export function useAntePresentation({
       return;
     }
 
-    const ids = participantIds.filter(Boolean).slice(0, 8);
+    const ids = resolveAnteContributorIds(session, {}, anteAmount);
     if (!ids.length) {
-      anteDebug("sequence-skipped-no-players", { handNumber, participantIds });
+      anteDebug("sequence-skipped-no-players", { handNumber, session });
       return;
     }
 
@@ -149,7 +150,19 @@ export function useAntePresentation({
     return () => {
       killAntePresentation();
     };
-  }, [phase, anteAnimActive, handNumber, participantIds.join(","), anteAmount, tableRootRef]);
+  }, [
+    phase,
+    anteAnimActive,
+    handNumber,
+    anteAmount,
+    tableRootRef,
+    session.dealerId,
+    session.participantIds.join(","),
+    session.seatedIds?.join(","),
+    session.actionOrder?.join(","),
+    session.anteContributorIds?.join(","),
+    session.postedAntes ? JSON.stringify(session.postedAntes) : "",
+  ]);
 
   return { anteLandedCount };
 }
