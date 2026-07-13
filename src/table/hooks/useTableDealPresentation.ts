@@ -8,6 +8,7 @@ import {
   resetDealRevealMarkers,
   runClockwiseDealPresentation,
 } from "../animations/dealPresentationMotion";
+import { handOpenLog } from "../handOpeningDebug";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -16,6 +17,8 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
+  handPresentationPhase: string;
+  onDealPresentationComplete?: () => void;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -23,11 +26,15 @@ export function useTableDealPresentation({
   session,
   heroCards,
   privateHandReady = false,
+  handPresentationPhase,
+  onDealPresentationComplete,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
   const lastDealKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(session.handNumber);
+  const dealCompleteRef = useRef(onDealPresentationComplete);
+  dealCompleteRef.current = onDealPresentationComplete;
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -47,14 +54,12 @@ export function useTableDealPresentation({
     const root = tableRootRef.current;
     if (!root) return;
 
-    const inDealPhase =
-      session.phase === "reveal" ||
-      session.phase === "decision" ||
-      session.phase === "draw" ||
-      session.phase === "play";
+    if (handPresentationPhase !== "deal") {
+      return;
+    }
 
     const cardCount = heroCards.length;
-    if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
+    if (!privateHandReady || cardCount < CARDS_PER_PLAYER) {
       return;
     }
 
@@ -78,6 +83,11 @@ export function useTableDealPresentation({
     root.classList.add("btable-wrap--clockwise-dealing");
     setClockwiseDealing(true);
     setDealPresentationActive(true);
+    handOpenLog("deal-start", {
+      handNumber: session.handNumber,
+      stepCount: steps.length,
+      participantCount: dealOrder.length,
+    });
 
     const reduced = prefersReducedMotion();
     const rafId = window.requestAnimationFrame(() => {
@@ -89,6 +99,8 @@ export function useTableDealPresentation({
           root.classList.remove("btable-wrap--clockwise-dealing");
           setClockwiseDealing(false);
           setDealPresentationActive(false);
+          handOpenLog("deal-animation-complete", { handNumber: session.handNumber });
+          dealCompleteRef.current?.();
         },
       });
     });
@@ -98,6 +110,7 @@ export function useTableDealPresentation({
         root.classList.remove("btable-wrap--clockwise-dealing");
         setClockwiseDealing(false);
         setDealPresentationActive(false);
+        dealCompleteRef.current?.();
       },
       dealPresentationDurationMs(steps.length, reduced) + 400,
     );
@@ -112,11 +125,12 @@ export function useTableDealPresentation({
     };
   }, [
     session.handNumber,
-    session.phase,
     session.dealerId,
     session.participantIds,
+    session.trumpHolderId,
     heroCards.length,
     privateHandReady,
+    handPresentationPhase,
     tableRootRef,
   ]);
 

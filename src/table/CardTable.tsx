@@ -182,6 +182,8 @@ export function CardTable({
     session,
     heroCards,
     privateHandReady,
+    handPresentationPhase: handPresentation.phase,
+    onDealPresentationComplete: handPresentation.completeDealPresentation,
     tableRootRef: wrapRef,
   });
   const antePresentation = useAntePresentation({

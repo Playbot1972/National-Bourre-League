@@ -9,6 +9,7 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
+import { handOpenLog } from "../handOpeningDebug";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -43,6 +44,7 @@ export interface UseHandPresentationInput {
 
 export type HandPresentation = HandPresentationModel & {
   completeTrumpMerge: () => void;
+  completeDealPresentation: () => void;
 };
 
 export function useHandPresentation({
@@ -213,6 +215,9 @@ export function useHandPresentation({
           drawAnimSubPhase: armedAt.drawAnimSubPhase,
         });
       }
+      if (armedAt.phase === "deal") {
+        handOpenLog("deal-phase-watchdog-advance", { handNumber: armedAt.handNumber, delay });
+      }
       dispatch({ type: "advancePhase" });
     }, delay);
     const watchdogMs =
@@ -268,5 +273,9 @@ export function useHandPresentation({
     dispatch({ type: "completeTrumpMerge" });
   }, []);
 
-  return { ...buildHandPresentationModel(store), completeTrumpMerge };
+  const completeDealPresentation = useCallback(() => {
+    dispatch({ type: "completeDealPresentation" });
+  }, []);
+
+  return { ...buildHandPresentationModel(store), completeTrumpMerge, completeDealPresentation };
 }

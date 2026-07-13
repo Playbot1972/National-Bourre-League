@@ -54,6 +54,7 @@ export type HandPresentationPhase =
   | "idle"
   | "handReset"
   | "ante"
+  | "deal"
   | "trumpReveal"
   | "trumpMerge"
   | "enrollment"

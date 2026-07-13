@@ -8,6 +8,7 @@ import {
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
 import { anteSequenceDurationMs } from "./antePresentationTiming";
+import { handOpenLog } from "./handOpeningDebug";
 
 export interface HandServerSnapshot {
   sessionKey: string;
@@ -87,6 +88,7 @@ export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
   return (
     phase === "handReset" ||
     phase === "ante" ||
+    phase === "deal" ||
     phase === "trumpReveal" ||
     phase === "trumpMerge" ||
     phase === "drawPlayer" ||
@@ -429,9 +431,17 @@ function beginRevealPresentation(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
 ): HandPresentationStore {
-  const hasTrump = Boolean(snapshot.trumpUpcard);
+  handOpenLog("hand-start", {
+    handNumber: snapshot.handNumber,
+    serverPhase: snapshot.phase,
+    participantCount: snapshot.participantIds.length,
+  });
+  handOpenLog("ante-armed", {
+    handNumber: snapshot.handNumber,
+    hasTrump: Boolean(snapshot.trumpUpcard),
+  });
   return withPhase(store, "ante", {
-    trumpRevealActive: hasTrump,
+    trumpRevealActive: false,
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
@@ -471,6 +481,7 @@ export type HandPresentationEvent =
     }
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
+  | { type: "completeDealPresentation" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
@@ -526,6 +537,11 @@ function reduceHandPresentationCore(
         trumpMergedIntoHand: true,
         phase: store.phase === "trumpMerge" ? "drawPlayer" : store.phase,
       };
+
+    case "completeDealPresentation":
+      if (store.phase !== "deal") return store;
+      handOpenLog("deal-complete", { handNumber: store.handNumber });
+      return advanceHandPhase(store);
 
     case "watchdog":
       if (store.pendingHandSettle && store.phase === "play") {
@@ -664,13 +680,9 @@ function reduceHandPresentationCore(
         !snapshot.enrollmentActive &&
         store.phase === "enrollment"
       ) {
-        const hasTrump = Boolean(snapshot.trumpUpcard);
-        return withPhase(store, hasTrump ? "trumpReveal" : "ante", {
-          trumpRevealActive: hasTrump,
-          anteAnimActive: true,
-          dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
-          prevSnapshot: snapshot,
-          displayPotAmount: snapshot.potAmount,
+        return beginRevealPresentation(store, {
+          ...snapshot,
+          phase: "reveal",
         });
       }
 
@@ -752,17 +764,29 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
 
     case "ante":
-      if (store.trumpRevealActive || snap?.trumpUpcard) {
+      handOpenLog("ante-complete", { handNumber: store.handNumber });
+      return withPhase(store, "deal", {
+        anteAnimActive: false,
+        pendingSnapshot: null,
+      });
+
+    case "deal": {
+      const snap = pending ?? store.prevSnapshot;
+      if (snap?.trumpUpcard) {
+        handOpenLog("trump-reveal-start", {
+          handNumber: store.handNumber,
+          trump: trumpKey(snap.trumpUpcard),
+        });
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
-          anteAnimActive: false,
           pendingSnapshot: null,
         });
       }
       if (snap?.phase === "draw") {
         return beginDrawSequence(store, snap, 0, 0);
       }
-      return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
+      return withPhase(store, "drawPlayer", { pendingSnapshot: null });
+    }
 
     case "trumpReveal": {
       if (snap?.phase === "draw") {
@@ -883,6 +907,7 @@ export function buildHandPresentationModel(
       store.phase === "trumpReveal" ||
       store.phase === "trumpMerge" ||
       store.phase === "ante" ||
+      store.phase === "deal" ||
       store.phase === "drawReady" ||
       store.phase === "settle" ||
       store.phase === "nextHandReset" ||
@@ -903,6 +928,14 @@ export function phaseScheduleMs(
       return t.handResetMs;
     case "ante":
       return anteSequenceDurationMs(Math.max(1, Math.min(store.dealStaggerCount, 8)), reducedMotion);
+    case "deal": {
+      const t = handTimingScale(reducedMotion);
+      const steps = Math.max(1, store.dealStaggerCount) * 5;
+      return Math.max(
+        t.dealFanMs,
+        steps * t.dealCardStaggerMs + 240,
+      );
+    }
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
