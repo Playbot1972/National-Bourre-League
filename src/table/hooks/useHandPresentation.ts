@@ -9,6 +9,7 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
+import { anteTimingMark } from "../anteTimingDebug";
 import { handOpenLog } from "../handOpeningDebug";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
@@ -217,6 +218,14 @@ export function useHandPresentation({
       }
       if (armedAt.phase === "deal") {
         handOpenLog("deal-phase-watchdog-advance", { handNumber: armedAt.handNumber, delay });
+      }
+      if (armedAt.phase === "ante") {
+        handOpenLog("ante-phase-timer-advance", { handNumber: armedAt.handNumber, delay });
+        anteTimingMark("deal-start", {
+          handNumber: armedAt.handNumber,
+          source: "ante-phase-timer",
+          scheduledDelayMs: delay,
+        });
       }
       dispatch({ type: "advancePhase" });
     }, delay);

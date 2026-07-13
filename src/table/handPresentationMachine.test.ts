@@ -519,7 +519,7 @@ describe("handPresentationMachine", () => {
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
-    assert.ok(anteSequenceDurationMs(4) < 1000);
+    assert.ok(anteSequenceDurationMs(4) >= 800 && anteSequenceDurationMs(4) <= 1500);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);

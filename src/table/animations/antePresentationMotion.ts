@@ -1,5 +1,8 @@
 import gsap from "gsap";
 import {
+  ANTE_BOUNCE_OVERLAP_MS,
+  ANTE_LAND_BOUNCE_MS,
+  ANTE_LAUNCH_POP_MS,
   ANTE_MONEY_TRAVEL_MS,
   ANTE_PILE_MERGE_MS,
   computeAnteStaggerMs,
@@ -109,6 +112,9 @@ function flyOneAnte(
     (reduced ? 0.14 : ANTE_MONEY_TRAVEL_MS / 1000),
     reduced,
   );
+  const popSec = scaledDuration(ANTE_LAUNCH_POP_MS / 1000, reduced);
+  const bounceSec = scaledDuration(ANTE_LAND_BOUNCE_MS / 1000, reduced);
+  const bounceOverlapSec = scaledDuration(ANTE_BOUNCE_OVERLAP_MS / 1000, reduced);
 
   gsap.set(ghost, {
     position: "fixed",
@@ -134,7 +140,7 @@ function flyOneAnte(
   tl.to(ghost, {
     scale: 1.08,
     opacity: 1,
-    duration: reduced ? 0.06 : 0.09,
+    duration: reduced ? 0.06 : popSec,
     ease: PREMIUM_EASE_BOUNCE,
   });
 
@@ -169,7 +175,7 @@ function flyOneAnte(
     ghost,
     {
       scale: 0.92,
-      duration: 0.07,
+      duration: reduced ? 0.07 : bounceSec / 2,
       yoyo: true,
       repeat: 1,
       ease: PREMIUM_EASE_BOUNCE,
@@ -179,7 +185,7 @@ function flyOneAnte(
         callbacks.onLand?.(playerId, playerIndex);
       },
     },
-    `-=${0.05}`,
+    `-=${bounceOverlapSec}`,
   );
 
   return tl;
@@ -215,7 +221,6 @@ export function runAntePresentation(
 ): boolean {
   const key = antePresentationDedupeKey(handNumber);
   if (lastAnteSequenceKey === key) return false;
-  lastAnteSequenceKey = key;
 
   killAntePresentation();
   clearAntePile(root);
@@ -227,6 +232,8 @@ export function runAntePresentation(
   const target = readAntePotTarget(root);
   const pile = root.querySelector<HTMLElement>(".bpot__ante-pile");
   if (!target || !pile) return false;
+
+  lastAnteSequenceKey = key;
 
   pile.classList.add("bpot__ante-pile--active");
   const reduced = prefersReducedMotion();

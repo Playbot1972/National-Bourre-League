@@ -8,6 +8,7 @@ import {
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
 import { anteSequenceDurationMs } from "./antePresentationTiming";
+import { anteTimingMark } from "./anteTimingDebug";
 import { handOpenLog } from "./handOpeningDebug";
 
 export interface HandServerSnapshot {
@@ -438,6 +439,11 @@ function beginRevealPresentation(
   });
   handOpenLog("ante-armed", {
     handNumber: snapshot.handNumber,
+    hasTrump: Boolean(snapshot.trumpUpcard),
+  });
+  anteTimingMark("ante-armed", {
+    handNumber: snapshot.handNumber,
+    participantCount: snapshot.participantIds.length,
     hasTrump: Boolean(snapshot.trumpUpcard),
   });
   return withPhase(store, "ante", {
