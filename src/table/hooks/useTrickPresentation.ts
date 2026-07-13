@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
 import {
   CARD_LAND_MS,
   CARD_REVEAL_STAGGER_MS,
+  FINAL_HAND_TRICK_PRESENTATION_MS,
   prefersReducedMotion,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
-  TRICK_HAND_END_DRAIN_MS,
   type TrickPresentationPhase,
 } from "../trickTiming";
 import {
@@ -218,35 +218,20 @@ export function useTrickPresentation({
     if (sessionPlayActive && !handComplete) return;
 
     const reduced = prefersReducedMotion();
-    const stepMs = reduced ? 60 : 160;
-    const landMs = reduced ? 80 : Math.min(CARD_LAND_MS, 220);
-    const drainTimers: number[] = [];
-    const scheduleDrain = (fn: () => void, ms: number) => {
-      drainTimers.push(window.setTimeout(fn, ms));
-    };
+    const watchdogMs = reduced
+      ? Math.max(3000, Math.round(FINAL_HAND_TRICK_PRESENTATION_MS * 0.55))
+      : FINAL_HAND_TRICK_PRESENTATION_MS;
 
     if (isGameFlowDebugEnabled()) {
-      logGameFlow("useTrickPresentation", "hand-end-drain-armed", {
+      logGameFlow("useTrickPresentation", "hand-end-drain-watchdog-armed", {
         phase: store.phase,
         pendingResolution: Boolean(store.pendingResolution),
+        revealedCount: store.revealedCount,
+        watchdogMs,
       });
     }
 
-    if (store.phase === "live" && store.pendingResolution) {
-      scheduleDrain(() => dispatch({ type: "commitTrickResolution" }), landMs);
-    }
-
-    let delay = (store.phase === "live" && store.pendingResolution ? landMs : 0) + stepMs;
-    for (let i = 0; i < 6; i++) {
-      scheduleDrain(() => {
-        const current = storeRef.current;
-        if (current.phase === "live" && !current.pendingResolution) return;
-        dispatch({ type: "advancePhase" });
-      }, delay);
-      delay += stepMs;
-    }
-
-    scheduleDrain(() => {
+    const id = window.setTimeout(() => {
       const current = storeRef.current;
       if (current.phase === "live" && !current.pendingResolution) return;
       if (isGameFlowDebugEnabled()) {
@@ -256,16 +241,15 @@ export function useTrickPresentation({
         });
       }
       dispatch({ type: "forceHandEndDrain" });
-    }, TRICK_HAND_END_DRAIN_MS);
+    }, watchdogMs);
 
-    return () => {
-      for (const id of drainTimers) window.clearTimeout(id);
-    };
+    return () => window.clearTimeout(id);
   }, [
     sessionPlayActive,
     pipelineActive,
     store.phase,
     store.pendingResolution,
+    store.revealedCount,
     handComplete,
     phase,
     participantIds.length,
