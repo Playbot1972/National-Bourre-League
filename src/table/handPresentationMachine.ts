@@ -89,6 +89,7 @@ export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
   return (
     phase === "handReset" ||
     phase === "ante" ||
+    phase === "shuffle" ||
     phase === "deal" ||
     phase === "trumpReveal" ||
     phase === "trumpMerge" ||
@@ -499,6 +500,7 @@ export type HandPresentationEvent =
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
   | { type: "completeAntePresentation" }
+  | { type: "completeShufflePresentation" }
   | { type: "completeDealPresentation" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
@@ -559,6 +561,11 @@ function reduceHandPresentationCore(
     case "completeAntePresentation":
       if (store.phase !== "ante") return store;
       handOpenLog("ante-complete", { handNumber: store.handNumber });
+      return advanceHandPhase(store);
+
+    case "completeShufflePresentation":
+      if (store.phase !== "shuffle") return store;
+      handOpenLog("shuffle-complete", { handNumber: store.handNumber });
       return advanceHandPhase(store);
 
     case "completeDealPresentation":
@@ -787,10 +794,13 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
 
     case "ante":
-      return withPhase(store, "deal", {
+      return withPhase(store, "shuffle", {
         anteAnimActive: false,
         pendingSnapshot: null,
       });
+
+    case "shuffle":
+      return withPhase(store, "deal", { pendingSnapshot: null });
 
     case "deal": {
       const snap = pending ?? store.prevSnapshot;
@@ -929,6 +939,7 @@ export function buildHandPresentationModel(
       store.phase === "trumpReveal" ||
       store.phase === "trumpMerge" ||
       store.phase === "ante" ||
+      store.phase === "shuffle" ||
       store.phase === "deal" ||
       store.phase === "drawReady" ||
       store.phase === "settle" ||
@@ -950,6 +961,9 @@ export function phaseScheduleMs(
       return t.handResetMs;
     case "ante":
       // GSAP ante fly-in calls completeAntePresentation; watchdog is the fallback.
+      return 0;
+    case "shuffle":
+      // Shuffle hook calls completeShufflePresentation; watchdog is the fallback.
       return 0;
     case "deal":
       // Clockwise deal calls completeDealPresentation; watchdog is the fallback.

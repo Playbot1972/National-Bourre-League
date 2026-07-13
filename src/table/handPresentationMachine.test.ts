@@ -138,7 +138,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, false);
   });
 
-  it("hand-opening order: ante -> deal -> trumpReveal", () => {
+  it("hand-opening order: ante -> shuffle -> deal -> trumpReveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
@@ -151,8 +151,12 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, false);
 
     store = reduceHandPresentation(store, { type: "completeAntePresentation" });
-    assert.equal(store.phase, "deal");
+    assert.equal(store.phase, "shuffle");
     assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpRevealActive, false);
+
+    store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
+    assert.equal(store.phase, "deal");
     assert.equal(store.trumpRevealActive, false);
 
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
@@ -160,7 +164,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, true);
   });
 
-  it("ante and deal phases wait for presentation callbacks (no auto timer)", () => {
+  it("ante, shuffle, and deal phases wait for presentation callbacks (no auto timer)", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
@@ -170,6 +174,9 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(phaseScheduleMs(store), 0);
     store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "shuffle");
+    assert.equal(phaseScheduleMs(store), 0);
+    store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
     assert.equal(store.phase, "deal");
     assert.equal(phaseScheduleMs(store), 0);
   });
@@ -189,6 +196,8 @@ describe("handPresentationMachine", () => {
     assert.equal(store.anteAnimActive, true);
     assert.equal(store.trumpRevealActive, false);
     store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "shuffle");
+    store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
     assert.equal(store.phase, "deal");
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "drawPlayer");
@@ -597,6 +606,8 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, false);
 
     store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "shuffle");
+    store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
     assert.equal(store.phase, "deal");
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");
