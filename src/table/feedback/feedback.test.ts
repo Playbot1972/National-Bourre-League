@@ -68,7 +68,7 @@ describe("sound pack registry", () => {
     }
     assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.mp3");
     assert.equal(soundAssetUrl("classic", "draw"), "/sounds/draw.mp3");
-    assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
+    assert.equal(soundAssetUrl("classic", "click"), "/sounds/click.mp3");
     assert.equal(soundAssetUrl("classic", "card-shuffle-normal"), "/sounds/card-shuffle-normal.mp3");
   });
 

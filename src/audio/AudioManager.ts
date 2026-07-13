@@ -49,7 +49,7 @@ const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
   "card-shuffle-final": 0.55,
   "card-select": 0.45,
   "card-illegal": 0.5,
-  "ui-button-press": 0.4,
+  click: 0.4,
   draw: 0.45,
   draw1: 0.45,
   draw2: 0.45,

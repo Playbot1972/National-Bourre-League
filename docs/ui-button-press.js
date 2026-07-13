@@ -1,5 +1,5 @@
 /**
- * Default ui-button-press for social app chrome (nav, pills, modals).
+ * Default click.mp3 for social app chrome (nav, pills, modals).
  * Live table controls use explicit feedback APIs — skipped via TABLE_ROOT_SELECTOR.
  */
 
@@ -22,7 +22,7 @@ const UI_ACTIVATOR_SELECTOR = [
   ".auth-tab",
 ].join(", ");
 
-const UI_BUTTON_SOUND = "/sounds/ui-button-press.mp3";
+const UI_BUTTON_SOUND = "/sounds/click.mp3";
 const FEEDBACK_PREFS_KEY = "nbl-feedback";
 
 let audioClip = null;
