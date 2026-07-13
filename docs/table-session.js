@@ -12761,7 +12761,8 @@ var oc = {
 	fold: { current: !1 },
 	cardSelect: { current: !1 },
 	cardIllegal: { current: !1 },
-	uiButton: { current: !1 }
+	uiButton: { current: !1 },
+	turnTimer: { current: !1 }
 }, sc = {
 	shuffle: 360,
 	shuffleFinal: 360,
@@ -12782,7 +12783,8 @@ var oc = {
 	fold: 280,
 	cardSelect: 200,
 	cardIllegal: 280,
-	uiButton: 200
+	uiButton: 200,
+	turnTimer: 0
 }, cc = {
 	shuffle: .55,
 	shuffleFinal: .55,
@@ -12803,7 +12805,8 @@ var oc = {
 	fold: .42,
 	cardSelect: .45,
 	cardIllegal: .5,
-	uiButton: .4
+	uiButton: .4,
+	turnTimer: .48
 };
 function lc(e, t, n, r) {
 	ic(`play:${e}`);

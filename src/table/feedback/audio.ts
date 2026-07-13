@@ -91,6 +91,7 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   cardSelect: { current: false },
   cardIllegal: { current: false },
   uiButton: { current: false },
+  turnTimer: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
@@ -114,6 +115,7 @@ const RESET_MS: Record<SoundEventKey, number> = {
   cardSelect: 200,
   cardIllegal: 280,
   uiButton: 200,
+  turnTimer: 0,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
@@ -137,6 +139,7 @@ const VOLUME: Record<SoundEventKey, number> = {
   cardSelect: 0.45,
   cardIllegal: 0.5,
   uiButton: 0.4,
+  turnTimer: 0.48,
 };
 
 function playResolvedAsset(
