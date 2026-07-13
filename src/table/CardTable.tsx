@@ -372,6 +372,7 @@ export function CardTable({
             trumpRevealActive={handPresentation.trumpRevealActive}
             trumpMergeActive={handPresentation.trumpMergeActive}
             hideCenterTrump={hideCenterTrump}
+            handPresentationPhase={handPresentation.phase}
             showTrumpSuitReminder={showTrumpSuitReminder}
             drawAnimPlayerId={handPresentation.animatingDrawPlayerId}
             drawAnimSubPhase={handPresentation.drawAnimSubPhase}
@@ -491,6 +492,7 @@ export function CardTable({
         onDiscardCommitted={commitDiscardCards}
         onUserActivity={onHeroUserActivity}
         skipHeroDealMotion={clockwiseDealing}
+        handPresentationPhase={handPresentation.phase}
       />
       </div>
     </div>

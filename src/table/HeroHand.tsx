@@ -73,6 +73,8 @@ interface HeroHandProps {
   onUserActivity?: () => void;
   /** Table-wide clockwise deal — disables hero-only deal motion. */
   skipHeroDealMotion?: boolean;
+  /** Presentation FSM phase — gates deal-in motion vs server `phase`. */
+  handPresentationPhase?: string;
 }
 
 function heroShellClass(
@@ -137,6 +139,7 @@ export function HeroHand({
   onDiscardCommitted,
   onUserActivity,
   skipHeroDealMotion = false,
+  handPresentationPhase,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -208,7 +211,8 @@ export function HeroHand({
 
   useEffect(() => {
     if (skipHeroDealMotion) return;
-    if (!dealtPhase || cards.length === 0) return;
+    if (handPresentationPhase !== "deal") return;
+    if (cards.length === 0) return;
     const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
     const prev = prevCardIdsRef.current;
     const added = [...nextIds].some((id) => !prev.has(id));
@@ -221,7 +225,7 @@ export function HeroHand({
     const dealMs = dealMotionWindowMs(cards.length, dealStaggerMs);
     const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
-  }, [cards, dealtPhase, dealStaggerMs, skipHeroDealMotion]);
+  }, [cards, handPresentationPhase, dealStaggerMs, skipHeroDealMotion]);
 
   useEffect(() => {
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
@@ -836,6 +840,10 @@ export function HeroHand({
         <p className="btable-hero__fallback muted small">Sign in to see your dealt cards.</p>
       </div>
     );
+  }
+
+  if (handPresentationPhase === "ante" && isInHand) {
+    return <HeroHandReserve className={className} />;
   }
 
   if (!isInHand && !enrollmentActive && !dealtPhase) {
