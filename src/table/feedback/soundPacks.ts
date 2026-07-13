@@ -29,6 +29,8 @@ export type SoundAssetId =
   | "draw4"
   | "draw5"
   | "Fahhh"
+  | "fahhh"
+  | "fahhhh"
   | "timer";
 
 /** Event-driven keys used by feedback service and prefs. */
@@ -119,6 +121,8 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "draw4",
   "draw5",
   "Fahhh",
+  "fahhh",
+  "fahhhh",
   "timer",
 ] as const;
 
@@ -146,6 +150,8 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   draw4: "draw4.mp3",
   draw5: "draw5.mp3",
   Fahhh: "Fahhh.mp3",
+  fahhh: "fahhh.mp3",
+  fahhhh: "fahhhh.mp3",
   timer: "timer.mp3",
 };
 

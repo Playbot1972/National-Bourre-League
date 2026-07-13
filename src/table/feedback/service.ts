@@ -1,6 +1,7 @@
 import {
   playBigWinSound,
   playBourreSound,
+  playBourrePrivatePunishmentSound,
   playCardIllegalSound,
   playCardSelectSound,
   playDeleteRoomSound,
@@ -14,7 +15,7 @@ import {
   playUiButtonSound,
   ensureAudioUnlockedSync,
 } from "./audio";
-import { triggerHaptic } from "./haptics";
+import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 import {
   getFeedbackPrefs,
   prefersReducedMotion,
@@ -137,6 +138,20 @@ export function playBourreFeedback(): void {
   if (now - lastBourreAt < BOURRE_COOLDOWN_MS) return;
   lastBourreAt = now;
   maybePlaySound("bourre", playBourreSound);
+  fireHaptic("medium");
+}
+
+/** Local-only bourré punishment — random fahhh/fahhhh; not broadcast to table. */
+export function playBourrePrivatePunishmentFeedback(input: {
+  sessionId: string;
+  handNumber: number;
+  isLocalBourredPlayer: boolean;
+}): void {
+  if (!input.isLocalBourredPlayer) return;
+  const dedupeKey = bourrePrivateDedupeKey(input.sessionId, input.handNumber);
+  maybePlaySound("bourre", () =>
+    playBourrePrivatePunishmentSound(dedupeKey, input.isLocalBourredPlayer),
+  );
   fireHaptic("medium");
 }
 

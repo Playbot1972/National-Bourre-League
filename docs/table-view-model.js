@@ -45,6 +45,7 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
   const bourreIds = recentBourreIds.length > 0 ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
   return {
     sessionId: sessionObj?.id ?? null,
+    handNumber: sessionObj?.handCount ?? 0,
     phase: currentHand.phase ?? null,
     trumpKey: cardKeyFromSerialized(currentHand.trumpUpcard),
     drawCompletedIds: [...(currentHand.drawCompletedIds ?? [])],
