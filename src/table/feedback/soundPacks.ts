@@ -19,7 +19,7 @@ export type SoundAssetId =
   | "card-shuffle-final"
   | "card-select"
   | "card-illegal"
-  | "ui-button-press"
+  | "click"
   | "coin-chime-light"
   | "moneygone"
   | "draw"
@@ -76,7 +76,7 @@ export const BATCH1_WAV_ASSET_IDS = [
   "trick-win-normal",
   "card-shuffle-normal",
   "card-select",
-  "ui-button-press",
+  "click",
 ] as const satisfies readonly SoundAssetId[];
 
 export type Batch1WavAssetId = (typeof BATCH1_WAV_ASSET_IDS)[number];
@@ -94,7 +94,7 @@ export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
   "trick-win-normal": "/sounds/trick-win-normal.mp3",
   "card-shuffle-normal": "/sounds/card-shuffle-normal.mp3",
   "card-select": "/sounds/card-select.mp3",
-  "ui-button-press": "/sounds/ui-button-press.mp3",
+  click: "/sounds/click.mp3",
 };
 
 /** Every committed classic asset — registered once in AudioManager. */
@@ -111,7 +111,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-shuffle-final",
   "card-select",
   "card-illegal",
-  "ui-button-press",
+  "click",
   "coin-chime-light",
   "moneygone",
   "draw",
@@ -140,7 +140,7 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
-  "ui-button-press": "ui-button-press.mp3",
+  click: "click.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
   moneygone: "moneygone.mp3",
   draw: "draw.mp3",
@@ -199,7 +199,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   fold: "card-place-heavy",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
-  uiButton: "ui-button-press",
+  uiButton: "click",
   turnTimer: "timer",
 };
 
@@ -274,7 +274,7 @@ export function resolveSoundAsset(
     case "bourre":
       return "Fahhh";
     case "uiButton":
-      return "ui-button-press";
+      return "click";
     case "cardSelect":
       return "card-select";
     case "cardIllegal":

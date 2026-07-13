@@ -12175,7 +12175,7 @@ var is = (/* @__PURE__ */ e(((e) => {
 	"trick-win-normal",
 	"card-shuffle-normal",
 	"card-select",
-	"ui-button-press"
+	"click"
 ];
 function cs(e) {
 	return ss.includes(e);
@@ -12193,7 +12193,7 @@ var ls = [
 	"card-shuffle-final",
 	"card-select",
 	"card-illegal",
-	"ui-button-press",
+	"click",
 	"coin-chime-light",
 	"moneygone",
 	"draw",
@@ -12219,7 +12219,7 @@ var ls = [
 	"card-shuffle-final": "card-shuffle-final.mp3",
 	"card-select": "card-select.mp3",
 	"card-illegal": "card-illegal.mp3",
-	"ui-button-press": "ui-button-press.mp3",
+	click: "click.mp3",
 	"coin-chime-light": "coin-chime-light.mp3",
 	moneygone: "moneygone.mp3",
 	draw: "draw.mp3",
@@ -12268,7 +12268,7 @@ function gs(e, t, n = {}) {
 		case "potWin":
 		case "bigWin": return "hand-win-stinger";
 		case "bourre": return "Fahhh";
-		case "uiButton": return "ui-button-press";
+		case "uiButton": return "click";
 		case "cardSelect": return "card-select";
 		case "cardIllegal":
 		case "deleteRoom": return "card-illegal";
@@ -12449,7 +12449,7 @@ var Hs = {
 	"card-shuffle-final": .55,
 	"card-select": .45,
 	"card-illegal": .5,
-	"ui-button-press": .4,
+	click: .4,
 	draw: .45,
 	draw1: .45,
 	draw2: .45,
@@ -16078,7 +16078,7 @@ function Xf({ session: e, heroCards: t, privateHandReady: n = !1, handPresentati
 	]), o;
 }
 //#endregion
-//#region src/game/money/core.ts
+//#region src/table/antePresentationOrder.ts
 function Zf(e, t) {
 	let n = Number(e?.fundingContribution);
 	if (Number.isFinite(n) && n >= 0) return n;
@@ -16088,8 +16088,6 @@ function Zf(e, t) {
 	let i = e?.perHandStake ?? t;
 	return Math.max(.01, Number(i) || t);
 }
-//#endregion
-//#region src/table/antePresentationOrder.ts
 function Qf(e, t, n, r) {
 	return r != null && Object.prototype.hasOwnProperty.call(r, e) ? Math.max(0, Number(r[e]) || 0) : t?.out === !0 ? 0 : Zf(t, n);
 }

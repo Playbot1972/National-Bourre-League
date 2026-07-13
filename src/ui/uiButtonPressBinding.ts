@@ -79,7 +79,7 @@ export function resolveUiButtonPressTarget(target: EventTarget | null): HTMLElem
   return el;
 }
 
-/** Attach default ui-button-press to clickable UI outside the live table. */
+/** Attach default click.mp3 to clickable UI outside the live table. */
 export function bindUiButtonPress(
   root: Document | HTMLElement = document,
   play: () => void = playUiButtonFeedback,
