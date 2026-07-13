@@ -1,5 +1,4 @@
 import { resolveActionOrder } from "../game/playerOrder";
-import { handAnteContribution } from "../game/money/core";
 import type { TableSessionData } from "./types";
 
 export interface AnteScoreRow {
@@ -20,6 +19,24 @@ type AnteOrderSession = Pick<
   | "postedAntes"
   | "anteContributorIds"
 >;
+
+/** Mirrors `handAnteContribution` in money core — kept local to avoid pulling untyped money bundle into app tsc. */
+function handAnteContribution(
+  scoreRow: AnteScoreRow | null | undefined,
+  sessionStake: number,
+): number {
+  const authoritative = Number(scoreRow?.fundingContribution);
+  if (Number.isFinite(authoritative) && authoritative >= 0) {
+    return authoritative;
+  }
+  const replacement = Number(scoreRow?.bourreReplacementDue);
+  if (Number.isFinite(replacement) && replacement > 0) {
+    return replacement;
+  }
+  if (scoreRow?.skipNextAnte) return 0;
+  const n = scoreRow?.perHandStake ?? sessionStake;
+  return Math.max(0.01, Number(n) || sessionStake);
+}
 
 /** Projected chip-in for this hand — mirrors pot display / collectHandAntes. */
 export function projectedAnteContribution(
