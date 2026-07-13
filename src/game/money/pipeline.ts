@@ -93,6 +93,7 @@ export function recordHandSettlement(
     tiedWinnerIds: phase1.tiedWinnerIds,
     splitPot: phase1.splitPot,
     tie: phase1.tie,
+    splitPotOptionEnabled: splitPotEnabled,
   });
 
   const solventFunding = applyFundingWithSolvency(
@@ -106,6 +107,7 @@ export function recordHandSettlement(
       tiedWinnerIds: phase1.tiedWinnerIds,
       splitPot: phase1.splitPot,
       tie: phase1.tie,
+      splitPotOptionEnabled: splitPotEnabled,
     },
     buyInFallback,
   );
@@ -122,6 +124,7 @@ export function recordHandSettlement(
     },
     participants,
     bourreRemainders,
+    { splitPotOptionEnabled: splitPotEnabled },
   );
 
   for (const pid of participants) {
@@ -279,6 +282,7 @@ export function startNextHandFunding(input: StartNextHandFundingInput) {
       tiedWinnerIds: nextDealFunding.tiedWinnerIds ?? [],
       splitPot: nextDealFunding.splitPot === true,
       tie: nextDealFunding.tie === true,
+      splitPotOptionEnabled: nextDealFunding.splitPotOptionEnabled === true,
       bourreReplacementRemainderByPlayer: Object.fromEntries(
         participantIds
           .map((pid) => [pid, merged[pid]?.bourreReplacementDue ?? null] as const)
