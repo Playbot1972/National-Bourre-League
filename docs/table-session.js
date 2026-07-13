@@ -19449,7 +19449,8 @@ function Zh(e, t) {
 		resolvedTricks: null,
 		pendingResolution: null,
 		peakTrickPlays: od(t),
-		displayRevealFloor: 0
+		displayRevealFloor: 0,
+		handEndEchoTrick: null
 	};
 }
 function Qh(e, t) {
@@ -19555,11 +19556,12 @@ function ag(e, t) {
 				...t,
 				pendingResolution: null
 			}, t.pendingResolution.frozen, t.pendingResolution.snapshot.tricksByPlayer, t.pendingResolution.snapshot.currentTrick)), t.phase === "live" && !t.pendingResolution) return t;
-			let n = t.pendingServer, r = n?.tricksByPlayer ?? {}, i = Object.values(r).some((e) => (e ?? 0) > 0), a = i ? { ...r } : { ...t.displayTricksByPlayer }, o = od(n?.currentTrick).length;
+			let n = t.pendingServer, r = n?.tricksByPlayer ?? {}, i = Object.values(r).some((e) => (e ?? 0) > 0), a = i ? { ...r } : { ...t.displayTricksByPlayer }, o = od(n?.currentTrick).length, s = n != null && n.currentTrick == null && t.frozenTrick != null;
 			return {
 				...t,
 				phase: "live",
 				frozenTrick: null,
+				handEndEchoTrick: s ? t.frozenTrick : n?.currentTrick ? null : t.handEndEchoTrick,
 				showWinnerTag: !1,
 				revealedCount: o,
 				resolvedTricks: null,
@@ -19588,11 +19590,12 @@ function ag(e, t) {
 				phase: "nextLeadReady"
 			};
 			case "nextLeadReady": {
-				let t = e.pendingServer, n = od(t?.currentTrick).length;
+				let t = e.pendingServer, n = od(t?.currentTrick).length, r = t != null && t.currentTrick == null && e.frozenTrick != null;
 				return {
 					...e,
 					phase: "live",
 					frozenTrick: null,
+					handEndEchoTrick: r ? e.frozenTrick : t?.currentTrick ? null : e.handEndEchoTrick,
 					showWinnerTag: !1,
 					revealedCount: n,
 					resolvedTricks: null,
@@ -19641,24 +19644,24 @@ function og(e, t) {
 	return e.phase === "live" ? i.length > t.length ? i : r.length > t.length ? r : t.length > 0 ? t : r : t.length > 0 ? t : r.length > 0 ? r : i;
 }
 function sg(e, t) {
-	let n = og(e, od(t)), r = e.displayRevealFloor, i = n.length >= r ? n : (e.peakTrickPlays?.length ?? 0) >= r ? e.peakTrickPlays : n, a = e.phase === "live" ? e.pendingResolution ? Math.max(e.revealedCount, i.length) : Math.min(e.revealedCount, i.length) : i.length, o = e.phase === "live" && !e.pendingResolution ? Math.max(a, r) : a, s = e.phase === "live" ? i.slice(0, o) : e.frozenTrick?.plays ?? [], c = e.frozenTrick?.plays ?? [], l = e.frozenTrick?.winnerId ?? null, u = e.phase, d = c.length > 0 && s.length === 0 && e.phase !== "live", f = e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null, p = e.showWinnerTag && (e.phase === "winnerReveal" || e.phase === "collectTrick"), m = e.peakTrickPlays?.length ?? 0, h = e.phase === "live" ? tg(e) : e.revealedCount;
+	let n = og(e, od(t)), r = e.displayRevealFloor, i = n.length >= r ? n : (e.peakTrickPlays?.length ?? 0) >= r ? e.peakTrickPlays : n, a = e.phase === "live" ? e.pendingResolution ? Math.max(e.revealedCount, i.length) : Math.min(e.revealedCount, i.length) : i.length, o = e.phase === "live" && !e.pendingResolution ? Math.max(a, r) : a, s = e.phase === "live" ? i.slice(0, o) : e.frozenTrick?.plays ?? [], c = e.frozenTrick ?? e.handEndEchoTrick, l = c?.plays ?? [], u = c?.winnerId ?? null, d = e.frozenTrick == null ? e.handEndEchoTrick == null ? e.phase : "winnerReveal" : e.phase, f = l.length > 0 && s.length === 0 && (e.phase !== "live" || e.handEndEchoTrick != null), p = e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null, m = e.showWinnerTag && (e.phase === "winnerReveal" || e.phase === "collectTrick"), h = e.peakTrickPlays?.length ?? 0, g = e.phase === "live" ? tg(e) : e.revealedCount;
 	return {
 		phase: e.phase,
 		displayPlays: s,
-		winnerPlayerId: f,
-		showWinnerTag: p,
+		winnerPlayerId: p,
+		showWinnerTag: m,
 		displayTricksByPlayer: e.displayTricksByPlayer,
 		suppressTurnPlayerId: td(e.phase),
 		trickWinnerSeatId: e.phase === "live" || e.phase === "trickComplete" ? null : e.frozenTrick?.winnerId ?? null,
 		revealedCount: e.revealedCount,
 		isResolving: e.phase !== "live",
 		isPipelineActive: e.phase !== "live" || !!e.pendingResolution,
-		peakPlayCount: m,
-		revealTarget: h,
-		trickEchoPlays: c,
-		trickEchoWinnerId: l,
-		trickEchoPhase: u,
-		showFinalTrickEcho: d,
+		peakPlayCount: h,
+		revealTarget: g,
+		trickEchoPlays: l,
+		trickEchoWinnerId: u,
+		trickEchoPhase: d,
+		showFinalTrickEcho: f,
 		frozenTrick: e.frozenTrick
 	};
 }
