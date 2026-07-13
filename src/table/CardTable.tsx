@@ -179,7 +179,7 @@ export function CardTable({
     handPresentation,
     tableRootRef: wrapRef,
   });
-  const clockwiseDealing = useTableDealPresentation({
+  const dealPresentation = useTableDealPresentation({
     session,
     heroCards,
     privateHandReady,
@@ -187,6 +187,7 @@ export function CardTable({
     onDealPresentationComplete: handPresentation.completeDealPresentation,
     tableRootRef: wrapRef,
   });
+  const { clockwiseDealing, dealTargetsArmed } = dealPresentation;
   const antePresentation = useAntePresentation({
     phase: handPresentation.phase,
     handNumber: session.handNumber,
@@ -407,7 +408,7 @@ export function CardTable({
                   player={seatPlayer}
                   region={layout.region}
                   handLane={layout.handLane}
-                  clockwiseDealing={clockwiseDealing}
+                  dealTargetsArmed={dealTargetsArmed}
                   style={{
                     left: `${layout.x}%`,
                     top: `${layout.y}%`,

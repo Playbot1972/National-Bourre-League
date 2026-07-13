@@ -198,7 +198,7 @@ export function MobileCardTable({
     handPresentation,
     tableRootRef: wrapRef,
   });
-  const clockwiseDealing = useTableDealPresentation({
+  const dealPresentation = useTableDealPresentation({
     session,
     heroCards,
     privateHandReady,
@@ -206,6 +206,7 @@ export function MobileCardTable({
     onDealPresentationComplete: handPresentation.completeDealPresentation,
     tableRootRef: wrapRef,
   });
+  const { clockwiseDealing, dealTargetsArmed } = dealPresentation;
   const antePresentation = useAntePresentation({
     phase: handPresentation.phase,
     handNumber: session.handNumber,
@@ -430,7 +431,7 @@ export function MobileCardTable({
                     player={seatPlayer}
                     region={layout.region}
                     handLane={layout.handLane}
-                    clockwiseDealing={clockwiseDealing}
+                    dealTargetsArmed={dealTargetsArmed}
                     style={{
                       left: `${layout.x}%`,
                       top: `${layout.y}%`,
@@ -465,7 +466,7 @@ export function MobileCardTable({
                   }
                   region={feltSelfLayout.region}
                   handLane={feltSelfLayout.handLane}
-                  clockwiseDealing={clockwiseDealing}
+                  dealTargetsArmed={dealTargetsArmed}
                   style={{
                     left: `${feltSelfLayout.x}%`,
                     top: `${feltSelfLayout.y}%`,

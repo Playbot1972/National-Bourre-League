@@ -12,7 +12,8 @@ interface SeatProps {
   region: SeatRegion;
   handLane?: HandLane;
   style: CSSProperties;
-  clockwiseDealing?: boolean;
+  /** Mount deal-target anchors for opponent seats during deal presentation. */
+  dealTargetsArmed?: boolean;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
@@ -24,7 +25,7 @@ export function Seat({
   region,
   handLane = "below",
   style,
-  clockwiseDealing = false,
+  dealTargetsArmed = false,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -169,7 +170,7 @@ export function Seat({
                 ))}
               </div>
             )}
-            {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
+            {dealTargetsArmed && player.inHand && !player.isSelf && cardsHeld > 0 && (
               <div className="bseat__deal-targets" aria-hidden="true">
                 {Array.from({ length: cardsHeld }, (_, i) => (
                   <span
