@@ -421,7 +421,7 @@ export function MobileCardTable({
                     player={seatPlayer}
                     region={layout.region}
                     handLane={layout.handLane}
-                    clockwiseDealing={clockwiseDealing}
+                    dealTargetsArmed={clockwiseDealing}
                     style={{
                       left: `${layout.x}%`,
                       top: `${layout.y}%`,
@@ -456,7 +456,7 @@ export function MobileCardTable({
                   }
                   region={feltSelfLayout.region}
                   handLane={feltSelfLayout.handLane}
-                  clockwiseDealing={clockwiseDealing}
+                  dealTargetsArmed={clockwiseDealing}
                   style={{
                     left: `${feltSelfLayout.x}%`,
                     top: `${feltSelfLayout.y}%`,

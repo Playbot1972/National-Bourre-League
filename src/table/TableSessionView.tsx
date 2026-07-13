@@ -119,7 +119,6 @@ export function TableSessionView({
       session.actionOrder ??
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
-    anteContributorIds: session.anteContributorIds ?? EMPTY_ENROLLMENT_IDS,
   });
 
   useEffect(() => {

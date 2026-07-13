@@ -5,7 +5,6 @@ import {
   killAntePresentation,
   runAntePresentation,
 } from "../animations/antePresentationMotion";
-import { prefersReducedMotion } from "../trickTiming";
 
 export interface UseAntePresentationInput {
   phase: string;
