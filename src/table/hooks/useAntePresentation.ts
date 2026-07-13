@@ -5,7 +5,13 @@ import {
   killAntePresentation,
   runAntePresentation,
 } from "../animations/antePresentationMotion";
+import { isGameFlowDebugEnabled } from "../gameFlowDebug";
 import { prefersReducedMotion } from "../trickTiming";
+
+function anteDebug(message: string, detail: Record<string, unknown>): void {
+  if (!import.meta.env.DEV && !isGameFlowDebugEnabled()) return;
+  console.log(`[nbl-ante] ${message}`, detail);
+}
 
 export interface UseAntePresentationInput {
   phase: string;
@@ -18,6 +24,26 @@ export interface UseAntePresentationInput {
 
 export interface AntePresentationState {
   anteLandedCount: number;
+}
+
+/** Pure gate for ante fly-in + per-player chip audio (testable). */
+export function shouldRunAntePresentation(
+  phase: string,
+  anteAnimActive: boolean,
+  anteAmount: number,
+): boolean {
+  return (
+    anteAnimActive &&
+    anteAmount > 0 &&
+    (phase === "ante" || phase === "trumpReveal")
+  );
+}
+
+function anteSkipReason(phase: string, anteAnimActive: boolean, anteAmount: number): string {
+  if (!anteAnimActive) return "anteAnimActive-false";
+  if (anteAmount <= 0) return "anteAmount-zero";
+  if (phase !== "ante" && phase !== "trumpReveal") return "phase-not-ante-or-trumpReveal";
+  return "unknown";
 }
 
 /**
@@ -46,63 +72,62 @@ export function useAntePresentation({
   }, [handNumber, tableRootRef]);
 
   useLayoutEffect(() => {
-    if (phase !== "ante" || !anteAnimActive || anteAmount <= 0) {
+    if (!shouldRunAntePresentation(phase, anteAnimActive, anteAmount)) {
+      anteDebug("sequence-skipped-gate", {
+        handNumber,
+        phase,
+        anteAnimActive,
+        anteAmount,
+        reason: anteSkipReason(phase, anteAnimActive, anteAmount),
+      });
       return;
     }
 
     const root = tableRootRef.current;
-    if (!root) return;
+    if (!root) {
+      anteDebug("sequence-skipped-no-root", { handNumber });
+      return;
+    }
 
     const ids = participantIds.filter(Boolean).slice(0, 8);
-    if (!ids.length) return;
+    if (!ids.length) {
+      anteDebug("sequence-skipped-no-players", { handNumber, participantIds });
+      return;
+    }
 
     setAnteLandedCount(0);
 
-    const devLog = import.meta.env.DEV;
-    if (devLog) {
-      console.log("[nbl-ante] sequence-start", {
-        handNumber,
-        playerCount: ids.length,
-        playerIds: ids,
-        reducedMotion: prefersReducedMotion(),
-      });
-    }
+    anteDebug("sequence-start", {
+      handNumber,
+      playerCount: ids.length,
+      playerIds: ids,
+      reducedMotion: prefersReducedMotion(),
+    });
 
     const started = runAntePresentation(root, handNumber, ids, {
       onLaunch: (playerId, playerIndex) => {
-        if (devLog) {
-          console.log("[nbl-ante] launched", { handNumber, playerId, playerIndex });
-        }
+        anteDebug("launched", { handNumber, playerId, playerIndex });
       },
       onLand: (playerId, playerIndex) => {
-        if (devLog) {
-          console.log("[nbl-ante] landed", { handNumber, playerId, playerIndex });
-        }
+        anteDebug("landed", { handNumber, playerId, playerIndex });
         playAnteChipFeedback(handNumber, playerIndex);
-        if (devLog) {
-          console.log("[nbl-ante] sound-requested", { handNumber, playerId, playerIndex });
-        }
+        anteDebug("sound-requested", { handNumber, playerId, playerIndex, event: "anteChip" });
         setAnteLandedCount((n) => {
           const next = n + 1;
-          if (devLog) {
-            console.log("[nbl-ante] pot-increment", {
-              handNumber,
-              landed: next,
-              total: ids.length,
-            });
-          }
+          anteDebug("pot-increment", { handNumber, landed: next, total: ids.length });
           return next;
         });
       },
       onComplete: () => {
-        if (devLog) {
-          console.log("[nbl-ante] sequence-complete", { handNumber });
-        }
+        anteDebug("sequence-complete", { handNumber });
       },
     });
 
-    if (!started && devLog) {
-      console.log("[nbl-ante] sequence-skipped-dedupe", { handNumber });
+    if (!started) {
+      anteDebug("sequence-skipped-motion", {
+        handNumber,
+        reason: "dedupe-or-missing-dom",
+      });
     }
 
     return () => {

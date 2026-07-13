@@ -72,6 +72,51 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, true);
   });
 
+  it("arms ante on initial mount when server snapshot is already reveal", () => {
+    const store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 40,
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.dealStaggerCount, 2);
+    assert.equal(store.displayPotAmount, 40);
+  });
+
+  it("re-arms ante on serverUpdate when reveal snapshot has anteAnimActive false", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "play",
+      participantIds: ["p1", "p2"],
+    });
+    store = {
+      ...store,
+      phase: "ante",
+      anteAnimActive: false,
+      prevSnapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        participantIds: ["p1", "p2"],
+        potAmount: 40,
+      },
+    };
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        participantIds: ["p1", "p2"],
+        potAmount: 40,
+      },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+  });
+
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
