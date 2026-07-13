@@ -64,6 +64,7 @@ export type AnteTimingEvent =
   | "player-landed"
   | "sound-requested"
   | "sequence-complete"
+  | "shuffle-start"
   | "deal-start";
 
 export function anteTimingMark(
