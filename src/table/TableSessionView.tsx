@@ -122,6 +122,12 @@ export function TableSessionView({
     anteContributorIds: session.anteContributorIds ?? EMPTY_ENROLLMENT_IDS,
   });
 
+  useEffect(() => {
+    if (handPresentation.phase !== "ante") return;
+    if (!trickPresentation.showFinalTrickEcho) return;
+    trickPresentation.clearHandEndEcho();
+  }, [handPresentation.phase, trickPresentation.showFinalTrickEcho, trickPresentation.clearHandEndEcho]);
+
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
     session.trumpUpcard,

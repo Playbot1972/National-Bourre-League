@@ -190,7 +190,8 @@ export type TrickPresentationEvent =
   | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
   | { type: "advancePhase" }
-  | { type: "forceHandEndDrain" };
+  | { type: "forceHandEndDrain" }
+  | { type: "clearHandEndEcho" };
 
 export function reduceTrickPresentation(
   store: TrickPresentationStore,
@@ -261,6 +262,10 @@ function reduceTrickPresentationCore(
         pending.snapshot.currentTrick,
       );
     }
+
+    case "clearHandEndEcho":
+      if (!store.handEndEchoTrick) return store;
+      return { ...store, handEndEchoTrick: null };
 
     case "forceHandEndDrain": {
       let next = store;
@@ -486,4 +491,22 @@ export function buildTrickPresentationModel(
     showFinalTrickEcho,
     frozenTrick: store.frozenTrick,
   };
+}
+
+/** Guard for useTrickPresentation — do not wipe latched final-trick echo during settle/enrollment. */
+export function shouldReinitTrickPresentationStore(input: {
+  enteredPlay: boolean;
+  sessionPlayActive: boolean;
+  pipelineActive: boolean;
+  handComplete: boolean;
+  phase: string | null | undefined;
+  participantCount: number;
+  handEndEchoTrick: FrozenTrick | null;
+}): boolean {
+  if (input.enteredPlay) return true;
+  const handEnding =
+    input.handComplete ||
+    (input.phase == null && input.participantCount === 0) ||
+    input.handEndEchoTrick != null;
+  return !input.sessionPlayActive && !input.pipelineActive && !handEnding;
 }
