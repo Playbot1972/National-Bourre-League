@@ -1332,7 +1332,9 @@ async function openNextHandEnrollment(sessionObj) {
       });
     }
     const api = await ensureTableFeedbackApi();
-    api?.playShuffleFeedback?.({ delayMs: 80 });
+    if (!dealStarted) {
+      api?.playShuffleFeedback?.({ delayMs: 80 });
+    }
     logHandLifecycleTransition({
       from: "handoffToNextDeal",
       to: autoDealt ? "deal" : "opening",

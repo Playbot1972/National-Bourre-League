@@ -16108,36 +16108,32 @@ function ep(e, t) {
 function tp(e, t = dd()) {
 	return ep(500, t);
 }
-function np(e, t = dd()) {
-	let n = Math.max(1, Math.min(8, e)), r = tp(n, t), i = ep(260, t), a = ep(90, t) + i + ep(140, t) - ep(50, t), o = ep(200, t), s = ep(180, t), c = Gf() ? 320 : 0, l = Math.max(0, n - 1) * r;
-	return n * a + l + o + s + c;
-}
 //#endregion
 //#region src/table/animations/antePresentationMotion.ts
-var rp = null, ip = null;
-function ap(e, t) {
+var np = null, rp = null;
+function ip(e, t) {
 	return {
 		midX: e * .42,
 		midY: t * .42 - Math.max(22, Math.hypot(e, t) * .22)
 	};
 }
-function op(e, t) {
+function ap(e, t) {
 	let n = t instanceof Document ? t : t.ownerDocument ?? document, r = n.querySelector(`[data-seat-motion-anchor="${e}"]`) ?? n.querySelector(`[data-seat-play-origin="${e}"]`);
 	if (!r) return null;
 	let i = r.closest(".bseat")?.querySelector(".bseat__avatar-wrap");
 	return ea(i ?? r);
 }
-function sp(e) {
+function op(e) {
 	let t = (e instanceof Document ? e : e.ownerDocument ?? document).querySelector("[data-ante-pot-target]");
 	return t ? ea(t) : null;
 }
-function cp(e) {
+function sp(e) {
 	let t = document.createElement("div");
 	t.className = "ante-money-fly", t.setAttribute("aria-hidden", "true"), t.style.setProperty("--ante-money-i", String(e));
 	let n = document.createElement("span");
 	return n.className = "ante-money-fly__bill", n.textContent = "$", t.appendChild(n), t;
 }
-function lp(e) {
+function cp(e) {
 	let t = e % 8 / 8 * Math.PI * 2, n = 6 + e % 3 * 3;
 	return {
 		x: Math.cos(t) * n,
@@ -16145,10 +16141,10 @@ function lp(e) {
 		rot: -18 + e % 5 * 9
 	};
 }
-function up(e, t) {
+function lp(e, t) {
 	let n = document.createElement("span");
 	n.className = "bpot__ante-pile-bill";
-	let { x: r, y: i, rot: a } = lp(t);
+	let { x: r, y: i, rot: a } = cp(t);
 	n.style.setProperty("--pile-x", `${r}px`), n.style.setProperty("--pile-y", `${i}px`), n.style.setProperty("--pile-rot", `${a}deg`), n.textContent = "$", e.appendChild(n), q.fromTo(n, {
 		scale: .4,
 		opacity: 0
@@ -16159,10 +16155,10 @@ function up(e, t) {
 		ease: F
 	});
 }
-function dp(e, t, n, r, i, a, o, s) {
-	let c = cp(n);
+function up(e, t, n, r, i, a, o, s) {
+	let c = sp(n);
 	e.appendChild(c);
-	let l = ea(c), { x: u, y: d } = ra(l, r), f = ta(r), p = ta(i), m = p.x - f.x, h = p.y - f.y, { midX: g, midY: _ } = ap(m, h), v = L(o ? .14 : 260 / 1e3, o), y = L(90 / 1e3, o), b = L(140 / 1e3, o), x = L(50 / 1e3, o);
+	let l = ea(c), { x: u, y: d } = ra(l, r), f = ta(r), p = ta(i), m = p.x - f.x, h = p.y - f.y, { midX: g, midY: _ } = ip(m, h), v = L(o ? .14 : 260 / 1e3, o), y = L(90 / 1e3, o), b = L(140 / 1e3, o), x = L(50 / 1e3, o);
 	q.set(c, {
 		position: "fixed",
 		left: `${l.left}px`,
@@ -16222,40 +16218,40 @@ function dp(e, t, n, r, i, a, o, s) {
 		repeat: 1,
 		ease: F,
 		onComplete: () => {
-			c.remove(), up(a, n), s.onLand?.(t, n);
+			c.remove(), lp(a, n), s.onLand?.(t, n);
 		}
 	}, `-=${x}`), S;
 }
-function fp(e) {
+function dp(e) {
 	return `${e}:ante-motion`;
 }
-function pp() {
-	rp?.kill(), rp = null;
+function fp() {
+	np?.kill(), np = null;
 }
-function mp(e) {
+function pp(e) {
 	let t = e instanceof Document ? e : e.ownerDocument ?? document;
 	for (let e of t.querySelectorAll(".bpot__ante-pile-bill, .ante-money-fly")) e.remove();
 	let n = t.querySelector(".bpot__ante-pile");
 	n && n.classList.remove("bpot__ante-pile--active");
 }
-function hp(e, t, n, r = {}) {
-	let i = fp(t);
-	if (ip === i) return !1;
-	pp(), mp(e), ia(e);
+function mp(e, t, n, r = {}) {
+	let i = dp(t);
+	if (rp === i) return !1;
+	fp(), pp(e), ia(e);
 	let a = n.slice(0, 8);
 	if (!a.length) return !1;
-	let o = sp(e), s = e.querySelector(".bpot__ante-pile");
+	let o = op(e), s = e.querySelector(".bpot__ante-pile");
 	if (!o || !s) return !1;
-	ip = i, s.classList.add("bpot__ante-pile--active");
+	rp = i, s.classList.add("bpot__ante-pile--active");
 	let c = re(), l = tp(a.length, c) / 1e3, u = L(200 / 1e3, c), d = q.timeline({ onComplete: () => {
-		rp = null, r.onComplete?.();
+		np = null, r.onComplete?.();
 	} });
-	rp = d;
+	np = d;
 	for (let t = 0; t < a.length; t += 1) {
-		let n = a[t], i = op(n, e);
+		let n = a[t], i = ap(n, e);
 		if (!i) continue;
 		let u = t === 0 ? 0 : `>+${l}`;
-		d.add(dp(e, n, t, i, o, s, c, r), u);
+		d.add(up(e, n, t, i, o, s, c, r), u);
 	}
 	return d.to(s, {
 		scale: .82,
@@ -16263,9 +16259,13 @@ function hp(e, t, n, r = {}) {
 		duration: u,
 		ease: te,
 		onComplete: () => {
-			mp(e);
+			pp(e);
 		}
 	}, ">-0.04"), !0;
+}
+function hp(e) {
+	let t = dp(e);
+	rp === t && (rp = null);
 }
 //#endregion
 //#region src/table/hooks/useAntePresentation.ts
@@ -16278,13 +16278,13 @@ function _p(e, t, n) {
 function vp(e, t, n) {
 	return t ? n <= 0 ? "anteAmount-zero" : e === "ante" ? "unknown" : "phase-not-ante" : "anteAnimActive-false";
 }
-function yp({ phase: e, handNumber: t, anteAnimActive: n, session: r, anteAmount: i, tableRootRef: a }) {
-	let [o, s] = (0, l.useState)(0), c = (0, l.useRef)(t);
-	return (0, l.useLayoutEffect)(() => {
-		if (c.current !== t) {
-			c.current = t, s(0), pp();
+function yp({ phase: e, handNumber: t, anteAnimActive: n, session: r, anteAmount: i, tableRootRef: a, onAntePresentationComplete: o }) {
+	let [s, c] = (0, l.useState)(0), u = (0, l.useRef)(t), d = (0, l.useRef)(o);
+	return d.current = o, (0, l.useLayoutEffect)(() => {
+		if (u.current !== t) {
+			hp(u.current), u.current = t, c(0), fp();
 			let e = a.current;
-			e && mp(e);
+			e && pp(e);
 		}
 	}, [t, a]), (0, l.useLayoutEffect)(() => {
 		if (!_p(e, n, i)) {
@@ -16302,28 +16302,28 @@ function yp({ phase: e, handNumber: t, anteAnimActive: n, session: r, anteAmount
 			gp("sequence-skipped-no-root", { handNumber: t });
 			return;
 		}
-		let c = $f(r, {}, i);
-		if (!c.length) {
+		let s = $f(r, {}, i);
+		if (!s.length) {
 			gp("sequence-skipped-no-players", {
 				handNumber: t,
 				session: r
 			});
 			return;
 		}
-		return s(0), Yf("sequence-start", {
+		return c(0), Yf("sequence-start", {
 			handNumber: t,
-			playerCount: c.length,
-			playerIds: c,
+			playerCount: s.length,
+			playerIds: s,
 			reducedMotion: dd()
 		}), gp("sequence-start", {
 			handNumber: t,
-			playerCount: c.length,
-			playerIds: c,
+			playerCount: s.length,
+			playerIds: s,
 			reducedMotion: dd()
 		}), If("ante-sequence-start", {
 			handNumber: t,
-			playerCount: c.length
-		}), hp(o, t, c, {
+			playerCount: s.length
+		}), mp(o, t, s, {
 			onLaunch: (e, n) => {
 				Yf("player-launch", {
 					handNumber: t,
@@ -16358,23 +16358,23 @@ function yp({ phase: e, handNumber: t, anteAnimActive: n, session: r, anteAmount
 					playerId: e,
 					playerIndex: n,
 					event: "anteChip"
-				}), s((e) => {
+				}), c((e) => {
 					let n = e + 1;
 					return gp("pot-increment", {
 						handNumber: t,
 						landed: n,
-						total: c.length
+						total: s.length
 					}), n;
 				});
 			},
 			onComplete: () => {
-				Yf("sequence-complete", { handNumber: t }), gp("sequence-complete", { handNumber: t }), If("ante-sequence-complete", { handNumber: t });
+				Yf("sequence-complete", { handNumber: t }), gp("sequence-complete", { handNumber: t }), If("ante-sequence-complete", { handNumber: t }), d.current?.();
 			}
 		}) || gp("sequence-skipped-motion", {
 			handNumber: t,
 			reason: "dedupe-or-missing-dom"
 		}), () => {
-			pp();
+			fp(), hp(t);
 		};
 	}, [
 		e,
@@ -16386,9 +16386,8 @@ function yp({ phase: e, handNumber: t, anteAnimActive: n, session: r, anteAmount
 		r.participantIds.join(","),
 		r.seatedIds?.join(","),
 		r.actionOrder?.join(","),
-		r.anteContributorIds?.join(","),
-		r.postedAntes ? JSON.stringify(r.postedAntes) : ""
-	]), { anteLandedCount: o };
+		r.anteContributorIds?.join(",")
+	]), { anteLandedCount: s };
 }
 //#endregion
 //#region src/table/animations/trumpMergePresentation.ts
@@ -17272,7 +17271,8 @@ function Sm({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 		anteAnimActive: S.anteAnimActive,
 		session: e,
 		anteAmount: n.anteAmount,
-		tableRootRef: V
+		tableRootRef: V,
+		onAntePresentationComplete: S.completeAntePresentation
 	}), se = e.anteContributorIds?.length ?? $f(e, {}, n.anteAmount).length, ce = e.trumpHolderId ?? e.dealerId ?? null, le = m != null && ce != null && m === ce;
 	Cp({
 		tableRootRef: V,
@@ -17667,7 +17667,8 @@ function Am({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 		anteAnimActive: S.anteAnimActive,
 		session: e,
 		anteAmount: n.anteAmount,
-		tableRootRef: H
+		tableRootRef: H,
+		onAntePresentationComplete: S.completeAntePresentation
 	}), ue = e.anteContributorIds?.length ?? $f(e, {}, n.anteAmount).length, de = e.trumpHolderId ?? e.dealerId ?? null, fe = m != null && de != null && m === de;
 	Cp({
 		tableRootRef: H,
@@ -18617,6 +18618,7 @@ function fh(e, t) {
 			trumpMergedIntoHand: !0,
 			phase: e.phase === "trumpMerge" ? "drawPlayer" : e.phase
 		} : e;
+		case "completeAntePresentation": return e.phase === "ante" ? (If("ante-complete", { handNumber: e.handNumber }), ph(e)) : e;
 		case "completeDealPresentation": return e.phase === "deal" ? (If("deal-complete", { handNumber: e.handNumber }), ph(e)) : e;
 		case "watchdog": return e.pendingHandSettle && e.phase === "play" ? sh(e) : Date.now() - e.phaseStartedAt < 12e3 ? e : ph({
 			...e,
@@ -18735,7 +18737,7 @@ function ph(e) {
 			anteAnimActive: !0,
 			pendingSnapshot: null
 		});
-		case "ante": return If("ante-complete", { handNumber: e.handNumber }), qm(e, "deal", {
+		case "ante": return qm(e, "deal", {
 			anteAnimActive: !1,
 			pendingSnapshot: null
 		});
@@ -18833,11 +18835,8 @@ function hh(e, t = !1) {
 	let n = nf(t);
 	switch (e.phase) {
 		case "handReset": return n.handResetMs;
-		case "ante": return np(Math.max(1, Math.min(e.dealStaggerCount, 8)), t);
-		case "deal": {
-			let n = nf(t), r = Math.max(1, e.dealStaggerCount) * 5;
-			return Math.max(n.dealFanMs, r * n.dealCardStaggerMs + 240);
-		}
+		case "ante": return 0;
+		case "deal": return 0;
 		case "trumpReveal": return n.trumpRevealHoldMs;
 		case "trumpMerge": return n.trumpMergeAnimMs;
 		case "drawPlayer": return e.drawAnimSubPhase === "done" ? 0 : rf(e.drawAnimSubPhase === "receive" ? 0 : e.drawDiscardCount, e.drawAnimSubPhase === "receive" ? e.drawReplaceCount : 0, t);
@@ -19003,12 +19002,15 @@ function yh({ session: e, enrollmentActive: t, potAmount: n, handComplete: r, tr
 	let x = (0, l.useCallback)(() => {
 		m({ type: "completeTrumpMerge" });
 	}, []), S = (0, l.useCallback)(() => {
+		m({ type: "completeAntePresentation" });
+	}, []), C = (0, l.useCallback)(() => {
 		m({ type: "completeDealPresentation" });
 	}, []);
 	return {
 		...mh(p),
 		completeTrumpMerge: x,
-		completeDealPresentation: S
+		completeAntePresentation: S,
+		completeDealPresentation: C
 	};
 }
 //#endregion

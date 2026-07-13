@@ -19,7 +19,7 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
     return { snapshot: next, clearPendingDrawShuffle: false };
   }
 
-  if (!prev.trumpKey && next.trumpKey) {
+  if (!prev.trumpKey && next.trumpKey && next.phase !== "reveal") {
     api.playShuffleFeedback?.({ delayMs: 80 });
   }
 

@@ -46,6 +46,7 @@ export interface UseHandPresentationInput {
 
 export type HandPresentation = HandPresentationModel & {
   completeTrumpMerge: () => void;
+  completeAntePresentation: () => void;
   completeDealPresentation: () => void;
 };
 
@@ -286,9 +287,18 @@ export function useHandPresentation({
     dispatch({ type: "completeTrumpMerge" });
   }, []);
 
+  const completeAntePresentation = useCallback(() => {
+    dispatch({ type: "completeAntePresentation" });
+  }, []);
+
   const completeDealPresentation = useCallback(() => {
     dispatch({ type: "completeDealPresentation" });
   }, []);
 
-  return { ...buildHandPresentationModel(store), completeTrumpMerge, completeDealPresentation };
+  return {
+    ...buildHandPresentationModel(store),
+    completeTrumpMerge,
+    completeAntePresentation,
+    completeDealPresentation,
+  };
 }

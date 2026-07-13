@@ -24,6 +24,7 @@ export interface UseAntePresentationInput {
   session: Parameters<typeof resolveAnteContributorIds>[0];
   anteAmount: number;
   tableRootRef: React.RefObject<HTMLElement | null>;
+  onAntePresentationComplete?: () => void;
 }
 
 export interface AntePresentationState {
@@ -57,9 +58,12 @@ export function useAntePresentation({
   session,
   anteAmount,
   tableRootRef,
+  onAntePresentationComplete,
 }: UseAntePresentationInput): AntePresentationState {
   const [anteLandedCount, setAnteLandedCount] = useState(0);
   const handRef = useRef(handNumber);
+  const anteCompleteRef = useRef(onAntePresentationComplete);
+  anteCompleteRef.current = onAntePresentationComplete;
 
   useLayoutEffect(() => {
     if (handRef.current !== handNumber) {
@@ -139,6 +143,7 @@ export function useAntePresentation({
         anteTimingMark("sequence-complete", { handNumber });
         anteDebug("sequence-complete", { handNumber });
         handOpenLog("ante-sequence-complete", { handNumber });
+        anteCompleteRef.current?.();
       },
     });
 

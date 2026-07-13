@@ -7,7 +7,6 @@ import {
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
-import { anteSequenceDurationMs } from "./antePresentationTiming";
 import { anteTimingMark } from "./anteTimingDebug";
 import { handOpenLog } from "./handOpeningDebug";
 
@@ -499,6 +498,7 @@ export type HandPresentationEvent =
     }
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
+  | { type: "completeAntePresentation" }
   | { type: "completeDealPresentation" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
@@ -555,6 +555,11 @@ function reduceHandPresentationCore(
         trumpMergedIntoHand: true,
         phase: store.phase === "trumpMerge" ? "drawPlayer" : store.phase,
       };
+
+    case "completeAntePresentation":
+      if (store.phase !== "ante") return store;
+      handOpenLog("ante-complete", { handNumber: store.handNumber });
+      return advanceHandPhase(store);
 
     case "completeDealPresentation":
       if (store.phase !== "deal") return store;
@@ -782,7 +787,6 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
 
     case "ante":
-      handOpenLog("ante-complete", { handNumber: store.handNumber });
       return withPhase(store, "deal", {
         anteAnimActive: false,
         pendingSnapshot: null,
@@ -945,15 +949,11 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return anteSequenceDurationMs(Math.max(1, Math.min(store.dealStaggerCount, 8)), reducedMotion);
-    case "deal": {
-      const t = handTimingScale(reducedMotion);
-      const steps = Math.max(1, store.dealStaggerCount) * 5;
-      return Math.max(
-        t.dealFanMs,
-        steps * t.dealCardStaggerMs + 240,
-      );
-    }
+      // GSAP ante fly-in calls completeAntePresentation; watchdog is the fallback.
+      return 0;
+    case "deal":
+      // Clockwise deal calls completeDealPresentation; watchdog is the fallback.
+      return 0;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
