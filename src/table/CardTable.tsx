@@ -27,6 +27,7 @@ import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { resolveAnteContributorIds } from "./antePresentationOrder";
 import { useAntePresentation } from "./hooks/useAntePresentation";
+import { useShufflePresentation } from "./hooks/useShufflePresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import { useCardAudio } from "./hooks/useCardAudio";
@@ -196,6 +197,11 @@ export function CardTable({
     anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
     onAntePresentationComplete: handPresentation.completeAntePresentation,
+  });
+  useShufflePresentation({
+    phase: handPresentation.phase,
+    handNumber: session.handNumber,
+    onShufflePresentationComplete: handPresentation.completeShufflePresentation,
   });
   const anteContributorCount =
     session.anteContributorIds?.length ??

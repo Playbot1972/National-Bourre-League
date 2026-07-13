@@ -11,7 +11,6 @@ import {
 } from "../animations/dealPresentationMotion";
 import { handOpenLog } from "../handOpeningDebug";
 import { anteTimingMark } from "../anteTimingDebug";
-import { playShuffleFeedback } from "../feedback";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -150,7 +149,6 @@ export function useTableDealPresentation({
         stepCount: steps.length,
         source: "deal-presentation-hook",
       });
-      playShuffleFeedback({ delayMs: 80, force: true });
 
       runClockwiseDealPresentation({
         steps,

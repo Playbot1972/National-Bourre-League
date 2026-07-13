@@ -64,6 +64,7 @@ export function useAntePresentation({
   const handRef = useRef(handNumber);
   const anteCompleteRef = useRef(onAntePresentationComplete);
   anteCompleteRef.current = onAntePresentationComplete;
+  const anteSkippedRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     if (handRef.current !== handNumber) {
@@ -75,6 +76,18 @@ export function useAntePresentation({
       if (root) clearAntePile(root);
     }
   }, [handNumber, tableRootRef]);
+
+  useLayoutEffect(() => {
+    if (phase !== "ante" || !anteAnimActive) {
+      anteSkippedRef.current = null;
+      return;
+    }
+    if (shouldRunAntePresentation(phase, anteAnimActive, anteAmount)) return;
+    if (anteSkippedRef.current === handNumber) return;
+    anteSkippedRef.current = handNumber;
+    handOpenLog("ante-sequence-skipped-advance", { handNumber });
+    anteCompleteRef.current?.();
+  }, [phase, anteAnimActive, handNumber, anteAmount]);
 
   useLayoutEffect(() => {
     if (!shouldRunAntePresentation(phase, anteAnimActive, anteAmount)) {
@@ -152,6 +165,7 @@ export function useAntePresentation({
         handNumber,
         reason: "dedupe-or-missing-dom",
       });
+      anteCompleteRef.current?.();
     }
 
     return () => {
