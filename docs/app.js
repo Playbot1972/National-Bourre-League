@@ -17,6 +17,7 @@ import {
   usingEmulator,
   isCapacitorNative,
 } from "./auth.js";
+import { bindUiButtonPress } from "./ui-button-press.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   SESSION_ORCHESTRATION_DEBOUNCE_MS,
@@ -5236,6 +5237,7 @@ bindRoomDetailDelegatedControls();
 bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
+bindUiButtonPress();
 showView();
 logHandTransitionBoot();
 hideNativeSplashWhenReady();
