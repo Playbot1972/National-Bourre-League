@@ -1,4 +1,5 @@
 import { useCallback, useState, type CSSProperties } from "react";
+import { CARDS_PER_PLAYER } from "../game/playerOrder";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, formatSeatDisplayName, type SeatRegion } from "./logic";
@@ -170,9 +171,9 @@ export function Seat({
                 ))}
               </div>
             )}
-            {dealTargetsArmed && player.inHand && !player.isSelf && cardsHeld > 0 && (
+            {dealTargetsArmed && player.inHand && !player.isSelf && (
               <div className="bseat__deal-targets" aria-hidden="true">
-                {Array.from({ length: cardsHeld }, (_, i) => (
+                {Array.from({ length: CARDS_PER_PLAYER }, (_, i) => (
                   <span
                     key={`deal-target-${i}`}
                     className="bseat__deal-target"
