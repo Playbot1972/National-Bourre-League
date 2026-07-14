@@ -588,7 +588,7 @@ function U(e, t, n, r, i, a, o = Date.now()) {
 				handDecision: null
 			}
 		};
-		let t = B(e.participantIds, e.dealerId, !0, o);
+		let t = B(e.seatedIds ?? e.participantIds, e.dealerId, !0, o);
 		return {
 			kind: "restart",
 			handDecision: t,
@@ -682,7 +682,7 @@ function Me(e, t) {
 	};
 }
 function Ne(e, t) {
-	let n = B([...e.participantIds], t.dealerId, !1);
+	let n = B(t.seatedIds?.length ? t.seatedIds : e.participantIds, t.dealerId, !1);
 	return Me(e, {
 		...t,
 		initialPhase: F.REVEAL,

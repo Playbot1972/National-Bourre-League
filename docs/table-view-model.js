@@ -29,41 +29,6 @@ import {
 } from "./bourre-rules.js";
 import { apeClass, apeStatus } from "./ranking.js";
 import { canPlayerShowHandChoice, isRobotPlayerId } from "./session-startup.js";
-import { resolveActionOrder } from "./firestore.js";
-import { handAnteContribution } from "./bourre-rules.js";
-
-function projectedAnteContribution(playerId, scoreRow, sessionStake, postedAntes) {
-  if (postedAntes != null && Object.prototype.hasOwnProperty.call(postedAntes, playerId)) {
-    return Math.max(0, Number(postedAntes[playerId]) || 0);
-  }
-  if (scoreRow?.out === true) return 0;
-  return handAnteContribution(scoreRow, sessionStake);
-}
-
-/** Dealer-relative ante sequence — skips exempt / ineligible players. */
-export function resolveAnteContributorIds(session, scoreById, sessionStake) {
-  if (session.anteContributorIds?.length) {
-    return session.anteContributorIds.filter(Boolean).slice(0, 8);
-  }
-  const participantIds = (session.participantIds || []).filter(Boolean);
-  if (!participantIds.length) return [];
-  const ordered = resolveActionOrder(
-    {
-      actionOrder: session.actionOrder,
-      participantIds,
-      dealerId: session.dealerId,
-      seatedIds: session.seatedIds,
-    },
-    session.seatedIds,
-  );
-  return ordered
-    .filter(
-      (playerId) =>
-        projectedAnteContribution(playerId, scoreById[playerId], sessionStake, session.postedAntes) >
-        0,
-    )
-    .slice(0, 8);
-}
 
 export function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -80,7 +45,6 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
   const bourreIds = recentBourreIds.length > 0 ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
   return {
     sessionId: sessionObj?.id ?? null,
-    handNumber: sessionObj?.handCount ?? 0,
     phase: currentHand.phase ?? null,
     trumpKey: cardKeyFromSerialized(currentHand.trumpUpcard),
     drawCompletedIds: [...(currentHand.drawCompletedIds ?? [])],
@@ -100,10 +64,6 @@ export function buildHeroCardsForTable(currentHand, privateCardList, playerId, h
   const privateCards = privateCardList ?? [];
   if (!currentHand || !playerId || !isHandCardsDealtPhase(handPhase)) {
     return privateCards;
-  }
-  const participantIds = currentHand.participantIds ?? [];
-  if (participantIds.length > 0 && !participantIds.includes(playerId)) {
-    return [];
   }
   const effective = effectivePlayerHand(
     playerId,

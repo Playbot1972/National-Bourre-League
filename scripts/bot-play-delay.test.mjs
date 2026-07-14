@@ -5,7 +5,6 @@ import {
   BOT_PLAY_DELAY_MAX_MS,
   BOT_PLAY_LAST_CARD_MIN_MS,
   BOT_PLAY_LAST_CARD_MAX_MS,
-  botAdvanceTurnKey,
   botPlayTurnKey,
   createBotPlayDelayState,
   createBotThinkScheduleState,
@@ -18,22 +17,6 @@ describe("bot play delay", () => {
     assert.equal(
       botPlayTurnKey({ handNumber: 2, trickNumber: 3, turnPlayerId: "bot_a" }),
       "2:3:bot_a",
-    );
-  });
-
-  it("botAdvanceTurnKey includes phase, turn index, and action order", () => {
-    assert.equal(
-      botAdvanceTurnKey({
-        sessionId: "sess_1",
-        handNumber: 1,
-        handPhase: "reveal",
-        trickNumber: null,
-        turnPlayerId: "bot_my43bga9",
-        turnIndex: 0,
-        actionOrderFirst: "bot_my43bga9",
-        remainingHandCount: 5,
-      }),
-      "sess_1:1:reveal:0:bot_my43bga9:0:bot_my43bga9:5",
     );
   });
 

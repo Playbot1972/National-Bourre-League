@@ -21,7 +21,7 @@
  *    - `nextHandPot = carryOverPot + Σ fundingContribution` from prior settlement flags.
  *    - Normal players: `normal_ante` (= session handStake).
  *    - Bourré from prior hand: `bourre_full_pot_penalty` (= completedHandPot), skips normal ante.
- *    - Tie carry winners: `tie_carry_exempt` (0) when splitPot is off and splitPotOptionEnabled is off.
+ *    - Tie carry winners: `tie_carry_exempt` (0) when splitPot is off.
  *    - Bust: player pays remaining stack, marked `out`, remainder deferred as bourreReplacementDue.
  *
  * 4. HAND PLAY

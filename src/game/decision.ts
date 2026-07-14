@@ -152,7 +152,7 @@ export function decisionPatchAfterStep(
       };
     }
     const restarted = buildHandDecision(
-      hand.participantIds,
+      hand.seatedIds ?? hand.participantIds,
       hand.dealerId,
       true,
       nowMs,

@@ -14,7 +14,7 @@
     { "id": "card-shuffle-final", "file": "card-shuffle-final.mp3", "events": ["shuffleFinal", "openRoom"] },
     { "id": "card-select", "file": "card-select.mp3", "events": ["cardSelect"] },
     { "id": "card-illegal", "file": "card-illegal.mp3", "events": ["cardIllegal", "deleteRoom"] },
-    { "id": "click", "file": "click.mp3", "events": ["uiButton"] },
+    { "id": "ui-button-press", "file": "ui-button-press.mp3", "events": ["uiButton"] },
     { "id": "coin-chime-light", "file": "coin-chime-light.mp3", "events": ["trickCollect", "handWin"] },
     { "id": "draw", "file": "draw.mp3", "events": ["draw"] },
     { "id": "Fahhh", "file": "Fahhh.mp3", "events": ["bourre"] }

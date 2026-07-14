@@ -3,7 +3,7 @@
  * Authoritative game state is unchanged; these values gate UI sequencing.
  */
 
-import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
+import { prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
@@ -41,9 +41,6 @@ export const NEXT_HAND_RESET_MS = 550;
 /** Hand reset between sessions (400–700 ms). */
 export const HAND_RESET_MS = 500;
 
-/** Shuffle audio + brief beat before clockwise deal (matches card-shuffle-normal ~360 ms). */
-export const SHUFFLE_PRESENTATION_MS = 440;
-
 /** Maximum time any single presentation phase may hold before forced advance. */
 export const PRESENTATION_WATCHDOG_MS = 12_000;
 
@@ -51,14 +48,12 @@ export const PRESENTATION_WATCHDOG_MS = 12_000;
 export const BOT_DRAW_PRESENTATION_WATCHDOG_MS = 4_000;
 
 /** After the server clears the hand, force settlement if trick presentation is still busy. */
-export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = FINAL_HAND_TRICK_PRESENTATION_MS;
+export const HAND_SETTLE_PIPELINE_WATCHDOG_MS = 4_000;
 
 export type HandPresentationPhase =
   | "idle"
   | "handReset"
   | "ante"
-  | "shuffle"
-  | "deal"
   | "trumpReveal"
   | "trumpMerge"
   | "enrollment"
@@ -84,11 +79,6 @@ export interface HandTimingScale {
   settleHoldMs: number;
   nextHandResetMs: number;
   handResetMs: number;
-}
-
-export function shufflePresentationHoldMs(reducedMotion = prefersReducedMotion()): number {
-  const scale = reducedMotion ? 0.55 : 1;
-  return Math.max(120, Math.round(SHUFFLE_PRESENTATION_MS * scale));
 }
 
 export function handTimingScale(reducedMotion = prefersReducedMotion()): HandTimingScale {

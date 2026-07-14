@@ -24,16 +24,6 @@ describe("session orchestrator", () => {
     assert.equal(body.includes("maybeRecoverHandLifecycle"), false);
   });
 
-  it("syncTableSession keeps overlay mounted when session snapshot is briefly missing", () => {
-    const idx = src.indexOf("async function syncTableSession");
-    const nextFn = src.indexOf("function scheduleTableSessionSync", idx);
-    const body = src.slice(idx, nextFn);
-    assert.ok(body.includes("if (tablePlayOpen)"));
-    assert.ok(body.includes("if (!sessionObj)"));
-    assert.ok(body.includes("requestAnimationFrame(() => syncTableSession(openSessionObj"));
-    assert.ok(!body.includes("unmountTableSessionHost();\n    if (\n      tablePlayOpen &&\n      sessionObj"));
-  });
-
   it("syncTableSession does not start enrollment timer or recover lifecycle", () => {
     const idx = src.indexOf("async function syncTableSession");
     const nextFn = src.indexOf("function scheduleTableSessionSync", idx);

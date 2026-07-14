@@ -1,5 +1,4 @@
 import { useCallback, useState, type CSSProperties } from "react";
-import { CARDS_PER_PLAYER } from "../game/playerOrder";
 import { PlayingCard } from "../components/PlayingCard";
 import { SmartHud } from "./SmartHud";
 import { formatBankroll, formatSeatDisplayName, type SeatRegion } from "./logic";
@@ -13,8 +12,7 @@ interface SeatProps {
   region: SeatRegion;
   handLane?: HandLane;
   style: CSSProperties;
-  /** Mount deal-target anchors for opponent seats during deal presentation. */
-  dealTargetsArmed?: boolean;
+  clockwiseDealing?: boolean;
   onToggleInHand: () => void;
   onPassEnrollment?: () => void;
   onTrickDelta: (delta: number) => void;
@@ -26,7 +24,7 @@ export function Seat({
   region,
   handLane = "below",
   style,
-  dealTargetsArmed = false,
+  clockwiseDealing = false,
   onToggleInHand,
   onPassEnrollment,
   onTrickDelta,
@@ -171,9 +169,9 @@ export function Seat({
                 ))}
               </div>
             )}
-            {dealTargetsArmed && player.inHand && !player.isSelf && (
+            {clockwiseDealing && player.inHand && !player.isSelf && cardsHeld > 0 && (
               <div className="bseat__deal-targets" aria-hidden="true">
-                {Array.from({ length: CARDS_PER_PLAYER }, (_, i) => (
+                {Array.from({ length: cardsHeld }, (_, i) => (
                   <span
                     key={`deal-target-${i}`}
                     className="bseat__deal-target"

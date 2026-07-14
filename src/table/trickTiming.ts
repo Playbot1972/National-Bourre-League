@@ -40,18 +40,8 @@ export const TRICK_RAKE_MS = 240;
 /** Gap before next lead indicators (150–250 ms). */
 export const NEXT_LEAD_GAP_MS = 230;
 
-/**
- * Max UI time for the final trick when the server ends the hand early:
- * stagger remaining bot plays (up to 7 after hero leads) + land + full resolution pipeline.
- */
-export const FINAL_HAND_TRICK_PRESENTATION_MS =
-  CARD_REVEAL_STAGGER_MS * 7 +
-  CARD_LAND_MS +
-  trickResolutionScheduleMs({}).pipelineMs +
-  500;
-
 /** Max wait to drain trick presentation after the server clears the hand. */
-export const TRICK_HAND_END_DRAIN_MS = FINAL_HAND_TRICK_PRESENTATION_MS;
+export const TRICK_HAND_END_DRAIN_MS = 4_000;
 
 /** @deprecated Use POST_TRICK_READ_MS — kept for gradual migration. */
 export const POST_TRICK_HOLD_MS = POST_TRICK_READ_MS;

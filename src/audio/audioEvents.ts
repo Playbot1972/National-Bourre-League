@@ -40,7 +40,6 @@ export interface TrickCollectedAudioInput {
   trickId: number;
   winningSeat: string;
   playerCount: number;
-  isLocalPlayer?: boolean;
 }
 
 /** Subtle escalation for lead-change sweeteners — biggest payoff stays on trick:won. */
@@ -113,15 +112,6 @@ export function buildTrickCollectedPayload(input: TrickCollectedAudioInput): Car
     winningSeat: input.winningSeat,
     playerCount: input.playerCount,
     cardsInTrick: 0,
-    isLocalPlayer: input.isLocalPlayer,
     intensityTier: 1,
   };
-}
-
-/** Local human trick collection keeps coin-chime; bot/other seats use moneygone. */
-export function resolveTrickCollectSoundEvent(
-  payload: CardAudioEventPayload,
-): "trickCollect" | "trickCollectOther" {
-  if (payload.type !== "trick:collected") return "trickCollect";
-  return payload.isLocalPlayer === true ? "trickCollect" : "trickCollectOther";
 }
