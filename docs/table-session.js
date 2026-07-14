@@ -13740,7 +13740,29 @@ function pu({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 			className: "btable-hero__best-play-label",
 			children: "Best Play"
 		})]
-	}) : null;
+	}) : null, at = Go({
+		showBestPlayControl: nt,
+		inPlayPhase: Fe,
+		bestPlayEnabled: de,
+		recommendedPlayIndex: d
+	}), ot = (0, l.useCallback)((e) => Ko({
+		inPlayPhase: Fe,
+		isMyTurn: o,
+		busy: q,
+		cardIndex: e,
+		selectedPlay: z,
+		isLegal: qo(e, u),
+		showBestPlayRecommendation: at,
+		recommendedPlayIndex: d
+	}), [
+		q,
+		Fe,
+		o,
+		u,
+		d,
+		z,
+		at
+	]);
 	if (!a) return /* @__PURE__ */ (0, g.jsx)("div", {
 		className: du(ne, x),
 		"aria-live": "polite",
@@ -13780,29 +13802,7 @@ function pu({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 			children: it()
 		})
 	}) : /* @__PURE__ */ (0, g.jsx)(fu, { className: x });
-	let at = Go({
-		showBestPlayControl: nt,
-		inPlayPhase: Fe,
-		bestPlayEnabled: de,
-		recommendedPlayIndex: d
-	}), ot = (0, l.useCallback)((e) => Ko({
-		inPlayPhase: Fe,
-		isMyTurn: o,
-		busy: q,
-		cardIndex: e,
-		selectedPlay: z,
-		isLegal: qo(e, u),
-		showBestPlayRecommendation: at,
-		recommendedPlayIndex: d
-	}), [
-		q,
-		Fe,
-		o,
-		u,
-		d,
-		z,
-		at
-	]), st = (e, t) => {
+	let st = (e, t) => {
 		if (D === t) return "trump";
 		if (k === t && (Pe || Fe)) return "muted";
 		if (V === t || le === t || se === t) return "default";
