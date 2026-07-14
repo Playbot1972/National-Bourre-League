@@ -4,16 +4,20 @@ import { openTableFixture } from "./helpers/tableSmoke";
 const REACT_310 = /Rendered more hooks than during the previous render|Minified React error #310/;
 
 test.describe("Opening hand presentation — ante through trump reveal", () => {
-  test("ante fly-in completes without crash; table stays visible through shuffle and deal", async ({
+  test("ante fly-in completes without crash; deal completes and trump reveal unblocks", async ({
     page,
   }) => {
     const hookErrors: string[] = [];
+    const pageErrors: string[] = [];
     page.on("pageerror", (err) => {
+      pageErrors.push(err.message);
       if (REACT_310.test(err.message)) hookErrors.push(err.message);
     });
     page.on("console", (msg) => {
-      if (msg.type() === "error" && REACT_310.test(msg.text())) {
-        hookErrors.push(msg.text());
+      if (msg.type() === "error") {
+        const text = msg.text();
+        pageErrors.push(text);
+        if (REACT_310.test(text)) hookErrors.push(text);
       }
     });
 
@@ -31,12 +35,24 @@ test.describe("Opening hand presentation — ante through trump reveal", () => {
     await expect(page.getByTestId("table-felt")).toBeVisible();
 
     await expect
-      .poll(async () => root.getAttribute("data-presentation-phase"), { timeout: 25_000 })
-      .toMatch(/^(deal|trumpReveal|drawPlayer|drawReady|play|idle)$/);
+      .poll(async () => root.getAttribute("data-presentation-phase"), { timeout: 15_000 })
+      .toBe("deal");
+
+    await expect
+      .poll(async () => root.getAttribute("data-presentation-phase"), { timeout: 15_000 })
+      .not.toBe("deal");
+
+    await expect
+      .poll(async () => root.getAttribute("data-presentation-phase"), { timeout: 15_000 })
+      .toMatch(/^(trumpReveal|drawPlayer|drawReady|play|idle)$/);
 
     await expect(page.locator(".bseat")).toHaveCount(4);
     await expect(page.getByTestId("trump-button")).toBeVisible({ timeout: 15_000 });
 
     expect(hookErrors, `React hook-order crash: ${hookErrors.join("; ")}`).toHaveLength(0);
+    expect(
+      pageErrors.filter((e) => !/favicon/i.test(e)),
+      `Unexpected page errors: ${pageErrors.join("; ")}`,
+    ).toHaveLength(0);
   });
 });

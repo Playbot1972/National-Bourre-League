@@ -11,7 +11,10 @@ import {
 } from "../animations/dealPresentationMotion";
 import { handOpenLog } from "../handOpeningDebug";
 import { anteTimingMark } from "../anteTimingDebug";
-import { setDealPresentationActive } from "../presentationMotionBusy";
+import {
+  isDealPresentationActive,
+  setDealPresentationActive,
+} from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -42,6 +45,22 @@ function firstDealStepSeatReady(root: ParentNode, step: DealStep | undefined): b
   );
 }
 
+/**
+ * Deal key already committed but GSAP was torn down (effect re-run) — finish phase handoff.
+ */
+export function shouldRecoverDealPresentation(
+  lastDealKey: string | null,
+  dealKey: string,
+  dealPresentationActive: boolean,
+  handPresentationPhase: string,
+): boolean {
+  return (
+    lastDealKey === dealKey &&
+    handPresentationPhase === "deal" &&
+    !dealPresentationActive
+  );
+}
+
 export function useTableDealPresentation({
   session,
   heroCards,
@@ -55,7 +74,14 @@ export function useTableDealPresentation({
   const lastDealKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(session.handNumber);
   const dealCompleteRef = useRef(onDealPresentationComplete);
+  const dealCompletedHandRef = useRef<number | null>(null);
   dealCompleteRef.current = onDealPresentationComplete;
+
+  const fireDealComplete = () => {
+    if (dealCompletedHandRef.current === session.handNumber) return;
+    dealCompletedHandRef.current = session.handNumber;
+    dealCompleteRef.current?.();
+  };
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -64,6 +90,7 @@ export function useTableDealPresentation({
     if (handNumberRef.current !== session.handNumber) {
       handNumberRef.current = session.handNumber;
       lastDealKeyRef.current = null;
+      dealCompletedHandRef.current = null;
       killDealPresentation();
       resetDealRevealMarkers(root);
       setDealPresentationActive(false);
@@ -85,7 +112,23 @@ export function useTableDealPresentation({
       return;
     }
 
-    const dealKey = `${session.handNumber}:${cardCount}:${session.participantIds.join(",")}`;
+    const participantKey = session.participantIds.join(",");
+    const dealKey = `${session.handNumber}:${cardCount}:${participantKey}`;
+    if (
+      shouldRecoverDealPresentation(
+        lastDealKeyRef.current,
+        dealKey,
+        isDealPresentationActive(),
+        handPresentationPhase,
+      )
+    ) {
+      handOpenLog("deal-handoff-recover", {
+        handNumber: session.handNumber,
+        dealKey,
+      });
+      fireDealComplete();
+      return;
+    }
     if (lastDealKeyRef.current === dealKey) return;
 
     const seatRing = seatRingPlayerIds(session.participantIds, session);
@@ -100,6 +143,7 @@ export function useTableDealPresentation({
     if (!steps.length) return;
 
     let dealCommitted = false;
+    let cancelled = false;
     let rafId = 0;
     let watchdog = 0;
     const reduced = prefersReducedMotion();
@@ -110,15 +154,16 @@ export function useTableDealPresentation({
     setDealTargetsArmed(true);
 
     const finishDealPresentation = () => {
+      if (cancelled) return;
       setClockwiseDealing(false);
       setDealTargetsArmed(false);
       setDealPresentationActive(false);
       resetDealRevealMarkers(root);
-      dealCompleteRef.current?.();
+      fireDealComplete();
     };
 
     const beginDealMotion = (frame = 0) => {
-      if (dealCommitted) return;
+      if (cancelled || dealCommitted) return;
       if (!firstDealStepSeatReady(root, firstStep)) {
         if (frame < DEAL_SEAT_WAIT_FRAMES) {
           rafId = window.requestAnimationFrame(() => beginDealMotion(frame + 1));
@@ -169,20 +214,23 @@ export function useTableDealPresentation({
     rafId = window.requestAnimationFrame(() => beginDealMotion(0));
 
     return () => {
+      cancelled = true;
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(watchdog);
       killDealPresentation();
       setClockwiseDealing(false);
       setDealTargetsArmed(false);
       setDealPresentationActive(false);
-      if (!dealCommitted) {
+      if (dealCommitted) {
+        fireDealComplete();
+      } else {
         lastDealKeyRef.current = null;
       }
     };
   }, [
     session.handNumber,
     session.dealerId,
-    session.participantIds,
+    session.participantIds.join(","),
     session.trumpHolderId,
     heroCards.length,
     privateHandReady,
