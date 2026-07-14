@@ -77,7 +77,7 @@
 //   }
 // ---------------------------------------------------------------------------
 
-import { app } from "./auth.js";
+import { app, whenAuthReady } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import {
   scoreBankroll,
@@ -694,31 +694,58 @@ export async function createRoom({ owner, name, houseRules, bourreSettings }) {
     joinedAt: serverTimestamp(),
   });
   await batch.commit();
-  try {
-    await ensureInviteLookupForRoom(roomRef.id);
-  } catch (err) {
-    console.warn("ensureInviteLookupForRoom after create:", err);
-  }
+  // inviteLookups/{code} is written in the batch above — no post-create room read/repair.
   return roomRef.id;
 }
 
-/** Ensure inviteLookups/{code} exists (repairs rooms created before the join fix). */
-export async function ensureInviteLookupForRoom(roomId) {
-  const roomSnap = await getDoc(doc(db, "rooms", roomId));
-  if (!roomSnap.exists()) return false;
-  const data = roomSnap.data();
-  const inviteCode = normalizeInviteCode(data.inviteCode || "");
-  if (!inviteCode) return false;
+async function writeInviteLookup(inviteCode, roomId, ownerId) {
+  const code = normalizeInviteCode(inviteCode);
+  if (!code || !ownerId) return false;
   await setDoc(
-    doc(db, "inviteLookups", inviteCode),
+    doc(db, "inviteLookups", code),
     {
       roomId,
-      ownerId: data.ownerId,
+      ownerId,
       createdAt: serverTimestamp(),
     },
     { merge: true },
   );
   return true;
+}
+
+/**
+ * Ensure inviteLookups/{code} exists (repairs rooms created before the join fix).
+ * Pass inviteCode + ownerId when the caller already loaded the room — avoids a
+ * redundant getDoc(rooms/{id}) that can race membership propagation after create.
+ */
+export async function ensureInviteLookupForRoom(roomId, hint = {}) {
+  let inviteCode = hint.inviteCode ? normalizeInviteCode(hint.inviteCode) : "";
+  let ownerId = hint.ownerId ?? null;
+
+  if (!inviteCode || !ownerId) {
+    await whenAuthReady();
+    const roomPath = `rooms/${roomId}`;
+    let roomSnap;
+    try {
+      roomSnap = await getDoc(doc(db, "rooms", roomId));
+    } catch (err) {
+      logFirestoreError("get", roomPath, err, { roomId });
+      throw err;
+    }
+    if (!roomSnap.exists()) return false;
+    const data = roomSnap.data();
+    inviteCode = normalizeInviteCode(data.inviteCode || "");
+    ownerId = data.ownerId ?? null;
+  }
+
+  if (!inviteCode || !ownerId) return false;
+
+  try {
+    return await writeInviteLookup(inviteCode, roomId, ownerId);
+  } catch (err) {
+    logFirestoreError("set", `inviteLookups/${inviteCode}`, err, { roomId, ownerId });
+    throw err;
+  }
 }
 
 /** Join an existing room by invite code. Returns the roomId. */
@@ -1036,10 +1063,18 @@ export function subscribeMyRooms(uid, callback, onError) {
   );
 }
 
-export function subscribeRoom(roomId, callback) {
-  return onSnapshot(doc(db, "rooms", roomId), (snap) => {
-    callback(snap.exists() ? withId(snap) : null);
-  });
+export function subscribeRoom(roomId, callback, onError) {
+  const roomPath = `rooms/${roomId}`;
+  return onSnapshot(
+    doc(db, "rooms", roomId),
+    (snap) => {
+      callback(snap.exists() ? withId(snap) : null);
+    },
+    (err) => {
+      logFirestoreError("listen", roomPath, err, { roomId });
+      onError?.(err);
+    },
+  );
 }
 
 export function subscribeRoomMembers(roomId, callback) {

@@ -8,6 +8,7 @@ import {
   scaledDuration,
 } from "./motionTokens";
 import { initCardMotion } from "./initMotion";
+import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 
 const ACTIVE_DISCARD_FLIGHTS = new Set<gsap.core.Timeline>();
@@ -103,17 +104,14 @@ export function animateCardsToDiscardPile(
     const { midX, midY } = arcMidpoint(dx, dy);
 
     gsap.set(el, { x: 0, y: 0, rotation: 0, scale: 1, opacity: 1 });
-    tl.to(
-      el,
-      {
-        motionPath: {
-          path: [
-            { x: 0, y: 0 },
-            { x: midX, y: midY },
-            { x: dx, y: dy },
-          ],
-          curviness: 1.2,
-        },
+    tl.add(
+      tweenAlongArc(el, {
+        path: [
+          { x: 0, y: 0 },
+          { x: midX, y: midY },
+          { x: dx, y: dy },
+        ],
+        curviness: 1.2,
         rotation: placement.rotation,
         scale: placement.scale,
         opacity: 0.92,
@@ -123,7 +121,7 @@ export function animateCardsToDiscardPile(
           gsap.set(el, { clearProps: "transform,opacity,willChange,zIndex" });
           options.onCardComplete?.(i);
         },
-      },
+      }),
       i * stagger,
     );
   });

@@ -7,6 +7,7 @@ import {
   scaledDuration,
 } from "./motionTokens";
 import { initCardMotion } from "./initMotion";
+import { tweenAlongArc } from "./arcTween";
 import { rectFromElement, type MotionRect } from "./flip";
 import { readDeckOrigin } from "./cardMotion";
 import { seatHandOriginRectsForDraw } from "./discardPileMotion";
@@ -134,23 +135,20 @@ export function animateDeckGhostsToSeatOrigins(
 
     const travelAt = i * stagger;
     const fadeAt = travelAt + duration * 0.78;
-    tl.to(
-      ghost,
-      {
-        motionPath: {
-          path: [
-            { x: 0, y: 0 },
-            { x: midX, y: midY },
-            { x: dx, y: dy },
-          ],
-          curviness: 1.2,
-        },
+    tl.add(
+      tweenAlongArc(ghost, {
+        path: [
+          { x: 0, y: 0 },
+          { x: midX, y: midY },
+          { x: dx, y: dy },
+        ],
+        curviness: 1.2,
         rotationY: 0,
         scale: 1,
         opacity: 0.92,
         duration: duration * 0.78,
         ease: PREMIUM_EASE_BOUNCE,
-      },
+      }),
       travelAt,
     );
     tl.to(

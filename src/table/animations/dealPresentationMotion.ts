@@ -10,6 +10,7 @@ import {
   scaledDuration,
 } from "./motionTokens";
 import { initCardMotion } from "./initMotion";
+import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 
 /** Per-card travel from deck to seat (calm premium pace). */
@@ -245,22 +246,22 @@ export function runClockwiseDealPresentation({
             ease: PREMIUM_EASE,
           });
         } else {
-          inner.to(ghost, {
-            motionPath: {
+          inner.add(
+            tweenAlongArc(ghost, {
               path: [
                 { x, y },
                 { x: x + midX, y: y + midY },
                 { x: dx, y: dy },
               ],
               curviness: 1.2,
-            },
-            rotation: 0,
-            rotationY: 0,
-            scale: 1,
-            opacity: 1,
-            duration: travelSec,
-            ease: PREMIUM_EASE,
-          });
+              rotation: 0,
+              rotationY: 0,
+              scale: 1,
+              opacity: 1,
+              duration: travelSec,
+              ease: PREMIUM_EASE,
+            }),
+          );
         }
 
         inner.to(
