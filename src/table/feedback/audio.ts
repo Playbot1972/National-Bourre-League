@@ -78,6 +78,7 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   leadChange: { current: false },
   trickWin: { current: false },
   trickCollect: { current: false },
+  anteChip: { current: false },
   handWin: { current: false },
   potWin: { current: false },
   bigWin: { current: false },
@@ -99,6 +100,7 @@ const RESET_MS: Record<SoundEventKey, number> = {
   leadChange: 180,
   trickWin: 320,
   trickCollect: 280,
+  anteChip: 120,
   handWin: 280,
   potWin: 580,
   bigWin: 580,
@@ -120,6 +122,7 @@ const VOLUME: Record<SoundEventKey, number> = {
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
+  anteChip: 0.38,
   handWin: 0.4,
   potWin: 0.6,
   bigWin: 0.6,
@@ -239,6 +242,24 @@ export function playLeadChangeSound(intensityTier = 0): void {
 
 export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
+}
+
+export function playAnteChipSound(handNumber: number, playerIndex: number): void {
+  ensureAudioUnlockedSync("ante-chip");
+  const event: SoundEventKey = "anteChip";
+  const packId = getActivePackId();
+  const assetId = resolveSoundAsset(packId, event, {});
+  audioTrace("ante-chip", event, {
+    handNumber,
+    playerIndex,
+    key: assetId,
+    unlocked: userGestureUnlocked,
+  });
+  if (!assetId) {
+    audioFail(event, "no-asset-mapping", { handNumber, playerIndex, packId });
+    return;
+  }
+  playResolvedAsset(event, assetId, VOLUME[event], packId);
 }
 
 export function playTrickWinSound(volumeScale = 1): void {

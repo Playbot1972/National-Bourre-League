@@ -3,6 +3,7 @@ export {
   playShuffleFeedback,
   playDrawFeedback,
   playDrawCountFeedback,
+  playAnteChipFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
   playBourreFeedback,
