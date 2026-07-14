@@ -1,6 +1,7 @@
 /** Cross-cutting presentation motion flags (deal, trick collection, …). */
 
 let dealPresentationActive = false;
+let antePresentationActive = false;
 let trickCollectionActive = false;
 const listeners = new Set<() => void>();
 
@@ -16,6 +17,16 @@ export function setDealPresentationActive(active: boolean): void {
 
 export function isDealPresentationActive(): boolean {
   return dealPresentationActive;
+}
+
+export function setAntePresentationActive(active: boolean): void {
+  if (antePresentationActive === active) return;
+  antePresentationActive = active;
+  notify();
+}
+
+export function isAntePresentationActive(): boolean {
+  return antePresentationActive;
 }
 
 export function setTrickCollectionActive(active: boolean): void {
@@ -35,6 +46,7 @@ export function subscribePresentationMotionBusy(listener: () => void): () => voi
 
 export function resetPresentationMotionBusy(): void {
   dealPresentationActive = false;
+  antePresentationActive = false;
   trickCollectionActive = false;
   notify();
 }

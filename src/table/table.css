@@ -4035,6 +4035,16 @@
   pointer-events: none;
 }
 
+/* Legacy CSS ante chips — superseded by GSAP fly ghosts during ante presentation. */
+.btable-wrap--ante-coins .bpot__ante-chips,
+.btable-wrap--ante-coins .bpot__ante-chip:not(.bpot__ante-chip--fly) {
+  display: none;
+}
+
+.bpot__ante-chip--fly {
+  will-change: transform, opacity;
+}
+
 .bpot__ante-chip {
   position: absolute;
   left: 50%;

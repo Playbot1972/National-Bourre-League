@@ -253,6 +253,15 @@ export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
 }
 
+/** Ante coin impact — same asset as trick collect (`coin-chime-light.mp3`). */
+export function playAnteCoinLandSound(): void {
+  try {
+    playTrickCollectSound();
+  } catch {
+    /* audio unavailable */
+  }
+}
+
 export function playTrickWinSound(volumeScale = 1): void {
   void playTrickWinEvent(volumeScale);
 }

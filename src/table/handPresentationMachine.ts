@@ -3,6 +3,7 @@ import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
+  antePresentationDurationMs,
   drawPlayerScheduleMs,
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
@@ -915,7 +916,10 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      return antePresentationDurationMs(
+        Math.max(1, Math.min(store.dealStaggerCount, 8)),
+        reducedMotion,
+      );
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
