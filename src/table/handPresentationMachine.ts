@@ -466,6 +466,7 @@ export type HandPresentationEvent =
     }
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
+  | { type: "completeAntePresentation" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
@@ -521,6 +522,10 @@ function reduceHandPresentationCore(
         trumpMergedIntoHand: true,
         phase: store.phase === "trumpMerge" ? "drawPlayer" : store.phase,
       };
+
+    case "completeAntePresentation":
+      if (store.phase !== "ante") return store;
+      return advanceHandPhase(store);
 
     case "watchdog":
       if (store.pendingHandSettle && store.phase === "play") {
@@ -889,7 +894,8 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      // GSAP ante fly-in calls completeAntePresentation; watchdog is the fallback.
+      return 0;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
