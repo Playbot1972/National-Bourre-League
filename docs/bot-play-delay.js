@@ -13,6 +13,32 @@ export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
 }
 
 /**
+ * Idempotency key for non-play bot advance scheduling (reveal, draw, enrollment, etc.).
+ * Includes phase and turn index so duplicate wake/snapshot triggers coalesce.
+ */
+export function botAdvanceTurnKey({
+  sessionId,
+  handNumber,
+  handPhase,
+  trickNumber,
+  turnPlayerId,
+  turnIndex,
+  actionOrderFirst,
+  remainingHandCount,
+}) {
+  return [
+    sessionId ?? "",
+    handNumber ?? 0,
+    handPhase ?? "",
+    trickNumber ?? 0,
+    turnPlayerId ?? "",
+    turnIndex ?? -1,
+    actionOrderFirst ?? "",
+    remainingHandCount ?? "?",
+  ].join(":");
+}
+
+/**
  * @param {number} min
  * @param {number} max
  * @param {() => number} [rng]
