@@ -7,6 +7,7 @@ import { assertBotAdvanceNotInFlight } from "./session-startup.js";
 import { logBotOrchestrator } from "./bot-orchestrator.js";
 import {
   BOT_ADVANCE_DEBOUNCE_MS,
+  botAdvanceTurnKey,
   botPlayTurnKey,
   createBotThinkScheduleState,
   resolveBotAdvanceDelayMs,
@@ -30,6 +31,7 @@ import {
 export function createServerBotAdvanceRuntime(deps) {
   let inFlight = false;
   let debounceTimer = null;
+  let pendingAdvanceTurnKey = null;
   let pendingWake = false;
   const thinkSchedule = createBotThinkScheduleState();
 
@@ -38,6 +40,7 @@ export function createServerBotAdvanceRuntime(deps) {
       clearTimeout(debounceTimer);
       debounceTimer = null;
     }
+    pendingAdvanceTurnKey = null;
   }
 
   function playDelayContext(session, scores) {
@@ -46,6 +49,21 @@ export function createServerBotAdvanceRuntime(deps) {
       handNumber: ctx.handNumber ?? 0,
       trickNumber: ctx.trickNumber ?? null,
       turnPlayerId: ctx.turnPlayerId ?? null,
+      remainingHandCount: ctx.remainingHandCount ?? null,
+    };
+  }
+
+  function advanceTurnContext(session, scores) {
+    const ctx = deps.snapshotContext(session, scores);
+    const actionOrder = ctx.actionOrder ?? [];
+    return {
+      sessionId: deps.getSessionId() ?? "",
+      handNumber: ctx.handNumber ?? 0,
+      handPhase: deps.getHandPhase?.(session) ?? ctx.handPhase ?? null,
+      trickNumber: ctx.trickNumber ?? null,
+      turnPlayerId: ctx.turnPlayerId ?? null,
+      turnIndex: ctx.turnIndex ?? -1,
+      actionOrderFirst: actionOrder[0] ?? "",
       remainingHandCount: ctx.remainingHandCount ?? null,
     };
   }
@@ -238,6 +256,22 @@ export function createServerBotAdvanceRuntime(deps) {
     }
 
     cancelPlayThink(session, scores, "non_play_phase");
+    const advanceCtx = advanceTurnContext(session, scores);
+    const advanceTurnKey = botAdvanceTurnKey(advanceCtx);
+
+    if (debounceTimer && pendingAdvanceTurnKey === advanceTurnKey) {
+      logPlayDelay("coalesce-request", session, scores, {
+        reason: "schedule_deduped",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        action: "coalesced",
+        advanceTurnKey,
+        handPhase,
+      });
+      return;
+    }
+
     clearDebounce();
     const delayPlan = resolveBotAdvanceDelayMs({
       handPhase,
@@ -247,8 +281,10 @@ export function createServerBotAdvanceRuntime(deps) {
     });
     const delay = delayPlan.delayMs;
 
+    pendingAdvanceTurnKey = advanceTurnKey;
     debounceTimer = setTimeout(() => {
       debounceTimer = null;
+      pendingAdvanceTurnKey = null;
       void execute(session, scores, actorId, { reason, delayPlan });
     }, delay);
 
@@ -259,6 +295,7 @@ export function createServerBotAdvanceRuntime(deps) {
       delayMs: delay,
       chosenBotDelayMs: delayPlan.chosenDelayMs,
       handPhase,
+      advanceTurnKey,
       action: "scheduled",
     });
   }
