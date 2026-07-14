@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "./gsapPlugins";
 import { wonTrickPilePlacement } from "../wonTrickPileModel";
 import {
   GSAP_DURATIONS,

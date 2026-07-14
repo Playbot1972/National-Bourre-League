@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "./gsapPlugins";
 import {
   GSAP_DURATIONS,
   PREMIUM_EASE,

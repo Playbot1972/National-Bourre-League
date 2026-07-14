@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "./gsapPlugins";
 import { discardPilePlacement } from "../discardPileModel";
 import {
   GSAP_DURATIONS,

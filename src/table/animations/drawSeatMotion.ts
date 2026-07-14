@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "./gsapPlugins";
 import {
   GSAP_DURATIONS,
   MOTION_GHOST_Z_INDEX,
