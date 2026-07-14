@@ -76,22 +76,30 @@ export function useAntePresentation({
     const presentationKey = antePresentationDedupeKey(sessionId, handNumber, ids, anteAmount);
     setAnteLandedCount(0);
 
+    let completed = false;
+    const markComplete = () => {
+      if (completed) return;
+      completed = true;
+      completeRef.current?.();
+    };
+
     const started = runAntePresentation(root, presentationKey, ids, {
       onLand: (_playerId, playerIndex) => {
         playAnteChipFeedback(handNumber, playerIndex);
         setAnteLandedCount((n) => n + 1);
       },
-      onComplete: () => {
-        completeRef.current?.();
-      },
+      onComplete: markComplete,
     });
 
     if (!started) {
-      completeRef.current?.();
+      markComplete();
     }
 
     return () => {
       killAntePresentation();
+      if (!completed) {
+        markComplete();
+      }
     };
   }, [
     phase,

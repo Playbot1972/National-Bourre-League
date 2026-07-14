@@ -220,58 +220,67 @@ export function runAntePresentation(
   callbacks: AntePresentationCallbacks = {},
 ): boolean {
   if (lastAnteSequenceKey === presentationKey) return false;
-  lastAnteSequenceKey = presentationKey;
 
   killAntePresentation();
   clearAntePile(root);
-  initCardMotion(root);
 
-  const ids = playerIds.slice(0, 8);
-  if (!ids.length) return false;
+  try {
+    initCardMotion(root);
 
-  const target = readAntePotTarget(root);
-  const pile = root.querySelector<HTMLElement>(".bpot__ante-pile");
-  if (!target || !pile) return false;
+    const ids = playerIds.slice(0, 8);
+    if (!ids.length) return false;
 
-  pile.classList.add("bpot__ante-pile--active");
-  const reduced = prefersReducedMotion();
-  const staggerSec = computeAnteStaggerMs(ids.length, reduced) / 1000;
-  const mergeSec = scaledDuration(ANTE_PILE_MERGE_MS / 1000, reduced);
+    const target = readAntePotTarget(root);
+    const pile = root.querySelector<HTMLElement>(".bpot__ante-pile");
+    if (!target || !pile) return false;
 
-  const master = gsap.timeline({
-    onComplete: () => {
-      activeAnteTimeline = null;
-      callbacks.onComplete?.();
-    },
-  });
-  activeAnteTimeline = master;
+    lastAnteSequenceKey = presentationKey;
 
-  for (let i = 0; i < ids.length; i += 1) {
-    const playerId = ids[i]!;
-    const origin = readAnteSeatOrigin(playerId, root);
-    if (!origin) continue;
-    const startAt = i * staggerSec;
-    master.add(
-      flyOneAnte(root, playerId, i, origin, target, pile, reduced, callbacks),
-      startAt,
-    );
-  }
+    pile.classList.add("bpot__ante-pile--active");
+    const reduced = prefersReducedMotion();
+    const staggerSec = computeAnteStaggerMs(ids.length, reduced) / 1000;
+    const mergeSec = scaledDuration(ANTE_PILE_MERGE_MS / 1000, reduced);
 
-  master.to(
-    pile,
-    {
-      scale: 0.82,
-      opacity: 0,
-      duration: mergeSec,
-      ease: PREMIUM_EASE,
+    const master = gsap.timeline({
       onComplete: () => {
-        clearAntePile(root);
+        activeAnteTimeline = null;
+        callbacks.onComplete?.();
       },
-    },
-    ">-0.04",
-  );
+    });
+    activeAnteTimeline = master;
 
-  return true;
+    for (let i = 0; i < ids.length; i += 1) {
+      const playerId = ids[i]!;
+      const origin = readAnteSeatOrigin(playerId, root);
+      if (!origin) continue;
+      const startAt = i * staggerSec;
+      master.add(
+        flyOneAnte(root, playerId, i, origin, target, pile, reduced, callbacks),
+        startAt,
+      );
+    }
+
+    master.to(
+      pile,
+      {
+        scale: 0.82,
+        opacity: 0,
+        duration: mergeSec,
+        ease: PREMIUM_EASE,
+        onComplete: () => {
+          clearAntePile(root);
+        },
+      },
+      ">-0.04",
+    );
+
+    return true;
+  } catch {
+    lastAnteSequenceKey = null;
+    killAntePresentation();
+    clearAntePile(root);
+    return false;
+  }
 }
 
 /** @internal test helper */
