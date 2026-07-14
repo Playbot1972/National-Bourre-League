@@ -52,6 +52,7 @@ import {
   canActForPlayer,
   enrollmentDeadlineMs,
   resolveBotAdvanceHint,
+  resolveBotAdvanceEmptyReason,
   assertHandActionAllowed,
   assertSettlementEntryAllowed,
   assertSessionChipConserved,
@@ -1191,6 +1192,11 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       nowMs: Date.now(),
     });
     if (!hint) {
+      const emptyReason = resolveBotAdvanceEmptyReason({
+        snapshot,
+        session: sessionData,
+        nowMs: Date.now(),
+      });
       if (step === 0) {
         console.info(
           "[bot-advance]",
@@ -1201,11 +1207,14 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
             roomId,
             sessionId,
             phase: snapshot.phase,
+            handPhase: snapshot.handPhase,
+            turnPlayerId: snapshot.turnPlayerId,
             reason: "no_bot_hint",
+            emptyReason,
           }),
         );
       }
-      return { status: "ok", steps };
+      return { status: "ok", steps, emptyReason };
     }
 
     console.info(
@@ -1286,6 +1295,14 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
             discardCount: 0,
           });
         }
+        break;
+      case "advance_reveal":
+        await handleAdvanceHandReveal(db, {
+          roomId,
+          sessionId,
+          actorId,
+          chainBots: false,
+        });
         break;
       case "draw":
         await executeBotDraw(db, roomId, sessionId, hint.turnPlayerId, actorId, dealingRule);
@@ -1583,7 +1600,7 @@ function decisionStepPatch(step) {
   return null;
 }
 
-export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }) {
+export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId, chainBots = true }) {
   await assertRoomMember(db, roomId, actorId);
   const dealingRule = await getDealingRule(db, roomId);
   const ref = sessionRef(db, roomId, sessionId);
@@ -1609,7 +1626,9 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId }
   if (alreadyPastReveal) {
     return { status: "ok", phase: "past_reveal" };
   }
-  await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  if (chainBots) {
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  }
   return { status: "draw" };
 }
 
