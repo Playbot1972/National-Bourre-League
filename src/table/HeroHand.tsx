@@ -820,6 +820,38 @@ export function HeroHand({
     ],
   );
 
+  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
+    showBestPlayControl,
+    inPlayPhase,
+    bestPlayEnabled,
+    recommendedPlayIndex,
+  });
+
+  const playVisualTierFor = useCallback(
+    (cardIndex: number) => {
+      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
+      return resolveHeroPlayCardVisualTier({
+        inPlayPhase,
+        isMyTurn,
+        busy,
+        cardIndex,
+        selectedPlay,
+        isLegal,
+        showBestPlayRecommendation,
+        recommendedPlayIndex,
+      });
+    },
+    [
+      busy,
+      inPlayPhase,
+      isMyTurn,
+      legalPlayIndices,
+      recommendedPlayIndex,
+      selectedPlay,
+      showBestPlayRecommendation,
+    ],
+  );
+
   const renderBestPlayCheckbox = () =>
     showBestPlayControl ? (
       <label className="btable-hero__best-play">
@@ -842,7 +874,12 @@ export function HeroHand({
     );
   }
 
-  if (handPresentationPhase === "ante" && isInHand) {
+  if (
+    isInHand &&
+    (handPresentationPhase === "ante" ||
+      handPresentationPhase === "shuffle" ||
+      handPresentationPhase === "deal")
+  ) {
     return <HeroHandReserve className={className} />;
   }
 
@@ -892,38 +929,6 @@ export function HeroHand({
     }
     return <HeroHandReserve className={className} />;
   }
-
-  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
-    showBestPlayControl,
-    inPlayPhase,
-    bestPlayEnabled,
-    recommendedPlayIndex,
-  });
-
-  const playVisualTierFor = useCallback(
-    (cardIndex: number) => {
-      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
-      return resolveHeroPlayCardVisualTier({
-        inPlayPhase,
-        isMyTurn,
-        busy,
-        cardIndex,
-        selectedPlay,
-        isLegal,
-        showBestPlayRecommendation,
-        recommendedPlayIndex,
-      });
-    },
-    [
-      busy,
-      inPlayPhase,
-      isMyTurn,
-      legalPlayIndices,
-      recommendedPlayIndex,
-      selectedPlay,
-      showBestPlayRecommendation,
-    ],
-  );
 
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";

@@ -513,6 +513,10 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, false);
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "shuffle");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "deal");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "trumpReveal");
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "drawPlayer");
@@ -546,7 +550,19 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, false);
   });
 
-  it("ante callback advances directly to trumpReveal (recovery topology)", () => {
+  it("arms ante animation when initial server phase is reveal", () => {
+    const store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "7", suit: "hearts" },
+      participantIds: ["p1", "p2", "p3"],
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, true);
+  });
+
+  it("ante callback advances ante -> shuffle -> deal -> trumpReveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
@@ -556,6 +572,10 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.phase, "ante");
     store = reduceHandPresentation(store, { type: "completeAntePresentation" });
+    assert.equal(store.phase, "shuffle");
+    store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
+    assert.equal(store.phase, "deal");
+    store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
     assert.equal(phaseScheduleMs(store), 5000);

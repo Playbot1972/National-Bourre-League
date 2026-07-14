@@ -269,6 +269,12 @@ export function runAntePresentation(
   return true;
 }
 
+export function clearAntePresentationDedupe(handNumber?: number): void {
+  if (handNumber == null || lastAnteSequenceKey === antePresentationDedupeKey(handNumber)) {
+    lastAnteSequenceKey = null;
+  }
+}
+
 /** @internal test helper */
 export function _resetAntePresentationForTests(): void {
   lastAnteSequenceKey = null;

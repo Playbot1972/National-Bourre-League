@@ -34,6 +34,7 @@ import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useAntePresentation } from "./hooks/useAntePresentation";
+import { useShufflePresentation } from "./hooks/useShufflePresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import { useCardAudio } from "./hooks/useCardAudio";
@@ -197,13 +198,15 @@ export function MobileCardTable({
     handPresentation,
     tableRootRef: wrapRef,
   });
-  const clockwiseDealing = useTableDealPresentation({
+  const dealPresentation = useTableDealPresentation({
     session,
     heroCards,
     privateHandReady,
     handPresentationPhase: handPresentation.phase,
+    onDealPresentationComplete: handPresentation.completeDealPresentation,
     tableRootRef: wrapRef,
   });
+  const { clockwiseDealing, dealTargetsArmed } = dealPresentation;
   const antePresentation = useAntePresentation({
     phase: handPresentation.phase,
     handNumber: session.handNumber,
@@ -212,6 +215,11 @@ export function MobileCardTable({
     anteAmount: potMetrics.anteAmount,
     tableRootRef: wrapRef,
     onAntePresentationComplete: handPresentation.completeAntePresentation,
+  });
+  useShufflePresentation({
+    phase: handPresentation.phase,
+    handNumber: session.handNumber,
+    onShufflePresentationComplete: handPresentation.completeShufflePresentation,
   });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const isTrumpHolder =
@@ -331,6 +339,7 @@ export function MobileCardTable({
         .filter(Boolean)
         .join(" ")}
       data-testid="table-root"
+      data-presentation-phase={handPresentation.phase}
       data-layout={orientation}
       style={{
         ["--player-count" as string]: playerCount,
@@ -421,7 +430,7 @@ export function MobileCardTable({
                     player={seatPlayer}
                     region={layout.region}
                     handLane={layout.handLane}
-                    dealTargetsArmed={clockwiseDealing}
+                    dealTargetsArmed={dealTargetsArmed}
                     style={{
                       left: `${layout.x}%`,
                       top: `${layout.y}%`,
@@ -456,7 +465,7 @@ export function MobileCardTable({
                   }
                   region={feltSelfLayout.region}
                   handLane={feltSelfLayout.handLane}
-                  dealTargetsArmed={clockwiseDealing}
+                  dealTargetsArmed={dealTargetsArmed}
                   style={{
                     left: `${feltSelfLayout.x}%`,
                     top: `${feltSelfLayout.y}%`,
@@ -543,6 +552,7 @@ export function MobileCardTable({
           onDiscardCommitted={commitDiscardCards}
           onUserActivity={onHeroUserActivity}
           skipHeroDealMotion={clockwiseDealing}
+          handPresentationPhase={handPresentation.phase}
         />
         </div>
       </div>

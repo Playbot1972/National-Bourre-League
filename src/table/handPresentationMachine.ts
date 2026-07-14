@@ -86,6 +86,8 @@ export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
   return (
     phase === "handReset" ||
     phase === "ante" ||
+    phase === "shuffle" ||
+    phase === "deal" ||
     phase === "trumpReveal" ||
     phase === "trumpMerge" ||
     phase === "drawPlayer" ||
@@ -143,8 +145,10 @@ function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase
 export function createHandPresentationStore(
   snapshot: HandServerSnapshot,
 ): HandPresentationStore {
+  const phase = deriveInitialPhase(snapshot);
+  const hasTrump = Boolean(snapshot.trumpUpcard);
   return {
-    phase: deriveInitialPhase(snapshot),
+    phase,
     sessionKey: snapshot.sessionKey,
     handNumber: snapshot.handNumber,
     displayDrawCompletedIds: [],
@@ -152,11 +156,11 @@ export function createHandPresentationStore(
     drawAnimSubPhase: "done",
     drawDiscardCount: 0,
     drawReplaceCount: 0,
-    trumpRevealActive: false,
+    trumpRevealActive: phase === "ante" && hasTrump,
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
-    anteAnimActive: false,
-    dealStaggerCount: 0,
+    anteAnimActive: phase === "ante",
+    dealStaggerCount: phase === "ante" ? Math.max(0, snapshot.participantIds.length) : 0,
     enrollmentPulse: {},
     settleAnimActive: false,
     settleCarryOver: false,
@@ -467,6 +471,8 @@ export type HandPresentationEvent =
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
   | { type: "completeAntePresentation" }
+  | { type: "completeShufflePresentation" }
+  | { type: "completeDealPresentation" }
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
@@ -525,6 +531,14 @@ function reduceHandPresentationCore(
 
     case "completeAntePresentation":
       if (store.phase !== "ante") return store;
+      return advanceHandPhase(store);
+
+    case "completeShufflePresentation":
+      if (store.phase !== "shuffle") return store;
+      return advanceHandPhase(store);
+
+    case "completeDealPresentation":
+      if (store.phase !== "deal") return store;
       return advanceHandPhase(store);
 
     case "watchdog":
@@ -744,17 +758,26 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
 
     case "ante":
+      return withPhase(store, "shuffle", {
+        anteAnimActive: false,
+        pendingSnapshot: null,
+      });
+
+    case "shuffle":
+      return withPhase(store, "deal", { pendingSnapshot: null });
+
+    case "deal": {
       if (store.trumpRevealActive || snap?.trumpUpcard) {
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
-          anteAnimActive: false,
           pendingSnapshot: null,
         });
       }
       if (snap?.phase === "draw") {
         return beginDrawSequence(store, snap, 0, 0);
       }
-      return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
+      return withPhase(store, "drawPlayer", { pendingSnapshot: null });
+    }
 
     case "trumpReveal": {
       if (snap?.phase === "draw") {
@@ -875,6 +898,8 @@ export function buildHandPresentationModel(
       store.phase === "trumpReveal" ||
       store.phase === "trumpMerge" ||
       store.phase === "ante" ||
+      store.phase === "shuffle" ||
+      store.phase === "deal" ||
       store.phase === "drawReady" ||
       store.phase === "settle" ||
       store.phase === "nextHandReset" ||
@@ -895,6 +920,12 @@ export function phaseScheduleMs(
       return t.handResetMs;
     case "ante":
       // GSAP ante fly-in calls completeAntePresentation; watchdog is the fallback.
+      return 0;
+    case "shuffle":
+      // Shuffle hook calls completeShufflePresentation; watchdog is the fallback.
+      return 0;
+    case "deal":
+      // Clockwise deal calls completeDealPresentation; watchdog is the fallback.
       return 0;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
