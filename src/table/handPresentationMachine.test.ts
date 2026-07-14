@@ -71,6 +71,36 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, true);
   });
 
+  it("arms ante on initial reveal mount", () => {
+    const store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.trumpRevealActive, true);
+  });
+
+  it("re-arms ante when reveal snapshot arrives with unarmed ante phase", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: null,
+    });
+    store = {
+      ...store,
+      anteAnimActive: false,
+      trumpRevealActive: false,
+    };
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, phase: "reveal", trumpUpcard: null },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+  });
+
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
