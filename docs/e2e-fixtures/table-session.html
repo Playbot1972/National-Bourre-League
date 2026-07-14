@@ -58,6 +58,9 @@
       /** Pagat flow: legacy `enrollment` maps to post-deal decision. */
       const phase = phaseParam === "enrollment" ? "decision" : phaseParam;
       const tick = params.get("tick") !== "0";
+      const trumpParam = params.get("trump");
+      const lateTrump = trumpParam === "late";
+      let includeTrump = trumpParam !== "0" && !lateTrump;
       let playTurnId = params.get("turn") || "p0";
       void tick;
 
@@ -156,9 +159,16 @@
           participantIds: cardsDealt ? ids : [],
           tricksByPlayer: phase === "play" ? { p0: 0, p1: 1 } : {},
           phase: cardsDealt ? phase : null,
-          trumpSuit: cardsDealt ? "hearts" : null,
-          trumpUpcard: cardsDealt ? { rank: "7", suit: "hearts" } : null,
-          turnPlayerId: phase === "draw" ? "p0" : phase === "play" ? playTurnId : null,
+          trumpSuit: cardsDealt && includeTrump ? "hearts" : null,
+          trumpUpcard: cardsDealt && includeTrump ? { rank: "7", suit: "hearts" } : null,
+          turnPlayerId:
+            phase === "draw"
+              ? "p0"
+              : phase === "play"
+                ? playTurnId
+                : phase === "reveal" && includeTrump
+                  ? "p0"
+                  : null,
           remainingDeckCount: phase === "draw" ? 28 : null,
           maxDrawDiscards: 4,
           handEnrollment:
@@ -259,6 +269,13 @@
 
       function render() {
         mountTableSession(root, buildProps());
+      }
+
+      if (lateTrump) {
+        setTimeout(() => {
+          includeTrump = true;
+          render();
+        }, 8_000);
       }
 
       window.__fixtureAdvancePlayTurn = (nextTurnId) => {

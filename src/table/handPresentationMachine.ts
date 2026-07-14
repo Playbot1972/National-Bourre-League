@@ -137,9 +137,31 @@ function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase
   if (snapshot.phase === "play") return "play";
   if (snapshot.phase === "draw") return "drawPlayer";
   if (snapshot.phase === "decision") return "decision";
-  if (snapshot.phase === "reveal") return "ante";
+  if (snapshot.phase === "reveal") {
+    return isHandOpenSatisfiedOnServer(snapshot) ? "idle" : "ante";
+  }
   if (snapshot.enrollmentActive) return "enrollment";
   return "idle";
+}
+
+/** Server deal + trump are already authoritative — skip hand-open replay. */
+export function isHandOpenSatisfiedOnServer(snapshot: HandServerSnapshot): boolean {
+  if (!snapshot.trumpUpcard) return false;
+  return snapshot.phase === "reveal" || snapshot.phase === "draw" || snapshot.phase === "play";
+}
+
+export function serverSnapshotSignature(snapshot: HandServerSnapshot): string {
+  return [
+    snapshot.sessionKey,
+    snapshot.handNumber,
+    snapshot.phase ?? "",
+    snapshot.turnPlayerId ?? "",
+    trumpKey(snapshot.trumpUpcard),
+    snapshot.drawCompletedIds.join(","),
+    snapshot.participantIds.join(","),
+    snapshot.enrollmentActive ? "1" : "0",
+    String(snapshot.potAmount),
+  ].join("|");
 }
 
 export function createHandPresentationStore(
@@ -147,18 +169,19 @@ export function createHandPresentationStore(
 ): HandPresentationStore {
   const phase = deriveInitialPhase(snapshot);
   const hasTrump = Boolean(snapshot.trumpUpcard);
+  const handOpenSatisfied = isHandOpenSatisfiedOnServer(snapshot);
   return {
     phase,
     sessionKey: snapshot.sessionKey,
     handNumber: snapshot.handNumber,
-    displayDrawCompletedIds: [],
+    displayDrawCompletedIds: handOpenSatisfied ? [...snapshot.drawCompletedIds] : [],
     animatingDrawPlayerId: null,
     drawAnimSubPhase: "done",
     drawDiscardCount: 0,
     drawReplaceCount: 0,
     trumpRevealActive: phase === "ante" && hasTrump,
     trumpMergeActive: false,
-    trumpMergedIntoHand: false,
+    trumpMergedIntoHand: phase === "idle" && handOpenSatisfied,
     anteAnimActive: phase === "ante",
     dealStaggerCount: phase === "ante" ? Math.max(0, snapshot.participantIds.length) : 0,
     enrollmentPulse: {},
@@ -488,6 +511,55 @@ function syncRevealPresentation(
   };
 }
 
+/** Forward-safe sync when authoritative server is already past hand-open. */
+export function catchUpPresentationFromServer(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  if (snapshot.phase === "play") {
+    return withPhase(store, "play", {
+      displayDrawCompletedIds: [...snapshot.drawCompletedIds],
+      animatingDrawPlayerId: null,
+      drawAnimSubPhase: "done",
+      trumpRevealActive: false,
+      trumpMergeActive: false,
+      trumpMergedIntoHand: true,
+      anteAnimActive: false,
+      prevSnapshot: snapshot,
+      pendingSnapshot: null,
+    });
+  }
+  if (snapshot.phase === "draw") {
+    return beginDrawSequence(
+      {
+        ...store,
+        displayDrawCompletedIds: [...snapshot.drawCompletedIds],
+        prevSnapshot: snapshot,
+        anteAnimActive: false,
+        trumpRevealActive: false,
+        trumpMergedIntoHand: false,
+      },
+      snapshot,
+      0,
+      0,
+    );
+  }
+  return {
+    ...store,
+    phase: "idle",
+    anteAnimActive: false,
+    trumpRevealActive: false,
+    trumpMergeActive: false,
+    trumpMergedIntoHand: true,
+    displayDrawCompletedIds: [...snapshot.drawCompletedIds],
+    animatingDrawPlayerId: null,
+    drawAnimSubPhase: "done",
+    prevSnapshot: snapshot,
+    pendingSnapshot: null,
+    displayPotAmount: snapshot.potAmount,
+  };
+}
+
 function beginDrawSequence(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
@@ -605,7 +677,13 @@ function reduceHandPresentationCore(
 
       if (store.sessionKey !== snapshot.sessionKey) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal" && !isHandOpenSatisfiedOnServer(snapshot)) {
+          return beginRevealPresentation(fresh, snapshot);
+        }
+        if (isHandOpenSatisfiedOnServer(snapshot)) {
+          return catchUpPresentationFromServer(fresh, snapshot);
+        }
+        return fresh;
       }
 
       const handClearedOnServer =
@@ -630,7 +708,13 @@ function reduceHandPresentationCore(
 
       if (store.handNumber !== snapshot.handNumber) {
         const fresh = createHandPresentationStore(snapshot);
-        return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
+        if (snapshot.phase === "reveal" && !isHandOpenSatisfiedOnServer(snapshot)) {
+          return beginRevealPresentation(fresh, snapshot);
+        }
+        if (isHandOpenSatisfiedOnServer(snapshot)) {
+          return catchUpPresentationFromServer(fresh, snapshot);
+        }
+        return fresh;
       }
 
       const prevTrump = trumpKey(prev.trumpUpcard);
@@ -701,6 +785,9 @@ function reduceHandPresentationCore(
       }
 
       if (shouldBeginRevealPresentation(store, snapshot, prev)) {
+        if (isHandOpenSatisfiedOnServer(snapshot)) {
+          return catchUpPresentationFromServer(store, snapshot);
+        }
         return beginRevealPresentation(store, snapshot);
       }
 

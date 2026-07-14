@@ -24,7 +24,7 @@ test.describe("Opening hand presentation — ante through trump reveal", () => {
       }
     });
 
-    await openTableFixture(page, { players: 4, bots: 1, phase: "reveal", tick: false });
+    await openTableFixture(page, { players: 4, bots: 1, phase: "reveal", tick: false, trump: "late" });
 
     const root = page.getByTestId("table-root");
     await expect(root).toBeVisible();
