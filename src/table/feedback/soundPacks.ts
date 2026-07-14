@@ -19,6 +19,7 @@ export type SoundAssetId =
   | "card-shuffle-final"
   | "card-select"
   | "card-illegal"
+  | "close"
   | "ui-button-press"
   | "coin-chime-light"
   | "moneygone"
@@ -110,6 +111,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-shuffle-final",
   "card-select",
   "card-illegal",
+  "close",
   "ui-button-press",
   "coin-chime-light",
   "moneygone",
@@ -139,6 +141,7 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
+  close: "close.mp3",
   "ui-button-press": "ui-button-press.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
   moneygone: "moneygone.mp3",
@@ -193,7 +196,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   bourre: "Fahhh",
   gameStart: "card-shuffle-normal",
   openRoom: "card-shuffle-final",
-  deleteRoom: "card-illegal",
+  deleteRoom: "close",
   fold: "card-place-heavy",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
@@ -275,8 +278,9 @@ export function resolveSoundAsset(
     case "cardSelect":
       return "card-select";
     case "cardIllegal":
-    case "deleteRoom":
       return "card-illegal";
+    case "deleteRoom":
+      return "close";
     case "fold":
       return "card-place-heavy";
     case "turnTimer":

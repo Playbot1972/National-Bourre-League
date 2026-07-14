@@ -12165,33 +12165,7 @@ var ts = (/* @__PURE__ */ e(((e) => {
 function as(e) {
 	return is.includes(e);
 }
-var os = [
-	"card-place-normal",
-	"card-place-heavy",
-	"card-place-soft",
-	"lead-sweetener-light",
-	"lead-sweetener-strong",
-	"trick-win-normal",
-	"trick-win-big",
-	"hand-win-stinger",
-	"card-shuffle-normal",
-	"card-shuffle-final",
-	"card-select",
-	"card-illegal",
-	"ui-button-press",
-	"coin-chime-light",
-	"moneygone",
-	"draw",
-	"draw1",
-	"draw2",
-	"draw3",
-	"draw4",
-	"draw5",
-	"Fahhh",
-	"fahhh",
-	"fahhhh",
-	"timer"
-], ss = {
+var os = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lead-sweetener-light.lead-sweetener-strong.trick-win-normal.trick-win-big.hand-win-stinger.card-shuffle-normal.card-shuffle-final.card-select.card-illegal.close.ui-button-press.coin-chime-light.moneygone.draw.draw1.draw2.draw3.draw4.draw5.Fahhh.fahhh.fahhhh.timer".split("."), ss = {
 	"card-place-normal": "card-place-normal.mp3",
 	"card-place-heavy": "card-place-heavy.mp3",
 	"card-place-soft": "card-place-soft.mp3",
@@ -12204,6 +12178,7 @@ var os = [
 	"card-shuffle-final": "card-shuffle-final.mp3",
 	"card-select": "card-select.mp3",
 	"card-illegal": "card-illegal.mp3",
+	close: "close.mp3",
 	"ui-button-press": "ui-button-press.mp3",
 	"coin-chime-light": "coin-chime-light.mp3",
 	moneygone: "moneygone.mp3",
@@ -12254,8 +12229,8 @@ function ps(e, t, n = {}) {
 		case "bourre": return "Fahhh";
 		case "uiButton": return "ui-button-press";
 		case "cardSelect": return "card-select";
-		case "cardIllegal":
-		case "deleteRoom": return "card-illegal";
+		case "cardIllegal": return "card-illegal";
+		case "deleteRoom": return "close";
 		case "fold": return "card-place-heavy";
 		case "turnTimer": return "timer";
 	}
@@ -12433,6 +12408,7 @@ var zs = {
 	"card-shuffle-final": .55,
 	"card-select": .45,
 	"card-illegal": .5,
+	close: .5,
 	"ui-button-press": .4,
 	draw: .45,
 	draw1: .45,
