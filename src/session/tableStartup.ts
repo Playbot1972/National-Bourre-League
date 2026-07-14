@@ -47,6 +47,7 @@ export {
   canSubmitHandAction,
   canAdvanceBots,
   resolveBotAdvanceHint,
+  resolveBotAdvanceEmptyReason,
   resolveHandFlowTurnPlayerId,
   deriveHandFlowPhase,
   isHandFlowTransitionAllowed,
