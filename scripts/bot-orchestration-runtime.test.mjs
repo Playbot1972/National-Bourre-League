@@ -91,6 +91,16 @@ function coalesceLogs(logs, reason) {
   );
 }
 
+function skipLogs(logs, reason) {
+  return logs.filter(
+    (entry) => entry.event === "skip-request" && entry.payload.reason === reason,
+  );
+}
+
+function requestLogs(logs) {
+  return logs.filter((entry) => entry.event === "request");
+}
+
 describe("bot orchestration runtime non-play dedupe", () => {
   it("coalesces duplicate wake + processRobotActions for same reveal turn", () => {
     const harness = createTestRuntime();
@@ -114,7 +124,7 @@ describe("bot orchestration runtime non-play dedupe", () => {
     }
   });
 
-  it("allows a new schedule after the debounce timer fires", async () => {
+  it("does not reschedule after noop complete for unchanged turn", async () => {
     const harness = createTestRuntime();
     try {
       harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
@@ -124,14 +134,78 @@ describe("bot orchestration runtime non-play dedupe", () => {
 
       await new Promise((resolve) => setTimeout(resolve, BOT_ADVANCE_DEBOUNCE_MS + 30));
       await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(harness.getAdvanceCalls(), 1);
 
+      harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
+        reason: "enrollment-tick",
+      });
       harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
         reason: "processRobotActions",
       });
 
-      assert.equal(scheduleRequestLogs(harness.logs).length, 2);
-      assert.equal(coalesceLogs(harness.logs, "schedule_deduped").length, 0);
+      assert.equal(scheduleRequestLogs(harness.logs).length, 1);
+      assert.equal(requestLogs(harness.logs).length, 1);
       assert.equal(harness.getAdvanceCalls(), 1);
+      assert.equal(skipLogs(harness.logs, "noop_already_processed").length, 2);
+    } finally {
+      harness.restoreConsole();
+      harness.runtime.clearSchedule();
+    }
+  });
+
+  it("allows reschedule when turn signature changes after noop", async () => {
+    const harness = createTestRuntime();
+    try {
+      harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
+        reason: "wake",
+      });
+      await new Promise((resolve) => setTimeout(resolve, BOT_ADVANCE_DEBOUNCE_MS + 30));
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.equal(harness.getAdvanceCalls(), 1);
+
+      harness.session.currentHand.turnPlayerId = "bot_b";
+      harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
+        reason: "snapshot",
+      });
+      await new Promise((resolve) => setTimeout(resolve, BOT_ADVANCE_DEBOUNCE_MS + 30));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      assert.equal(scheduleRequestLogs(harness.logs).length, 2);
+      assert.equal(harness.getAdvanceCalls(), 2);
+      assert.equal(skipLogs(harness.logs, "noop_already_processed").length, 0);
+    } finally {
+      harness.restoreConsole();
+      harness.runtime.clearSchedule();
+    }
+  });
+
+  it("allows reschedule after a non-noop advance result", async () => {
+    let advanceCalls = 0;
+    const harness = createTestRuntime({
+      deps: {
+        advanceSessionBots: async () => {
+          advanceCalls += 1;
+          return advanceCalls === 1
+            ? { status: "ok", steps: [{ type: "reveal" }] }
+            : { status: "ok", steps: [] };
+        },
+      },
+    });
+    try {
+      harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
+        reason: "wake",
+      });
+      await new Promise((resolve) => setTimeout(resolve, BOT_ADVANCE_DEBOUNCE_MS + 30));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      harness.runtime.schedule(harness.session, harness.scores, "uid_1", {
+        reason: "enrollment-tick",
+      });
+      await new Promise((resolve) => setTimeout(resolve, BOT_ADVANCE_DEBOUNCE_MS + 30));
+      await new Promise((resolve) => setImmediate(resolve));
+
+      assert.equal(advanceCalls, 2);
+      assert.equal(skipLogs(harness.logs, "noop_already_processed").length, 0);
     } finally {
       harness.restoreConsole();
       harness.runtime.clearSchedule();
