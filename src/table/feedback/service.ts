@@ -1,6 +1,7 @@
 import {
   playBigWinSound,
   playBourreSound,
+  playBourrePrivatePunishmentSound,
   playCardIllegalSound,
   playCardSelectSound,
   playDeleteRoomSound,
@@ -22,6 +23,7 @@ import {
   type FeedbackPrefs,
 } from "./prefs";
 import type { SoundEventKey } from "./soundPacks";
+import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 
 /** Align with `.bpot__card` deal-in stagger in table.css */
 export const DEAL_ANIM_STAGGER_MS = 80;
@@ -132,6 +134,20 @@ export function playBourreFeedback(): void {
   if (now - lastBourreAt < BOURRE_COOLDOWN_MS) return;
   lastBourreAt = now;
   maybePlaySound("bourre", playBourreSound);
+  fireHaptic("medium");
+}
+
+/** Local-only bourré punishment — random fahhh/fahhhh; not broadcast to table. */
+export function playBourrePrivatePunishmentFeedback(input: {
+  sessionId: string;
+  handNumber: number;
+  isLocalBourredPlayer: boolean;
+}): void {
+  if (!input.isLocalBourredPlayer) return;
+  const dedupeKey = bourrePrivateDedupeKey(input.sessionId, input.handNumber);
+  maybePlaySound("bourre", () =>
+    playBourrePrivatePunishmentSound(dedupeKey, input.isLocalBourredPlayer),
+  );
   fireHaptic("medium");
 }
 
