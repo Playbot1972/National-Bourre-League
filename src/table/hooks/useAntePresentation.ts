@@ -149,7 +149,6 @@ export function useAntePresentation({
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(watchdogId);
       killAntePresentation();
-      clearAntePresentationDedupe(handNumber);
     };
   }, [phase, anteAnimActive, handNumber, participantIds.join(","), anteAmount, tableRootRef]);
 

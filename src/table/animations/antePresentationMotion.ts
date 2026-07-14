@@ -1,4 +1,4 @@
-import gsap from "gsap";
+import { gsap } from "./gsapPlugins";
 import {
   ANTE_MONEY_TRAVEL_MS,
   ANTE_PILE_MERGE_MS,

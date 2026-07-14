@@ -428,6 +428,13 @@ function beginRevealPresentation(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
 ): HandPresentationStore {
+  if (
+    store.handNumber === snapshot.handNumber &&
+    isHandPresentingPhase(store.phase) &&
+    store.phase !== "idle"
+  ) {
+    return syncRevealPresentation(store, snapshot);
+  }
   const hasTrump = Boolean(snapshot.trumpUpcard);
   return withPhase(store, "ante", {
     trumpRevealActive: hasTrump,
@@ -441,6 +448,44 @@ function beginRevealPresentation(
     handSettleSnapshot: null,
     pendingSnapshot: null,
   });
+}
+
+/** Whether server reveal should start the hand-open pipeline (not restart mid-flight). */
+export function shouldBeginRevealPresentation(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+  prev: HandServerSnapshot,
+): boolean {
+  if (snapshot.phase !== "reveal") return false;
+  if (prev.phase === "reveal") return false;
+  if (
+    store.handNumber === snapshot.handNumber &&
+    isHandPresentingPhase(store.phase) &&
+    store.phase !== "idle"
+  ) {
+    return false;
+  }
+  return (
+    store.phase === "idle" ||
+    store.phase === "nextHandReset" ||
+    store.phase === "enrollment" ||
+    store.phase === "settle" ||
+    store.phase === "play"
+  );
+}
+
+function syncRevealPresentation(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  const hasTrump = Boolean(snapshot.trumpUpcard);
+  return {
+    ...store,
+    trumpRevealActive: store.trumpRevealActive || hasTrump,
+    prevSnapshot: snapshot,
+    pendingSnapshot: snapshot,
+    displayPotAmount: snapshot.potAmount,
+  };
 }
 
 function beginDrawSequence(
@@ -617,6 +662,9 @@ function reduceHandPresentationCore(
       }
 
       if (isHandPresentingPhase(store.phase) && store.phase !== "drawPlayer") {
+        if (snapshot.phase === "reveal" && store.handNumber === snapshot.handNumber) {
+          return syncRevealPresentation(store, snapshot);
+        }
         return { ...store, pendingSnapshot: snapshot };
       }
 
@@ -652,15 +700,7 @@ function reduceHandPresentationCore(
         };
       }
 
-      if (
-        snapshot.phase === "reveal" &&
-        prev.phase !== "reveal" &&
-        (store.phase === "idle" ||
-          store.phase === "nextHandReset" ||
-          store.phase === "enrollment" ||
-          store.phase === "settle" ||
-          store.phase === "play")
-      ) {
+      if (shouldBeginRevealPresentation(store, snapshot, prev)) {
         return beginRevealPresentation(store, snapshot);
       }
 

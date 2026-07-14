@@ -6,6 +6,7 @@ import {
   nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
+  shouldBeginRevealPresentation,
   snapshotFromSession,
 } from "./handPresentationMachine";
 import { drawPlayerScheduleMs, handTimingScale } from "./handPresentationTiming";
@@ -560,6 +561,40 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "ante");
     assert.equal(store.anteAnimActive, true);
     assert.equal(store.trumpRevealActive, true);
+  });
+
+  it("does not restart reveal presentation while hand-open pipeline is active", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "7", suit: "hearts" },
+      participantIds: ["p1", "p2"],
+      potAmount: 20,
+    });
+    assert.equal(store.phase, "ante");
+
+    const revealSnap = {
+      ...baseSnap,
+      handNumber: 3,
+      phase: "reveal" as const,
+      trumpUpcard: { rank: "7", suit: "hearts" },
+      turnPlayerId: "p1",
+      participantIds: ["p1", "p2"],
+      potAmount: 24,
+    };
+
+    assert.equal(
+      shouldBeginRevealPresentation(store, revealSnap, { ...revealSnap, phase: "decision" }),
+      false,
+    );
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: revealSnap,
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+    assert.equal(store.displayPotAmount, 24);
   });
 
   it("ante callback advances ante -> shuffle -> deal -> trumpReveal", () => {
