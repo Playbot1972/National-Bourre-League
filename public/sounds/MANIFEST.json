@@ -17,6 +17,10 @@
     { "id": "ui-button-press", "file": "ui-button-press.mp3", "events": ["uiButton"] },
     { "id": "coin-chime-light", "file": "coin-chime-light.mp3", "events": ["trickCollect", "handWin"] },
     { "id": "draw", "file": "draw.mp3", "events": ["draw"] },
-    { "id": "Fahhh", "file": "Fahhh.mp3", "events": ["bourre"] }
+    { "id": "Fahhh", "file": "Fahhh.mp3", "events": ["bourre"] },
+    { "id": "fahhh", "file": "fahhh.mp3", "events": ["bourre:private"] },
+    { "id": "fahhhh", "file": "fahhhh.mp3", "events": ["bourre:private"] },
+    { "id": "moneygone", "file": "moneygone.mp3", "events": ["trickCollectOther"] },
+    { "id": "timer", "file": "timer.mp3", "events": ["turnTimer"] }
   ]
 }

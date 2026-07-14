@@ -59,11 +59,15 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
-  it("applyTableFeedbackDiff fires bourre feedback when local player goes bourré", () => {
+  it("applyTableFeedbackDiff fires bourre private punishment when local player goes bourré", () => {
     const calls = [];
-    const api = { playBourreFeedback: () => calls.push("bourre") };
+    const api = {
+      playBourrePrivatePunishmentFeedback: (input) =>
+        calls.push(`bourre-private:${input.sessionId}:${input.handNumber}`),
+    };
     const prev = {
       sessionId: "s1",
+      handNumber: 2,
       phase: "play",
       trumpKey: "7-spades",
       drawCompletedIds: [],
@@ -75,7 +79,7 @@ describe("table UI layer modules", () => {
     };
     const next = { ...prev, handComplete: true, myBourre: true };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
-    assert.deepEqual(calls, ["bourre"]);
+    assert.deepEqual(calls, ["bourre-private:s1:2"]);
   });
 
   it("createTableIntentHandlers requires auth before submit", () => {
