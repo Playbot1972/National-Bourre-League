@@ -1,4 +1,4 @@
-import { gsap } from "./gsapPlugins";
+import gsap from "gsap";
 import { CARDS_PER_PLAYER } from "../../game/playerOrder";
 import { readDeckOrigin } from "./cardMotion";
 import {

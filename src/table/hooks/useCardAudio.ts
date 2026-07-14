@@ -101,13 +101,10 @@ export function useCardAudio({
         buildTrickCollectedPayload({
           ...input,
           playerCount: participantCount,
-          isLocalPlayer:
-            input.isLocalPlayer ??
-            (currentUserId != null && currentUserId === input.winningSeat),
         }),
       );
     },
-    [participantCount, currentUserId],
+    [participantCount],
   );
 
   return { onCardLanded, onTrickCollectionStart };

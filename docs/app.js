@@ -17,7 +17,6 @@ import {
   usingEmulator,
   isCapacitorNative,
 } from "./auth.js";
-import { bindUiButtonPress } from "./ui-button-press.js";
 import { SERVER_HAND_AUTHORITY } from "./firebase-config.js";
 import {
   SESSION_ORCHESTRATION_DEBOUNCE_MS,
@@ -33,7 +32,6 @@ import {
   buildTablePlayerSeatFlags,
   buildEnrollmentLeaderLabel,
   buildTableLeaderLabel,
-  resolveAnteContributorIds,
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
@@ -1332,9 +1330,7 @@ async function openNextHandEnrollment(sessionObj) {
       });
     }
     const api = await ensureTableFeedbackApi();
-    if (!dealStarted) {
-      api?.playShuffleFeedback?.({ delayMs: 80 });
-    }
+    api?.playShuffleFeedback?.({ delayMs: 80 });
     logHandLifecycleTransition({
       from: "handoffToNextDeal",
       to: autoDealt ? "deal" : "opening",
@@ -2838,9 +2834,6 @@ function openRoom(roomId, options = {}) {
   const fromHistory = options.fromHistory === true;
   clearDetailSubs();
   roomGoneHandled = false;
-  if (tablePlayOpen) {
-    teardownTableOverlay({ restoreDetail: false });
-  }
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -2938,10 +2931,6 @@ function openRoom(roomId, options = {}) {
           scheduleRenderRoomDetail();
           return;
         }
-        if (sessions.length === 0) {
-          scheduleRenderRoomDetail();
-          return;
-        }
         const nextId = resolveKeeperSessionId(sessions, openSessionId) ?? sessions[0]?.id ?? null;
         if (nextId) {
           openSession(nextId);
@@ -2949,7 +2938,6 @@ function openRoom(roomId, options = {}) {
           openSessionId = null;
           openScores = [];
           openHands = [];
-          if (tablePlayOpen) closeTablePlay();
         }
       }
       if (!openSessionId && sessions.length > 0) {
@@ -4119,17 +4107,6 @@ function buildTableSessionProps(s) {
     postedAntes,
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
-  const anteContributorIds = resolveAnteContributorIds(
-    {
-      dealerId,
-      participantIds: handParticipantIds,
-      seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
-      actionOrder: resolvedActionOrder ?? undefined,
-      postedAntes,
-    },
-    scoreById,
-    handStake,
-  );
 
   const showCoWinSettlement =
     handComplete &&
@@ -4207,7 +4184,6 @@ function buildTableSessionProps(s) {
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
-      anteContributorIds,
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,
     },
@@ -4289,21 +4265,15 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
-  if (tablePlayOpen) {
-    if (!sessionObj) {
-      // Firestore can briefly drop the open session during hand transitions — keep the
-      // mounted table instead of leaving overlay chrome with an empty #table-session-root.
-      if (attempt < 12) {
-        requestAnimationFrame(() => syncTableSession(openSessionObj, { attempt: attempt + 1 }));
-      }
-      return;
-    }
-    if (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
-      closeTablePlay();
-      return;
-    }
-  } else if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+  if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
     unmountTableSessionHost();
+    if (
+      tablePlayOpen &&
+      sessionObj &&
+      (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2)
+    ) {
+      closeTablePlay();
+    }
     return;
   }
 
@@ -5266,7 +5236,6 @@ bindRoomDetailDelegatedControls();
 bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
-bindUiButtonPress();
 showView();
 logHandTransitionBoot();
 hideNativeSplashWhenReady();

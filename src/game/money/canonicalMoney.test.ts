@@ -153,7 +153,6 @@ describe("canonical money engine — Phase 1 settlement", () => {
       tiedWinnerIds: ["a", "b"],
       splitPot: false,
       tie: true,
-      splitPotOptionEnabled: false,
     });
     assert.equal(funding.fundingContributionByPlayer.a, 0);
     assert.equal(funding.fundingContributionByPlayer.b, 0);

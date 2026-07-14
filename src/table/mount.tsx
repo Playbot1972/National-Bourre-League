@@ -2,7 +2,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { TableSessionView } from "./TableSessionView";
 import { TableThemeProvider } from "./theme/TableThemeContext.tsx";
 import type { TableSessionViewProps } from "./types";
-import { ensureGsapPlugins } from "./animations/gsapPlugins";
 import { initCardMotion } from "./animations/initMotion";
 import { clearWonTrickCollectionArtifacts } from "./animations/wonTrickPileMotion";
 import { clearDrawFlyGhosts } from "./animations/drawFlyCleanup";
@@ -10,7 +9,6 @@ import {
   initGameFeedback,
   playBigWinFeedback,
   playBourreFeedback,
-  playBourrePrivatePunishmentFeedback,
   playDrawFeedback,
   playGameStartFeedback,
   playOpenRoomFeedback,
@@ -49,7 +47,6 @@ let root: Root | null = null;
 let rootEl: HTMLElement | null = null;
 
 export function mountTableSession(el: HTMLElement, props: TableSessionViewProps) {
-  ensureGsapPlugins();
   initGameFeedback();
   initCardMotion(el);
   if (rootEl !== el) {
@@ -83,7 +80,6 @@ export {
   playTrickWinFeedback,
   playBigWinFeedback,
   playBourreFeedback,
-  playBourrePrivatePunishmentFeedback,
   playGameStartFeedback,
   playOpenRoomFeedback,
   playDeleteRoomFeedback,

@@ -3,12 +3,6 @@
  * Migrated cues do not use procedural synthesis; failures log loudly.
  */
 
-import {
-  pickBourrePrivatePunishmentAsset,
-  tryConsumeBourrePrivatePunishment,
-  type BourrePrivatePunishmentAsset,
-  type BourrePrivateSkipReason,
-} from "./bourrePrivateAudio";
 import { AudioManager } from "../../audio/AudioManager";
 import { getFeedbackPrefs } from "./prefs";
 import {
@@ -84,8 +78,6 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   leadChange: { current: false },
   trickWin: { current: false },
   trickCollect: { current: false },
-  trickCollectOther: { current: false },
-  anteChip: { current: false },
   handWin: { current: false },
   potWin: { current: false },
   bigWin: { current: false },
@@ -97,7 +89,6 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   cardSelect: { current: false },
   cardIllegal: { current: false },
   uiButton: { current: false },
-  turnTimer: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
@@ -108,8 +99,6 @@ const RESET_MS: Record<SoundEventKey, number> = {
   leadChange: 180,
   trickWin: 320,
   trickCollect: 280,
-  trickCollectOther: 280,
-  anteChip: 120,
   handWin: 280,
   potWin: 580,
   bigWin: 580,
@@ -121,7 +110,6 @@ const RESET_MS: Record<SoundEventKey, number> = {
   cardSelect: 200,
   cardIllegal: 280,
   uiButton: 200,
-  turnTimer: 0,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
@@ -132,8 +120,6 @@ const VOLUME: Record<SoundEventKey, number> = {
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
-  trickCollectOther: 0.45,
-  anteChip: 0.4,
   handWin: 0.4,
   potWin: 0.6,
   bigWin: 0.6,
@@ -145,7 +131,6 @@ const VOLUME: Record<SoundEventKey, number> = {
   cardSelect: 0.45,
   cardIllegal: 0.5,
   uiButton: 0.4,
-  turnTimer: 0.48,
 };
 
 function playResolvedAsset(
@@ -256,28 +241,6 @@ export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
 }
 
-/** Per-player ante chip — no playing-flag gate so staggered chips can overlap. */
-export function playAnteChipSound(handNumber: number, playerIndex: number): void {
-  ensureAudioUnlockedSync("ante-chip");
-  const event: SoundEventKey = "anteChip";
-  const packId = getActivePackId();
-  const assetId = resolveSoundAsset(packId, event, {});
-  audioTrace("ante-chip", event, {
-    handNumber,
-    playerIndex,
-    key: assetId,
-    unlocked: userGestureUnlocked,
-  });
-  if (!assetId) {
-    audioFail(event, "no-asset-mapping", { handNumber, playerIndex, packId });
-    return;
-  }
-  const played = playResolvedAsset(event, assetId, VOLUME[event], packId);
-  if (!played) {
-    audioFail(event, "ante-chip-play-failed", { handNumber, playerIndex, key: assetId });
-  }
-}
-
 export function playTrickWinSound(volumeScale = 1): void {
   void playTrickWinEvent(volumeScale);
 }
@@ -334,62 +297,6 @@ export function playBigWinSound(): void {
 
 export function playBourreSound(): void {
   void playSoundEvent("bourre");
-}
-
-function bourrePrivateLog(
-  message: string,
-  detail: Record<string, unknown> = {},
-): void {
-  console.log(`[nbl-audio] bourre-private ${message}`, detail);
-}
-
-function bourrePrivateSkip(reason: BourrePrivateSkipReason): void {
-  bourrePrivateLog(`skipped reason=${reason}`);
-}
-
-/** Local bourré punishment — fahhh or fahhhh, never table-wide. */
-export function playBourrePrivatePunishmentSound(
-  dedupeKey: string,
-  isLocalBourredPlayer: boolean,
-): void {
-  bourrePrivateLog(`eligible ${isLocalBourredPlayer}`);
-  if (!isLocalBourredPlayer) {
-    bourrePrivateSkip("not-local");
-    return;
-  }
-
-  const consumed = tryConsumeBourrePrivatePunishment(dedupeKey);
-  if (!consumed.ok) {
-    bourrePrivateSkip(consumed.reason ?? "duplicate");
-    return;
-  }
-
-  ensureAudioUnlockedSync("bourre-private");
-  if (!userGestureUnlocked) {
-    bourrePrivateSkip("audio-locked");
-    return;
-  }
-
-  const assetId: BourrePrivatePunishmentAsset = pickBourrePrivatePunishmentAsset();
-  bourrePrivateLog(`chosen ${assetId}`);
-
-  const packId = getActivePackId();
-  const path = soundAssetUrl(packId, assetId);
-  if (!path) {
-    bourrePrivateSkip("missing-asset");
-    return;
-  }
-
-  const played = AudioManager.get().play(assetId, {
-    volume: 0.5,
-    event: "bourre",
-    path,
-  });
-  if (!played) {
-    bourrePrivateSkip("missing-asset");
-    return;
-  }
-  bourrePrivateLog("played", { assetId, dedupeKey });
 }
 
 export function playGameStartSound(): void {

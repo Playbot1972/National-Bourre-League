@@ -4,7 +4,6 @@ import {
   createHandPresentationStore,
   phaseScheduleMs,
   reduceHandPresentation,
-  serverSnapshotSignature,
   snapshotFromSession,
   type HandPresentationModel,
   type HandServerSnapshot,
@@ -44,9 +43,6 @@ export interface UseHandPresentationInput {
 
 export type HandPresentation = HandPresentationModel & {
   completeTrumpMerge: () => void;
-  completeAntePresentation: () => void;
-  completeShufflePresentation: () => void;
-  completeDealPresentation: () => void;
 };
 
 export function useHandPresentation({
@@ -100,7 +96,6 @@ export function useHandPresentation({
   const timersRef = useRef<number[]>([]);
   const heroKeysRef = useRef<string[]>([]);
   const advanceArmedKeyRef = useRef<string | null>(null);
-  const lastServerSigRef = useRef<string | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -121,16 +116,6 @@ export function useHandPresentation({
     const heroKeys = heroCards.map((c) => `${c.rank}-${c.suit}`);
     const delta = heroDrawDelta(heroKeysRef.current, heroKeys);
     heroKeysRef.current = heroKeys;
-
-    const serverSig = serverSnapshotSignature(snapshot);
-    if (
-      serverSig === lastServerSigRef.current &&
-      delta.discardCount === 0 &&
-      delta.replaceCount === 0
-    ) {
-      return;
-    }
-    lastServerSigRef.current = serverSig;
 
     dispatch({
       type: "serverUpdate",
@@ -283,23 +268,5 @@ export function useHandPresentation({
     dispatch({ type: "completeTrumpMerge" });
   }, []);
 
-  const completeAntePresentation = useCallback(() => {
-    dispatch({ type: "completeAntePresentation" });
-  }, []);
-
-  const completeShufflePresentation = useCallback(() => {
-    dispatch({ type: "completeShufflePresentation" });
-  }, []);
-
-  const completeDealPresentation = useCallback(() => {
-    dispatch({ type: "completeDealPresentation" });
-  }, []);
-
-  return {
-    ...buildHandPresentationModel(store),
-    completeTrumpMerge,
-    completeAntePresentation,
-    completeShufflePresentation,
-    completeDealPresentation,
-  };
+  return { ...buildHandPresentationModel(store), completeTrumpMerge };
 }

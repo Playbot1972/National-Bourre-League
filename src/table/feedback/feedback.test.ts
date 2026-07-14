@@ -68,7 +68,7 @@ describe("sound pack registry", () => {
     }
     assert.equal(soundAssetUrl("classic", "card-select"), "/sounds/card-select.mp3");
     assert.equal(soundAssetUrl("classic", "draw"), "/sounds/draw.mp3");
-    assert.equal(soundAssetUrl("classic", "click"), "/sounds/click.mp3");
+    assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
     assert.equal(soundAssetUrl("classic", "card-shuffle-normal"), "/sounds/card-shuffle-normal.mp3");
   });
 
@@ -95,18 +95,6 @@ describe("sound pack registry", () => {
     assert.equal(resolveDrawCountAsset(0), "draw");
     assert.equal(resolveDrawCountAsset(6), "draw");
     assert.equal(drawCountAssetUrl(0), "/sounds/draw.mp3");
-  });
-
-  it("trickCollect stays coin-chime-light; trickCollectOther maps to moneygone", () => {
-    assert.equal(resolveSoundAsset("classic", "trickCollect"), "coin-chime-light");
-    assert.equal(resolveSoundAsset("classic", "anteChip"), "coin-chime-light");
-    assert.equal(resolveSoundAsset("classic", "handWin"), "coin-chime-light");
-    assert.equal(resolveSoundAsset("classic", "trickCollectOther"), "moneygone");
-  });
-
-  it("moneygone asset file exists in public/sounds", () => {
-    const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES.moneygone);
-    assert.ok(existsSync(file), `missing ${file}`);
   });
 
   it("draw count mp3 files exist in public/sounds", () => {

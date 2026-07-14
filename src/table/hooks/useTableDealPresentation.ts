@@ -7,14 +7,8 @@ import {
   killDealPresentation,
   resetDealRevealMarkers,
   runClockwiseDealPresentation,
-  type DealStep,
 } from "../animations/dealPresentationMotion";
-import { handOpenLog } from "../handOpeningDebug";
-import { anteTimingMark } from "../anteTimingDebug";
-import {
-  isDealPresentationActive,
-  setDealPresentationActive,
-} from "../presentationMotionBusy";
+import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
 
@@ -22,66 +16,18 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
-  handPresentationPhase: string;
-  onDealPresentationComplete?: () => void;
   tableRootRef: React.RefObject<HTMLElement | null>;
-}
-
-export interface TableDealPresentationState {
-  /** Hides unrevealed cards — only while GSAP deal animation is running. */
-  clockwiseDealing: boolean;
-  /** Mounts opponent deal-target anchors before hide CSS is applied. */
-  dealTargetsArmed: boolean;
-}
-
-const DEAL_SEAT_WAIT_FRAMES = 12;
-
-function firstDealStepSeatReady(root: ParentNode, step: DealStep | undefined): boolean {
-  if (!step) return true;
-  return Boolean(
-    root.querySelector(
-      `[data-deal-seat="${step.playerId}"][data-deal-round="${step.roundIndex}"]`,
-    ),
-  );
-}
-
-/**
- * Deal key already committed but GSAP was torn down (effect re-run) — finish phase handoff.
- */
-export function shouldRecoverDealPresentation(
-  lastDealKey: string | null,
-  dealKey: string,
-  dealPresentationActive: boolean,
-  handPresentationPhase: string,
-): boolean {
-  return (
-    lastDealKey === dealKey &&
-    handPresentationPhase === "deal" &&
-    !dealPresentationActive
-  );
 }
 
 export function useTableDealPresentation({
   session,
   heroCards,
   privateHandReady = false,
-  handPresentationPhase,
-  onDealPresentationComplete,
   tableRootRef,
-}: UseTableDealPresentationInput): TableDealPresentationState {
+}: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
-  const [dealTargetsArmed, setDealTargetsArmed] = useState(false);
   const lastDealKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(session.handNumber);
-  const dealCompleteRef = useRef(onDealPresentationComplete);
-  const dealCompletedHandRef = useRef<number | null>(null);
-  dealCompleteRef.current = onDealPresentationComplete;
-
-  const fireDealComplete = () => {
-    if (dealCompletedHandRef.current === session.handNumber) return;
-    dealCompletedHandRef.current = session.handNumber;
-    dealCompleteRef.current?.();
-  };
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -90,12 +36,10 @@ export function useTableDealPresentation({
     if (handNumberRef.current !== session.handNumber) {
       handNumberRef.current = session.handNumber;
       lastDealKeyRef.current = null;
-      dealCompletedHandRef.current = null;
       killDealPresentation();
       resetDealRevealMarkers(root);
       setDealPresentationActive(false);
       setClockwiseDealing(false);
-      setDealTargetsArmed(false);
     }
   }, [session.handNumber, tableRootRef]);
 
@@ -103,32 +47,18 @@ export function useTableDealPresentation({
     const root = tableRootRef.current;
     if (!root) return;
 
-    if (handPresentationPhase !== "deal") {
-      return;
-    }
+    const inDealPhase =
+      session.phase === "reveal" ||
+      session.phase === "decision" ||
+      session.phase === "draw" ||
+      session.phase === "play";
 
     const cardCount = heroCards.length;
-    if (!privateHandReady || cardCount < CARDS_PER_PLAYER) {
+    if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
       return;
     }
 
-    const participantKey = session.participantIds.join(",");
-    const dealKey = `${session.handNumber}:${cardCount}:${participantKey}`;
-    if (
-      shouldRecoverDealPresentation(
-        lastDealKeyRef.current,
-        dealKey,
-        isDealPresentationActive(),
-        handPresentationPhase,
-      )
-    ) {
-      handOpenLog("deal-handoff-recover", {
-        handNumber: session.handNumber,
-        dealKey,
-      });
-      fireDealComplete();
-      return;
-    }
+    const dealKey = `${session.handNumber}:${cardCount}:${session.participantIds.join(",")}`;
     if (lastDealKeyRef.current === dealKey) return;
 
     const seatRing = seatRingPlayerIds(session.participantIds, session);
@@ -142,101 +72,53 @@ export function useTableDealPresentation({
     const steps = buildClockwiseDealSteps(dealOrder, CARDS_PER_PLAYER);
     if (!steps.length) return;
 
-    let dealCommitted = false;
-    let cancelled = false;
-    let rafId = 0;
-    let watchdog = 0;
+    lastDealKeyRef.current = dealKey;
+    killDealPresentation();
+    resetDealRevealMarkers(root);
+    root.classList.add("btable-wrap--clockwise-dealing");
+    setClockwiseDealing(true);
+    setDealPresentationActive(true);
+
     const reduced = prefersReducedMotion();
-    const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
-    const firstStep = steps[0];
-
-    // Mount opponent deal-target nodes only — do NOT apply hide CSS yet.
-    setDealTargetsArmed(true);
-
-    const finishDealPresentation = () => {
-      if (cancelled) return;
-      setClockwiseDealing(false);
-      setDealTargetsArmed(false);
-      setDealPresentationActive(false);
-      resetDealRevealMarkers(root);
-      fireDealComplete();
-    };
-
-    const beginDealMotion = (frame = 0) => {
-      if (cancelled || dealCommitted) return;
-      if (!firstDealStepSeatReady(root, firstStep)) {
-        if (frame < DEAL_SEAT_WAIT_FRAMES) {
-          rafId = window.requestAnimationFrame(() => beginDealMotion(frame + 1));
-          return;
-        }
-        handOpenLog("deal-start-skipped-no-seats", {
-          handNumber: session.handNumber,
-          frame,
-          playerId: firstStep?.playerId ?? null,
-        });
-        finishDealPresentation();
-        return;
-      }
-
-      dealCommitted = true;
-      lastDealKeyRef.current = dealKey;
-      killDealPresentation();
-      resetDealRevealMarkers(root);
-      setClockwiseDealing(true);
-      setDealPresentationActive(true);
-      handOpenLog("deal-start", {
-        handNumber: session.handNumber,
-        stepCount: steps.length,
-        participantCount: dealOrder.length,
-      });
-      anteTimingMark("deal-start", {
-        handNumber: session.handNumber,
-        stepCount: steps.length,
-        source: "deal-presentation-hook",
-      });
-
+    const rafId = window.requestAnimationFrame(() => {
       runClockwiseDealPresentation({
         steps,
         root,
-        trumpHolderId,
+        trumpHolderId: session.trumpHolderId ?? session.dealerId ?? null,
         onComplete: () => {
-          handOpenLog("deal-animation-complete", { handNumber: session.handNumber });
-          finishDealPresentation();
+          root.classList.remove("btable-wrap--clockwise-dealing");
+          setClockwiseDealing(false);
+          setDealPresentationActive(false);
         },
       });
+    });
 
-      watchdog = window.setTimeout(
-        () => finishDealPresentation(),
-        dealPresentationDurationMs(steps.length, reduced) + 400,
-      );
-    };
-
-    rafId = window.requestAnimationFrame(() => beginDealMotion(0));
+    const watchdog = window.setTimeout(
+      () => {
+        root.classList.remove("btable-wrap--clockwise-dealing");
+        setClockwiseDealing(false);
+        setDealPresentationActive(false);
+      },
+      dealPresentationDurationMs(steps.length, reduced) + 400,
+    );
 
     return () => {
-      cancelled = true;
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(watchdog);
       killDealPresentation();
-      setClockwiseDealing(false);
-      setDealTargetsArmed(false);
+      root.classList.remove("btable-wrap--clockwise-dealing");
       setDealPresentationActive(false);
-      if (dealCommitted) {
-        fireDealComplete();
-      } else {
-        lastDealKeyRef.current = null;
-      }
+      setClockwiseDealing(false);
     };
   }, [
     session.handNumber,
+    session.phase,
     session.dealerId,
-    session.participantIds.join(","),
-    session.trumpHolderId,
+    session.participantIds,
     heroCards.length,
     privateHandReady,
-    handPresentationPhase,
     tableRootRef,
   ]);
 
-  return { clockwiseDealing, dealTargetsArmed };
+  return clockwiseDealing;
 }

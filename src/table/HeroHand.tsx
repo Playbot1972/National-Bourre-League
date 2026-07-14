@@ -73,8 +73,6 @@ interface HeroHandProps {
   onUserActivity?: () => void;
   /** Table-wide clockwise deal — disables hero-only deal motion. */
   skipHeroDealMotion?: boolean;
-  /** Presentation FSM phase — gates deal-in motion vs server `phase`. */
-  handPresentationPhase?: string;
 }
 
 function heroShellClass(
@@ -139,7 +137,6 @@ export function HeroHand({
   onDiscardCommitted,
   onUserActivity,
   skipHeroDealMotion = false,
-  handPresentationPhase,
 }: HeroHandProps) {
   const { settings } = useTableTheme();
   const [selectedDraw, setSelectedDraw] = useState<Set<number>>(new Set());
@@ -211,8 +208,7 @@ export function HeroHand({
 
   useEffect(() => {
     if (skipHeroDealMotion) return;
-    if (handPresentationPhase !== "deal") return;
-    if (cards.length === 0) return;
+    if (!dealtPhase || cards.length === 0) return;
     const nextIds = new Set(cards.map((c) => `${c.rank}-${c.suit}`));
     const prev = prevCardIdsRef.current;
     const added = [...nextIds].some((id) => !prev.has(id));
@@ -225,7 +221,7 @@ export function HeroHand({
     const dealMs = dealMotionWindowMs(cards.length, dealStaggerMs);
     const timer = window.setTimeout(() => setDealing(false), dealMs);
     return () => window.clearTimeout(timer);
-  }, [cards, handPresentationPhase, dealStaggerMs, skipHeroDealMotion]);
+  }, [cards, dealtPhase, dealStaggerMs, skipHeroDealMotion]);
 
   useEffect(() => {
     if (drawAnimSubPhase === "done" || drawAnimSubPhase === null) {
@@ -820,38 +816,6 @@ export function HeroHand({
     ],
   );
 
-  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
-    showBestPlayControl,
-    inPlayPhase,
-    bestPlayEnabled,
-    recommendedPlayIndex,
-  });
-
-  const playVisualTierFor = useCallback(
-    (cardIndex: number) => {
-      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
-      return resolveHeroPlayCardVisualTier({
-        inPlayPhase,
-        isMyTurn,
-        busy,
-        cardIndex,
-        selectedPlay,
-        isLegal,
-        showBestPlayRecommendation,
-        recommendedPlayIndex,
-      });
-    },
-    [
-      busy,
-      inPlayPhase,
-      isMyTurn,
-      legalPlayIndices,
-      recommendedPlayIndex,
-      selectedPlay,
-      showBestPlayRecommendation,
-    ],
-  );
-
   const renderBestPlayCheckbox = () =>
     showBestPlayControl ? (
       <label className="btable-hero__best-play">
@@ -872,15 +836,6 @@ export function HeroHand({
         <p className="btable-hero__fallback muted small">Sign in to see your dealt cards.</p>
       </div>
     );
-  }
-
-  if (
-    isInHand &&
-    (handPresentationPhase === "ante" ||
-      handPresentationPhase === "shuffle" ||
-      handPresentationPhase === "deal")
-  ) {
-    return <HeroHandReserve className={className} />;
   }
 
   if (!isInHand && !enrollmentActive && !dealtPhase) {
@@ -929,6 +884,38 @@ export function HeroHand({
     }
     return <HeroHandReserve className={className} />;
   }
+
+  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
+    showBestPlayControl,
+    inPlayPhase,
+    bestPlayEnabled,
+    recommendedPlayIndex,
+  });
+
+  const playVisualTierFor = useCallback(
+    (cardIndex: number) => {
+      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
+      return resolveHeroPlayCardVisualTier({
+        inPlayPhase,
+        isMyTurn,
+        busy,
+        cardIndex,
+        selectedPlay,
+        isLegal,
+        showBestPlayRecommendation,
+        recommendedPlayIndex,
+      });
+    },
+    [
+      busy,
+      inPlayPhase,
+      isMyTurn,
+      legalPlayIndices,
+      recommendedPlayIndex,
+      selectedPlay,
+      showBestPlayRecommendation,
+    ],
+  );
 
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";

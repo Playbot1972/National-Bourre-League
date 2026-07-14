@@ -1,4 +1,4 @@
-import { gsap } from "./gsapPlugins";
+import gsap from "gsap";
 import { flipDelta, invertFromFirst, rectFromElement } from "./flip";
 import { GSAP_DURATIONS, MOTION_GHOST_Z_INDEX, scaledDuration } from "./motionTokens";
 import { initCardMotion } from "./initMotion";

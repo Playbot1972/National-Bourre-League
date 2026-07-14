@@ -7,7 +7,6 @@ import {
   completedTrickPlays,
   currentTrickLeaderId,
   detectTrickResolution,
-  FINAL_HAND_TRICK_PRESENTATION_MS,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
   trickResolutionScheduleMs,
@@ -169,12 +168,5 @@ describe("trickTiming", () => {
 
   it("card reveal stagger waits for prior card land + shift", () => {
     assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
-  });
-
-  it("final-hand presentation watchdog covers staggered bot reveals plus resolution", () => {
-    const minimum =
-      CARD_REVEAL_STAGGER_MS * 7 + CARD_LAND_MS + trickResolutionScheduleMs({}).pipelineMs;
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= minimum);
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 7000);
   });
 });
