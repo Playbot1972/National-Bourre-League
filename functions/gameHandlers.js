@@ -2224,7 +2224,7 @@ export async function handleRecordHand(
   });
 
   const batch = db.batch();
-  batch.set(handsCol(db, roomId, sessionId).doc(), {
+  batch.set(handsCol(db, roomId, sessionId).doc(String(handNumber)), {
     handNumber,
     winnerId: winners.length === 1 ? winners[0] : null,
     winnerIds: winners,
