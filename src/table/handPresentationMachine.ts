@@ -143,7 +143,7 @@ function deriveInitialPhase(snapshot: HandServerSnapshot): HandPresentationPhase
 export function createHandPresentationStore(
   snapshot: HandServerSnapshot,
 ): HandPresentationStore {
-  return {
+  const store: HandPresentationStore = {
     phase: deriveInitialPhase(snapshot),
     sessionKey: snapshot.sessionKey,
     handNumber: snapshot.handNumber,
@@ -169,6 +169,10 @@ export function createHandPresentationStore(
     phaseStartedAt: Date.now(),
     drawPresentationConsumedIds: [],
   };
+  if (snapshot.phase === "reveal") {
+    return beginRevealPresentation(store, snapshot);
+  }
+  return store;
 }
 
 function withPhase(
@@ -595,6 +599,15 @@ function reduceHandPresentationCore(
           prevSnapshot: snapshot,
           pendingSnapshot: null,
         });
+      }
+
+      if (
+        snapshot.phase === "reveal" &&
+        store.phase === "ante" &&
+        !store.anteAnimActive &&
+        !store.trumpRevealActive
+      ) {
+        return beginRevealPresentation(store, snapshot);
       }
 
       if (isHandPresentingPhase(store.phase) && store.phase !== "drawPlayer") {
