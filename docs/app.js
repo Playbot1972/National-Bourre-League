@@ -2123,9 +2123,10 @@ async function startRoomsSubscription() {
       myRooms = rooms;
       for (const r of rooms) {
         if (r.ownerId === uid && r.role === "owner") {
-          ensureInviteLookupForRoom(r.id).catch((e) =>
-            console.warn("ensureInviteLookupForRoom:", e),
-          );
+          ensureInviteLookupForRoom(r.id, {
+            inviteCode: r.inviteCode,
+            ownerId: r.ownerId,
+          }).catch((e) => console.warn("ensureInviteLookupForRoom:", e));
         }
       }
       if (!currentRoomId) renderRoomsList();
@@ -2936,9 +2937,10 @@ function openRoom(roomId, options = {}) {
         }
       }
       if (room && session?.uid === room.ownerId) {
-        ensureInviteLookupForRoom(roomId).catch((e) =>
-          console.error("ensureInviteLookupForRoom:", e),
-        );
+        ensureInviteLookupForRoom(roomId, {
+          inviteCode: room.inviteCode,
+          ownerId: room.ownerId,
+        }).catch((e) => console.error("ensureInviteLookupForRoom:", e));
         ensureRoomSessionNamePool(roomId).catch((e) =>
           console.error("ensureRoomSessionNamePool:", e),
         );
