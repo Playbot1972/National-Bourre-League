@@ -141,6 +141,7 @@ import {
   markHandDealDispatched,
 } from "./hand-transition-debug.js";
 import { removePlayerFromEnrollment } from "./enrollment-roster.js";
+import { resolveSessionHandRef } from "./session-hand-ref.js";
 import {
   dealInitialHand,
   playerOrderFromDealer,
@@ -1060,6 +1061,8 @@ const scoresCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "scores");
 const handsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "hands");
+const handDoc = (roomId, sessionId, handNumber) =>
+  doc(db, "rooms", roomId, "sessions", sessionId, "hands", String(handNumber));
 const moneyEventsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, MONEY_EVENTS_COLLECTION);
 const sessionDoc = (roomId, sessionId) =>
@@ -3270,7 +3273,7 @@ async function recordHandClient(
 
   try {
     const handBatch = writeBatch(db);
-    handBatch.set(doc(handsCol(roomId, sessionId)), handLedger);
+    handBatch.set(handDoc(roomId, sessionId, handNumber), handLedger);
     await handBatch.commit();
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
@@ -3935,41 +3938,53 @@ async function waitForMinSeatedPlayers(
 }
 
 async function attemptAutoDeal(roomId, sessionId) {
-  let clientErr = null;
-  try {
-    await ensureHandEnrollmentClient(roomId, sessionId);
-  } catch (err) {
-    clientErr = err;
-    const data = await readSessionDataForHandVerify(roomId, sessionId);
-    if (sessionHandDealStarted(data)) return;
-    if (!SERVER_HAND_AUTHORITY) throw err;
-    console.warn(
-      "Client deal did not complete, trying Cloud Function.",
-      err?.code || err?.message || err,
-    );
+  const resolved = resolveSessionHandRef(roomId, sessionId, sessionDoc);
+  if (!resolved) {
+    console.error("Invalid handRef passed to attemptAutoDeal", { roomId, sessionId });
+    return;
   }
+  const { roomId: rid, sessionId: sid, path: handPath } = resolved;
 
-  let data = await readSessionDataForHandVerify(roomId, sessionId);
-  if (sessionHandDealStarted(data)) return;
+  const dealAlreadyStarted = async () => {
+    const data = await readSessionDataForHandVerify(rid, sid);
+    return sessionHandDealStarted(data);
+  };
+
+  let clientErr = null;
 
   if (SERVER_HAND_AUTHORITY) {
     try {
-      await gameEnsureHandEnrollment(roomId, sessionId);
+      await gameEnsureHandEnrollment(rid, sid);
+      if (await dealAlreadyStarted()) return;
+      return;
     } catch (serverErr) {
-      data = await readSessionDataForHandVerify(roomId, sessionId);
-      if (sessionHandDealStarted(data)) return;
+      if (await dealAlreadyStarted()) return;
       if (!isCloudFunctionUnavailable(serverErr)) {
         throw describeEnrollmentStartError(serverErr);
       }
-      console.warn(
-        "Enrollment Cloud Function unavailable.",
-        serverErr?.code || serverErr?.message || serverErr,
-      );
-      if (clientErr) throw clientErr;
-      throw describeEnrollmentStartError(serverErr);
+      console.warn("Enrollment Cloud Function unavailable; trying client deal.", {
+        handPath,
+        code: serverErr?.code ?? null,
+        message: serverErr?.message ?? String(serverErr),
+      });
     }
-  } else if (clientErr) {
-    throw clientErr;
+  }
+
+  try {
+    await ensureHandEnrollmentClient(rid, sid);
+  } catch (err) {
+    clientErr = err;
+    if (await dealAlreadyStarted()) return;
+    console.error("Client deal did not complete", {
+      handPath,
+      code: err?.code ?? null,
+      message: err?.message ?? String(err),
+    });
+    throw describeEnrollmentStartError(clientErr);
+  }
+
+  if (clientErr) {
+    throw describeEnrollmentStartError(clientErr);
   }
 }
 
@@ -4092,16 +4107,24 @@ function enrollmentStartFailure(sessionData, scoreSnap, kind = "enrollment_faile
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId, { members, roster } = {}) {
-  await prepareSessionForTableOpen(roomId, sessionId);
+  const resolved = resolveSessionHandRef(roomId, sessionId, sessionDoc);
+  if (!resolved) {
+    const err = new Error("Invalid session hand reference for enrollment");
+    err.code = "invalid-hand-ref";
+    throw err;
+  }
+  const { roomId: rid, sessionId: sid } = resolved;
+
+  await prepareSessionForTableOpen(rid, sid);
 
   const minPlayers = 2;
-  const seated = await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, {
+  const seated = await waitForMinSeatedPlayers(rid, sid, minPlayers, {
     members,
     roster,
   });
   if (seated < minPlayers) {
-    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-    const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+    const scoreSnap = await getDocs(scoresCol(rid, sid));
+    const sessionSnap = await getDoc(sessionDoc(rid, sid));
     throw enrollmentStartFailure(
       sessionSnap.exists() ? sessionSnap.data() : null,
       scoreSnap,
@@ -4114,16 +4137,16 @@ export async function ensureHandEnrollment(roomId, sessionId, { members, roster 
   for (const delayMs of retryDelaysMs) {
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, { members, roster }, 2000);
+      await waitForMinSeatedPlayers(rid, sid, minPlayers, { members, roster }, 2000);
     }
-    await attemptAutoDeal(roomId, sessionId);
-    data = await waitForSessionHandDeal(roomId, sessionId);
+    await attemptAutoDeal(rid, sid);
+    data = await waitForSessionHandDeal(rid, sid);
     if (sessionHandDealStarted(data)) return;
     if (data?.status === "final") return;
   }
 
   if (!sessionHandDealStarted(data)) {
-    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+    const scoreSnap = await getDocs(scoresCol(rid, sid));
     const seatedNow = seatPlayerIds(data, scoreSnap).length;
     throw enrollmentStartFailure(
       data,
