@@ -6,8 +6,9 @@ import {
   canActForPlayer,
   buildHandEnrollment,
   deriveWinnersFromTricks,
+  resolveBotPlayCardDecision,
 } from "./gameHandlers.js";
-import { dealInitialHand } from "./vendor/game-engine.js";
+import { dealInitialHand, serializeCard, HAND_PHASE } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
 
 describe("isRobotPlayerId", () => {
@@ -96,5 +97,90 @@ describe("deriveWinnersFromTricks", () => {
     const result = deriveWinnersFromTricks({ a: 2, b: 2, c: 1 }, ["a", "b", "c"]);
     assert.equal(result.ready, true);
     assert.deepEqual(result.winnerIds.sort(), ["a", "b"]);
+  });
+});
+
+describe("resolveBotPlayCardDecision", () => {
+  const ids = ["human", "bot_qgo1e0xr", "bot_96dp0tsu", "bot_69y63nwx"];
+
+  function playHandAfterTwoTrickPlays() {
+    const deal = dealInitialHand({
+      dealerId: "bot_69y63nwx",
+      participantIds: ids,
+      sortedPlayerIds: ids,
+      seed: 99,
+    });
+    const leader = deal.turnPlayerId;
+    const leaderCard = deal.privateHands[leader][0];
+    const leadSuit = leaderCard.suit;
+    let publicHand = {
+      phase: HAND_PHASE.PLAY,
+      participantIds: deal.participantIds,
+      dealerId: "bot_69y63nwx",
+      trumpHolderId: deal.trumpHolderId,
+      trumpUpcard: deal.trumpUpcard,
+      trumpSuit: deal.trumpSuit,
+      tricksByPlayer: deal.tricksByPlayer,
+      playedCards: [],
+      drawCompletedIds: ids,
+      actionOrder: deal.dealOrder,
+      turnPlayerId: "bot_96dp0tsu",
+      currentTrick: {
+        trickNumber: 1,
+        leadPlayerId: leader,
+        leadSuit,
+        plays: [
+          { playerId: leader, card: serializeCard(leaderCard) },
+          {
+            playerId: ids[1],
+            card: serializeCard(
+              deal.privateHands[ids[1]].find((c) => c.suit === leadSuit) ??
+                deal.privateHands[ids[1]][0],
+            ),
+          },
+        ],
+      },
+      leadSuit,
+    };
+    return { deal, publicHand };
+  }
+
+  it("selects a legal card on trick 1 with two cards already played", () => {
+    const { deal, publicHand } = playHandAfterTwoTrickPlays();
+    const botPrivate = deal.privateHands["bot_96dp0tsu"];
+    const decision = resolveBotPlayCardDecision("bot_96dp0tsu", botPrivate, publicHand);
+    assert.ok(decision.legalCount >= 1);
+    assert.ok(decision.cardIndex >= 0);
+    assert.ok(decision.cardIndex < decision.effectiveSize);
+  });
+
+  it("clamps to a legal index when bot heuristic picks an illegal card", () => {
+    const { deal, publicHand } = playHandAfterTwoTrickPlays();
+    const botId = "bot_96dp0tsu";
+    const decision = resolveBotPlayCardDecision(botId, deal.privateHands[botId], publicHand);
+    assert.ok(decision.legalCount >= 1);
+    assert.ok(decision.cardIndex >= 0);
+    assert.ok(decision.cardIndex < decision.effectiveSize);
+  });
+
+  it("returns structured failed-precondition when bot has no legal plays", () => {
+    const { publicHand } = playHandAfterTwoTrickPlays();
+    assert.throws(
+      () => resolveBotPlayCardDecision("bot_96dp0tsu", [], publicHand),
+      (err) => err.code === "failed-precondition" && /no cards/i.test(err.message),
+    );
+  });
+
+  it("returns structured failed-precondition when not bot turn", () => {
+    const { deal, publicHand } = playHandAfterTwoTrickPlays();
+    assert.throws(
+      () =>
+        resolveBotPlayCardDecision(
+          "bot_qgo1e0xr",
+          deal.privateHands["bot_qgo1e0xr"],
+          publicHand,
+        ),
+      (err) => err.code === "failed-precondition" && /not your turn/i.test(err.message),
+    );
   });
 });
