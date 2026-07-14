@@ -234,9 +234,19 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 const db = getFirestore(app);
 
 /** Cloud Functions may be unavailable in production — fall back to client transactions. */
-function isPermissionDenied(err) {
+export function isPermissionDenied(err) {
   const code = err?.code ?? "";
   return code === "permission-denied" || code === "PERMISSION_DENIED";
+}
+
+export function logFirestoreError(operation, path, err, extra = {}) {
+  console.error("[nbl-firestore]", operation, {
+    operation,
+    path,
+    code: err?.code ?? null,
+    message: err?.message ?? String(err),
+    ...extra,
+  });
 }
 
 function isEnrollmentPermissionError(err) {
@@ -630,17 +640,26 @@ export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseR
 // Users
 // ---------------------------------------------------------------------------
 export async function ensureUserDoc(user) {
-  if (!user) return;
+  if (!user?.uid) {
+    console.warn("[nbl-firestore] ensureUserDoc skipped — missing uid");
+    return;
+  }
+  const path = `users/${user.uid}`;
   const ref = doc(db, "users", user.uid);
-  const snap = await getDoc(ref);
-  const base = {
-    displayName: user.displayName,
-    email: user.email,
-    photoURL: user.photoURL,
-    updatedAt: serverTimestamp(),
-  };
-  if (!snap.exists()) base.createdAt = serverTimestamp();
-  await setDoc(ref, base, { merge: true });
+  try {
+    const snap = await getDoc(ref);
+    const base = {
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      updatedAt: serverTimestamp(),
+    };
+    if (!snap.exists()) base.createdAt = serverTimestamp();
+    await setDoc(ref, base, { merge: true });
+  } catch (err) {
+    logFirestoreError("set", path, err, { uid: user.uid });
+    throw err;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -976,23 +995,44 @@ async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, reb
  * membership rows, then loads each referenced room document.
  * @returns {() => void} unsubscribe
  */
-export function subscribeMyRooms(uid, callback) {
+export function subscribeMyRooms(uid, callback, onError) {
+  if (!uid) {
+    const err = new Error("subscribeMyRooms: missing uid");
+    logFirestoreError("listen", "roomMembers", err);
+    onError?.(err);
+    return () => {};
+  }
+  const listenPath = `roomMembers (userId == ${uid})`;
   const q = query(collection(db, "roomMembers"), where("userId", "==", uid));
-  return onSnapshot(q, async (snap) => {
-    const memberships = snap.docs.map(withId);
-    const rooms = await Promise.all(
-      memberships.map(async (m) => {
-        const roomSnap = await getDoc(doc(db, "rooms", m.roomId));
-        if (!roomSnap.exists()) return null;
-        return { ...withId(roomSnap), role: m.role };
-      }),
-    );
-    callback(
-      rooms
-        .filter(Boolean)
-        .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
-    );
-  });
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const memberships = snap.docs.map(withId);
+      const rooms = await Promise.all(
+        memberships.map(async (m) => {
+          const roomPath = `rooms/${m.roomId}`;
+          try {
+            const roomSnap = await getDoc(doc(db, "rooms", m.roomId));
+            if (!roomSnap.exists()) return null;
+            return { ...withId(roomSnap), role: m.role };
+          } catch (err) {
+            logFirestoreError("get", roomPath, err, { uid, roomId: m.roomId });
+            if (!isPermissionDenied(err)) throw err;
+            return null;
+          }
+        }),
+      );
+      callback(
+        rooms
+          .filter(Boolean)
+          .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
+      );
+    },
+    (err) => {
+      logFirestoreError("listen", listenPath, err, { uid });
+      onError?.(err);
+    },
+  );
 }
 
 export function subscribeRoom(roomId, callback) {
@@ -3598,21 +3638,37 @@ const playerDoc = (playerId) => doc(db, "players", playerId);
 
 /** Create a player ranking doc with the initial rating if it doesn't exist. */
 export async function ensurePlayerDoc(playerId, displayName) {
+  if (!playerId) {
+    console.warn("[nbl-firestore] ensurePlayerDoc skipped — missing playerId");
+    return null;
+  }
+  const path = `players/${playerId}`;
   const ref = playerDoc(playerId);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) {
-    await setDoc(ref, {
-      displayName,
-      mu: RATING_INITIAL.mu,
-      sigma: RATING_INITIAL.sigma,
-      matchesPlayed: 0,
-      apeScore: RATING_INITIAL_APE,
-      momentum: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-  } else if (displayName && snap.data().displayName !== displayName) {
-    await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
+  let snap;
+  try {
+    snap = await getDoc(ref);
+  } catch (err) {
+    logFirestoreError("get", path, err, { playerId });
+    throw err;
+  }
+  try {
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        displayName,
+        mu: RATING_INITIAL.mu,
+        sigma: RATING_INITIAL.sigma,
+        matchesPlayed: 0,
+        apeScore: RATING_INITIAL_APE,
+        momentum: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } else if (displayName && snap.data().displayName !== displayName) {
+      await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
+    }
+  } catch (err) {
+    logFirestoreError(snap.exists() ? "update" : "set", path, err, { playerId });
+    throw err;
   }
   return playerId;
 }
@@ -3629,18 +3685,26 @@ export async function getPlayers(ids) {
 }
 
 /** Real-time leaderboard: all players, sorted by Ape Score (desc). */
-export function subscribeLeaderboard(callback) {
-  return onSnapshot(collection(db, "players"), (snap) => {
-    callback(
-      snap.docs
-        .map(withId)
-        .sort(
-          (a, b) =>
-            (b.apeScore ?? 0) - (a.apeScore ?? 0) ||
-            (b.matchesPlayed ?? 0) - (a.matchesPlayed ?? 0),
-        ),
-    );
-  });
+export function subscribeLeaderboard(callback, onError) {
+  const listenPath = "players";
+  return onSnapshot(
+    collection(db, "players"),
+    (snap) => {
+      callback(
+        snap.docs
+          .map(withId)
+          .sort(
+            (a, b) =>
+              (b.apeScore ?? 0) - (a.apeScore ?? 0) ||
+              (b.matchesPlayed ?? 0) - (a.matchesPlayed ?? 0),
+          ),
+      );
+    },
+    (err) => {
+      logFirestoreError("listen", listenPath, err);
+      onError?.(err);
+    },
+  );
 }
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */

@@ -6,7 +6,7 @@
 
 import {
   onAuthChange,
-  currentUser,
+  whenAuthReady,
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
@@ -140,6 +140,8 @@ import {
   subscribeHands,
   subscribePrivateHand,
   subscribeLeaderboard,
+  isPermissionDenied,
+  logFirestoreError,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
@@ -2066,25 +2068,75 @@ function clearDetailSubs() {
   stopPrivateHandSubscription();
 }
 
-function startRoomsSubscription() {
+let roomsSubscriptionGeneration = 0;
+let leaderboardSubscriptionGeneration = 0;
+
+function describeFirestoreSubscriptionError(err, context) {
+  if (isPermissionDenied(err)) {
+    return `${context} — permission denied. Try signing out and back in.`;
+  }
+  const msg = err?.message ?? "";
+  if (/offline|network|unavailable/i.test(msg)) {
+    return `${context} — network error. Check your connection and try again.`;
+  }
+  return `${context} — please refresh and try again.`;
+}
+
+async function startRoomsSubscription() {
   stopRoomsSubscription();
-  if (!session) return;
-  ensureUserDoc(session).catch((e) => console.warn("ensureUserDoc:", e));
-  // Ensure the signed-in user has a ranking doc so they appear on the leaderboard.
-  ensurePlayerDoc(session.uid, session.displayName).catch((e) =>
-    console.warn("ensurePlayerDoc:", e),
-  );
-  myRoomsUnsub = subscribeMyRooms(session.uid, (rooms) => {
-    myRooms = rooms;
-    for (const r of rooms) {
-      if (r.ownerId === session.uid && r.role === "owner") {
-        ensureInviteLookupForRoom(r.id).catch((e) =>
-          console.warn("ensureInviteLookupForRoom:", e),
-        );
-      }
-    }
-    if (!currentRoomId) renderRoomsList();
+  const uid = session?.uid;
+  if (!uid) return;
+
+  const generation = ++roomsSubscriptionGeneration;
+
+  try {
+    await whenAuthReady();
+  } catch (err) {
+    logFirestoreError("auth-wait", "auth", err, { uid });
+    showRoomsError(describeFirestoreSubscriptionError(err, "Could not verify sign-in"));
+    return;
+  }
+
+  if (generation !== roomsSubscriptionGeneration || session?.uid !== uid) return;
+
+  try {
+    await ensureUserDoc(session);
+  } catch (err) {
+    logFirestoreError("get/set", `users/${uid}`, err, { uid });
+    showRoomsError(
+      describeFirestoreSubscriptionError(err, "Could not sync your profile"),
+    );
+    return;
+  }
+
+  if (generation !== roomsSubscriptionGeneration || session?.uid !== uid) return;
+
+  ensurePlayerDoc(uid, session.displayName).catch((err) => {
+    logFirestoreError("get/set", `players/${uid}`, err, { uid });
+    console.warn("ensurePlayerDoc:", err);
   });
+
+  myRoomsUnsub = subscribeMyRooms(
+    uid,
+    (rooms) => {
+      if (generation !== roomsSubscriptionGeneration) return;
+      myRooms = rooms;
+      for (const r of rooms) {
+        if (r.ownerId === uid && r.role === "owner") {
+          ensureInviteLookupForRoom(r.id).catch((e) =>
+            console.warn("ensureInviteLookupForRoom:", e),
+          );
+        }
+      }
+      if (!currentRoomId) renderRoomsList();
+    },
+    (err) => {
+      if (generation !== roomsSubscriptionGeneration) return;
+      logFirestoreError("listen", `roomMembers (userId == ${uid})`, err, { uid });
+      showRoomsError(describeFirestoreSubscriptionError(err, "Could not load your rooms"));
+      renderRoomsList();
+    },
+  );
 }
 
 function stopRoomsSubscription() {
@@ -5114,15 +5166,47 @@ let leaderboardUnsub = null;
 let leaderboard = [];
 let leaderboardLoaded = false;
 
-function startLeaderboardSubscription() {
+async function startLeaderboardSubscription() {
   stopLeaderboardSubscription();
-  leaderboardLoaded = false;
-  renderLeaderboard();
-  leaderboardUnsub = subscribeLeaderboard((players) => {
-    leaderboard = players;
+  const uid = session?.uid;
+  if (!uid) return;
+
+  const generation = ++leaderboardSubscriptionGeneration;
+
+  try {
+    await whenAuthReady();
+  } catch (err) {
+    logFirestoreError("auth-wait", "auth", err, { uid });
     leaderboardLoaded = true;
     renderLeaderboard();
-  });
+    return;
+  }
+
+  if (generation !== leaderboardSubscriptionGeneration || session?.uid !== uid) return;
+
+  leaderboardLoaded = false;
+  renderLeaderboard();
+  leaderboardUnsub = subscribeLeaderboard(
+    (players) => {
+      if (generation !== leaderboardSubscriptionGeneration) return;
+      leaderboard = players;
+      leaderboardLoaded = true;
+      renderLeaderboard();
+    },
+    (err) => {
+      if (generation !== leaderboardSubscriptionGeneration) return;
+      logFirestoreError("listen", "players", err, { uid });
+      leaderboardLoaded = true;
+      leaderboard = [];
+      renderLeaderboard();
+      const list = $("#leaderboard-list");
+      if (list) {
+        list.innerHTML = `<p class="state-box state-box--error" role="alert">${escapeHtml(
+          describeFirestoreSubscriptionError(err, "Could not load leaderboard"),
+        )}</p>`;
+      }
+    },
+  );
 }
 
 function stopLeaderboardSubscription() {
@@ -5253,9 +5337,9 @@ completeGoogleRedirectSignIn().catch((err) => {
 onAuthChange((user) => {
   const wasAuthed = isAuthed();
   setSession(user);
-  if (user) {
-    startRoomsSubscription();
-    startLeaderboardSubscription();
+  if (user?.uid) {
+    void startRoomsSubscription();
+    void startLeaderboardSubscription();
     scheduleApplyRoomNavFromLocation();
   } else if (wasAuthed) {
     stopRoomsSubscription();
@@ -5264,13 +5348,6 @@ onAuthChange((user) => {
     renderLeaderboard();
   }
 });
-
-// In case auth resolves synchronously from cache.
-setSession(currentUser());
-if (session) {
-  startRoomsSubscription();
-  startLeaderboardSubscription();
-}
 
 /** Local emulator E2E: explicit bot-advance nudge when draw stalls (no-op in production). */
 if (typeof globalThis !== "undefined") {
