@@ -80,7 +80,8 @@ export function shouldPlaySoundEvent(mode: SoundMode, event: SoundEventKey): boo
   return (
     event === "trickWin" ||
     event === "bigWin" ||
-    event === "bourre"
+    event === "bourre" ||
+    event === "turnTimer"
   );
 }
 

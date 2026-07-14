@@ -16,8 +16,6 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
-  /** Block deal until ante presentation completes. */
-  handPresentationPhase?: string;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -25,7 +23,6 @@ export function useTableDealPresentation({
   session,
   heroCards,
   privateHandReady = false,
-  handPresentationPhase,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
@@ -49,10 +46,6 @@ export function useTableDealPresentation({
   useLayoutEffect(() => {
     const root = tableRootRef.current;
     if (!root) return;
-
-    if (handPresentationPhase === "ante") {
-      return;
-    }
 
     const inDealPhase =
       session.phase === "reveal" ||
@@ -124,7 +117,6 @@ export function useTableDealPresentation({
     session.participantIds,
     heroCards.length,
     privateHandReady,
-    handPresentationPhase,
     tableRootRef,
   ]);
 

@@ -19,6 +19,7 @@ import {
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
+import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -347,6 +348,14 @@ export function TableSessionView({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+  });
+
+  useTurnTimerWarning({
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+    currentUserId,
+    localActionPending: actionFeedback?.status === "loading",
   });
 
   const showTrumpSuitReminder =
