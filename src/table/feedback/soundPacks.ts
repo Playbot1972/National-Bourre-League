@@ -38,7 +38,6 @@ export type SoundEventKey =
   | "leadChange"
   | "trickWin"
   | "trickCollect"
-  | "anteChip"
   | "handWin"
   | "potWin"
   | "bigWin"
@@ -173,7 +172,6 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
-  anteChip: "coin-chime-light",
   handWin: "coin-chime-light",
   potWin: "hand-win-stinger",
   bigWin: "hand-win-stinger",
@@ -247,7 +245,6 @@ export function resolveSoundAsset(
       // Batch 1: trick-win-big deferred — always normal for now.
       return "trick-win-normal";
     case "trickCollect":
-    case "anteChip":
     case "handWin":
       return "coin-chime-light";
     case "potWin":
@@ -283,7 +280,6 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   leadChange: "animation",
   trickWin: "animation",
   trickCollect: "animation",
-  anteChip: "animation",
   handWin: "outcome",
   potWin: "outcome",
   bigWin: "outcome",
