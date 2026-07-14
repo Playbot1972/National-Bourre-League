@@ -32,8 +32,17 @@ export function createServerBotAdvanceRuntime(deps) {
   let inFlight = false;
   let debounceTimer = null;
   let pendingAdvanceTurnKey = null;
+  let lastNoopCompletedKey = null;
   let pendingWake = false;
   const thinkSchedule = createBotThinkScheduleState();
+
+  function isNoopAdvanceResult(result) {
+    return (
+      result?.status === "ok" &&
+      Array.isArray(result?.steps) &&
+      result.steps.length === 0
+    );
+  }
 
   function clearDebounce() {
     if (debounceTimer) {
@@ -272,6 +281,19 @@ export function createServerBotAdvanceRuntime(deps) {
       return;
     }
 
+    if (lastNoopCompletedKey === advanceTurnKey) {
+      logPlayDelay("skip-request", session, scores, {
+        reason: "noop_already_processed",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        action: "skipped",
+        advanceTurnKey,
+        handPhase,
+      });
+      return;
+    }
+
     clearDebounce();
     const delayPlan = resolveBotAdvanceDelayMs({
       handPhase,
@@ -327,6 +349,22 @@ export function createServerBotAdvanceRuntime(deps) {
       return;
     }
 
+    const handPhase = deps.getHandPhase?.(sessionObj) ?? null;
+    const advanceTurnKey =
+      handPhase !== "play" ? botAdvanceTurnKey(advanceTurnContext(sessionObj, scores)) : null;
+    if (advanceTurnKey && lastNoopCompletedKey === advanceTurnKey) {
+      logPlayDelay("skip-request", sessionObj, scores, {
+        reason: "noop_already_processed",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        action: "skipped",
+        advanceTurnKey,
+        handPhase,
+      });
+      return;
+    }
+
     inFlight = true;
     const ctx = deps.snapshotContext(sessionObj, scores, { trigger: reason });
     logPlayDelay("request", sessionObj, scores, {
@@ -345,6 +383,11 @@ export function createServerBotAdvanceRuntime(deps) {
         requester: actorId,
         trigger: reason,
       });
+      if (advanceTurnKey && isNoopAdvanceResult(result)) {
+        lastNoopCompletedKey = advanceTurnKey;
+      } else if (advanceTurnKey) {
+        lastNoopCompletedKey = null;
+      }
       logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,
         owner: "server",
@@ -352,9 +395,13 @@ export function createServerBotAdvanceRuntime(deps) {
         sessionId,
         result,
         action: "executed",
+        advanceTurnKey,
         ...ctx,
       });
     } catch (err) {
+      if (advanceTurnKey) {
+        lastNoopCompletedKey = null;
+      }
       logPlayDelay("error", sessionObj, scores, {
         requester: actorId,
         owner: "server",
@@ -387,6 +434,7 @@ export function createServerBotAdvanceRuntime(deps) {
     execute,
     clearSchedule: () => {
       clearDebounce();
+      lastNoopCompletedKey = null;
       thinkSchedule.cancelPending({ reason: "clear_schedule" });
     },
     get inFlight() {

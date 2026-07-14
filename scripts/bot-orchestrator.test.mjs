@@ -60,6 +60,8 @@ describe("app.js bot paths", () => {
     assert.ok(runtimeSrc.includes("coalesce-request"));
     assert.ok(runtimeSrc.includes("advance_in_flight"));
     assert.ok(runtimeSrc.includes("schedule_deduped"));
+    assert.ok(runtimeSrc.includes("noop_already_processed"));
+    assert.ok(runtimeSrc.includes("lastNoopCompletedKey"));
     assert.ok(runtimeSrc.includes("botAdvanceTurnKey"));
     assert.ok(runtimeSrc.includes("assertBotAdvanceNotInFlight"));
     assert.ok(runtimeSrc.includes("let inFlight = false"));
