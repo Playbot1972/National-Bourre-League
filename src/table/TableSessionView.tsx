@@ -121,6 +121,12 @@ export function TableSessionView({
       session.participantIds,
   });
 
+  useEffect(() => {
+    if (handPresentation.phase !== "ante") return;
+    if (!trickPresentation.showFinalTrickEcho) return;
+    trickPresentation.clearHandEndEcho();
+  }, [handPresentation.phase, trickPresentation.showFinalTrickEcho, trickPresentation.clearHandEndEcho]);
+
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
     session.trumpUpcard,
