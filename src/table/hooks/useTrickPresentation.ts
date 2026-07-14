@@ -26,6 +26,7 @@ import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
 interface UseTrickPresentationInput {
   phase?: string | null;
+  handNumber?: number;
   currentTrick?: CurrentTrickState | null;
   tricksByPlayer: Record<string, number>;
   participantIds: string[];
@@ -43,6 +44,7 @@ export type TrickPresentation = TrickPresentationModel & {
 
 export function useTrickPresentation({
   phase,
+  handNumber = 0,
   currentTrick,
   tricksByPlayer,
   participantIds,
@@ -64,6 +66,7 @@ export function useTrickPresentation({
   const revealTimerRef = useRef<number | null>(null);
   const targetRevealRef = useRef(0);
   const prevSessionPlayRef = useRef(false);
+  const prevHandNumberRef = useRef(handNumber);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -96,6 +99,26 @@ export function useTrickPresentation({
   useEffect(() => {
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
+    const handNumberChanged = handNumber !== prevHandNumberRef.current;
+    prevHandNumberRef.current = handNumber;
+
+    if (handNumberChanged && handNumber > 0) {
+      clearTimers();
+      resolutionKeyRef.current = null;
+      snapshottedPlaysRef.current.clear();
+      clearPlayOriginCache();
+      dispatch({
+        type: "reinit",
+        snapshot: { currentTrick, tricksByPlayer, playedCards },
+      });
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("useTrickPresentation", "reinit-hand-number", {
+          handNumber,
+          trickNumber: currentTrick?.trickNumber,
+        });
+      }
+      return;
+    }
 
     if (
       shouldReinitTrickPresentationStore({
@@ -149,6 +172,7 @@ export function useTrickPresentation({
     playedCards,
     sessionPlayActive,
     handComplete,
+    handNumber,
     participantIds.length,
   ]);
 

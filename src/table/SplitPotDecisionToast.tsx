@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatRiskStake } from "./logic";
+import { getTieResultDurationMs } from "./tieResultTiming";
 import type { TablePlayer, TableSessionData } from "./types";
-
-const SPLIT_DECISION_MS = 3_000;
 
 interface SplitPotDecisionToastProps {
   session: TableSessionData;
@@ -10,6 +9,8 @@ interface SplitPotDecisionToastProps {
   splitSharePerWinner: number;
   currentUserId: string | null;
   isCoWinner: boolean;
+  resultMessage?: string;
+  manualContinueAllowed?: boolean;
   onAgreeSplit: () => void;
   onDeclineSplit: () => void;
   onCarryover: () => void;
@@ -19,20 +20,26 @@ function nameFor(id: string, players: TablePlayer[]): string {
   return players.find((p) => p.playerId === id)?.displayName || id;
 }
 
-/** Compact 3-second tied-leader split-pot vote (house rule). */
+/** Compact tied-leader split-pot vote (house rule). */
 export function SplitPotDecisionToast({
   session,
   players,
   splitSharePerWinner,
   currentUserId,
   isCoWinner,
+  resultMessage = "",
+  manualContinueAllowed = true,
   onAgreeSplit,
   onDeclineSplit,
   onCarryover,
 }: SplitPotDecisionToastProps) {
   const winnerIds = session.pendingCoWinSettlement?.winnerIds ?? [];
   const votes = session.pendingCoWinSettlement?.votes ?? {};
-  const [remainingMs, setRemainingMs] = useState(SPLIT_DECISION_MS);
+  const decisionDurationMs = useMemo(
+    () => getTieResultDurationMs(resultMessage || "Tie — split the pot?"),
+    [resultMessage],
+  );
+  const [remainingMs, setRemainingMs] = useState(decisionDurationMs);
   const [localAgreed, setLocalAgreed] = useState(false);
   const startedAtRef = useRef<number | null>(null);
   const settledRef = useRef(false);
@@ -45,9 +52,9 @@ export function SplitPotDecisionToast({
   useEffect(() => {
     startedAtRef.current = Date.now();
     settledRef.current = false;
-    setRemainingMs(SPLIT_DECISION_MS);
+    setRemainingMs(decisionDurationMs);
     setLocalAgreed(false);
-  }, [proposalKey]);
+  }, [proposalKey, decisionDurationMs]);
 
   const allAgreed = winnerIds.length >= 2 && winnerIds.every((id) => votes[id] === "split");
 
@@ -62,14 +69,14 @@ export function SplitPotDecisionToast({
     const tick = window.setInterval(() => {
       const started = startedAtRef.current ?? Date.now();
       const elapsed = Date.now() - started;
-      const nextRemaining = Math.max(0, SPLIT_DECISION_MS - elapsed);
+      const nextRemaining = Math.max(0, decisionDurationMs - elapsed);
       setRemainingMs(nextRemaining);
       if (nextRemaining <= 0 && !allAgreed) {
         finalizeCarryover();
       }
     }, 100);
     return () => window.clearInterval(tick);
-  }, [winnerIds.length, allAgreed, finalizeCarryover, proposalKey]);
+  }, [winnerIds.length, allAgreed, finalizeCarryover, proposalKey, decisionDurationMs]);
 
   useEffect(() => {
     if (allAgreed) {
@@ -81,9 +88,10 @@ export function SplitPotDecisionToast({
 
   const seconds = Math.max(0, Math.ceil(remainingMs / 1000));
   const winnerNames = winnerIds.map((id) => nameFor(id, players)).join(" & ");
+  const canInteract = manualContinueAllowed && !settledRef.current;
 
   const handleAgreeChange = (checked: boolean) => {
-    if (!isCoWinner || settledRef.current) return;
+    if (!isCoWinner || !canInteract) return;
     setLocalAgreed(checked);
     if (checked) onAgreeSplit();
     else onDeclineSplit();
@@ -107,6 +115,7 @@ export function SplitPotDecisionToast({
           <input
             type="checkbox"
             checked={localAgreed || votes[currentUserId ?? ""] === "split"}
+            disabled={!canInteract}
             onChange={(e) => handleAgreeChange(e.target.checked)}
             data-testid="split-pot-agree"
           />

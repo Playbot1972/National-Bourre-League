@@ -630,6 +630,19 @@ function reduceHandPresentationCore(
       }
 
       if (store.pendingHandSettle && store.phase === "play") {
+        const serverLeftPlay = snapshot.phase !== "play" && snapshot.phase != null;
+        const serverEnrollment = snapshot.enrollmentActive === true;
+        if (serverLeftPlay || serverEnrollment) {
+          const settled = beginHandSettleFromPending(store);
+          if (settled.phase === "settle") {
+            return {
+              ...settled,
+              pendingSnapshot: snapshot,
+              prevSnapshot: snapshot,
+              displayPotAmount: snapshot.potAmount,
+            };
+          }
+        }
         return { ...store, pendingSnapshot: snapshot };
       }
 

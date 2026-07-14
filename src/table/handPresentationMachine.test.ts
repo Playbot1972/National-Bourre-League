@@ -418,6 +418,24 @@ describe("handPresentationMachine", () => {
     assert.equal(store.pendingHandSettle, true);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
 
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    assert.equal(store.phase, "settle");
+    assert.equal(store.pendingHandSettle, false);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+  });
+
+  it("forces settle when enrollment opens while hand-end settle is still latched in play", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handComplete: true,
+      },
+    });
+    assert.equal(store.pendingHandSettle, true);
+
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
       snapshot: {
@@ -427,14 +445,9 @@ describe("handPresentationMachine", () => {
         handComplete: false,
       },
     });
-    assert.equal(store.phase, "play");
-    assert.equal(store.pendingHandSettle, true);
-    assert.ok(store.pendingSnapshot?.enrollmentActive);
-
-    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
     assert.equal(store.phase, "settle");
     assert.equal(store.pendingHandSettle, false);
-    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+    assert.ok(store.pendingSnapshot?.enrollmentActive);
   });
 
   it("latches hand settle when the server clears the hand before handComplete is observed", () => {
@@ -475,6 +488,76 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "settle");
     assert.equal(store.pendingHandSettle, false);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+  });
+
+  it("begins settle when server opens enrollment while hand-end settle is latched in play", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handComplete: true,
+      },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: null,
+        enrollmentActive: true,
+        handComplete: false,
+        participantIds: [],
+      },
+    });
+    assert.equal(store.phase, "settle");
+    assert.equal(store.pendingHandSettle, false);
+    assert.equal(store.pendingSnapshot?.enrollmentActive, true);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
+  });
+
+  it("does not begin settle on handComplete alone while server is still in play", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handComplete: true,
+      },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
+  });
+
+  it("advances through settle and nextHandReset without draw presentation", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { ...baseSnap, phase: "play", handComplete: true },
+    });
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
+    assert.equal(store.phase, "settle");
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "nextHandReset");
+
+    store = {
+      ...store,
+      pendingSnapshot: {
+        ...baseSnap,
+        phase: null,
+        enrollmentActive: true,
+        handComplete: false,
+        participantIds: [],
+      },
+    };
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "enrollment");
   });
 
   it("exposes configurable timing defaults", () => {
