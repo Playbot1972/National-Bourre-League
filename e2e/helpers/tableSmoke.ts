@@ -8,6 +8,8 @@ export interface TableFixtureOptions {
   /** `enrollment` is accepted as an alias for Pagat `decision`. */
   phase?: TableFixturePhase;
   tick?: boolean;
+  /** When false, reveal fixture omits trump. `late` adds trump mid-run for opening animation E2E. */
+  trump?: boolean | "late";
 }
 
 export function tableFixtureUrl(options: TableFixtureOptions = {}): string {
@@ -17,6 +19,8 @@ export function tableFixtureUrl(options: TableFixtureOptions = {}): string {
     phase: options.phase ?? "decision",
     tick: options.tick === false ? "0" : "1",
   });
+  if (options.trump === false) qs.set("trump", "0");
+  else if (options.trump === "late") qs.set("trump", "late");
   return `/e2e-fixtures/table-session?${qs}`;
 }
 

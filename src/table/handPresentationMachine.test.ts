@@ -6,6 +6,7 @@ import {
   nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
+  isHandOpenSatisfiedOnServer,
   shouldBeginRevealPresentation,
   snapshotFromSession,
 } from "./handPresentationMachine";
@@ -88,9 +89,9 @@ describe("handPresentationMachine", () => {
         trumpUpcard: { rank: "A", suit: "hearts" },
       },
     });
-    assert.equal(store.phase, "ante");
-    assert.equal(store.anteAnimActive, true);
-    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.phase, "idle");
+    assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
   });
 
   it("runs ante then trump reveal then merge when enrollment closes into draw", () => {
@@ -509,19 +510,9 @@ describe("handPresentationMachine", () => {
       },
     });
     assert.equal(store.handNumber, 2);
-    assert.equal(store.phase, "ante");
-    assert.equal(store.trumpRevealActive, true);
-    assert.equal(store.trumpMergedIntoHand, false);
-
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "shuffle");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "deal");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpReveal");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.trumpMergedIntoHand, false);
+    assert.equal(store.phase, "idle");
+    assert.equal(store.trumpRevealActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
   });
 
   it("starts reveal presentation when prior hand ended in play with stale trump state", () => {
@@ -546,28 +537,74 @@ describe("handPresentationMachine", () => {
       },
     });
     assert.equal(store.handNumber, 2);
-    assert.equal(store.phase, "ante");
-    assert.equal(store.trumpRevealActive, true);
-    assert.equal(store.trumpMergedIntoHand, false);
+    assert.equal(store.phase, "idle");
+    assert.equal(store.trumpRevealActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
   });
 
-  it("arms ante animation when initial server phase is reveal", () => {
+  it("arms ante animation when reveal has no trump yet (true hand-open)", () => {
     const store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
-      trumpUpcard: { rank: "7", suit: "hearts" },
+      trumpUpcard: null,
       participantIds: ["p1", "p2", "p3"],
     });
     assert.equal(store.phase, "ante");
     assert.equal(store.anteAnimActive, true);
-    assert.equal(store.trumpRevealActive, true);
+    assert.equal(store.trumpRevealActive, false);
+  });
+
+  it("skips ante when reveal snapshot already has trump (catch-up)", () => {
+    const store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "7", suit: "hearts" },
+      turnPlayerId: "p1",
+      participantIds: ["p1", "p2", "p3"],
+    });
+    assert.equal(isHandOpenSatisfiedOnServer({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "7", suit: "hearts" },
+    }), true);
+    assert.equal(store.phase, "idle");
+    assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
+  });
+
+  it("idle client catches up to reveal+trump without entering ante", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: null,
+      enrollmentActive: true,
+      trumpUpcard: null,
+    });
+    assert.equal(store.phase, "enrollment");
+
+    const revealSnap = {
+      ...baseSnap,
+      handNumber: 3,
+      phase: "reveal" as const,
+      trumpUpcard: { rank: "7", suit: "hearts" },
+      turnPlayerId: "p1",
+      participantIds: ["p1", "p2"],
+      potAmount: 24,
+    };
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: revealSnap,
+    });
+    assert.equal(store.phase, "idle");
+    assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpMergedIntoHand, true);
   });
 
   it("does not restart reveal presentation while hand-open pipeline is active", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
-      trumpUpcard: { rank: "7", suit: "hearts" },
+      trumpUpcard: null,
       participantIds: ["p1", "p2"],
       potAmount: 20,
     });
@@ -601,7 +638,7 @@ describe("handPresentationMachine", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
       phase: "reveal",
-      trumpUpcard: { rank: "A", suit: "hearts" },
+      trumpUpcard: null,
       participantIds: ["p1", "p2"],
       potAmount: 40,
     });
@@ -610,6 +647,16 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "shuffle");
     store = reduceHandPresentation(store, { type: "completeShufflePresentation" });
     assert.equal(store.phase, "deal");
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        trumpUpcard: { rank: "A", suit: "hearts" },
+        participantIds: ["p1", "p2"],
+        potAmount: 40,
+      },
+    });
     store = reduceHandPresentation(store, { type: "completeDealPresentation" });
     assert.equal(store.phase, "trumpReveal");
     assert.equal(store.trumpRevealActive, true);
