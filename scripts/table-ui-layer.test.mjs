@@ -59,6 +59,75 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, []);
   });
 
+  it("applyTableFeedbackDiff fires big win when local player wins hand", () => {
+    const calls = [];
+    const api = {
+      playBigWinFeedback: () => calls.push("big"),
+      playBotHandWinFeedback: () => calls.push("bot"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "play",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 3,
+      handComplete: false,
+      myIsWinner: false,
+      botWonHand: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, handComplete: true, myIsWinner: true };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["big"]);
+  });
+
+  it("applyTableFeedbackDiff fires bot hand win when sole robot wins", () => {
+    const calls = [];
+    const api = {
+      playBigWinFeedback: () => calls.push("big"),
+      playBotHandWinFeedback: () => calls.push("bot"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "play",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 1,
+      handComplete: false,
+      myIsWinner: false,
+      botWonHand: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, handComplete: true, botWonHand: true };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["bot"]);
+  });
+
+  it("applyTableFeedbackDiff does not fire bot hand win for human winner", () => {
+    const calls = [];
+    const api = {
+      playBigWinFeedback: () => calls.push("big"),
+      playBotHandWinFeedback: () => calls.push("bot"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "play",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 3,
+      handComplete: false,
+      myIsWinner: false,
+      botWonHand: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, handComplete: true, myIsWinner: true, botWonHand: false };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["big"]);
+  });
+
   it("applyTableFeedbackDiff fires bourre feedback when local player goes bourré", () => {
     const calls = [];
     const api = { playBourreFeedback: () => calls.push("bourre") };

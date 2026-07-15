@@ -1,5 +1,6 @@
 import {
   playBigWinSound,
+  playBotHandWinSound,
   playBourreSound,
   playCardIllegalSound,
   playCardSelectSound,
@@ -31,6 +32,7 @@ const SHUFFLE_COOLDOWN_MS = 700;
 const DRAW_COOLDOWN_MS = 500;
 const TRICK_WIN_COOLDOWN_MS = 450;
 const BIG_WIN_COOLDOWN_MS = 1200;
+const BOT_HAND_WIN_COOLDOWN_MS = 1200;
 const BOURRE_COOLDOWN_MS = 2000;
 const GAME_START_COOLDOWN_MS = 1500;
 const ILLEGAL_ACTION_COOLDOWN_MS = 280;
@@ -39,6 +41,7 @@ let lastShuffleAt = 0;
 let lastDrawAt = 0;
 let lastTrickWinAt = 0;
 let lastBigWinAt = 0;
+let lastBotHandWinAt = 0;
 let lastBourreAt = 0;
 let lastGameStartAt = 0;
 let lastIllegalActionAt = 0;
@@ -125,6 +128,14 @@ export function playBigWinFeedback(): void {
   lastBigWinAt = now;
   maybePlaySound("bigWin", playBigWinSound);
   fireHaptic("strong");
+}
+
+export function playBotHandWinFeedback(): void {
+  const now = Date.now();
+  if (now - lastBotHandWinAt < BOT_HAND_WIN_COOLDOWN_MS) return;
+  lastBotHandWinAt = now;
+  maybePlaySound("botHandWin", playBotHandWinSound);
+  fireHaptic("medium");
 }
 
 export function playBourreFeedback(): void {

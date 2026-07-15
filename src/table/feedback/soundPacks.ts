@@ -19,7 +19,10 @@ export type SoundAssetId =
   | "card-shuffle-final"
   | "card-select"
   | "card-illegal"
+  | "close"
   | "ui-button-press"
+  | "moneygone"
+  | "timer"
   | "coin-chime-light"
   | "draw"
   | "draw1"
@@ -45,10 +48,12 @@ export type SoundEventKey =
   | "gameStart"
   | "openRoom"
   | "deleteRoom"
+  | "botHandWin"
   | "fold"
   | "cardSelect"
   | "cardIllegal"
-  | "uiButton";
+  | "uiButton"
+  | "turnTimer";
 
 export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
   classic: "Classic",
@@ -104,7 +109,10 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-shuffle-final",
   "card-select",
   "card-illegal",
+  "close",
   "ui-button-press",
+  "moneygone",
+  "timer",
   "coin-chime-light",
   "draw",
   "draw1",
@@ -129,7 +137,10 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
+  close: "close.mp3",
   "ui-button-press": "ui-button-press.mp3",
+  moneygone: "moneygone.mp3",
+  timer: "timer.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
   draw: "draw.mp3",
   draw1: "draw1.mp3",
@@ -178,11 +189,13 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   bourre: "Fahhh",
   gameStart: "card-shuffle-normal",
   openRoom: "card-shuffle-final",
-  deleteRoom: "card-illegal",
+  deleteRoom: "close",
+  botHandWin: "moneygone",
   fold: "card-place-heavy",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
   uiButton: "ui-button-press",
+  turnTimer: "timer",
 };
 
 const PACK_SUBDIRS: Record<SoundPackId, string> = {
@@ -257,10 +270,15 @@ export function resolveSoundAsset(
     case "cardSelect":
       return "card-select";
     case "cardIllegal":
-    case "deleteRoom":
       return "card-illegal";
+    case "deleteRoom":
+      return "close";
+    case "botHandWin":
+      return "moneygone";
     case "fold":
       return "card-place-heavy";
+    case "turnTimer":
+      return "timer";
   }
 }
 
@@ -287,8 +305,10 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   gameStart: "action",
   openRoom: "action",
   deleteRoom: "action",
+  botHandWin: "outcome",
   fold: "action",
   cardSelect: "action",
   cardIllegal: "action",
   uiButton: "action",
+  turnTimer: "outcome",
 };
