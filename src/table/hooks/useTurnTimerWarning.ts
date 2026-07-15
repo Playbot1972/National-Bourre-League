@@ -68,6 +68,15 @@ export function useTurnTimerWarning({
       const armedKey = activityKey;
       const delayMs = turnTimerWarningDelayMs(ringStart, Date.now());
 
+      if (import.meta.env.DEV) {
+        console.log("[nbl-timer-audio] ring-start", {
+          turnKey: activityKey,
+          actorId: activeActorId,
+          ringStartedAtMs: ringStart,
+          delayMs,
+        });
+      }
+
       const fireStart = () => {
         if (lastKeyRef.current !== armedKey || warningStartedRef.current) return;
         const elapsedMs = turnCountdownElapsedMs(ringStart, Date.now());

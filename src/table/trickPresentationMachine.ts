@@ -62,6 +62,8 @@ export interface TrickPresentationStore {
   peakTrickPlays: TrickPlay[];
   /** Cards already shown this trick — never shrink display below this during live play. */
   displayRevealFloor: number;
+  /** Latched when the final trick pipeline returns to live with no next trick. */
+  handEndEchoTrick: FrozenTrick | null;
 }
 
 export function createTrickPresentationStore(
@@ -81,6 +83,7 @@ export function createTrickPresentationStore(
     pendingResolution: null,
     peakTrickPlays: serializedPlays(currentTrick),
     displayRevealFloor: 0,
+    handEndEchoTrick: null,
   };
 }
 
@@ -187,7 +190,8 @@ export type TrickPresentationEvent =
   | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
   | { type: "advancePhase" }
-  | { type: "forceHandEndDrain" };
+  | { type: "forceHandEndDrain" }
+  | { type: "clearHandEndEcho" };
 
 export function reduceTrickPresentation(
   store: TrickPresentationStore,
@@ -259,6 +263,10 @@ function reduceTrickPresentationCore(
       );
     }
 
+    case "clearHandEndEcho":
+      if (!store.handEndEchoTrick) return store;
+      return { ...store, handEndEchoTrick: null };
+
     case "forceHandEndDrain": {
       let next = store;
       if (next.phase === "live" && next.pendingResolution) {
@@ -278,10 +286,16 @@ function reduceTrickPresentationCore(
         ? { ...pendingTricks }
         : { ...next.displayTricksByPlayer };
       const pendingReveal = serializedPlays(pending?.currentTrick).length;
+      const handEnded = pending != null && pending.currentTrick == null && next.frozenTrick != null;
       return {
         ...next,
         phase: "live",
         frozenTrick: null,
+        handEndEchoTrick: handEnded
+          ? next.frozenTrick
+          : pending?.currentTrick
+            ? null
+            : next.handEndEchoTrick,
         showWinnerTag: false,
         revealedCount: pendingReveal,
         resolvedTricks: null,
@@ -310,10 +324,16 @@ function reduceTrickPresentationCore(
         case "nextLeadReady": {
           const pending = store.pendingServer;
           const pendingReveal = serializedPlays(pending?.currentTrick).length;
+          const handEnded = pending != null && pending.currentTrick == null && store.frozenTrick != null;
           return {
             ...store,
             phase: "live",
             frozenTrick: null,
+            handEndEchoTrick: handEnded
+              ? store.frozenTrick
+              : pending?.currentTrick
+                ? null
+                : store.handEndEchoTrick,
             showWinnerTag: false,
             revealedCount: pendingReveal,
             resolvedTricks: null,
@@ -421,13 +441,19 @@ export function buildTrickPresentationModel(
       ? holdForDisplay.slice(0, revealLimit)
       : store.frozenTrick?.plays ?? [];
 
-  const trickEchoPlays = store.frozenTrick?.plays ?? [];
-  const trickEchoWinnerId = store.frozenTrick?.winnerId ?? null;
-  const trickEchoPhase = store.phase;
+  const echoSource = store.frozenTrick ?? store.handEndEchoTrick;
+  const trickEchoPlays = echoSource?.plays ?? [];
+  const trickEchoWinnerId = echoSource?.winnerId ?? null;
+  const trickEchoPhase =
+    store.frozenTrick != null
+      ? store.phase
+      : store.handEndEchoTrick != null
+        ? "winnerReveal"
+        : store.phase;
   const showFinalTrickEcho =
     trickEchoPlays.length > 0 &&
     displayPlays.length === 0 &&
-    store.phase !== "live";
+    (store.phase !== "live" || store.handEndEchoTrick != null);
 
   const winnerPlayerId =
     store.phase === "live" || store.phase === "trickComplete"
@@ -465,4 +491,22 @@ export function buildTrickPresentationModel(
     showFinalTrickEcho,
     frozenTrick: store.frozenTrick,
   };
+}
+
+/** Guard for useTrickPresentation — do not wipe latched final-trick echo during settle/enrollment. */
+export function shouldReinitTrickPresentationStore(input: {
+  enteredPlay: boolean;
+  sessionPlayActive: boolean;
+  pipelineActive: boolean;
+  handComplete: boolean;
+  phase: string | null | undefined;
+  participantCount: number;
+  handEndEchoTrick: FrozenTrick | null;
+}): boolean {
+  if (input.enteredPlay) return true;
+  const handEnding =
+    input.handComplete ||
+    (input.phase == null && input.participantCount === 0) ||
+    input.handEndEchoTrick != null;
+  return !input.sessionPlayActive && !input.pipelineActive && !handEnding;
 }

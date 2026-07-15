@@ -1,7 +1,7 @@
 import {
   playBigWinSound,
-  playBotHandWinSound,
   playBourreSound,
+  playBourrePrivatePunishmentSound,
   playCardIllegalSound,
   playCardSelectSound,
   playDeleteRoomSound,
@@ -23,6 +23,7 @@ import {
   type FeedbackPrefs,
 } from "./prefs";
 import type { SoundEventKey } from "./soundPacks";
+import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 
 /** Align with `.bpot__card` deal-in stagger in table.css */
 export const DEAL_ANIM_STAGGER_MS = 80;
@@ -32,7 +33,6 @@ const SHUFFLE_COOLDOWN_MS = 700;
 const DRAW_COOLDOWN_MS = 500;
 const TRICK_WIN_COOLDOWN_MS = 450;
 const BIG_WIN_COOLDOWN_MS = 1200;
-const BOT_HAND_WIN_COOLDOWN_MS = 1200;
 const BOURRE_COOLDOWN_MS = 2000;
 const GAME_START_COOLDOWN_MS = 1500;
 const ILLEGAL_ACTION_COOLDOWN_MS = 280;
@@ -41,7 +41,6 @@ let lastShuffleAt = 0;
 let lastDrawAt = 0;
 let lastTrickWinAt = 0;
 let lastBigWinAt = 0;
-let lastBotHandWinAt = 0;
 let lastBourreAt = 0;
 let lastGameStartAt = 0;
 let lastIllegalActionAt = 0;
@@ -130,19 +129,25 @@ export function playBigWinFeedback(): void {
   fireHaptic("strong");
 }
 
-export function playBotHandWinFeedback(): void {
-  const now = Date.now();
-  if (now - lastBotHandWinAt < BOT_HAND_WIN_COOLDOWN_MS) return;
-  lastBotHandWinAt = now;
-  maybePlaySound("botHandWin", playBotHandWinSound);
-  fireHaptic("medium");
-}
-
 export function playBourreFeedback(): void {
   const now = Date.now();
   if (now - lastBourreAt < BOURRE_COOLDOWN_MS) return;
   lastBourreAt = now;
   maybePlaySound("bourre", playBourreSound);
+  fireHaptic("medium");
+}
+
+/** Local-only bourré punishment — random fahhh/fahhhh; not broadcast to table. */
+export function playBourrePrivatePunishmentFeedback(input: {
+  sessionId: string;
+  handNumber: number;
+  isLocalBourredPlayer: boolean;
+}): void {
+  if (!input.isLocalBourredPlayer) return;
+  const dedupeKey = bourrePrivateDedupeKey(input.sessionId, input.handNumber);
+  maybePlaySound("bourre", () =>
+    playBourrePrivatePunishmentSound(dedupeKey, input.isLocalBourredPlayer),
+  );
   fireHaptic("medium");
 }
 

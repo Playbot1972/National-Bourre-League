@@ -137,6 +137,11 @@ export function currentUser() {
   return auth.currentUser ? normalizeUser(auth.currentUser) : null;
 }
 
+/** Resolves when Firebase Auth has finished its initial state check (token ready for Firestore). */
+export function whenAuthReady() {
+  return auth.authStateReady();
+}
+
 /** Create an account with email + password and set a display name. */
 export async function signUpWithEmail({ name, email, password }) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);

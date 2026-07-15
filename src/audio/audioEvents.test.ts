@@ -7,6 +7,7 @@ import {
   buildTrickWonPayload,
   cardAudioDedupeKey,
   deriveIntensityTier,
+  resolveTrickCollectSoundEvent,
   shouldPlayTrickWinNormal,
 } from "./audioEvents";
 import {
@@ -112,6 +113,23 @@ describe("card audio payloads", () => {
     });
     assert.equal(payload.type, "card:lead-change");
     assert.equal(payload.takesLead, true);
+  });
+
+  it("trick:collected routes local wins to trickCollect, others to trickCollectOther", () => {
+    const local = buildTrickCollectedPayload({
+      trickId: 3,
+      winningSeat: "p1",
+      playerCount: 4,
+      isLocalPlayer: true,
+    });
+    const bot = buildTrickCollectedPayload({
+      trickId: 3,
+      winningSeat: "bot_abc",
+      playerCount: 4,
+      isLocalPlayer: false,
+    });
+    assert.equal(resolveTrickCollectSoundEvent(local), "trickCollect");
+    assert.equal(resolveTrickCollectSoundEvent(bot), "trickCollectOther");
   });
 });
 
