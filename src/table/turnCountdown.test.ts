@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   TURN_COUNTDOWN_MS,
+  buildDurationCountdownState,
   buildTurnCountdownState,
+  durationCountdownSegment,
   resolveTableActiveActorId,
   turnCountdownActivityKey,
   turnCountdownSegment,
@@ -43,6 +45,21 @@ describe("turnCountdown", () => {
     assert.ok(nextCycle);
     assert.equal(nextCycle!.segment, "green");
     assert.ok(nextCycle!.remainingMs > TURN_COUNTDOWN_MS - 500);
+  });
+
+  it("builds variable-duration countdown for short action windows", () => {
+    const started = 0;
+    const duration = 500;
+    const mid = buildDurationCountdownState("p1", started, 250, duration);
+    assert.ok(mid);
+    assert.equal(mid!.segment, "yellow");
+    assert.ok(Math.abs(mid!.progress - 0.5) < 0.01);
+
+    const late = buildDurationCountdownState("p1", started, 450, duration);
+    assert.ok(late);
+    assert.equal(late!.segment, "red");
+    assert.equal(durationCountdownSegment(200, 500), "yellow");
+    assert.equal(durationCountdownSegment(334, 500), "green");
   });
 
   it("resolves active actor during play from turnPlayerId", () => {

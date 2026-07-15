@@ -108,11 +108,41 @@ export function buildTurnCountdownState(
   const elapsed = Math.max(0, nowMs - startedAtMs);
   const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
   const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
-
   return {
     playerId,
     remainingMs,
     progress: remainingMs / TURN_COUNTDOWN_MS,
     segment: turnCountdownSegment(remainingMs),
   };
+}
+
+/** Variable-duration countdown ring (ante think, bot pacing windows). */
+export function buildDurationCountdownState(
+  playerId: string,
+  startedAtMs: number,
+  nowMs: number,
+  durationMs: number,
+): TurnCountdownState | null {
+  if (durationMs <= 0) return null;
+  const elapsed = Math.max(0, nowMs - startedAtMs);
+  const remainingMs = Math.max(0, durationMs - elapsed);
+  const progress = remainingMs / durationMs;
+  return {
+    playerId,
+    remainingMs,
+    progress,
+    segment: durationCountdownSegment(remainingMs, durationMs),
+  };
+}
+
+/** Color bands scaled to a short action window (ante / bot think). */
+export function durationCountdownSegment(
+  remainingMs: number,
+  totalMs: number,
+): TurnCountdownSegment {
+  if (totalMs <= 0) return "red";
+  const ratio = remainingMs / totalMs;
+  if (ratio > 2 / 3) return "green";
+  if (ratio > 1 / 3) return "yellow";
+  return "red";
 }
