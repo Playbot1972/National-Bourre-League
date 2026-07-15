@@ -26,7 +26,6 @@ export const PACING_FORCE_RELEASE_MS: Record<HandPacingMode, number> = {
 };
 
 const handLocks = new Map<number, HandPacingMode>();
-let activeHandNumber: number | null = null;
 let activePacingMode: HandPacingMode = "classic";
 const listeners = new Set<() => void>();
 
@@ -82,7 +81,6 @@ export function getHandPacingMode(handNumber: number): HandPacingMode {
 /** Active mode for bot presentation gates (set when the table hand advances). */
 export function activateHandPacingModeForHand(handNumber: number): HandPacingMode {
   const mode = lockHandPacingMode(handNumber);
-  activeHandNumber = handNumber;
   activePacingMode = mode;
   return mode;
 }
@@ -100,7 +98,6 @@ function pruneHandLocks(currentHandNumber: number): void {
 /** Reset locks — test helper only. */
 export function resetHandPacingModeForTests(): void {
   handLocks.clear();
-  activeHandNumber = null;
   activePacingMode = "classic";
   prefsTestOverride = null;
   listeners.clear();
