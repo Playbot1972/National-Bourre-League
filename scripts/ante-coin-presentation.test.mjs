@@ -66,24 +66,26 @@ describe("ante coin presentation wiring", () => {
     assert.match(tableView, /antePresentationActive:/);
   });
 
-  it("wires ante avatar timer ring to shared GSAP timeline", () => {
-    const schedule = readFileSync(join(root, "src/table/antePresentationSchedule.ts"), "utf8");
-    const countdown = readFileSync(join(root, "src/table/anteSeatCountdown.ts"), "utf8");
-    const anteHook = readFileSync(join(root, "src/table/hooks/useAnteSeatCountdown.ts"), "utf8");
-    const busy = readFileSync(join(root, "src/table/presentationMotionBusy.ts"), "utf8");
-    assert.match(schedule, /buildAntePresentationSchedule/);
-    assert.match(schedule, /buildAnteRingStateAtTimelineSec/);
-    assert.match(countdown, /buildAnteSeatCountdownState/);
-    assert.match(anteHook, /readAntePresentationTimelineSec/);
-    assert.match(anteHook, /buildAntePresentationSchedule/);
-    assert.doesNotMatch(anteHook, /readAntePresentationClock/);
-    assert.doesNotMatch(anteHook, /Date\.now\(\)/);
-    assert.match(tableView, /useAnteSeatCountdown/);
-    assert.match(tableView, /avatarTurnCountdown/);
+  it("ante uses shared 15s turn countdown via useTurnCountdown", () => {
+    const turnCountdown = readFileSync(join(root, "src/table/turnCountdown.ts"), "utf8");
+    const turnHook = readFileSync(join(root, "src/table/hooks/useTurnCountdown.ts"), "utf8");
+    const tableView = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
+    assert.match(turnCountdown, /resolveTurnCountdownActiveActorId/);
+    assert.match(turnCountdown, /resolveAntePresentationActorId/);
+    assert.match(turnCountdown, /TURN_COUNTDOWN_MS/);
+    assert.match(turnHook, /buildTurnCountdownState/);
+    assert.match(tableView, /useTurnCountdown/);
+    assert.doesNotMatch(tableView, /useAnteSeatCountdown/);
+    assert.doesNotMatch(tableView, /avatarTurnCountdown/);
+    assert.doesNotMatch(turnCountdown, /buildDurationCountdownState/);
+    try {
+      readFileSync(join(root, "src/table/hooks/useAnteSeatCountdown.ts"), "utf8");
+      assert.fail("useAnteSeatCountdown should be removed");
+    } catch {
+      /* removed */
+    }
     assert.match(motion, /registerAntePresentationTimeline/);
     assert.match(motion, /buildAntePresentationSchedule/);
-    assert.match(busy, /readAntePresentationTimelineSec/);
-    assert.match(hook, /presentationKey:/);
   });
 
   it("does not restart ante timeline on participantIds dependency churn", () => {

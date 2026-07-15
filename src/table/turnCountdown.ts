@@ -3,6 +3,12 @@ import {
   HAND_FLOW_PHASE,
   type HandFlowSessionView,
 } from "../session/handPhaseMachine";
+import { buildAnteCoinDelayPlan } from "../session/botActionTiming";
+import {
+  buildAntePresentationSchedule,
+  resolveAnteThinkAtTimelineSec,
+} from "./antePresentationSchedule";
+import { readAntePresentationTimelineSec } from "./presentationMotionBusy";
 import type { TableSessionData } from "./types";
 
 /** Total visible turn timer duration (client presentation). */
@@ -22,6 +28,14 @@ export interface TurnCountdownState {
   segment: TurnCountdownSegment;
 }
 
+export interface AnteTurnCountdownContext {
+  anteAnimActive: boolean;
+  presentationKey: string;
+  handNumber: number;
+  playerIds: string[];
+  reducedMotion: boolean;
+}
+
 export interface TurnCountdownInput {
   session: Pick<
     TableSessionData,
@@ -36,6 +50,8 @@ export interface TurnCountdownInput {
   >;
   suppressTurn: boolean;
   handComplete: boolean;
+  /** When ante presentation is active, ring ownership follows the posting seat. */
+  ante?: AnteTurnCountdownContext | null;
 }
 
 const ACTIONABLE_FLOW_PHASES = new Set<string>([
@@ -57,6 +73,9 @@ export function turnCountdownActivityKey(input: TurnCountdownInput & { activeAct
   const enrollmentKey = enrollment?.active
     ? `${enrollment.currentIndex ?? 0}:${enrollment.turnDeadlineMs ?? 0}`
     : "off";
+  const anteKey = input.ante?.anteAnimActive
+    ? `ante:${input.ante.presentationKey}`
+    : "off";
   return [
     input.session.phase ?? "",
     input.activeActorId ?? "",
@@ -64,6 +83,7 @@ export function turnCountdownActivityKey(input: TurnCountdownInput & { activeAct
     input.session.drawCompletedIds?.join(",") ?? "",
     input.suppressTurn ? "1" : "0",
     input.handComplete ? "1" : "0",
+    anteKey,
   ].join("|");
 }
 
@@ -100,6 +120,29 @@ export function resolveTableActiveActorId(input: TurnCountdownInput): string | n
   return snapshot.turnPlayerId;
 }
 
+/** Which seat is posting ante now — driven by GSAP timeline position, not ring duration. */
+export function resolveAntePresentationActorId(ante: AnteTurnCountdownContext): string | null {
+  if (!ante.anteAnimActive || ante.playerIds.length < 1) return null;
+  const elapsedSec = readAntePresentationTimelineSec(ante.presentationKey);
+  if (elapsedSec == null) return null;
+  const plan = buildAnteCoinDelayPlan({
+    handNumber: ante.handNumber,
+    playerIds: ante.playerIds,
+    reducedMotion: ante.reducedMotion,
+  });
+  const schedule = buildAntePresentationSchedule(plan, ante.reducedMotion);
+  return resolveAnteThinkAtTimelineSec(elapsedSec, schedule)?.playerId ?? null;
+}
+
+/** Single active actor for the avatar ring — ante posting seat or draw/play/enrollment turn. */
+export function resolveTurnCountdownActiveActorId(input: TurnCountdownInput): string | null {
+  if (input.handComplete) return null;
+  if (input.ante?.anteAnimActive) {
+    return resolveAntePresentationActorId(input.ante);
+  }
+  return resolveTableActiveActorId(input);
+}
+
 export function buildTurnCountdownState(
   playerId: string,
   startedAtMs: number,
@@ -114,35 +157,4 @@ export function buildTurnCountdownState(
     progress: remainingMs / TURN_COUNTDOWN_MS,
     segment: turnCountdownSegment(remainingMs),
   };
-}
-
-/** Variable-duration countdown ring (ante think, bot pacing windows). */
-export function buildDurationCountdownState(
-  playerId: string,
-  startedAtMs: number,
-  nowMs: number,
-  durationMs: number,
-): TurnCountdownState | null {
-  if (durationMs <= 0) return null;
-  const elapsed = Math.max(0, nowMs - startedAtMs);
-  const remainingMs = Math.max(0, durationMs - elapsed);
-  const progress = remainingMs / durationMs;
-  return {
-    playerId,
-    remainingMs,
-    progress,
-    segment: durationCountdownSegment(remainingMs, durationMs),
-  };
-}
-
-/** Color bands scaled to a short action window (ante / bot think). */
-export function durationCountdownSegment(
-  remainingMs: number,
-  totalMs: number,
-): TurnCountdownSegment {
-  if (totalMs <= 0) return "red";
-  const ratio = remainingMs / totalMs;
-  if (ratio > 2 / 3) return "green";
-  if (ratio > 1 / 3) return "yellow";
-  return "red";
 }

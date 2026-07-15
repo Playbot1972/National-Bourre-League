@@ -18,7 +18,6 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { useAnteSeatCountdown } from "./hooks/useAnteSeatCountdown";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -49,7 +48,9 @@ import {
 } from "./heroHandDisplay";
 import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
-import type { Suit } from "../types";
+import { activePlayerOrder } from "../game/playerOrder";
+import { seatRingPlayerIds } from "./layout/seatOrder";
+import { prefersReducedMotion } from "./trickTiming";
 import type { TableSessionViewProps } from "./types";
 
 /** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
@@ -408,23 +409,43 @@ export function TableSessionView({
     handComplete,
   });
 
+  const anteTurnPlayerIds = useMemo(() => {
+    const seatRing = seatRingPlayerIds(session.participantIds, session);
+    return activePlayerOrder(
+      session.dealerId,
+      session.participantIds,
+      seatRing.length ? seatRing : session.participantIds,
+    );
+  }, [session.dealerId, session.participantIds, session]);
+
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    ante: handPresentation.anteAnimActive
+      ? {
+          anteAnimActive: true,
+          presentationKey: `${session.sessionId}:${session.handNumber}:ante`,
+          handNumber: session.handNumber,
+          playerIds: anteTurnPlayerIds,
+          reducedMotion: prefersReducedMotion(),
+        }
+      : null,
   });
-
-  const anteSeatCountdown = useAnteSeatCountdown({
-    anteAnimActive: handPresentation.anteAnimActive,
-    session,
-  });
-
-  const avatarTurnCountdown = anteSeatCountdown ?? turnCountdown;
 
   useTurnTimerWarning({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    ante: handPresentation.anteAnimActive
+      ? {
+          anteAnimActive: true,
+          presentationKey: `${session.sessionId}:${session.handNumber}:ante`,
+          handNumber: session.handNumber,
+          playerIds: anteTurnPlayerIds,
+          reducedMotion: prefersReducedMotion(),
+        }
+      : null,
     currentUserId,
     localActionPending: actionFeedback?.status === "loading",
   });
@@ -553,7 +574,7 @@ export function TableSessionView({
     handPresentation,
     microinteractions,
     instantTrickPlays,
-    turnCountdown: avatarTurnCountdown,
+    turnCountdown,
     bigPotEvent,
     onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
