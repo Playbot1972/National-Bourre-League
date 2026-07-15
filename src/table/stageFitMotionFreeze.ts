@@ -4,6 +4,7 @@
  */
 
 import {
+  isAntePresentationActive,
   isDealPresentationActive,
   isTrickCollectionActive,
   subscribePresentationMotionBusy,
@@ -34,7 +35,9 @@ export function isHeroPlayMotionActive(): boolean {
 
 /** True while ResizeObserver / stage-fit math must not run. */
 export function isStageFitMeasurementFrozen(): boolean {
-  if (isDealPresentationActive() || isTrickCollectionActive()) return true;
+  if (isDealPresentationActive() || isAntePresentationActive() || isTrickCollectionActive()) {
+    return true;
+  }
   if (heroPlayMotionActive) return true;
   if (isTrickAnimationBusy()) return true;
   const bridge = getTrickAnimationBusyState();

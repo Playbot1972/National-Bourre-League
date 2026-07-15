@@ -19,6 +19,8 @@ export interface UseTableAntePresentationInput {
 /**
  * Drives the single ante coin GSAP path when hand presentation enters ante.
  * Deduped per session/hand; stagger uses bot-play timing (BOT_PLAY_STAGGER_MS).
+ * Participant order is captured once per hand — participantIds array identity is
+ * intentionally excluded from deps so snapshot churn cannot tear down the timeline.
  */
 export function useTableAntePresentation({
   anteAnimActive,
@@ -27,6 +29,8 @@ export function useTableAntePresentation({
 }: UseTableAntePresentationInput): void {
   const lastAnteKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(session.handNumber);
+  const anteAnimActiveRef = useRef(anteAnimActive);
+  anteAnimActiveRef.current = anteAnimActive;
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -68,6 +72,10 @@ export function useTableAntePresentation({
       runClockwiseAnteCoinPresentation({
         playerIds,
         root,
+        onComplete: () => {
+          root.classList.remove("btable-wrap--ante-coins");
+          setAntePresentationActive(false);
+        },
       });
     });
 
@@ -78,18 +86,14 @@ export function useTableAntePresentation({
     }, watchdogMs);
 
     return () => {
+      if (anteAnimActiveRef.current && lastAnteKeyRef.current === anteKey) {
+        return;
+      }
       window.cancelAnimationFrame(rafId);
       window.clearTimeout(watchdog);
       killAnteCoinPresentation();
       root.classList.remove("btable-wrap--ante-coins");
       setAntePresentationActive(false);
     };
-  }, [
-    anteAnimActive,
-    session.sessionId,
-    session.handNumber,
-    session.dealerId,
-    session.participantIds,
-    tableRootRef,
-  ]);
+  }, [anteAnimActive, session.sessionId, session.handNumber, tableRootRef]);
 }

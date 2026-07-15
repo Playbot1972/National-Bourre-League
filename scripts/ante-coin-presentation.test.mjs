@@ -15,6 +15,8 @@ describe("ante coin presentation wiring", () => {
   const pot = readFileSync(join(root, "src/table/PotCenter.tsx"), "utf8");
   const card = readFileSync(join(root, "src/table/CardTable.tsx"), "utf8");
   const timing = readFileSync(join(root, "src/table/trickTiming.ts"), "utf8");
+  const bridge = readFileSync(join(root, "src/table/trickAnimationBridge.ts"), "utf8");
+  const tableView = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
 
   it("reuses single GSAP ante path hooked from table views", () => {
     assert.match(hook, /runClockwiseAnteCoinPresentation/);
@@ -45,5 +47,26 @@ describe("ante coin presentation wiring", () => {
     assert.match(motion, /data-seat-motion-anchor/);
     assert.match(motion, /data-ante-pot-target/);
     assert.match(pot, /data-ante-pot-target/);
+  });
+
+  it("retries anchor measurement on the next animation frame before fallback", () => {
+    assert.match(motion, /shouldRetryAnteAnchors/);
+    assert.match(motion, /requestAnimationFrame/);
+    assert.match(motion, /spawnAnteCoinWithAnchorRetry/);
+  });
+
+  it("blocks bot advance while ante presentation is active", () => {
+    assert.match(bridge, /antePresentationActive/);
+    assert.match(bridge, /isAntePresentationActive/);
+    assert.match(bridge, /"antePresentationActive"/);
+    assert.match(tableView, /isAntePresentationActive/);
+    assert.match(tableView, /antePresentationActive:/);
+  });
+
+  it("does not restart ante timeline on participantIds dependency churn", () => {
+    assert.match(hook, /intentionally excluded from deps/);
+    assert.match(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, tableRootRef\]/);
+    assert.match(hook, /anteAnimActiveRef/);
+    assert.match(hook, /lastAnteKeyRef\.current === anteKey/);
   });
 });

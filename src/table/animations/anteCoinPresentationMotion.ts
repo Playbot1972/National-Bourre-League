@@ -43,6 +43,168 @@ export function readAnteSeatOrigin(playerId: string, root: ParentNode): MotionRe
   return readSeatPlayOrigin(playerId);
 }
 
+/** Max anchor reads per coin spawn (initial frame + one RAF retry). */
+export const ANTE_ANCHOR_READ_ATTEMPTS = 2;
+
+export function shouldRetryAnteAnchors(
+  origin: MotionRect | null,
+  pot: MotionRect | null,
+  attempt: number,
+): boolean {
+  return (!origin || !pot) && attempt < ANTE_ANCHOR_READ_ATTEMPTS - 1;
+}
+
+function landAnteCoinWithoutFlight(
+  playerId: string,
+  index: number,
+  onCoinLand?: (playerId: string, index: number) => void,
+): void {
+  try {
+    playAnteCoinLandSound();
+  } catch {
+    /* audio blocked */
+  }
+  onCoinLand?.(playerId, index);
+}
+
+function flyAnteCoinFromAnchors(
+  playerId: string,
+  index: number,
+  root: ParentNode,
+  origin: MotionRect,
+  pot: MotionRect,
+  reduced: boolean,
+  travelSec: number,
+  settleSec: number,
+  onCoinLand?: (playerId: string, index: number) => void,
+): void {
+  const ghost = createCoinGhost();
+  (root instanceof Document ? root.body : document.body).appendChild(ghost);
+  const ghostRect = rectFromElement(ghost);
+  const originCx = origin.left + origin.width / 2;
+  const originCy = origin.top + origin.height / 2;
+  const potCx = pot.left + pot.width / 2;
+  const potCy = pot.top + pot.height / 2;
+  const start = invertFromFirst(ghostRect, {
+    left: originCx - ghostRect.width / 2,
+    top: originCy - ghostRect.height / 2,
+    width: ghostRect.width,
+    height: ghostRect.height,
+  });
+  const dx = potCx - originCx;
+  const dy = potCy - originCy;
+  const { midX, midY } = arcMidpoint(dx, dy);
+
+  gsap.set(ghost, {
+    x: start.x,
+    y: start.y,
+    scale: reduced ? 1 : 0.72,
+    opacity: reduced ? 1 : 0.85,
+  });
+
+  const inner = gsap.timeline({
+    onComplete: () => {
+      ghost.remove();
+      onCoinLand?.(playerId, index);
+    },
+  });
+
+  if (reduced) {
+    inner.to(ghost, {
+      x: start.x + dx,
+      y: start.y + dy,
+      scale: 1,
+      opacity: 1,
+      duration: travelSec,
+      ease: PREMIUM_EASE,
+      onComplete: () => {
+        try {
+          playAnteCoinLandSound();
+        } catch {
+          /* audio blocked */
+        }
+      },
+    });
+  } else {
+    inner.add(
+      tweenAlongArc(ghost, {
+        path: [
+          { x: start.x, y: start.y },
+          { x: start.x + midX, y: start.y + midY },
+          { x: start.x + dx, y: start.y + dy },
+        ],
+        curviness: 1.15,
+        scale: 1,
+        opacity: 1,
+        duration: travelSec,
+        ease: PREMIUM_EASE,
+        onComplete: () => {
+          try {
+            playAnteCoinLandSound();
+          } catch {
+            /* audio blocked */
+          }
+        },
+      }),
+    );
+    inner.to(
+      ghost,
+      {
+        scale: 1.08,
+        duration: settleSec,
+        yoyo: true,
+        repeat: 1,
+        ease: PREMIUM_EASE_BOUNCE,
+      },
+      travelSec,
+    );
+  }
+}
+
+function spawnAnteCoinWithAnchorRetry(
+  playerId: string,
+  index: number,
+  root: ParentNode,
+  reduced: boolean,
+  travelSec: number,
+  settleSec: number,
+  onCoinLand?: (playerId: string, index: number) => void,
+  attempt = 0,
+): void {
+  const origin = readAnteSeatOrigin(playerId, root);
+  const pot = readAntePotTarget(root);
+  if (shouldRetryAnteAnchors(origin, pot, attempt)) {
+    requestAnimationFrame(() =>
+      spawnAnteCoinWithAnchorRetry(
+        playerId,
+        index,
+        root,
+        reduced,
+        travelSec,
+        settleSec,
+        onCoinLand,
+        attempt + 1,
+      ),
+    );
+    return;
+  }
+  if (!origin || !pot) {
+    landAnteCoinWithoutFlight(playerId, index, onCoinLand);
+    return;
+  }
+  flyAnteCoinFromAnchors(
+    playerId,
+    index,
+    root,
+    origin,
+    pot,
+    reduced,
+    travelSec,
+    settleSec,
+    onCoinLand,
+  );
+}
+
 function createCoinGhost(): HTMLElement {
   const el = document.createElement("span");
   el.className = "bpot__ante-chip bpot__ante-chip--fly";
@@ -89,7 +251,6 @@ export function runClockwiseAnteCoinPresentation({
   const staggerSec = anteCoinStaggerMs(reduced) / 1000;
   const travelSec = scaledDuration(anteCoinTravelMs(reduced) / 1000, reduced);
   const settleSec = scaledDuration(0.08, reduced);
-  const pot = readAntePotTarget(root);
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -114,98 +275,15 @@ export function runClockwiseAnteCoinPresentation({
     const position = index * staggerSec;
     tl.call(
       () => {
-        const origin = readAnteSeatOrigin(playerId, root);
-        if (!origin || !pot) {
-          try {
-            playAnteCoinLandSound();
-          } catch {
-            /* audio blocked */
-          }
-          onCoinLand?.(playerId, index);
-          return;
-        }
-
-        const ghost = createCoinGhost();
-        (root instanceof Document ? root.body : document.body).appendChild(ghost);
-        const ghostRect = rectFromElement(ghost);
-        const originCx = origin.left + origin.width / 2;
-        const originCy = origin.top + origin.height / 2;
-        const potCx = pot.left + pot.width / 2;
-        const potCy = pot.top + pot.height / 2;
-        const start = invertFromFirst(ghostRect, {
-          left: originCx - ghostRect.width / 2,
-          top: originCy - ghostRect.height / 2,
-          width: ghostRect.width,
-          height: ghostRect.height,
-        });
-        const dx = potCx - originCx;
-        const dy = potCy - originCy;
-        const { midX, midY } = arcMidpoint(dx, dy);
-
-        gsap.set(ghost, {
-          x: start.x,
-          y: start.y,
-          scale: reduced ? 1 : 0.72,
-          opacity: reduced ? 1 : 0.85,
-        });
-
-        const inner = gsap.timeline({
-          onComplete: () => {
-            ghost.remove();
-            onCoinLand?.(playerId, index);
-          },
-        });
-
-        if (reduced) {
-          inner.to(ghost, {
-            x: start.x + dx,
-            y: start.y + dy,
-            scale: 1,
-            opacity: 1,
-            duration: travelSec,
-            ease: PREMIUM_EASE,
-            onComplete: () => {
-              try {
-                playAnteCoinLandSound();
-              } catch {
-                /* audio blocked */
-              }
-            },
-          });
-        } else {
-          inner.add(
-            tweenAlongArc(ghost, {
-              path: [
-                { x: start.x, y: start.y },
-                { x: start.x + midX, y: start.y + midY },
-                { x: start.x + dx, y: start.y + dy },
-              ],
-              curviness: 1.15,
-              scale: 1,
-              opacity: 1,
-              duration: travelSec,
-              ease: PREMIUM_EASE,
-              onComplete: () => {
-                try {
-                  playAnteCoinLandSound();
-                } catch {
-                  /* audio blocked */
-                }
-              },
-            }),
-          );
-          inner.to(
-            ghost,
-            {
-              scale: 1.08,
-              duration: settleSec,
-              yoyo: true,
-              repeat: 1,
-              ease: PREMIUM_EASE_BOUNCE,
-            },
-            travelSec,
-          );
-        }
+        spawnAnteCoinWithAnchorRetry(
+          playerId,
+          index,
+          root,
+          reduced,
+          travelSec,
+          settleSec,
+          onCoinLand,
+        );
       },
       undefined,
       position,

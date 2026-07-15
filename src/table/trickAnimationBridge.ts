@@ -2,6 +2,7 @@
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
+  isAntePresentationActive,
   isDealPresentationActive,
   isTrickCollectionActive,
 } from "./presentationMotionBusy";
@@ -19,6 +20,8 @@ export interface TrickAnimationBusyState {
   handPresentationPhase: string;
   /** Clockwise deal GSAP sequence in flight. */
   dealPresentationActive: boolean;
+  /** Ante coin GSAP sequence in flight. */
+  antePresentationActive: boolean;
   /** Trick packet fly to won-tricks pile in flight. */
   trickCollectionActive: boolean;
 }
@@ -37,6 +40,7 @@ const IDLE: TrickAnimationBusyState = {
   handPresenting: false,
   handPresentationPhase: "idle",
   dealPresentationActive: false,
+  antePresentationActive: false,
   trickCollectionActive: false,
 };
 
@@ -60,6 +64,7 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
     a.handPresenting === b.handPresenting &&
     a.handPresentationPhase === b.handPresentationPhase &&
     a.dealPresentationActive === b.dealPresentationActive &&
+    a.antePresentationActive === b.antePresentationActive &&
     a.trickCollectionActive === b.trickCollectionActive
   );
 }
@@ -69,6 +74,7 @@ export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
 ): string | null {
   if (s.dealPresentationActive) return "dealPresentationActive";
+  if (s.antePresentationActive) return "antePresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
   if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
@@ -122,6 +128,7 @@ export function forceReleasePresentationForBots(source: string): void {
     peakPlayCount: state.displayedPlayCount,
     motionGateActive: false,
     dealPresentationActive: false,
+    antePresentationActive: false,
     trickCollectionActive: false,
   };
   botGateBypassUntil = Date.now() + 1_500;
@@ -258,6 +265,7 @@ export function syncPresentationMotionBusyFlags(): void {
   setTrickAnimationBusyState({
     ...state,
     dealPresentationActive: isDealPresentationActive(),
+    antePresentationActive: isAntePresentationActive(),
     trickCollectionActive: isTrickCollectionActive(),
   });
 }
