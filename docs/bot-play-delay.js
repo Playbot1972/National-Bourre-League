@@ -46,10 +46,10 @@ function f(e = {}) {
 	function s(e) {
 		n !== e && (n = e, r = null, i = 0, o.clear());
 	}
-	function c(e) {
+	function c(e, t) {
 		s(e.handNumber);
-		let t = a(e);
-		return r !== t && (r = t, i = e.nowMs), t;
+		let n = a(e);
+		return (r !== n || t?.force) && (r = n, i = e.nowMs), n;
 	}
 	function l(e, n) {
 		let r = d(e, n), i = o.get(r), a = null;
@@ -61,18 +61,20 @@ function f(e = {}) {
 	}
 	function f(e) {
 		s(e.handNumber);
-		let t = c({
+		let t = a(e);
+		r !== t && c({
 			handNumber: e.handNumber,
 			trickNumber: e.trickNumber,
 			turnPlayerId: e.turnPlayerId,
 			nowMs: e.nowMs
-		}), n = l(t, e.remainingHandCount), r = n.chosenDelayMs, a = e.nowMs - i;
+		});
+		let n = l(t, e.remainingHandCount), o = n.chosenDelayMs, u = e.nowMs - i;
 		return {
 			turnKey: t,
-			chosenDelayMs: r,
-			elapsedSinceTurnMs: a,
+			chosenDelayMs: o,
+			elapsedSinceTurnMs: u,
 			trickGapRemainingMs: 0,
-			delayMs: Math.max(0, r - a),
+			delayMs: Math.max(0, o - u),
 			remainingHandCount: n.remainingHandCount,
 			isLastCard: n.isLastCard
 		};
@@ -202,7 +204,12 @@ function C(e = {}) {
 				...e,
 				trigger: "superseded"
 			})
-		});
+		}), t.markTurnEligible({
+			handNumber: e.handNumber,
+			trickNumber: e.trickNumber,
+			turnPlayerId: e.turnPlayerId,
+			nowMs: s
+		}, { force: !0 });
 		let p = t.resolvePlayDelayMs({
 			handNumber: e.handNumber,
 			trickNumber: e.trickNumber,

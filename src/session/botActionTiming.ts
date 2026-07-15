@@ -118,12 +118,15 @@ export interface BotPlayDelayResolveResult extends BotPlayDelayPick {
 
 export interface BotPlayDelayState {
   syncHand(handNumber: number): void;
-  markTurnEligible(input: {
-    handNumber: number;
-    trickNumber?: number | null;
-    turnPlayerId?: string | null;
-    nowMs: number;
-  }): string;
+  markTurnEligible(
+    input: {
+      handNumber: number;
+      trickNumber?: number | null;
+      turnPlayerId?: string | null;
+      nowMs: number;
+    },
+    options?: { force?: boolean },
+  ): string;
   resolvePlayDelayMs(input: BotPlayDelayResolveInput): BotPlayDelayResolveResult;
   delayByTurnKey: Map<string, number>;
 }
@@ -143,15 +146,18 @@ export function createBotPlayDelayState(options: { rng?: () => number } = {}): B
     delayByTurnKey.clear();
   }
 
-  function markTurnEligible(input: {
-    handNumber: number;
-    trickNumber?: number | null;
-    turnPlayerId?: string | null;
-    nowMs: number;
-  }): string {
+  function markTurnEligible(
+    input: {
+      handNumber: number;
+      trickNumber?: number | null;
+      turnPlayerId?: string | null;
+      nowMs: number;
+    },
+    options?: { force?: boolean },
+  ): string {
     syncHand(input.handNumber);
     const key = botPlayTurnKey(input);
-    if (turnEligibleKey !== key) {
+    if (turnEligibleKey !== key || options?.force) {
       turnEligibleKey = key;
       turnEligibleAtMs = input.nowMs;
     }
@@ -179,12 +185,15 @@ export function createBotPlayDelayState(options: { rng?: () => number } = {}): B
 
   function resolvePlayDelayMs(input: BotPlayDelayResolveInput): BotPlayDelayResolveResult {
     syncHand(input.handNumber);
-    const key = markTurnEligible({
-      handNumber: input.handNumber,
-      trickNumber: input.trickNumber,
-      turnPlayerId: input.turnPlayerId,
-      nowMs: input.nowMs,
-    });
+    const key = botPlayTurnKey(input);
+    if (turnEligibleKey !== key) {
+      markTurnEligible({
+        handNumber: input.handNumber,
+        trickNumber: input.trickNumber,
+        turnPlayerId: input.turnPlayerId,
+        nowMs: input.nowMs,
+      });
+    }
     const picked = pickDelayForKey(key, input.remainingHandCount);
     const chosenDelayMs = picked.chosenDelayMs;
     const elapsedSinceTurnMs = input.nowMs - turnEligibleAtMs;
@@ -491,6 +500,15 @@ export function createBotThinkScheduleState(options: { rng?: () => number } = {}
       });
     }
 
+    playDelayState.markTurnEligible(
+      {
+        handNumber: ctx.handNumber,
+        trickNumber: ctx.trickNumber,
+        turnPlayerId: ctx.turnPlayerId,
+        nowMs,
+      },
+      { force: true },
+    );
     const plan = playDelayState.resolvePlayDelayMs({
       handNumber: ctx.handNumber,
       trickNumber: ctx.trickNumber,

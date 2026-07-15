@@ -116,31 +116,22 @@ export function classicAntePhaseDurationMs(
   return (count - 1) * stagger + travel + settle;
 }
 
-/** Readable default: fixed stagger between seats (matches pre–Ape S. GSAP). */
+/** Readable default: per-seat think before coin, then full travel/settle (classic gate). */
 export function buildClassicAnteCoinDelayPlan(
   handNumber: number,
   playerIds: string[],
   reducedMotion = false,
 ): AnteCoinDelayPlan {
   const scale = reducedMotion ? 0.35 : 1;
-  const staggerMs = Math.round(BOT_PLAY_STAGGER_MS * scale);
   const travelMs = Math.round(CLASSIC_ANTE_CHIP_TRAVEL_MS * scale);
   const settleMs = Math.round(80 * scale);
-  const thinkBeforeMs = playerIds.map((_, index) => (index === 0 ? 0 : staggerMs));
-  const totalThinkMs = thinkBeforeMs.reduce((sum, ms) => sum + ms, 0);
-  const totalDurationMs =
-    playerIds.length < 1
-      ? travelMs + settleMs
-      : classicAntePhaseDurationMs(playerIds.length, reducedMotion);
-  return {
+  return buildAnteCoinDelayPlan({
     handNumber,
-    playerIds: [...playerIds],
-    thinkBeforeMs,
-    totalThinkMs,
+    playerIds,
+    reducedMotion,
     travelMs,
     settleMs,
-    totalDurationMs,
-  };
+  });
 }
 
 export function resolveAnteCoinDelayPlan(

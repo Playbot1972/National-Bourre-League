@@ -3403,10 +3403,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     remainingHandCount: ctx.remainingHandCount ?? null,
   };
   if (shouldBlockRobotForPresentation(s, scores)) {
-    clientBotThinkSchedule.playDelayState.markTurnEligible({
-      ...playCtx,
-      nowMs: Date.now(),
-    });
     logBotOrchestrator("bot-turn-start", {
       ...ctx,
       turnPlayerId: turnId,
@@ -3426,10 +3422,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   }
 
   const expectedTurnKey = botPlayTurnKey(playCtx);
-  clientBotThinkSchedule.playDelayState.markTurnEligible({
-    ...playCtx,
-    nowMs: Date.now(),
-  });
   logBotOrchestrator("bot-turn-start", {
     ...ctx,
     turnPlayerId: turnId,

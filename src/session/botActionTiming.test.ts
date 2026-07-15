@@ -14,6 +14,7 @@ import {
   buildAnteCoinDelayPlan,
   clearAntePlanCacheForTests,
   createBotPlayDelayState,
+  createBotThinkScheduleState,
   isBotPlayThinkPhase,
   pickBotPlayDelayMs,
   resolveBotAdvanceDelayMs,
@@ -156,6 +157,24 @@ describe("botActionTiming", () => {
   it("worst-case ante think duration covers max think window", () => {
     const worst = antePresentationWorstCaseDurationMs(4, false);
     assert.ok(worst >= 4 * BOT_PLAY_DELAY_MAX_MS + 4 * 220);
+  });
+
+  it("arming play think resets eligibility so presentation wait does not shorten delay", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    schedule.playDelayState.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    const armed = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
+      nowMs: BOT_PLAY_DELAY_MIN_MS + 500,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(armed.action, "armed");
+    assert.equal(armed.delayMs, BOT_PLAY_DELAY_MIN_MS);
   });
 
   it("worst-case ante think-only duration excludes travel", () => {

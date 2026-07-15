@@ -106,22 +106,22 @@ describe("bot play delay", () => {
     assert.equal(laterRetry.delayMs, 50);
   });
 
-  it("presentation wait can consume the full think delay", () => {
-    const state = createBotPlayDelayState({ rng: () => 0 });
-    state.markTurnEligible({
+  it("arming think after a stale blocked wait restores the full visible ring window", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    schedule.playDelayState.markTurnEligible({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 0,
     });
-    const afterPresentation = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_1",
-      remainingHandCount: 3,
+    const armed = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
       nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
+      shouldFire: () => true,
+      onFire: () => {},
     });
-    assert.equal(afterPresentation.delayMs, 0);
+    assert.equal(armed.action, "armed");
+    assert.equal(armed.delayMs, BOT_PLAY_DELAY_MIN_MS);
   });
 
   it("play phase delay ignores trick interval floor", () => {

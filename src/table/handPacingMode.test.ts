@@ -54,10 +54,12 @@ describe("handPacingMode", () => {
 
   it("classic ante schedule uses full visual duration", () => {
     const playerIds = ["p1", "p2", "p3", "p4"];
+    const classicPlan = resolveAnteCoinDelayPlan(1, playerIds, false, "classic");
     const classic = antePresentationDurationMs(1, playerIds, false, "classic");
     const apePlan = resolveAnteCoinDelayPlan(1, playerIds, false, "apeSpeed");
     const ape = apePlan.totalThinkMs;
-    assert.equal(classic, 1_440);
+    assert.equal(classic, classicPlan.totalDurationMs);
+    assert.ok(classic > apePlan.totalThinkMs);
     assert.ok(ape >= 4 * 250);
     assert.ok(ape <= 4 * 700);
   });
@@ -70,9 +72,13 @@ describe("handPacingMode", () => {
     assert.ok(plan.totalDurationMs > plan.totalThinkMs);
   });
 
-  it("classic ante plan uses fixed stagger between seats", () => {
+  it("classic ante plan gives every seat a think window before coin fly-in", () => {
     const plan = buildClassicAnteCoinDelayPlan(1, ["a", "b", "c"], false);
-    assert.deepEqual(plan.thinkBeforeMs, [0, 380, 380]);
+    assert.equal(plan.thinkBeforeMs.length, 3);
+    for (const ms of plan.thinkBeforeMs) {
+      assert.ok(ms >= 250);
+      assert.ok(ms <= 700);
+    }
     assert.ok(plan.totalDurationMs > plan.totalThinkMs);
   });
 
@@ -85,7 +91,10 @@ describe("handPacingMode", () => {
     } as Parameters<typeof phaseScheduleMs>[0];
     const classic = phaseScheduleMs(store, false, "classic");
     const ape = phaseScheduleMs(store, false, "apeSpeed");
-    assert.equal(classic, 1_060);
+    const classicPlan = resolveAnteCoinDelayPlan(5, playerIds, false, "classic");
+    const apePlan = resolveAnteCoinDelayPlan(5, playerIds, false, "apeSpeed");
+    assert.equal(classic, classicPlan.totalDurationMs);
+    assert.equal(ape, apePlan.totalThinkMs);
     assert.ok(ape >= 3 * 250);
     assert.ok(ape <= 3 * 700);
   });

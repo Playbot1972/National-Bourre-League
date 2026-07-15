@@ -571,7 +571,7 @@ describe("handPresentationMachine", () => {
     const ape = phaseScheduleMs(store, false, "apeSpeed");
     assert.equal(classic, antePresentationDurationMs(2, playerIds, false, "classic"));
     assert.equal(ape, antePresentationDurationMs(2, playerIds, false, "apeSpeed"));
-    assert.equal(classic, 1_440);
+    assert.ok(classic > ape);
     assert.ok(ape >= 4 * 250);
     assert.ok(ape <= 4 * 700);
   });

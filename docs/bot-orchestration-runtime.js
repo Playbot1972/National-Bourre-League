@@ -118,10 +118,6 @@ export function createServerBotAdvanceRuntime(deps) {
     if (deps.shouldBlockForPresentation(session, scores)) {
       if (isBotPlayThinkPhase(handPhase)) {
         const ctx = playThinkContext(session, scores, handPhase);
-        thinkSchedule.playDelayState.markTurnEligible({
-          ...ctx,
-          nowMs: Date.now(),
-        });
         logPlayDelay("bot-turn-start", session, scores, {
           requester: actorId,
           owner: "server",
@@ -159,10 +155,6 @@ export function createServerBotAdvanceRuntime(deps) {
 
     if (isBotPlayThinkPhase(handPhase)) {
       const ctx = playThinkContext(session, scores, handPhase);
-      thinkSchedule.playDelayState.markTurnEligible({
-        ...ctx,
-        nowMs: Date.now(),
-      });
       const expectedTurnKey = botPlayTurnKey(ctx);
       logPlayDelay("bot-turn-start", session, scores, {
         requester: actorId,
