@@ -98,7 +98,7 @@ describe("ante coin presentation wiring", () => {
   it("does not restart ante timeline on participantIds dependency churn", () => {
     assert.match(hook, /buildAnteCoinDelayPlan/);
     assert.match(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, tableRootRef\]/);
-    assert.match(hook, /anteAnimActiveRef/);
     assert.match(hook, /lastAnteKeyRef\.current === anteKey/);
+    assert.doesNotMatch(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, session\.participantIds/);
   });
 });
