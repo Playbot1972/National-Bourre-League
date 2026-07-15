@@ -7,6 +7,9 @@ import {
   BOT_PLAY_DELAY_MIN_MS,
   antePresentationDurationMs,
   antePresentationWorstCaseDurationMs,
+  anteThinkDurationMs,
+  anteThinkWorstCaseDurationMs,
+  anteVisualPresentationDurationMs,
   botPlayTurnKey,
   buildAnteCoinDelayPlan,
   clearAntePlanCacheForTests,
@@ -77,11 +80,23 @@ describe("botActionTiming", () => {
     assert.equal(first.totalDurationMs, second.totalDurationMs);
   });
 
-  it("ante presentation duration exceeds fixed stagger for multi-seat hands", () => {
+  it("ante presentation duration is think-only (no travel/settle)", () => {
     const playerIds = ["a", "b", "c", "d"];
     const duration = antePresentationDurationMs(4, playerIds, false);
-    const oldFixedStagger = 3 * 380 + 220 + 80;
-    assert.ok(duration >= oldFixedStagger);
+    const plan = buildAnteCoinDelayPlan({ handNumber: 4, playerIds });
+    assert.equal(duration, plan.totalThinkMs);
+    assert.ok(plan.totalDurationMs > plan.totalThinkMs);
+    assert.ok(duration >= playerIds.length * BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(duration <= playerIds.length * BOT_PLAY_DELAY_MAX_MS);
+  });
+
+  it("ante think and visual durations split completion from GSAP", () => {
+    const playerIds = ["p1", "p2", "p3"];
+    const think = anteThinkDurationMs(5, playerIds, false);
+    const visual = anteVisualPresentationDurationMs(5, playerIds, false);
+    assert.ok(think >= playerIds.length * BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(think <= playerIds.length * BOT_PLAY_DELAY_MAX_MS);
+    assert.ok(visual > think);
   });
 
   it("ante resolve path uses resolvePlayDelayMs not debounce", () => {
@@ -138,8 +153,13 @@ describe("botActionTiming", () => {
     assert.doesNotMatch(source, /antePostTurnKey/);
   });
 
-  it("worst-case ante duration covers max think window", () => {
+  it("worst-case ante think duration covers max think window", () => {
     const worst = antePresentationWorstCaseDurationMs(4, false);
-    assert.ok(worst >= 4 * BOT_PLAY_DELAY_MAX_MS);
+    assert.ok(worst >= 4 * BOT_PLAY_DELAY_MAX_MS + 4 * 220);
+  });
+
+  it("worst-case ante think-only duration excludes travel", () => {
+    const thinkWorst = anteThinkWorstCaseDurationMs(4, false);
+    assert.equal(thinkWorst, 4 * BOT_PLAY_DELAY_MAX_MS);
   });
 });

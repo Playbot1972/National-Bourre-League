@@ -133,22 +133,36 @@ function g(e) {
 	};
 	return m.set(n, p), p;
 }
-function _(e, t = !1, n = 220) {
+function _(e, t = !1) {
+	return Math.max(1, e) * Math.round(700 * (t ? .35 : 1));
+}
+function v(e, t = !1, n = 220) {
 	let r = Math.max(1, e), i = t ? .35 : 1, a = Math.round(n * i), o = Math.round(80 * i);
 	return r * Math.round(700 * i) + r * a + o;
 }
-function v(e, t, n = !1, r = 220) {
-	return t.length < 1 ? _(1, n, r) : g({
+function y(e, t, n = !1, r = 220) {
+	return t.length < 1 ? _(1, n) : g({
+		handNumber: e,
+		playerIds: t,
+		reducedMotion: n,
+		travelMs: r
+	}).totalThinkMs;
+}
+function b(e, t, n = !1, r = 220) {
+	return t.length < 1 ? v(1, n, r) : g({
 		handNumber: e,
 		playerIds: t,
 		reducedMotion: n,
 		travelMs: r
 	}).totalDurationMs;
 }
-function y() {
+function x(e, t, n = !1, r = 220) {
+	return y(e, t, n, r);
+}
+function S() {
 	m.clear();
 }
-function b(e = {}) {
+function C(e = {}) {
 	let t = f(e), n = null, r = 0, i = null, o = null;
 	function s() {
 		n &&= (clearTimeout(n), null);
@@ -265,4 +279,4 @@ function b(e = {}) {
 	};
 }
 //#endregion
-export { i as BOT_ADVANCE_DEBOUNCE_MS, t as BOT_PLAY_DELAY_MAX_MS, e as BOT_PLAY_DELAY_MIN_MS, r as BOT_PLAY_LAST_CARD_MAX_MS, n as BOT_PLAY_LAST_CARD_MIN_MS, v as antePresentationDurationMs, _ as antePresentationWorstCaseDurationMs, a as botPlayTurnKey, s as botThinkContextForPhase, g as buildAnteCoinDelayPlan, y as clearAntePlanCacheForTests, f as createBotPlayDelayState, b as createBotThinkScheduleState, l as createSeededRng, o as isBotPlayThinkPhase, u as pickBotPlayDelayMs, c as randomIntInclusive, p as resolveBotAdvanceDelayMs };
+export { i as BOT_ADVANCE_DEBOUNCE_MS, t as BOT_PLAY_DELAY_MAX_MS, e as BOT_PLAY_DELAY_MIN_MS, r as BOT_PLAY_LAST_CARD_MAX_MS, n as BOT_PLAY_LAST_CARD_MIN_MS, x as antePresentationDurationMs, v as antePresentationWorstCaseDurationMs, y as anteThinkDurationMs, _ as anteThinkWorstCaseDurationMs, b as anteVisualPresentationDurationMs, a as botPlayTurnKey, s as botThinkContextForPhase, g as buildAnteCoinDelayPlan, S as clearAntePlanCacheForTests, f as createBotPlayDelayState, C as createBotThinkScheduleState, l as createSeededRng, o as isBotPlayThinkPhase, u as pickBotPlayDelayMs, c as randomIntInclusive, p as resolveBotAdvanceDelayMs };

@@ -4,24 +4,24 @@
  */
 
 import {
-  antePresentationDurationMs as botAntePresentationDurationMs,
-  antePresentationWorstCaseDurationMs,
+  anteThinkDurationMs as botAnteThinkDurationMs,
+  anteThinkWorstCaseDurationMs,
 } from "../session/botActionTiming";
 import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
 
-/** Total ante presentation for ordered seats — uses bot play think-time per seat. */
+/** Logical ante phase duration — shared bot think-time per seat only (no travel/settle). */
 export function antePresentationDurationMs(
   handNumber: number,
   playerIds: string[],
   reducedMotion = false,
 ): number {
   if (playerIds.length < 1) {
-    return antePresentationWorstCaseDurationMs(1, reducedMotion, ANTE_CHIP_TRAVEL_MS);
+    return anteThinkWorstCaseDurationMs(1, reducedMotion);
   }
-  return botAntePresentationDurationMs(handNumber, playerIds, reducedMotion, ANTE_CHIP_TRAVEL_MS);
+  return botAnteThinkDurationMs(handNumber, playerIds, reducedMotion, ANTE_CHIP_TRAVEL_MS);
 }
 
 /** Per-card deal stagger (90–140 ms). */
