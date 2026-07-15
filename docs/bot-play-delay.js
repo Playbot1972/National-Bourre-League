@@ -240,9 +240,14 @@ function y(e = {}) {
 			}
 		}, p.delayMs), {
 			action: "armed",
-			turnKey: f,
 			generation: m,
-			...p
+			turnKey: f,
+			chosenDelayMs: p.chosenDelayMs,
+			elapsedSinceTurnMs: p.elapsedSinceTurnMs,
+			trickGapRemainingMs: p.trickGapRemainingMs,
+			delayMs: p.delayMs,
+			remainingHandCount: p.remainingHandCount,
+			isLastCard: p.isLastCard
 		};
 	}
 	return {

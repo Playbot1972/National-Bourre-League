@@ -81,7 +81,7 @@ export interface BotPlayDelayResolveInput {
 }
 
 export interface BotPlayDelayResolveResult extends BotPlayDelayPick {
-  turnKey: string;
+  turnKey: string | null;
   elapsedSinceTurnMs: number;
   trickGapRemainingMs: number;
   delayMs: number;
@@ -373,7 +373,8 @@ export interface BotThinkScheduleState {
   playDelayState: BotPlayDelayState;
   armPlayThink: (
     input: BotThinkScheduleArmInput,
-  ) => { action: string; turnKey: string; generation: number } & BotPlayDelayResolveResult;
+  ) => { action: string; generation: number; turnKey: string } & BotPlayDelayPick &
+    Pick<BotPlayDelayResolveResult, "elapsedSinceTurnMs" | "trickGapRemainingMs" | "delayMs" | "chosenDelayMs">;
   cancelPending: (input?: { reason?: string; onCanceled?: (extra: Record<string, unknown>) => void }) => boolean;
   readonly pendingTurnKey: string | null;
   readonly generation: number;
@@ -419,7 +420,8 @@ export function createBotThinkScheduleState(options: { rng?: () => number } = {}
     shouldFire,
     onFire,
     log,
-  }: BotThinkScheduleArmInput): { action: string; turnKey: string; generation: number } & BotPlayDelayResolveResult {
+  }: BotThinkScheduleArmInput): { action: string; generation: number; turnKey: string } & BotPlayDelayPick &
+    Pick<BotPlayDelayResolveResult, "elapsedSinceTurnMs" | "trickGapRemainingMs" | "delayMs" | "chosenDelayMs"> {
     const turnKey = botPlayTurnKey(ctx);
     if (scheduledTimer && pendingTurnKey === turnKey) {
       log?.coalesced?.({
@@ -511,7 +513,17 @@ export function createBotThinkScheduleState(options: { rng?: () => number } = {}
       onFire({ turnKey, generation, plan });
     }, plan.delayMs);
 
-    return { action: "armed", turnKey, generation, ...plan };
+    return {
+      action: "armed",
+      generation,
+      turnKey,
+      chosenDelayMs: plan.chosenDelayMs,
+      elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
+      trickGapRemainingMs: plan.trickGapRemainingMs,
+      delayMs: plan.delayMs,
+      remainingHandCount: plan.remainingHandCount,
+      isLastCard: plan.isLastCard,
+    };
   }
 
   return {
