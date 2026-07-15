@@ -33,12 +33,12 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
 
   // Trick-win audio/haptics: animation-synced via useCardAudio at winnerReveal (not server snapshot).
 
-  if (next.handComplete && !prev.handComplete && next.myIsWinner) {
-    api.playBigWinFeedback?.();
-  }
-
-  if (next.handComplete && !prev.handComplete && next.botWonHand) {
-    api.playBotHandWinFeedback?.();
+  if (next.handComplete && !prev.handComplete) {
+    if (next.myIsWinner) {
+      api.playBigWinFeedback?.();
+    } else if (next.nonLocalHandWin) {
+      api.playBotHandWinFeedback?.();
+    }
   }
 
   if (myUid && next.myBourre && !prev.myBourre) {

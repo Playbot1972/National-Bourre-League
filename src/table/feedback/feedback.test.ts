@@ -120,7 +120,7 @@ describe("sound pack registry", () => {
     assert.ok(existsSync(file), `missing ${file}`);
   });
 
-  it("botHandWin maps to moneygone.mp3", () => {
+  it("botHandWin maps to moneygone.mp3 for non-local hand wins", () => {
     assert.equal(SOUND_EVENT_TO_ASSET.botHandWin, "moneygone");
     assert.equal(resolveSoundAsset("classic", "botHandWin"), "moneygone");
     assert.equal(soundAssetUrl("classic", "moneygone"), "/sounds/moneygone.mp3");

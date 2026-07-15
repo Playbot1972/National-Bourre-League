@@ -63,7 +63,7 @@ describe("table UI layer modules", () => {
     const calls = [];
     const api = {
       playBigWinFeedback: () => calls.push("big"),
-      playBotHandWinFeedback: () => calls.push("bot"),
+      playBotHandWinFeedback: () => calls.push("other"),
     };
     const prev = {
       sessionId: "s1",
@@ -73,7 +73,7 @@ describe("table UI layer modules", () => {
       myTricks: 3,
       handComplete: false,
       myIsWinner: false,
-      botWonHand: false,
+      nonLocalHandWin: false,
       myBourre: false,
       heroCardKeys: "",
     };
@@ -82,11 +82,11 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, ["big"]);
   });
 
-  it("applyTableFeedbackDiff fires bot hand win when sole robot wins", () => {
+  it("applyTableFeedbackDiff fires moneygone when sole robot wins", () => {
     const calls = [];
     const api = {
       playBigWinFeedback: () => calls.push("big"),
-      playBotHandWinFeedback: () => calls.push("bot"),
+      playBotHandWinFeedback: () => calls.push("other"),
     };
     const prev = {
       sessionId: "s1",
@@ -96,20 +96,43 @@ describe("table UI layer modules", () => {
       myTricks: 1,
       handComplete: false,
       myIsWinner: false,
-      botWonHand: false,
+      nonLocalHandWin: false,
       myBourre: false,
       heroCardKeys: "",
     };
-    const next = { ...prev, handComplete: true, botWonHand: true };
+    const next = { ...prev, handComplete: true, nonLocalHandWin: true };
     applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
-    assert.deepEqual(calls, ["bot"]);
+    assert.deepEqual(calls, ["other"]);
   });
 
-  it("applyTableFeedbackDiff does not fire bot hand win for human winner", () => {
+  it("applyTableFeedbackDiff fires moneygone when another human wins", () => {
     const calls = [];
     const api = {
       playBigWinFeedback: () => calls.push("big"),
-      playBotHandWinFeedback: () => calls.push("bot"),
+      playBotHandWinFeedback: () => calls.push("other"),
+    };
+    const prev = {
+      sessionId: "s1",
+      phase: "play",
+      trumpKey: "7-spades",
+      drawCompletedIds: [],
+      myTricks: 1,
+      handComplete: false,
+      myIsWinner: false,
+      nonLocalHandWin: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = { ...prev, handComplete: true, nonLocalHandWin: true };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["other"]);
+  });
+
+  it("applyTableFeedbackDiff does not fire both win sounds on local win", () => {
+    const calls = [];
+    const api = {
+      playBigWinFeedback: () => calls.push("big"),
+      playBotHandWinFeedback: () => calls.push("other"),
     };
     const prev = {
       sessionId: "s1",
@@ -119,11 +142,11 @@ describe("table UI layer modules", () => {
       myTricks: 3,
       handComplete: false,
       myIsWinner: false,
-      botWonHand: false,
+      nonLocalHandWin: false,
       myBourre: false,
       heroCardKeys: "",
     };
-    const next = { ...prev, handComplete: true, myIsWinner: true, botWonHand: false };
+    const next = { ...prev, handComplete: true, myIsWinner: true, nonLocalHandWin: false };
     applyTableFeedbackDiff(prev, next, { api, myUid: "human", pendingDrawShuffle: false });
     assert.deepEqual(calls, ["big"]);
   });
