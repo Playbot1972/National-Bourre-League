@@ -29,8 +29,10 @@ describe("ante coin presentation wiring", () => {
     assert.match(hook, /buildAnteCoinDelayPlan/);
     const botTiming = readFileSync(join(root, "src/session/botActionTiming.ts"), "utf8");
     assert.match(botTiming, /buildAnteCoinDelayPlan/);
-    assert.match(botTiming, /resolveAntePostDelayMs/);
-    assert.match(botTiming, /pickBotPlayDelayMs/);
+    assert.match(botTiming, /resolvePlayDelayMs/);
+    assert.match(botTiming, /isBotPlayThinkPhase/);
+    assert.doesNotMatch(botTiming, /resolveAntePostDelayMs/);
+    assert.doesNotMatch(botTiming, /antePostTurnKey/);
     assert.doesNotMatch(motion, /anteCoinStaggerMs/);
   });
 

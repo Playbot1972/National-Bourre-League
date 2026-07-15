@@ -25,8 +25,37 @@ export function botPlayTurnKey({
   return `${handNumber ?? 0}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
 }
 
-export function antePostTurnKey(handNumber: number, playerId: string): string {
-  return `ante:${handNumber}:${playerId}`;
+/** Play, ante presentation, and reveal (pre-draw) share the same think scheduler. */
+export function isBotPlayThinkPhase(handPhase: BotHandPhase): boolean {
+  return handPhase === "play" || handPhase === "ante" || handPhase === "reveal";
+}
+
+/** Normalize ctx for resolvePlayDelayMs — ante/reveal use trick 0 before cards are played. */
+export function botThinkContextForPhase(
+  handPhase: BotHandPhase,
+  ctx: {
+    handNumber: number;
+    trickNumber?: number | null;
+    turnPlayerId?: string | null;
+    remainingHandCount?: number | null;
+  },
+): BotPlayDelayResolveInput {
+  if (handPhase === "play") {
+    return {
+      handNumber: ctx.handNumber,
+      trickNumber: ctx.trickNumber,
+      turnPlayerId: ctx.turnPlayerId,
+      remainingHandCount: ctx.remainingHandCount,
+      nowMs: 0,
+    };
+  }
+  return {
+    handNumber: ctx.handNumber,
+    trickNumber: 0,
+    turnPlayerId: ctx.turnPlayerId,
+    remainingHandCount: ctx.remainingHandCount ?? 5,
+    nowMs: 0,
+  };
 }
 
 export function randomIntInclusive(min: number, max: number, rng: () => number = Math.random): number {
@@ -96,7 +125,6 @@ export interface BotPlayDelayState {
     nowMs: number;
   }): string;
   resolvePlayDelayMs(input: BotPlayDelayResolveInput): BotPlayDelayResolveResult;
-  resolveAntePostDelayMs(handNumber: number, playerId: string): number;
   delayByTurnKey: Map<string, number>;
 }
 
@@ -172,23 +200,10 @@ export function createBotPlayDelayState(options: { rng?: () => number } = {}): B
     };
   }
 
-  function resolveAntePostDelayMs(handNumber: number, playerId: string): number {
-    syncHand(handNumber);
-    const turnKey = antePostTurnKey(handNumber, playerId);
-    const cacheKey = delayCacheKey(turnKey, 5);
-    let chosen = delayByTurnKey.get(cacheKey);
-    if (chosen == null) {
-      chosen = pickBotPlayDelayMs(5, rng).chosenDelayMs;
-      delayByTurnKey.set(cacheKey, chosen);
-    }
-    return chosen;
-  }
-
   return {
     syncHand,
     markTurnEligible,
     resolvePlayDelayMs,
-    resolveAntePostDelayMs,
     delayByTurnKey,
   };
 }
@@ -209,36 +224,16 @@ export interface BotAdvanceDelayResult extends BotPlayDelayResolveResult {
   handPhase: BotHandPhase;
 }
 
-/** Play and ante use random think-time; draw/pass/enrollment use short debounce. */
+/** Play, ante, and reveal use random think-time; draw/pass/enrollment use short debounce. */
 export function resolveBotAdvanceDelayMs(input: BotAdvanceDelayInput): BotAdvanceDelayResult {
-  if (input.handPhase === "play") {
+  if (isBotPlayThinkPhase(input.handPhase)) {
+    const base = botThinkContextForPhase(input.handPhase, input.ctx);
     return {
       ...input.playDelayState.resolvePlayDelayMs({
-        handNumber: input.ctx.handNumber,
-        trickNumber: input.ctx.trickNumber,
-        turnPlayerId: input.ctx.turnPlayerId,
-        remainingHandCount: input.ctx.remainingHandCount,
+        ...base,
         nowMs: input.nowMs,
       }),
-      handPhase: "play",
-    };
-  }
-
-  if (input.handPhase === "ante") {
-    const turnKey = antePostTurnKey(input.ctx.handNumber, input.ctx.turnPlayerId ?? "");
-    const chosenDelayMs = input.playDelayState.resolveAntePostDelayMs(
-      input.ctx.handNumber,
-      input.ctx.turnPlayerId ?? "",
-    );
-    return {
-      handPhase: "ante",
-      turnKey,
-      chosenDelayMs,
-      elapsedSinceTurnMs: 0,
-      trickGapRemainingMs: 0,
-      delayMs: chosenDelayMs,
-      remainingHandCount: 5,
-      isLastCard: false,
+      handPhase: input.handPhase ?? null,
     };
   }
 
@@ -293,7 +288,13 @@ export function buildAnteCoinDelayPlan(input: BuildAnteCoinDelayPlanInput): Ante
   const playDelayState = createBotPlayDelayState({ rng });
 
   const thinkBeforeMs = input.playerIds.map((playerId) => {
-    const chosenDelayMs = playDelayState.resolveAntePostDelayMs(input.handNumber, playerId);
+    const chosenDelayMs = playDelayState.resolvePlayDelayMs({
+      handNumber: input.handNumber,
+      trickNumber: 0,
+      turnPlayerId: playerId,
+      remainingHandCount: 5,
+      nowMs: 0,
+    }).chosenDelayMs;
     return Math.round(chosenDelayMs * scale);
   });
 

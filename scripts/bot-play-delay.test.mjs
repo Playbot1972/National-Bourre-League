@@ -11,6 +11,8 @@ import {
   pickBotPlayDelayMs,
   resolveBotAdvanceDelayMs,
 } from "../docs/bot-play-delay.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 describe("bot play delay", () => {
   it("botPlayTurnKey is stable per hand/trick/turn", () => {
@@ -166,7 +168,7 @@ describe("bot play delay", () => {
     assert.equal(draw.delayMs, 150);
   });
 
-  it("ante phase uses play-style random think delay", () => {
+  it("ante phase uses play-style random think delay via resolvePlayDelayMs", () => {
     const state = createBotPlayDelayState({ rng: () => 0.5 });
     const ante = resolveBotAdvanceDelayMs({
       handPhase: "ante",
@@ -175,8 +177,24 @@ describe("bot play delay", () => {
       nowMs: 0,
     });
     assert.equal(ante.handPhase, "ante");
+    assert.equal(ante.turnKey, botPlayTurnKey({ handNumber: 1, trickNumber: 0, turnPlayerId: "bot_1" }));
     assert.ok(ante.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
     assert.ok(ante.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
+  });
+
+  it("reveal phase uses play think not debounce", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    const reveal = resolveBotAdvanceDelayMs({
+      handPhase: "reveal",
+      playDelayState: state,
+      ctx: { handNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+    });
+    assert.equal(reveal.delayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.doesNotMatch(
+      readFileSync(new URL("../src/session/botActionTiming.ts", import.meta.url), "utf8"),
+      /resolveAntePostDelayMs/,
+    );
   });
 });
 

@@ -8,7 +8,9 @@ import { logBotOrchestrator } from "./bot-orchestrator.js";
 import {
   BOT_ADVANCE_DEBOUNCE_MS,
   botPlayTurnKey,
+  botThinkContextForPhase,
   createBotThinkScheduleState,
+  isBotPlayThinkPhase,
   resolveBotAdvanceDelayMs,
 } from "./bot-play-delay.js";
 
@@ -78,6 +80,18 @@ export function createServerBotAdvanceRuntime(deps) {
     return botPlayTurnKey(playDelayContext(session, scores)) === expectedTurnKey;
   }
 
+  function playThinkContext(session, scores, handPhase) {
+    const ctx = playDelayContext(session, scores);
+    if (handPhase === "play") return ctx;
+    const normalized = botThinkContextForPhase(handPhase, ctx);
+    return {
+      handNumber: normalized.handNumber,
+      trickNumber: normalized.trickNumber ?? null,
+      turnPlayerId: normalized.turnPlayerId ?? null,
+      remainingHandCount: normalized.remainingHandCount ?? null,
+    };
+  }
+
   function schedule(session, scores, actorId, { reason = "snapshot" } = {}) {
     if (!deps.shouldRequestAdvance()) {
       logBotOrchestrator("skip-request", {
@@ -102,8 +116,8 @@ export function createServerBotAdvanceRuntime(deps) {
     const handPhase = deps.getHandPhase?.(session) ?? null;
 
     if (deps.shouldBlockForPresentation(session, scores)) {
-      if (handPhase === "play") {
-        const ctx = playDelayContext(session, scores);
+      if (isBotPlayThinkPhase(handPhase)) {
+        const ctx = playThinkContext(session, scores, handPhase);
         thinkSchedule.playDelayState.markTurnEligible({
           ...ctx,
           nowMs: Date.now(),
@@ -114,6 +128,7 @@ export function createServerBotAdvanceRuntime(deps) {
           trigger: reason,
           action: "waiting_presentation",
           turnPlayerId: ctx.turnPlayerId,
+          handPhase,
         });
       } else {
         cancelPlayThink(session, scores, "presentation_blocked");
@@ -142,8 +157,8 @@ export function createServerBotAdvanceRuntime(deps) {
       return;
     }
 
-    if (handPhase === "play") {
-      const ctx = playDelayContext(session, scores);
+    if (isBotPlayThinkPhase(handPhase)) {
+      const ctx = playThinkContext(session, scores, handPhase);
       thinkSchedule.playDelayState.markTurnEligible({
         ...ctx,
         nowMs: Date.now(),
