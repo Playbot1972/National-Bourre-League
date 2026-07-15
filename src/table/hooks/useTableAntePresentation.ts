@@ -2,7 +2,10 @@ import { useLayoutEffect, useRef } from "react";
 import { activePlayerOrder } from "../../game/playerOrder";
 import { buildAnteCoinDelayPlan } from "../../session/botActionTiming";
 import {
-  antePresentationDurationMs,
+  anteThinkDurationMs,
+  anteVisualPresentationDurationMs,
+} from "../../session/botActionTiming";
+import {
   killAnteCoinPresentation,
   runClockwiseAnteCoinPresentation,
 } from "../animations/anteCoinPresentationMotion";
@@ -29,8 +32,6 @@ export function useTableAntePresentation({
 }: UseTableAntePresentationInput): void {
   const lastAnteKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(session.handNumber);
-  const anteAnimActiveRef = useRef(anteAnimActive);
-  anteAnimActiveRef.current = anteAnimActive;
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -91,7 +92,12 @@ export function useTableAntePresentation({
     root.classList.add("btable-wrap--ante-coins");
     setAntePresentationActive(true);
 
-    const watchdogMs = antePresentationDurationMs(session.handNumber, playerIds, reduced) + 200;
+    const thinkMs = anteThinkDurationMs(session.handNumber, playerIds, reduced);
+    const visualWatchdogMs =
+      anteVisualPresentationDurationMs(session.handNumber, playerIds, reduced) + 200;
+
+    const releaseBotGate = () => setAntePresentationActive(false);
+    const thinkReleaseTimer = window.setTimeout(releaseBotGate, thinkMs);
 
     const rafId = window.requestAnimationFrame(() => {
       runClockwiseAnteCoinPresentation({
@@ -102,26 +108,21 @@ export function useTableAntePresentation({
         root,
         onComplete: () => {
           root.classList.remove("btable-wrap--ante-coins");
-          setAntePresentationActive(false);
         },
       });
     });
 
-    const watchdog = window.setTimeout(() => {
+    const visualWatchdog = window.setTimeout(() => {
       killAnteCoinPresentation();
       root.classList.remove("btable-wrap--ante-coins");
-      setAntePresentationActive(false);
-    }, watchdogMs);
+      releaseBotGate();
+    }, visualWatchdogMs);
 
     return () => {
-      if (anteAnimActiveRef.current && lastAnteKeyRef.current === anteKey) {
-        return;
-      }
       window.cancelAnimationFrame(rafId);
-      window.clearTimeout(watchdog);
-      killAnteCoinPresentation();
-      root.classList.remove("btable-wrap--ante-coins");
-      setAntePresentationActive(false);
+      window.clearTimeout(thinkReleaseTimer);
+      window.clearTimeout(visualWatchdog);
+      releaseBotGate();
     };
   }, [anteAnimActive, session.sessionId, session.handNumber, tableRootRef]);
 }

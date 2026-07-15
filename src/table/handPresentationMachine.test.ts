@@ -572,7 +572,8 @@ describe("handPresentationMachine", () => {
     );
     const expected = antePresentationDurationMs(2, playerIds, false);
     assert.equal(schedule, expected);
-    assert.ok(schedule > 4 * 200);
+    assert.ok(schedule <= 4 * 700);
+    assert.ok(schedule >= 4 * 250);
   });
 
   it("exposes configurable timing defaults", () => {

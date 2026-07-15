@@ -315,6 +315,17 @@ export function buildAnteCoinDelayPlan(input: BuildAnteCoinDelayPlanInput): Ante
   return plan;
 }
 
+/** Worst-case sum of per-seat think delays only (matches bot play pacing). */
+export function anteThinkWorstCaseDurationMs(
+  participantCount: number,
+  reducedMotion = false,
+): number {
+  const count = Math.max(1, participantCount);
+  const scale = reducedMotion ? 0.35 : 1;
+  return count * Math.round(BOT_PLAY_DELAY_MAX_MS * scale);
+}
+
+/** Worst-case full GSAP timeline (think + travel + settle) — visual watchdog only. */
 export function antePresentationWorstCaseDurationMs(
   participantCount: number,
   reducedMotion = false,
@@ -328,7 +339,26 @@ export function antePresentationWorstCaseDurationMs(
   return maxThink + count * travel + settle;
 }
 
-export function antePresentationDurationMs(
+/** Logical ante completion — sum of shared think delays per seat (gates phase + bots). */
+export function anteThinkDurationMs(
+  handNumber: number,
+  playerIds: string[],
+  reducedMotion = false,
+  travelMs = 220,
+): number {
+  if (playerIds.length < 1) {
+    return anteThinkWorstCaseDurationMs(1, reducedMotion);
+  }
+  return buildAnteCoinDelayPlan({
+    handNumber,
+    playerIds,
+    reducedMotion,
+    travelMs,
+  }).totalThinkMs;
+}
+
+/** Full GSAP coin flight duration — async visual only, does not gate completion. */
+export function anteVisualPresentationDurationMs(
   handNumber: number,
   playerIds: string[],
   reducedMotion = false,
@@ -343,6 +373,16 @@ export function antePresentationDurationMs(
     reducedMotion,
     travelMs,
   }).totalDurationMs;
+}
+
+/** Logical ante completion — sum of shared think delays per seat (gates phase + bots). */
+export function antePresentationDurationMs(
+  handNumber: number,
+  playerIds: string[],
+  reducedMotion = false,
+  travelMs = 220,
+): number {
+  return anteThinkDurationMs(handNumber, playerIds, reducedMotion, travelMs);
 }
 
 /** @internal test helper */

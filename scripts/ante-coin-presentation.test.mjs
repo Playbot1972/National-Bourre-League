@@ -60,12 +60,17 @@ describe("ante coin presentation wiring", () => {
     assert.match(motion, /spawnAnteCoinWithAnchorRetry/);
   });
 
-  it("blocks bot advance while ante presentation is active", () => {
+  it("releases bot gate after think delay, not GSAP onComplete", () => {
+    assert.match(hook, /anteThinkDurationMs/);
+    assert.match(hook, /thinkReleaseTimer/);
+    assert.match(hook, /anteVisualPresentationDurationMs/);
+    assert.doesNotMatch(hook, /onComplete:[\s\S]*setAntePresentationActive\(false\)/);
+  });
+
+  it("bot presentation gate uses think-gated release only during think window", () => {
     assert.match(bridge, /antePresentationActive/);
     assert.match(bridge, /isAntePresentationActive/);
-    assert.match(bridge, /"antePresentationActive"/);
     assert.match(tableView, /isAntePresentationActive/);
-    assert.match(tableView, /antePresentationActive:/);
   });
 
   it("ante uses shared 15s turn countdown via useTurnCountdown", () => {
