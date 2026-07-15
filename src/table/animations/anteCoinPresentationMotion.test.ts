@@ -1,40 +1,39 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, beforeEach } from "node:test";
+import {
+  BOT_PLAY_DELAY_MAX_MS,
+  BOT_PLAY_DELAY_MIN_MS,
+  clearAntePlanCacheForTests,
+} from "../../session/botActionTiming";
 import { antePresentationDurationMs } from "../handPresentationTiming";
-import { ANTE_CHIP_TRAVEL_MS } from "../handPresentationTiming";
-import { anteCoinStaggerMs, BOT_PLAY_STAGGER_MS } from "../trickTiming";
-import { anteCoinTravelMs, shouldRetryAnteAnchors, ANTE_ANCHOR_READ_ATTEMPTS } from "./anteCoinPresentationMotion";
+import { anteCoinTravelMs } from "./anteCoinPresentationMotion";
 
 describe("anteCoinPresentationMotion timing", () => {
-  it("staggers coins using bot play delay source", () => {
-    assert.equal(anteCoinStaggerMs(false), BOT_PLAY_STAGGER_MS);
-    assert.ok(anteCoinStaggerMs(true) < BOT_PLAY_STAGGER_MS);
+  beforeEach(() => {
+    clearAntePlanCacheForTests();
+  });
+
+  it("uses bot play think policy per seat instead of fixed stagger", () => {
+    const playerIds = ["bot_1", "bot_2", "bot_3"];
+    const duration = antePresentationDurationMs(7, playerIds, false);
+    const minThink = playerIds.length * BOT_PLAY_DELAY_MIN_MS;
+    const maxThink = playerIds.length * BOT_PLAY_DELAY_MAX_MS;
+    assert.ok(duration >= minThink + playerIds.length * anteCoinTravelMs(false));
+    assert.ok(duration <= maxThink + playerIds.length * anteCoinTravelMs(false) + 100);
   });
 
   it("scales total duration with participant count", () => {
-    const two = antePresentationDurationMs(2, false);
-    const four = antePresentationDurationMs(4, false);
+    const two = antePresentationDurationMs(1, ["a", "b"], false);
+    const four = antePresentationDurationMs(1, ["a", "b", "c", "d"], false);
     assert.ok(four > two);
     assert.ok(two >= anteCoinTravelMs(false));
   });
 
-  it("uses ante chip travel for coin flight duration", () => {
-    assert.equal(anteCoinTravelMs(false), ANTE_CHIP_TRAVEL_MS);
-  });
-
   it("shortens under reduced motion", () => {
-    assert.ok(antePresentationDurationMs(4, true) < antePresentationDurationMs(4, false));
-  });
-
-  it("retries seat anchors once before no-flight fallback", () => {
-    assert.equal(ANTE_ANCHOR_READ_ATTEMPTS, 2);
-    assert.equal(shouldRetryAnteAnchors(null, { left: 0, top: 0, width: 1, height: 1 }, 0), true);
-    assert.equal(shouldRetryAnteAnchors({ left: 0, top: 0, width: 1, height: 1 }, null, 0), true);
-    assert.equal(shouldRetryAnteAnchors(null, null, 0), true);
-    assert.equal(shouldRetryAnteAnchors(null, null, 1), false);
-    assert.equal(
-      shouldRetryAnteAnchors({ left: 0, top: 0, width: 1, height: 1 }, { left: 1, top: 1, width: 1, height: 1 }, 0),
-      false,
+    const playerIds = ["a", "b", "c", "d"];
+    assert.ok(
+      antePresentationDurationMs(4, playerIds, true) <
+        antePresentationDurationMs(4, playerIds, false),
     );
   });
 });

@@ -1,10 +1,12 @@
 import { useLayoutEffect, useRef } from "react";
 import { activePlayerOrder } from "../../game/playerOrder";
+import { buildAnteCoinDelayPlan } from "../../session/botActionTiming";
 import {
   antePresentationDurationMs,
   killAnteCoinPresentation,
   runClockwiseAnteCoinPresentation,
 } from "../animations/anteCoinPresentationMotion";
+import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { seatRingPlayerIds } from "../layout/seatOrder";
 import { setAntePresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
@@ -18,9 +20,7 @@ export interface UseTableAntePresentationInput {
 
 /**
  * Drives the single ante coin GSAP path when hand presentation enters ante.
- * Deduped per session/hand; stagger uses bot-play timing (BOT_PLAY_STAGGER_MS).
- * Participant order is captured once per hand — participantIds array identity is
- * intentionally excluded from deps so snapshot churn cannot tear down the timeline.
+ * Per-seat think delays reuse bot play timing (250–700 ms random) via botActionTiming.
  */
 export function useTableAntePresentation({
   anteAnimActive,
@@ -60,17 +60,44 @@ export function useTableAntePresentation({
     );
     if (playerIds.length < 1) return;
 
+    const reduced = prefersReducedMotion();
+    const delayPlan = buildAnteCoinDelayPlan({
+      handNumber: session.handNumber,
+      playerIds,
+      reducedMotion: reduced,
+    });
+
+    if (isGameFlowDebugEnabled()) {
+      for (let index = 0; index < playerIds.length; index += 1) {
+        logGameFlow("antePresentation", "bot-timing-seat", {
+          handNumber: session.handNumber,
+          playerId: playerIds[index],
+          actionType: "ante",
+          thinkBeforeMs: delayPlan.thinkBeforeMs[index],
+          delayRange: "250-700",
+        });
+      }
+      logGameFlow("antePresentation", "bot-timing-plan", {
+        handNumber: session.handNumber,
+        seatCount: playerIds.length,
+        totalThinkMs: delayPlan.totalThinkMs,
+        totalDurationMs: delayPlan.totalDurationMs,
+        actionType: "ante",
+      });
+    }
+
     lastAnteKeyRef.current = anteKey;
     killAnteCoinPresentation();
     root.classList.add("btable-wrap--ante-coins");
     setAntePresentationActive(true);
 
-    const reduced = prefersReducedMotion();
-    const watchdogMs = antePresentationDurationMs(playerIds.length, reduced) + 200;
+    const watchdogMs = antePresentationDurationMs(session.handNumber, playerIds, reduced) + 200;
 
     const rafId = window.requestAnimationFrame(() => {
       runClockwiseAnteCoinPresentation({
+        handNumber: session.handNumber,
         playerIds,
+        delayPlan,
         root,
         onComplete: () => {
           root.classList.remove("btable-wrap--ante-coins");

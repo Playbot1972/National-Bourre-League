@@ -25,10 +25,13 @@ describe("ante coin presentation wiring", () => {
     assert.doesNotMatch(pot, /bpot__ante-chips/);
   });
 
-  it("uses bot play stagger for ante coin timing", () => {
-    assert.match(motion, /anteCoinStaggerMs/);
-    assert.match(timing, /export function anteCoinStaggerMs/);
-    assert.match(timing, /BOT_PLAY_STAGGER_MS/);
+  it("uses bot play think policy for ante coin timing", () => {
+    assert.match(hook, /buildAnteCoinDelayPlan/);
+    const botTiming = readFileSync(join(root, "src/session/botActionTiming.ts"), "utf8");
+    assert.match(botTiming, /buildAnteCoinDelayPlan/);
+    assert.match(botTiming, /resolveAntePostDelayMs/);
+    assert.match(botTiming, /pickBotPlayDelayMs/);
+    assert.doesNotMatch(motion, /anteCoinStaggerMs/);
   });
 
   it("plays coin-chime-light on landing via shared audio helper", () => {
@@ -64,7 +67,7 @@ describe("ante coin presentation wiring", () => {
   });
 
   it("does not restart ante timeline on participantIds dependency churn", () => {
-    assert.match(hook, /intentionally excluded from deps/);
+    assert.match(hook, /buildAnteCoinDelayPlan/);
     assert.match(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, tableRootRef\]/);
     assert.match(hook, /anteAnimActiveRef/);
     assert.match(hook, /lastAnteKeyRef\.current === anteKey/);

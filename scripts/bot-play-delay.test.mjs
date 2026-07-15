@@ -165,6 +165,19 @@ describe("bot play delay", () => {
     });
     assert.equal(draw.delayMs, 150);
   });
+
+  it("ante phase uses play-style random think delay", () => {
+    const state = createBotPlayDelayState({ rng: () => 0.5 });
+    const ante = resolveBotAdvanceDelayMs({
+      handPhase: "ante",
+      playDelayState: state,
+      ctx: { handNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+    });
+    assert.equal(ante.handPhase, "ante");
+    assert.ok(ante.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(ante.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
+  });
 });
 
 describe("bot think schedule", () => {
