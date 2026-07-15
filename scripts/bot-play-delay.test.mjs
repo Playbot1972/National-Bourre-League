@@ -5,6 +5,7 @@ import {
   BOT_PLAY_DELAY_MAX_MS,
   BOT_PLAY_LAST_CARD_MIN_MS,
   BOT_PLAY_LAST_CARD_MAX_MS,
+  BOT_THINK_PACING_MULTIPLIER,
   botPlayTurnKey,
   createBotPlayDelayState,
   createBotThinkScheduleState,
@@ -20,7 +21,15 @@ describe("bot play delay", () => {
     );
   });
 
-  it("normal bot turn delay is 250–700ms", () => {
+  it("uses 3× pacing multiplier on think delays", () => {
+    assert.equal(BOT_THINK_PACING_MULTIPLIER, 3);
+    assert.equal(BOT_PLAY_DELAY_MIN_MS, 750);
+    assert.equal(BOT_PLAY_DELAY_MAX_MS, 2100);
+    assert.equal(BOT_PLAY_LAST_CARD_MIN_MS, 300);
+    assert.equal(BOT_PLAY_LAST_CARD_MAX_MS, 900);
+  });
+
+  it("normal bot turn delay is 750–2100ms", () => {
     const picked = pickBotPlayDelayMs(3, () => 0.5);
     assert.equal(picked.isLastCard, false);
     assert.equal(picked.remainingHandCount, 3);
@@ -28,7 +37,7 @@ describe("bot play delay", () => {
     assert.ok(picked.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("last-card bot turn delay is <= 300ms", () => {
+  it("last-card bot turn delay is <= 900ms", () => {
     const picked = pickBotPlayDelayMs(1, () => 0.99);
     assert.equal(picked.isLastCard, true);
     assert.equal(picked.remainingHandCount, 1);
@@ -168,7 +177,7 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
-  it("arms random delay between 250 and 700 ms for normal turns", () => {
+  it("arms random delay between 750 and 2100 ms for normal turns", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
@@ -182,7 +191,7 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("arms last-card delay within 300ms", () => {
+  it("arms last-card delay within 900ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.99 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 5, turnPlayerId: "bot_1", remainingHandCount: 1 },

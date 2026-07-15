@@ -1,9 +1,10 @@
 import type { SerializedCard } from "./types";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
+  antePresentationScheduleMs,
   type DrawAnimSubPhase,
-  type HandPresentationPhase,
   drawPlayerScheduleMs,
+  type HandPresentationPhase,
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
@@ -914,8 +915,10 @@ export function phaseScheduleMs(
   switch (store.phase) {
     case "handReset":
       return t.handResetMs;
-    case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+    case "ante": {
+      const seats = Math.max(1, Math.min(store.dealStaggerCount, 8));
+      return antePresentationScheduleMs(seats, reducedMotion);
+    }
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
