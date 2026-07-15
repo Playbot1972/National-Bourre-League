@@ -86,6 +86,14 @@ export function createBotPlayDelayState(options = {}) {
     return key;
   }
 
+  /** Start the visible think window when the ring can spin (fresh arm, not while blocked). */
+  function beginVisibleThinkWindow({ handNumber, trickNumber, turnPlayerId, nowMs }) {
+    syncHand(handNumber);
+    turnEligibleKey = botPlayTurnKey({ handNumber, trickNumber, turnPlayerId });
+    turnEligibleAtMs = nowMs;
+    return turnEligibleKey;
+  }
+
   function pickDelayForKey(turnKey, remainingHandCount) {
     const cacheKey = delayCacheKey(turnKey, remainingHandCount);
     let chosen = delayByTurnKey.get(cacheKey);
@@ -139,6 +147,7 @@ export function createBotPlayDelayState(options = {}) {
   return {
     syncHand,
     markTurnEligible,
+    beginVisibleThinkWindow,
     resolvePlayDelayMs,
     delayByTurnKey,
   };
@@ -212,7 +221,13 @@ export function createBotThinkScheduleState(options = {}) {
       });
     }
 
-    const plan = playDelayState.resolvePlayDelayMs({
+    playDelayState.beginVisibleThinkWindow({
+      handNumber: ctx.handNumber,
+      trickNumber: ctx.trickNumber,
+      turnPlayerId: ctx.turnPlayerId,
+      nowMs,
+    });
+    const delayPlan = playDelayState.resolvePlayDelayMs({
       handNumber: ctx.handNumber,
       trickNumber: ctx.trickNumber,
       turnPlayerId: ctx.turnPlayerId,
@@ -221,25 +236,25 @@ export function createBotThinkScheduleState(options = {}) {
     });
     const generation = scheduleGeneration;
     pendingTurnKey = turnKey;
-    pendingChosenDelayMs = plan.chosenDelayMs;
+    pendingChosenDelayMs = delayPlan.chosenDelayMs;
 
     log?.delayChosen?.({
       turnKey,
       generation,
-      chosenDelayMs: plan.chosenDelayMs,
-      delayMs: plan.delayMs,
-      remainingHandCount: plan.remainingHandCount,
-      isLastCard: plan.isLastCard,
+      chosenDelayMs: delayPlan.chosenDelayMs,
+      delayMs: delayPlan.delayMs,
+      remainingHandCount: delayPlan.remainingHandCount,
+      isLastCard: delayPlan.isLastCard,
     });
 
     log?.armed?.({
       turnKey,
       generation,
-      chosenDelayMs: plan.chosenDelayMs,
-      delayMs: plan.delayMs,
-      elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
-      remainingHandCount: plan.remainingHandCount,
-      isLastCard: plan.isLastCard,
+      chosenDelayMs: delayPlan.chosenDelayMs,
+      delayMs: delayPlan.delayMs,
+      elapsedSinceTurnMs: delayPlan.elapsedSinceTurnMs,
+      remainingHandCount: delayPlan.remainingHandCount,
+      isLastCard: delayPlan.isLastCard,
     });
 
     scheduledTimer = setTimeout(() => {
@@ -253,9 +268,9 @@ export function createBotThinkScheduleState(options = {}) {
         log?.rejected?.({
           turnKey,
           generation,
-          chosenDelayMs: plan.chosenDelayMs,
-          remainingHandCount: plan.remainingHandCount,
-          isLastCard: plan.isLastCard,
+          chosenDelayMs: delayPlan.chosenDelayMs,
+          remainingHandCount: delayPlan.remainingHandCount,
+          isLastCard: delayPlan.isLastCard,
         });
         return;
       }
@@ -263,15 +278,15 @@ export function createBotThinkScheduleState(options = {}) {
       log?.accepted?.({
         turnKey,
         generation,
-        chosenDelayMs: plan.chosenDelayMs,
-        delayMs: plan.delayMs,
-        remainingHandCount: plan.remainingHandCount,
-        isLastCard: plan.isLastCard,
+        chosenDelayMs: delayPlan.chosenDelayMs,
+        delayMs: delayPlan.delayMs,
+        remainingHandCount: delayPlan.remainingHandCount,
+        isLastCard: delayPlan.isLastCard,
       });
-      onFire({ turnKey, generation, plan });
-    }, plan.delayMs);
+      onFire({ turnKey, generation, plan: delayPlan });
+    }, delayPlan.delayMs);
 
-    return { action: "armed", turnKey, generation, ...plan };
+    return { action: "armed", turnKey, generation, ...delayPlan };
   }
 
   return {
