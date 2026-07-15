@@ -830,6 +830,38 @@ export function HeroHand({
       </label>
     ) : null;
 
+  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
+    showBestPlayControl,
+    inPlayPhase,
+    bestPlayEnabled,
+    recommendedPlayIndex,
+  });
+
+  const playVisualTierFor = useCallback(
+    (cardIndex: number) => {
+      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
+      return resolveHeroPlayCardVisualTier({
+        inPlayPhase,
+        isMyTurn,
+        busy,
+        cardIndex,
+        selectedPlay,
+        isLegal,
+        showBestPlayRecommendation,
+        recommendedPlayIndex,
+      });
+    },
+    [
+      busy,
+      inPlayPhase,
+      isMyTurn,
+      legalPlayIndices,
+      recommendedPlayIndex,
+      selectedPlay,
+      showBestPlayRecommendation,
+    ],
+  );
+
   if (!signedIn) {
     return (
       <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
@@ -884,38 +916,6 @@ export function HeroHand({
     }
     return <HeroHandReserve className={className} />;
   }
-
-  const showBestPlayRecommendation = shouldShowBestPlayRecommendation({
-    showBestPlayControl,
-    inPlayPhase,
-    bestPlayEnabled,
-    recommendedPlayIndex,
-  });
-
-  const playVisualTierFor = useCallback(
-    (cardIndex: number) => {
-      const isLegal = isLegalPlayIndex(cardIndex, legalPlayIndices);
-      return resolveHeroPlayCardVisualTier({
-        inPlayPhase,
-        isMyTurn,
-        busy,
-        cardIndex,
-        selectedPlay,
-        isLegal,
-        showBestPlayRecommendation,
-        recommendedPlayIndex,
-      });
-    },
-    [
-      busy,
-      inPlayPhase,
-      isMyTurn,
-      legalPlayIndices,
-      recommendedPlayIndex,
-      selectedPlay,
-      showBestPlayRecommendation,
-    ],
-  );
 
   const stateFor = (_: Card, i: number): CardState => {
     if (revealedTrumpIndex === i) return "trump";

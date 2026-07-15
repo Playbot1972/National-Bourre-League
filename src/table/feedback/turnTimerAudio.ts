@@ -58,7 +58,7 @@ export function stopTurnTimerWarning(
 
   if (!howl) return;
 
-  const fadeMs = options.fadeMs ?? FADE_OUT_MS;
+  const fadeMs = options.fadeMs ?? (reason === "playerAction" ? FADE_OUT_MS : FADE_OUT_MS);
   if (fadeMs > 0 && reason !== "overlap") {
     howl.fade(TIMER_VOLUME, 0, fadeMs, playId);
     window.setTimeout(() => {
