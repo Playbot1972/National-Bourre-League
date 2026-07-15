@@ -52,6 +52,7 @@ import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
 import {
   botPlayTurnKey,
   createBotThinkScheduleState,
+  setBotThinkWindowPublisher,
 } from "./bot-play-delay.js";
 import {
   logHandLifecycleTransition,
@@ -3544,6 +3545,14 @@ function stopRobotPresentationSubscription() {
     robotPresentationUnsub();
     robotPresentationUnsub = null;
   }
+  setBotThinkWindowPublisher(null);
+  tableMountApi?.publishBotThinkWindow?.(null);
+}
+
+function wireBotThinkWindowPublisher(api) {
+  setBotThinkWindowPublisher((window) => {
+    api?.publishBotThinkWindow?.(window ?? null);
+  });
 }
 
 function wakeRobotActions() {
@@ -3558,6 +3567,7 @@ function wakeRobotActions() {
 }
 
 function ensureRobotPresentationSubscription(api) {
+  wireBotThinkWindowPublisher(api);
   if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
   robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
     wakeRobotActions();

@@ -1,12 +1,30 @@
 /**
- * Bot play-phase think delay — brief pause so plays do not feel instant; much faster than humans.
+ * Bot play-phase think delay — random submit window per turn; drives visible ring + submit gate.
  */
 
-export const BOT_PLAY_DELAY_MIN_MS = 250;
-export const BOT_PLAY_DELAY_MAX_MS = 700;
-export const BOT_PLAY_LAST_CARD_MIN_MS = 100;
-export const BOT_PLAY_LAST_CARD_MAX_MS = 300;
+export const BOT_PLAY_DELAY_MIN_MS = 350;
+export const BOT_PLAY_DELAY_MAX_MS = 900;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
+
+/** @typedef {{ turnKey: string, playerId: string, startedAtMs: number, totalMs: number }} BotThinkWindowPayload */
+
+/** @type {((window: BotThinkWindowPayload | null) => void) | null} */
+let thinkWindowPublisher = null;
+
+/**
+ * Wire table UI to the active bot think window (see src/table/botThinkWindow.ts).
+ * @param {(window: BotThinkWindowPayload | null) => void | null} publisher
+ */
+export function setBotThinkWindowPublisher(publisher) {
+  thinkWindowPublisher = publisher ?? null;
+}
+
+/**
+ * @param {BotThinkWindowPayload | null} window
+ */
+function publishThinkWindow(window) {
+  thinkWindowPublisher?.(window);
+}
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
   return `${handNumber ?? 0}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
@@ -23,28 +41,20 @@ export function randomIntInclusive(min, max, rng = Math.random) {
 }
 
 /**
- * @param {number|null|undefined} remainingHandCount
+ * One random submit delay per eligible bot play turn (350–900 ms).
  * @param {() => number} [rng]
  */
-export function pickBotPlayDelayMs(remainingHandCount, rng = Math.random) {
-  const isLastCard = remainingHandCount === 1;
-  const chosenDelayMs = isLastCard
-    ? randomIntInclusive(BOT_PLAY_LAST_CARD_MIN_MS, BOT_PLAY_LAST_CARD_MAX_MS, rng)
-    : randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
+export function pickBotPlayDelayMs(rng = Math.random) {
+  const chosenDelayMs = randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
   return {
     chosenDelayMs,
-    isLastCard,
-    remainingHandCount: remainingHandCount ?? null,
+    remainingHandCount: null,
   };
-}
-
-function delayCacheKey(turnKey, remainingHandCount) {
-  return `${turnKey}:r${remainingHandCount ?? "?"}`;
 }
 
 /**
  * @param {object} [options]
- * @param {() => number} [options.rng]
+ * @param {() => number} [rng]
  */
 export function createBotPlayDelayState(options = {}) {
   const rng = options.rng ?? Math.random;
@@ -59,6 +69,16 @@ export function createBotPlayDelayState(options = {}) {
     turnEligibleKey = null;
     turnEligibleAtMs = 0;
     delayByTurnKey.clear();
+    publishThinkWindow(null);
+  }
+
+  function pickDelayForKey(turnKey) {
+    let chosen = delayByTurnKey.get(turnKey);
+    if (chosen == null) {
+      chosen = pickBotPlayDelayMs(rng).chosenDelayMs;
+      delayByTurnKey.set(turnKey, chosen);
+    }
+    return chosen;
   }
 
   function markTurnEligible({ handNumber, trickNumber, turnPlayerId, nowMs }) {
@@ -67,27 +87,17 @@ export function createBotPlayDelayState(options = {}) {
     if (turnEligibleKey !== key) {
       turnEligibleKey = key;
       turnEligibleAtMs = nowMs;
+      const chosenDelayMs = pickDelayForKey(key);
+      if (turnPlayerId) {
+        publishThinkWindow({
+          turnKey: key,
+          playerId: turnPlayerId,
+          startedAtMs: nowMs,
+          totalMs: chosenDelayMs,
+        });
+      }
     }
     return key;
-  }
-
-  function pickDelayForKey(turnKey, remainingHandCount) {
-    const cacheKey = delayCacheKey(turnKey, remainingHandCount);
-    let chosen = delayByTurnKey.get(cacheKey);
-    let meta = null;
-    if (chosen == null) {
-      meta = pickBotPlayDelayMs(remainingHandCount, rng);
-      chosen = meta.chosenDelayMs;
-      delayByTurnKey.set(cacheKey, chosen);
-    }
-    if (!meta) {
-      meta = {
-        chosenDelayMs: chosen,
-        isLastCard: remainingHandCount === 1,
-        remainingHandCount: remainingHandCount ?? null,
-      };
-    }
-    return meta;
   }
 
   /**
@@ -95,7 +105,6 @@ export function createBotPlayDelayState(options = {}) {
    * @param {number} input.handNumber
    * @param {number|null|undefined} input.trickNumber
    * @param {string|null|undefined} input.turnPlayerId
-   * @param {number|null|undefined} [input.remainingHandCount]
    * @param {number} input.nowMs
    */
   function resolvePlayDelayMs(input) {
@@ -106,8 +115,7 @@ export function createBotPlayDelayState(options = {}) {
       turnPlayerId: input.turnPlayerId,
       nowMs: input.nowMs,
     });
-    const picked = pickDelayForKey(key, input.remainingHandCount);
-    const chosenDelayMs = picked.chosenDelayMs;
+    const chosenDelayMs = pickDelayForKey(key);
     const elapsedSinceTurnMs = input.nowMs - turnEligibleAtMs;
     const remainingTurnMs = Math.max(0, chosenDelayMs - elapsedSinceTurnMs);
     return {
@@ -116,8 +124,8 @@ export function createBotPlayDelayState(options = {}) {
       elapsedSinceTurnMs,
       trickGapRemainingMs: 0,
       delayMs: remainingTurnMs,
-      remainingHandCount: picked.remainingHandCount,
-      isLastCard: picked.isLastCard,
+      remainingHandCount: null,
+      isLastCard: false,
     };
   }
 
@@ -166,6 +174,7 @@ export function createBotThinkScheduleState(options = {}) {
     clearTimer();
     pendingTurnKey = null;
     pendingChosenDelayMs = null;
+    publishThinkWindow(null);
     onCanceled?.(extra);
     return true;
   }
@@ -201,7 +210,6 @@ export function createBotThinkScheduleState(options = {}) {
       handNumber: ctx.handNumber,
       trickNumber: ctx.trickNumber,
       turnPlayerId: ctx.turnPlayerId,
-      remainingHandCount: ctx.remainingHandCount,
       nowMs,
     });
     const generation = scheduleGeneration;
@@ -286,7 +294,6 @@ export function resolveBotAdvanceDelayMs(input) {
         handNumber: input.ctx.handNumber,
         trickNumber: input.ctx.trickNumber,
         turnPlayerId: input.ctx.turnPlayerId,
-        remainingHandCount: input.ctx.remainingHandCount,
         nowMs: input.nowMs,
       }),
       handPhase: "play",

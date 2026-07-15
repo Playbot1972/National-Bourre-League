@@ -3,13 +3,12 @@ import assert from "node:assert/strict";
 import {
   BOT_PLAY_DELAY_MIN_MS,
   BOT_PLAY_DELAY_MAX_MS,
-  BOT_PLAY_LAST_CARD_MIN_MS,
-  BOT_PLAY_LAST_CARD_MAX_MS,
   botPlayTurnKey,
   createBotPlayDelayState,
   createBotThinkScheduleState,
   pickBotPlayDelayMs,
   resolveBotAdvanceDelayMs,
+  setBotThinkWindowPublisher,
 } from "../docs/bot-play-delay.js";
 
 describe("bot play delay", () => {
@@ -20,37 +19,27 @@ describe("bot play delay", () => {
     );
   });
 
-  it("normal bot turn delay is 250–700ms", () => {
-    const picked = pickBotPlayDelayMs(3, () => 0.5);
-    assert.equal(picked.isLastCard, false);
-    assert.equal(picked.remainingHandCount, 3);
-    assert.ok(picked.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
-    assert.ok(picked.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
+  it("bot turn delay is 350–900ms", () => {
+    const min = pickBotPlayDelayMs(() => 0);
+    const max = pickBotPlayDelayMs(() => 0.999999);
+    assert.equal(min.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.equal(max.chosenDelayMs, BOT_PLAY_DELAY_MAX_MS);
+    assert.equal(min.remainingHandCount, null);
   });
 
-  it("last-card bot turn delay is <= 300ms", () => {
-    const picked = pickBotPlayDelayMs(1, () => 0.99);
-    assert.equal(picked.isLastCard, true);
-    assert.equal(picked.remainingHandCount, 1);
-    assert.ok(picked.chosenDelayMs >= BOT_PLAY_LAST_CARD_MIN_MS);
-    assert.ok(picked.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
-  });
-
-  it("picks a fixed random delay per turn key", () => {
+  it("picks one fixed random delay per turn key", () => {
     let n = 0;
     const state = createBotPlayDelayState({ rng: () => (n += 0.25) });
     const first = state.resolvePlayDelayMs({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
-      remainingHandCount: 4,
       nowMs: 10_000,
     });
     const retry = state.resolvePlayDelayMs({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
-      remainingHandCount: 4,
       nowMs: 10_500,
     });
     assert.equal(first.chosenDelayMs, retry.chosenDelayMs);
@@ -59,26 +48,31 @@ describe("bot play delay", () => {
     assert.equal(retry.delayMs, Math.max(0, first.chosenDelayMs - 500));
   });
 
-  it("last-card delay is cached separately from normal delay for same turn key", () => {
-    let i = 0;
-    const state = createBotPlayDelayState({ rng: () => (i++ % 2) * 0.99 });
-    const normal = state.resolvePlayDelayMs({
+  it("last card uses the same 350–900ms window as other plays", () => {
+    const normal = pickBotPlayDelayMs(() => 0);
+    const lastCard = pickBotPlayDelayMs(() => 0.99);
+    assert.ok(normal.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(lastCard.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(lastCard.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
+  });
+
+  it("rerender does not regenerate a shorter timer", () => {
+    const state = createBotPlayDelayState({ rng: () => 0.5 });
+    const first = state.resolvePlayDelayMs({
       handNumber: 1,
-      trickNumber: 5,
-      turnPlayerId: "bot_1",
-      remainingHandCount: 2,
+      trickNumber: 2,
+      turnPlayerId: "bot_x",
       nowMs: 0,
     });
-    const lastCard = state.resolvePlayDelayMs({
+    const rerender = state.resolvePlayDelayMs({
       handNumber: 1,
-      trickNumber: 5,
-      turnPlayerId: "bot_1",
-      remainingHandCount: 1,
-      nowMs: 0,
+      trickNumber: 2,
+      turnPlayerId: "bot_x",
+      nowMs: 100,
     });
-    assert.equal(normal.isLastCard, false);
-    assert.equal(lastCard.isLastCard, true);
-    assert.ok(lastCard.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
+    assert.equal(rerender.chosenDelayMs, first.chosenDelayMs);
+    assert.equal(rerender.delayMs, Math.max(0, first.chosenDelayMs - 100));
+    assert.ok(rerender.delayMs < first.delayMs);
   });
 
   it("credits elapsed wait time against the chosen delay", () => {
@@ -88,7 +82,6 @@ describe("bot play delay", () => {
       handNumber: 1,
       trickNumber: 2,
       turnPlayerId: "bot_x",
-      remainingHandCount: 3,
       nowMs: 0,
     });
     assert.equal(at.chosenDelayMs, chosen);
@@ -98,7 +91,6 @@ describe("bot play delay", () => {
       handNumber: 1,
       trickNumber: 2,
       turnPlayerId: "bot_x",
-      remainingHandCount: 3,
       nowMs: chosen - 50,
     });
     assert.equal(laterRetry.delayMs, 50);
@@ -116,10 +108,33 @@ describe("bot play delay", () => {
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
-      remainingHandCount: 3,
       nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
     });
     assert.equal(afterPresentation.delayMs, 0);
+  });
+
+  it("publishes one stable think window per eligible turn", () => {
+    const windows = [];
+    setBotThinkWindowPublisher((window) => {
+      if (window) windows.push(window);
+    });
+    const state = createBotPlayDelayState({ rng: () => 0.5 });
+    state.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 100,
+    });
+    state.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 200,
+    });
+    assert.equal(windows.length, 1);
+    assert.equal(windows[0]?.playerId, "bot_1");
+    assert.ok(windows[0]?.totalMs >= BOT_PLAY_DELAY_MIN_MS);
+    setBotThinkWindowPublisher(null);
   });
 
   it("play phase delay ignores trick interval floor", () => {
@@ -127,7 +142,7 @@ describe("bot play delay", () => {
     const result = resolveBotAdvanceDelayMs({
       handPhase: "play",
       playDelayState: state,
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 5_000,
     });
     assert.equal(result.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
@@ -142,14 +157,12 @@ describe("bot play delay", () => {
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
-      remainingHandCount: 2,
       nowMs: 0,
     });
     const b = state.resolvePlayDelayMs({
       handNumber: 2,
       trickNumber: 1,
       turnPlayerId: "bot_1",
-      remainingHandCount: 2,
       nowMs: 0,
     });
     assert.notEqual(a.chosenDelayMs, b.chosenDelayMs);
@@ -168,10 +181,10 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
-  it("arms random delay between 250 and 700 ms for normal turns", () => {
+  it("arms random delay between 350 and 900 ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
@@ -182,30 +195,73 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("arms last-card delay within 300ms", () => {
-    const schedule = createBotThinkScheduleState({ rng: () => 0.99 });
-    const armed = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 5, turnPlayerId: "bot_1", remainingHandCount: 1 },
+  it("submit never fires before 350 ms", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    let fired = false;
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
-      onFire: () => {},
+      onFire: () => {
+        fired = true;
+      },
     });
-    assert.equal(armed.action, "armed");
-    assert.equal(armed.isLastCard, true);
-    assert.equal(armed.remainingHandCount, 1);
-    assert.ok(armed.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS - 50));
+    assert.equal(fired, false);
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(fired, true);
   });
 
-  it("coalesces duplicate schedule for same turn key", () => {
+  it("submit fires by 900 ms when eligible and unblocked", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0.999999 });
+    let fired = false;
+    const started = Date.now();
+    schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {
+        fired = true;
+      },
+    });
+    const deadline = Date.now() + BOT_PLAY_DELAY_MAX_MS + 100;
+    while (!fired && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    assert.equal(fired, true);
+    assert.ok(Date.now() - started <= BOT_PLAY_DELAY_MAX_MS + 150);
+  });
+
+  it("coalesced rerender does not reset the armed timer", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     const first = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
     });
     const second = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 200,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(first.action, "armed");
+    assert.equal(second.action, "coalesced");
+    assert.equal(schedule.pendingTurnKey, "1:1:bot_1");
+    assert.equal(first.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
+  });
+
+  it("coalesces duplicate schedule for same turn key", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const first = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    const second = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 100,
       shouldFire: () => true,
       onFire: () => {},
@@ -217,7 +273,7 @@ describe("bot think schedule", () => {
   it("cancels pending think on turn change", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
@@ -227,16 +283,16 @@ describe("bot think schedule", () => {
     assert.equal(schedule.pendingTurnKey, null);
   });
 
-  it("last-card pending play cancels on trick change", () => {
+  it("one-at-a-time sequencing supersedes prior bot turn timer", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
     });
     const next = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1" },
       nowMs: 50,
       shouldFire: () => true,
       onFire: () => {},
@@ -245,16 +301,16 @@ describe("bot think schedule", () => {
     assert.equal(schedule.pendingTurnKey, "1:2:bot_1");
   });
 
-  it("last-card pending play cancels on hand change", () => {
+  it("pending play cancels on hand change", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 4, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 1, trickNumber: 4, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
     });
     const next = schedule.armPlayThink({
-      ctx: { handNumber: 2, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 2, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 50,
       shouldFire: () => true,
       onFire: () => {},
@@ -268,7 +324,7 @@ describe("bot think schedule", () => {
     let fired = false;
     let rejected = false;
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 1 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => false,
       onFire: () => {
@@ -280,7 +336,7 @@ describe("bot think schedule", () => {
         },
       },
     });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_LAST_CARD_MAX_MS + 50));
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
     assert.equal(fired, false);
     assert.equal(rejected, true);
   });
@@ -289,7 +345,7 @@ describe("bot think schedule", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {
@@ -303,13 +359,13 @@ describe("bot think schedule", () => {
   it("supersedes pending think when trick changes", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
       shouldFire: () => true,
       onFire: () => {},
     });
     const next = schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1", remainingHandCount: 2 },
+      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1" },
       nowMs: 50,
       shouldFire: () => true,
       onFire: () => {},
