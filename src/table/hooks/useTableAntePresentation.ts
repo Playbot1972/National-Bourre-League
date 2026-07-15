@@ -8,7 +8,7 @@ import {
 } from "../animations/anteCoinPresentationMotion";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { seatRingPlayerIds } from "../layout/seatOrder";
-import { markAntePresentationClock, setAntePresentationActive } from "../presentationMotionBusy";
+import { setAntePresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
 import type { TableSessionData } from "../types";
 
@@ -94,11 +94,11 @@ export function useTableAntePresentation({
     const watchdogMs = antePresentationDurationMs(session.handNumber, playerIds, reduced) + 200;
 
     const rafId = window.requestAnimationFrame(() => {
-      markAntePresentationClock(anteKey, Date.now());
       runClockwiseAnteCoinPresentation({
         handNumber: session.handNumber,
         playerIds,
         delayPlan,
+        presentationKey: anteKey,
         root,
         onComplete: () => {
           root.classList.remove("btable-wrap--ante-coins");
