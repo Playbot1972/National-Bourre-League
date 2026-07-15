@@ -51,6 +51,7 @@ import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import { activePlayerOrder } from "../game/playerOrder";
 import { seatRingPlayerIds } from "./layout/seatOrder";
 import { prefersReducedMotion } from "./trickTiming";
+import type { Suit } from "../types";
 import type { TableSessionViewProps } from "./types";
 
 /** Stable fallbacks — inline `?? []` creates new refs every render and loops hand presentation. */
