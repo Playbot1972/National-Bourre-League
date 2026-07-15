@@ -9,7 +9,6 @@ import {
   type HandServerSnapshot,
 } from "../handPresentationMachine";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { resolveHandPresentationKey } from "../handServerUpdateGate";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 import type { SerializedCard, TableSessionData } from "../types";
@@ -58,15 +57,6 @@ export function useHandPresentation({
   declinedIds = EMPTY_IDS,
   actionOrder,
 }: UseHandPresentationInput): HandPresentation {
-  const participantIdsKey = session.participantIds.join(",");
-  const drawCompletedKey = (session.drawCompletedIds ?? []).join(",");
-  const enrolledIdsKey = enrolledIds.join(",");
-  const declinedIdsKey = declinedIds.join(",");
-  const actionOrderKey = (actionOrder ?? session.participantIds).join(",");
-  const trumpUpcardKey = session.trumpUpcard
-    ? `${session.trumpUpcard.rank}-${session.trumpUpcard.suit}`
-    : "";
-
   const snapshot = useMemo(
     (): HandServerSnapshot =>
       snapshotFromSession({
@@ -87,27 +77,15 @@ export function useHandPresentation({
         declinedIds,
       }),
     [
-      session.sessionId,
-      session.handNumber,
-      session.phase,
-      session.dealerId,
-      session.turnPlayerId,
-      session.carryOverPot,
-      trumpUpcardKey,
-      participantIdsKey,
-      drawCompletedKey,
+      session,
       enrollmentActive,
       potAmount,
       handComplete,
-      enrolledIdsKey,
-      declinedIdsKey,
-      actionOrderKey,
+      enrolledIds,
+      declinedIds,
+      actionOrder,
     ],
   );
-
-  const presentationKey = resolveHandPresentationKey(session.sessionId, session.handNumber);
-  const currentPhase = snapshot.phase ?? null;
-  const prevPhaseRef = useRef<string | null>(null);
 
   const [store, dispatch] = useReducer(
     reduceHandPresentation,
@@ -135,17 +113,6 @@ export function useHandPresentation({
   useEffect(() => () => clearTimers(), []);
 
   useEffect(() => {
-    if (!presentationKey) {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("useHandPresentation", "serverUpdate-skip-invalid", {
-          sessionId: session.sessionId ?? null,
-          handNumber: session.handNumber,
-        });
-      }
-      return;
-    }
-
-    const prevPhase = prevPhaseRef.current;
     const heroKeys = heroCards.map((c) => `${c.rank}-${c.suit}`);
     const delta = heroDrawDelta(heroKeysRef.current, heroKeys);
     heroKeysRef.current = heroKeys;
@@ -156,11 +123,8 @@ export function useHandPresentation({
       heroDrawDiscardCount: delta.discardCount,
       heroDrawReplaceCount: delta.replaceCount,
     });
-
     if (isGameFlowDebugEnabled()) {
-      logGameFlow("handPresentation", "serverUpdate", {
-        presentationKey,
-        phase: `${prevPhase ?? "null"} -> ${currentPhase ?? "null"}`,
+      logGameFlow("useHandPresentation", "serverUpdate-effect", {
         handNumber: snapshot.handNumber,
         serverPhase: snapshot.phase,
         drawCompleted: snapshot.drawCompletedIds.length,
@@ -169,9 +133,7 @@ export function useHandPresentation({
         turnPlayerId: snapshot.turnPlayerId,
       });
     }
-
-    prevPhaseRef.current = currentPhase;
-  }, [presentationKey, currentPhase, snapshot, heroCards, session.sessionId, session.handNumber]);
+  }, [snapshot, heroCards]);
 
   const enrollmentPulseKey = JSON.stringify(store.enrollmentPulse);
   useEffect(() => {

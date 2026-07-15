@@ -9,7 +9,6 @@ import {
 } from "./motionTokens";
 import { flipDelta, invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 import { initCardMotion } from "./initMotion";
-import { tweenAlongArc } from "./arcTween";
 import { animateCardsToDiscardPile } from "./discardPileMotion";
 
 function ensureMotion(): void {
@@ -75,13 +74,15 @@ export function animateFlipFromRect(
     const { midX, midY } = arcMidpoint(x, y);
     return trackTween(
       element,
-      tweenAlongArc(element, {
-        path: [
-          { x, y },
-          { x: midX, y: midY },
-          { x: 0, y: 0 },
-        ],
-        curviness: 1.25,
+      gsap.to(element, {
+        motionPath: {
+          path: [
+            { x, y },
+            { x: midX, y: midY },
+            { x: 0, y: 0 },
+          ],
+          curviness: 1.25,
+        },
         rotation: 0,
         scale: 1,
         opacity: 1,
@@ -170,14 +171,17 @@ export function dealCardsFromDeck(
         position,
       );
     } else {
-      tl.add(
-        tweenAlongArc(el, {
-          path: [
-            { x, y },
-            { x: midX, y: midY },
-            { x: 0, y: 0 },
-          ],
-          curviness: 1.2,
+      tl.to(
+        el,
+        {
+          motionPath: {
+            path: [
+              { x, y },
+              { x: midX, y: midY },
+              { x: 0, y: 0 },
+            ],
+            curviness: 1.2,
+          },
           rotation: 0,
           rotationY: 0,
           scale: 1,
@@ -185,7 +189,7 @@ export function dealCardsFromDeck(
           duration,
           ease: PREMIUM_EASE,
           onComplete,
-        }),
+        },
         position,
       );
     }

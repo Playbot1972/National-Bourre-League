@@ -38,11 +38,7 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
   }
 
   if (myUid && next.myBourre && !prev.myBourre) {
-    api.playBourrePrivatePunishmentFeedback?.({
-      sessionId: next.sessionId,
-      handNumber: next.handNumber ?? 0,
-      isLocalBourredPlayer: true,
-    });
+    api.playBourreFeedback?.();
   }
 
   return { snapshot: next, clearPendingDrawShuffle };

@@ -71,36 +71,6 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, true);
   });
 
-  it("arms ante on initial reveal mount", () => {
-    const store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-      trumpUpcard: { rank: "A", suit: "hearts" },
-    });
-    assert.equal(store.phase, "ante");
-    assert.equal(store.anteAnimActive, true);
-    assert.equal(store.trumpRevealActive, true);
-  });
-
-  it("re-arms ante when reveal snapshot arrives with unarmed ante phase", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-      trumpUpcard: null,
-    });
-    store = {
-      ...store,
-      anteAnimActive: false,
-      trumpRevealActive: false,
-    };
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { ...baseSnap, phase: "reveal", trumpUpcard: null },
-    });
-    assert.equal(store.phase, "ante");
-    assert.equal(store.anteAnimActive, true);
-  });
-
   it("starts ante when legacy enrollment deals into Pagat reveal", () => {
     let store = createHandPresentationStore({
       ...baseSnap,
@@ -418,24 +388,6 @@ describe("handPresentationMachine", () => {
     assert.equal(store.pendingHandSettle, true);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
 
-    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
-    assert.equal(store.phase, "settle");
-    assert.equal(store.pendingHandSettle, false);
-    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
-  });
-
-  it("forces settle when enrollment opens while hand-end settle is still latched in play", () => {
-    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "play",
-        handComplete: true,
-      },
-    });
-    assert.equal(store.pendingHandSettle, true);
-
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
       snapshot: {
@@ -445,9 +397,14 @@ describe("handPresentationMachine", () => {
         handComplete: false,
       },
     });
+    assert.equal(store.phase, "play");
+    assert.equal(store.pendingHandSettle, true);
+    assert.ok(store.pendingSnapshot?.enrollmentActive);
+
+    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
     assert.equal(store.phase, "settle");
     assert.equal(store.pendingHandSettle, false);
-    assert.ok(store.pendingSnapshot?.enrollmentActive);
+    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
   });
 
   it("latches hand settle when the server clears the hand before handComplete is observed", () => {
@@ -488,76 +445,6 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "settle");
     assert.equal(store.pendingHandSettle, false);
     assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
-  });
-
-  it("begins settle when server opens enrollment while hand-end settle is latched in play", () => {
-    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "play",
-        handComplete: true,
-      },
-    });
-    assert.equal(store.phase, "play");
-    assert.equal(store.pendingHandSettle, true);
-
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: null,
-        enrollmentActive: true,
-        handComplete: false,
-        participantIds: [],
-      },
-    });
-    assert.equal(store.phase, "settle");
-    assert.equal(store.pendingHandSettle, false);
-    assert.equal(store.pendingSnapshot?.enrollmentActive, true);
-    assert.equal(buildHandPresentationModel(store).settleAnimActive, true);
-  });
-
-  it("does not begin settle on handComplete alone while server is still in play", () => {
-    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "play",
-        handComplete: true,
-      },
-    });
-    assert.equal(store.phase, "play");
-    assert.equal(store.pendingHandSettle, true);
-    assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
-  });
-
-  it("advances through settle and nextHandReset without draw presentation", () => {
-    let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { ...baseSnap, phase: "play", handComplete: true },
-    });
-    store = reduceHandPresentation(store, { type: "tryBeginHandSettle" });
-    assert.equal(store.phase, "settle");
-
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "nextHandReset");
-
-    store = {
-      ...store,
-      pendingSnapshot: {
-        ...baseSnap,
-        phase: null,
-        enrollmentActive: true,
-        handComplete: false,
-        participantIds: [],
-      },
-    };
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "enrollment");
   });
 
   it("exposes configurable timing defaults", () => {

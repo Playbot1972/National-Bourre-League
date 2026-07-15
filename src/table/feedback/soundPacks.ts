@@ -19,20 +19,15 @@ export type SoundAssetId =
   | "card-shuffle-final"
   | "card-select"
   | "card-illegal"
-  | "close"
   | "ui-button-press"
   | "coin-chime-light"
-  | "moneygone"
   | "draw"
   | "draw1"
   | "draw2"
   | "draw3"
   | "draw4"
   | "draw5"
-  | "Fahhh"
-  | "fahhh"
-  | "fahhhh"
-  | "timer";
+  | "Fahhh";
 
 /** Event-driven keys used by feedback service and prefs. */
 export type SoundEventKey =
@@ -43,7 +38,6 @@ export type SoundEventKey =
   | "leadChange"
   | "trickWin"
   | "trickCollect"
-  | "trickCollectOther"
   | "handWin"
   | "potWin"
   | "bigWin"
@@ -54,8 +48,7 @@ export type SoundEventKey =
   | "fold"
   | "cardSelect"
   | "cardIllegal"
-  | "uiButton"
-  | "turnTimer";
+  | "uiButton";
 
 export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
   classic: "Classic",
@@ -111,10 +104,8 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-shuffle-final",
   "card-select",
   "card-illegal",
-  "close",
   "ui-button-press",
   "coin-chime-light",
-  "moneygone",
   "draw",
   "draw1",
   "draw2",
@@ -122,9 +113,6 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "draw4",
   "draw5",
   "Fahhh",
-  "fahhh",
-  "fahhhh",
-  "timer",
 ] as const;
 
 /** On-disk filenames for each asset ID (classic pack). */
@@ -141,10 +129,8 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-shuffle-final": "card-shuffle-final.mp3",
   "card-select": "card-select.mp3",
   "card-illegal": "card-illegal.mp3",
-  close: "close.mp3",
   "ui-button-press": "ui-button-press.mp3",
   "coin-chime-light": "coin-chime-light.mp3",
-  moneygone: "moneygone.mp3",
   draw: "draw.mp3",
   draw1: "draw1.mp3",
   draw2: "draw2.mp3",
@@ -152,9 +138,6 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   draw4: "draw4.mp3",
   draw5: "draw5.mp3",
   Fahhh: "Fahhh.mp3",
-  fahhh: "fahhh.mp3",
-  fahhhh: "fahhhh.mp3",
-  timer: "timer.mp3",
 };
 
 /** Count-based draw confirm cues — 1–5 cards map to draw1.mp3 … draw5.mp3. */
@@ -189,19 +172,17 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
-  trickCollectOther: "moneygone",
   handWin: "coin-chime-light",
   potWin: "hand-win-stinger",
   bigWin: "hand-win-stinger",
   bourre: "Fahhh",
   gameStart: "card-shuffle-normal",
   openRoom: "card-shuffle-final",
-  deleteRoom: "close",
+  deleteRoom: "card-illegal",
   fold: "card-place-heavy",
   cardSelect: "card-select",
   cardIllegal: "card-illegal",
   uiButton: "ui-button-press",
-  turnTimer: "timer",
 };
 
 const PACK_SUBDIRS: Record<SoundPackId, string> = {
@@ -266,8 +247,6 @@ export function resolveSoundAsset(
     case "trickCollect":
     case "handWin":
       return "coin-chime-light";
-    case "trickCollectOther":
-      return "moneygone";
     case "potWin":
     case "bigWin":
       return "hand-win-stinger";
@@ -278,13 +257,10 @@ export function resolveSoundAsset(
     case "cardSelect":
       return "card-select";
     case "cardIllegal":
-      return "card-illegal";
     case "deleteRoom":
-      return "close";
+      return "card-illegal";
     case "fold":
       return "card-place-heavy";
-    case "turnTimer":
-      return "timer";
   }
 }
 
@@ -304,7 +280,6 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   leadChange: "animation",
   trickWin: "animation",
   trickCollect: "animation",
-  trickCollectOther: "animation",
   handWin: "outcome",
   potWin: "outcome",
   bigWin: "outcome",
@@ -316,5 +291,4 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   cardSelect: "action",
   cardIllegal: "action",
   uiButton: "action",
-  turnTimer: "outcome",
 };

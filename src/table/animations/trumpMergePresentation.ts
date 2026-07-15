@@ -2,7 +2,6 @@ import gsap from "gsap";
 import { flipDelta, invertFromFirst, rectFromElement } from "./flip";
 import { GSAP_DURATIONS, MOTION_GHOST_Z_INDEX, scaledDuration } from "./motionTokens";
 import { initCardMotion } from "./initMotion";
-import { tweenAlongArc } from "./arcTween";
 
 let activeMerge: gsap.core.Timeline | null = null;
 
@@ -75,20 +74,20 @@ export function runTrumpMergeIntoHeroHand(
     },
   });
 
-  tl.add(
-    tweenAlongArc(ghost, {
+  tl.to(ghost, {
+    motionPath: {
       path: [
         { x: startX, y: startY },
         { x: startX + midX, y: startY + midY },
         { x: startX + dx, y: startY + dy },
       ],
       curviness: 1.2,
-      rotation: 6,
-      scale: 1.02,
-      duration,
-      ease: "power2.inOut",
-    }),
-  );
+    },
+    rotation: 6,
+    scale: 1.02,
+    duration,
+    ease: "power2.inOut",
+  });
 
   activeMerge = tl;
   return tl;

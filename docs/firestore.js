@@ -77,7 +77,7 @@
 //   }
 // ---------------------------------------------------------------------------
 
-import { app, whenAuthReady } from "./auth.js";
+import { app } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import {
   scoreBankroll,
@@ -141,7 +141,6 @@ import {
   markHandDealDispatched,
 } from "./hand-transition-debug.js";
 import { removePlayerFromEnrollment } from "./enrollment-roster.js";
-import { resolveSessionHandRef } from "./session-hand-ref.js";
 import {
   dealInitialHand,
   playerOrderFromDealer,
@@ -235,19 +234,9 @@ const RATING_INITIAL_APE = Math.round(Math.max(0, 25 - 3 * (25 / 3))); // = 0
 const db = getFirestore(app);
 
 /** Cloud Functions may be unavailable in production — fall back to client transactions. */
-export function isPermissionDenied(err) {
+function isPermissionDenied(err) {
   const code = err?.code ?? "";
   return code === "permission-denied" || code === "PERMISSION_DENIED";
-}
-
-export function logFirestoreError(operation, path, err, extra = {}) {
-  console.error("[nbl-firestore]", operation, {
-    operation,
-    path,
-    code: err?.code ?? null,
-    message: err?.message ?? String(err),
-    ...extra,
-  });
 }
 
 function isEnrollmentPermissionError(err) {
@@ -641,26 +630,17 @@ export { DEFAULT_HOUSE_RULES, normalizeHouseRules, HOUSE_RULE_FIELDS, readHouseR
 // Users
 // ---------------------------------------------------------------------------
 export async function ensureUserDoc(user) {
-  if (!user?.uid) {
-    console.warn("[nbl-firestore] ensureUserDoc skipped — missing uid");
-    return;
-  }
-  const path = `users/${user.uid}`;
+  if (!user) return;
   const ref = doc(db, "users", user.uid);
-  try {
-    const snap = await getDoc(ref);
-    const base = {
-      displayName: user.displayName,
-      email: user.email,
-      photoURL: user.photoURL,
-      updatedAt: serverTimestamp(),
-    };
-    if (!snap.exists()) base.createdAt = serverTimestamp();
-    await setDoc(ref, base, { merge: true });
-  } catch (err) {
-    logFirestoreError("set", path, err, { uid: user.uid });
-    throw err;
-  }
+  const snap = await getDoc(ref);
+  const base = {
+    displayName: user.displayName,
+    email: user.email,
+    photoURL: user.photoURL,
+    updatedAt: serverTimestamp(),
+  };
+  if (!snap.exists()) base.createdAt = serverTimestamp();
+  await setDoc(ref, base, { merge: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -694,58 +674,31 @@ export async function createRoom({ owner, name, houseRules, bourreSettings }) {
     joinedAt: serverTimestamp(),
   });
   await batch.commit();
-  // inviteLookups/{code} is written in the batch above — no post-create room read/repair.
+  try {
+    await ensureInviteLookupForRoom(roomRef.id);
+  } catch (err) {
+    console.warn("ensureInviteLookupForRoom after create:", err);
+  }
   return roomRef.id;
 }
 
-async function writeInviteLookup(inviteCode, roomId, ownerId) {
-  const code = normalizeInviteCode(inviteCode);
-  if (!code || !ownerId) return false;
+/** Ensure inviteLookups/{code} exists (repairs rooms created before the join fix). */
+export async function ensureInviteLookupForRoom(roomId) {
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  if (!roomSnap.exists()) return false;
+  const data = roomSnap.data();
+  const inviteCode = normalizeInviteCode(data.inviteCode || "");
+  if (!inviteCode) return false;
   await setDoc(
-    doc(db, "inviteLookups", code),
+    doc(db, "inviteLookups", inviteCode),
     {
       roomId,
-      ownerId,
+      ownerId: data.ownerId,
       createdAt: serverTimestamp(),
     },
     { merge: true },
   );
   return true;
-}
-
-/**
- * Ensure inviteLookups/{code} exists (repairs rooms created before the join fix).
- * Pass inviteCode + ownerId when the caller already loaded the room — avoids a
- * redundant getDoc(rooms/{id}) that can race membership propagation after create.
- */
-export async function ensureInviteLookupForRoom(roomId, hint = {}) {
-  let inviteCode = hint.inviteCode ? normalizeInviteCode(hint.inviteCode) : "";
-  let ownerId = hint.ownerId ?? null;
-
-  if (!inviteCode || !ownerId) {
-    await whenAuthReady();
-    const roomPath = `rooms/${roomId}`;
-    let roomSnap;
-    try {
-      roomSnap = await getDoc(doc(db, "rooms", roomId));
-    } catch (err) {
-      logFirestoreError("get", roomPath, err, { roomId });
-      throw err;
-    }
-    if (!roomSnap.exists()) return false;
-    const data = roomSnap.data();
-    inviteCode = normalizeInviteCode(data.inviteCode || "");
-    ownerId = data.ownerId ?? null;
-  }
-
-  if (!inviteCode || !ownerId) return false;
-
-  try {
-    return await writeInviteLookup(inviteCode, roomId, ownerId);
-  } catch (err) {
-    logFirestoreError("set", `inviteLookups/${inviteCode}`, err, { roomId, ownerId });
-    throw err;
-  }
 }
 
 /** Join an existing room by invite code. Returns the roomId. */
@@ -1023,58 +976,29 @@ async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, reb
  * membership rows, then loads each referenced room document.
  * @returns {() => void} unsubscribe
  */
-export function subscribeMyRooms(uid, callback, onError) {
-  if (!uid) {
-    const err = new Error("subscribeMyRooms: missing uid");
-    logFirestoreError("listen", "roomMembers", err);
-    onError?.(err);
-    return () => {};
-  }
-  const listenPath = `roomMembers (userId == ${uid})`;
+export function subscribeMyRooms(uid, callback) {
   const q = query(collection(db, "roomMembers"), where("userId", "==", uid));
-  return onSnapshot(
-    q,
-    async (snap) => {
-      const memberships = snap.docs.map(withId);
-      const rooms = await Promise.all(
-        memberships.map(async (m) => {
-          const roomPath = `rooms/${m.roomId}`;
-          try {
-            const roomSnap = await getDoc(doc(db, "rooms", m.roomId));
-            if (!roomSnap.exists()) return null;
-            return { ...withId(roomSnap), role: m.role };
-          } catch (err) {
-            logFirestoreError("get", roomPath, err, { uid, roomId: m.roomId });
-            if (!isPermissionDenied(err)) throw err;
-            return null;
-          }
-        }),
-      );
-      callback(
-        rooms
-          .filter(Boolean)
-          .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
-      );
-    },
-    (err) => {
-      logFirestoreError("listen", listenPath, err, { uid });
-      onError?.(err);
-    },
-  );
+  return onSnapshot(q, async (snap) => {
+    const memberships = snap.docs.map(withId);
+    const rooms = await Promise.all(
+      memberships.map(async (m) => {
+        const roomSnap = await getDoc(doc(db, "rooms", m.roomId));
+        if (!roomSnap.exists()) return null;
+        return { ...withId(roomSnap), role: m.role };
+      }),
+    );
+    callback(
+      rooms
+        .filter(Boolean)
+        .sort((a, b) => seconds(b.createdAt) - seconds(a.createdAt)),
+    );
+  });
 }
 
-export function subscribeRoom(roomId, callback, onError) {
-  const roomPath = `rooms/${roomId}`;
-  return onSnapshot(
-    doc(db, "rooms", roomId),
-    (snap) => {
-      callback(snap.exists() ? withId(snap) : null);
-    },
-    (err) => {
-      logFirestoreError("listen", roomPath, err, { roomId });
-      onError?.(err);
-    },
-  );
+export function subscribeRoom(roomId, callback) {
+  return onSnapshot(doc(db, "rooms", roomId), (snap) => {
+    callback(snap.exists() ? withId(snap) : null);
+  });
 }
 
 export function subscribeRoomMembers(roomId, callback) {
@@ -1096,8 +1020,6 @@ const scoresCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "scores");
 const handsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, "hands");
-const handDoc = (roomId, sessionId, handNumber) =>
-  doc(db, "rooms", roomId, "sessions", sessionId, "hands", String(handNumber));
 const moneyEventsCol = (roomId, sessionId) =>
   collection(db, "rooms", roomId, "sessions", sessionId, MONEY_EVENTS_COLLECTION);
 const sessionDoc = (roomId, sessionId) =>
@@ -3308,7 +3230,7 @@ async function recordHandClient(
 
   try {
     const handBatch = writeBatch(db);
-    handBatch.set(handDoc(roomId, sessionId, handNumber), handLedger);
+    handBatch.set(doc(handsCol(roomId, sessionId)), handLedger);
     await handBatch.commit();
   } catch (err) {
     if (!isPermissionDenied(err)) throw err;
@@ -3676,37 +3598,21 @@ const playerDoc = (playerId) => doc(db, "players", playerId);
 
 /** Create a player ranking doc with the initial rating if it doesn't exist. */
 export async function ensurePlayerDoc(playerId, displayName) {
-  if (!playerId) {
-    console.warn("[nbl-firestore] ensurePlayerDoc skipped — missing playerId");
-    return null;
-  }
-  const path = `players/${playerId}`;
   const ref = playerDoc(playerId);
-  let snap;
-  try {
-    snap = await getDoc(ref);
-  } catch (err) {
-    logFirestoreError("get", path, err, { playerId });
-    throw err;
-  }
-  try {
-    if (!snap.exists()) {
-      await setDoc(ref, {
-        displayName,
-        mu: RATING_INITIAL.mu,
-        sigma: RATING_INITIAL.sigma,
-        matchesPlayed: 0,
-        apeScore: RATING_INITIAL_APE,
-        momentum: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    } else if (displayName && snap.data().displayName !== displayName) {
-      await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
-    }
-  } catch (err) {
-    logFirestoreError(snap.exists() ? "update" : "set", path, err, { playerId });
-    throw err;
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      displayName,
+      mu: RATING_INITIAL.mu,
+      sigma: RATING_INITIAL.sigma,
+      matchesPlayed: 0,
+      apeScore: RATING_INITIAL_APE,
+      momentum: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else if (displayName && snap.data().displayName !== displayName) {
+    await updateDoc(ref, { displayName, updatedAt: serverTimestamp() });
   }
   return playerId;
 }
@@ -3723,26 +3629,18 @@ export async function getPlayers(ids) {
 }
 
 /** Real-time leaderboard: all players, sorted by Ape Score (desc). */
-export function subscribeLeaderboard(callback, onError) {
-  const listenPath = "players";
-  return onSnapshot(
-    collection(db, "players"),
-    (snap) => {
-      callback(
-        snap.docs
-          .map(withId)
-          .sort(
-            (a, b) =>
-              (b.apeScore ?? 0) - (a.apeScore ?? 0) ||
-              (b.matchesPlayed ?? 0) - (a.matchesPlayed ?? 0),
-          ),
-      );
-    },
-    (err) => {
-      logFirestoreError("listen", listenPath, err);
-      onError?.(err);
-    },
-  );
+export function subscribeLeaderboard(callback) {
+  return onSnapshot(collection(db, "players"), (snap) => {
+    callback(
+      snap.docs
+        .map(withId)
+        .sort(
+          (a, b) =>
+            (b.apeScore ?? 0) - (a.apeScore ?? 0) ||
+            (b.matchesPlayed ?? 0) - (a.matchesPlayed ?? 0),
+        ),
+    );
+  });
 }
 
 /** Add a (guest or member) player to an in-progress session, with a fresh score row. */
@@ -3973,53 +3871,41 @@ async function waitForMinSeatedPlayers(
 }
 
 async function attemptAutoDeal(roomId, sessionId) {
-  const resolved = resolveSessionHandRef(roomId, sessionId, sessionDoc);
-  if (!resolved) {
-    console.error("Invalid handRef passed to attemptAutoDeal", { roomId, sessionId });
-    return;
-  }
-  const { roomId: rid, sessionId: sid, path: handPath } = resolved;
-
-  const dealAlreadyStarted = async () => {
-    const data = await readSessionDataForHandVerify(rid, sid);
-    return sessionHandDealStarted(data);
-  };
-
   let clientErr = null;
+  try {
+    await ensureHandEnrollmentClient(roomId, sessionId);
+  } catch (err) {
+    clientErr = err;
+    const data = await readSessionDataForHandVerify(roomId, sessionId);
+    if (sessionHandDealStarted(data)) return;
+    if (!SERVER_HAND_AUTHORITY) throw err;
+    console.warn(
+      "Client deal did not complete, trying Cloud Function.",
+      err?.code || err?.message || err,
+    );
+  }
+
+  let data = await readSessionDataForHandVerify(roomId, sessionId);
+  if (sessionHandDealStarted(data)) return;
 
   if (SERVER_HAND_AUTHORITY) {
     try {
-      await gameEnsureHandEnrollment(rid, sid);
-      if (await dealAlreadyStarted()) return;
-      return;
+      await gameEnsureHandEnrollment(roomId, sessionId);
     } catch (serverErr) {
-      if (await dealAlreadyStarted()) return;
+      data = await readSessionDataForHandVerify(roomId, sessionId);
+      if (sessionHandDealStarted(data)) return;
       if (!isCloudFunctionUnavailable(serverErr)) {
         throw describeEnrollmentStartError(serverErr);
       }
-      console.warn("Enrollment Cloud Function unavailable; trying client deal.", {
-        handPath,
-        code: serverErr?.code ?? null,
-        message: serverErr?.message ?? String(serverErr),
-      });
+      console.warn(
+        "Enrollment Cloud Function unavailable.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+      if (clientErr) throw clientErr;
+      throw describeEnrollmentStartError(serverErr);
     }
-  }
-
-  try {
-    await ensureHandEnrollmentClient(rid, sid);
-  } catch (err) {
-    clientErr = err;
-    if (await dealAlreadyStarted()) return;
-    console.error("Client deal did not complete", {
-      handPath,
-      code: err?.code ?? null,
-      message: err?.message ?? String(err),
-    });
-    throw describeEnrollmentStartError(clientErr);
-  }
-
-  if (clientErr) {
-    throw describeEnrollmentStartError(clientErr);
+  } else if (clientErr) {
+    throw clientErr;
   }
 }
 
@@ -4142,24 +4028,16 @@ function enrollmentStartFailure(sessionData, scoreSnap, kind = "enrollment_faile
 
 /** Start enrollment when a session has an empty hand but no active enrollment. */
 export async function ensureHandEnrollment(roomId, sessionId, { members, roster } = {}) {
-  const resolved = resolveSessionHandRef(roomId, sessionId, sessionDoc);
-  if (!resolved) {
-    const err = new Error("Invalid session hand reference for enrollment");
-    err.code = "invalid-hand-ref";
-    throw err;
-  }
-  const { roomId: rid, sessionId: sid } = resolved;
-
-  await prepareSessionForTableOpen(rid, sid);
+  await prepareSessionForTableOpen(roomId, sessionId);
 
   const minPlayers = 2;
-  const seated = await waitForMinSeatedPlayers(rid, sid, minPlayers, {
+  const seated = await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, {
     members,
     roster,
   });
   if (seated < minPlayers) {
-    const scoreSnap = await getDocs(scoresCol(rid, sid));
-    const sessionSnap = await getDoc(sessionDoc(rid, sid));
+    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+    const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
     throw enrollmentStartFailure(
       sessionSnap.exists() ? sessionSnap.data() : null,
       scoreSnap,
@@ -4172,16 +4050,16 @@ export async function ensureHandEnrollment(roomId, sessionId, { members, roster 
   for (const delayMs of retryDelaysMs) {
     if (delayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, delayMs));
-      await waitForMinSeatedPlayers(rid, sid, minPlayers, { members, roster }, 2000);
+      await waitForMinSeatedPlayers(roomId, sessionId, minPlayers, { members, roster }, 2000);
     }
-    await attemptAutoDeal(rid, sid);
-    data = await waitForSessionHandDeal(rid, sid);
+    await attemptAutoDeal(roomId, sessionId);
+    data = await waitForSessionHandDeal(roomId, sessionId);
     if (sessionHandDealStarted(data)) return;
     if (data?.status === "final") return;
   }
 
   if (!sessionHandDealStarted(data)) {
-    const scoreSnap = await getDocs(scoresCol(rid, sid));
+    const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
     const seatedNow = seatPlayerIds(data, scoreSnap).length;
     throw enrollmentStartFailure(
       data,

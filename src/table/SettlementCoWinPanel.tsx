@@ -9,7 +9,6 @@ interface SettlementCoWinPanelProps {
   splitSharePerWinner: number;
   currentUserId: string | null;
   isCoWinner: boolean;
-  manualContinueAllowed?: boolean;
   onSettle: (choice: "push" | "split") => void;
 }
 
@@ -20,7 +19,6 @@ export function SettlementCoWinPanel({
   splitSharePerWinner,
   currentUserId,
   isCoWinner,
-  manualContinueAllowed = true,
   onSettle,
 }: SettlementCoWinPanelProps) {
   const view = buildCoWinSettlementView({
@@ -110,7 +108,7 @@ export function SettlementCoWinPanel({
         <button
           type="button"
           className="btn btn--sm"
-          disabled={!isCoWinner || !manualContinueAllowed}
+          disabled={!isCoWinner}
           data-testid="settlement-decline-btn"
           onClick={() => onSettle("push")}
         >
@@ -119,7 +117,7 @@ export function SettlementCoWinPanel({
         <button
           type="button"
           className="btn btn--sm btn--primary"
-          disabled={!isCoWinner || !manualContinueAllowed}
+          disabled={!isCoWinner}
           data-testid="settlement-agree-btn"
           onClick={() => onSettle("split")}
         >
