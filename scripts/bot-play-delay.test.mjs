@@ -117,7 +117,7 @@ describe("bot play delay", () => {
 
   it("presentation wait can consume the full think delay", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
-    state.markTurnEligible({
+    state.beginVisibleThinkWindow({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
@@ -131,6 +131,32 @@ describe("bot play delay", () => {
       nowMs: MIN_VISIBLE_THINK_MS + 200,
     });
     assert.equal(afterPresentation.delayMs, 0);
+  });
+
+  it("does not credit invisible presentation-block wait against visible think", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    state.beginVisibleThinkWindow({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 5000,
+    });
+    const armed = state.resolvePlayDelayMs({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: 5000,
+    });
+    assert.equal(armed.chosenDelayMs, MIN_VISIBLE_THINK_MS);
+    assert.equal(armed.delayMs, MIN_VISIBLE_THINK_MS);
+    assert.equal(armed.elapsedSinceTurnMs, 0);
   });
 
   it("play phase delay ignores trick interval floor", () => {

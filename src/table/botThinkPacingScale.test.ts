@@ -40,13 +40,35 @@ describe("bot min visible think (3s floor)", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
-      nowMs: 0,
+      nowMs: 5000,
       shouldFire: () => true,
       onFire: () => {},
     });
     assert.equal(armed.action, "armed");
     assert.ok(armed.chosenDelayMs >= MIN_VISIBLE_THINK_MS);
     assert.equal(armed.delayMs, armed.chosenDelayMs);
+    assert.equal(armed.elapsedSinceTurnMs, 0);
+  });
+
+  it("re-arms full visible think after stale presentation-block mark", async () => {
+    const { createBotPlayDelayState, createBotThinkScheduleState } = await import(
+      "../../docs/bot-play-delay.js"
+    );
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    schedule.playDelayState.markTurnEligible({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    const armed = schedule.armPlayThink({
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
+      nowMs: 6000,
+      shouldFire: () => true,
+      onFire: () => {},
+    });
+    assert.equal(armed.delayMs, MIN_VISIBLE_THINK_MS);
+    assert.equal(armed.elapsedSinceTurnMs, 0);
   });
 
   it("keeps ring countdown active through the full 3s think window", () => {
