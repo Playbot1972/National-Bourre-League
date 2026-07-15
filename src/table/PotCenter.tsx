@@ -9,6 +9,7 @@ import type { CardLandedAudioCallbackInput } from "./TrickPlaySlot";
 import { DiscardPile } from "./DiscardPile";
 import type { DiscardPileCard } from "./discardPileModel";
 import type { DrawAnimSubPhase } from "./handPresentationTiming";
+import { anteSeatCoinDelayMs } from "./handPresentationTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { CARD_LAND_MS } from "./trickTiming";
 import type { PotMetrics, SerializedCard } from "./types";
@@ -216,7 +217,10 @@ export function PotCenter({
               <span
                 key={i}
                 className="bpot__ante-chip"
-                style={{ ["--ante-i" as string]: i }}
+                style={{
+                  ["--ante-i" as string]: i,
+                  animationDelay: `${anteSeatCoinDelayMs(i)}ms`,
+                }}
               />
             ))}
           </div>

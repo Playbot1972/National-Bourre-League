@@ -14,7 +14,13 @@ export const BOT_PLAY_DELAY_MIN_MS = BASE_BOT_PLAY_DELAY_MIN_MS * BOT_THINK_PACI
 export const BOT_PLAY_DELAY_MAX_MS = BASE_BOT_PLAY_DELAY_MAX_MS * BOT_THINK_PACING_MULTIPLIER;
 export const BOT_PLAY_LAST_CARD_MIN_MS = BASE_BOT_PLAY_LAST_CARD_MIN_MS * BOT_THINK_PACING_MULTIPLIER;
 export const BOT_PLAY_LAST_CARD_MAX_MS = BASE_BOT_PLAY_LAST_CARD_MAX_MS * BOT_THINK_PACING_MULTIPLIER;
+/** Minimum visible think window before bot card play (ring must spin this long). */
+export const BOT_MIN_VISIBLE_THINK_MS = 3000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
+
+function applyMinVisibleThink(delayMs) {
+  return Math.max(BOT_MIN_VISIBLE_THINK_MS, delayMs);
+}
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
   return `${handNumber ?? 0}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
@@ -36,9 +42,10 @@ export function randomIntInclusive(min, max, rng = Math.random) {
  */
 export function pickBotPlayDelayMs(remainingHandCount, rng = Math.random) {
   const isLastCard = remainingHandCount === 1;
-  const chosenDelayMs = isLastCard
+  const rawDelayMs = isLastCard
     ? randomIntInclusive(BOT_PLAY_LAST_CARD_MIN_MS, BOT_PLAY_LAST_CARD_MAX_MS, rng)
     : randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
+  const chosenDelayMs = applyMinVisibleThink(rawDelayMs);
   return {
     chosenDelayMs,
     isLastCard,

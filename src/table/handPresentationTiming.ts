@@ -8,8 +8,14 @@ import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickT
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
 
-/** Per-seat stagger before each ante coin fly-in (3× former 80 ms). */
-export const ANTE_CHIP_STAGGER_MS = 240;
+/** Minimum visible think before each ante coin fly-in (matches bot play floor). */
+export const ANTE_MIN_THINK_MS = 3000;
+
+/** Per-seat interval: prior seat think + travel before next coin fly-in. */
+export const ANTE_SEAT_INTERVAL_MS = ANTE_MIN_THINK_MS + ANTE_CHIP_TRAVEL_MS;
+
+/** @deprecated Use {@link ANTE_SEAT_INTERVAL_MS} — kept for timing scale exports. */
+export const ANTE_CHIP_STAGGER_MS = ANTE_SEAT_INTERVAL_MS;
 
 /** Per-card deal stagger (90–140 ms). */
 export const DEAL_CARD_STAGGER_MS = 130;
@@ -119,14 +125,22 @@ export function drawPlayerScheduleMs(
   return discards * t.drawDiscardMs + replacements * t.drawReplaceMs + 80;
 }
 
-/** Visible ante beat: per-seat stagger before fly-in, then final chip travel. */
+/** Delay before seat `seatIndex` ante coin fly-in (one-at-a-time think pacing). */
+export function anteSeatCoinDelayMs(seatIndex: number, reducedMotion = prefersReducedMotion()): number {
+  const seat = Math.max(0, seatIndex);
+  const t = handTimingScale(reducedMotion);
+  const intervalMs = ANTE_MIN_THINK_MS + t.anteChipTravelMs;
+  return ANTE_MIN_THINK_MS + seat * intervalMs;
+}
+
+/** Visible ante beat: per-seat think before fly-in, then final chip travel. */
 export function antePresentationScheduleMs(
   seatCount: number,
   reducedMotion = prefersReducedMotion(),
 ): number {
   const t = handTimingScale(reducedMotion);
   const seats = Math.max(1, Math.min(seatCount, 8));
-  return t.anteChipStaggerMs * Math.max(0, seats - 1) + t.anteChipTravelMs;
+  return anteSeatCoinDelayMs(seats - 1, reducedMotion) + t.anteChipTravelMs;
 }
 
 export function suppressesHandTurnIndicator(phase: HandPresentationPhase): boolean {
