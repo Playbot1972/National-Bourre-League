@@ -3,25 +3,33 @@
  * Authoritative game state is unchanged; these values gate UI sequencing.
  */
 
+import { anteThinkWorstCaseDurationMs } from "../session/botActionTiming";
 import {
-  anteThinkDurationMs as botAnteThinkDurationMs,
-  anteThinkWorstCaseDurationMs,
-} from "../session/botActionTiming";
+  type HandPacingMode,
+  classicAntePhaseDurationMs,
+  resolveAnteCoinDelayPlan,
+} from "./handPacingMode";
 import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
 
-/** Logical ante phase duration — shared bot think-time per seat only (no travel/settle). */
+/**
+ * Ante phase schedule duration — classic waits for full coin flight; Ape S. uses think-only.
+ */
 export function antePresentationDurationMs(
   handNumber: number,
   playerIds: string[],
   reducedMotion = false,
+  pacingMode: HandPacingMode = "classic",
 ): number {
   if (playerIds.length < 1) {
-    return anteThinkWorstCaseDurationMs(1, reducedMotion);
+    return pacingMode === "apeSpeed"
+      ? anteThinkWorstCaseDurationMs(1, reducedMotion)
+      : classicAntePhaseDurationMs(1, reducedMotion);
   }
-  return botAnteThinkDurationMs(handNumber, playerIds, reducedMotion, ANTE_CHIP_TRAVEL_MS);
+  const plan = resolveAnteCoinDelayPlan(handNumber, playerIds, reducedMotion, pacingMode);
+  return pacingMode === "apeSpeed" ? plan.totalThinkMs : plan.totalDurationMs;
 }
 
 /** Per-card deal stagger (90–140 ms). */

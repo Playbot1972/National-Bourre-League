@@ -1,3 +1,4 @@
+import type { HandPacingMode } from "./handPacingMode";
 import type { SerializedCard } from "./types";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
@@ -910,6 +911,7 @@ export function buildHandPresentationModel(
 export function phaseScheduleMs(
   store: HandPresentationStore,
   reducedMotion = false,
+  pacingMode: HandPacingMode = "classic",
 ): number {
   const t = handTimingScale(reducedMotion);
   switch (store.phase) {
@@ -917,7 +919,7 @@ export function phaseScheduleMs(
       return t.handResetMs;
     case "ante": {
       const playerIds = store.prevSnapshot?.participantIds?.slice(0, 8) ?? [];
-      return antePresentationDurationMs(store.handNumber, playerIds, reducedMotion);
+      return antePresentationDurationMs(store.handNumber, playerIds, reducedMotion, pacingMode);
     }
     case "trumpReveal":
       return t.trumpRevealHoldMs;

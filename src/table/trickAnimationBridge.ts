@@ -1,5 +1,10 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
+import {
+  getActiveHandPacingMode,
+  PACING_FORCE_RELEASE_MS,
+  PACING_SOFT_UNBLOCK_MS,
+} from "./handPacingMode";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
   isAntePresentationActive,
@@ -27,9 +32,17 @@ export interface TrickAnimationBusyState {
 }
 
 /** After this, bot driver may proceed even if presentation is still busy. */
-export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 5_500;
+export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = PACING_SOFT_UNBLOCK_MS.apeSpeed;
 /** After this, presentation busy flags are force-cleared for bots. */
-export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
+export const BOT_PRESENTATION_FORCE_RELEASE_MS = PACING_FORCE_RELEASE_MS.apeSpeed;
+
+function presentationSoftUnblockMs(): number {
+  return PACING_SOFT_UNBLOCK_MS[getActiveHandPacingMode()];
+}
+
+function presentationForceReleaseMs(): number {
+  return PACING_FORCE_RELEASE_MS[getActiveHandPacingMode()];
+}
 
 const IDLE: TrickAnimationBusyState = {
   pipelineActive: false,
@@ -173,7 +186,7 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
 
   const blockedMs = now - blockEpisode.since;
 
-  if (blockedMs >= BOT_PRESENTATION_FORCE_RELEASE_MS) {
+  if (blockedMs >= presentationForceReleaseMs()) {
     if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
       logGameFlow("trickAnimationBridge", "gate-force-release", { reason, blockedMs });
     }
@@ -187,7 +200,7 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
     };
   }
 
-  if (blockedMs >= BOT_PRESENTATION_SOFT_UNBLOCK_MS) {
+  if (blockedMs >= presentationSoftUnblockMs()) {
     if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
       logGameFlow("trickAnimationBridge", "gate-soft-unblock", { reason, blockedMs });
       blockEpisode.blockedLogged = true;

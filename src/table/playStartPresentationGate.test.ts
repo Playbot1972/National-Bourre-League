@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
+import { activateHandPacingModeForHand } from "./handPacingMode";
 import {
   createTrickPresentationStore,
   reduceTrickPresentation,
@@ -31,9 +32,16 @@ const idleBusy = {
   displayedPlayCount: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
+  dealPresentationActive: false,
+  antePresentationActive: false,
+  trickCollectionActive: false,
 };
 
 describe("play-start presentation gate", () => {
+  beforeEach(() => {
+    activateHandPacingModeForHand(1);
+  });
+
   it("opening trick 1 is not blocked after draw/trump presentation while server is play", () => {
     resetTrickAnimationBusyState();
 

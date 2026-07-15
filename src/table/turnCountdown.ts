@@ -3,7 +3,10 @@ import {
   HAND_FLOW_PHASE,
   type HandFlowSessionView,
 } from "../session/handPhaseMachine";
-import { buildAnteCoinDelayPlan } from "../session/botActionTiming";
+import {
+  type HandPacingMode,
+  resolveAnteCoinDelayPlan,
+} from "./handPacingMode";
 import {
   buildAntePresentationSchedule,
   resolveAnteThinkAtTimelineSec,
@@ -34,6 +37,7 @@ export interface AnteTurnCountdownContext {
   handNumber: number;
   playerIds: string[];
   reducedMotion: boolean;
+  pacingMode: HandPacingMode;
 }
 
 export interface TurnCountdownInput {
@@ -125,11 +129,12 @@ export function resolveAntePresentationActorId(ante: AnteTurnCountdownContext): 
   if (!ante.anteAnimActive || ante.playerIds.length < 1) return null;
   const elapsedSec = readAntePresentationTimelineSec(ante.presentationKey);
   if (elapsedSec == null) return null;
-  const plan = buildAnteCoinDelayPlan({
-    handNumber: ante.handNumber,
-    playerIds: ante.playerIds,
-    reducedMotion: ante.reducedMotion,
-  });
+  const plan = resolveAnteCoinDelayPlan(
+    ante.handNumber,
+    ante.playerIds,
+    ante.reducedMotion,
+    ante.pacingMode,
+  );
   const schedule = buildAntePresentationSchedule(plan, ante.reducedMotion);
   return resolveAnteThinkAtTimelineSec(elapsedSec, schedule)?.playerId ?? null;
 }

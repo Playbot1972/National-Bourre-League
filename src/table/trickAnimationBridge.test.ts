@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { beforeEach, describe, it } from "node:test";
+import { activateHandPacingModeForHand, setApeSpeedModeEnabledForTests } from "./handPacingMode";
 import {
   BOT_PRESENTATION_FORCE_RELEASE_MS,
   BOT_PRESENTATION_SOFT_UNBLOCK_MS,
@@ -28,8 +29,13 @@ const idleTrickFields = {
 };
 
 describe("trickAnimationBridge", () => {
-  it("is idle by default", () => {
+  beforeEach(() => {
     resetTrickAnimationBusyState();
+    setApeSpeedModeEnabledForTests(true);
+    activateHandPacingModeForHand(1);
+  });
+
+  it("is idle by default", () => {
     assert.equal(isTrickAnimationBusy(), false);
     assert.equal(isTablePresentationBusy(), false);
   });

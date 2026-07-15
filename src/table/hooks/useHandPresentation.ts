@@ -8,6 +8,7 @@ import {
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
+import { activateHandPacingModeForHand, getHandPacingMode } from "../handPacingMode";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { resolveHandPresentationKey } from "../handServerUpdateGate";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
@@ -120,6 +121,7 @@ export function useHandPresentation({
   const advanceArmedKeyRef = useRef<string | null>(null);
   const storeRef = useRef(store);
   storeRef.current = store;
+  const handPacingMode = getHandPacingMode(session.handNumber);
 
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -133,6 +135,10 @@ export function useHandPresentation({
   };
 
   useEffect(() => () => clearTimers(), []);
+
+  useEffect(() => {
+    activateHandPacingModeForHand(session.handNumber);
+  }, [session.handNumber]);
 
   useEffect(() => {
     if (!presentationKey) {
@@ -195,7 +201,7 @@ export function useHandPresentation({
     }
 
     clearTimers();
-    const delay = phaseScheduleMs(store, reduced);
+    const delay = phaseScheduleMs(store, reduced, handPacingMode);
     if (delay <= 0) return;
 
     const armedAt = {
