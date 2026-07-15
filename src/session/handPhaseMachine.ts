@@ -102,7 +102,6 @@ export interface BotAdvanceHint {
     | "enrollment"
     | "decision_timeout"
     | "decision"
-    | "advance_reveal"
     | "draw"
     | "play";
   turnPlayerId: string;
@@ -501,19 +500,6 @@ export function resolveBotAdvanceHint(input: BotAdvanceInput): BotAdvanceHint | 
     return null;
   }
 
-  if (snapshot.phase === HAND_FLOW_PHASE.DEAL) {
-    const hand = session ? authoritativeCurrentHand(session) : emptyHand();
-    const leader =
-      hand.turnPlayerId ??
-      snapshot.participantIds.find((id) => isRobotPlayerId(id)) ??
-      snapshot.participantIds[0] ??
-      null;
-    if (leader) {
-      return { kind: "advance_reveal", turnPlayerId: leader };
-    }
-    return null;
-  }
-
   if (snapshot.phase === HAND_FLOW_PHASE.DRAW) {
     const turnId = snapshot.turnPlayerId;
     const drawDone = session
@@ -550,68 +536,6 @@ export function resolveBotAdvanceHint(input: BotAdvanceInput): BotAdvanceHint | 
 
 export function canAdvanceBots(input: BotAdvanceInput): boolean {
   return resolveBotAdvanceHint(input) != null;
-}
-
-/** Structured reason when resolveBotAdvanceHint returns null (server logging / diagnostics). */
-export function resolveBotAdvanceEmptyReason(input: BotAdvanceInput): string {
-  if (resolveBotAdvanceHint(input)) return "has_hint";
-
-  const { snapshot, session, nowMs } = input;
-  if (snapshot.pendingCoWin) return "pending_cowin_human_vote";
-
-  if (snapshot.phase === HAND_FLOW_PHASE.SETTLE) return "settling";
-  if (snapshot.phase === HAND_FLOW_PHASE.WAITING) return "waiting";
-  if (snapshot.phase === HAND_FLOW_PHASE.NEXT_HAND_PREP) return "next_hand_prep";
-
-  if (snapshot.phase === HAND_FLOW_PHASE.ENROLLMENT) {
-    const enrollment = session ? getSessionEnrollment(session) : null;
-    if (!enrollment?.active && !snapshot.pagatDecisionActive) return "enrollment_inactive";
-    if (snapshot.pagatDecisionActive && session) {
-      const hand = authoritativeCurrentHand(session);
-      const decision = hand.handDecision;
-      if (decision?.active) {
-        const turnId = currentDecisionPlayer(decision as HandDecision);
-        if (!turnId) return "decision_no_turn";
-        if (nowMs >= enrollmentDeadlineMs(decision)) return "decision_timeout_pending";
-        if (!isRobotPlayerId(turnId)) return "decision_human_turn";
-        return "decision_bot_waiting";
-      }
-    }
-    const ids = isHandEnrollmentView(enrollment) ? (enrollment.orderedPlayerIds ?? []) : [];
-    const idx = isHandEnrollmentView(enrollment) ? (enrollment.currentIndex ?? 0) : 0;
-    const turnId = ids[idx] ?? null;
-    if (!turnId) return "enrollment_no_turn";
-    if (nowMs >= enrollmentDeadlineMs(enrollment)) return "enrollment_timeout_pending";
-    if (!isRobotPlayerId(turnId)) return "enrollment_human_turn";
-    return "enrollment_bot_waiting";
-  }
-
-  if (snapshot.phase === HAND_FLOW_PHASE.DEAL) return "reveal_missing_leader";
-
-  if (snapshot.phase === HAND_FLOW_PHASE.DRAW) {
-    const turnId = snapshot.turnPlayerId;
-    if (!turnId) return "draw_no_turn";
-    if (!isRobotPlayerId(turnId)) return "draw_human_turn";
-    const drawDone = session
-      ? (authoritativeCurrentHand(session).drawCompletedIds ?? [])
-      : [];
-    if (drawDone.includes(turnId)) return "draw_turn_already_complete";
-    if (!snapshot.participantIds.includes(turnId)) return "draw_turn_not_in_hand";
-    return "draw_blocked";
-  }
-
-  if (snapshot.phase === HAND_FLOW_PHASE.PLAY) {
-    if (snapshot.handComplete || snapshot.trickCount >= MAX_TRICKS_PER_HAND) {
-      return "play_hand_complete";
-    }
-    const turnId = snapshot.turnPlayerId;
-    if (!turnId) return "play_no_turn";
-    if (!isRobotPlayerId(turnId)) return "play_human_turn";
-    if (!snapshot.participantIds.includes(turnId)) return "play_turn_not_in_hand";
-    return "play_blocked";
-  }
-
-  return "no_bot_hint";
 }
 
 /** @deprecated Use deriveHandFlowPhase — maps old handLifecycle name `opening` → `enrollment`. */

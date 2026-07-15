@@ -6,11 +6,10 @@ import {
   liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
-  shouldReinitTrickPresentationStore,
   trickPlaysArePrefix,
   updatePeakTrickPlays,
 } from "./trickPresentationMachine";
-import { FINAL_HAND_TRICK_PRESENTATION_MS, trickResolutionScheduleMs } from "./trickTiming";
+import { trickResolutionScheduleMs } from "./trickTiming";
 
 describe("trickPresentationMachine", () => {
   const participants = ["p1", "p2", "p3", "p4"];
@@ -411,90 +410,5 @@ describe("trickPresentationMachine", () => {
     assert.equal(store.phase, "live");
     assert.equal(store.pendingResolution, null);
     assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
-  });
-
-  it("latches hand-end echo when final trick pipeline completes with no next trick", () => {
-    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, completedTrick);
-    for (let i = 0; i < 4; i++) {
-      store = reduceTrickPresentation(store, { type: "revealNextCard" });
-    }
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5, p2: 0 } },
-      participantIds: participants,
-    });
-    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
-    for (let i = 0; i < 4; i++) {
-      store = reduceTrickPresentation(store, { type: "advancePhase" });
-    }
-    assert.equal(store.phase, "live");
-    assert.equal(store.handEndEchoTrick?.winnerId, "p1");
-    const model = buildTrickPresentationModel(store, null);
-    assert.equal(model.showFinalTrickEcho, true);
-    assert.equal(model.trickEchoWinnerId, "p1");
-  });
-
-  it("keeps hand-end echo through enrollment phase without reinit", () => {
-    const echo = {
-      trickNumber: 5,
-      leadSuit: "hearts",
-      plays: completedTrick.plays,
-      winnerId: "p1",
-    };
-    assert.equal(
-      shouldReinitTrickPresentationStore({
-        enteredPlay: false,
-        sessionPlayActive: false,
-        pipelineActive: false,
-        handComplete: false,
-        phase: "reveal",
-        participantCount: 4,
-        handEndEchoTrick: echo,
-      }),
-      false,
-    );
-    assert.equal(
-      shouldReinitTrickPresentationStore({
-        enteredPlay: false,
-        sessionPlayActive: false,
-        pipelineActive: false,
-        handComplete: false,
-        phase: "reveal",
-        participantCount: 4,
-        handEndEchoTrick: null,
-      }),
-      true,
-    );
-  });
-
-  it("clears hand-end echo on demand", () => {
-    let store = createTrickPresentationStore({ p1: 5, p2: 0 }, null);
-    store = {
-      ...store,
-      handEndEchoTrick: {
-        trickNumber: 5,
-        leadSuit: "hearts",
-        plays: completedTrick.plays,
-        winnerId: "p1",
-      },
-    };
-    store = reduceTrickPresentation(store, { type: "clearHandEndEcho" });
-    assert.equal(store.handEndEchoTrick, null);
-    assert.equal(buildTrickPresentationModel(store, null).showFinalTrickEcho, false);
-  });
-
-  it("preserves mid-trick reveals during hand-end without aggressive drain", () => {
-    const trick5 = { ...completedTrick, trickNumber: 5 };
-    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, trick5);
-    store = reduceTrickPresentation(store, { type: "revealNextCard" });
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5, p2: 0 } },
-      participantIds: participants,
-    });
-    assert.ok(store.pendingResolution);
-    assert.equal(store.revealedCount, 1);
-    assert.equal(store.phase, "live");
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= trickResolutionScheduleMs({}).pipelineMs);
   });
 });

@@ -7,7 +7,6 @@ import {
   scaledDuration,
 } from "./motionTokens";
 import { initCardMotion } from "./initMotion";
-import { tweenAlongArc } from "./arcTween";
 import { rectFromElement, type MotionRect } from "./flip";
 
 const ACTIVE_WON_TRICK_FLIGHTS = new Set<gsap.core.Timeline>();
@@ -219,21 +218,24 @@ export function animateTrickCardsToWonPile(
       startAt,
     );
 
-    tl.add(
-      tweenAlongArc(ghost, {
-        path: [
-          { x: 0, y: 0 },
-          { x: midX, y: midY },
-          { x: dx, y: dy },
-        ],
-        curviness: 1.15,
+    tl.to(
+      ghost,
+      {
+        motionPath: {
+          path: [
+            { x: 0, y: 0 },
+            { x: midX, y: midY },
+            { x: dx, y: dy },
+          ],
+          curviness: 1.15,
+        },
         rotation: placement.rotation,
         scale: placement.scale,
         opacity: 0.95,
         duration: flySec,
         ease: PREMIUM_EASE,
         onComplete: () => ghost.remove(),
-      }),
+      },
       startAt + gatherSec,
     );
   });

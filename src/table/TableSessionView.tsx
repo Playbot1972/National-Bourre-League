@@ -19,7 +19,6 @@ import {
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
-import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
@@ -36,8 +35,6 @@ import {
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
-import { buildCoWinSettlementView } from "./settlementCopy";
-import { useCoWinResultVisibility } from "./useCoWinResultVisibility";
 import { useTableTheme } from "./theme/useTableTheme";
 import { useMobileTable } from "./useMobileTable";
 import {
@@ -96,7 +93,6 @@ export function TableSessionView({
     (session.pendingCoWinSettlement?.winnerIds || []).includes(currentUserId);
   const trickPresentation = useTrickPresentation({
     phase: session.phase,
-    handNumber: session.handNumber,
     currentTrick: session.currentTrick,
     tricksByPlayer: session.tricksByPlayer,
     participantIds: session.participantIds,
@@ -123,64 +119,6 @@ export function TableSessionView({
       session.handEnrollment?.orderedPlayerIds ??
       session.participantIds,
   });
-
-  const shouldClearHandEndEcho =
-    handPresentation.phase === "settle" ||
-    handPresentation.phase === "nextHandReset" ||
-    handPresentation.phase === "ante";
-
-  useEffect(() => {
-    if (!shouldClearHandEndEcho) return;
-    if (!trickPresentation.showFinalTrickEcho) return;
-    trickPresentation.clearHandEndEcho();
-  }, [
-    shouldClearHandEndEcho,
-    trickPresentation.showFinalTrickEcho,
-    trickPresentation.clearHandEndEcho,
-  ]);
-
-  const coWinProposalKey = useMemo(() => {
-    const winnerIds = session.pendingCoWinSettlement?.winnerIds ?? [];
-    return `${session.handNumber}:${winnerIds.join(",")}`;
-  }, [session.handNumber, session.pendingCoWinSettlement?.winnerIds]);
-
-  const coWinResultMessage = useMemo(() => {
-    if (!showCoWinSettlement) return "";
-    const view = buildCoWinSettlementView({
-      tricksByPlayer: session.tricksByPlayer,
-      participantIds: session.participantIds,
-      players: players.map((p) => ({ playerId: p.playerId, displayName: p.displayName })),
-      pot: {
-        currentPot: potMetrics.currentPot,
-        maxWinThisHand: potMetrics.maxWinThisHand,
-        carryIn: session.carryOverPot ?? 0,
-        limEnabled: potMetrics.limEnabled,
-        overflow: potMetrics.overflow,
-      },
-      pendingVotes: session.pendingCoWinSettlement?.votes,
-      splitSharePerWinner,
-      currentUserId,
-      winnerIds: session.pendingCoWinSettlement?.winnerIds,
-    });
-    return [view.headline, view.subhead, view.potLine].filter(Boolean).join(" · ");
-  }, [
-    showCoWinSettlement,
-    session.tricksByPlayer,
-    session.participantIds,
-    session.carryOverPot,
-    session.pendingCoWinSettlement?.votes,
-    session.pendingCoWinSettlement?.winnerIds,
-    players,
-    potMetrics.currentPot,
-    potMetrics.maxWinThisHand,
-    potMetrics.limEnabled,
-    potMetrics.overflow,
-    splitSharePerWinner,
-    currentUserId,
-  ]);
-
-  const { visible: coWinResultVisible, manualContinueAllowed: coWinManualContinueAllowed } =
-    useCoWinResultVisibility(showCoWinSettlement, coWinProposalKey, coWinResultMessage);
 
   const instantTrickPlays = useTrumpTrickMotionGate(
     session.phase,
@@ -375,7 +313,7 @@ export function TableSessionView({
     rebuyEnabled &&
     !session.isFinal &&
     !lockedInLiveHand &&
-    !coWinResultVisible &&
+    !showCoWinSettlement &&
     selfPlayer?.isOut === true &&
     Boolean(actions.onRebuy);
   const isMyTurn = isHeroDrawOrPlayTurn({
@@ -409,14 +347,6 @@ export function TableSessionView({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
-  });
-
-  useTurnTimerWarning({
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-    currentUserId,
-    localActionPending: actionFeedback?.status === "loading",
   });
 
   const showTrumpSuitReminder =
@@ -676,22 +606,20 @@ export function TableSessionView({
 
       <TableSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {coWinResultVisible && !session.isFinal && splitPotEnabled && (
+      {showCoWinSettlement && !session.isFinal && splitPotEnabled && (
         <SplitPotDecisionToast
           session={session}
           players={players}
           splitSharePerWinner={splitSharePerWinner}
           currentUserId={currentUserId}
           isCoWinner={isCoWinner}
-          resultMessage={coWinResultMessage}
-          manualContinueAllowed={coWinManualContinueAllowed}
           onAgreeSplit={() => actions.onSettle("split")}
           onDeclineSplit={() => actions.onSettle("push")}
           onCarryover={() => actions.onSettleCarryover?.()}
         />
       )}
 
-      {coWinResultVisible && !session.isFinal && !splitPotEnabled && (
+      {showCoWinSettlement && !session.isFinal && !splitPotEnabled && (
         <SettlementCoWinPanel
           session={session}
           players={players}
@@ -699,7 +627,6 @@ export function TableSessionView({
           splitSharePerWinner={splitSharePerWinner}
           currentUserId={currentUserId}
           isCoWinner={isCoWinner}
-          manualContinueAllowed={coWinManualContinueAllowed}
           onSettle={(choice) => actions.onSettle(choice)}
         />
       )}

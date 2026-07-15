@@ -9,7 +9,6 @@ import {
   isHandFlowTransitionAllowed,
   nextHandFlowPhase,
   resolveBotAdvanceHint,
-  resolveBotAdvanceEmptyReason,
   resolveHandFlowTurnPlayerId,
   type HandFlowPhase,
 } from "./handPhaseMachine";
@@ -376,81 +375,15 @@ describe("handPhaseMachine — bot advance", () => {
     assert.equal(hint?.turnPlayerId, "bot_1");
   });
 
-  it("hints advance_reveal during deal (card phase reveal)", () => {
+  it("returns null during deal (reveal) — human/UI advances", () => {
     const session = {
       currentHand: {
         phase: "reveal",
-        participantIds: ["bot_1", "p2"],
-        turnPlayerId: "bot_1",
-        tricksByPlayer: { bot_1: 0, p2: 0 },
-        trumpSuit: "hearts",
+        participantIds: ["p1", "p2"],
+        tricksByPlayer: { p1: 0, p2: 0 },
       },
     };
     const snap = buildHandFlowSnapshot({ session });
-    const hint = resolveBotAdvanceHint({
-      snapshot: snap,
-      session,
-      nowMs: Date.now(),
-    });
-    assert.equal(hint?.kind, "advance_reveal");
-    assert.equal(hint?.turnPlayerId, "bot_1");
-  });
-
-  it("after reveal hint, draw bot is eligible when on turn", () => {
-    const revealSession = {
-      currentHand: {
-        phase: "reveal",
-        participantIds: ["bot_uxdncok6", "p2"],
-        turnPlayerId: "bot_uxdncok6",
-        tricksByPlayer: { bot_uxdncok6: 0, p2: 0 },
-        trumpUpcard: true,
-        trumpSuit: "hearts",
-      },
-    };
-    const revealSnap = buildHandFlowSnapshot({ session: revealSession });
-    assert.equal(
-      resolveBotAdvanceHint({
-        snapshot: revealSnap,
-        session: revealSession,
-        nowMs: Date.now(),
-      })?.kind,
-      "advance_reveal",
-    );
-
-    const drawSession = {
-      currentHand: {
-        phase: "draw",
-        participantIds: ["bot_uxdncok6", "p2"],
-        turnPlayerId: "bot_uxdncok6",
-        drawCompletedIds: [],
-        tricksByPlayer: { bot_uxdncok6: 0, p2: 0 },
-      },
-    };
-    const drawSnap = buildHandFlowSnapshot({ session: drawSession });
-    const drawHint = resolveBotAdvanceHint({
-      snapshot: drawSnap,
-      session: drawSession,
-      nowMs: Date.now(),
-    });
-    assert.equal(drawHint?.kind, "draw");
-    assert.equal(drawHint?.turnPlayerId, "bot_uxdncok6");
-  });
-
-  it("reports structured empty reason for human draw turn", () => {
-    const session = {
-      currentHand: {
-        phase: "draw",
-        participantIds: ["bot_1", "human"],
-        turnPlayerId: "human",
-        drawCompletedIds: [],
-        tricksByPlayer: { bot_1: 0, human: 0 },
-      },
-    };
-    const snap = buildHandFlowSnapshot({ session });
-    assert.equal(
-      resolveBotAdvanceEmptyReason({ snapshot: snap, session, nowMs: Date.now() }),
-      "draw_human_turn",
-    );
     assert.equal(
       resolveBotAdvanceHint({ snapshot: snap, session, nowMs: Date.now() }),
       null,
