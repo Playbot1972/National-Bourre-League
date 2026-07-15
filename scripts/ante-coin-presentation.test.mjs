@@ -12,9 +12,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 describe("ante coin presentation wiring", () => {
   const motion = readFileSync(join(root, "src/table/animations/anteCoinPresentationMotion.ts"), "utf8");
   const hook = readFileSync(join(root, "src/table/hooks/useTableAntePresentation.ts"), "utf8");
+  const pacing = readFileSync(join(root, "src/table/handPacingMode.ts"), "utf8");
   const pot = readFileSync(join(root, "src/table/PotCenter.tsx"), "utf8");
   const card = readFileSync(join(root, "src/table/CardTable.tsx"), "utf8");
-  const timing = readFileSync(join(root, "src/table/trickTiming.ts"), "utf8");
   const bridge = readFileSync(join(root, "src/table/trickAnimationBridge.ts"), "utf8");
   const tableView = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
 
@@ -25,8 +25,10 @@ describe("ante coin presentation wiring", () => {
     assert.doesNotMatch(pot, /bpot__ante-chips/);
   });
 
-  it("uses bot play think policy for ante coin timing", () => {
-    assert.match(hook, /buildAnteCoinDelayPlan/);
+  it("uses pacing-aware ante delay plans (classic + Ape S.)", () => {
+    assert.match(hook, /resolveAnteCoinDelayPlan/);
+    assert.match(hook, /getHandPacingMode/);
+    assert.match(pacing, /buildClassicAnteCoinDelayPlan/);
     const botTiming = readFileSync(join(root, "src/session/botActionTiming.ts"), "utf8");
     assert.match(botTiming, /buildAnteCoinDelayPlan/);
     assert.match(botTiming, /resolvePlayDelayMs/);
@@ -60,16 +62,19 @@ describe("ante coin presentation wiring", () => {
     assert.match(motion, /spawnAnteCoinWithAnchorRetry/);
   });
 
-  it("releases bot gate after think delay, not GSAP onComplete", () => {
-    assert.match(hook, /anteThinkDurationMs/);
+  it("Ape S. Mode releases bot gate after think delay; classic waits for GSAP onComplete", () => {
+    assert.match(hook, /pacingMode === "apeSpeed"/);
     assert.match(hook, /thinkReleaseTimer/);
-    assert.match(hook, /anteVisualPresentationDurationMs/);
-    assert.doesNotMatch(hook, /onComplete:[\s\S]*setAntePresentationActive\(false\)/);
+    assert.match(hook, /pacingMode === "classic"/);
+    assert.match(hook, /onComplete:[\s\S]*releaseBotGate/);
+    assert.match(hook, /delayPlan\.totalDurationMs \+ 200/);
   });
 
-  it("bot presentation gate uses think-gated release only during think window", () => {
+  it("bot presentation gate uses pacing-aware release windows", () => {
     assert.match(bridge, /antePresentationActive/);
     assert.match(bridge, /isAntePresentationActive/);
+    assert.match(bridge, /getActiveHandPacingMode/);
+    assert.match(pacing, /PACING_SOFT_UNBLOCK_MS/);
     assert.match(tableView, /isAntePresentationActive/);
   });
 
@@ -96,7 +101,7 @@ describe("ante coin presentation wiring", () => {
   });
 
   it("does not restart ante timeline on participantIds dependency churn", () => {
-    assert.match(hook, /buildAnteCoinDelayPlan/);
+    assert.match(hook, /resolveAnteCoinDelayPlan/);
     assert.match(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, tableRootRef\]/);
     assert.match(hook, /lastAnteKeyRef\.current === anteKey/);
     assert.doesNotMatch(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, session\.participantIds/);
