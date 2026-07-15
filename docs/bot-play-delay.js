@@ -3,55 +3,70 @@ var e = 250, t = 700, n = 100, r = 300, i = 150;
 function a({ handNumber: e, trickNumber: t, turnPlayerId: n }) {
 	return `${e ?? 0}:${t ?? 0}:${n ?? ""}`;
 }
-function o(e, t) {
-	return `ante:${e}:${t}`;
+function o(e) {
+	return e === "play" || e === "ante" || e === "reveal";
 }
-function s(e, t, n = Math.random) {
+function s(e, t) {
+	return e === "play" ? {
+		handNumber: t.handNumber,
+		trickNumber: t.trickNumber,
+		turnPlayerId: t.turnPlayerId,
+		remainingHandCount: t.remainingHandCount,
+		nowMs: 0
+	} : {
+		handNumber: t.handNumber,
+		trickNumber: 0,
+		turnPlayerId: t.turnPlayerId,
+		remainingHandCount: t.remainingHandCount ?? 5,
+		nowMs: 0
+	};
+}
+function c(e, t, n = Math.random) {
 	let r = t - e + 1;
 	return e + Math.floor(n() * r);
 }
-function c(e) {
+function l(e) {
 	let t = 0;
 	for (let n = 0; n < e.length; n += 1) t = Math.imul(31, t) + e.charCodeAt(n) >>> 0;
 	return t === 0 && (t = 2654435769), () => (t = Math.imul(1664525, t) + 1013904223 >>> 0, t / 4294967295);
 }
-function l(e, t = Math.random) {
+function u(e, t = Math.random) {
 	let n = e === 1;
 	return {
-		chosenDelayMs: n ? s(100, 300, t) : s(250, 700, t),
+		chosenDelayMs: n ? c(100, 300, t) : c(250, 700, t),
 		isLastCard: n,
 		remainingHandCount: e ?? null
 	};
 }
-function u(e, t) {
+function d(e, t) {
 	return `${e}:r${t ?? "?"}`;
 }
-function d(e = {}) {
-	let t = e.rng ?? Math.random, n = null, r = null, i = 0, s = /* @__PURE__ */ new Map();
-	function c(e) {
-		n !== e && (n = e, r = null, i = 0, s.clear());
+function f(e = {}) {
+	let t = e.rng ?? Math.random, n = null, r = null, i = 0, o = /* @__PURE__ */ new Map();
+	function s(e) {
+		n !== e && (n = e, r = null, i = 0, o.clear());
 	}
-	function d(e) {
-		c(e.handNumber);
+	function c(e) {
+		s(e.handNumber);
 		let t = a(e);
 		return r !== t && (r = t, i = e.nowMs), t;
 	}
-	function f(e, n) {
-		let r = u(e, n), i = s.get(r), a = null;
-		return i ?? (a = l(n, t), i = a.chosenDelayMs, s.set(r, i)), a ||= {
+	function l(e, n) {
+		let r = d(e, n), i = o.get(r), a = null;
+		return i ?? (a = u(n, t), i = a.chosenDelayMs, o.set(r, i)), a ||= {
 			chosenDelayMs: i,
 			isLastCard: n === 1,
 			remainingHandCount: n ?? null
 		}, a;
 	}
-	function p(e) {
-		c(e.handNumber);
-		let t = d({
+	function f(e) {
+		s(e.handNumber);
+		let t = c({
 			handNumber: e.handNumber,
 			trickNumber: e.trickNumber,
 			turnPlayerId: e.turnPlayerId,
 			nowMs: e.nowMs
-		}), n = f(t, e.remainingHandCount), r = n.chosenDelayMs, a = e.nowMs - i;
+		}), n = l(t, e.remainingHandCount), r = n.chosenDelayMs, a = e.nowMs - i;
 		return {
 			turnKey: t,
 			chosenDelayMs: r,
@@ -62,41 +77,22 @@ function d(e = {}) {
 			isLastCard: n.isLastCard
 		};
 	}
-	function m(e, n) {
-		c(e);
-		let r = u(o(e, n), 5), i = s.get(r);
-		return i ?? (i = l(5, t).chosenDelayMs, s.set(r, i)), i;
-	}
 	return {
-		syncHand: c,
-		markTurnEligible: d,
-		resolvePlayDelayMs: p,
-		resolveAntePostDelayMs: m,
-		delayByTurnKey: s
+		syncHand: s,
+		markTurnEligible: c,
+		resolvePlayDelayMs: f,
+		delayByTurnKey: o
 	};
 }
-function f(e) {
-	if (e.handPhase === "play") return {
-		...e.playDelayState.resolvePlayDelayMs({
-			handNumber: e.ctx.handNumber,
-			trickNumber: e.ctx.trickNumber,
-			turnPlayerId: e.ctx.turnPlayerId,
-			remainingHandCount: e.ctx.remainingHandCount,
-			nowMs: e.nowMs
-		}),
-		handPhase: "play"
-	};
-	if (e.handPhase === "ante") {
-		let t = o(e.ctx.handNumber, e.ctx.turnPlayerId ?? ""), n = e.playDelayState.resolveAntePostDelayMs(e.ctx.handNumber, e.ctx.turnPlayerId ?? "");
+function p(e) {
+	if (o(e.handPhase)) {
+		let t = s(e.handPhase, e.ctx);
 		return {
-			handPhase: "ante",
-			turnKey: t,
-			chosenDelayMs: n,
-			elapsedSinceTurnMs: 0,
-			trickGapRemainingMs: 0,
-			delayMs: n,
-			remainingHandCount: 5,
-			isLastCard: !1
+			...e.playDelayState.resolvePlayDelayMs({
+				...t,
+				nowMs: e.nowMs
+			}),
+			handPhase: e.handPhase ?? null
 		};
 	}
 	return {
@@ -110,44 +106,50 @@ function f(e) {
 		isLastCard: !1
 	};
 }
-var p = /* @__PURE__ */ new Map();
-function m(e, t, n) {
+var m = /* @__PURE__ */ new Map();
+function h(e, t, n) {
 	return `${e}:${t.join(",")}:${n ? "rm" : "full"}`;
 }
-function h(e) {
-	let t = e.reducedMotion ?? !1, n = m(e.handNumber, e.playerIds, t), r = p.get(n);
+function g(e) {
+	let t = e.reducedMotion ?? !1, n = h(e.handNumber, e.playerIds, t), r = m.get(n);
 	if (r) return r;
-	let i = t ? .35 : 1, a = e.travelMs ?? Math.round(220 * i), o = e.settleMs ?? Math.round(80 * i), s = d({ rng: e.rng ?? c(n) }), l = e.playerIds.map((t) => {
-		let n = s.resolveAntePostDelayMs(e.handNumber, t);
+	let i = t ? .35 : 1, a = e.travelMs ?? Math.round(220 * i), o = e.settleMs ?? Math.round(80 * i), s = f({ rng: e.rng ?? l(n) }), c = e.playerIds.map((t) => {
+		let n = s.resolvePlayDelayMs({
+			handNumber: e.handNumber,
+			trickNumber: 0,
+			turnPlayerId: t,
+			remainingHandCount: 5,
+			nowMs: 0
+		}).chosenDelayMs;
 		return Math.round(n * i);
-	}), u = l.reduce((e, t) => e + t, 0), f = u + e.playerIds.length * a + (e.playerIds.length > 0 ? o : 0), h = {
+	}), u = c.reduce((e, t) => e + t, 0), d = u + e.playerIds.length * a + (e.playerIds.length > 0 ? o : 0), p = {
 		handNumber: e.handNumber,
 		playerIds: [...e.playerIds],
-		thinkBeforeMs: l,
+		thinkBeforeMs: c,
 		totalThinkMs: u,
 		travelMs: a,
 		settleMs: o,
-		totalDurationMs: f
+		totalDurationMs: d
 	};
-	return p.set(n, h), h;
+	return m.set(n, p), p;
 }
-function g(e, t = !1, n = 220) {
+function _(e, t = !1, n = 220) {
 	let r = Math.max(1, e), i = t ? .35 : 1, a = Math.round(n * i), o = Math.round(80 * i);
 	return r * Math.round(700 * i) + r * a + o;
 }
-function _(e, t, n = !1, r = 220) {
-	return t.length < 1 ? g(1, n, r) : h({
+function v(e, t, n = !1, r = 220) {
+	return t.length < 1 ? _(1, n, r) : g({
 		handNumber: e,
 		playerIds: t,
 		reducedMotion: n,
 		travelMs: r
 	}).totalDurationMs;
 }
-function v() {
-	p.clear();
+function y() {
+	m.clear();
 }
-function y(e = {}) {
-	let t = d(e), n = null, r = 0, i = null, o = null;
+function b(e = {}) {
+	let t = f(e), n = null, r = 0, i = null, o = null;
 	function s() {
 		n &&= (clearTimeout(n), null);
 	}
@@ -263,4 +265,4 @@ function y(e = {}) {
 	};
 }
 //#endregion
-export { i as BOT_ADVANCE_DEBOUNCE_MS, t as BOT_PLAY_DELAY_MAX_MS, e as BOT_PLAY_DELAY_MIN_MS, r as BOT_PLAY_LAST_CARD_MAX_MS, n as BOT_PLAY_LAST_CARD_MIN_MS, o as antePostTurnKey, _ as antePresentationDurationMs, g as antePresentationWorstCaseDurationMs, a as botPlayTurnKey, h as buildAnteCoinDelayPlan, v as clearAntePlanCacheForTests, d as createBotPlayDelayState, y as createBotThinkScheduleState, c as createSeededRng, l as pickBotPlayDelayMs, s as randomIntInclusive, f as resolveBotAdvanceDelayMs };
+export { i as BOT_ADVANCE_DEBOUNCE_MS, t as BOT_PLAY_DELAY_MAX_MS, e as BOT_PLAY_DELAY_MIN_MS, r as BOT_PLAY_LAST_CARD_MAX_MS, n as BOT_PLAY_LAST_CARD_MIN_MS, v as antePresentationDurationMs, _ as antePresentationWorstCaseDurationMs, a as botPlayTurnKey, s as botThinkContextForPhase, g as buildAnteCoinDelayPlan, y as clearAntePlanCacheForTests, f as createBotPlayDelayState, b as createBotThinkScheduleState, l as createSeededRng, o as isBotPlayThinkPhase, u as pickBotPlayDelayMs, c as randomIntInclusive, p as resolveBotAdvanceDelayMs };

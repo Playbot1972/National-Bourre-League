@@ -73,4 +73,11 @@ describe("app.js bot paths", () => {
     assert.ok(src.includes("advanceSessionBots,"));
     assert.ok(runtimeSrc.includes("deps.advanceSessionBots"));
   });
+
+  it("reveal and ante use armPlayThink like play, not debounce-only path", () => {
+    assert.match(runtimeSrc, /isBotPlayThinkPhase/);
+    assert.match(runtimeSrc, /playThinkContext/);
+    assert.match(runtimeSrc, /if \(isBotPlayThinkPhase\(handPhase\)\)/);
+    assert.match(runtimeSrc, /botThinkContextForPhase/);
+  });
 });
