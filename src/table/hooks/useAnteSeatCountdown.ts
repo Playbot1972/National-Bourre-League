@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { activePlayerOrder } from "../../game/playerOrder";
 import { buildAnteCoinDelayPlan } from "../../session/botActionTiming";
-import {
-  anteSeatCountdownKey,
-  buildAnteSeatCountdownState,
-} from "../anteSeatCountdown";
+import { buildAntePresentationSchedule } from "../antePresentationSchedule";
+import { buildAnteSeatCountdownState } from "../anteSeatCountdown";
 import { seatRingPlayerIds } from "../layout/seatOrder";
 import {
-  readAntePresentationClock,
+  readAntePresentationTimelineSec,
   subscribePresentationMotionBusy,
 } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
@@ -20,17 +18,15 @@ export interface UseAnteSeatCountdownInput {
 }
 
 /**
- * Drives the avatar countdown ring during ante — one seat at a time, clockwise,
- * using the same cached think delays as ante coin GSAP.
+ * Drives the avatar countdown ring from the live GSAP ante timeline — no parallel
+ * wall-clock simulation.
  */
 export function useAnteSeatCountdown({
   anteAnimActive,
   session,
 }: UseAnteSeatCountdownInput): TurnCountdownState | null {
-  const startedAtRef = useRef<number | null>(null);
-  const lastKeyRef = useRef<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [clockTick, setClockTick] = useState(0);
+  const [elapsedSec, setElapsedSec] = useState<number | null>(null);
+  const rafRef = useRef(0);
 
   const seatRing = useMemo(
     () => seatRingPlayerIds(session.participantIds, session),
@@ -46,59 +42,46 @@ export function useAnteSeatCountdown({
     [session.dealerId, session.participantIds, seatRing],
   );
 
-  const delayPlan = useMemo(() => {
+  const reducedMotion = prefersReducedMotion();
+  const presentationKey = `${session.sessionId}:${session.handNumber}:ante`;
+
+  const schedule = useMemo(() => {
     if (!anteAnimActive || playerIds.length < 1) return null;
-    return buildAnteCoinDelayPlan({
+    const plan = buildAnteCoinDelayPlan({
       handNumber: session.handNumber,
       playerIds,
-      reducedMotion: prefersReducedMotion(),
+      reducedMotion,
     });
-  }, [anteAnimActive, session.handNumber, playerIds]);
-
-  const activityKey = anteSeatCountdownKey(session.sessionId, session.handNumber, playerIds);
-  const presentationClockKey = `${session.sessionId}:${session.handNumber}:ante`;
+    return buildAntePresentationSchedule(plan, reducedMotion);
+  }, [anteAnimActive, session.handNumber, playerIds, reducedMotion]);
 
   useEffect(() => {
-    if (!anteAnimActive || !delayPlan) {
-      startedAtRef.current = null;
-      lastKeyRef.current = null;
+    if (!anteAnimActive || !schedule) {
+      setElapsedSec(null);
       return;
     }
-    if (lastKeyRef.current !== activityKey) {
-      const sharedStart = readAntePresentationClock(presentationClockKey);
-      startedAtRef.current = sharedStart ?? Date.now();
-      lastKeyRef.current = activityKey;
-      setNowMs(Date.now());
-    }
-  }, [anteAnimActive, activityKey, delayPlan, presentationClockKey]);
 
-  useEffect(() => {
-    if (!anteAnimActive || !delayPlan) return;
-    return subscribePresentationMotionBusy(() => {
-      if (lastKeyRef.current !== activityKey) return;
-      const sharedStart = readAntePresentationClock(presentationClockKey);
-      if (sharedStart != null && startedAtRef.current !== sharedStart) {
-        startedAtRef.current = sharedStart;
-        setClockTick((tick) => tick + 1);
-      }
+    const sample = () => {
+      const next = readAntePresentationTimelineSec(presentationKey);
+      setElapsedSec(next);
+      rafRef.current = window.requestAnimationFrame(sample);
+    };
+
+    const unsubscribe = subscribePresentationMotionBusy(() => {
+      const next = readAntePresentationTimelineSec(presentationKey);
+      setElapsedSec(next);
     });
-  }, [anteAnimActive, activityKey, delayPlan, presentationClockKey]);
 
-  useEffect(() => {
-    if (!anteAnimActive || !delayPlan || startedAtRef.current == null) return;
-    const intervalMs = prefersReducedMotion() ? 50 : 32;
-    const id = window.setInterval(() => setNowMs(Date.now()), intervalMs);
-    return () => window.clearInterval(id);
-  }, [anteAnimActive, activityKey, delayPlan, clockTick]);
+    rafRef.current = window.requestAnimationFrame(sample);
+    return () => {
+      unsubscribe();
+      window.cancelAnimationFrame(rafRef.current);
+    };
+  }, [anteAnimActive, presentationKey, schedule]);
 
-  if (!anteAnimActive || !delayPlan || startedAtRef.current == null) {
+  if (!anteAnimActive || !schedule || elapsedSec == null) {
     return null;
   }
 
-  return buildAnteSeatCountdownState({
-    playerIds,
-    plan: delayPlan,
-    startedAtMs: startedAtRef.current,
-    nowMs,
-  });
+  return buildAnteSeatCountdownState({ schedule, elapsedSec });
 }

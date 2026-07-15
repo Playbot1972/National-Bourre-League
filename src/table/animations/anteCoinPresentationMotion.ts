@@ -4,7 +4,12 @@ import {
   type AnteCoinDelayPlan,
 } from "../../session/botActionTiming";
 import { playAnteCoinLandSound } from "../feedback/audio";
+import { buildAntePresentationSchedule } from "../antePresentationSchedule";
 import { ANTE_CHIP_TRAVEL_MS, antePresentationDurationMs } from "../handPresentationTiming";
+import {
+  clearAntePresentationTimeline,
+  registerAntePresentationTimeline,
+} from "../presentationMotionBusy";
 import { readSeatPlayOrigin } from "../trickPlayFly";
 import { prefersReducedMotion } from "../trickTiming";
 import { tweenAlongArc } from "./arcTween";
@@ -14,7 +19,6 @@ import {
   MOTION_GHOST_Z_INDEX,
   PREMIUM_EASE,
   PREMIUM_EASE_BOUNCE,
-  scaledDuration,
 } from "./motionTokens";
 
 const ACTIVE_ANTE_TIMELINES = new Set<gsap.core.Timeline>();
@@ -227,6 +231,7 @@ function createCoinGhost(): HTMLElement {
 export function killAnteCoinPresentation(): void {
   for (const tl of ACTIVE_ANTE_TIMELINES) tl.kill();
   ACTIVE_ANTE_TIMELINES.clear();
+  clearAntePresentationTimeline();
   if (typeof document !== "undefined") {
     for (const ghost of document.querySelectorAll(".bpot__ante-chip--fly")) {
       ghost.remove();
@@ -239,6 +244,7 @@ export interface RunAnteCoinPresentationInput {
   playerIds: string[];
   root: ParentNode;
   delayPlan?: AnteCoinDelayPlan;
+  presentationKey?: string;
   onCoinLand?: (playerId: string, index: number) => void;
   onComplete?: () => void;
 }
@@ -249,6 +255,7 @@ export function runClockwiseAnteCoinPresentation({
   playerIds,
   root,
   delayPlan,
+  presentationKey,
   onCoinLand,
   onComplete,
 }: RunAnteCoinPresentationInput): gsap.core.Timeline {
@@ -267,16 +274,17 @@ export function runClockwiseAnteCoinPresentation({
       travelMs,
       settleMs,
     });
-  const travelSec = scaledDuration(travelMs / 1000, reduced);
-  const settleSec = scaledDuration(settleMs / 1000, reduced);
+  const schedule = buildAntePresentationSchedule(plan, reduced);
 
   const tl = gsap.timeline({
     onComplete: () => {
       ACTIVE_ANTE_TIMELINES.delete(tl);
+      clearAntePresentationTimeline();
       onComplete?.();
     },
     onInterrupt: () => {
       ACTIVE_ANTE_TIMELINES.delete(tl);
+      clearAntePresentationTimeline();
       for (const ghost of root.querySelectorAll?.(".bpot__ante-chip--fly") ?? []) {
         ghost.remove();
       }
@@ -284,33 +292,32 @@ export function runClockwiseAnteCoinPresentation({
   });
   ACTIVE_ANTE_TIMELINES.add(tl);
 
+  if (presentationKey) {
+    registerAntePresentationTimeline(presentationKey, () => tl.time());
+  }
+
   if (!playerIds.length) {
     tl.call(() => onComplete?.());
     return tl;
   }
 
-  let cumulativeSec = 0;
-  playerIds.forEach((playerId, index) => {
-    const thinkSec = (plan.thinkBeforeMs[index] ?? 0) / 1000;
-    cumulativeSec += thinkSec;
-    const position = cumulativeSec;
+  for (const entry of schedule) {
     tl.call(
       () => {
         spawnAnteCoinWithAnchorRetry(
-          playerId,
-          index,
+          entry.playerId,
+          entry.seatIndex,
           root,
           reduced,
-          travelSec,
-          settleSec,
+          entry.travelSec,
+          entry.settleSec,
           onCoinLand,
         );
       },
       undefined,
-      position,
+      entry.coinSpawnSec,
     );
-    cumulativeSec += travelSec + settleSec;
-  });
+  }
 
   return tl;
 }

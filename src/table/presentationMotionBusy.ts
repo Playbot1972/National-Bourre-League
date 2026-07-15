@@ -3,8 +3,8 @@
 let dealPresentationActive = false;
 let antePresentationActive = false;
 let trickCollectionActive = false;
-let antePresentationClockKey: string | null = null;
-let antePresentationStartedAtMs: number | null = null;
+let anteTimelineKey: string | null = null;
+let anteTimelineReader: (() => number) | null = null;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -25,21 +25,27 @@ export function setAntePresentationActive(active: boolean): void {
   if (antePresentationActive === active) return;
   antePresentationActive = active;
   if (!active) {
-    antePresentationClockKey = null;
-    antePresentationStartedAtMs = null;
+    clearAntePresentationTimeline();
   }
   notify();
 }
 
-/** Shared ante GSAP + avatar ring clock — keyed by session/hand. */
-export function markAntePresentationClock(key: string, startedAtMs: number): void {
-  antePresentationClockKey = key;
-  antePresentationStartedAtMs = startedAtMs;
+/** Bind the live GSAP ante timeline — ring reads `reader()` for elapsed seconds. */
+export function registerAntePresentationTimeline(key: string, reader: () => number): void {
+  anteTimelineKey = key;
+  anteTimelineReader = reader;
   notify();
 }
 
-export function readAntePresentationClock(key: string): number | null {
-  return antePresentationClockKey === key ? antePresentationStartedAtMs : null;
+export function readAntePresentationTimelineSec(key: string): number | null {
+  if (anteTimelineKey !== key || !anteTimelineReader) return null;
+  return anteTimelineReader();
+}
+
+export function clearAntePresentationTimeline(): void {
+  anteTimelineKey = null;
+  anteTimelineReader = null;
+  notify();
 }
 
 export function isAntePresentationActive(): boolean {
@@ -65,7 +71,6 @@ export function resetPresentationMotionBusy(): void {
   dealPresentationActive = false;
   antePresentationActive = false;
   trickCollectionActive = false;
-  antePresentationClockKey = null;
-  antePresentationStartedAtMs = null;
+  clearAntePresentationTimeline();
   notify();
 }

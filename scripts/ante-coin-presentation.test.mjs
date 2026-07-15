@@ -66,18 +66,24 @@ describe("ante coin presentation wiring", () => {
     assert.match(tableView, /antePresentationActive:/);
   });
 
-  it("wires ante avatar timer ring to shared delay plan", () => {
+  it("wires ante avatar timer ring to shared GSAP timeline", () => {
+    const schedule = readFileSync(join(root, "src/table/antePresentationSchedule.ts"), "utf8");
     const countdown = readFileSync(join(root, "src/table/anteSeatCountdown.ts"), "utf8");
     const anteHook = readFileSync(join(root, "src/table/hooks/useAnteSeatCountdown.ts"), "utf8");
+    const busy = readFileSync(join(root, "src/table/presentationMotionBusy.ts"), "utf8");
+    assert.match(schedule, /buildAntePresentationSchedule/);
+    assert.match(schedule, /buildAnteRingStateAtTimelineSec/);
     assert.match(countdown, /buildAnteSeatCountdownState/);
-    assert.match(countdown, /resolveAnteSeatThinkAtElapsed/);
-    assert.match(anteHook, /buildAnteCoinDelayPlan/);
-    assert.match(anteHook, /readAntePresentationClock/);
+    assert.match(anteHook, /readAntePresentationTimelineSec/);
+    assert.match(anteHook, /buildAntePresentationSchedule/);
+    assert.doesNotMatch(anteHook, /readAntePresentationClock/);
+    assert.doesNotMatch(anteHook, /Date\.now\(\)/);
     assert.match(tableView, /useAnteSeatCountdown/);
-    assert.match(tableView, /anteSeatCountdown/);
     assert.match(tableView, /avatarTurnCountdown/);
-    assert.match(hook, /markAntePresentationClock/);
-    assert.match(motion, /plan\.thinkBeforeMs/);
+    assert.match(motion, /registerAntePresentationTimeline/);
+    assert.match(motion, /buildAntePresentationSchedule/);
+    assert.match(busy, /readAntePresentationTimelineSec/);
+    assert.match(hook, /presentationKey:/);
   });
 
   it("does not restart ante timeline on participantIds dependency churn", () => {
