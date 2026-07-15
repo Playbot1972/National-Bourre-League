@@ -10,6 +10,11 @@ import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
+  getApeSpeedModeEnabled,
+  saveApeSpeedModeEnabled,
+  subscribeApeSpeedMode,
+} from "./handPacingMode";
+import {
   buildPlayActivityKey,
   effectiveDrawDiscardIndices,
   isLegalPlayIndex,
@@ -148,6 +153,8 @@ export function HeroHand({
   const [illegalShakeIndex, setIllegalShakeIndex] = useState<number | null>(null);
   const [illegalFlashIndex, setIllegalFlashIndex] = useState<number | null>(null);
   const [bestPlayEnabled, setBestPlayEnabled] = useState(() => getBestPlayEnabled());
+  const [apeSpeedMode, setApeSpeedMode] = useState(() => getApeSpeedModeEnabled());
+  const [apeSpeedPendingNextHand, setApeSpeedPendingNextHand] = useState(false);
   const [dealing, setDealing] = useState(false);
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
@@ -781,6 +788,14 @@ export function HeroHand({
     [clearPreselectTimer],
   );
 
+  useEffect(() => {
+    return subscribeApeSpeedMode(() => setApeSpeedMode(getApeSpeedModeEnabled()));
+  }, []);
+
+  useEffect(() => {
+    setApeSpeedPendingNextHand(false);
+  }, [handNumber]);
+
   const handleBestPlayChange = useCallback(
     (enabled: boolean) => {
       setBestPlayEnabled(enabled);
@@ -816,18 +831,44 @@ export function HeroHand({
     ],
   );
 
+  const handleApeSpeedModeChange = useCallback((enabled: boolean) => {
+    setApeSpeedMode(enabled);
+    saveApeSpeedModeEnabled(enabled);
+    setApeSpeedPendingNextHand(true);
+  }, []);
+
   const renderBestPlayCheckbox = () =>
     showBestPlayControl ? (
-      <label className="btable-hero__best-play">
-        <input
-          type="checkbox"
-          className="btable-hero__best-play-input"
-          checked={bestPlayEnabled}
-          onChange={(e) => handleBestPlayChange(e.target.checked)}
-          data-testid="best-play-checkbox"
-        />
-        <span className="btable-hero__best-play-label">Best Play</span>
-      </label>
+      <div className="btable-hero__best-play-group">
+        <label className="btable-hero__best-play">
+          <input
+            type="checkbox"
+            className="btable-hero__best-play-input"
+            checked={bestPlayEnabled}
+            onChange={(e) => handleBestPlayChange(e.target.checked)}
+            data-testid="best-play-checkbox"
+          />
+          <span className="btable-hero__best-play-label">Best Play</span>
+        </label>
+        <label className="btable-hero__best-play btable-hero__ape-speed">
+          <input
+            type="checkbox"
+            className="btable-hero__best-play-input"
+            checked={apeSpeedMode}
+            onChange={(e) => handleApeSpeedModeChange(e.target.checked)}
+            data-testid="ape-speed-mode-checkbox"
+          />
+          <span className="btable-hero__best-play-label">Ape S. Mode</span>
+        </label>
+        <p className="btable-hero__ape-speed-hint muted small">
+          Changes table pacing and tempo only — not bot intelligence or card rules.
+        </p>
+        {apeSpeedPendingNextHand ? (
+          <p className="btable-hero__ape-speed-hint muted small" data-testid="ape-speed-next-hand-hint">
+            Ape S. Mode takes effect on the next hand.
+          </p>
+        ) : null}
+      </div>
     ) : null;
 
   const showBestPlayRecommendation = shouldShowBestPlayRecommendation({

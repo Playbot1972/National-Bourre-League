@@ -27,6 +27,7 @@ import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
+import { activateHandPacingModeForHand, getHandPacingMode } from "./handPacingMode";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
@@ -419,6 +420,12 @@ export function TableSessionView({
     );
   }, [session.dealerId, session.participantIds, session]);
 
+  const handPacingMode = getHandPacingMode(session.handNumber);
+
+  useEffect(() => {
+    activateHandPacingModeForHand(session.handNumber);
+  }, [session.handNumber]);
+
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
@@ -430,6 +437,7 @@ export function TableSessionView({
           handNumber: session.handNumber,
           playerIds: anteTurnPlayerIds,
           reducedMotion: prefersReducedMotion(),
+          pacingMode: handPacingMode,
         }
       : null,
   });
@@ -445,6 +453,7 @@ export function TableSessionView({
           handNumber: session.handNumber,
           playerIds: anteTurnPlayerIds,
           reducedMotion: prefersReducedMotion(),
+          pacingMode: handPacingMode,
         }
       : null,
     currentUserId,

@@ -560,20 +560,20 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "enrollment");
   });
 
-  it("ante phase schedule uses bot play think timing per seat", () => {
+  it("ante phase schedule uses pacing mode", () => {
     const playerIds = ["bot_1", "bot_2", "bot_3", "bot_4"];
-    const schedule = phaseScheduleMs(
-      {
-        phase: "ante",
-        handNumber: 2,
-        prevSnapshot: { participantIds: playerIds },
-      } as Parameters<typeof phaseScheduleMs>[0],
-      false,
-    );
-    const expected = antePresentationDurationMs(2, playerIds, false);
-    assert.equal(schedule, expected);
-    assert.ok(schedule <= 4 * 700);
-    assert.ok(schedule >= 4 * 250);
+    const store = {
+      phase: "ante",
+      handNumber: 2,
+      prevSnapshot: { participantIds: playerIds },
+    } as Parameters<typeof phaseScheduleMs>[0];
+    const classic = phaseScheduleMs(store, false, "classic");
+    const ape = phaseScheduleMs(store, false, "apeSpeed");
+    assert.equal(classic, antePresentationDurationMs(2, playerIds, false, "classic"));
+    assert.equal(ape, antePresentationDurationMs(2, playerIds, false, "apeSpeed"));
+    assert.equal(classic, 1_440);
+    assert.ok(ape >= 4 * 250);
+    assert.ok(ape <= 4 * 700);
   });
 
   it("exposes configurable timing defaults", () => {

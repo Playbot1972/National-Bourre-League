@@ -58,6 +58,7 @@ describe("turnCountdown ante integration", () => {
         handNumber: 3,
         playerIds,
         reducedMotion: false,
+        pacingMode: "apeSpeed",
       },
     });
     assert.equal(actor, playerIds[0]);
@@ -81,6 +82,7 @@ describe("turnCountdown ante integration", () => {
       handNumber: 4,
       playerIds,
       reducedMotion: false,
+      pacingMode: "apeSpeed",
     });
     assert.equal(actor, null);
   });
