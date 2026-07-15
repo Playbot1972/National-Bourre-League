@@ -33,6 +33,7 @@ import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
+import { useTableAntePresentation } from "./hooks/useTableAntePresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
 import { useCardAudio } from "./hooks/useCardAudio";
@@ -200,6 +201,11 @@ export function MobileCardTable({
     session,
     heroCards,
     privateHandReady,
+    tableRootRef: wrapRef,
+  });
+  useTableAntePresentation({
+    anteAnimActive: handPresentation.anteAnimActive,
+    session,
     tableRootRef: wrapRef,
   });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;

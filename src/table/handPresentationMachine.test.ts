@@ -8,7 +8,7 @@ import {
   reduceHandPresentation,
   snapshotFromSession,
 } from "./handPresentationMachine";
-import { drawPlayerScheduleMs, handTimingScale } from "./handPresentationTiming";
+import { antePresentationDurationMs, drawPlayerScheduleMs, handTimingScale } from "./handPresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "./trickTiming";
 
 const baseSnap = snapshotFromSession({
@@ -558,6 +558,19 @@ describe("handPresentationMachine", () => {
     };
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "enrollment");
+  });
+
+  it("ante phase schedule uses bot-play stagger timing", () => {
+    const count = 4;
+    const schedule = phaseScheduleMs(
+      {
+        phase: "ante",
+        dealStaggerCount: count,
+      } as Parameters<typeof phaseScheduleMs>[0],
+      false,
+    );
+    const expected = antePresentationDurationMs(count, false);
+    assert.equal(schedule, expected);
   });
 
   it("exposes configurable timing defaults", () => {

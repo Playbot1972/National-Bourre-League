@@ -30,6 +30,7 @@ import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
+  isAntePresentationActive,
   isDealPresentationActive,
   isTrickCollectionActive,
 } from "./presentationMotionBusy";
@@ -210,6 +211,7 @@ export function TableSessionView({
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
       dealPresentationActive: isDealPresentationActive(),
+      antePresentationActive: isAntePresentationActive(),
       trickCollectionActive: isTrickCollectionActive(),
     });
   }, [

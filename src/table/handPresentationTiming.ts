@@ -3,10 +3,21 @@
  * Authoritative game state is unchanged; these values gate UI sequencing.
  */
 
-import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
+import { anteCoinStaggerMs, FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel to pot (180–260 ms). */
 export const ANTE_CHIP_TRAVEL_MS = 220;
+
+/** Total GSAP ante coin sequence for N seats (stagger uses bot-play timing). */
+export function antePresentationDurationMs(
+  participantCount: number,
+  reducedMotion = false,
+): number {
+  const count = Math.max(1, participantCount);
+  const scale = reducedMotion ? 0.35 : 1;
+  const travel = Math.round(ANTE_CHIP_TRAVEL_MS * scale);
+  return (count - 1) * anteCoinStaggerMs(reducedMotion) + travel + Math.round(80 * scale);
+}
 
 /** Per-card deal stagger (90–140 ms). */
 export const DEAL_CARD_STAGGER_MS = 130;

@@ -23,6 +23,7 @@ const idleTrickFields = {
   handPresenting: false,
   handPresentationPhase: "idle",
   dealPresentationActive: false,
+  antePresentationActive: false,
   trickCollectionActive: false,
 };
 
@@ -115,6 +116,41 @@ describe("trickAnimationBridge", () => {
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
+  });
+
+  it("blocks while deal presentation is active", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      dealPresentationActive: true,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "dealPresentationActive");
+    assert.equal(isTablePresentationBusyForBots(), true);
+  });
+
+  it("blocks while ante coin presentation is active", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      antePresentationActive: true,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "antePresentationActive");
+    assert.equal(isTablePresentationBusy(), true);
+    assert.equal(isTablePresentationBusyForBots(), true);
+  });
+
+  it("syncs ante presentation flag from motion-busy module", async () => {
+    resetTrickAnimationBusyState();
+    const { setAntePresentationActive, resetPresentationMotionBusy } = await import(
+      "./presentationMotionBusy"
+    );
+    const { syncPresentationMotionBusyFlags } = await import("./trickAnimationBridge");
+    resetPresentationMotionBusy();
+    setAntePresentationActive(true);
+    syncPresentationMotionBusyFlags();
+    assert.equal(getTrickAnimationBusyState().antePresentationActive, true);
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "antePresentationActive");
+    resetPresentationMotionBusy();
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {

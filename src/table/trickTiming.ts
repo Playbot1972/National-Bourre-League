@@ -22,6 +22,12 @@ export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 380;
 
+/** Stagger between ante coins — same source as bot play pacing. */
+export function anteCoinStaggerMs(reducedMotion = false): number {
+  const scale = reducedMotion ? 0.35 : 1;
+  return Math.round(BOT_PLAY_STAGGER_MS * scale);
+}
+
 /** Readability pause after last card before winner highlight (1600 ms — within 1400–1800 spec). */
 export const POST_TRICK_READ_MS = 1850;
 
