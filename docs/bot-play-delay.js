@@ -1,11 +1,19 @@
 /**
  * Bot play-phase think delay — brief pause so plays do not feel instant; much faster than humans.
+ * Scaled by BOT_THINK_PACING_MULTIPLIER (3× readable pacing vs baseline).
  */
 
-export const BOT_PLAY_DELAY_MIN_MS = 250;
-export const BOT_PLAY_DELAY_MAX_MS = 700;
-export const BOT_PLAY_LAST_CARD_MIN_MS = 100;
-export const BOT_PLAY_LAST_CARD_MAX_MS = 300;
+export const BOT_THINK_PACING_MULTIPLIER = 3;
+
+const BASE_BOT_PLAY_DELAY_MIN_MS = 250;
+const BASE_BOT_PLAY_DELAY_MAX_MS = 700;
+const BASE_BOT_PLAY_LAST_CARD_MIN_MS = 100;
+const BASE_BOT_PLAY_LAST_CARD_MAX_MS = 300;
+
+export const BOT_PLAY_DELAY_MIN_MS = BASE_BOT_PLAY_DELAY_MIN_MS * BOT_THINK_PACING_MULTIPLIER;
+export const BOT_PLAY_DELAY_MAX_MS = BASE_BOT_PLAY_DELAY_MAX_MS * BOT_THINK_PACING_MULTIPLIER;
+export const BOT_PLAY_LAST_CARD_MIN_MS = BASE_BOT_PLAY_LAST_CARD_MIN_MS * BOT_THINK_PACING_MULTIPLIER;
+export const BOT_PLAY_LAST_CARD_MAX_MS = BASE_BOT_PLAY_LAST_CARD_MAX_MS * BOT_THINK_PACING_MULTIPLIER;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
