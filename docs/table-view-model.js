@@ -43,6 +43,11 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
   const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
   const handComplete = isHandComplete(tricks, participantIds);
   const bourreIds = recentBourreIds.length > 0 ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
+  const botWonHand =
+    handComplete &&
+    ready &&
+    winnerIds.length === 1 &&
+    isRobotPlayerId(winnerIds[0]);
   return {
     sessionId: sessionObj?.id ?? null,
     phase: currentHand.phase ?? null,
@@ -51,6 +56,7 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
     myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
     handComplete,
     myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
+    botWonHand,
     myBourre: myUid != null && handComplete && bourreIds.includes(myUid),
     heroCardKeys: (privateHandCards ?? [])
       .map(cardKeyFromSerialized)

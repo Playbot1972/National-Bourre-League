@@ -15,6 +15,7 @@ import {
   DEFAULT_SOUND_PACK_ID,
   isBatch1WavAsset,
   SOUND_ASSET_FILES,
+  SOUND_EVENT_TO_ASSET,
 } from "./soundPacks";
 import { loadTableSettings, DEFAULT_TABLE_SETTINGS } from "../theme/settings";
 
@@ -109,6 +110,34 @@ describe("sound pack registry", () => {
       const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES[id]);
       assert.ok(existsSync(file), `missing ${file}`);
     }
+  });
+
+  it("deleteRoom maps to close.mp3", () => {
+    assert.equal(SOUND_EVENT_TO_ASSET.deleteRoom, "close");
+    assert.equal(resolveSoundAsset("classic", "deleteRoom"), "close");
+    assert.equal(soundAssetUrl("classic", "close"), "/sounds/close.mp3");
+    const file = join(process.cwd(), "public/sounds", "close.mp3");
+    assert.ok(existsSync(file), `missing ${file}`);
+  });
+
+  it("botHandWin maps to moneygone.mp3", () => {
+    assert.equal(SOUND_EVENT_TO_ASSET.botHandWin, "moneygone");
+    assert.equal(resolveSoundAsset("classic", "botHandWin"), "moneygone");
+    assert.equal(soundAssetUrl("classic", "moneygone"), "/sounds/moneygone.mp3");
+    const file = join(process.cwd(), "public/sounds", "moneygone.mp3");
+    assert.ok(existsSync(file), `missing ${file}`);
+  });
+
+  it("human bigWin still maps to hand-win-stinger.mp3", () => {
+    assert.equal(SOUND_EVENT_TO_ASSET.bigWin, "hand-win-stinger");
+    assert.equal(resolveSoundAsset("classic", "bigWin"), "hand-win-stinger");
+  });
+
+  it("turnTimer maps to timer.mp3", () => {
+    assert.equal(SOUND_EVENT_TO_ASSET.turnTimer, "timer");
+    assert.equal(resolveSoundAsset("classic", "turnTimer"), "timer");
+    const file = join(process.cwd(), "public/sounds", "timer.mp3");
+    assert.ok(existsSync(file), `missing ${file}`);
   });
 });
 

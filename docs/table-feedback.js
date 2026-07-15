@@ -37,6 +37,10 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
     api.playBigWinFeedback?.();
   }
 
+  if (next.handComplete && !prev.handComplete && next.botWonHand) {
+    api.playBotHandWinFeedback?.();
+  }
+
   if (myUid && next.myBourre && !prev.myBourre) {
     api.playBourreFeedback?.();
   }

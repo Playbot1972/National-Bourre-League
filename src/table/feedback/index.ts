@@ -5,6 +5,7 @@ export {
   playDrawCountFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
+  playBotHandWinFeedback,
   playBourreFeedback,
   playGameStartFeedback,
   playIllegalActionFeedback,

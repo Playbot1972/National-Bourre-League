@@ -85,10 +85,12 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   gameStart: { current: false },
   openRoom: { current: false },
   deleteRoom: { current: false },
+  botHandWin: { current: false },
   fold: { current: false },
   cardSelect: { current: false },
   cardIllegal: { current: false },
   uiButton: { current: false },
+  turnTimer: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
@@ -106,10 +108,12 @@ const RESET_MS: Record<SoundEventKey, number> = {
   gameStart: 320,
   openRoom: 360,
   deleteRoom: 280,
+  botHandWin: 580,
   fold: 280,
   cardSelect: 200,
   cardIllegal: 280,
   uiButton: 200,
+  turnTimer: 0,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
@@ -127,10 +131,12 @@ const VOLUME: Record<SoundEventKey, number> = {
   gameStart: 0.42,
   openRoom: 0.55,
   deleteRoom: 0.5,
+  botHandWin: 0.55,
   fold: 0.42,
   cardSelect: 0.45,
   cardIllegal: 0.5,
   uiButton: 0.4,
+  turnTimer: 0.48,
 };
 
 function playResolvedAsset(
@@ -309,6 +315,10 @@ export function playOpenRoomSound(): void {
 
 export function playDeleteRoomSound(): void {
   void playSoundEvent("deleteRoom");
+}
+
+export function playBotHandWinSound(): void {
+  void playSoundEvent("botHandWin");
 }
 
 export function playCardSelectSound(): void {

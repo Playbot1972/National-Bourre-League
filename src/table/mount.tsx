@@ -8,6 +8,7 @@ import { clearDrawFlyGhosts } from "./animations/drawFlyCleanup";
 import {
   initGameFeedback,
   playBigWinFeedback,
+  playBotHandWinFeedback,
   playBourreFeedback,
   playDrawFeedback,
   playGameStartFeedback,
@@ -79,6 +80,7 @@ export {
   playDrawFeedback,
   playTrickWinFeedback,
   playBigWinFeedback,
+  playBotHandWinFeedback,
   playBourreFeedback,
   playGameStartFeedback,
   playOpenRoomFeedback,
