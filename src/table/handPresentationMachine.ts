@@ -409,6 +409,7 @@ function beginDrawPlayerAnim(
     drawReplaceCount: replaceCount,
     prevSnapshot: snapshot,
     drawPresentationConsumedIds: markDrawPresentationConsumed(store, playerId),
+    anteAnimActive: false,
   });
 }
 
@@ -459,6 +460,7 @@ function beginDrawSequence(
   return withPhase(store, "drawPlayer", {
     displayDrawCompletedIds: store.displayDrawCompletedIds,
     prevSnapshot: snapshot,
+    anteAnimActive: false,
   });
 }
 

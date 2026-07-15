@@ -860,9 +860,6 @@ export function HeroHand({
           />
           <span className="btable-hero__best-play-label">Ape S. Mode</span>
         </label>
-        <p className="btable-hero__ape-speed-hint muted small">
-          Changes table pacing and tempo only — not bot intelligence or card rules.
-        </p>
         {apeSpeedPendingNextHand ? (
           <p className="btable-hero__ape-speed-hint muted small" data-testid="ape-speed-next-hand-hint">
             Ape S. Mode takes effect on the next hand.
