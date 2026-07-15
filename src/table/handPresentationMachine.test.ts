@@ -560,17 +560,19 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "enrollment");
   });
 
-  it("ante phase schedule uses bot-play stagger timing", () => {
-    const count = 4;
+  it("ante phase schedule uses bot play think timing per seat", () => {
+    const playerIds = ["bot_1", "bot_2", "bot_3", "bot_4"];
     const schedule = phaseScheduleMs(
       {
         phase: "ante",
-        dealStaggerCount: count,
+        handNumber: 2,
+        prevSnapshot: { participantIds: playerIds },
       } as Parameters<typeof phaseScheduleMs>[0],
       false,
     );
-    const expected = antePresentationDurationMs(count, false);
+    const expected = antePresentationDurationMs(2, playerIds, false);
     assert.equal(schedule, expected);
+    assert.ok(schedule > 4 * 200);
   });
 
   it("exposes configurable timing defaults", () => {

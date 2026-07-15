@@ -915,11 +915,10 @@ export function phaseScheduleMs(
   switch (store.phase) {
     case "handReset":
       return t.handResetMs;
-    case "ante":
-      return antePresentationDurationMs(
-        Math.max(1, Math.min(store.dealStaggerCount, 8)),
-        reducedMotion,
-      );
+    case "ante": {
+      const playerIds = store.prevSnapshot?.participantIds?.slice(0, 8) ?? [];
+      return antePresentationDurationMs(store.handNumber, playerIds, reducedMotion);
+    }
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":

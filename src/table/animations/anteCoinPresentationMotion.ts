@@ -1,8 +1,12 @@
 import gsap from "gsap";
+import {
+  buildAnteCoinDelayPlan,
+  type AnteCoinDelayPlan,
+} from "../../session/botActionTiming";
 import { playAnteCoinLandSound } from "../feedback/audio";
 import { ANTE_CHIP_TRAVEL_MS, antePresentationDurationMs } from "../handPresentationTiming";
 import { readSeatPlayOrigin } from "../trickPlayFly";
-import { anteCoinStaggerMs, prefersReducedMotion } from "../trickTiming";
+import { prefersReducedMotion } from "../trickTiming";
 import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 import { initCardMotion } from "./initMotion";
@@ -231,16 +235,20 @@ export function killAnteCoinPresentation(): void {
 }
 
 export interface RunAnteCoinPresentationInput {
+  handNumber: number;
   playerIds: string[];
   root: ParentNode;
+  delayPlan?: AnteCoinDelayPlan;
   onCoinLand?: (playerId: string, index: number) => void;
   onComplete?: () => void;
 }
 
 /** One GSAP timeline — coins fly clockwise from seat anchors into the pot. */
 export function runClockwiseAnteCoinPresentation({
+  handNumber,
   playerIds,
   root,
+  delayPlan,
   onCoinLand,
   onComplete,
 }: RunAnteCoinPresentationInput): gsap.core.Timeline {
@@ -248,9 +256,19 @@ export function runClockwiseAnteCoinPresentation({
   killAnteCoinPresentation();
 
   const reduced = prefersReducedMotion();
-  const staggerSec = anteCoinStaggerMs(reduced) / 1000;
-  const travelSec = scaledDuration(anteCoinTravelMs(reduced) / 1000, reduced);
-  const settleSec = scaledDuration(0.08, reduced);
+  const travelMs = anteCoinTravelMs(reduced);
+  const settleMs = Math.round(80 * (reduced ? 0.35 : 1));
+  const plan =
+    delayPlan ??
+    buildAnteCoinDelayPlan({
+      handNumber,
+      playerIds,
+      reducedMotion: reduced,
+      travelMs,
+      settleMs,
+    });
+  const travelSec = scaledDuration(travelMs / 1000, reduced);
+  const settleSec = scaledDuration(settleMs / 1000, reduced);
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -271,8 +289,11 @@ export function runClockwiseAnteCoinPresentation({
     return tl;
   }
 
+  let cumulativeSec = 0;
   playerIds.forEach((playerId, index) => {
-    const position = index * staggerSec;
+    const thinkSec = (plan.thinkBeforeMs[index] ?? 0) / 1000;
+    cumulativeSec += thinkSec;
+    const position = cumulativeSec;
     tl.call(
       () => {
         spawnAnteCoinWithAnchorRetry(
@@ -288,6 +309,7 @@ export function runClockwiseAnteCoinPresentation({
       undefined,
       position,
     );
+    cumulativeSec += travelSec + settleSec;
   });
 
   return tl;
