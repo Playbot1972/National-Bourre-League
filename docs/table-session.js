@@ -14882,10 +14882,6 @@ function Lp({ cards: e, phase: t, enrollmentActive: n = !1, isInHand: r = !1, is
 					children: "Ape S. Mode"
 				})]
 			}),
-			/* @__PURE__ */ (0, g.jsx)("p", {
-				className: "btable-hero__ape-speed-hint muted small",
-				children: "Changes table pacing and tempo only — not bot intelligence or card rules."
-			}),
 			me ? /* @__PURE__ */ (0, g.jsx)("p", {
 				className: "btable-hero__ape-speed-hint muted small",
 				"data-testid": "ape-speed-next-hand-hint",
@@ -19014,7 +19010,8 @@ function f_(e, t, n, r, i, a) {
 		drawDiscardCount: r,
 		drawReplaceCount: i,
 		prevSnapshot: t,
-		drawPresentationConsumedIds: a_(e, n)
+		drawPresentationConsumedIds: a_(e, n),
+		anteAnimActive: !1
 	}));
 }
 function p_(e) {
@@ -19050,7 +19047,8 @@ function h_(e, t, n, r) {
 	}, t);
 	return i ? f_(e, t, i, n, r, "beginDrawSequence") : $g(e, "drawPlayer", {
 		displayDrawCompletedIds: e.displayDrawCompletedIds,
-		prevSnapshot: t
+		prevSnapshot: t,
+		anteAnimActive: !1
 	});
 }
 function g_(e, t) {
