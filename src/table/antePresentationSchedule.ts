@@ -1,6 +1,5 @@
 import type { AnteCoinDelayPlan } from "../session/botActionTiming";
 import { scaledDuration } from "./animations/motionTokens";
-import { buildDurationCountdownState, type TurnCountdownState } from "./turnCountdown";
 
 /** One seat segment on the authoritative ante GSAP timeline (seconds). */
 export interface AnteSeatTimelineEntry {
@@ -62,23 +61,4 @@ export function resolveAnteThinkAtTimelineSec(
     }
   }
   return null;
-}
-
-/** Avatar ring state derived from the real ante timeline position. */
-export function buildAnteRingStateAtTimelineSec(
-  elapsedSec: number,
-  schedule: AnteSeatTimelineEntry[],
-): TurnCountdownState | null {
-  const active = resolveAnteThinkAtTimelineSec(elapsedSec, schedule);
-  if (!active || active.thinkDurationSec <= 0) return null;
-
-  const durationMs = active.thinkDurationSec * 1000;
-  const windowStartedAtMs = active.thinkStartSec * 1000;
-  const nowMs = elapsedSec * 1000;
-  return buildDurationCountdownState(
-    active.playerId,
-    windowStartedAtMs,
-    nowMs,
-    durationMs,
-  );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
-  resolveTableActiveActorId,
+  resolveTurnCountdownActiveActorId,
   turnCountdownActivityKey,
   type TurnCountdownInput,
 } from "../turnCountdown";
@@ -29,7 +29,8 @@ export function useTurnTimerWarning({
   localActionPending = false,
   ...input
 }: UseTurnTimerWarningInput): void {
-  const activeActorId = resolveTableActiveActorId(input);
+  const skipWarning = Boolean(input.ante?.anteAnimActive);
+  const activeActorId = skipWarning ? null : resolveTurnCountdownActiveActorId(input);
   const activityKey = turnCountdownActivityKey({ ...input, activeActorId });
   const ringStartedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef("");

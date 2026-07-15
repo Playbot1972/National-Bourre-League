@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { subscribePresentationMotionBusy } from "../presentationMotionBusy";
 import {
   buildTurnCountdownState,
-  resolveTableActiveActorId,
+  resolveTurnCountdownActiveActorId,
   turnCountdownActivityKey,
   type TurnCountdownInput,
   type TurnCountdownState,
@@ -15,10 +16,32 @@ export interface UseTurnCountdownResult {
 
 /**
  * Single table-wide turn countdown — one ring on the active actor at a time.
- * Resets when activity key changes; clears when no actor or turn suppressed.
+ * Draw, play, enrollment, and ante all share TURN_COUNTDOWN_MS (15s).
  */
 export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownResult {
-  const activeActorId = resolveTableActiveActorId(input);
+  const [timelineTick, setTimelineTick] = useState(0);
+  const anteActive = Boolean(input.ante?.anteAnimActive);
+
+  useEffect(() => {
+    if (!anteActive) return;
+    let raf = 0;
+    const sample = () => {
+      setTimelineTick((tick) => tick + 1);
+      raf = window.requestAnimationFrame(sample);
+    };
+    const unsubscribe = subscribePresentationMotionBusy(() => {
+      setTimelineTick((tick) => tick + 1);
+    });
+    raf = window.requestAnimationFrame(sample);
+    return () => {
+      unsubscribe();
+      window.cancelAnimationFrame(raf);
+    };
+  }, [anteActive, input.ante?.presentationKey]);
+
+  void timelineTick;
+
+  const activeActorId = resolveTurnCountdownActiveActorId(input);
   const activityKey = turnCountdownActivityKey({ ...input, activeActorId });
   const startedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef<string>("");
