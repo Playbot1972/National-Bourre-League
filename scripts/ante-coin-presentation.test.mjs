@@ -66,6 +66,20 @@ describe("ante coin presentation wiring", () => {
     assert.match(tableView, /antePresentationActive:/);
   });
 
+  it("wires ante avatar timer ring to shared delay plan", () => {
+    const countdown = readFileSync(join(root, "src/table/anteSeatCountdown.ts"), "utf8");
+    const anteHook = readFileSync(join(root, "src/table/hooks/useAnteSeatCountdown.ts"), "utf8");
+    assert.match(countdown, /buildAnteSeatCountdownState/);
+    assert.match(countdown, /resolveAnteSeatThinkAtElapsed/);
+    assert.match(anteHook, /buildAnteCoinDelayPlan/);
+    assert.match(anteHook, /readAntePresentationClock/);
+    assert.match(tableView, /useAnteSeatCountdown/);
+    assert.match(tableView, /anteSeatCountdown/);
+    assert.match(tableView, /avatarTurnCountdown/);
+    assert.match(hook, /markAntePresentationClock/);
+    assert.match(motion, /plan\.thinkBeforeMs/);
+  });
+
   it("does not restart ante timeline on participantIds dependency churn", () => {
     assert.match(hook, /buildAnteCoinDelayPlan/);
     assert.match(hook, /\[anteAnimActive, session\.sessionId, session\.handNumber, tableRootRef\]/);

@@ -18,6 +18,7 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { useAnteSeatCountdown } from "./hooks/useAnteSeatCountdown";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -413,6 +414,13 @@ export function TableSessionView({
     handComplete,
   });
 
+  const anteSeatCountdown = useAnteSeatCountdown({
+    anteAnimActive: handPresentation.anteAnimActive,
+    session,
+  });
+
+  const avatarTurnCountdown = anteSeatCountdown ?? turnCountdown;
+
   useTurnTimerWarning({
     session,
     suppressTurn: Boolean(suppressTurn),
@@ -545,7 +553,7 @@ export function TableSessionView({
     handPresentation,
     microinteractions,
     instantTrickPlays,
-    turnCountdown,
+    turnCountdown: avatarTurnCountdown,
     bigPotEvent,
     onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
