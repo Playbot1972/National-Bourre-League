@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Table pacing fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        width: 100%;
+        min-height: 100dvh;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+      #table-root {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-pacing-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession, publishBotThinkWindow } from "/table-session.js";
+      import {
+        BOT_PLAY_DELAY_MIN_MS,
+        BOT_PLAY_DELAY_MAX_MS,
+        botPlayTurnKey,
+        createBotThinkScheduleState,
+        setBotThinkWindowPublisher,
+      } from "/bot-play-delay.js";
+
+      const ANTE_CHIP_TRAVEL_MS = 220;
+      const ENROLLMENT_SEAT_PULSE_MS = 480;
+
+      const params = new URLSearchParams(window.location.search);
+      const scenario = params.get("scenario") || "bot-play";
+      const rngSeed = Number(params.get("rng") ?? "0.5");
+      const rng = () => rngSeed;
+
+      const ENROLLMENT_STEP_DWELL_MS = ENROLLMENT_SEAT_PULSE_MS;
+
+      /** @typedef {{ type: string, at: number, playerId?: string, index?: number, turnKey?: string, delayMs?: number }} PacingEvent */
+
+      /** @type {{ config: object, events: PacingEvent[], done: boolean, log: Function, observers: MutationObserver[] }} */
+      window.__tablePacingFixture = {
+        config: {
+          scenario,
+          botMinMs: BOT_PLAY_DELAY_MIN_MS,
+          botMaxMs: BOT_PLAY_DELAY_MAX_MS,
+          anteChipTravelMs: ANTE_CHIP_TRAVEL_MS,
+          enrollmentSeatPulseMs: ENROLLMENT_SEAT_PULSE_MS,
+        },
+        events: [],
+        done: false,
+        observers: [],
+        log(type, extra = {}) {
+          this.events.push({ type, at: performance.now(), ...extra });
+        },
+      };
+
+      const fixture = window.__tablePacingFixture;
+
+      function cleanupObservers() {
+        for (const obs of fixture.observers) obs.disconnect();
+        fixture.observers = [];
+      }
+
+      function watchRingVisibility(root) {
+        const obs = new MutationObserver(() => {
+          const active = root.querySelector('.bseat[data-pacing-active-actor="true"]');
+          if (!active) return;
+          const ring = active.querySelector('[data-testid="turn-countdown-ring"]');
+          if (!ring) return;
+          const playerId = active.getAttribute("data-pacing-player-id");
+          const key = `ring:${playerId}`;
+          if (fixture._ringLogged?.has(key)) return;
+          fixture._ringLogged = fixture._ringLogged ?? new Set();
+          fixture._ringLogged.add(key);
+          fixture.log("ring-visible", { playerId });
+        });
+        obs.observe(root, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["data-pacing-active-actor", "class"],
+          childList: true,
+        });
+        fixture.observers.push(obs);
+      }
+
+      function watchAnteAnimation(root) {
+        const center = () => root.querySelector(".center-play");
+        const obs = new MutationObserver(() => {
+          const el = center();
+          if (!el) return;
+          const active = el.getAttribute("data-pacing-ante-active") === "true";
+          if (active && !fixture._anteStarted) {
+            fixture._anteStarted = true;
+            fixture.log("ante-anim-start", { playerCount: fixture._playerCount ?? 0 });
+          }
+          if (!active && fixture._anteStarted && !fixture._anteEnded) {
+            fixture._anteEnded = true;
+            fixture.log("ante-anim-end");
+          }
+        });
+        obs.observe(root, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["data-pacing-ante-active", "class"],
+        });
+        fixture.observers.push(obs);
+      }
+
+      const root = document.getElementById("table-root");
+
+      if (scenario === "bot-play") {
+        runBotPlayScenario();
+      } else if (scenario === "ante-reveal") {
+        runAnteRevealScenario();
+      } else if (scenario === "enrollment-step") {
+        runEnrollmentStepScenario();
+      } else {
+        fixture.log("error", { message: `unknown scenario: ${scenario}` });
+        fixture.done = true;
+      }
+
+      function runBotPlayScenario() {
+        const botIds = ["bot_a", "bot_b", "bot_c"];
+        const ids = ["p0", ...botIds];
+        const dealerId = "bot_c";
+        let handNumber = 1;
+        let trickNumber = 1;
+        let turnPlayerId = botIds[0];
+        let trickPlays = [];
+        let botQueueIndex = 0;
+        let activeBotSubmit = null;
+
+        setBotThinkWindowPublisher(publishBotThinkWindow);
+        const thinkSchedule = createBotThinkScheduleState({ rng });
+
+        function isBot(id) {
+          return id.startsWith("bot_");
+        }
+
+        function displayName(id) {
+          if (id === "p0") return "You";
+          return `Bot ${id.slice(-1).toUpperCase()}`;
+        }
+
+        function buildPlayers() {
+          return ids.map((id) => ({
+            playerId: id,
+            displayName: displayName(id),
+            handsWon: 0,
+            bankroll: 100,
+            inHand: true,
+            tricksThisHand: 0,
+            isSelf: id === "p0",
+            isDealer: id === dealerId,
+            isLeading: trickPlays[0]?.playerId === id,
+            isWinner: false,
+            isRobot: isBot(id),
+            canToggleInHand: false,
+            canEditTricks: false,
+            showHoleCards: id !== "p0",
+            holeCardCount: 4,
+            isOnTurn: id === turnPlayerId,
+            isActiveActor: id === turnPlayerId,
+          }));
+        }
+
+        function buildProps() {
+          return {
+            session: {
+              sessionId: "pacing-bot-play",
+              handNumber,
+              handStake: 1,
+              carryOverPot: 0,
+              isFinal: false,
+              dealerId,
+              trumpHolderId: dealerId,
+              participantIds: ids,
+              tricksByPlayer: {},
+              phase: "play",
+              trumpSuit: "hearts",
+              trumpUpcard: null,
+              turnPlayerId,
+              currentTrick: {
+                trickNumber,
+                leadPlayerId: trickPlays[0]?.playerId ?? turnPlayerId,
+                leadSuit: "spades",
+                plays: trickPlays.map((p, i) => ({
+                  playerId: p.playerId,
+                  card: { rank: String(10 - i), suit: "spades" },
+                })),
+              },
+            },
+            players: buildPlayers(),
+            potMetrics: {
+              anteAmount: 1,
+              potCap: 20,
+              currentPot: ids.length,
+              maxWinThisHand: ids.length,
+              limEnabled: false,
+              overflow: 0,
+            },
+            mySessionNet: 0,
+            myHandContribution: 1,
+            leaderLabel: "Trump Hearts · play phase",
+            showCoWinSettlement: false,
+            enrollmentActive: false,
+            currentUserId: "p0",
+            heroCards: [
+              { rank: "A", suit: "spades" },
+              { rank: "K", suit: "hearts" },
+              { rank: "Q", suit: "diamonds" },
+              { rank: "J", suit: "clubs" },
+              { rank: "10", suit: "spades" },
+            ],
+            privateHandReady: true,
+            legalPlayIndices: null,
+            actionFeedback: null,
+            actions: {
+              onTrickDelta: () => {},
+              onSettle: () => {},
+            },
+          };
+        }
+
+        function render() {
+          mountTableSession(root, buildProps());
+        }
+
+        function scheduleBotTurn(botId) {
+          turnPlayerId = botId;
+          activeBotSubmit = botId;
+          const ctx = { handNumber, trickNumber, turnPlayerId: botId };
+          const turnKey = botPlayTurnKey(ctx);
+          const eligibleAt = performance.now();
+          fixture.log("bot-eligible", { playerId: botId, turnKey, index: botQueueIndex });
+
+          thinkSchedule.playDelayState.markTurnEligible({
+            ...ctx,
+            nowMs: Date.now(),
+          });
+
+          const armed = thinkSchedule.armPlayThink({
+            ctx,
+            nowMs: Date.now(),
+            shouldFire: () => turnPlayerId === botId && activeBotSubmit === botId,
+            onFire: ({ plan }) => {
+              const submitAt = performance.now();
+              const delayMs = submitAt - eligibleAt;
+              fixture.log("bot-submit", {
+                playerId: botId,
+                turnKey,
+                delayMs,
+                chosenDelayMs: plan.chosenDelayMs,
+              });
+              trickPlays.push({ playerId: botId, at: submitAt });
+              activeBotSubmit = null;
+              render();
+              botQueueIndex += 1;
+              if (botQueueIndex < botIds.length) {
+                window.setTimeout(() => scheduleBotTurn(botIds[botQueueIndex]), 40);
+              } else {
+                fixture.done = true;
+              }
+            },
+          });
+
+          fixture.log("bot-armed", {
+            playerId: botId,
+            turnKey,
+            chosenDelayMs: armed.chosenDelayMs,
+            delayMs: armed.delayMs,
+          });
+          render();
+        }
+
+        watchRingVisibility(root);
+        render();
+        window.setTimeout(() => scheduleBotTurn(botIds[0]), 50);
+      }
+
+      function runAnteRevealScenario() {
+        const ids = ["p0", "p1", "p2", "p3"];
+        fixture._playerCount = ids.length;
+        const dealerId = "p3";
+
+        function buildPlayers() {
+          return ids.map((id) => ({
+            playerId: id,
+            displayName: id === "p0" ? "You" : `Player ${id.slice(1)}`,
+            handsWon: 0,
+            bankroll: 100,
+            inHand: true,
+            tricksThisHand: 0,
+            isSelf: id === "p0",
+            isDealer: id === dealerId,
+            isLeading: false,
+            isWinner: false,
+            isRobot: id !== "p0",
+            canToggleInHand: false,
+            canEditTricks: false,
+            showHoleCards: false,
+            holeCardCount: 5,
+            isOnTurn: false,
+            isActiveActor: false,
+          }));
+        }
+
+        function buildProps() {
+          return {
+            session: {
+              sessionId: "pacing-ante",
+              handNumber: 1,
+              handStake: 1,
+              carryOverPot: 0,
+              isFinal: false,
+              dealerId,
+              trumpHolderId: dealerId,
+              participantIds: ids,
+              tricksByPlayer: {},
+              phase: "reveal",
+              trumpSuit: "hearts",
+              trumpUpcard: { rank: "7", suit: "hearts" },
+              turnPlayerId: null,
+              postedAntes: {},
+            },
+            players: buildPlayers(),
+            potMetrics: {
+              anteAmount: 1,
+              potCap: 20,
+              currentPot: 0,
+              maxWinThisHand: ids.length,
+              limEnabled: false,
+              overflow: 0,
+            },
+            mySessionNet: 0,
+            myHandContribution: 0,
+            leaderLabel: "Trump revealed — antes posting",
+            showCoWinSettlement: false,
+            enrollmentActive: false,
+            currentUserId: "p0",
+            heroCards: [
+              { rank: "A", suit: "spades" },
+              { rank: "K", suit: "hearts" },
+              { rank: "Q", suit: "diamonds" },
+              { rank: "J", suit: "clubs" },
+              { rank: "10", suit: "spades" },
+            ],
+            privateHandReady: true,
+            actionFeedback: null,
+            actions: {
+              onAdvanceReveal: () => {
+                fixture.log("ante-reveal-advanced");
+              },
+              onTrickDelta: () => {},
+              onSettle: () => {},
+            },
+          };
+        }
+
+        watchAnteAnimation(root);
+        fixture.log("fixture-start");
+        mountTableSession(root, buildProps());
+        window.setTimeout(() => {
+          const el = root.querySelector('[data-pacing-ante-active="true"]');
+          if (el && !fixture._anteStarted) {
+            fixture._anteStarted = true;
+            fixture.log("ante-anim-start", { playerCount: fixture._playerCount ?? 0, initial: true });
+          }
+        }, 0);
+
+        const expectedMinMs = ANTE_CHIP_TRAVEL_MS * Math.min(ids.length, 8);
+        window.setTimeout(() => {
+          if (!fixture._anteEnded) {
+            fixture.log("ante-anim-end", { forced: true });
+            fixture._anteEnded = true;
+          }
+          fixture.done = true;
+        }, expectedMinMs + 600);
+      }
+
+      function runEnrollmentStepScenario() {
+        const ordered = ["p0", "p1", "bot_a", "bot_b"];
+        fixture._playerCount = ordered.length;
+        let currentIndex = 0;
+        const enrolledIds = [];
+        const declinedIds = [];
+        const dealerId = "bot_b";
+
+        function isBot(id) {
+          return id.startsWith("bot_");
+        }
+
+        function buildPlayers() {
+          const activeId = ordered[currentIndex];
+          return ordered.map((id) => {
+            const isSelf = id === "p0";
+            const satOut = declinedIds.includes(id);
+            const joined = enrolledIds.includes(id);
+            const onClock = id === activeId && !joined && !satOut;
+            return {
+              playerId: id,
+              displayName: isSelf ? "You" : isBot(id) ? `Bot ${id.slice(-1)}` : `Player ${id.slice(1)}`,
+              handsWon: 0,
+              bankroll: 100,
+              inHand: false,
+              tricksThisHand: 0,
+              isSelf,
+              isDealer: id === dealerId,
+              isLeading: false,
+              isWinner: false,
+              isRobot: isBot(id),
+              enrollmentJoined: joined,
+              enrollmentSatOut: satOut,
+              canToggleInHand: onClock && isSelf,
+              canPassEnrollment: onClock && isSelf,
+              canEditTricks: false,
+              showHoleCards: false,
+              holeCardCount: 0,
+              isOnTurn: onClock,
+              isActiveActor: onClock,
+            };
+          });
+        }
+
+        function buildProps() {
+          return {
+            session: {
+              sessionId: "pacing-enrollment",
+              handNumber: 1,
+              handStake: 1,
+              carryOverPot: 0,
+              isFinal: false,
+              dealerId,
+              participantIds: [],
+              tricksByPlayer: {},
+              phase: null,
+              trumpSuit: null,
+              trumpUpcard: null,
+              turnPlayerId: null,
+              handEnrollment: {
+                active: true,
+                orderedPlayerIds: ordered,
+                currentIndex,
+                turnDeadlineMs: Date.now() + 12_000,
+                enrolledIds: [...enrolledIds],
+                declinedIds: [...declinedIds],
+              },
+            },
+            players: buildPlayers(),
+            potMetrics: {
+              anteAmount: 1,
+              potCap: 20,
+              currentPot: 0,
+              maxWinThisHand: 4,
+              limEnabled: false,
+              overflow: 0,
+            },
+            mySessionNet: 0,
+            myHandContribution: 0,
+            leaderLabel: "Enrollment — ante up",
+            showCoWinSettlement: false,
+            enrollmentActive: true,
+            currentUserId: "p0",
+            heroCards: [],
+            privateHandReady: false,
+            actionFeedback: null,
+            actions: {
+              onToggleInHand: () => {},
+              onPassEnrollment: () => {},
+              onTrickDelta: () => {},
+              onSettle: () => {},
+            },
+          };
+        }
+
+        function render() {
+          mountTableSession(root, buildProps());
+        }
+
+        function stepSeat() {
+          if (currentIndex >= ordered.length) {
+            fixture.done = true;
+            return;
+          }
+          const playerId = ordered[currentIndex];
+          fixture.log("seat-active", { playerId, index: currentIndex });
+          render();
+
+          window.setTimeout(() => {
+            if (isBot(playerId)) {
+              fixture.log("seat-committed", { playerId, index: currentIndex });
+              enrolledIds.push(playerId);
+              currentIndex += 1;
+              window.setTimeout(stepSeat, 60);
+            } else {
+              fixture.log("seat-committed", { playerId, index: currentIndex, human: true });
+              enrolledIds.push(playerId);
+              currentIndex += 1;
+              window.setTimeout(stepSeat, 60);
+            }
+          }, ENROLLMENT_STEP_DWELL_MS);
+        }
+
+        watchRingVisibility(root);
+        fixture.log("fixture-start");
+        render();
+        window.setTimeout(stepSeat, 80);
+      }
+    </script>
+  </body>
+</html>

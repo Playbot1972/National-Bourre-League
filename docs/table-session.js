@@ -15220,6 +15220,7 @@ function rp({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 			"data-trick-phase": m,
 			"data-trick-cards": B,
 			"data-hand-settling": D ? "true" : "false",
+			"data-pacing-ante-active": S ? "true" : "false",
 			children: [
 				S && /* @__PURE__ */ (0, g.jsx)("div", {
 					className: "bpot__ante-chips",
@@ -15402,6 +15403,8 @@ function lp({ player: e, region: t, handLane: n = "below", style: r, clockwiseDe
 	}, []), p = e.tricksThisHand, m = Math.max(0, e.holeCardCount ?? 0), h = p > 0, v = !!(e.showHoleCards && !e.isSelf && e.inHand && m > 0), y = e.bankroll != null, b = e.bourreAlert === "pulse", x = e.bourreAlert === "marker" || e.bourreAlert === "pulse", S = !!e.bourrePressure, C = S && e.isSelf, w = e.revealedTrumpIndex != null && e.revealedTrumpUpcard, T = Df(e.displayName);
 	return /* @__PURE__ */ (0, g.jsxs)("div", {
 		"data-testid": e.isSelf ? "seat-bottom-self" : t === "top" ? "seat-top" : t === "left" ? "seat-left" : t === "right" ? "seat-right" : "seat-bottom",
+		"data-pacing-active-actor": e.isActiveActor ? "true" : "false",
+		"data-pacing-player-id": e.playerId,
 		className: [
 			"bseat",
 			`bseat--${t}`,
