@@ -241,18 +241,6 @@ export function PotCenter({
         data-hand-settling={settleAnimActive ? "true" : "false"}
         data-pacing-ante-active={anteAnimActive ? "true" : "false"}
       >
-        {anteAnimActive && (
-          <div className="bpot__ante-chips" aria-hidden="true">
-            {Array.from({ length: Math.min(participantCount, 8) }, (_, i) => (
-              <span
-                key={i}
-                className="bpot__ante-chip"
-                style={{ ["--ante-i" as string]: i }}
-              />
-            ))}
-          </div>
-        )}
-
         {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
 
         <div
@@ -317,6 +305,7 @@ export function PotCenter({
           <div
             className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
             data-testid="pot-display"
+            data-ante-pot-target=""
             key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
           >
             <dt>Table pot</dt>

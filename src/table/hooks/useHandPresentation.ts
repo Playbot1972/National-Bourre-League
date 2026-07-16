@@ -44,6 +44,8 @@ export interface UseHandPresentationInput {
 
 export type HandPresentation = HandPresentationModel & {
   completeTrumpMerge: () => void;
+  reportAnteCoinLanded: (playerId: string) => void;
+  completeAnteSequence: () => void;
 };
 
 export function useHandPresentation({
@@ -306,5 +308,19 @@ export function useHandPresentation({
     dispatch({ type: "completeTrumpMerge" });
   }, []);
 
-  return { ...buildHandPresentationModel(store), completeTrumpMerge };
+  const reportAnteCoinLanded = useCallback((playerId: string) => {
+    dispatch({ type: "anteCoinLanded", playerId });
+  }, []);
+
+  const completeAnteSequence = useCallback(() => {
+    dispatch({ type: "anteSequenceComplete" });
+    dispatch({ type: "advancePhase" });
+  }, []);
+
+  return {
+    ...buildHandPresentationModel(store),
+    completeTrumpMerge,
+    reportAnteCoinLanded,
+    completeAnteSequence,
+  };
 }

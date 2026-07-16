@@ -5,7 +5,7 @@ import { isHeroCardAreaEmpty } from "./heroCardArea";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
-import { orderPlayersForTable } from "./layout/seatOrder";
+import { orderPlayersForTable, seatRingPlayerIds } from "./layout/seatOrder";
 import { resolveSeatLayout } from "./layout/seatLayout";
 import {
   CARD_LAND_MS,
@@ -24,6 +24,7 @@ import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
+import { useTableAntePresentation } from "./hooks/useTableAntePresentation";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
@@ -183,6 +184,18 @@ export function CardTable({
     privateHandReady,
     tableRootRef: wrapRef,
   });
+  const anteSeatRing = seatRingPlayerIds(session.participantIds, session);
+  useTableAntePresentation({
+    handNumber: session.handNumber,
+    phase: handPresentation.phase,
+    anteAnimActive: handPresentation.anteAnimActive,
+    dealerId: session.dealerId,
+    participantIds: session.participantIds,
+    seatRing: anteSeatRing,
+    tableRootRef: wrapRef,
+    onCoinLanded: handPresentation.reportAnteCoinLanded,
+    onSequenceComplete: handPresentation.completeAnteSequence,
+  });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const isTrumpHolder =
     currentUserId != null && trumpHolderId != null && currentUserId === trumpHolderId;
@@ -245,6 +258,7 @@ export function CardTable({
         anteAlreadyPosted:
           session.postedAntes != null &&
           Object.prototype.hasOwnProperty.call(session.postedAntes, player.playerId),
+        anteLandedThisHand: handPresentation.anteLandedPlayerIds.includes(player.playerId),
       }),
       tricksThisHand,
       isOnTurn: isActiveActor,
@@ -334,7 +348,13 @@ export function CardTable({
           <PotCenter
             potMetrics={{
               ...potMetrics,
-              currentPot: handPresentation.displayPotAmount,
+              currentPot: handPresentation.antePotRevealed
+                ? handPresentation.displayPotAmount
+                : Math.max(
+                    0,
+                    handPresentation.displayPotAmount -
+                      potMetrics.anteAmount * Math.max(1, participantCount),
+                  ),
             }}
             participantCount={participantCount}
             trumpUpcard={session.trumpUpcard}

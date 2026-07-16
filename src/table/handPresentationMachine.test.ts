@@ -601,7 +601,8 @@ describe("handPresentationMachine", () => {
 
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
-    assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
+    assert.ok(t.anteChipTravelMs >= 250 && t.anteChipTravelMs <= 310);
+    assert.ok(t.anteChipStaggerMs >= 60 && t.anteChipStaggerMs <= 90);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
     assert.ok(t.trumpRevealHoldMs >= 900 && t.trumpRevealHoldMs <= 1100);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);

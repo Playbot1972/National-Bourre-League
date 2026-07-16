@@ -5,8 +5,14 @@
 
 import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
-/** Ante chip travel to pot (180–260 ms). */
-export const ANTE_CHIP_TRAVEL_MS = 220;
+/** Ante chip travel from seat to pot (per coin). */
+export const ANTE_CHIP_TRAVEL_MS = 280;
+
+/** Stagger between consecutive ante launches (clockwise, dealer last). */
+export const ANTE_CHIP_STAGGER_MS = 72;
+
+/** Breathing beat after all ante coins land, before trump/deal. */
+export const ANTE_POST_HOLD_MS = 250;
 
 /** Per-card deal stagger (90–140 ms). */
 export const DEAL_CARD_STAGGER_MS = 130;
@@ -68,6 +74,8 @@ export type DrawAnimSubPhase = "discard" | "receive" | "done";
 
 export interface HandTimingScale {
   anteChipTravelMs: number;
+  anteChipStaggerMs: number;
+  antePostHoldMs: number;
   dealCardStaggerMs: number;
   dealFanMs: number;
   trumpRevealHoldMs: number;
@@ -86,6 +94,8 @@ export function handTimingScale(reducedMotion = prefersReducedMotion()): HandTim
   const round = (ms: number) => Math.max(80, Math.round(ms * scale));
   return {
     anteChipTravelMs: round(ANTE_CHIP_TRAVEL_MS),
+    anteChipStaggerMs: round(ANTE_CHIP_STAGGER_MS),
+    antePostHoldMs: round(ANTE_POST_HOLD_MS),
     dealCardStaggerMs: round(DEAL_CARD_STAGGER_MS),
     dealFanMs: round(DEAL_FAN_MS),
     trumpRevealHoldMs: round(TRUMP_REVEAL_HOLD_MS),
@@ -98,6 +108,25 @@ export function handTimingScale(reducedMotion = prefersReducedMotion()): HandTim
     nextHandResetMs: round(NEXT_HAND_RESET_MS),
     handResetMs: round(HAND_RESET_MS),
   };
+}
+
+export function antePresentationFlightMs(
+  playerCount: number,
+  reducedMotion = prefersReducedMotion(),
+): number {
+  if (playerCount <= 0) return 0;
+  const scale = reducedMotion ? 0.55 : 1;
+  const staggerMs = reducedMotion ? 40 : ANTE_CHIP_STAGGER_MS;
+  const travel = Math.round(ANTE_CHIP_TRAVEL_MS * scale);
+  return (playerCount - 1) * staggerMs + travel;
+}
+
+export function antePresentationScheduleMs(
+  playerCount: number,
+  reducedMotion = prefersReducedMotion(),
+): number {
+  const t = handTimingScale(reducedMotion);
+  return antePresentationFlightMs(playerCount, reducedMotion) + t.antePostHoldMs;
 }
 
 export function drawPlayerScheduleMs(

@@ -37,6 +37,10 @@ export interface HandPresentationModel {
   trumpMergeActive: boolean;
   trumpMergedIntoHand: boolean;
   anteAnimActive: boolean;
+  /** False while ante coins are in flight — pot preview stays pre-ante. */
+  antePotRevealed: boolean;
+  /** Seats whose ante coin has landed this hand. */
+  anteLandedPlayerIds: string[];
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
   settleAnimActive: boolean;
@@ -64,6 +68,10 @@ export interface HandPresentationStore {
   trumpMergeActive: boolean;
   trumpMergedIntoHand: boolean;
   anteAnimActive: boolean;
+  /** False while ante coins are in flight — pot preview stays pre-ante. */
+  antePotRevealed: boolean;
+  /** Seats whose ante coin has landed this hand. */
+  anteLandedPlayerIds: string[];
   dealStaggerCount: number;
   enrollmentPulse: Record<string, "join" | "pass" | null>;
   settleAnimActive: boolean;
@@ -159,6 +167,8 @@ export function createHandPresentationStore(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: false,
+    antePotRevealed: true,
+    anteLandedPlayerIds: [],
     dealStaggerCount: 0,
     enrollmentPulse: {},
     settleAnimActive: false,
@@ -441,6 +451,8 @@ function beginRevealPresentation(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
+    antePotRevealed: false,
+    anteLandedPlayerIds: [],
     dealPresentationAllowed: false,
     dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
     prevSnapshot: snapshot,
@@ -481,6 +493,8 @@ export type HandPresentationEvent =
   | { type: "watchdog" }
   | { type: "tryBeginHandSettle" }
   | { type: "dealCardRevealed"; count: number }
+  | { type: "anteCoinLanded"; playerId: string }
+  | { type: "anteSequenceComplete" }
   | { type: "clearEnrollmentPulse" };
 
 export function reduceHandPresentation(
@@ -520,6 +534,23 @@ function reduceHandPresentationCore(
 
     case "dealCardRevealed":
       return { ...store, dealStaggerCount: Math.max(store.dealStaggerCount, event.count) };
+
+    case "anteCoinLanded": {
+      if (!store.anteAnimActive || store.anteLandedPlayerIds.includes(event.playerId)) {
+        return store;
+      }
+      return {
+        ...store,
+        anteLandedPlayerIds: [...store.anteLandedPlayerIds, event.playerId],
+      };
+    }
+
+    case "anteSequenceComplete":
+      return {
+        ...store,
+        antePotRevealed: true,
+        anteAnimActive: false,
+      };
 
     case "clearEnrollmentPulse":
       if (!Object.keys(store.enrollmentPulse).length) return store;
@@ -690,6 +721,8 @@ function reduceHandPresentationCore(
         return withPhase(store, hasTrump ? "trumpReveal" : "ante", {
           trumpRevealActive: hasTrump,
           anteAnimActive: true,
+          antePotRevealed: false,
+          anteLandedPlayerIds: [],
           dealPresentationAllowed: false,
           dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
           prevSnapshot: snapshot,
@@ -774,6 +807,8 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
     case "handReset":
       return withPhase(store, "ante", {
         anteAnimActive: true,
+        antePotRevealed: false,
+        anteLandedPlayerIds: [],
         dealPresentationAllowed: false,
         pendingSnapshot: null,
       });
@@ -906,6 +941,8 @@ export function buildHandPresentationModel(
     trumpMergeActive: store.trumpMergeActive,
     trumpMergedIntoHand: store.trumpMergedIntoHand,
     anteAnimActive: store.anteAnimActive,
+    antePotRevealed: store.antePotRevealed,
+    anteLandedPlayerIds: store.anteLandedPlayerIds,
     dealStaggerCount: store.dealStaggerCount,
     enrollmentPulse: store.enrollmentPulse,
     settleAnimActive: store.settleAnimActive,
@@ -951,7 +988,7 @@ export function phaseScheduleMs(
     case "handReset":
       return t.handResetMs;
     case "ante":
-      return t.anteChipTravelMs * Math.max(1, Math.min(store.dealStaggerCount, 8));
+      return 0;
     case "trumpReveal":
       return t.trumpRevealHoldMs;
     case "trumpMerge":
