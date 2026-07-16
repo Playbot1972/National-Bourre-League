@@ -157,11 +157,13 @@
       }
 
       async function pollFlyMetrics(playerId, playIndex) {
-        const deadline = Date.now() + 900;
+        const deadline = Date.now() + 1200;
         let sawFlyClass = false;
         let sawAwaiting = false;
+        let sawShallowPolish = false;
         let maxOffset = 0;
         let sampleCount = 0;
+        let landed = false;
 
         while (Date.now() < deadline) {
           const slots = [...document.querySelectorAll(".btrick__play")];
@@ -169,10 +171,12 @@
           if (slot) {
             if (slot.classList.contains("btrick__play--awaiting-fly")) sawAwaiting = true;
             if (slot.classList.contains("btrick__play--fly-from-hand")) sawFlyClass = true;
+            if (slot.classList.contains("btrick__play--fly-shallow")) sawShallowPolish = true;
             const mag = offsetMagnitude(slot);
             if (mag > maxOffset) maxOffset = mag;
             sampleCount += 1;
             if (slot.classList.contains("btrick__play--landed") || slot.classList.contains("btrick__play--static-landed")) {
+              landed = true;
               break;
             }
           }
@@ -189,6 +193,8 @@
           playerId,
           sawAwaiting,
           sawFlyClass,
+          sawShallowPolish,
+          landed,
           maxOffsetPx: Math.round(maxOffset * 10) / 10,
           sampleCount,
           seatClass,

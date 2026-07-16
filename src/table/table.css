@@ -777,6 +777,11 @@
   transform-style: preserve-3d;
 }
 
+/* Geometry-close seats: slightly softer decel so boosted travel reads clearly. */
+.btrick__play--fly-shallow.btrick__play--fly-from-hand .pcard {
+  --trick-ease-fly: cubic-bezier(0.14, 0.92, 0.18, 1);
+}
+
 @keyframes btrick-fly-from-hand {
   0% {
     transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 0) scale(0.92);

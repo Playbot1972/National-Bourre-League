@@ -2,10 +2,12 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { serializedToCard } from "./handUi";
 import {
+  enhanceShallowFlyOffset,
   flyOffsetToSlot,
   playFlyKey,
   readSeatPlayOrigin,
   resolvePlayOrigin,
+  shallowFlyTravelMs,
 } from "./trickPlayFly";
 import {
   prefersReducedMotion,
@@ -102,6 +104,8 @@ export function TrickPlaySlot({
   const isLivePhase = presentationPhase === "live";
   const [flyMode, setFlyMode] = useState<FlyMode>(() => initialFlyMode(presentationPhase));
   const [cssFly, setCssFly] = useState<{ dx: number; dy: number } | null>(null);
+  const [flyShallow, setFlyShallow] = useState(false);
+  const [flyTravelMs, setFlyTravelMs] = useState<number | null>(null);
   const [hasLanded, setHasLanded] = useState(false);
   const flightStartedRef = useRef(false);
   const audioFiredRef = useRef(false);
@@ -146,6 +150,8 @@ export function TrickPlaySlot({
     audioFiredRef.current = false;
     setFlyMode(initialFlyMode(presentationPhase));
     setCssFly(null);
+    setFlyShallow(false);
+    setFlyTravelMs(null);
   }, [playKey, presentationPhase]);
 
   useLayoutEffect(() => {
@@ -189,7 +195,7 @@ export function TrickPlaySlot({
     }
 
     const reduced = prefersReducedMotion();
-    const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
+    const baseTravelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
     const flyStaggerMs =
       displayCount > 1 && index < displayCount - 1
         ? index * BATCH_TRICK_FLY_STAGGER_MS
@@ -205,8 +211,16 @@ export function TrickPlaySlot({
       flightStartedRef.current = true;
       const slotRect = liveSlot.getBoundingClientRect();
       const cardRect = liveCard.getBoundingClientRect();
-      const offset = flyOffsetToSlot(origin, slotRect, cardRect);
-      setCssFly(offset);
+      const rawOffset = flyOffsetToSlot(origin, slotRect, cardRect);
+      const enhanced = enhanceShallowFlyOffset(rawOffset);
+      const travelMs = shallowFlyTravelMs(
+        baseTravelMs,
+        enhanced.rawMagnitude,
+        enhanced.shallowBoosted,
+      );
+      setCssFly({ dx: enhanced.dx, dy: enhanced.dy });
+      setFlyShallow(enhanced.shallowBoosted);
+      setFlyTravelMs(enhanced.shallowBoosted ? travelMs : null);
       setFlyMode("pending");
 
       if (isGameFlowDebugEnabled()) {
@@ -215,6 +229,9 @@ export function TrickPlaySlot({
           index,
           travelMs,
           flyStaggerMs,
+          shallowBoosted: enhanced.shallowBoosted,
+          rawMagnitude: enhanced.rawMagnitude,
+          magnitude: enhanced.magnitude,
         });
       }
 
@@ -263,6 +280,9 @@ export function TrickPlaySlot({
           ["--fly-dy" as string]: `${cssFly.dy}px`,
         }
       : {}),
+    ...(flyTravelMs != null
+      ? { ["--trick-card-travel-ms" as string]: `${flyTravelMs}ms` }
+      : {}),
   };
 
   return (
@@ -275,6 +295,7 @@ export function TrickPlaySlot({
         hasLanded && flyMode === "static" ? "btrick__play--static-landed" : "",
         awaitingFly ? "btrick__play--awaiting-fly" : "",
         flyMode === "travel" ? "btrick__play--fly-from-hand" : "",
+        flyShallow ? "btrick__play--fly-shallow" : "",
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",
         flyMode === "settle" ? "btrick__play--settle" : "",
