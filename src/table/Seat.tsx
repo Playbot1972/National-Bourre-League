@@ -38,7 +38,13 @@ export function Seat({
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
   const showWonTrickPile = trickCount > 0;
-  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
+  const showHoleCards = Boolean(
+    player.showHoleCards &&
+      !player.isSelf &&
+      player.inHand &&
+      cardsHeld > 0 &&
+      !clockwiseDealing,
+  );
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";

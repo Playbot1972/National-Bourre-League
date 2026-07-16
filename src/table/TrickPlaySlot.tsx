@@ -18,6 +18,10 @@ import {
   prefersReducedMotion,
   TRICK_CARD_TRAVEL_MS,
 } from "./trickTiming";
+import {
+  trickSlotAwaitingFly,
+  trickSlotHeroHandoffClass,
+} from "./trickPlaySlotFlyState";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 
@@ -150,12 +154,11 @@ export function TrickPlaySlot({
   const showWinnerCard = showLiveLeaderHighlight || showResolvedWinnerHighlight;
   const isLocalHeroPlay =
     isLivePhase && currentUserId != null && play.playerId === currentUserId;
-  /** Hide until fly travel begins — hero local plays stay visible once geometry is primed. */
-  const awaitingFly =
-    isLivePhase &&
-    !hasLanded &&
-    flyMode !== "travel" &&
-    !(isLocalHeroPlay && cssFly != null);
+  const awaitingFly = trickSlotAwaitingFly({
+    isLivePhase,
+    hasLanded,
+    flyMode,
+  });
 
   useLayoutEffect(() => {
     if (isGameFlowDebugEnabled()) {
@@ -251,10 +254,6 @@ export function TrickPlaySlot({
       setFlyShallow(enhanced.shallowBoosted);
       setFlyTravelMs(enhanced.shallowBoosted ? travelMs : null);
 
-      const localHero =
-        currentUserIdRef.current != null &&
-        playRef.current.playerId === currentUserIdRef.current;
-
       if (isGameFlowDebugEnabled()) {
         logGameFlow("TrickPlaySlot", "fly-start", {
           playKey,
@@ -264,29 +263,17 @@ export function TrickPlaySlot({
           shallowBoosted: enhanced.shallowBoosted,
           rawMagnitude: enhanced.rawMagnitude,
           magnitude: enhanced.magnitude,
-          localHero,
+          localHero:
+            currentUserIdRef.current != null &&
+            playRef.current.playerId === currentUserIdRef.current,
         });
-      }
-
-      let doneTimer: number;
-      if (localHero) {
-        setFlyMode("travel");
-        doneTimer = window.setTimeout(() => {
-          completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
-            playKey,
-            index,
-          }, audioCtx);
-        }, travelMs);
-        return () => {
-          window.clearTimeout(doneTimer);
-        };
       }
 
       setFlyMode("pending");
       const showTimer = window.setTimeout(() => {
         setFlyMode("travel");
       }, 0);
-      doneTimer = window.setTimeout(() => {
+      const doneTimer = window.setTimeout(() => {
         completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
           playKey,
           index,
@@ -345,7 +332,7 @@ export function TrickPlaySlot({
         hasLanded && flyMode === "static" ? "btrick__play--static-landed" : "",
         awaitingFly ? "btrick__play--awaiting-fly" : "",
         flyMode === "travel" ? "btrick__play--fly-from-hand" : "",
-        isLocalHeroPlay && (flyMode === "travel" || cssFly != null)
+        trickSlotHeroHandoffClass({ isLocalHeroPlay, flyMode })
           ? "btrick__play--hero-handoff"
           : "",
         flyShallow ? "btrick__play--fly-shallow" : "",

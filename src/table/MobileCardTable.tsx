@@ -237,11 +237,15 @@ export function MobileCardTable({
     ),
   );
 
+  const activeActorId = turnCountdown?.playerId ?? null;
+
   const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
     const suppressTurn =
       trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+    const isActiveActor =
+      !suppressTurn && activeActorId != null && player.playerId === activeActorId;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
@@ -263,8 +267,8 @@ export function MobileCardTable({
           Object.prototype.hasOwnProperty.call(session.postedAntes, player.playerId),
       }),
       tricksThisHand,
-      isOnTurn: suppressTurn ? false : player.isOnTurn,
-      isActiveActor: suppressTurn ? false : player.isActiveActor,
+      isOnTurn: isActiveActor,
+      isActiveActor,
       isLeading:
         trickWinnerSeat &&
         (trickPresentation.phase === "winnerReveal" ||
