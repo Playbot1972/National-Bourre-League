@@ -79,17 +79,32 @@
   pointer-events: auto;
 }
 
-/* Trump upcard — hide until dealer's fifth deal lands in center */
-.btable-wrap--clockwise-dealing [data-trump-deal-target]:not(.deal-card--revealed) .pcard {
+/* Trump upcard — hide until deal lands unless already revealed in trump phase */
+.btable-wrap--clockwise-dealing
+  [data-trump-deal-target]:not(.deal-card--revealed):not(.bpot__trump--revealed-ready)
+  .pcard {
   opacity: 0 !important;
   visibility: hidden;
   pointer-events: none;
 }
 
-.btable-wrap--clockwise-dealing [data-trump-deal-target].deal-card--revealed .pcard {
+.btable-wrap--clockwise-dealing
+  [data-trump-deal-target].deal-card--revealed
+  .pcard,
+.btable-wrap--clockwise-dealing
+  [data-trump-deal-target].bpot__trump--revealed-ready
+  .pcard {
   opacity: 1 !important;
   visibility: visible;
 }
+
+/* Opponent hole fans stay hidden during GSAP deal — revealed via deal targets only */
+.btable-wrap--clockwise-dealing .bseat__hole-cards {
+  opacity: 0 !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .bpot__trump--deal,
 .bpot__ante-chip {
   animation-duration: var(--anim-deal-ms) !important;
@@ -454,8 +469,45 @@
 }
 
 /* --- Trump reveal / merge --- */
+.deck-stack__anchor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 72px;
+}
+
+.deck-stack__layer--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.deck-stack__anchor > :not(.deck-stack__layer--hidden) {
+  position: relative;
+}
+
 .bpot__trump--reveal {
-  animation: btrump-reveal var(--anim-trump-reveal-ms) var(--premium-ease-out);
+  animation: btrump-reveal var(--anim-trump-reveal-ms, 640ms) var(--premium-ease-out) forwards;
+}
+
+.bpot__trump--relocate {
+  animation: btrump-relocate 240ms var(--premium-ease-out) forwards;
+}
+
+@keyframes btrump-relocate {
+  0% {
+    transform: translate3d(0, -14px, 0) scale(1.05);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 @keyframes btrump-reveal {

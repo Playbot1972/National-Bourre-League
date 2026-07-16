@@ -363,10 +363,21 @@ export function TableSessionView({
   const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
+
+  const { countdown: turnCountdown } = useTurnCountdown({
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+  });
+
+  const activeActorId = turnCountdown?.playerId ?? null;
   const turnLabel =
-    suppressTurn
-      ? null
-      : turnIndicatorLabel(session.turnPlayerId, players);
+    suppressTurn ? null : turnIndicatorLabel(activeActorId, players);
+  const showTurnOverlay = Boolean(
+    turnLabel &&
+    !suppressTurn &&
+    (enrollmentActive || session.phase === "draw" || session.phase === "play"),
+  );
   const selfPlayer = players.find((p) => p.isSelf);
   const lockedInLiveHand =
     currentUserId != null &&
@@ -379,14 +390,21 @@ export function TableSessionView({
     !coWinResultVisible &&
     selfPlayer?.isOut === true &&
     Boolean(actions.onRebuy);
-  const isMyTurn = isHeroDrawOrPlayTurn({
-    currentUserId,
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-    enrollmentActive,
-    selfPlayer,
-  });
+  const isMyTurn =
+    !suppressTurn &&
+    !handComplete &&
+    currentUserId != null &&
+    activeActorId === currentUserId &&
+    (enrollmentActive
+      ? Boolean(selfPlayer?.canToggleInHand || selfPlayer?.canPassEnrollment)
+      : isHeroDrawOrPlayTurn({
+          currentUserId,
+          session,
+          suppressTurn: Boolean(suppressTurn),
+          handComplete,
+          enrollmentActive,
+          selfPlayer,
+        }));
 
   const localActionRequired = isLocalActionRequiredNow({
     currentUserId,
@@ -401,12 +419,6 @@ export function TableSessionView({
     currentUserId,
     enrollmentActive,
     selfPlayer,
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-  });
-
-  const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
@@ -654,7 +666,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
+              showTurn={showTurnOverlay}
             />
             {gameplayStage}
           </div>
@@ -668,7 +680,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
+              showTurn={showTurnOverlay}
             />
             {gameplayStage}
           </div>
