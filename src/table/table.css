@@ -771,8 +771,9 @@
   pointer-events: none;
 }
 
-/* Hero handoff: trick card stays visible once fly travel starts. */
-.btrick__play--hero-handoff.btrick__play--fly-from-hand .pcard {
+/* Hero handoff: trick card stays visible once fly geometry is primed and through travel. */
+.btrick__play--hero-handoff.btrick__play--fly-from-hand .pcard,
+.btrick__play--hero-handoff:not(.btrick__play--awaiting-fly) .pcard {
   opacity: 1;
 }
 

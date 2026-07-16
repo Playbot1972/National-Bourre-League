@@ -104,6 +104,7 @@ export function TableSessionView({
     playedCards: session.playedCards,
     turnPlayerId: session.turnPlayerId,
     handComplete,
+    currentUserId,
   });
 
   const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
