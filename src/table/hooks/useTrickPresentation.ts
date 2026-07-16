@@ -22,6 +22,11 @@ import {
   shouldReinitTrickPresentationStore,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
+import {
+  getHeroPlayHandoff,
+  setHeroPlayTrickIndex,
+} from "../heroPlayHandoff";
+import { serializedPlays } from "../trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
@@ -35,6 +40,7 @@ interface UseTrickPresentationInput {
   playedCards?: PlayedCardEntry[];
   turnPlayerId?: string | null;
   handComplete?: boolean;
+  currentUserId?: string | null;
 }
 
 export type TrickPresentation = TrickPresentationModel & {
@@ -53,6 +59,7 @@ export function useTrickPresentation({
   playedCards,
   turnPlayerId,
   handComplete = false,
+  currentUserId = null,
 }: UseTrickPresentationInput): TrickPresentation {
   const [store, dispatch] = useReducer(
     reduceTrickPresentation,
@@ -211,6 +218,45 @@ export function useTrickPresentation({
     turnPlayerId,
     currentTrick?.plays,
     store.pendingResolution?.frozen.plays,
+  ]);
+
+  useLayoutEffect(() => {
+    const handoff = getHeroPlayHandoff();
+    if (!handoff || !sessionPlayActive || store.phase !== "live") return;
+
+    const livePlays = serializedPlays(currentTrick);
+    const peakPlays = store.peakTrickPlays ?? [];
+    const plays =
+      peakPlays.length >= livePlays.length && peakPlays.length > 0 ? peakPlays : livePlays;
+
+    const heroIdx = plays.findIndex((p) => playFlyKey(p) === handoff.playKey);
+    if (heroIdx < 0) return;
+
+    setHeroPlayTrickIndex(heroIdx);
+
+    const revealThrough = heroIdx + 1;
+    if (store.revealedCount >= revealThrough) return;
+
+    if (revealTimerRef.current != null) {
+      window.clearTimeout(revealTimerRef.current);
+      revealTimerRef.current = null;
+    }
+    dispatch({ type: "revealThroughCount", count: revealThrough });
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useTrickPresentation", "hero-play-immediate-reveal", {
+        playKey: handoff.playKey,
+        trickIndex: heroIdx,
+        revealThrough,
+      });
+    }
+  }, [
+    sessionPlayActive,
+    store.phase,
+    store.revealedCount,
+    store.peakTrickPlays,
+    currentTrick?.plays,
+    currentTrick?.trickNumber,
+    handNumber,
   ]);
 
   useEffect(() => {

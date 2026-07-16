@@ -187,6 +187,7 @@ export type TrickPresentationEvent =
   | { type: "reinit"; snapshot: ServerTrickSnapshot }
   | { type: "serverUpdate"; snapshot: ServerTrickSnapshot; participantIds: string[]; trumpSuit?: string | null; reducedMotion?: boolean }
   | { type: "revealNextCard" }
+  | { type: "revealThroughCount"; count: number }
   | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
   | { type: "advancePhase" }
@@ -242,6 +243,17 @@ function reduceTrickPresentationCore(
         ...store,
         revealedCount,
         displayRevealFloor: Math.max(store.displayRevealFloor, revealedCount),
+      };
+    }
+
+    case "revealThroughCount": {
+      if (store.phase !== "live") return store;
+      const target = Math.min(event.count, liveRevealTarget(store));
+      if (store.revealedCount >= target) return store;
+      return {
+        ...store,
+        revealedCount: target,
+        displayRevealFloor: Math.max(store.displayRevealFloor, target),
       };
     }
 
@@ -428,14 +440,10 @@ export function buildTrickPresentationModel(
         : holdPlays;
   const rawRevealLimit =
     store.phase === "live"
-      ? store.pendingResolution
-        ? Math.max(store.revealedCount, holdForDisplay.length)
-        : Math.min(store.revealedCount, holdForDisplay.length)
+      ? Math.min(store.revealedCount, holdForDisplay.length)
       : holdForDisplay.length;
   const revealLimit =
-    store.phase === "live" && !store.pendingResolution
-      ? Math.max(rawRevealLimit, floor)
-      : rawRevealLimit;
+    store.phase === "live" ? Math.max(rawRevealLimit, floor) : rawRevealLimit;
   const displayPlays =
     store.phase === "live"
       ? holdForDisplay.slice(0, revealLimit)

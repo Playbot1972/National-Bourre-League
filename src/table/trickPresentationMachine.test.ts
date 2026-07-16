@@ -151,12 +151,12 @@ describe("trickPresentationMachine", () => {
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
-    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 3);
     store = reduceTrickPresentation(store, { type: "revealNextCard" });
     assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
-  it("keeps all trick cards visible while pending resolution lands", () => {
+  it("staggers pending resolution reveals instead of dumping unrevealed plays", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
@@ -166,7 +166,9 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.isPipelineActive, true);
     assert.equal(model.isResolving, false);
-    assert.equal(model.displayPlays.length, 4);
+    assert.equal(model.displayPlays.length, 0);
+    store = reduceTrickPresentation(store, { type: "revealThroughCount", count: 4 });
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
   it("buffers server snapshots while the trick pipeline is running", () => {
