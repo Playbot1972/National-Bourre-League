@@ -4,6 +4,7 @@ import { serializedToCard } from "./handUi";
 import {
   flyOffsetToSlot,
   playFlyKey,
+  readSeatPlayOrigin,
   resolvePlayOrigin,
 } from "./trickPlayFly";
 import {
@@ -12,6 +13,9 @@ import {
 } from "./trickTiming";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+
+/** Stagger fly starts when several plays appear in one reveal batch. */
+const BATCH_TRICK_FLY_STAGGER_MS = 72;
 
 export interface CardLandedAudioCallbackInput {
   cardId: string;
@@ -32,10 +36,14 @@ interface TrickPlaySlotProps {
   playerName: string;
   leaderPlayerId?: string | null;
   winnerPlayerId?: string | null;
-  /** Skip fly animation (trump UI / layout settling). */
+  /** Skip fly animation for non-live echo / hold rows only. */
   instantPlace?: boolean;
   currentUserId?: string | null;
   onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
+}
+
+function initialFlyMode(phase: TrickPresentationPhase): FlyMode {
+  return phase === "live" ? "pending" : "static";
 }
 
 function completeFlight(
@@ -86,12 +94,13 @@ export function TrickPlaySlot({
   playerName,
   leaderPlayerId = null,
   winnerPlayerId = null,
-  instantPlace = false,
+  instantPlace: _instantPlace = false,
   currentUserId = null,
   onCardLanded,
 }: TrickPlaySlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
-  const [flyMode, setFlyMode] = useState<FlyMode>("static");
+  const isLivePhase = presentationPhase === "live";
+  const [flyMode, setFlyMode] = useState<FlyMode>(() => initialFlyMode(presentationPhase));
   const [cssFly, setCssFly] = useState<{ dx: number; dy: number } | null>(null);
   const [hasLanded, setHasLanded] = useState(false);
   const flightStartedRef = useRef(false);
@@ -111,8 +120,6 @@ export function TrickPlaySlot({
   const playKey = playFlyKey(play);
   const isLeading = leaderPlayerId != null && play.playerId === leaderPlayerId;
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
-  const isLivePhase = presentationPhase === "live";
-  const isLanding = index === displayCount - 1 && isLivePhase;
   /** Shift transition only after a completed land — never during fly keyframes. */
   const isSettled = hasLanded;
   /** Current trick leader — green winner border immediately during live play. */
@@ -123,22 +130,23 @@ export function TrickPlaySlot({
     presentationPhase !== "live" &&
     presentationPhase !== "trickComplete";
   const showWinnerCard = showLiveLeaderHighlight || showResolvedWinnerHighlight;
+  const awaitingFly = isLivePhase && !hasLanded;
 
   useLayoutEffect(() => {
     if (isGameFlowDebugEnabled()) {
       logGameFlow("TrickPlaySlot", "play-enter", {
         playKey,
         index,
-        instantPlace,
-        isLanding,
+        instantPlace: _instantPlace,
+        isLivePhase,
       });
     }
     setHasLanded(false);
     flightStartedRef.current = false;
     audioFiredRef.current = false;
-    setFlyMode("static");
+    setFlyMode(initialFlyMode(presentationPhase));
     setCssFly(null);
-  }, [playKey]);
+  }, [playKey, presentationPhase]);
 
   useLayoutEffect(() => {
     if (hasLanded) return;
@@ -154,15 +162,7 @@ export function TrickPlaySlot({
       audioFiredRef,
     };
 
-    if (instantPlace || !isLivePhase) {
-      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
-        playKey,
-        index,
-      }, audioCtx);
-      return;
-    }
-
-    if (!isLanding) {
+    if (!isLivePhase) {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
         index,
@@ -178,7 +178,8 @@ export function TrickPlaySlot({
     const cardEl = slot.querySelector(".pcard") as HTMLElement | null;
     if (!cardEl) return;
 
-    const origin = resolvePlayOrigin(play.playerId, playKey);
+    const origin =
+      resolvePlayOrigin(play.playerId, playKey) ?? readSeatPlayOrigin(play.playerId);
     if (!origin) {
       completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
         playKey,
@@ -189,31 +190,69 @@ export function TrickPlaySlot({
 
     const reduced = prefersReducedMotion();
     const travelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
-    flightStartedRef.current = true;
+    const flyStaggerMs =
+      displayCount > 1 && index < displayCount - 1
+        ? index * BATCH_TRICK_FLY_STAGGER_MS
+        : 0;
 
-    const slotRect = slot.getBoundingClientRect();
-    const cardRect = cardEl.getBoundingClientRect();
-    const offset = flyOffsetToSlot(origin, slotRect, cardRect);
-    setCssFly(offset);
-    setFlyMode("pending");
+    const startFlight = () => {
+      if (flightStartedRef.current) return;
+      const liveSlot = slotRef.current;
+      if (!liveSlot) return;
+      const liveCard = liveSlot.querySelector(".pcard") as HTMLElement | null;
+      if (!liveCard) return;
 
-    if (isGameFlowDebugEnabled()) {
-      logGameFlow("TrickPlaySlot", "fly-start", { playKey, index, travelMs });
+      flightStartedRef.current = true;
+      const slotRect = liveSlot.getBoundingClientRect();
+      const cardRect = liveCard.getBoundingClientRect();
+      const offset = flyOffsetToSlot(origin, slotRect, cardRect);
+      setCssFly(offset);
+      setFlyMode("pending");
+
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("TrickPlaySlot", "fly-start", {
+          playKey,
+          index,
+          travelMs,
+          flyStaggerMs,
+        });
+      }
+
+      const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
+      const doneTimer = window.setTimeout(() => {
+        completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
+          playKey,
+          index,
+        }, audioCtx);
+      }, travelMs);
+
+      return () => {
+        window.clearTimeout(showTimer);
+        window.clearTimeout(doneTimer);
+      };
+    };
+
+    if (flyStaggerMs > 0) {
+      setFlyMode("pending");
+      let innerCleanup: (() => void) | undefined;
+      const staggerTimer = window.setTimeout(() => {
+        innerCleanup = startFlight();
+      }, flyStaggerMs);
+      return () => {
+        window.clearTimeout(staggerTimer);
+        innerCleanup?.();
+      };
     }
 
-    const showTimer = window.setTimeout(() => setFlyMode("travel"), 0);
-    const doneTimer = window.setTimeout(() => {
-      completeFlight(setHasLanded, setFlyMode, setCssFly, flightStartedRef, {
-        playKey,
-        index,
-      }, audioCtx);
-    }, travelMs);
-
-    return () => {
-      window.clearTimeout(showTimer);
-      window.clearTimeout(doneTimer);
-    };
-  }, [hasLanded, instantPlace, isLanding, isLivePhase, play.playerId, playKey]);
+    return startFlight();
+  }, [
+    hasLanded,
+    isLivePhase,
+    displayCount,
+    index,
+    play.playerId,
+    playKey,
+  ]);
 
   const flyStyle: CSSProperties = {
     ["--slot-index" as string]: index,
@@ -234,6 +273,7 @@ export function TrickPlaySlot({
         hasLanded ? "btrick__play--landed" : "",
         isSettled ? "btrick__play--settled" : "",
         hasLanded && flyMode === "static" ? "btrick__play--static-landed" : "",
+        awaitingFly ? "btrick__play--awaiting-fly" : "",
         flyMode === "travel" ? "btrick__play--fly-from-hand" : "",
         flyMode === "pending" ? "btrick__play--fly-pending" : "",
         flyMode === "land" ? "btrick__play--land" : "",

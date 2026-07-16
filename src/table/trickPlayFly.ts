@@ -46,23 +46,36 @@ export function readLivePlayOrigin(playerId: string): PlayOriginRect | null {
   return rectFromElement(el);
 }
 
+interface PrimePlayOriginOptions {
+  /** When false, keep an existing primed rect (hand lane at turn start). */
+  force?: boolean;
+}
+
 /** Cache the best-known hand origin for a player (refreshed each turn / layout). */
-export function primePlayOrigin(playerId: string): PlayOriginRect | null {
-  const rect = readLivePlayOrigin(playerId);
+export function primePlayOrigin(
+  playerId: string,
+  options: PrimePlayOriginOptions = {},
+): PlayOriginRect | null {
+  if (!options.force && primedOriginByPlayer.has(playerId)) {
+    return primedOriginByPlayer.get(playerId)!;
+  }
+  const rect = readLivePlayOrigin(playerId) ?? readSeatPlayOrigin(playerId);
   if (rect) {
     primedOriginByPlayer.set(playerId, rect);
     return rect;
   }
-  const seat = readSeatPlayOrigin(playerId);
-  if (seat) {
-    primedOriginByPlayer.set(playerId, seat);
-    return seat;
-  }
   return null;
 }
 
-export function primePlayOrigins(playerIds: string[]): void {
-  for (const playerId of playerIds) primePlayOrigin(playerId);
+export function forcePrimePlayOrigin(playerId: string): PlayOriginRect | null {
+  return primePlayOrigin(playerId, { force: true });
+}
+
+export function primePlayOrigins(
+  playerIds: string[],
+  options: PrimePlayOriginOptions = {},
+): void {
+  for (const playerId of playerIds) primePlayOrigin(playerId, options);
 }
 
 export function readPrimedPlayOrigin(playerId: string): PlayOriginRect | undefined {
@@ -86,7 +99,16 @@ export function resolvePlayOrigin(
 }
 
 export function snapshotPlayOrigin(playerId: string, playKey: string): PlayOriginRect | null {
-  const rect = resolvePlayOrigin(playerId, playKey);
+  const cached = playOriginByKey.get(playKey);
+  if (cached) return cached;
+
+  const primed = readPrimedPlayOrigin(playerId);
+  if (primed) {
+    playOriginByKey.set(playKey, primed);
+    return primed;
+  }
+
+  const rect = readLivePlayOrigin(playerId) ?? readSeatPlayOrigin(playerId);
   if (rect) playOriginByKey.set(playKey, rect);
   return rect;
 }

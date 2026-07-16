@@ -765,8 +765,10 @@
   pointer-events: none;
 }
 
-.btrick__play--fly-pending .pcard {
+.btrick__play--fly-pending .pcard,
+.btrick__play--awaiting-fly .pcard {
   opacity: 0;
+  pointer-events: none;
 }
 
 .btrick__play--fly-from-hand .pcard {

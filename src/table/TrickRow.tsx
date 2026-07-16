@@ -31,7 +31,7 @@ export function TrickRow({
   presentationPhase = "live",
   playerNames = {},
   variant = "live",
-  instantTrickPlays = false,
+  instantTrickPlays: _instantTrickPlays = false,
   peakCardCount = 0,
   participantCount = 0,
   currentUserId = null,
@@ -140,7 +140,7 @@ export function TrickRow({
               playerName={playerNames[play.playerId] ?? "Player"}
               leaderPlayerId={leaderPlayerId}
               winnerPlayerId={winnerPlayerId}
-              instantPlace={instantTrickPlays}
+              instantPlace={false}
               currentUserId={currentUserId}
               onCardLanded={onCardLanded}
             />
