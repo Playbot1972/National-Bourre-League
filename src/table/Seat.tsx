@@ -61,6 +61,8 @@ export function Seat({
   return (
     <div
       data-testid={seatTestId}
+      data-pacing-active-actor={player.isActiveActor ? "true" : "false"}
+      data-pacing-player-id={player.playerId}
       className={[
         "bseat",
         `bseat--${region}`,

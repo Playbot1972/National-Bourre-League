@@ -209,6 +209,7 @@ export function PotCenter({
         data-trick-phase={trickPresentationPhase}
         data-trick-cards={liveTrickCardCount}
         data-hand-settling={settleAnimActive ? "true" : "false"}
+        data-pacing-ante-active={anteAnimActive ? "true" : "false"}
       >
         {anteAnimActive && (
           <div className="bpot__ante-chips" aria-hidden="true">

@@ -38,7 +38,8 @@ See **`docs/E2E_UI_UX_REPORT.md`** for the full pass/fail matrix by user journey
 | `e2e/table-smoke.desktop.spec.ts` | **Table smoke (desktop)** — load, felt/seats, enrollment join, settings, trump/draw/play, settlement, no console errors |
 | `e2e/table-smoke.mobile.spec.ts` | **Table smoke (Pixel 5 landscape)** — layout, critical controls in viewport, draw/settings/settlement |
 | `e2e/fixtures/consoleGuard.ts` | Shared fixture — fails on `console.error` and uncaught `pageerror` |
-| `e2e/helpers/tableSmoke.ts` | Table fixture URL builder + viewport helpers |
+| `e2e/table-pacing.spec.ts` | **Bot play + ante + enrollment pacing** — timer ring before submit, 350–900 ms bot delays, ante dwell, seat-by-seat sequencing |
+| `e2e/helpers/pacingTimings.ts` | Timing helpers + tolerance constants for pacing E2E |
 | `e2e/social-smoke.spec.ts` | Home page loads, sign-in entry |
 | `e2e/settlement.spec.ts` | Co-winner settlement UI |
 | `e2e/table-layout.spec.ts` | No horizontal overflow |
