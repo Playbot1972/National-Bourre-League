@@ -173,6 +173,15 @@
   transform: none !important;
 }
 
+.hand__slot--play-handoff {
+  z-index: 26 !important;
+  pointer-events: none;
+}
+
+.btable-hero__hand-row .hand__slot--play-handoff {
+  z-index: 26 !important;
+}
+
 .btable-hero__hand-row .hand__slot--peek {
   transform: translateY(-20px) rotateX(14deg) rotateY(-22deg) scale(1.1) !important;
   rotate: none;

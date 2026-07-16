@@ -771,6 +771,11 @@
   pointer-events: none;
 }
 
+/* Hero handoff: trick card stays visible once fly travel starts. */
+.btrick__play--hero-handoff.btrick__play--fly-from-hand .pcard {
+  opacity: 1;
+}
+
 .btrick__play--fly-from-hand .pcard {
   animation: btrick-fly-from-hand var(--trick-card-travel-ms, 340ms) var(--trick-ease-fly, cubic-bezier(0.22, 1, 0.36, 1))
     forwards;
