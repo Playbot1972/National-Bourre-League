@@ -75,4 +75,51 @@ describe("trickPlayFly", () => {
     assert.equal(readPrimedPlayOrigin("p1"), undefined);
     assert.equal(readCachedPlayOrigin("p1:A:hearts"), undefined);
   });
+
+  it("keeps primed origin until force refresh", { skip: typeof document === "undefined" }, () => {
+    clearPlayOriginCache();
+    const host = document.createElement("div");
+    const anchor = document.createElement("span");
+    anchor.setAttribute("data-seat-play-origin", "bot-2");
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({
+        left: 10,
+        top: 20,
+        width: 34,
+        height: 48,
+        right: 44,
+        bottom: 68,
+        x: 10,
+        y: 20,
+        toJSON: () => ({}),
+      }),
+    });
+    host.appendChild(anchor);
+    document.body.appendChild(host);
+
+    const first = primePlayOrigin("bot-2", { force: true });
+    assert.deepEqual(first, { left: 10, top: 20, width: 34, height: 48 });
+
+    Object.defineProperty(anchor, "getBoundingClientRect", {
+      value: () => ({
+        left: 99,
+        top: 99,
+        width: 34,
+        height: 48,
+        right: 133,
+        bottom: 147,
+        x: 99,
+        y: 99,
+        toJSON: () => ({}),
+      }),
+    });
+
+    const second = primePlayOrigin("bot-2");
+    assert.deepEqual(second, first);
+
+    const forced = primePlayOrigin("bot-2", { force: true });
+    assert.deepEqual(forced, { left: 99, top: 99, width: 34, height: 48 });
+
+    host.remove();
+  });
 });

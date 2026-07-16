@@ -11,6 +11,7 @@ import {
 import {
   playFlyKey,
   clearPlayOriginCache,
+  forcePrimePlayOrigin,
   primePlayOrigins,
   snapshotPlayOrigin,
 } from "../trickPlayFly";
@@ -67,6 +68,8 @@ export function useTrickPresentation({
   const targetRevealRef = useRef(0);
   const prevSessionPlayRef = useRef(false);
   const prevHandNumberRef = useRef(handNumber);
+  const prevTurnPlayerIdRef = useRef<string | null>(null);
+  const playOriginsPrimedRef = useRef(false);
   const storeRef = useRef(store);
   storeRef.current = store;
 
@@ -106,6 +109,8 @@ export function useTrickPresentation({
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
+      playOriginsPrimedRef.current = false;
+      prevTurnPlayerIdRef.current = null;
       clearPlayOriginCache();
       dispatch({
         type: "reinit",
@@ -134,6 +139,8 @@ export function useTrickPresentation({
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
+      playOriginsPrimedRef.current = false;
+      prevTurnPlayerIdRef.current = null;
       clearPlayOriginCache();
       dispatch({
         type: "reinit",
@@ -177,9 +184,22 @@ export function useTrickPresentation({
   ]);
 
   useLayoutEffect(() => {
-    if (!sessionPlayActive && !pipelineActive) return;
-    primePlayOrigins(participantIds);
-    if (turnPlayerId) primePlayOrigins([turnPlayerId]);
+    if (!sessionPlayActive && !pipelineActive) {
+      prevTurnPlayerIdRef.current = null;
+      playOriginsPrimedRef.current = false;
+      return;
+    }
+
+    if (sessionPlayActive && !playOriginsPrimedRef.current) {
+      primePlayOrigins(participantIds, { force: true });
+      playOriginsPrimedRef.current = true;
+    }
+
+    if (turnPlayerId && turnPlayerId !== prevTurnPlayerIdRef.current) {
+      forcePrimePlayOrigin(turnPlayerId);
+      prevTurnPlayerIdRef.current = turnPlayerId;
+    }
+
     const livePlays = currentTrick?.plays ?? [];
     if (livePlays.length > 0) snapshotTrickPlayOrigins(livePlays);
     const pendingPlays = store.pendingResolution?.frozen.plays ?? [];
