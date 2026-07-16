@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { activePlayerOrder, CARDS_PER_PLAYER } from "../../game/playerOrder";
+import { canStartDealPresentation } from "../handPresentationMachine";
 import { seatRingPlayerIds } from "../layout/seatOrder";
 import {
   buildClockwiseDealSteps,
@@ -10,18 +11,18 @@ import {
 } from "../animations/dealPresentationMotion";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
-import type { SerializedCard, TableSessionData } from "../types";
+import type { TableSessionData } from "../types";
 
 export interface UseTableDealPresentationInput {
   session: TableSessionData;
-  heroCards: SerializedCard[];
+  dealPresentationAllowed: boolean;
   privateHandReady?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
 export function useTableDealPresentation({
   session,
-  heroCards,
+  dealPresentationAllowed,
   privateHandReady = false,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
@@ -47,18 +48,17 @@ export function useTableDealPresentation({
     const root = tableRootRef.current;
     if (!root) return;
 
-    const inDealPhase =
-      session.phase === "reveal" ||
-      session.phase === "decision" ||
-      session.phase === "draw" ||
-      session.phase === "play";
-
-    const cardCount = heroCards.length;
-    if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
+    if (
+      !canStartDealPresentation(
+        dealPresentationAllowed,
+        session.phase,
+        privateHandReady,
+      )
+    ) {
       return;
     }
 
-    const dealKey = `${session.handNumber}:${cardCount}:${session.participantIds.join(",")}`;
+    const dealKey = `${session.handNumber}:${session.participantIds.join(",")}`;
     if (lastDealKeyRef.current === dealKey) return;
 
     const seatRing = seatRingPlayerIds(session.participantIds, session);
@@ -115,7 +115,7 @@ export function useTableDealPresentation({
     session.phase,
     session.dealerId,
     session.participantIds,
-    heroCards.length,
+    dealPresentationAllowed,
     privateHandReady,
     tableRootRef,
   ]);

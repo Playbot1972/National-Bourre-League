@@ -198,7 +198,7 @@ export function MobileCardTable({
   });
   const clockwiseDealing = useTableDealPresentation({
     session,
-    heroCards,
+    dealPresentationAllowed: handPresentation.dealPresentationAllowed,
     privateHandReady,
     tableRootRef: wrapRef,
   });

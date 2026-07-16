@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
+  canStartDealPresentation,
   createHandPresentationStore,
   nextDrawPresentationTarget,
   phaseScheduleMs,
@@ -560,11 +561,49 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "enrollment");
   });
 
+  it("blocks deal presentation during trump reveal hold", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.dealPresentationAllowed, false);
+    assert.equal(
+      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
+      false,
+    );
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+    assert.equal(store.dealPresentationAllowed, false);
+    assert.equal(
+      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
+      false,
+    );
+  });
+
+  it("allows deal presentation after trump reveal hold completes", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+    });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.dealPresentationAllowed, true);
+    assert.equal(
+      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
+      true,
+    );
+    assert.equal(buildHandPresentationModel(store).dealPresentationAllowed, true);
+  });
+
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
-    assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
+    assert.ok(t.trumpRevealHoldMs >= 900 && t.trumpRevealHoldMs <= 1100);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
