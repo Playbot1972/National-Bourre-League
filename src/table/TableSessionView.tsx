@@ -226,8 +226,6 @@ export function TableSessionView({
     motionBusyTick,
   ]);
 
-  const cardsDealt = isCardsDealtPhase(session.phase);
-
   const trumpHolderPresentation = useMemo(
     () =>
       resolveTrumpHolderPresentation({
