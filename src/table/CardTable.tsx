@@ -179,7 +179,7 @@ export function CardTable({
   });
   const clockwiseDealing = useTableDealPresentation({
     session,
-    heroCards,
+    dealPresentationAllowed: handPresentation.dealPresentationAllowed,
     privateHandReady,
     tableRootRef: wrapRef,
   });

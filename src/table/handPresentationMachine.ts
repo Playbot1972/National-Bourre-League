@@ -47,6 +47,8 @@ export interface HandPresentationModel {
   suppressTurnIndicator: boolean;
   displayPotAmount: number;
   isPresenting: boolean;
+  /** True after ante/trump-reveal presentation completes — gates clockwise deal GSAP. */
+  dealPresentationAllowed: boolean;
 }
 
 export interface HandPresentationStore {
@@ -75,6 +77,7 @@ export interface HandPresentationStore {
   phaseStartedAt: number;
   /** Players whose draw presentation fully finished this hand (dedupe key: handNumber + playerId). */
   drawPresentationConsumedIds: string[];
+  dealPresentationAllowed: boolean;
 }
 
 export function trumpKey(card: SerializedCard | null): string {
@@ -168,6 +171,10 @@ export function createHandPresentationStore(
     pendingSnapshot: null,
     phaseStartedAt: Date.now(),
     drawPresentationConsumedIds: [],
+    dealPresentationAllowed:
+      snapshot.phase === "draw" ||
+      snapshot.phase === "play" ||
+      snapshot.phase === "decision",
   };
   if (snapshot.phase === "reveal") {
     return beginRevealPresentation(store, snapshot);
@@ -434,6 +441,7 @@ function beginRevealPresentation(
     trumpMergeActive: false,
     trumpMergedIntoHand: false,
     anteAnimActive: true,
+    dealPresentationAllowed: false,
     dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
     prevSnapshot: snapshot,
     displayPotAmount: snapshot.potAmount,
@@ -596,6 +604,7 @@ function reduceHandPresentationCore(
           trumpMergeActive: false,
           trumpMergedIntoHand: true,
           anteAnimActive: false,
+          dealPresentationAllowed: true,
           prevSnapshot: snapshot,
           pendingSnapshot: null,
         });
@@ -681,6 +690,7 @@ function reduceHandPresentationCore(
         return withPhase(store, hasTrump ? "trumpReveal" : "ante", {
           trumpRevealActive: hasTrump,
           anteAnimActive: true,
+          dealPresentationAllowed: false,
           dealStaggerCount: Math.max(store.dealStaggerCount, snapshot.participantIds.length),
           prevSnapshot: snapshot,
           displayPotAmount: snapshot.potAmount,
@@ -762,20 +772,29 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
 
   switch (store.phase) {
     case "handReset":
-      return withPhase(store, "ante", { anteAnimActive: true, pendingSnapshot: null });
+      return withPhase(store, "ante", {
+        anteAnimActive: true,
+        dealPresentationAllowed: false,
+        pendingSnapshot: null,
+      });
 
     case "ante":
       if (store.trumpRevealActive || snap?.trumpUpcard) {
         return withPhase(store, "trumpReveal", {
           trumpRevealActive: true,
           anteAnimActive: false,
+          dealPresentationAllowed: false,
           pendingSnapshot: null,
         });
       }
       if (snap?.phase === "draw") {
-        return beginDrawSequence(store, snap, 0, 0);
+        return { ...beginDrawSequence(store, snap, 0, 0), dealPresentationAllowed: true };
       }
-      return withPhase(store, "drawPlayer", { anteAnimActive: false, pendingSnapshot: null });
+      return withPhase(store, "drawPlayer", {
+        anteAnimActive: false,
+        dealPresentationAllowed: true,
+        pendingSnapshot: null,
+      });
 
     case "trumpReveal": {
       if (snap?.phase === "draw") {
@@ -784,6 +803,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
           trumpRevealActive: false,
           trumpMergeActive: false,
           trumpMergedIntoHand: false,
+          dealPresentationAllowed: true,
           pendingSnapshot: null,
         };
       }
@@ -791,6 +811,7 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
         trumpRevealActive: false,
         trumpMergeActive: false,
         trumpMergedIntoHand: false,
+        dealPresentationAllowed: true,
         pendingSnapshot: null,
       });
     }
@@ -903,7 +924,22 @@ export function buildHandPresentationModel(
       (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done"),
     displayPotAmount: store.displayPotAmount,
     isPresenting: isHandPresentingPhase(store.phase),
+    dealPresentationAllowed: store.dealPresentationAllowed,
   };
+}
+
+/** Gates clockwise deal GSAP — independent of hero hand card count. */
+export function canStartDealPresentation(
+  dealPresentationAllowed: boolean,
+  sessionPhase: string | null | undefined,
+  privateHandReady: boolean,
+): boolean {
+  const inDealPhase =
+    sessionPhase === "reveal" ||
+    sessionPhase === "decision" ||
+    sessionPhase === "draw" ||
+    sessionPhase === "play";
+  return dealPresentationAllowed && inDealPhase && privateHandReady;
 }
 
 export function phaseScheduleMs(

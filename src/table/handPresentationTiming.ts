@@ -14,8 +14,8 @@ export const DEAL_CARD_STAGGER_MS = 130;
 /** Full deal fan duration (matches bdeal-to-hand). */
 export const DEAL_FAN_MS = 600;
 
-/** Dealer upcard / trump reveal hold (~5 s so the suit is readable). */
-export const TRUMP_REVEAL_HOLD_MS = 5000;
+/** Dealer upcard / trump reveal hold (readable beat before deal). */
+export const TRUMP_REVEAL_HOLD_MS = 1000;
 
 /** Trump merge into holder hand after first opening action (~480 ms). */
 export const TRUMP_MERGE_ANIM_MS = 480;
