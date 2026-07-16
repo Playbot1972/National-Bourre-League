@@ -7,6 +7,12 @@ import type { Card } from "../types";
 import { dealMotionWindowMs, useHeroCardMotion } from "./animations/useHeroCardMotion";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
+import {
+  beginHeroPlayHandoff,
+  cancelHeroPlayHandoff,
+  getHeroPlayHandoff,
+  subscribeHeroPlayHandoff,
+} from "./heroPlayHandoff";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
@@ -73,6 +79,23 @@ interface HeroHandProps {
   onUserActivity?: () => void;
   /** Table-wide clockwise deal — disables hero-only deal motion. */
   skipHeroDealMotion?: boolean;
+}
+
+function serializedCardKey(c: SerializedCard): string {
+  return `${c.rank}-${c.suit}`;
+}
+
+function cardsWithHandoffGhost(
+  cards: SerializedCard[],
+  handoff: ReturnType<typeof getHeroPlayHandoff>,
+): SerializedCard[] {
+  if (!handoff) return cards;
+  const ghostKey = serializedCardKey(handoff.card);
+  if (cards.some((c) => serializedCardKey(c) === ghostKey)) return cards;
+  const next = [...cards];
+  const idx = Math.min(Math.max(handoff.slotIndex, 0), next.length);
+  next.splice(idx, 0, handoff.card);
+  return next;
 }
 
 function heroShellClass(
@@ -152,6 +175,7 @@ export function HeroHand({
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
   const [pendingDiscardIndices, setPendingDiscardIndices] = useState<number[]>([]);
+  const [handoffRevision, setHandoffRevision] = useState(0);
   const prevCardIdsRef = useRef<Set<string>>(new Set());
   const handRootRef = useRef<HTMLDivElement>(null);
   const playLockRef = useRef(false);
@@ -175,10 +199,15 @@ export function HeroHand({
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
-  const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
+  const heroPlayHandoff = useMemo(() => getHeroPlayHandoff(), [handoffRevision]);
+  const displayCards = useMemo(
+    () => cardsWithHandoffGhost(cards, heroPlayHandoff),
+    [cards, heroPlayHandoff],
+  );
+  const typedCards: Card[] = useMemo(() => displayCards.map(serializedToCard), [displayCards]);
   const handCardKey = useMemo(
-    () => cards.map((c) => `${c.rank}-${c.suit}`).join("|"),
-    [cards],
+    () => displayCards.map((c) => serializedCardKey(c)).join("|"),
+    [displayCards],
   );
   const recommendedDiscardKey = useMemo(
     () => recommendedDiscardIndices.slice().sort((a, b) => a - b).join(","),
@@ -186,8 +215,12 @@ export function HeroHand({
   );
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
+  const handoffActive = heroPlayHandoff != null;
   const busy =
-    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
+    localBusy ||
+    actionFeedback?.status === "loading" ||
+    playingIndex !== null ||
+    handoffActive;
 
   playClickLogRef.current = {
     handNumber,
@@ -200,10 +233,18 @@ export function HeroHand({
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
-      if (revealedTrumpIndex !== i) return "";
-      return trumpMergeActive ? "hand__slot--trump-merge-target" : "hand__slot--trump-revealed";
+      const classes: string[] = [];
+      if (heroPlayHandoff && i === heroPlayHandoff.slotIndex) {
+        classes.push("hand__slot--play-handoff");
+      }
+      if (revealedTrumpIndex === i) {
+        classes.push(
+          trumpMergeActive ? "hand__slot--trump-merge-target" : "hand__slot--trump-revealed",
+        );
+      }
+      return classes.join(" ");
     },
-    [revealedTrumpIndex, trumpMergeActive],
+    [heroPlayHandoff, revealedTrumpIndex, trumpMergeActive],
   );
 
   useEffect(() => {
@@ -230,9 +271,22 @@ export function HeroHand({
   }, [drawAnimSubPhase]);
 
   useEffect(() => {
-    setHeroPlayMotionActive(playingIndex !== null);
+    return subscribeHeroPlayHandoff(() => {
+      setHandoffRevision((n) => n + 1);
+      if (!getHeroPlayHandoff()) {
+        setPlayingIndex(null);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!inPlayPhase) cancelHeroPlayHandoff();
+  }, [inPlayPhase, handNumber, trickNumber]);
+
+  useEffect(() => {
+    setHeroPlayMotionActive(playingIndex !== null || handoffActive);
     return () => setHeroPlayMotionActive(false);
-  }, [playingIndex]);
+  }, [playingIndex, handoffActive]);
 
   useHeroCardMotion(handRootRef, {
     dealing,
@@ -502,22 +556,27 @@ export function HeroHand({
         generation: autoplayGenerationRef.current,
       });
       const card = typedCards[index];
-      if (currentUserId && card) {
-        snapshotHeroHandCardOrigin(
-          currentUserId,
-          playFlyKey({
-            playerId: currentUserId,
-            card: { rank: String(card.rank), suit: String(card.suit) },
-          }),
-          index,
-        );
+      const playKey =
+        currentUserId && card
+          ? playFlyKey({
+              playerId: currentUserId,
+              card: { rank: String(card.rank), suit: String(card.suit) },
+            })
+          : null;
+      if (currentUserId && card && playKey) {
+        snapshotHeroHandCardOrigin(currentUserId, playKey, index);
+        beginHeroPlayHandoff({
+          playKey,
+          card: { rank: String(card.rank), suit: String(card.suit) },
+          slotIndex: index,
+        });
       }
       try {
         await Promise.resolve(onPlayCard(index));
-        setPlayingIndex(null);
         setSelectedPlay(null);
         playLockRef.current = false;
       } catch {
+        cancelHeroPlayHandoff();
         setPlayingIndex(null);
         playLockRef.current = false;
       }
