@@ -13,12 +13,12 @@ import { initCardMotion } from "./initMotion";
 import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 
-/** Per-card travel from deck to seat (calm premium pace). */
-export const DEAL_STEP_TRAVEL_MS = 540;
+/** Per-card travel from deck to seat. */
+export const DEAL_STEP_TRAVEL_MS = 255;
 /** Brief settle after each dealt card lands. */
-export const DEAL_STEP_SETTLE_MS = 130;
-/** Gap between consecutive deal steps. */
-export const DEAL_STEP_GAP_MS = 110;
+export const DEAL_STEP_SETTLE_MS = 50;
+/** Stagger between consecutive deal step starts (overlapping launches). */
+export const DEAL_STEP_GAP_MS = 63;
 
 const ACTIVE_DEAL_TIMELINES = new Set<gsap.core.Timeline>();
 
@@ -47,11 +47,10 @@ export function dealPresentationDurationMs(
 ): number {
   if (stepCount <= 0) return 0;
   const scale = reducedMotion ? 0.35 : 1;
-  const perStep = Math.round(
-    (DEAL_STEP_TRAVEL_MS + DEAL_STEP_SETTLE_MS + DEAL_STEP_GAP_MS) * scale,
-  );
+  const staggerMs = reducedMotion ? 40 : DEAL_STEP_GAP_MS;
   const travel = Math.round(DEAL_STEP_TRAVEL_MS * scale);
-  return (stepCount - 1) * perStep + travel + Math.round(DEAL_STEP_SETTLE_MS * scale);
+  const settle = Math.round(DEAL_STEP_SETTLE_MS * scale);
+  return (stepCount - 1) * staggerMs + travel + settle;
 }
 
 export function readDealTargetRect(
@@ -170,7 +169,7 @@ export function runClockwiseDealPresentation({
   const reduced = prefersReducedMotion();
   const travelSec = scaledDuration(DEAL_STEP_TRAVEL_MS / 1000, reduced);
   const settleSec = scaledDuration(DEAL_STEP_SETTLE_MS / 1000, reduced);
-  const gapSec = reduced ? 0.04 : DEAL_STEP_GAP_MS / 1000;
+  const staggerSec = reduced ? 0.04 : DEAL_STEP_GAP_MS / 1000;
   const deck = readDeckOrigin(root);
 
   const tl = gsap.timeline({
@@ -192,7 +191,7 @@ export function runClockwiseDealPresentation({
   }
 
   steps.forEach((step, i) => {
-    const position = i * (travelSec + settleSec + gapSec);
+    const position = i * staggerSec;
     const target = readDealTargetRect(step.playerId, step.roundIndex, root, trumpHolderId);
 
     tl.call(
