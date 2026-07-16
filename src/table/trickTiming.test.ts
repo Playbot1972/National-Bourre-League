@@ -10,6 +10,7 @@ import {
   FINAL_HAND_TRICK_PRESENTATION_MS,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
+  suppressesTurnIndicator,
   trickResolutionScheduleMs,
   trickWinnerDelta,
   trumpBeatLedSuit,
@@ -144,19 +145,27 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickReadMs({ trumpBeat: true }), 2050);
-    assert.equal(postTrickReadMs({}), 1850);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 725);
+    assert.equal(postTrickReadMs({}), 525);
   });
 
   it("schedules winner reveal inside the read pause", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 1850);
-    assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
-    assert.equal(schedule.readBeforeWinnerMs, 1850 - WINNER_REVEAL_MS);
+    assert.equal(schedule.readTotalMs, 525);
+    assert.equal(schedule.winnerRevealMs, 325);
+    assert.equal(schedule.readBeforeWinnerMs, 200);
+  });
+
+  it("suppresses turn ring only during brief read and winner glow", () => {
+    assert.equal(suppressesTurnIndicator("trickComplete"), true);
+    assert.equal(suppressesTurnIndicator("winnerReveal"), true);
+    assert.equal(suppressesTurnIndicator("collectTrick"), false);
+    assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
+    assert.equal(suppressesTurnIndicator("live"), false);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {
-    assert.ok(MIN_TRICK_PIPELINE_MS >= 2050);
+    assert.ok(MIN_TRICK_PIPELINE_MS >= 1600);
   });
 
   it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {
@@ -175,6 +184,6 @@ describe("trickTiming", () => {
     const minimum =
       CARD_REVEAL_STAGGER_MS * 7 + CARD_LAND_MS + trickResolutionScheduleMs({}).pipelineMs;
     assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= minimum);
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 7000);
+    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 6500);
   });
 });

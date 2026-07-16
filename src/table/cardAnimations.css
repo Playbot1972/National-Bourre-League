@@ -22,8 +22,8 @@
   --trick-ease-fly: cubic-bezier(0.22, 1, 0.36, 1);
   --trick-ease-shift: cubic-bezier(0.2, 0, 0, 1);
   --trick-ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --trick-sweep-ms: 1080ms;
-  --trick-winner-highlight-ms: 1850ms;
+  --trick-sweep-ms: 900ms;
+  --trick-winner-highlight-ms: 525ms;
 }
 
 /* --- Clockwise deal: invisible anchors beside avatar (never over the face) --- */

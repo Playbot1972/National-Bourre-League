@@ -22,17 +22,17 @@ export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 380;
 
-/** Readability pause after last card before winner highlight (1600 ms — within 1400–1800 spec). */
-export const POST_TRICK_READ_MS = 1850;
+/** Readability pause after last card before winner highlight. */
+export const POST_TRICK_READ_MS = 525;
 
 /** Winner glow inside the read pause (300–500 ms). */
 export const WINNER_REVEAL_MS = 400;
 
 /** Longer read when trump beats led suit. */
-export const TRUMP_BEAT_READ_MS = 2050;
+export const TRUMP_BEAT_READ_MS = 725;
 
 /** Directional collection toward winner seat (rake + gather + packet fly). */
-export const TRICK_SWEEP_MS = 1_080;
+export const TRICK_SWEEP_MS = 900;
 
 /** In-line rake before cards fly to the winner pile. */
 export const TRICK_RAKE_MS = 240;
@@ -83,9 +83,9 @@ export type TrickPresentationPhase =
   | "collectTrick"
   | "nextLeadReady";
 
-/** Phases where turn/lead UI must stay suppressed. */
+/** Phases where turn/lead UI must stay suppressed (brief read + winner glow only). */
 export function suppressesTurnIndicator(phase: TrickPresentationPhase): boolean {
-  return phase !== "live";
+  return phase === "trickComplete" || phase === "winnerReveal";
 }
 
 export interface FrozenTrick {
