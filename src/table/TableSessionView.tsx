@@ -10,7 +10,6 @@ import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
   formatHandPhase,
-  isCardsDealtPhase,
   isDecisionPhase,
   isRevealPhase,
   serializedToCard,
