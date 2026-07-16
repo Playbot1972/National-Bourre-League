@@ -16946,8 +16946,8 @@ function fh(e, t = 5) {
 }
 function ph(e, t = B()) {
 	if (e <= 0) return 0;
-	let n = t ? .35 : 1, r = Math.round(780 * n), i = Math.round(540 * n);
-	return (e - 1) * r + i + Math.round(130 * n);
+	let n = t ? .35 : 1, r = t ? 40 : 63, i = Math.round(255 * n), a = Math.round(50 * n);
+	return (e - 1) * r + i + a;
 }
 function mh(e, t, n, r) {
 	let i = n instanceof Document ? n : n.ownerDocument ?? document;
@@ -16987,7 +16987,7 @@ function yh() {
 }
 function bh({ steps: e, root: t, trumpHolderId: n = null, onStepComplete: r, onComplete: i }) {
 	Ko(t), yh();
-	let a = B(), o = z(540 / 1e3, a), s = z(130 / 1e3, a), c = a ? .04 : 110 / 1e3, l = us(t), u = J.timeline({
+	let a = B(), o = z(255 / 1e3, a), s = z(50 / 1e3, a), c = a ? .04 : 63 / 1e3, l = us(t), u = J.timeline({
 		onComplete: () => {
 			dh.delete(u), i?.();
 		},
@@ -17001,7 +17001,7 @@ function bh({ steps: e, root: t, trumpHolderId: n = null, onStepComplete: r, onC
 		return u.call(() => i?.()), u;
 	}
 	e.forEach((e, i) => {
-		let d = i * (o + s + c), f = mh(e.playerId, e.roundIndex, t, n);
+		let d = i * c, f = mh(e.playerId, e.roundIndex, t, n);
 		u.call(() => {
 			if (!f) {
 				_h(e.playerId, e.roundIndex, t, n), r?.(e);
