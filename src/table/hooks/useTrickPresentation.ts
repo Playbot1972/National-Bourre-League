@@ -222,7 +222,8 @@ export function useTrickPresentation({
 
   useLayoutEffect(() => {
     const handoff = getHeroPlayHandoff();
-    if (!handoff || !sessionPlayActive || store.phase !== "live") return;
+    if (!handoff || !currentUserId || !sessionPlayActive || store.phase !== "live") return;
+    if (!handoff.playKey.startsWith(`${currentUserId}:`)) return;
 
     const livePlays = serializedPlays(currentTrick);
     const peakPlays = store.peakTrickPlays ?? [];
@@ -257,6 +258,7 @@ export function useTrickPresentation({
     currentTrick?.plays,
     currentTrick?.trickNumber,
     handNumber,
+    currentUserId,
   ]);
 
   useEffect(() => {
