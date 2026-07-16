@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Fly path matrix fixture</title>
+    <link rel="stylesheet" href="/table-session.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0a0e18;
+        overflow-x: clip;
+      }
+      .fixture-shell {
+        min-height: 100dvh;
+        padding: 8px;
+        box-sizing: border-box;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="fixture-shell">
+      <div id="table-root" data-testid="table-fly-path-matrix-fixture"></div>
+    </div>
+    <script type="module">
+      import { mountTableSession } from "/table-session.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const playerCount = Math.min(8, Math.max(2, parseInt(params.get("players") || "4", 10)));
+      const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);
+      const dealerId = ids[playerCount - 1];
+      const suits = ["clubs", "diamonds", "hearts", "spades"];
+      const ranks = ["2", "3", "4", "5", "6", "7", "8", "9"];
+
+      let currentTrick = {
+        trickNumber: 1,
+        leadPlayerId: ids[0],
+        leadSuit: "clubs",
+        plays: [],
+      };
+      let turnPlayerId = ids[0];
+
+      function displayName(id) {
+        const idx = parseInt(id.slice(1), 10);
+        return idx === 0 ? "You" : `Player ${idx}`;
+      }
+
+      function buildPlayers() {
+        return ids.map((id) => ({
+          playerId: id,
+          displayName: displayName(id),
+          handsWon: 0,
+          bankroll: 100,
+          inHand: true,
+          tricksThisHand: 0,
+          isSelf: id === "p0",
+          isDealer: id === dealerId,
+          isLeading: id === currentTrick.leadPlayerId,
+          isWinner: false,
+          isRobot: false,
+          canToggleInHand: false,
+          canEditTricks: false,
+          showHoleCards: id !== "p0",
+          holeCardCount: 4,
+          isOnTurn: id === turnPlayerId,
+          isActiveActor: id === turnPlayerId,
+        }));
+      }
+
+      function buildProps() {
+        return {
+          session: {
+            sessionId: "fixture-fly-path-matrix",
+            handNumber: 1,
+            handStake: 1,
+            carryOverPot: 0,
+            isFinal: false,
+            dealerId,
+            trumpHolderId: dealerId,
+            participantIds: ids,
+            actionOrder: ids,
+            seatedIds: ids,
+            tricksByPlayer: Object.fromEntries(ids.map((id) => [id, 0])),
+            phase: "play",
+            trumpSuit: "hearts",
+            trumpUpcard: null,
+            turnPlayerId,
+            remainingDeckCount: 20,
+            maxDrawDiscards: 4,
+            currentTrick,
+            playedCards: [],
+            handEnrollment: null,
+          },
+          players: buildPlayers(),
+          potMetrics: {
+            anteAmount: 1,
+            potCap: 20,
+            currentPot: playerCount,
+            maxWinThisHand: playerCount,
+            limEnabled: false,
+            overflow: 0,
+          },
+          mySessionNet: 0,
+          myHandContribution: 1,
+          leaderLabel: `Fly path matrix · ${playerCount} players`,
+          showCoWinSettlement: false,
+          enrollmentActive: false,
+          currentUserId: "p0",
+          heroCards: [
+            { rank: "A", suit: "spades" },
+            { rank: "K", suit: "hearts" },
+            { rank: "Q", suit: "diamonds" },
+            { rank: "J", suit: "clubs" },
+            { rank: "10", suit: "spades" },
+          ],
+          privateHandReady: true,
+          legalPlayIndices: [0, 1, 2, 3, 4],
+          actionFeedback: null,
+          actions: {
+            onToggleInHand: () => {},
+            onTrickDelta: () => {},
+            onSettle: () => {},
+            onSubmitDraw: async () => {},
+            onPassDraw: async () => {},
+            onPlayCard: async () => {},
+          },
+        };
+      }
+
+      const root = document.getElementById("table-root");
+      root.dataset.playerCount = String(playerCount);
+
+      function render() {
+        mountTableSession(root, buildProps());
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => window.setTimeout(resolve, ms));
+      }
+
+      function parseOffsetPx(value) {
+        const n = parseFloat(String(value || "0").replace("px", ""));
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function offsetMagnitude(slot) {
+        const dx = parseOffsetPx(slot.style.getPropertyValue("--fly-dx"));
+        const dy = parseOffsetPx(slot.style.getPropertyValue("--fly-dy"));
+        return Math.hypot(dx, dy);
+      }
+
+      async function waitForLayout() {
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await sleep(120);
+      }
+
+      async function pollFlyMetrics(playerId, playIndex) {
+        const deadline = Date.now() + 1200;
+        let sawFlyClass = false;
+        let sawAwaiting = false;
+        let sawShallowPolish = false;
+        let maxOffset = 0;
+        let sampleCount = 0;
+        let landed = false;
+
+        while (Date.now() < deadline) {
+          const slots = [...document.querySelectorAll(".btrick__play")];
+          const slot = slots[playIndex];
+          if (slot) {
+            if (slot.classList.contains("btrick__play--awaiting-fly")) sawAwaiting = true;
+            if (slot.classList.contains("btrick__play--fly-from-hand")) sawFlyClass = true;
+            if (slot.classList.contains("btrick__play--fly-shallow")) sawShallowPolish = true;
+            const mag = offsetMagnitude(slot);
+            if (mag > maxOffset) maxOffset = mag;
+            sampleCount += 1;
+            if (slot.classList.contains("btrick__play--landed") || slot.classList.contains("btrick__play--static-landed")) {
+              landed = true;
+              break;
+            }
+          }
+          await sleep(16);
+        }
+
+        const seatEl = document.querySelector(`[data-seat-play-origin="${playerId}"]`);
+        const seatRect = seatEl?.getBoundingClientRect();
+        const trickRow = document.querySelector('[data-testid="trick-row"]');
+        const trickRect = trickRow?.getBoundingClientRect();
+        const seatClass = seatEl?.closest(".bseat")?.className ?? "";
+
+        return {
+          playerId,
+          sawAwaiting,
+          sawFlyClass,
+          sawShallowPolish,
+          landed,
+          maxOffsetPx: Math.round(maxOffset * 10) / 10,
+          sampleCount,
+          seatClass,
+          seatCenter:
+            seatRect && trickRect
+              ? {
+                  x: Math.round(seatRect.left + seatRect.width / 2),
+                  y: Math.round(seatRect.top + seatRect.height / 2),
+                }
+              : null,
+          trickCenter: trickRect
+            ? {
+                x: Math.round(trickRect.left + trickRect.width / 2),
+                y: Math.round(trickRect.top + trickRect.height / 2),
+              }
+            : null,
+        };
+      }
+
+      async function runMatrix() {
+        const results = [];
+        await waitForLayout();
+
+        for (let i = 0; i < ids.length; i += 1) {
+          const playerId = ids[i];
+          const play = {
+            playerId,
+            card: { rank: ranks[i % ranks.length], suit: suits[i % suits.length] },
+          };
+          currentTrick = {
+            trickNumber: 1,
+            leadPlayerId: ids[0],
+            leadSuit: "clubs",
+            plays: [play],
+          };
+          turnPlayerId = playerId;
+          render();
+          await waitForLayout();
+          const metrics = await pollFlyMetrics(playerId, 0);
+          results.push(metrics);
+          await sleep(80);
+        }
+
+        return {
+          playerCount,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          results,
+          weakest: results.reduce((min, row) =>
+            row.maxOffsetPx < min.maxOffsetPx ? row : min,
+          results[0]),
+        };
+      }
+
+      window.__flyPathMatrix = { runMatrix, playerCount };
+
+      render();
+    </script>
+  </body>
+</html>
