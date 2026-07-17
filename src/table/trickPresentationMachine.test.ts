@@ -491,10 +491,34 @@ describe("trickPresentationMachine", () => {
     );
   });
 
-  it("defers hand-number reinit while the trick pipeline or echo is active", () => {
+  it("hand-number reinit clears pending final-trick resolution", () => {
+    const trick5 = { ...completedTrick, trickNumber: 5 };
+    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, trick5);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5, p2: 0 } },
+      participantIds: participants,
+    });
+    assert.ok(store.pendingResolution);
+    assert.equal(store.phase, "live");
+
+    store = reduceTrickPresentation(store, {
+      type: "reinit",
+      snapshot: {
+        currentTrick: null,
+        tricksByPlayer: {},
+        playedCards: [],
+      },
+    });
+    assert.equal(store.pendingResolution, null);
+    assert.equal(store.phase, "live");
+    assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
+  });
+
+  it("does not defer hand-number reinit while pipeline or echo is active", () => {
     assert.equal(
       shouldDeferHandNumberReinit({ pipelineActive: true, handEndEchoTrick: null }),
-      true,
+      false,
     );
     assert.equal(
       shouldDeferHandNumberReinit({
@@ -506,10 +530,6 @@ describe("trickPresentationMachine", () => {
           winnerId: "p1",
         },
       }),
-      true,
-    );
-    assert.equal(
-      shouldDeferHandNumberReinit({ pipelineActive: false, handEndEchoTrick: null }),
       false,
     );
   });

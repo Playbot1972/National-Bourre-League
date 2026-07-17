@@ -662,15 +662,6 @@ function reduceHandPresentationCore(
       }
 
       if (store.handNumber !== snapshot.handNumber) {
-        // recordHand bumps handCount while the final trick may still be presenting.
-        if (store.pendingHandSettle && store.phase === "play") {
-          return {
-            ...store,
-            pendingSnapshot: snapshot,
-            prevSnapshot: snapshot,
-            displayPotAmount: snapshot.potAmount,
-          };
-        }
         const fresh = createHandPresentationStore(snapshot);
         return snapshot.phase === "reveal" ? beginRevealPresentation(fresh, snapshot) : fresh;
       }
