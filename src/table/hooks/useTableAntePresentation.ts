@@ -33,6 +33,7 @@ export function useTableAntePresentation({
   const lastKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
   const holdTimerRef = useRef<number | null>(null);
+  const seatRingKey = seatRing.join(",");
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -97,7 +98,7 @@ export function useTableAntePresentation({
     anteAnimActive,
     dealerId,
     participantIds,
-    seatRing,
+    seatRingKey,
     tableRootRef,
     onCoinLanded,
     onSequenceComplete,

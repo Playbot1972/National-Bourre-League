@@ -72,6 +72,52 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpMergedIntoHand, true);
   });
 
+  it("catches up from stale ante when server is already in draw", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+    });
+    assert.equal(store.phase, "ante");
+    assert.equal(store.anteAnimActive, true);
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        drawCompletedIds: ["p1", "p2"],
+        turnPlayerId: "p3",
+      },
+    });
+
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.anteAnimActive, false);
+    assert.equal(store.trumpRevealActive, false);
+    assert.deepEqual(store.displayDrawCompletedIds, ["p1", "p2"]);
+    assert.ok(store.drawPresentationConsumedIds.includes("p1"));
+    assert.ok(store.drawPresentationConsumedIds.includes("p2"));
+  });
+
+  it("catches up from stale ante to drawReady when all seats drew on server", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "A", suit: "hearts" },
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        drawCompletedIds: ["p1", "p2", "p3"],
+        turnPlayerId: "p1",
+      },
+    });
+    assert.equal(store.phase, "drawReady");
+    assert.equal(store.anteAnimActive, false);
+  });
+
   it("arms ante on initial reveal mount", () => {
     const store = createHandPresentationStore({
       ...baseSnap,

@@ -45,8 +45,29 @@
         setBotThinkWindowPublisher,
       } from "/bot-play-delay.js";
 
-      const ANTE_CHIP_TRAVEL_MS = 220;
+      const ANTE_CHIP_TRAVEL_MS = 280;
+      const ANTE_CHIP_STAGGER_MS = 72;
+      const ANTE_POST_HOLD_MS = 250;
+      const TRUMP_REVEAL_HOLD_MS = 1000;
+      const DEAL_STEP_GAP_MS = 63;
+      const DEAL_STEP_TRAVEL_MS = 255;
+      const DEAL_STEP_SETTLE_MS = 50;
       const ENROLLMENT_SEAT_PULSE_MS = 480;
+      const CARDS_PER_PLAYER = 5;
+
+      function antePresentationFlightMs(playerCount) {
+        if (playerCount <= 0) return 0;
+        return (playerCount - 1) * ANTE_CHIP_STAGGER_MS + ANTE_CHIP_TRAVEL_MS;
+      }
+
+      function antePresentationScheduleMs(playerCount) {
+        return antePresentationFlightMs(playerCount) + ANTE_POST_HOLD_MS;
+      }
+
+      function dealPresentationDurationMs(stepCount) {
+        if (stepCount <= 0) return 0;
+        return (stepCount - 1) * DEAL_STEP_GAP_MS + DEAL_STEP_TRAVEL_MS + DEAL_STEP_SETTLE_MS;
+      }
 
       const params = new URLSearchParams(window.location.search);
       const scenario = params.get("scenario") || "bot-play";
@@ -64,6 +85,9 @@
           botMinMs: BOT_PLAY_DELAY_MIN_MS,
           botMaxMs: BOT_PLAY_DELAY_MAX_MS,
           anteChipTravelMs: ANTE_CHIP_TRAVEL_MS,
+          anteChipStaggerMs: ANTE_CHIP_STAGGER_MS,
+          antePostHoldMs: ANTE_POST_HOLD_MS,
+          trumpRevealHoldMs: TRUMP_REVEAL_HOLD_MS,
           enrollmentSeatPulseMs: ENROLLMENT_SEAT_PULSE_MS,
         },
         events: [],
@@ -126,12 +150,127 @@
         fixture.observers.push(obs);
       }
 
+      function stopPresentationPolling() {
+        if (fixture._pollId != null) {
+          cancelAnimationFrame(fixture._pollId);
+          fixture._pollId = null;
+        }
+      }
+
+      function startPresentationPolling(root) {
+        stopPresentationPolling();
+        const poll = () => {
+          if (fixture.done) return;
+
+          const anteActive =
+            root.querySelector('[data-pacing-ante-active="true"]') != null;
+          if (anteActive && !fixture._anteStarted) {
+            fixture._anteStarted = true;
+            fixture.log("ante-anim-start", { playerCount: fixture._playerCount ?? 0 });
+          }
+          if (!anteActive && fixture._anteStarted && !fixture._anteEnded) {
+            fixture._anteEnded = true;
+            fixture.log("ante-anim-end");
+          }
+
+          const trump = root.querySelector(".bpot__trump");
+          if (trump && fixture._anteEnded) {
+            const revealing = trump.classList.contains("bpot__trump--reveal");
+            const revealedReady = trump.classList.contains("bpot__trump--revealed-ready");
+            if (revealing && !fixture._trumpHoldStarted) {
+              fixture._trumpHoldStarted = true;
+              fixture.log("trump-reveal-start");
+            }
+            if (revealedReady && fixture._trumpHoldStarted && !fixture._trumpHoldEnded) {
+              fixture._trumpHoldEnded = true;
+              fixture.log("trump-reveal-end");
+            }
+          }
+
+          const dealing = root.querySelector(".btable-wrap--clockwise-dealing");
+          if (dealing && !fixture._dealStarted) {
+            fixture._dealStarted = true;
+            fixture.log("deal-presentation-start");
+          }
+          if (!dealing && fixture._dealStarted && !fixture._dealEnded) {
+            fixture._dealEnded = true;
+            fixture.log("deal-presentation-end");
+          }
+
+          fixture._pollId = requestAnimationFrame(poll);
+        };
+        fixture._pollId = requestAnimationFrame(poll);
+      }
+
+      function watchAnteGhosts(root) {
+        const obs = new MutationObserver(() => {
+          const ghosts = root.querySelectorAll(".ante-fly-ghost");
+          if (ghosts.length > 0 && !fixture._anteGhostSeen) {
+            fixture._anteGhostSeen = true;
+            fixture.log("ante-ghost-start", { count: ghosts.length });
+          }
+        });
+        obs.observe(root, { subtree: true, childList: true });
+        fixture.observers.push(obs);
+      }
+
+      function watchTrumpReveal(root) {
+        const trumpEl = () => root.querySelector(".bpot__trump");
+        const obs = new MutationObserver(() => {
+          const el = trumpEl();
+          if (!el) return;
+          const anteDone = fixture._anteEnded;
+          const revealing = el.classList.contains("bpot__trump--reveal");
+          const revealedReady = el.classList.contains("bpot__trump--revealed-ready");
+          if (anteDone && revealing && !fixture._trumpHoldStarted) {
+            fixture._trumpHoldStarted = true;
+            fixture.log("trump-reveal-start");
+          }
+          if (fixture._trumpHoldStarted && revealedReady && !fixture._trumpHoldEnded) {
+            fixture._trumpHoldEnded = true;
+            fixture.log("trump-reveal-end");
+          }
+        });
+        obs.observe(root, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+        fixture.observers.push(obs);
+      }
+
+      function watchDealPresentation(root) {
+        const dealingEl = () =>
+          root.querySelector(".btable-wrap--clockwise-dealing") ??
+          root.querySelector('[data-testid="table-root"].btable-wrap--clockwise-dealing');
+        const obs = new MutationObserver(() => {
+          const el = dealingEl();
+          const dealing = Boolean(el);
+          if (dealing && !fixture._dealStarted) {
+            fixture._dealStarted = true;
+            fixture.log("deal-presentation-start");
+          }
+          if (!dealing && fixture._dealStarted && !fixture._dealEnded) {
+            fixture._dealEnded = true;
+            fixture.log("deal-presentation-end");
+          }
+        });
+        obs.observe(root, {
+          subtree: true,
+          attributes: true,
+          attributeFilter: ["class"],
+        });
+        fixture.observers.push(obs);
+      }
+
       const root = document.getElementById("table-root");
 
       if (scenario === "bot-play") {
         runBotPlayScenario();
       } else if (scenario === "ante-reveal") {
         runAnteRevealScenario();
+      } else if (scenario === "hand-open") {
+        runHandOpenScenario();
       } else if (scenario === "enrollment-step") {
         runEnrollmentStepScenario();
       } else {
@@ -358,14 +497,8 @@
             showCoWinSettlement: false,
             enrollmentActive: false,
             currentUserId: "p0",
-            heroCards: [
-              { rank: "A", suit: "spades" },
-              { rank: "K", suit: "hearts" },
-              { rank: "Q", suit: "diamonds" },
-              { rank: "J", suit: "clubs" },
-              { rank: "10", suit: "spades" },
-            ],
-            privateHandReady: true,
+            heroCards: [],
+            privateHandReady: false,
             actionFeedback: null,
             actions: {
               onAdvanceReveal: () => {
@@ -378,6 +511,8 @@
         }
 
         watchAnteAnimation(root);
+        watchAnteGhosts(root);
+        startPresentationPolling(root);
         fixture.log("fixture-start");
         mountTableSession(root, buildProps());
         window.setTimeout(() => {
@@ -388,14 +523,133 @@
           }
         }, 0);
 
-        const expectedMinMs = ANTE_CHIP_TRAVEL_MS * Math.min(ids.length, 8);
+        const expectedMinMs =
+          antePresentationScheduleMs(ids.length) + TRUMP_REVEAL_HOLD_MS + 400;
         window.setTimeout(() => {
           if (!fixture._anteEnded) {
             fixture.log("ante-anim-end", { forced: true });
             fixture._anteEnded = true;
           }
+          stopPresentationPolling();
           fixture.done = true;
-        }, expectedMinMs + 600);
+        }, expectedMinMs);
+      }
+
+      function runHandOpenScenario() {
+        const playerCount = Math.min(8, Math.max(2, Number(params.get("players") || "6")));
+        const ids = Array.from({ length: playerCount }, (_, i) => `p${i}`);
+        fixture._playerCount = ids.length;
+        const dealerId = ids[ids.length - 1];
+        let sessionPhase = "reveal";
+        const heroHand = [
+          { rank: "A", suit: "spades" },
+          { rank: "K", suit: "hearts" },
+          { rank: "Q", suit: "diamonds" },
+          { rank: "J", suit: "clubs" },
+          { rank: "10", suit: "spades" },
+        ];
+        let heroCards = [];
+        let privateHandReady = false;
+
+        function buildPlayers() {
+          return ids.map((id) => ({
+            playerId: id,
+            displayName: id === "p0" ? "You" : `Player ${id.slice(1)}`,
+            handsWon: 0,
+            bankroll: 100,
+            inHand: true,
+            tricksThisHand: 0,
+            isSelf: id === "p0",
+            isDealer: id === dealerId,
+            isLeading: false,
+            isWinner: false,
+            isRobot: id !== "p0",
+            canToggleInHand: false,
+            canEditTricks: false,
+            showHoleCards: false,
+            holeCardCount: 5,
+            isOnTurn: false,
+            isActiveActor: false,
+          }));
+        }
+
+        function buildProps() {
+          return {
+            session: {
+              sessionId: "pacing-hand-open",
+              handNumber: 1,
+              handStake: 1,
+              carryOverPot: 0,
+              isFinal: false,
+              dealerId,
+              trumpHolderId: dealerId,
+              participantIds: ids,
+              tricksByPlayer: {},
+              phase: sessionPhase,
+              trumpSuit: "hearts",
+              trumpUpcard: { rank: "7", suit: "hearts" },
+              turnPlayerId: null,
+              postedAntes: {},
+            },
+            players: buildPlayers(),
+            potMetrics: {
+              anteAmount: 1,
+              potCap: 20,
+              currentPot: 0,
+              maxWinThisHand: ids.length,
+              limEnabled: false,
+              overflow: 0,
+            },
+            mySessionNet: 0,
+            myHandContribution: 0,
+            leaderLabel: "Hand open — ante, trump, deal",
+            showCoWinSettlement: false,
+            enrollmentActive: false,
+            currentUserId: "p0",
+            heroCards,
+            privateHandReady,
+            actionFeedback: null,
+            actions: {
+              onAdvanceReveal: () => {
+                fixture.log("reveal-advanced");
+                sessionPhase = "draw";
+                heroCards = heroHand;
+                privateHandReady = true;
+                render();
+              },
+              onTrickDelta: () => {},
+              onSettle: () => {},
+            },
+          };
+        }
+
+        function render() {
+          mountTableSession(root, buildProps());
+        }
+
+        watchAnteAnimation(root);
+        watchAnteGhosts(root);
+        watchTrumpReveal(root);
+        watchDealPresentation(root);
+        startPresentationPolling(root);
+        fixture.log("fixture-start");
+        render();
+
+        const dealSteps = ids.length * CARDS_PER_PLAYER;
+        const totalBudgetMs =
+          antePresentationScheduleMs(ids.length) +
+          TRUMP_REVEAL_HOLD_MS +
+          dealPresentationDurationMs(dealSteps) +
+          1200;
+
+        window.setTimeout(() => {
+          if (!fixture._dealEnded && fixture._dealStarted) {
+            fixture.log("deal-presentation-end", { forced: true });
+            fixture._dealEnded = true;
+          }
+          stopPresentationPolling();
+          fixture.done = true;
+        }, totalBudgetMs);
       }
 
       function runEnrollmentStepScenario() {

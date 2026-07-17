@@ -106,6 +106,60 @@ export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
   );
 }
 
+/** Reveal-chain phases that must not outlive an authoritative server draw phase. */
+const STALE_REVEAL_PRESENTATION_PHASES = new Set<HandPresentationPhase>([
+  "handReset",
+  "ante",
+  "trumpReveal",
+  "trumpMerge",
+]);
+
+function catchUpRevealPresentationToDraw(
+  store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
+): HandPresentationStore {
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("handPresentation", "catch-up-reveal-to-draw", {
+      fromPhase: store.phase,
+      serverPhase: snapshot.phase,
+      drawCompleted: snapshot.drawCompletedIds.length,
+      participantCount: snapshot.participantIds.length,
+      turnPlayerId: snapshot.turnPlayerId,
+      anteAnimActive: store.anteAnimActive,
+      trumpRevealActive: store.trumpRevealActive,
+    });
+  }
+
+  const consumed = mergeDrawPresentationConsumed(store, snapshot.drawCompletedIds);
+  const allDrew =
+    snapshot.participantIds.length > 0 &&
+    snapshot.drawCompletedIds.length >= snapshot.participantIds.length;
+
+  let caught: HandPresentationStore = {
+    ...createHandPresentationStore(snapshot),
+    drawPresentationConsumedIds: consumed,
+    displayDrawCompletedIds: [...snapshot.drawCompletedIds],
+    animatingDrawPlayerId: null,
+    drawAnimSubPhase: "done",
+    prevSnapshot: snapshot,
+    pendingSnapshot: null,
+  };
+
+  if (allDrew) {
+    caught = withPhase(caught, "drawReady", {});
+  }
+
+  if (isGameFlowDebugEnabled()) {
+    logGameFlow("handPresentation", "catch-up-reveal-to-draw-done", {
+      toPhase: caught.phase,
+      isPresenting: isHandPresentingPhase(caught.phase),
+      displayDrawCompleted: caught.displayDrawCompletedIds.length,
+    });
+  }
+
+  return caught;
+}
+
 export function snapshotFromSession(input: {
   sessionId: string;
   handNumber: number;
@@ -639,6 +693,14 @@ function reduceHandPresentationCore(
           prevSnapshot: snapshot,
           pendingSnapshot: null,
         });
+      }
+
+      // Authoritative draw phase must not stay stuck in ante/trump presentation.
+      if (
+        snapshot.phase === "draw" &&
+        STALE_REVEAL_PRESENTATION_PHASES.has(store.phase)
+      ) {
+        return catchUpRevealPresentationToDraw(store, snapshot);
       }
 
       if (

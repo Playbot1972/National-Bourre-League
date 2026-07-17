@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import { CardTable } from "./CardTable";
 import { MobileCardTable } from "./MobileCardTable";
 import { CinematicSplash } from "./CinematicSplash";
@@ -26,7 +27,7 @@ import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
+import { setTrickAnimationBusyState, handPresentingBlocksBots, handPresentingBlockReasonForBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
   isDealPresentationActive,
@@ -194,6 +195,32 @@ export function TableSessionView({
     handPresentation.phase,
     session.phase,
   );
+
+  const presentationGateKeyRef = useRef("");
+  useEffect(() => {
+    const key = `${session.phase ?? ""}|${handPresentation.phase}|${handPresentingForBots}`;
+    if (key === presentationGateKeyRef.current) return;
+    const wasBlocked = presentationGateKeyRef.current.endsWith("|true");
+    presentationGateKeyRef.current = key;
+    if (!isGameFlowDebugEnabled()) return;
+    logGameFlow("tableSession", "presentation-gate", {
+      serverPhase: session.phase,
+      handPresentationPhase: handPresentation.phase,
+      handPresenting: handPresentingForBots,
+      isPresenting: handPresentation.isPresenting,
+      handPresentingBlockReason: handPresentingBlockReasonForBots(
+        handPresentation.isPresenting,
+        handPresentation.phase,
+        session.phase,
+      ),
+      becameUnblocked: wasBlocked && !handPresentingForBots,
+    });
+  }, [
+    session.phase,
+    handPresentation.phase,
+    handPresentation.isPresenting,
+    handPresentingForBots,
+  ]);
 
   const [motionBusyTick, setMotionBusyTick] = useState(0);
   useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);

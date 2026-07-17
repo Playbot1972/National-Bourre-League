@@ -83,6 +83,14 @@ function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
   return getTablePresentationBlockReason(s) != null;
 }
 
+/** Reveal-chain phases that may lag behind an authoritative server draw phase. */
+const STALE_DRAW_REVEAL_PHASES = new Set([
+  "handReset",
+  "ante",
+  "trumpReveal",
+  "trumpMerge",
+]);
+
 /**
  * Whether hand presentation should block bot draw/play.
  * During server draw phase, peer draw animations are visual-only.
@@ -98,8 +106,23 @@ export function handPresentingBlocksBots(
     if (handPresentationPhase === "drawPlayer" || handPresentationPhase === "drawReady") {
       return false;
     }
+    if (STALE_DRAW_REVEAL_PHASES.has(handPresentationPhase)) {
+      return false;
+    }
   }
   return true;
+}
+
+/** Debug helper — why bots are blocked by hand presentation (null = not blocked). */
+export function handPresentingBlockReasonForBots(
+  isPresenting: boolean,
+  handPresentationPhase: string,
+  sessionPhase: string | null | undefined,
+): string | null {
+  if (!handPresentingBlocksBots(isPresenting, handPresentationPhase, sessionPhase)) {
+    return null;
+  }
+  return `${handPresentationPhase}@${sessionPhase ?? "null"}`;
 }
 
 export interface BotPresentationGateResult {
