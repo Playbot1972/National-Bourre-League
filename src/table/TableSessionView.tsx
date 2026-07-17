@@ -33,6 +33,7 @@ import {
   isDealPresentationActive,
   isTrickCollectionActive,
 } from "./presentationMotionBusy";
+import { presentationScopeKey, serverTrickNumber } from "./presentationScope";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -225,8 +226,14 @@ export function TableSessionView({
   const [motionBusyTick, setMotionBusyTick] = useState(0);
   useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
 
+  const presentationScope = useMemo(
+    () => presentationScopeKey(session.handNumber, serverTrickNumber(session.currentTrick)),
+    [session.handNumber, session.currentTrick?.trickNumber],
+  );
+
   useEffect(() => {
     setTrickAnimationBusyState({
+      presentationScopeKey: presentationScope,
       pipelineActive: trickPresentation.isPipelineActive,
       revealCatchUp:
         trickPresentation.phase === "live" &&
@@ -240,6 +247,7 @@ export function TableSessionView({
       trickCollectionActive: isTrickCollectionActive(),
     });
   }, [
+    presentationScope,
     trickPresentation.isPipelineActive,
     trickPresentation.phase,
     trickPresentation.revealedCount,

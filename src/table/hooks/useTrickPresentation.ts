@@ -23,6 +23,13 @@ import {
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
 import {
+  presentationScopeKey,
+  serverTrickNumber,
+  shouldReinitPresentationScope,
+} from "../presentationScope";
+import { syncAuthoritativePresentationScope } from "../trickAnimationBridge";
+import { resetPresentationMotionBusy } from "../presentationMotionBusy";
+import {
   getHeroPlayHandoff,
   setHeroPlayTrickIndex,
 } from "../heroPlayHandoff";
@@ -75,6 +82,8 @@ export function useTrickPresentation({
   const targetRevealRef = useRef(0);
   const prevSessionPlayRef = useRef(false);
   const prevHandNumberRef = useRef(handNumber);
+  const prevServerTrickRef = useRef(0);
+  const presentationScopeRef = useRef(presentationScopeKey(handNumber, 0));
   const prevTurnPlayerIdRef = useRef<string | null>(null);
   const playOriginsPrimedRef = useRef(false);
   const storeRef = useRef(store);
@@ -100,15 +109,27 @@ export function useTrickPresentation({
   };
 
   const schedule = (fn: () => void, ms: number) => {
-    const id = window.setTimeout(fn, ms);
+    const scopeAtSchedule = presentationScopeRef.current;
+    const id = window.setTimeout(() => {
+      if (presentationScopeRef.current !== scopeAtSchedule) return;
+      fn();
+    }, ms);
     timersRef.current.push(id);
   };
 
   useEffect(() => () => clearTimers(), []);
 
-  const reinitForHandNumber = useCallback(
-    (nextHandNumber: number) => {
+  const reinitForScope = useCallback(
+    (nextHandNumber: number, reason: "hand" | "trick") => {
+      const fromHand = prevHandNumberRef.current;
+      const fromTrick = prevServerTrickRef.current;
+      const trick = serverTrickNumber(currentTrick);
+      const scope = presentationScopeKey(nextHandNumber, trick);
       prevHandNumberRef.current = nextHandNumber;
+      prevServerTrickRef.current = trick;
+      presentationScopeRef.current = scope;
+      syncAuthoritativePresentationScope(scope);
+      resetPresentationMotionBusy();
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -120,11 +141,15 @@ export function useTrickPresentation({
         snapshot: { currentTrick, tricksByPlayer, playedCards },
       });
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("useTrickPresentation", "reinit-hand-number", {
-          fromHand: prevHandNumberRef.current,
+        logGameFlow("useTrickPresentation", "reinit-presentation-scope", {
+          reason,
+          fromHand,
           toHand: nextHandNumber,
+          fromTrick,
+          toTrick: trick,
+          scope,
           hadPendingResolution: Boolean(storeRef.current.pendingResolution),
-          trickNumber: currentTrick?.trickNumber,
+          phase: storeRef.current.phase,
         });
       }
     },
@@ -134,12 +159,25 @@ export function useTrickPresentation({
   useEffect(() => {
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
-    const handNumberChanged = handNumber !== prevHandNumberRef.current;
+    const serverTrick = serverTrickNumber(currentTrick);
 
-    if (handNumberChanged && handNumber > 0) {
-      reinitForHandNumber(handNumber);
+    if (
+      shouldReinitPresentationScope({
+        handNumber,
+        prevHandNumber: prevHandNumberRef.current,
+        serverTrickNumber: serverTrick,
+        prevServerTrickNumber: prevServerTrickRef.current,
+        store: storeRef.current,
+      })
+    ) {
+      const reason = handNumber !== prevHandNumberRef.current ? "hand" : "trick";
+      reinitForScope(handNumber, reason);
       return;
     }
+
+    prevServerTrickRef.current = serverTrick;
+    presentationScopeRef.current = presentationScopeKey(handNumber, serverTrick);
+    syncAuthoritativePresentationScope(presentationScopeRef.current);
 
     if (
       shouldReinitTrickPresentationStore({
@@ -197,7 +235,7 @@ export function useTrickPresentation({
     handComplete,
     handNumber,
     participantIds.length,
-    reinitForHandNumber,
+    reinitForScope,
   ]);
 
   useLayoutEffect(() => {
@@ -308,7 +346,11 @@ export function useTrickPresentation({
     if (store.revealedCount < playCount) return;
 
     const landMs = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
-    const id = window.setTimeout(() => dispatch({ type: "commitTrickResolution" }), landMs);
+    const scopeAtSchedule = presentationScopeRef.current;
+    const id = window.setTimeout(() => {
+      if (presentationScopeRef.current !== scopeAtSchedule) return;
+      dispatch({ type: "commitTrickResolution" });
+    }, landMs);
     return () => window.clearTimeout(id);
   }, [
     sessionPlayActive,
@@ -343,6 +385,9 @@ export function useTrickPresentation({
     }
 
     const id = window.setTimeout(() => {
+      if (presentationScopeRef.current !== presentationScopeKey(handNumber, serverTrickNumber(currentTrick))) {
+        return;
+      }
       const current = storeRef.current;
       if (current.phase === "live" && !current.pendingResolution) return;
       if (isGameFlowDebugEnabled()) {
@@ -400,6 +445,9 @@ export function useTrickPresentation({
       : CARD_REVEAL_STAGGER_MS;
     revealTimerRef.current = window.setTimeout(() => {
       revealTimerRef.current = null;
+      if (presentationScopeRef.current !== presentationScopeKey(handNumber, serverTrickNumber(currentTrick))) {
+        return;
+      }
       if (isGameFlowDebugEnabled()) {
         logGameFlow("useTrickPresentation", "revealNextCard-timer", {
           revealedCount: store.revealedCount,

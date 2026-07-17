@@ -12,6 +12,7 @@ import {
 import { setTrickCollectionActive } from "../presentationMotionBusy";
 import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
+import { presentationScopeKey } from "../presentationScope";
 
 export interface UseWonTrickCollectionInput {
   trickPresentation: TrickPresentation;
@@ -125,9 +126,10 @@ export function useWonTrickCollection({
       handNumber,
       trickNumber: frozen.trickNumber,
     });
+    const collectionScopeKey = presentationScopeKey(handNumber, frozen.trickNumber);
 
     const rakeDelay = TRICK_RAKE_MS;
-    setTrickCollectionActive(true);
+    setTrickCollectionActive(true, collectionScopeKey);
     const rakeTimer = window.setTimeout(() => {
       onTrickCollectionStart?.({
         trickId: frozen.trickNumber,
@@ -139,13 +141,13 @@ export function useWonTrickCollection({
         bookIndex,
         root,
         host: root,
-        onComplete: () => setTrickCollectionActive(false),
+        onComplete: () => setTrickCollectionActive(false, collectionScopeKey),
       });
     }, rakeDelay);
 
     return () => {
       window.clearTimeout(rakeTimer);
-      setTrickCollectionActive(false);
+      setTrickCollectionActive(false, collectionScopeKey);
     };
   }, [
     trickPresentation.phase,
