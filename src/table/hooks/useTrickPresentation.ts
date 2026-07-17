@@ -19,6 +19,7 @@ import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
   reduceTrickPresentation,
+  shouldDeferHandNumberReinit,
   shouldReinitTrickPresentationStore,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
@@ -106,13 +107,9 @@ export function useTrickPresentation({
 
   useEffect(() => () => clearTimers(), []);
 
-  useEffect(() => {
-    const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
-    prevSessionPlayRef.current = sessionPlayActive;
-    const handNumberChanged = handNumber !== prevHandNumberRef.current;
-    prevHandNumberRef.current = handNumber;
-
-    if (handNumberChanged && handNumber > 0) {
+  const reinitForHandNumber = useCallback(
+    (nextHandNumber: number) => {
+      prevHandNumberRef.current = nextHandNumber;
       clearTimers();
       resolutionKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
@@ -125,11 +122,38 @@ export function useTrickPresentation({
       });
       if (isGameFlowDebugEnabled()) {
         logGameFlow("useTrickPresentation", "reinit-hand-number", {
-          handNumber,
+          handNumber: nextHandNumber,
           trickNumber: currentTrick?.trickNumber,
         });
       }
-      return;
+    },
+    [currentTrick, tricksByPlayer, playedCards],
+  );
+
+  useEffect(() => {
+    const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
+    prevSessionPlayRef.current = sessionPlayActive;
+    const handNumberChanged = handNumber !== prevHandNumberRef.current;
+
+    if (handNumberChanged && handNumber > 0) {
+      if (
+        shouldDeferHandNumberReinit({
+          pipelineActive: pipelineActiveRef.current,
+          handEndEchoTrick: storeRef.current.handEndEchoTrick,
+        })
+      ) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("useTrickPresentation", "defer-reinit-hand-number", {
+            fromHand: prevHandNumberRef.current,
+            toHand: handNumber,
+            phase: storeRef.current.phase,
+            pendingResolution: Boolean(storeRef.current.pendingResolution),
+          });
+        }
+      } else {
+        reinitForHandNumber(handNumber);
+        return;
+      }
     }
 
     if (
@@ -188,6 +212,25 @@ export function useTrickPresentation({
     handComplete,
     handNumber,
     participantIds.length,
+    reinitForHandNumber,
+  ]);
+
+  useEffect(() => {
+    if (handNumber === prevHandNumberRef.current) return;
+    if (
+      shouldDeferHandNumberReinit({
+        pipelineActive,
+        handEndEchoTrick: store.handEndEchoTrick,
+      })
+    ) {
+      return;
+    }
+    reinitForHandNumber(handNumber);
+  }, [
+    handNumber,
+    pipelineActive,
+    store.handEndEchoTrick,
+    reinitForHandNumber,
   ]);
 
   useLayoutEffect(() => {
