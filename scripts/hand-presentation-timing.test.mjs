@@ -26,10 +26,13 @@ describe("hand presentation timing regressions", () => {
     );
   });
 
-  it("reinits trick presentation when hand number changes", () => {
-    const src = readFileSync(join(root, "src/table/hooks/useTrickPresentation.ts"), "utf8");
-    assert.match(src, /handNumberChanged/);
-    assert.match(src, /reinit-hand-number/);
+  it("reinits trick presentation when hand or trick scope advances", () => {
+    const hook = readFileSync(join(root, "src/table/hooks/useTrickPresentation.ts"), "utf8");
+    const scope = readFileSync(join(root, "src/table/presentationScope.ts"), "utf8");
+    assert.match(hook, /shouldReinitPresentationScope/);
+    assert.match(hook, /reinitForScope/);
+    assert.match(hook, /reinit-presentation-scope/);
+    assert.match(scope, /presentationScopeKey/);
   });
 
   it("does not gate hand settle behind draw selection", () => {
