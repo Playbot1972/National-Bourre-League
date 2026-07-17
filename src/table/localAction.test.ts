@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, resolveSuppressTurnForHero } from "./localAction";
+import { handPresentingBlocksBots } from "./trickAnimationBridge";
 import type { TablePlayer } from "./types";
 
 const self: TablePlayer = {
@@ -165,6 +166,79 @@ describe("isLocalActionRequiredNow", () => {
           participantIds: ["me", "p2"],
         },
         suppressTurn: false,
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
+  it("allows hero play turn when presentation suppress is active", () => {
+    const input = {
+      currentUserId: "me",
+      enrollmentActive: false,
+      selfPlayer: self,
+      session: {
+        phase: "play" as const,
+        turnPlayerId: "me",
+        participantIds: ["me", "p2"],
+      },
+      suppressTurn: true,
+      handComplete: false,
+    };
+    assert.equal(resolveSuppressTurnForHero(input), false);
+    assert.equal(isHeroDrawOrPlayTurn(input), true);
+    assert.equal(isLocalActionRequiredNow(input), true);
+  });
+
+  it("still suppresses hero draw during presentation animations", () => {
+    const input = {
+      currentUserId: "me",
+      enrollmentActive: false,
+      selfPlayer: self,
+      session: {
+        phase: "draw" as const,
+        turnPlayerId: "me",
+        drawCompletedIds: [] as string[],
+        participantIds: ["me", "p2"],
+      },
+      suppressTurn: true,
+      handComplete: false,
+    };
+    assert.equal(resolveSuppressTurnForHero(input), true);
+    assert.equal(isHeroDrawOrPlayTurn(input), false);
+  });
+
+  it("does not enable hero play when presentation suppress is active but turn belongs to opponent", () => {
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "play",
+          turnPlayerId: "p2",
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: true,
+        handComplete: false,
+      }),
+      false,
+    );
+  });
+
+  it("hero play turn does not wait on bot presentation gate", () => {
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "play"), false);
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "play",
+          turnPlayerId: "me",
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: true,
         handComplete: false,
       }),
       true,

@@ -19,11 +19,42 @@ export interface LocalActionInput {
 }
 
 /**
+ * Presentation may lag server play turn during trick handoff animations.
+ * When the server already assigned play to this human, do not block hero input
+ * (mirrors handPresentingBlocksBots during session play).
+ */
+export function resolveSuppressTurnForHero(input: {
+  suppressTurn: boolean;
+  session: Pick<TableSessionData, "phase" | "turnPlayerId">;
+  currentUserId: string | null | undefined;
+}): boolean {
+  if (!input.suppressTurn) return false;
+  const uid = input.currentUserId;
+  if (
+    input.session.phase === "play" &&
+    uid &&
+    input.session.turnPlayerId === uid
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function effectiveSuppressTurn(input: LocalActionInput): boolean {
+  return resolveSuppressTurnForHero({
+    suppressTurn: input.suppressTurn,
+    session: input.session,
+    currentUserId: input.currentUserId,
+  });
+}
+
+/**
  * True when the local human must act for the current Pagat step
  * (pass/play enrollment, draw/stand pat, or trick play).
  */
 export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   const uid = input.currentUserId;
+  const suppressTurn = effectiveSuppressTurn(input);
   if (!uid || input.handComplete) return false;
 
   const self = input.selfPlayer;
@@ -46,7 +77,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
       },
       handEnrollment: input.session.handEnrollment ?? null,
     },
-    suppressTurn: input.suppressTurn,
+    suppressTurn,
   });
 
   if (
@@ -65,7 +96,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
     action: "submit_draw",
     playerId: uid,
     actorId: uid,
-    suppressTurn: input.suppressTurn,
+    suppressTurn,
     drawCompletedIds: input.session.drawCompletedIds,
   });
   if (snapshot.phase === HAND_FLOW_PHASE.DRAW && drawAction.ok) {
@@ -77,7 +108,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
     action: "play_card",
     playerId: uid,
     actorId: uid,
-    suppressTurn: input.suppressTurn,
+    suppressTurn,
   });
   if (snapshot.phase === HAND_FLOW_PHASE.PLAY && playAction.ok) {
     return true;
@@ -89,7 +120,8 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
 /** Hero draw/play controls — same gate as server `canSubmitHandAction`. */
 export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
   const uid = input.currentUserId;
-  if (!uid || input.handComplete || input.suppressTurn) return false;
+  const suppressTurn = effectiveSuppressTurn(input);
+  if (!uid || input.handComplete || suppressTurn) return false;
 
   const snapshot = buildHandFlowSnapshot({
     session: {
@@ -102,7 +134,7 @@ export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
       },
       handEnrollment: input.session.handEnrollment ?? null,
     },
-    suppressTurn: input.suppressTurn,
+    suppressTurn,
   });
 
   if (snapshot.phase === HAND_FLOW_PHASE.DRAW) {
@@ -111,7 +143,7 @@ export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
       action: "submit_draw",
       playerId: uid,
       actorId: uid,
-      suppressTurn: input.suppressTurn,
+      suppressTurn,
       drawCompletedIds: input.session.drawCompletedIds,
     }).ok;
   }
@@ -122,7 +154,7 @@ export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
       action: "play_card",
       playerId: uid,
       actorId: uid,
-      suppressTurn: input.suppressTurn,
+      suppressTurn,
     }).ok;
   }
 
@@ -141,7 +173,7 @@ export function localActionActivityKey(input: LocalActionInput): string {
     enrollmentKey,
     input.selfPlayer?.actionDeclared ? "declared" : "open",
     input.session.drawCompletedIds?.join(",") ?? "",
-    input.suppressTurn ? "1" : "0",
+    effectiveSuppressTurn(input) ? "1" : "0",
     isLocalActionRequiredNow(input) ? "act" : "wait",
   ].join("|");
 }

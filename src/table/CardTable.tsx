@@ -32,7 +32,7 @@ import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { isHeroDrawOrPlayTurn } from "./localAction";
+import { isHeroDrawOrPlayTurn, resolveSuppressTurnForHero } from "./localAction";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
@@ -231,12 +231,17 @@ export function CardTable({
     ),
   );
   const activeActorId = turnCountdown?.playerId ?? null;
+  const rawSuppressTurn =
+    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+  const suppressTurn = resolveSuppressTurnForHero({
+    suppressTurn: Boolean(rawSuppressTurn),
+    session,
+    currentUserId,
+  });
 
   const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
-    const suppressTurn =
-      trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
     const isActiveActor =
       !suppressTurn && activeActorId != null && player.playerId === activeActorId;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
@@ -296,8 +301,6 @@ export function CardTable({
     };
   });
   const selfPlayer = feltPlayers.find((p) => p.isSelf);
-  const suppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const drawCompleted =
     Boolean(
       currentUserId &&
