@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import { dealInitialHand, type DealInitialHandInput } from "./deal";
 import { CARDS_PER_PLAYER, openingLeaderId } from "./playerOrder";
 import { maxDrawDiscards } from "./drawLimit";
@@ -213,33 +212,43 @@ function trickTotal(tricks: Record<string, number>): number {
   return Object.values(tricks).reduce((s, n) => s + (n || 0), 0);
 }
 
+function expectEqual<T>(actual: T, expected: T, msg?: string): void {
+  if (actual !== expected) {
+    throw new Error(msg ?? `Expected ${String(expected)}, got ${String(actual)}`);
+  }
+}
+
+function expectOk(value: unknown, msg?: string): void {
+  if (!value) throw new Error(msg ?? `Expected truthy value, got ${String(value)}`);
+}
+
 /** Post-deal: five cards each, draw phase, correct opening leader. */
 export function assertPostDealInvariants(state: SimulatedHandState): void {
   const { publicHand: ph, privateHands } = state;
   const participants = ph.participantIds;
-  assert.equal(ph.phase, HAND_PHASE.DRAW);
-  assert.ok(participants.length >= 2);
+  expectEqual(ph.phase, HAND_PHASE.DRAW);
+  expectOk(participants.length >= 2);
   for (const pid of participants) {
-    assert.equal(privateHands[pid]?.length ?? 0, CARDS_PER_PLAYER, `${pid} deal size`);
-    assert.equal(ph.tricksByPlayer[pid] ?? 0, 0);
+    expectEqual(privateHands[pid]?.length ?? 0, CARDS_PER_PLAYER, `${pid} deal size`);
+    expectEqual(ph.tricksByPlayer[pid] ?? 0, 0);
   }
   const expectedLead = openingLeaderId(ph.dealerId, participants, ph.seatedIds ?? participants);
-  assert.equal(ph.turnPlayerId, expectedLead);
-  assert.ok(ph.trumpSuit);
-  assert.ok(ph.trumpHolderId);
+  expectEqual(ph.turnPlayerId, expectedLead);
+  expectOk(ph.trumpSuit);
+  expectOk(ph.trumpHolderId);
 }
 
 /** Post-draw: play phase, five cards each, empty first trick. */
 export function assertPostDrawInvariants(state: SimulatedHandState): void {
   const { publicHand: ph, privateHands } = state;
-  assert.equal(ph.phase, HAND_PHASE.PLAY);
+  expectEqual(ph.phase, HAND_PHASE.PLAY);
   for (const pid of ph.participantIds) {
-    assert.equal(privateHands[pid]?.length ?? 0, CARDS_PER_PLAYER, `${pid} post-draw size`);
+    expectEqual(privateHands[pid]?.length ?? 0, CARDS_PER_PLAYER, `${pid} post-draw size`);
   }
   const leadId = ph.actionOrder?.[0] ?? ph.participantIds[0];
-  assert.equal(ph.turnPlayerId, leadId);
-  assert.ok(ph.currentTrick);
-  assert.equal(ph.currentTrick?.plays.length ?? 0, 0);
+  expectEqual(ph.turnPlayerId, leadId);
+  expectOk(ph.currentTrick);
+  expectEqual(ph.currentTrick?.plays.length ?? 0, 0);
 }
 
 /** Play phase with per-trick winner verification against resolveTrickWinner. */
@@ -264,7 +273,7 @@ export function runPlayPhaseVerified(state: SimulatedHandState): SimulatedHandSt
     if (newTotal > prevTrickTotal) {
       const trickPlays = current.publicHand.playedCards.filter((p) => p.trickNumber === trickNum);
       const n = current.publicHand.participantIds.length;
-      assert.equal(trickPlays.length, n, `trick ${trickNum} play count`);
+      expectEqual(trickPlays.length, n, `trick ${trickNum} play count`);
       const plays = trickPlays.map((p) => ({
         playerId: p.playerId,
         card: p.card as Card,
