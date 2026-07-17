@@ -12,9 +12,11 @@ import {
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
+  syncAuthoritativePresentationScope,
 } from "./trickAnimationBridge";
 
 const idleTrickFields = {
+  presentationScopeKey: "0:0",
   pipelineActive: false,
   revealCatchUp: false,
   motionGateActive: false,
@@ -33,10 +35,25 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), false);
   });
 
-  it("blocks while trick pipeline is active", () => {
+  it("ignores stale-scope pipeline flags for bot blocking", () => {
     resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("4:3");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      presentationScopeKey: "4:2",
+      pipelineActive: true,
+      trickCollectionActive: true,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+    assert.equal(isTablePresentationBusyForBots(), false);
+  });
+
+  it("blocks while trick pipeline is active for current scope", () => {
+    resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      presentationScopeKey: "1:1",
       pipelineActive: true,
     });
     assert.equal(isTrickAnimationBusy(), true);
@@ -45,8 +62,10 @@ describe("trickAnimationBridge", () => {
 
   it("blocks while peak plays exceed displayed count", () => {
     resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
     });
@@ -91,8 +110,10 @@ describe("trickAnimationBridge", () => {
 
   it("reports peak play catch-up as block reason", () => {
     resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
     });
@@ -101,8 +122,10 @@ describe("trickAnimationBridge", () => {
 
   it("getTrickAnimationBusyState returns latest snapshot", () => {
     resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      presentationScopeKey: "1:1",
       revealCatchUp: true,
       peakPlayCount: 1,
       displayedPlayCount: 0,
@@ -137,8 +160,10 @@ describe("trickAnimationBridge", () => {
 
   it("force-releases presentation after hard timeout", () => {
     resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      presentationScopeKey: "1:1",
       pipelineActive: true,
     });
     const start = 2_000_000;

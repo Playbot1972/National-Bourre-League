@@ -2,11 +2,16 @@
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
+  getAuthoritativePresentationScope,
   isDealPresentationActive,
   isTrickCollectionActive,
+  resetPresentationMotionBusy,
+  setAuthoritativePresentationScope,
 } from "./presentationMotionBusy";
+import { isStalePresentationScope } from "./presentationScope";
 
 export interface TrickAnimationBusyState {
+  presentationScopeKey: string;
   pipelineActive: boolean;
   /** Staggered reveal still catching up to server/peak play count. */
   revealCatchUp: boolean;
@@ -29,6 +34,7 @@ export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 5_500;
 export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
 
 const IDLE: TrickAnimationBusyState = {
+  presentationScopeKey: "0:0",
   pipelineActive: false,
   revealCatchUp: false,
   motionGateActive: false,
@@ -52,6 +58,7 @@ let blockEpisode: {
 
 function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): boolean {
   return (
+    a.presentationScopeKey === b.presentationScopeKey &&
     a.pipelineActive === b.pipelineActive &&
     a.revealCatchUp === b.revealCatchUp &&
     a.motionGateActive === b.motionGateActive &&
@@ -64,10 +71,15 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   );
 }
 
+function isScopeStale(s: TrickAnimationBusyState): boolean {
+  return isStalePresentationScope(s.presentationScopeKey, getAuthoritativePresentationScope());
+}
+
 /** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
 ): string | null {
+  if (isScopeStale(s)) return null;
   if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
   if (s.handPresenting) return "handPresenting";
@@ -138,6 +150,7 @@ export function forceReleasePresentationForBots(source: string): void {
   const blockedMs = blockEpisode ? Date.now() - blockEpisode.since : 0;
   const cleared: TrickAnimationBusyState = {
     ...state,
+    presentationScopeKey: getAuthoritativePresentationScope(),
     pipelineActive: false,
     revealCatchUp: false,
     handPresenting: false,
@@ -237,27 +250,60 @@ export function isTablePresentationBusyForBots(now = Date.now()): boolean {
 }
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
-  if (statesEqual(state, next)) return;
+  const authoritative = getAuthoritativePresentationScope();
+  const scoped: TrickAnimationBusyState = isStalePresentationScope(
+    next.presentationScopeKey,
+    authoritative,
+  )
+    ? {
+        ...next,
+        presentationScopeKey: authoritative,
+        pipelineActive: false,
+        revealCatchUp: false,
+        peakPlayCount: 0,
+        displayedPlayCount: 0,
+        trickCollectionActive: false,
+      }
+    : next;
+  if (statesEqual(state, scoped)) return;
   if (isGameFlowDebugEnabled()) {
     logGameFlow("trickAnimationBridge", "busy-state", {
       from: state,
-      to: next,
-      busy: isTablePresentationBusyFrom(next),
-      blockReason: getTablePresentationBlockReason(next),
-      motionGateActive: next.motionGateActive,
-      handPresentationPhase: next.handPresentationPhase,
+      to: scoped,
+      busy: isTablePresentationBusyFrom(scoped),
+      blockReason: getTablePresentationBlockReason(scoped),
+      motionGateActive: scoped.motionGateActive,
+      handPresentationPhase: scoped.handPresentationPhase,
+      authoritativeScope: authoritative,
     });
   }
-  state = next;
-  if (getTablePresentationBlockReason(next) == null) {
+  state = scoped;
+  if (getTablePresentationBlockReason(scoped) == null) {
     blockEpisode = null;
   }
   for (const listener of listeners) listener();
 }
 
+export function syncAuthoritativePresentationScope(scopeKey: string): void {
+  setAuthoritativePresentationScope(scopeKey);
+  if (isStalePresentationScope(state.presentationScopeKey, scopeKey)) {
+    setTrickAnimationBusyState({
+      ...state,
+      presentationScopeKey: scopeKey,
+      pipelineActive: false,
+      revealCatchUp: false,
+      peakPlayCount: 0,
+      displayedPlayCount: 0,
+      trickCollectionActive: false,
+    });
+  }
+}
+
 export function resetTrickAnimationBusyState(): void {
   botGateBypassUntil = 0;
   blockEpisode = null;
+  setAuthoritativePresentationScope("0:0");
+  resetPresentationMotionBusy();
   setTrickAnimationBusyState(IDLE);
 }
 
@@ -267,6 +313,7 @@ export function getTrickAnimationBusyState(): TrickAnimationBusyState {
 
 /** True while trick UI must finish before the next bot card play. */
 export function isTrickAnimationBusy(): boolean {
+  if (isScopeStale(state)) return false;
   return (
     state.pipelineActive ||
     state.revealCatchUp ||

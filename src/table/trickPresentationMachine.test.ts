@@ -172,7 +172,7 @@ describe("trickPresentationMachine", () => {
     assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
-  it("buffers server snapshots while the trick pipeline is running", () => {
+  it("applies server snapshot immediately when authoritative trick advances during pipeline", () => {
     let store = createTrickPresentationStore({}, completedTrick);
     for (let i = 0; i < 4; i++) {
       store = reduceTrickPresentation(store, { type: "revealNextCard" });
@@ -196,12 +196,9 @@ describe("trickPresentationMachine", () => {
       },
       participantIds: ["p1", "p2"],
     });
-    assert.ok(store.pendingServer);
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.pendingServer, null);
     assert.equal(store.phase, "live");
+    assert.equal(store.prevTrick?.trickNumber, 2);
     assert.equal(store.prevTrick?.plays.length, 1);
     assert.equal(store.revealedCount, 1);
   });
@@ -489,6 +486,35 @@ describe("trickPresentationMachine", () => {
       }),
       true,
     );
+  });
+
+  it("drops stale pending resolution when server trick advances", () => {
+    const trick2 = {
+      trickNumber: 2,
+      leadPlayerId: "p1",
+      leadSuit: "hearts" as const,
+      plays: completedTrick.plays,
+      winnerId: "p1",
+    };
+    let store = createTrickPresentationStore({ p1: 1, p2: 0 }, completedTrick);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 2, p2: 0 } },
+      participantIds: participants,
+    });
+    assert.ok(store.pendingResolution);
+
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: { trickNumber: 3, leadPlayerId: "p2", leadSuit: "clubs", plays: [] },
+        tricksByPlayer: { p1: 2, p2: 0 },
+      },
+      participantIds: participants,
+    });
+    assert.equal(store.pendingResolution, null);
+    assert.equal(store.phase, "live");
+    assert.equal(store.prevTrick?.trickNumber, 3);
   });
 
   it("hand-number reinit clears pending final-trick resolution", () => {

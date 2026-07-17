@@ -122,6 +122,28 @@ export function bufferServerSnapshot(
   return { ...store, pendingServer: snapshot };
 }
 
+/** Drain stale trick presentation when authoritative trickNumber advances past the client. */
+export function discardStalePresentationPipeline(
+  store: TrickPresentationStore,
+  snapshot: ServerTrickSnapshot,
+): TrickPresentationStore {
+  const livePlays = serializedPlays(snapshot.currentTrick);
+  return {
+    ...store,
+    phase: "live",
+    frozenTrick: null,
+    pendingResolution: null,
+    pendingServer: null,
+    resolvedTricks: null,
+    showWinnerTag: false,
+    handEndEchoTrick: null,
+    prevTrick: snapshot.currentTrick,
+    peakTrickPlays: livePlays,
+    revealedCount: livePlays.length,
+    displayRevealFloor: 0,
+  };
+}
+
 export function liveRevealTarget(store: TrickPresentationStore): number {
   return Math.max(
     store.pendingResolution?.frozen.plays.length ?? 0,
@@ -366,11 +388,29 @@ function reduceTrickPresentationCore(
 
     case "serverUpdate": {
       const { snapshot, participantIds } = event;
+      const serverTrick = snapshot.currentTrick?.trickNumber ?? 0;
       if (store.pendingResolution) {
+        const pendingTrick = store.pendingResolution.frozen.trickNumber;
+        if (serverTrick > pendingTrick) {
+          return applyLiveServerUpdate(
+            discardStalePresentationPipeline(store, snapshot),
+            snapshot,
+          );
+        }
         return {
           ...store,
           pendingResolution: { frozen: store.pendingResolution.frozen, snapshot },
         };
+      }
+      if (
+        store.phase !== "live" &&
+        store.frozenTrick &&
+        serverTrick > store.frozenTrick.trickNumber
+      ) {
+        return applyLiveServerUpdate(
+          discardStalePresentationPipeline(store, snapshot),
+          snapshot,
+        );
       }
       if (store.phase !== "live") {
         return bufferServerSnapshot(store, snapshot);
