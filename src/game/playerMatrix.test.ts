@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deriveWinnersFromTricks } from "../table/logic";
-import { maxDrawDiscards } from "./drawLimit";
 import {
   assertNoDuplicateCards,
   isHandPlayComplete,
@@ -12,35 +11,22 @@ function playerIds(count: number): string[] {
   return Array.from({ length: count }, (_, i) => `p${i + 1}`);
 }
 
-/** Worst-case draw demand: n players × max discards each. Standard 52-card deck. */
-function deckSupportsFullDraw(participantCount: number): boolean {
-  const dealt = participantCount * 5;
-  const remaining = 52 - dealt;
-  return participantCount * maxDrawDiscards(participantCount) <= remaining;
-}
-
 describe("I — player matrix (2–8 seats, bots + humans)", () => {
   for (let count = 2; count <= 8; count += 1) {
     const ids = playerIds(count);
 
-    if (deckSupportsFullDraw(count)) {
-      it(`${count}-player all-in hand completes with 5 tricks`, () => {
-        const final = simulateFullHand({
-          participantIds: ids,
-          sortedPlayerIds: ids,
-          dealerId: ids[0],
-          seed: 1000 + count,
-        });
-        assert.ok(isHandPlayComplete(final));
-        const total = Object.values(final.publicHand.tricksByPlayer).reduce((s, n) => s + (n || 0), 0);
-        assert.equal(total, 5);
-        assertNoDuplicateCards(final);
+    it(`${count}-player all-in hand completes with 5 tricks`, () => {
+      const final = simulateFullHand({
+        participantIds: ids,
+        sortedPlayerIds: ids,
+        dealerId: ids[0],
+        seed: 1000 + count,
       });
-    } else {
-      it(`${count}-player table: deck supports at most ${maxDrawDiscards(count)} discards per seat`, () => {
-        assert.equal(deckSupportsFullDraw(count), false);
-      });
-    }
+      assert.ok(isHandPlayComplete(final));
+      const total = Object.values(final.publicHand.tricksByPlayer).reduce((s, n) => s + (n || 0), 0);
+      assert.equal(total, 5);
+      assertNoDuplicateCards(final);
+    });
 
     if (count >= 3) {
       it(`${count}-player enrollment with sit-outs deals and finishes`, () => {
