@@ -4193,6 +4193,8 @@ function buildTableSessionProps(s) {
     myPhotoUrl: session?.photoURL ?? null,
     sessionBuyIn,
     dealerId,
+    sortedPlayerIds: seatedIds,
+    scoreById,
     handParticipantIds,
     tricksThisHand,
     cardsDealt,

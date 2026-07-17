@@ -29,6 +29,7 @@ import {
 } from "./bourre-rules.js";
 import { apeClass, apeStatus } from "./ranking.js";
 import { canPlayerShowHandChoice, isRobotPlayerId } from "./session-startup.js";
+import { resolveDisplayDealerId } from "./dealer-display.js";
 
 export function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -251,7 +252,16 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     ratingsByPlayerId,
     applyLocalCommitToPlayerFlags,
     localHandActionCommit,
+    sortedPlayerIds = [],
+    scoreById = {},
   } = ctx;
+
+  const displayDealerId = resolveDisplayDealerId(
+    ctx.dealerId,
+    sortedPlayerIds,
+    scoreById,
+    sessionBuyIn,
+  );
 
   const isSelf = sc.playerId === myUid;
   const rating = ratingsByPlayerId[sc.playerId];
@@ -281,7 +291,7 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
       handParticipantIds.includes(sc.playerId) || enrolledDuringSignup.includes(sc.playerId),
     tricksThisHand: tricksThisHand[sc.playerId] ?? 0,
     isSelf,
-    isDealer: sc.playerId === ctx.dealerId,
+    isDealer: sc.playerId === displayDealerId,
     isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
     isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
     enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
