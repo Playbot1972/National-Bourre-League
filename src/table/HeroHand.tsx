@@ -21,11 +21,15 @@ import {
   isLegalPlayIndex,
   parsePlayActivityKey,
   planTapAutoplay,
+  queuedPlaySubmitDelayMs,
   resolveHeroPlayCardVisualTier,
   shouldClearQueuedPlayOnActivityChange,
+  shouldPreserveQueuedPlayTimerOnActivityChange,
   shouldShowBestPlayRecommendation,
+  shouldSubmitQueuedPlayOnTurnActivation,
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
+import { prefersReducedMotion } from "./trickTiming";
 import { logPlayClick } from "./playClickDebug";
 import {
   playCardSelectFeedback,
@@ -384,42 +388,66 @@ export function HeroHand({
     recommendedDiscardIndices,
   ]);
 
-  const prevIsMyTurnRef = useRef(isMyTurn);
-  useEffect(() => {
-    const becameMine = isMyTurn && !prevIsMyTurnRef.current;
-    prevIsMyTurnRef.current = isMyTurn;
-    if (!becameMine || !inPlayPhase || selectedPlay === null || playLockRef.current || busy) {
-      return;
-    }
-    if (!isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
-      setSelectedPlay(null);
-      pendingPlayIndexRef.current = null;
-      return;
-    }
-    logPlayClick({
-      event: "tap-immediate-play",
-      reason: "turn-became-mine",
-      handNumber,
-      trickNumber,
-      turnPlayerId,
-      cardIndex: selectedPlay,
-      selectedPlay,
-      isMyTurn,
-      isLegal: true,
-      gesture: "tap",
-    });
-    void executePlayRef.current(selectedPlay);
-  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy, handNumber, trickNumber, turnPlayerId]);
+  const scheduleQueuedPlaySubmit = useCallback(
+    (index: number) => {
+      clearPreselectTimer();
+      pendingPlayIndexRef.current = index;
+      const generation = autoplayGenerationRef.current;
+      const delayMs = queuedPlaySubmitDelayMs(prefersReducedMotion());
+      logPlayClick({
+        event: "tap-autoplay-armed",
+        reason: "turn-became-mine",
+        handNumber,
+        trickNumber,
+        turnPlayerId,
+        cardIndex: index,
+        selectedPlay: index,
+        isMyTurn: true,
+        isLegal: true,
+        gesture: "tap-autoplay",
+        generation,
+        delayMs,
+      });
+      preselectTimerRef.current = window.setTimeout(() => {
+        preselectTimerRef.current = null;
+        if (generation !== autoplayGenerationRef.current) return;
+        if (pendingPlayIndexRef.current !== index) return;
+        pendingPlayIndexRef.current = null;
+        logPlayClick({
+          event: "tap-autoplay-fire",
+          reason: "turn-became-mine",
+          handNumber,
+          trickNumber,
+          turnPlayerId,
+          cardIndex: index,
+          selectedPlay: index,
+          isMyTurn: true,
+          isLegal: true,
+          gesture: "tap-autoplay",
+          generation,
+        });
+        void executePlayRef.current(index);
+      }, delayMs);
+    },
+    [clearPreselectTimer, handNumber, trickNumber, turnPlayerId],
+  );
 
   const prevPlayActivityKeyRef = useRef(playActivityKey);
   useEffect(() => {
     if (prevPlayActivityKeyRef.current === playActivityKey) return;
     const prevCtx = parsePlayActivityKey(prevPlayActivityKeyRef.current);
     const nextCtx = parsePlayActivityKey(playActivityKey);
+    const preserveQueuedTimer = shouldPreserveQueuedPlayTimerOnActivityChange({
+      prev: prevCtx,
+      next: nextCtx,
+      isMyTurn,
+      selectedPlay,
+      isLegal: selectedPlay != null && isLegalPlayIndex(selectedPlay, legalPlayIndices),
+    });
     prevPlayActivityKeyRef.current = playActivityKey;
-    bumpAutoplayGeneration();
-    clearPreselectTimer("play-activity-change");
     if (shouldClearQueuedPlayOnActivityChange(prevCtx, nextCtx)) {
+      bumpAutoplayGeneration();
+      clearPreselectTimer("play-activity-change");
       logPlayClick({
         event: "queue-cleared",
         reason: "hand-or-phase-change",
@@ -429,6 +457,11 @@ export function HeroHand({
         selectedPlay,
       });
       setSelectedPlay(null);
+      return;
+    }
+    if (!preserveQueuedTimer) {
+      bumpAutoplayGeneration();
+      clearPreselectTimer("play-activity-change");
     }
   }, [
     playActivityKey,
@@ -437,6 +470,39 @@ export function HeroHand({
     handNumber,
     trickNumber,
     turnPlayerId,
+    isMyTurn,
+    selectedPlay,
+    legalPlayIndices,
+  ]);
+
+  const prevIsMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    const becameMine = isMyTurn && !prevIsMyTurnRef.current;
+    prevIsMyTurnRef.current = isMyTurn;
+    if (
+      !shouldSubmitQueuedPlayOnTurnActivation({
+        becameMine,
+        inPlayPhase,
+        selectedPlay,
+        playLocked: playLockRef.current,
+        busy,
+        isLegal: selectedPlay != null && isLegalPlayIndex(selectedPlay, legalPlayIndices),
+      })
+    ) {
+      if (becameMine && selectedPlay !== null && !isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
+        setSelectedPlay(null);
+        pendingPlayIndexRef.current = null;
+      }
+      return;
+    }
+    scheduleQueuedPlaySubmit(selectedPlay!);
+  }, [
+    inPlayPhase,
+    isMyTurn,
+    selectedPlay,
+    legalPlayIndices,
+    busy,
+    scheduleQueuedPlaySubmit,
   ]);
 
   useEffect(() => {
