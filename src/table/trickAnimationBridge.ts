@@ -11,6 +11,8 @@ import {
 import { isStalePresentationScope } from "./presentationScope";
 
 export interface TrickAnimationBusyState {
+  /** Canonical match identity — must match buildMatchKey(serverSnapshot). */
+  matchKey: string;
   presentationScopeKey: string;
   pipelineActive: boolean;
   /** Staggered reveal still catching up to server/peak play count. */
@@ -34,6 +36,7 @@ export const BOT_PRESENTATION_SOFT_UNBLOCK_MS = 5_500;
 export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
 
 const IDLE: TrickAnimationBusyState = {
+  matchKey: "",
   presentationScopeKey: "0:0",
   pipelineActive: false,
   revealCatchUp: false,
@@ -56,8 +59,24 @@ let blockEpisode: {
   blockedLogged: boolean;
 } | null = null;
 
+let authoritativeMatchKey = "";
+
+export function syncAuthoritativeMatchKey(matchKey: string): void {
+  authoritativeMatchKey = matchKey;
+}
+
+export function getAuthoritativeMatchKey(): string {
+  return authoritativeMatchKey;
+}
+
+function isMatchKeyStale(s: TrickAnimationBusyState): boolean {
+  if (!authoritativeMatchKey || !s.matchKey) return false;
+  return s.matchKey !== authoritativeMatchKey;
+}
+
 function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): boolean {
   return (
+    a.matchKey === b.matchKey &&
     a.presentationScopeKey === b.presentationScopeKey &&
     a.pipelineActive === b.pipelineActive &&
     a.revealCatchUp === b.revealCatchUp &&
@@ -79,6 +98,7 @@ function isScopeStale(s: TrickAnimationBusyState): boolean {
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
 ): string | null {
+  if (isMatchKeyStale(s)) return null;
   if (isScopeStale(s)) return null;
   if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
@@ -251,7 +271,7 @@ export function isTablePresentationBusyForBots(now = Date.now()): boolean {
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
   const authoritative = getAuthoritativePresentationScope();
-  const scoped: TrickAnimationBusyState = isStalePresentationScope(
+  let scoped: TrickAnimationBusyState = isStalePresentationScope(
     next.presentationScopeKey,
     authoritative,
   )
@@ -265,6 +285,20 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
         trickCollectionActive: false,
       }
     : next;
+  if (isMatchKeyStale(scoped)) {
+    scoped = {
+      ...scoped,
+      matchKey: authoritativeMatchKey,
+      pipelineActive: false,
+      revealCatchUp: false,
+      motionGateActive: false,
+      handPresenting: false,
+      handPresentationPhase: "idle",
+      peakPlayCount: scoped.displayedPlayCount,
+      dealPresentationActive: false,
+      trickCollectionActive: false,
+    };
+  }
   if (statesEqual(state, scoped)) return;
   if (isGameFlowDebugEnabled()) {
     logGameFlow("trickAnimationBridge", "busy-state", {
@@ -302,6 +336,7 @@ export function syncAuthoritativePresentationScope(scopeKey: string): void {
 export function resetTrickAnimationBusyState(): void {
   botGateBypassUntil = 0;
   blockEpisode = null;
+  authoritativeMatchKey = "";
   setAuthoritativePresentationScope("0:0");
   resetPresentationMotionBusy();
   setTrickAnimationBusyState(IDLE);
@@ -313,6 +348,7 @@ export function getTrickAnimationBusyState(): TrickAnimationBusyState {
 
 /** True while trick UI must finish before the next bot card play. */
 export function isTrickAnimationBusy(): boolean {
+  if (isMatchKeyStale(state)) return false;
   if (isScopeStale(state)) return false;
   return (
     state.pipelineActive ||

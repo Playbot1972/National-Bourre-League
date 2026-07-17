@@ -34,6 +34,20 @@ import {
   isTrickCollectionActive,
 } from "./presentationMotionBusy";
 import { presentationScopeKey, serverTrickNumber } from "./presentationScope";
+import {
+  assertMatchKeyInvariants,
+  buildMatchKey,
+  buildServerSnapshot,
+  collectBotIds,
+  deriveTableReadiness,
+} from "./matchKey";
+import {
+  clearScopedPresentationState,
+  clearTrickPresentation,
+  clearTurnTimers,
+  invalidateQueuedHeroIntentOlderThan,
+} from "./matchKeyLifecycle";
+import { syncAuthoritativeMatchKey } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -231,8 +245,62 @@ export function TableSessionView({
     [session.handNumber, session.currentTrick?.trickNumber],
   );
 
+  const botIds = useMemo(
+    () => collectBotIds(session.participantIds),
+    [session.participantIds],
+  );
+
+  const serverSnapshot = useMemo(
+    () =>
+      buildServerSnapshot({
+        sessionId: session.sessionId,
+        handNumber: session.handNumber,
+        trickNumber: session.currentTrick?.trickNumber,
+        turnPlayerId: session.turnPlayerId,
+        serverActionSeq: session.serverActionSeq,
+        actionOrder: session.actionOrder ?? session.participantIds,
+      }),
+    [
+      session.sessionId,
+      session.handNumber,
+      session.currentTrick?.trickNumber,
+      session.turnPlayerId,
+      session.serverActionSeq,
+      session.actionOrder,
+      session.participantIds,
+    ],
+  );
+
+  const matchKey = useMemo(() => {
+    try {
+      return buildMatchKey(serverSnapshot);
+    } catch {
+      return null;
+    }
+  }, [serverSnapshot]);
+
+  const prevMatchKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!matchKey) return;
+    const prev = prevMatchKeyRef.current;
+    if (prev && prev !== matchKey) {
+      clearScopedPresentationState(prev);
+      clearTurnTimers(prev);
+      clearTrickPresentation(prev);
+      invalidateQueuedHeroIntentOlderThan(matchKey);
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("matchKey", "changed", { from: prev, to: matchKey });
+      } else {
+        console.log(`[matchKey] changed -> ${matchKey}`);
+      }
+    }
+    prevMatchKeyRef.current = matchKey;
+    syncAuthoritativeMatchKey(matchKey);
+  }, [matchKey]);
+
   useEffect(() => {
     setTrickAnimationBusyState({
+      matchKey: matchKey ?? "",
       presentationScopeKey: presentationScope,
       pipelineActive: trickPresentation.isPipelineActive,
       revealCatchUp:
@@ -259,7 +327,84 @@ export function TableSessionView({
     handPresentation.phase,
     session.phase,
     motionBusyTick,
+    matchKey,
   ]);
+
+  const presentationReadiness = useMemo(
+    () => ({
+      matchKey: matchKey ?? "",
+      pipelineActive: trickPresentation.isPipelineActive,
+      motionGateActive: instantTrickPlays,
+      revealCatchUp:
+        trickPresentation.phase === "live" &&
+        trickPresentation.revealedCount < trickPresentation.revealTarget,
+      handPresenting: handPresentingForBots,
+    }),
+    [
+      matchKey,
+      trickPresentation.isPipelineActive,
+      trickPresentation.phase,
+      trickPresentation.revealedCount,
+      trickPresentation.revealTarget,
+      instantTrickPlays,
+      handPresentingForBots,
+    ],
+  );
+
+  const tableReadiness = useMemo(() => {
+    if (!matchKey) return null;
+    return deriveTableReadiness({
+      matchKey,
+      turnPlayerId: session.turnPlayerId ?? null,
+      heroId: currentUserId ?? null,
+      botIds,
+      presentation: presentationReadiness,
+      drawCompleted: session.drawCompletedIds?.length ?? 0,
+      drawTotal: session.participantIds.length,
+    });
+  }, [
+    matchKey,
+    session.turnPlayerId,
+    currentUserId,
+    botIds,
+    presentationReadiness,
+    session.drawCompletedIds,
+    session.participantIds.length,
+  ]);
+
+  useEffect(() => {
+    if (!tableReadiness || !matchKey) return;
+    try {
+      assertMatchKeyInvariants({
+        matchKey,
+        turnPlayerId: session.turnPlayerId ?? null,
+        heroId: currentUserId ?? null,
+        botIds,
+        presentation: presentationReadiness,
+        drawCompleted: session.drawCompletedIds?.length ?? 0,
+        drawTotal: session.participantIds.length,
+        ...tableReadiness,
+      });
+    } catch (err) {
+      if (isGameFlowDebugEnabled()) {
+        logGameFlow("matchKey", "invariant-throw", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }, [
+    tableReadiness,
+    matchKey,
+    session.turnPlayerId,
+    currentUserId,
+    botIds,
+    presentationReadiness,
+    session.drawCompletedIds,
+    session.participantIds.length,
+  ]);
+
+  const visualCatchUpBusy = tableReadiness?.visualCatchUpBusy ?? false;
+  const canHeroAct = tableReadiness?.canHeroAct ?? null;
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -434,14 +579,16 @@ export function TableSessionView({
     activeActorId === currentUserId &&
     (enrollmentActive
       ? Boolean(selfPlayer?.canToggleInHand || selfPlayer?.canPassEnrollment)
-      : isHeroDrawOrPlayTurn({
-          currentUserId,
-          session,
-          suppressTurn: Boolean(suppressTurn),
-          handComplete,
-          enrollmentActive,
-          selfPlayer,
-        }));
+      : canHeroAct != null
+        ? canHeroAct
+        : isHeroDrawOrPlayTurn({
+            currentUserId,
+            session,
+            suppressTurn: Boolean(suppressTurn),
+            handComplete,
+            enrollmentActive,
+            selfPlayer,
+          }));
 
   const localActionRequired = isLocalActionRequiredNow({
     currentUserId,
@@ -595,6 +742,8 @@ export function TableSessionView({
     instantTrickPlays,
     turnCountdown,
     bigPotEvent,
+    visualCatchUpBusy,
+    heroCanAct: canHeroAct,
     onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
   };

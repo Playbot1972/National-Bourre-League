@@ -13,6 +13,7 @@ import {
   getHeroPlayHandoff,
   subscribeHeroPlayHandoff,
 } from "./heroPlayHandoff";
+import { subscribeHeroQueuedIntentInvalidation } from "./heroQueuedIntent";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
@@ -333,6 +334,14 @@ export function HeroHand({
     }
     pendingPlayIndexRef.current = null;
   }, []);
+
+  useEffect(() => {
+    return subscribeHeroQueuedIntentInvalidation(() => {
+      clearPreselectTimer("match-key-change");
+      setSelectedPlay(null);
+      autoplayGenerationRef.current += 1;
+    });
+  }, [clearPreselectTimer]);
 
   const bumpAutoplayGeneration = useCallback(() => {
     autoplayGenerationRef.current += 1;

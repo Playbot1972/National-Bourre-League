@@ -77,6 +77,8 @@ export interface PublicHandState {
   foldedIds?: string[];
   /** Pagat-style post-reveal play / pass clock. */
   handDecision?: HandDecision | null;
+  /** Monotonic authoritative action counter — required for client match-key readiness. */
+  serverActionSeq?: number;
 }
 
 export interface PrivateHandState {

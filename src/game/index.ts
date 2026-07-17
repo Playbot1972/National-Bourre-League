@@ -20,6 +20,7 @@ export {
   deserializeCards,
 } from "./serialize";
 export type { SerializeHandOptions } from "./serialize";
+export { initialServerActionSeq, withServerActionSeq } from "./serverActionSeq";
 export {
   buildHandDecision,
   activateHandDecision,

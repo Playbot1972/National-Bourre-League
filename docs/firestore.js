@@ -173,6 +173,7 @@ import {
   currentDecisionPlayer,
   decisionAsEnrollmentView,
   resolveActionOrder,
+  withServerActionSeq,
 } from "./game-engine.js";
 import {
   MAX_ROOM_SESSIONS,
@@ -1257,16 +1258,18 @@ export function getSessionCurrentHand(sessionData) {
 }
 
 function publicHandSessionUpdate(sessionData, nextPublicHand) {
+  const prev = getSessionCurrentHand(sessionData);
+  const bumped = withServerActionSeq(nextPublicHand, prev);
   if (sessionData?.liveEnrollment?.deal) {
     // Keep currentHand and liveEnrollment.deal.publicHand in sync — reads prefer currentHand
     // once deal mirrors, so draw/play must update both or the table stalls in draw.
     return {
-      "liveEnrollment.deal.publicHand": nextPublicHand,
-      currentHand: nextPublicHand,
+      "liveEnrollment.deal.publicHand": bumped,
+      currentHand: bumped,
       updatedAt: serverTimestamp(),
     };
   }
-  return { currentHand: nextPublicHand, updatedAt: serverTimestamp() };
+  return { currentHand: bumped, updatedAt: serverTimestamp() };
 }
 
 function embeddedPrivateHandData(sessionData, playerId) {

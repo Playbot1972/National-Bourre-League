@@ -36,6 +36,7 @@ import {
   decisionAsEnrollmentView,
   buildHandDecision,
   resolveActionOrder,
+  withServerActionSeq,
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, buildSoloWinSettlement, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
 import {
@@ -437,14 +438,16 @@ function getSessionCurrentHand(sessionData) {
 }
 
 function publicHandSessionUpdate(sessionData, nextPublicHand) {
+  const prev = getSessionCurrentHand(sessionData);
+  const bumped = withServerActionSeq(nextPublicHand, prev);
   if (sessionData?.liveEnrollment?.deal) {
     return {
-      "liveEnrollment.deal.publicHand": nextPublicHand,
-      currentHand: nextPublicHand,
+      "liveEnrollment.deal.publicHand": bumped,
+      currentHand: bumped,
       updatedAt: FieldValue.serverTimestamp(),
     };
   }
-  return { currentHand: nextPublicHand, updatedAt: FieldValue.serverTimestamp() };
+  return { currentHand: bumped, updatedAt: FieldValue.serverTimestamp() };
 }
 
 function embeddedPrivateHandData(sessionData, playerId) {

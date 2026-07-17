@@ -55,6 +55,12 @@ import {
   setBotThinkWindowPublisher,
 } from "./bot-play-delay.js";
 import {
+  buildMatchKey,
+  buildServerSnapshot,
+  collectBotIds,
+  deriveTableReadiness,
+} from "./match-key.js";
+import {
   logHandLifecycleTransition,
   isPagatHandClock,
   buildHandLifecycleContext,
@@ -1580,6 +1586,45 @@ function sessionHasRobots(scores = openScores) {
 }
 
 /** True when robots may need a human room member (or server nudge) to keep the hand moving. */
+function resolveTableReadiness(sessionObj, scores = openScores, ch = getSessionCurrentHand(sessionObj)) {
+  if (!sessionObj || !ch || ch.serverActionSeq == null) return null;
+  try {
+    const actionOrder = ch.actionOrder ?? ch.participantIds ?? [];
+    const snapshot = buildServerSnapshot({
+      sessionId: sessionObj.id,
+      handNumber: sessionHandNumber(sessionObj),
+      trickNumber: ch.currentTrick?.trickNumber,
+      turnPlayerId: ch.turnPlayerId,
+      serverActionSeq: ch.serverActionSeq,
+      actionOrder,
+    });
+    const matchKey = buildMatchKey(snapshot);
+    const busy = tableMountApi?.getTrickAnimationBusyState?.() ?? {};
+    const presentation = {
+      matchKey: busy.matchKey ?? "",
+      pipelineActive: Boolean(busy.pipelineActive),
+      motionGateActive: Boolean(busy.motionGateActive),
+      revealCatchUp: Boolean(busy.revealCatchUp),
+      handPresenting: Boolean(busy.handPresenting),
+    };
+    const botIds = collectBotIds((scores ?? []).map((sc) => sc.playerId));
+    return {
+      matchKey,
+      ...deriveTableReadiness({
+        matchKey,
+        turnPlayerId: ch.turnPlayerId ?? null,
+        heroId: session?.uid ?? null,
+        botIds,
+        presentation,
+        drawCompleted: (ch.drawCompletedIds ?? []).length,
+        drawTotal: (ch.participantIds ?? []).length,
+      }),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   if (!sessionObj || sessionObj.status === "final") return false;
   if (getSessionEnrollment(sessionObj)?.active) return sessionHasRobots(scores);
@@ -1588,6 +1633,8 @@ function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   }
   const ch = getSessionCurrentHand(sessionObj);
   if (ch?.phase === "draw" || ch?.phase === "play") {
+    const readiness = resolveTableReadiness(sessionObj, scores, ch);
+    if (readiness) return readiness.needsBotDriver;
     const turnId = ch.turnPlayerId;
     return Boolean(turnId && isRobotPlayerId(turnId));
   }
@@ -3610,13 +3657,15 @@ function isRawTablePresentationBusy() {
  * Works with legacy table-session.js (no evaluateBotPresentationGate export).
  */
 function shouldBlockRobotForPresentation(s, scores) {
-  const busy = isRawTablePresentationBusy();
+  const readiness = resolveTableReadiness(s, scores);
+  const busy =
+    readiness != null ? readiness.visualCatchUpBusy : isRawTablePresentationBusy();
   if (!busy) {
     robotPresentationBlockEpisode = null;
     return false;
   }
 
-  const turnKey = robotTurnPresentationKey(s);
+  const turnKey = readiness?.matchKey ?? robotTurnPresentationKey(s);
   const now = Date.now();
   if (
     !robotPresentationBlockEpisode ||
@@ -4249,6 +4298,7 @@ function buildTableSessionProps(s) {
       drawCompletedIds,
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
+      serverActionSeq: currentHand?.serverActionSeq ?? null,
       postedAntes: currentHand?.postedAntes ?? {},
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,

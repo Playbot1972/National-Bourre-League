@@ -75,6 +75,8 @@ interface MobileCardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
+  heroCanAct?: boolean | null;
+  visualCatchUpBusy?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
@@ -112,6 +114,8 @@ export function MobileCardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
+  heroCanAct = null,
+  visualCatchUpBusy = false,
   bigPotEvent = null,
   onDismissTableEvent,
   onToggleInHand,
@@ -510,14 +514,18 @@ export function MobileCardTable({
           isInHand={Boolean(selfPlayer?.inHand)}
           isDealer={Boolean(selfPlayer?.isDealer)}
           signedIn={Boolean(currentUserId)}
-          isMyTurn={isHeroDrawOrPlayTurn({
-            currentUserId,
-            session,
-            suppressTurn: Boolean(suppressTurn),
-            handComplete,
-            enrollmentActive,
-            selfPlayer,
-          })}
+          isMyTurn={
+            heroCanAct != null
+              ? heroCanAct
+              : isHeroDrawOrPlayTurn({
+                  currentUserId,
+                  session,
+                  suppressTurn: Boolean(suppressTurn),
+                  handComplete,
+                  enrollmentActive,
+                  selfPlayer,
+                }) && !visualCatchUpBusy
+          }
           dealStaggerMs={handTiming.dealCardStaggerMs}
           drawAnimSubPhase={
             handPresentation.animatingDrawPlayerId === currentUserId

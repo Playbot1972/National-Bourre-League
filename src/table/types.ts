@@ -132,6 +132,8 @@ export interface TableSessionData {
   postedAntes?: Record<string, number>;
   /** Clockwise draw/play order (dealer-relative seat ring). */
   actionOrder?: string[];
+  /** Monotonic authoritative action counter from session.currentHand. */
+  serverActionSeq?: number | null;
   /** Full table seat ring — not join order. */
   seatedIds?: string[];
   pendingCoWinSettlement?: {
