@@ -111,10 +111,12 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
   });
 
-  it("does not block bots for drawPlayer during server draw phase", () => {
+  it("does not block bots for draw or lagging reveal presentation during server draw", () => {
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "ante", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), true);
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {
