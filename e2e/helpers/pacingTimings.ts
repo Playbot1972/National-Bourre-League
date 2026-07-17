@@ -3,7 +3,6 @@ import {
   BOT_PLAY_DELAY_MAX_MS,
   BOT_PLAY_DELAY_MIN_MS,
 } from "../../docs/bot-play-delay.js";
-import { dealPresentationDurationMs } from "../../src/table/animations/dealPresentationMotion";
 import { CARDS_PER_PLAYER } from "../../src/game/playerOrder";
 import {
   ANTE_CHIP_STAGGER_MS,
@@ -14,6 +13,11 @@ import {
   TRUMP_REVEAL_HOLD_MS,
 } from "../../src/table/handPresentationTiming";
 import { POST_TRICK_READ_MS, trickResolutionScheduleMs } from "../../src/table/trickTiming";
+
+/** Mirror src/table/animations/dealPresentationMotion.ts (avoid gsap import in e2e). */
+const DEAL_STEP_TRAVEL_MS = 255;
+const DEAL_STEP_GAP_MS = 63;
+const DEAL_STEP_SETTLE_MS = 50;
 
 export interface PacingEvent {
   type: string;
@@ -57,7 +61,8 @@ export function anteScheduleMs(playerCount: number): number {
 }
 
 export function sixSeatDealDurationMs(): number {
-  return dealPresentationDurationMs(6 * CARDS_PER_PLAYER, false);
+  const steps = 6 * CARDS_PER_PLAYER;
+  return (steps - 1) * DEAL_STEP_GAP_MS + DEAL_STEP_TRAVEL_MS + DEAL_STEP_SETTLE_MS;
 }
 
 export function trickResolutionSchedule() {

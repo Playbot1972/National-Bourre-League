@@ -16516,7 +16516,7 @@ function Vm({ order: e, root: t, onCoinLanded: n, onComplete: r }) {
 //#endregion
 //#region src/table/hooks/useTableAntePresentation.ts
 function Hm({ handNumber: e, phase: t, anteAnimActive: n, dealerId: r, participantIds: i, seatRing: a, tableRootRef: o, onCoinLanded: s, onSequenceComplete: c }) {
-	let u = (0, l.useRef)(null), d = (0, l.useRef)(e), f = (0, l.useRef)(null);
+	let u = (0, l.useRef)(null), d = (0, l.useRef)(e), f = (0, l.useRef)(null), p = a.join(",");
 	(0, l.useLayoutEffect)(() => {
 		o.current && d.current !== e && (d.current = e, u.current = null, f.current != null && (window.clearTimeout(f.current), f.current = null), Bm());
 	}, [e, o]), (0, l.useLayoutEffect)(() => {
@@ -16547,7 +16547,7 @@ function Hm({ handNumber: e, phase: t, anteAnimActive: n, dealerId: r, participa
 		n,
 		r,
 		i,
-		a,
+		p,
 		o,
 		s,
 		c

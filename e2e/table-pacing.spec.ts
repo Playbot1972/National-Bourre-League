@@ -93,7 +93,9 @@ test.describe("Table pacing — ante reveal", () => {
       `ante dwell ${dwellMs.toFixed(1)}ms (expected ≥ ${minDwell}ms for 4-seat schedule)`,
     ).toBeGreaterThanOrEqual(minDwell);
 
-    await expect(page.locator('[data-pacing-ante-active="true"]')).toHaveCount(0);
+    await expect(page.locator('[data-pacing-ante-active="true"]')).toHaveCount(0, {
+      timeout: 3_000,
+    });
   });
 });
 
