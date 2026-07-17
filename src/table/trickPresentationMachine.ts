@@ -501,12 +501,13 @@ export function buildTrickPresentationModel(
   };
 }
 
-/** Defer hand-number reinit while the final trick pipeline or echo is still visible. */
+/** @deprecated Hand-number changes always hard-reinit; echo deferral uses shouldReinitTrickPresentationStore. */
 export function shouldDeferHandNumberReinit(input: {
   pipelineActive: boolean;
   handEndEchoTrick: FrozenTrick | null;
 }): boolean {
-  return input.pipelineActive || input.handEndEchoTrick != null;
+  void input;
+  return false;
 }
 
 /** Guard for useTrickPresentation — do not wipe latched final-trick echo during settle/enrollment. */
