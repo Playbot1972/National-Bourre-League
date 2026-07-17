@@ -6,6 +6,7 @@ import {
   liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
+  shouldDeferHandNumberReinit,
   shouldReinitTrickPresentationStore,
   trickPlaysArePrefix,
   updatePeakTrickPlays,
@@ -487,6 +488,29 @@ describe("trickPresentationMachine", () => {
         handEndEchoTrick: null,
       }),
       true,
+    );
+  });
+
+  it("defers hand-number reinit while the trick pipeline or echo is active", () => {
+    assert.equal(
+      shouldDeferHandNumberReinit({ pipelineActive: true, handEndEchoTrick: null }),
+      true,
+    );
+    assert.equal(
+      shouldDeferHandNumberReinit({
+        pipelineActive: false,
+        handEndEchoTrick: {
+          trickNumber: 5,
+          leadSuit: "hearts",
+          plays: completedTrick.plays,
+          winnerId: "p1",
+        },
+      }),
+      true,
+    );
+    assert.equal(
+      shouldDeferHandNumberReinit({ pipelineActive: false, handEndEchoTrick: null }),
+      false,
     );
   });
 

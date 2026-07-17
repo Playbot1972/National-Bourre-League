@@ -581,6 +581,36 @@ describe("handPresentationMachine", () => {
     assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
   });
 
+  it("buffers hand-number advance while pending hand settle is still in play", () => {
+    let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 5 });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "play",
+        handNumber: 5,
+        handComplete: true,
+      },
+    });
+    assert.equal(store.pendingHandSettle, true);
+    assert.equal(store.phase, "play");
+
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "reveal",
+        handNumber: 6,
+        handComplete: false,
+        participantIds: [],
+        trumpUpcard: { rank: "K", suit: "spades" },
+      },
+    });
+    assert.equal(store.phase, "play");
+    assert.equal(store.handNumber, 5);
+    assert.equal(store.pendingSnapshot?.handNumber, 6);
+  });
+
   it("advances through settle and nextHandReset without draw presentation", () => {
     let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
     store = reduceHandPresentation(store, {

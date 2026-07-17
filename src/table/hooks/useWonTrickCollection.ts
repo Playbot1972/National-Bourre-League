@@ -68,12 +68,19 @@ export function useWonTrickCollection({
       return;
     }
 
-    if (handComplete || (sessionPhase != null && sessionPhase !== "play")) {
+    const handEndedWhileCollecting =
+      handComplete &&
+      trickPresentation.phase !== "collectTrick" &&
+      trickPresentation.phase !== "winnerReveal";
+    if (
+      handEndedWhileCollecting ||
+      (sessionPhase != null && sessionPhase !== "play")
+    ) {
       lastCollectKeyRef.current = null;
       clearTrickCleanupTimer();
       clearWonTrickCollectionArtifacts(root);
     }
-  }, [handNumber, handComplete, sessionPhase, tableRootRef]);
+  }, [handNumber, handComplete, sessionPhase, trickPresentation.phase, tableRootRef]);
 
   useLayoutEffect(() => {
     const prev = prevPhaseRef.current;
