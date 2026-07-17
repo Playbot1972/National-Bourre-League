@@ -4,6 +4,8 @@ import { sessionChipTotal } from "./core";
 export interface ChipConservationContext {
   carryOverPot?: number;
   postedAntes?: Record<string, number>;
+  /** Post-funding active pot (carry-in + posted antes). */
+  nextHandPot?: number;
   buyInFallback?: number;
 }
 
@@ -12,6 +14,7 @@ export interface TableChipSnapshot {
   bankrolls: Record<string, number>;
   carryOverPot?: number;
   postedAntes?: Record<string, number>;
+  nextHandPot?: number;
 }
 
 export interface MoneyInvariantResult {
@@ -24,6 +27,10 @@ export function tableChipTotal(snapshot: TableChipSnapshot): number {
     (sum, n) => sum + Math.max(0, Number(n) || 0),
     0,
   );
+  const resolvedNextHandPot = Number(snapshot.nextHandPot);
+  if (Number.isFinite(resolvedNextHandPot) && resolvedNextHandPot >= 0) {
+    return bankrollSum + resolvedNextHandPot;
+  }
   const carry = Math.max(0, Number(snapshot.carryOverPot) || 0);
   const antePot = Object.values(snapshot.postedAntes || {}).reduce(
     (sum, n) => sum + Math.max(0, Number(n) || 0),
