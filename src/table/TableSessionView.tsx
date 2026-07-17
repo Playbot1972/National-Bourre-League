@@ -24,7 +24,7 @@ import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { TableSceneOverlay } from "./TableSceneOverlay";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, resolveSuppressTurnForHero } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { setTrickAnimationBusyState, handPresentingBlocksBots, handPresentingBlockReasonForBots } from "./trickAnimationBridge";
@@ -392,8 +392,13 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
-  const suppressTurn =
+  const rawSuppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+  const suppressTurn = resolveSuppressTurnForHero({
+    suppressTurn: Boolean(rawSuppressTurn),
+    session,
+    currentUserId,
+  });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
 
   const { countdown: turnCountdown } = useTurnCountdown({
