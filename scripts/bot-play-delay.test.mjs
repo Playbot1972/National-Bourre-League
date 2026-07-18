@@ -96,7 +96,20 @@ describe("bot play delay", () => {
     assert.equal(laterRetry.delayMs, 50);
   });
 
-  it("presentation wait can consume the full think delay", () => {
+  it("does not consume think delay before the turn is armed for play", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    const armed = state.resolvePlayDelayMs({
+      handNumber: 1,
+      trickNumber: 2,
+      turnPlayerId: "bot_x",
+      nowMs: 12_000,
+    });
+    assert.equal(armed.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.equal(armed.elapsedSinceTurnMs, 0);
+    assert.equal(armed.delayMs, BOT_PLAY_DELAY_MIN_MS);
+  });
+
+  it("credits elapsed time only after the turn is marked eligible", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     state.markTurnEligible({
       handNumber: 1,
