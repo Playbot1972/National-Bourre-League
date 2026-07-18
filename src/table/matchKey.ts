@@ -1,5 +1,9 @@
 /** Canonical server-authoritative match identity for table readiness. */
 
+import {
+  canonicalHandDrawMetrics,
+  type CanonicalHandShape,
+} from "../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import { isRobotPlayerId } from "./botThinkWindow";
 
@@ -62,19 +66,31 @@ export function buildServerSnapshot(input: {
   serverActionSeq?: number | null;
   actionOrder?: readonly string[];
   participantIds?: readonly string[];
+  dealerId?: string | null;
+  seatedIds?: readonly string[];
+  drawCompletedIds?: readonly string[];
 }): ServerSnapshot {
-  const order =
-    input.actionOrder && input.actionOrder.length > 0
-      ? input.actionOrder
-      : input.participantIds ?? [];
+  const handShape: CanonicalHandShape = {
+    participantIds: input.participantIds ? [...input.participantIds] : undefined,
+    drawCompletedIds: input.drawCompletedIds ? [...input.drawCompletedIds] : undefined,
+    actionOrder: input.actionOrder ? [...input.actionOrder] : undefined,
+    dealerId: input.dealerId,
+    seatedIds: input.seatedIds ? [...input.seatedIds] : undefined,
+  };
+  const { actionOrder } = canonicalHandDrawMetrics(handShape);
   return {
     sessionId: input.sessionId,
     handNumber: input.handNumber,
     trickNumber: input.trickNumber ?? 0,
-    turnIndex: computeTurnIndex(order, input.turnPlayerId ?? null),
+    turnIndex: computeTurnIndex(actionOrder, input.turnPlayerId ?? null),
     serverActionSeq: input.serverActionSeq,
     turnPlayerId: input.turnPlayerId ?? null,
   };
+}
+
+/** Draw metrics + action order from the same canonical participant set. */
+export function canonicalTableHandMetrics(hand: CanonicalHandShape) {
+  return canonicalHandDrawMetrics(hand);
 }
 
 export function isStaleMatchKey(storedKey: string, authoritativeKey: string): boolean {

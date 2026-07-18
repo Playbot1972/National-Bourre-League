@@ -1,4 +1,5 @@
 import type { SerializedCard } from "./types";
+import { allEligibleDrawsComplete, canonicalHandDrawMetrics } from "../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
   type DrawAnimSubPhase,
@@ -114,16 +115,27 @@ const STALE_REVEAL_PRESENTATION_PHASES = new Set<HandPresentationPhase>([
   "trumpMerge",
 ]);
 
+function snapshotDrawMetrics(snapshot: HandServerSnapshot) {
+  return canonicalHandDrawMetrics({
+    participantIds: snapshot.participantIds,
+    drawCompletedIds: snapshot.drawCompletedIds,
+    actionOrder: snapshot.actionOrder,
+    dealerId: snapshot.dealerId,
+    seatedIds: snapshot.participantIds,
+  });
+}
+
 function catchUpRevealPresentationToDraw(
   store: HandPresentationStore,
   snapshot: HandServerSnapshot,
 ): HandPresentationStore {
+  const drawMetrics = snapshotDrawMetrics(snapshot);
   if (isGameFlowDebugEnabled()) {
     logGameFlow("handPresentation", "catch-up-reveal-to-draw", {
       fromPhase: store.phase,
       serverPhase: snapshot.phase,
-      drawCompleted: snapshot.drawCompletedIds.length,
-      participantCount: snapshot.participantIds.length,
+      drawCompleted: drawMetrics.drawCompleted,
+      drawTotal: drawMetrics.drawTotal,
       turnPlayerId: snapshot.turnPlayerId,
       anteAnimActive: store.anteAnimActive,
       trumpRevealActive: store.trumpRevealActive,
@@ -131,9 +143,7 @@ function catchUpRevealPresentationToDraw(
   }
 
   const consumed = mergeDrawPresentationConsumed(store, snapshot.drawCompletedIds);
-  const allDrew =
-    snapshot.participantIds.length > 0 &&
-    snapshot.drawCompletedIds.length >= snapshot.participantIds.length;
+  const allDrew = allEligibleDrawsComplete(snapshot);
 
   let caught: HandPresentationStore = {
     ...createHandPresentationStore(snapshot),
@@ -571,7 +581,12 @@ export function reduceHandPresentation(
         drawAnim: `${store.animatingDrawPlayerId ?? ""} -> ${next.animatingDrawPlayerId ?? ""}`,
         drawConsumed: next.drawPresentationConsumedIds.length,
         serverPhase: event.type === "serverUpdate" ? event.snapshot.phase : undefined,
-        drawCompleted: event.type === "serverUpdate" ? event.snapshot.drawCompletedIds.length : undefined,
+        drawCompleted:
+          event.type === "serverUpdate"
+            ? snapshotDrawMetrics(event.snapshot).drawCompleted
+            : undefined,
+        drawTotal:
+          event.type === "serverUpdate" ? snapshotDrawMetrics(event.snapshot).drawTotal : undefined,
       });
     }
   }
@@ -838,8 +853,7 @@ function reduceHandPresentationCore(
         }
 
         if (
-          snapshot.drawCompletedIds.length === snapshot.participantIds.length &&
-          snapshot.participantIds.length > 0 &&
+          allEligibleDrawsComplete(snapshot) &&
           store.phase === "drawPlayer" &&
           store.drawAnimSubPhase === "done"
         ) {
@@ -927,7 +941,13 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       logDrawReceiveCommit("after", committed);
 
       const ref = snap ?? committed.prevSnapshot;
-      if (ref && committed.displayDrawCompletedIds.length >= ref.participantIds.length) {
+      if (
+        ref &&
+        allEligibleDrawsComplete({
+          participantIds: ref.participantIds,
+          drawCompletedIds: committed.displayDrawCompletedIds,
+        })
+      ) {
         return withPhase(committed, "drawReady", {
           displayDrawCompletedIds: committed.displayDrawCompletedIds,
           animatingDrawPlayerId: null,

@@ -775,6 +775,27 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
   });
+
+  it("does not treat a folded seat in drawCompletedIds as extra draw completion", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "draw",
+      drawCompletedIds: ["p1"],
+    });
+    store = reduceHandPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        ...baseSnap,
+        phase: "draw",
+        participantIds: ["p1", "p2"],
+        drawCompletedIds: ["p1", "p3"],
+        actionOrder: ["p2", "p1"],
+        turnPlayerId: "p2",
+      },
+    });
+    assert.equal(store.phase, "drawPlayer");
+    assert.notEqual(store.phase, "drawReady");
+  });
 });
 
 describe("trick timing with hand flow", () => {

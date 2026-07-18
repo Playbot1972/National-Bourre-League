@@ -194,6 +194,7 @@ import {
   deserializeCards,
   effectivePlayerHand,
   botShouldPassDecision,
+  canonicalHandDrawMetrics,
 } from "./game-engine.js";
 import {
   formatHandHistoryPublicLine,
@@ -1521,6 +1522,24 @@ async function ensureTableFeedbackApi() {
   return tableFeedbackApi;
 }
 
+function canonicalHandMetricsFromCurrentHand(ch) {
+  if (!ch) {
+    return {
+      eligibleIds: [],
+      actionOrder: [],
+      drawCompleted: 0,
+      drawTotal: 0,
+    };
+  }
+  return canonicalHandDrawMetrics({
+    participantIds: ch.participantIds ?? [],
+    drawCompletedIds: ch.drawCompletedIds ?? [],
+    actionOrder: ch.actionOrder,
+    dealerId: ch.dealerId ?? null,
+    seatedIds: ch.seatedIds ?? ch.participantIds ?? [],
+  });
+}
+
 function getActionErrorContext(actionKind) {
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   const currentHand = sessionObj ? getSessionCurrentHand(sessionObj) : null;
@@ -1534,7 +1553,7 @@ function getActionErrorContext(actionKind) {
     atMs: Date.now(),
     totalTricksPlayed: totalTricksPlayed(tricksByPlayer, participantIds),
     currentTrickLen: currentHand?.currentTrick?.length ?? 0,
-    drawCompletedCount: (currentHand?.drawCompletedIds ?? []).length,
+    drawCompletedCount: canonicalHandMetricsFromCurrentHand(currentHand).drawCompleted,
   };
 }
 
@@ -1589,14 +1608,18 @@ function sessionHasRobots(scores = openScores) {
 function resolveTableReadiness(sessionObj, scores = openScores, ch = getSessionCurrentHand(sessionObj)) {
   if (!sessionObj || !ch || ch.serverActionSeq == null) return null;
   try {
-    const actionOrder = ch.actionOrder ?? ch.participantIds ?? [];
+    const handMetrics = canonicalHandMetricsFromCurrentHand(ch);
     const snapshot = buildServerSnapshot({
       sessionId: sessionObj.id,
       handNumber: sessionHandNumber(sessionObj),
       trickNumber: ch.currentTrick?.trickNumber,
       turnPlayerId: ch.turnPlayerId,
       serverActionSeq: ch.serverActionSeq,
-      actionOrder,
+      actionOrder: handMetrics.actionOrder,
+      participantIds: handMetrics.eligibleIds,
+      dealerId: ch.dealerId ?? null,
+      seatedIds: ch.seatedIds ?? ch.participantIds ?? [],
+      drawCompletedIds: ch.drawCompletedIds ?? [],
     });
     const matchKey = buildMatchKey(snapshot);
     const busy = tableMountApi?.getTrickAnimationBusyState?.() ?? {};
@@ -1616,8 +1639,8 @@ function resolveTableReadiness(sessionObj, scores = openScores, ch = getSessionC
         heroId: session?.uid ?? null,
         botIds,
         presentation,
-        drawCompleted: (ch.drawCompletedIds ?? []).length,
-        drawTotal: (ch.participantIds ?? []).length,
+        drawCompleted: handMetrics.drawCompleted,
+        drawTotal: handMetrics.drawTotal,
       }),
     };
   } catch {
@@ -3638,13 +3661,14 @@ function finishRobotAction() {
 
 function robotTurnPresentationKey(s) {
   const ch = getSessionCurrentHand(s);
+  const drawMetrics = canonicalHandMetricsFromCurrentHand(ch);
   return [
     sessionHandNumber(s),
     ch?.phase ?? "",
     ch?.turnPlayerId ?? "",
     ch?.currentTrick?.trickNumber ?? 0,
     ch?.currentTrick?.plays?.length ?? 0,
-    (ch?.drawCompletedIds ?? []).length,
+    drawMetrics.drawCompleted,
   ].join(":");
 }
 
@@ -3762,8 +3786,8 @@ function snapshotTablePresentationGate() {
 
 function snapshotGameFlowContext(s, scores) {
   const ch = getSessionCurrentHand(s);
-  const participants = ch?.participantIds ?? [];
-  const actionOrder = ch?.actionOrder ?? participants;
+  const handMetrics = canonicalHandMetricsFromCurrentHand(ch);
+  const actionOrder = handMetrics.actionOrder;
   const turnId = ch?.turnPlayerId ?? null;
   const turnIndex = turnId ? actionOrder.indexOf(turnId) : -1;
   const remainingHandCount =
@@ -3779,8 +3803,8 @@ function snapshotGameFlowContext(s, scores) {
     isLastCard: remainingHandCount === 1,
     dealerId: resolveHandDealerId(s?.dealerId ?? null, ch),
     actionOrder,
-    drawCompleted: (ch?.drawCompletedIds ?? []).length,
-    drawTotal: participants.length,
+    drawCompleted: handMetrics.drawCompleted,
+    drawTotal: handMetrics.drawTotal,
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,

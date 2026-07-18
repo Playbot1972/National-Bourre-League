@@ -38,6 +38,7 @@ import {
   assertMatchKeyInvariants,
   buildMatchKey,
   buildServerSnapshot,
+  canonicalTableHandMetrics,
   collectBotIds,
   deriveTableReadiness,
   isRevealCatchUpBusy,
@@ -251,6 +252,24 @@ export function TableSessionView({
     [session.participantIds],
   );
 
+  const canonicalHand = useMemo(
+    () =>
+      canonicalTableHandMetrics({
+        participantIds: session.participantIds,
+        drawCompletedIds: session.drawCompletedIds,
+        actionOrder: session.actionOrder,
+        dealerId: session.dealerId,
+        seatedIds: session.seatedIds,
+      }),
+    [
+      session.participantIds,
+      session.drawCompletedIds,
+      session.actionOrder,
+      session.dealerId,
+      session.seatedIds,
+    ],
+  );
+
   const serverSnapshot = useMemo(
     () =>
       buildServerSnapshot({
@@ -259,7 +278,11 @@ export function TableSessionView({
         trickNumber: session.currentTrick?.trickNumber,
         turnPlayerId: session.turnPlayerId,
         serverActionSeq: session.serverActionSeq,
-        actionOrder: session.actionOrder ?? session.participantIds,
+        actionOrder: canonicalHand.actionOrder,
+        participantIds: canonicalHand.eligibleIds,
+        dealerId: session.dealerId,
+        seatedIds: session.seatedIds,
+        drawCompletedIds: session.drawCompletedIds,
       }),
     [
       session.sessionId,
@@ -267,8 +290,11 @@ export function TableSessionView({
       session.currentTrick?.trickNumber,
       session.turnPlayerId,
       session.serverActionSeq,
-      session.actionOrder,
-      session.participantIds,
+      session.dealerId,
+      session.seatedIds,
+      session.drawCompletedIds,
+      canonicalHand.actionOrder,
+      canonicalHand.eligibleIds,
     ],
   );
 
@@ -364,8 +390,8 @@ export function TableSessionView({
       heroId: currentUserId ?? null,
       botIds,
       presentation: presentationReadiness,
-      drawCompleted: session.drawCompletedIds?.length ?? 0,
-      drawTotal: session.participantIds.length,
+      drawCompleted: canonicalHand.drawCompleted,
+      drawTotal: canonicalHand.drawTotal,
     });
   }, [
     matchKey,
@@ -373,8 +399,8 @@ export function TableSessionView({
     currentUserId,
     botIds,
     presentationReadiness,
-    session.drawCompletedIds,
-    session.participantIds.length,
+    canonicalHand.drawCompleted,
+    canonicalHand.drawTotal,
   ]);
 
   useEffect(() => {
@@ -386,8 +412,8 @@ export function TableSessionView({
         heroId: currentUserId ?? null,
         botIds,
         presentation: presentationReadiness,
-        drawCompleted: session.drawCompletedIds?.length ?? 0,
-        drawTotal: session.participantIds.length,
+        drawCompleted: canonicalHand.drawCompleted,
+        drawTotal: canonicalHand.drawTotal,
         ...tableReadiness,
       });
     } catch (err) {
@@ -404,8 +430,8 @@ export function TableSessionView({
     currentUserId,
     botIds,
     presentationReadiness,
-    session.drawCompletedIds,
-    session.participantIds.length,
+    canonicalHand.drawCompleted,
+    canonicalHand.drawTotal,
   ]);
 
   const visualCatchUpBusy = tableReadiness?.visualCatchUpBusy ?? false;

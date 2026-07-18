@@ -8,6 +8,7 @@ import {
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
+import { canonicalHandDrawMetrics } from "../../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
 import { resolveHandPresentationKey } from "../handServerUpdateGate";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
@@ -160,13 +161,20 @@ export function useHandPresentation({
     });
 
     if (isGameFlowDebugEnabled()) {
+      const drawMetrics = canonicalHandDrawMetrics({
+        participantIds: snapshot.participantIds,
+        drawCompletedIds: snapshot.drawCompletedIds,
+        actionOrder: snapshot.actionOrder,
+        dealerId: snapshot.dealerId,
+        seatedIds: snapshot.participantIds,
+      });
       logGameFlow("handPresentation", "serverUpdate", {
         presentationKey,
         phase: `${prevPhase ?? "null"} -> ${currentPhase ?? "null"}`,
         handNumber: snapshot.handNumber,
         serverPhase: snapshot.phase,
-        drawCompleted: snapshot.drawCompletedIds.length,
-        participantCount: snapshot.participantIds.length,
+        drawCompleted: drawMetrics.drawCompleted,
+        drawTotal: drawMetrics.drawTotal,
         trumpUpcard: Boolean(snapshot.trumpUpcard),
         turnPlayerId: snapshot.turnPlayerId,
       });
