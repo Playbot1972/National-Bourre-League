@@ -253,6 +253,12 @@ export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
 }
 
+/** Light coin tap for ante posts — bypasses trickCollect overlap guard. */
+export function playAnteCoinSound(): void {
+  const packId = getActivePackId();
+  playResolvedAsset("trickCollect", "coin-chime-light", 0.34, packId);
+}
+
 export function playTrickWinSound(volumeScale = 1): void {
   void playTrickWinEvent(volumeScale);
 }

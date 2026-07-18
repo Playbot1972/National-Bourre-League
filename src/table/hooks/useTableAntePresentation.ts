@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useCallback } from "react";
 import {
   antePostOrder,
   killAntePresentation,
   runAntePresentation,
 } from "../animations/antePresentationMotion";
+import { playAnteCoinLandFeedback } from "../feedback";
 import { ANTE_POST_HOLD_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
 
@@ -34,6 +35,13 @@ export function useTableAntePresentation({
   const handNumberRef = useRef(handNumber);
   const holdTimerRef = useRef<number | null>(null);
   const seatRingKey = seatRing.join(",");
+  const onCoinLandedRef = useRef(onCoinLanded);
+  onCoinLandedRef.current = onCoinLanded;
+
+  const handleCoinLanded = useCallback((playerId: string) => {
+    playAnteCoinLandFeedback();
+    onCoinLandedRef.current(playerId);
+  }, []);
 
   useLayoutEffect(() => {
     const root = tableRootRef.current;
@@ -76,7 +84,7 @@ export function useTableAntePresentation({
     runAntePresentation({
       order,
       root,
-      onCoinLanded,
+      onCoinLanded: handleCoinLanded,
       onComplete: () => {
         holdTimerRef.current = window.setTimeout(() => {
           holdTimerRef.current = null;
@@ -100,7 +108,7 @@ export function useTableAntePresentation({
     participantIds,
     seatRingKey,
     tableRootRef,
-    onCoinLanded,
+    handleCoinLanded,
     onSequenceComplete,
   ]);
 }
