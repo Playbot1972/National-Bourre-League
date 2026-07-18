@@ -9,6 +9,7 @@ import type {
   PublicHandState,
   SerializedHandBundle,
 } from "./types";
+import { initialServerActionSeq } from "./serverActionSeq";
 
 export function serializeCard(card: Card): { rank: Card["rank"]; suit: Card["suit"] } {
   return { rank: card.rank, suit: card.suit };
@@ -81,6 +82,7 @@ export function serializeHandState(
     maxDrawDiscards: maxDraw,
     cinchEnabled,
     handDecision,
+    serverActionSeq: initialServerActionSeq(),
   };
 
   const privateHandsByPlayer: Record<string, PrivateHandState> = {};

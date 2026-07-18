@@ -66,6 +66,9 @@ interface CardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
+  /** Derived from match-key readiness — when set, gates hero draw/play affordances. */
+  heroCanAct?: boolean | null;
+  visualCatchUpBusy?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
@@ -104,6 +107,8 @@ export function CardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
+  heroCanAct = null,
+  visualCatchUpBusy = false,
   bigPotEvent = null,
   onDismissTableEvent,
   onToggleInHand,
@@ -451,14 +456,18 @@ export function CardTable({
         isInHand={Boolean(selfPlayer?.inHand)}
         isDealer={Boolean(selfPlayer?.isDealer)}
         signedIn={Boolean(currentUserId)}
-        isMyTurn={isHeroDrawOrPlayTurn({
-          currentUserId,
-          session,
-          suppressTurn: Boolean(suppressTurn),
-          handComplete,
-          enrollmentActive,
-          selfPlayer,
-        })}
+        isMyTurn={
+          heroCanAct != null
+            ? heroCanAct
+            : isHeroDrawOrPlayTurn({
+                currentUserId,
+                session,
+                suppressTurn: Boolean(suppressTurn),
+                handComplete,
+                enrollmentActive,
+                selfPlayer,
+              }) && !visualCatchUpBusy
+        }
         dealStaggerMs={handTiming.dealCardStaggerMs}
         drawAnimSubPhase={
           handPresentation.animatingDrawPlayerId === currentUserId

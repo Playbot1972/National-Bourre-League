@@ -12,10 +12,12 @@ import {
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
+  syncAuthoritativeMatchKey,
   syncAuthoritativePresentationScope,
 } from "./trickAnimationBridge";
 
 const idleTrickFields = {
+  matchKey: "",
   presentationScopeKey: "0:0",
   pipelineActive: false,
   revealCatchUp: false,
@@ -33,6 +35,20 @@ describe("trickAnimationBridge", () => {
     resetTrickAnimationBusyState();
     assert.equal(isTrickAnimationBusy(), false);
     assert.equal(isTablePresentationBusy(), false);
+  });
+
+  it("ignores stale matchKey pipeline flags for bot blocking", () => {
+    resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("4:3");
+    syncAuthoritativeMatchKey("sess-h4-t3-turn0-aseq9");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      matchKey: "sess-h4-t2-turn0-aseq8",
+      presentationScopeKey: "4:3",
+      pipelineActive: true,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+    assert.equal(isTablePresentationBusyForBots(), false);
   });
 
   it("ignores stale-scope pipeline flags for bot blocking", () => {
