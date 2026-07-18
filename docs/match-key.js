@@ -49,6 +49,9 @@ function l(e, t) {
 	return e !== t;
 }
 function u(e) {
+	return e.phase === "live" && e.serverTrickPlays > 0 && e.revealedCount < e.revealTarget;
+}
+function d(e) {
 	let t = !!(e.turnPlayerId && e.heroId && e.turnPlayerId === e.heroId), n = !!(e.turnPlayerId && e.botIds.has(e.turnPlayerId)), r = e.presentation.matchKey === e.matchKey && (e.presentation.pipelineActive || e.presentation.motionGateActive || e.presentation.revealCatchUp || e.presentation.handPresenting);
 	return {
 		isHeroTurn: t,
@@ -58,12 +61,12 @@ function u(e) {
 		needsBotDriver: n && !r
 	};
 }
-function d(e) {
+function f(e) {
 	let t = /* @__PURE__ */ new Set();
 	for (let n of e) a(n) && t.add(n);
 	return t;
 }
-function f(e) {
+function p(e) {
 	if (e.isHeroTurn && e.isBotTurn) {
 		let t = "Invariant violation: hero and bot cannot both own the turn";
 		throw r() && i("matchKey", "invariant-violation", {
@@ -92,4 +95,4 @@ function f(e) {
 	}
 }
 //#endregion
-export { f as assertMatchKeyInvariants, o as buildMatchKey, c as buildServerSnapshot, d as collectBotIds, s as computeTurnIndex, u as deriveTableReadiness, l as isStaleMatchKey };
+export { p as assertMatchKeyInvariants, o as buildMatchKey, c as buildServerSnapshot, f as collectBotIds, s as computeTurnIndex, d as deriveTableReadiness, u as isRevealCatchUpBusy, l as isStaleMatchKey };

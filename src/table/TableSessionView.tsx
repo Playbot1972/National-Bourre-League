@@ -40,6 +40,7 @@ import {
   buildServerSnapshot,
   collectBotIds,
   deriveTableReadiness,
+  isRevealCatchUpBusy,
 } from "./matchKey";
 import {
   clearScopedPresentationState,
@@ -298,14 +299,20 @@ export function TableSessionView({
     syncAuthoritativeMatchKey(matchKey);
   }, [matchKey]);
 
+  const serverTrickPlays = session.currentTrick?.plays?.length ?? 0;
+  const revealCatchUpBusy = isRevealCatchUpBusy({
+    phase: trickPresentation.phase,
+    revealedCount: trickPresentation.revealedCount,
+    revealTarget: trickPresentation.revealTarget,
+    serverTrickPlays,
+  });
+
   useEffect(() => {
     setTrickAnimationBusyState({
       matchKey: matchKey ?? "",
       presentationScopeKey: presentationScope,
       pipelineActive: trickPresentation.isPipelineActive,
-      revealCatchUp:
-        trickPresentation.phase === "live" &&
-        trickPresentation.revealedCount < trickPresentation.revealTarget,
+      revealCatchUp: revealCatchUpBusy,
       motionGateActive: instantTrickPlays,
       peakPlayCount: trickPresentation.peakPlayCount,
       displayedPlayCount: trickPresentation.displayPlays.length,
@@ -328,6 +335,8 @@ export function TableSessionView({
     session.phase,
     motionBusyTick,
     matchKey,
+    revealCatchUpBusy,
+    serverTrickPlays,
   ]);
 
   const presentationReadiness = useMemo(
@@ -335,18 +344,14 @@ export function TableSessionView({
       matchKey: matchKey ?? "",
       pipelineActive: trickPresentation.isPipelineActive,
       motionGateActive: instantTrickPlays,
-      revealCatchUp:
-        trickPresentation.phase === "live" &&
-        trickPresentation.revealedCount < trickPresentation.revealTarget,
+      revealCatchUp: revealCatchUpBusy,
       handPresenting: handPresentingForBots,
     }),
     [
       matchKey,
       trickPresentation.isPipelineActive,
-      trickPresentation.phase,
-      trickPresentation.revealedCount,
-      trickPresentation.revealTarget,
       instantTrickPlays,
+      revealCatchUpBusy,
       handPresentingForBots,
     ],
   );

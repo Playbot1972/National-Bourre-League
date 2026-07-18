@@ -81,6 +81,20 @@ export function isStaleMatchKey(storedKey: string, authoritativeKey: string): bo
   return storedKey !== authoritativeKey;
 }
 
+/** True only while live trick reveal is catching up to server plays on the current trick. */
+export function isRevealCatchUpBusy(input: {
+  phase: string;
+  revealedCount: number;
+  revealTarget: number;
+  serverTrickPlays: number;
+}): boolean {
+  return (
+    input.phase === "live" &&
+    input.serverTrickPlays > 0 &&
+    input.revealedCount < input.revealTarget
+  );
+}
+
 export function deriveTableReadiness(input: TableReadinessInput): TableReadiness {
   const isHeroTurn = Boolean(input.turnPlayerId && input.heroId && input.turnPlayerId === input.heroId);
   const isBotTurn = Boolean(input.turnPlayerId && input.botIds.has(input.turnPlayerId));

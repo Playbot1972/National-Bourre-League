@@ -6,6 +6,7 @@ import {
   buildServerSnapshot,
   collectBotIds,
   deriveTableReadiness,
+  isRevealCatchUpBusy,
   isStaleMatchKey,
 } from "./matchKey";
 import {
@@ -196,6 +197,32 @@ describe("matchKey lifecycle", () => {
     invalidateQueuedHeroIntentOlderThan("sess-1-h2-t1-turn0-aseq4");
     unsub();
     assert.equal(seen, 1);
+  });
+});
+
+describe("isRevealCatchUpBusy", () => {
+  it("is false on a new empty trick even when presentation counts are stale", () => {
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 1,
+        revealTarget: 4,
+        serverTrickPlays: 0,
+      }),
+      false,
+    );
+  });
+
+  it("is true while catching up plays on the current trick", () => {
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 1,
+        revealTarget: 3,
+        serverTrickPlays: 3,
+      }),
+      true,
+    );
   });
 });
 

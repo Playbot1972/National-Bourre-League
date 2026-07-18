@@ -1690,6 +1690,13 @@ function startEnrollmentTimer() {
       stopEnrollmentTimer();
       return;
     }
+    const tickEnrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
+    const tickPagatClock = isPagatHandClock(sessionObj);
+    const tickNeedsDriver = sessionNeedsBotDriver(sessionObj, openScores);
+    if (!tickEnrollmentActive && !tickPagatClock && !tickNeedsDriver) {
+      stopEnrollmentTimer();
+      return;
+    }
     if (shouldRequestServerBotAdvance(SERVER_HAND_AUTHORITY, tablePlayOpen)) {
       scheduleSessionOrchestration(sessionObj, openScores, { reason: "enrollment-tick" });
       return;
