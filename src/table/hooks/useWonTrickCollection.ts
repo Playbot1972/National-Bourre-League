@@ -21,6 +21,7 @@ export interface UseWonTrickCollectionInput {
   handComplete?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
   onTrickCollectionStart?: (input: Omit<TrickCollectedAudioInput, "playerCount">) => void;
+  onCollectionComplete?: () => void;
 }
 
 const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
@@ -35,11 +36,14 @@ export function useWonTrickCollection({
   handComplete = false,
   tableRootRef,
   onTrickCollectionStart,
+  onCollectionComplete,
 }: UseWonTrickCollectionInput): void {
   const lastCollectKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
   const prevPhaseRef = useRef(trickPresentation.phase);
   const trickCleanupTimerRef = useRef<number | null>(null);
+  const onCollectionCompleteRef = useRef(onCollectionComplete);
+  onCollectionCompleteRef.current = onCollectionComplete;
 
   const clearTrickCleanupTimer = () => {
     if (trickCleanupTimerRef.current != null) {
@@ -113,7 +117,10 @@ export function useWonTrickCollection({
     removeStaleGhosts(root);
 
     const cardEls = readTrickRowCardElements(root);
+    const finishCollection = () => onCollectionCompleteRef.current?.();
+
     if (!cardEls.length) {
+      finishCollection();
       return;
     }
 
@@ -141,7 +148,10 @@ export function useWonTrickCollection({
         bookIndex,
         root,
         host: root,
-        onComplete: () => setTrickCollectionActive(false, collectionScopeKey),
+        onComplete: () => {
+          setTrickCollectionActive(false, collectionScopeKey);
+          finishCollection();
+        },
       });
     }, rakeDelay);
 
@@ -157,6 +167,7 @@ export function useWonTrickCollection({
     handNumber,
     tableRootRef,
     onTrickCollectionStart,
+    onCollectionComplete,
   ]);
 
   useEffect(() => () => clearTrickCleanupTimer(), []);

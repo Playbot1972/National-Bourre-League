@@ -17,6 +17,9 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   dealPresentationAllowed: boolean;
   privateHandReady?: boolean;
+  trumpRevealActive?: boolean;
+  trumpMergeActive?: boolean;
+  anteAnimActive?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -24,6 +27,9 @@ export function useTableDealPresentation({
   session,
   dealPresentationAllowed,
   privateHandReady = false,
+  trumpRevealActive = false,
+  trumpMergeActive = false,
+  anteAnimActive = false,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
@@ -53,6 +59,7 @@ export function useTableDealPresentation({
         dealPresentationAllowed,
         session.phase,
         privateHandReady,
+        { trumpRevealActive, trumpMergeActive, anteAnimActive },
       )
     ) {
       return;
@@ -117,6 +124,9 @@ export function useTableDealPresentation({
     session.participantIds,
     dealPresentationAllowed,
     privateHandReady,
+    trumpRevealActive,
+    trumpMergeActive,
+    anteAnimActive,
     tableRootRef,
   ]);
 

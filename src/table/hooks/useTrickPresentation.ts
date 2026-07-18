@@ -37,6 +37,7 @@ import {
 } from "../heroPlayHandoff";
 import { serializedPlays } from "../trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
+import { isTrickPhaseTimerOwned } from "../presentationPhaseOwnership";
 import type { CurrentTrickState, PlayedCardEntry } from "../types";
 
 interface UseTrickPresentationInput {
@@ -56,6 +57,7 @@ export type TrickPresentation = TrickPresentationModel & {
   phase: TrickPresentationPhase;
   forceHandEndDrain: () => void;
   clearHandEndEcho: () => void;
+  completeTrickCollection: () => void;
 };
 
 export function useTrickPresentation({
@@ -78,6 +80,7 @@ export function useTrickPresentation({
 
   const timersRef = useRef<number[]>([]);
   const resolutionKeyRef = useRef<string | null>(null);
+  const resolutionBeatKeyRef = useRef<string | null>(null);
   const snapshottedPlaysRef = useRef<Set<string>>(new Set());
   const pipelineActiveRef = useRef(false);
   const revealTimerRef = useRef<number | null>(null);
@@ -134,6 +137,7 @@ export function useTrickPresentation({
       resetPresentationMotionBusy();
       clearTimers();
       resolutionKeyRef.current = null;
+      resolutionBeatKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
       playOriginsPrimedRef.current = false;
       prevTurnPlayerIdRef.current = null;
@@ -194,6 +198,7 @@ export function useTrickPresentation({
     ) {
       clearTimers();
       resolutionKeyRef.current = null;
+      resolutionBeatKeyRef.current = null;
       snapshottedPlaysRef.current.clear();
       playOriginsPrimedRef.current = false;
       prevTurnPlayerIdRef.current = null;
@@ -312,32 +317,52 @@ export function useTrickPresentation({
   ]);
 
   useEffect(() => {
-    if ((!sessionPlayActive && !pipelineActive) || store.phase !== "trickComplete" || !store.frozenTrick) {
+    if ((!sessionPlayActive && !pipelineActive) || !store.frozenTrick) {
       return;
     }
+    if (!isTrickPhaseTimerOwned(store.phase)) return;
 
-    const key = `${store.frozenTrick.trickNumber}:${store.frozenTrick.winnerId}:${store.frozenTrick.plays.length}`;
-    if (resolutionKeyRef.current === key) return;
+    const frozen = store.frozenTrick;
+    const key = `${frozen.trickNumber}:${frozen.winnerId}:${frozen.plays.length}`;
+    const beatKey = `${key}:${store.phase}`;
+    if (resolutionBeatKeyRef.current === beatKey) return;
+    resolutionBeatKeyRef.current = beatKey;
     resolutionKeyRef.current = key;
     clearTimers();
 
-    const frozen = store.frozenTrick;
     const scheduleMs = trickResolutionScheduleMs({
       trumpBeat: trumpBeatLedSuit(frozen.plays, frozen.leadSuit, trumpSuit),
       reducedMotion: prefersReducedMotion(),
     });
 
-    schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.readBeforeWinnerMs);
-    schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.readTotalMs);
-    schedule(
-      () => dispatch({ type: "advancePhase" }),
-      scheduleMs.readTotalMs + scheduleMs.sweepMs,
-    );
-    schedule(
-      () => dispatch({ type: "advancePhase" }),
-      scheduleMs.pipelineMs,
-    );
-  }, [sessionPlayActive, pipelineActive, store.phase, store.frozenTrick, trumpSuit]);
+    if (store.phase === "trickComplete") {
+      schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.readBeforeWinnerMs);
+      return;
+    }
+
+    if (store.phase === "winnerReveal") {
+      const winnerHoldMs = Math.max(0, scheduleMs.readTotalMs - scheduleMs.readBeforeWinnerMs);
+      schedule(() => dispatch({ type: "advancePhase" }), winnerHoldMs);
+      return;
+    }
+
+    if (store.phase === "nextLeadReady") {
+      schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.nextLeadGapMs);
+    }
+  }, [
+    sessionPlayActive,
+    pipelineActive,
+    store.phase,
+    store.frozenTrick,
+    trumpSuit,
+  ]);
+
+  useEffect(() => {
+    if (store.phase === "live") {
+      resolutionKeyRef.current = null;
+      resolutionBeatKeyRef.current = null;
+    }
+  }, [store.phase]);
 
   useEffect(() => {
     if ((!sessionPlayActive && !pipelineActive) || store.phase !== "live" || !store.pendingResolution) {
@@ -361,10 +386,6 @@ export function useTrickPresentation({
     store.pendingResolution,
     store.revealedCount,
   ]);
-
-  useEffect(() => {
-    if (store.phase === "live") resolutionKeyRef.current = null;
-  }, [store.phase]);
 
   useEffect(() => {
     const handEndedForDrain =
@@ -501,9 +522,21 @@ export function useTrickPresentation({
   const model = buildTrickPresentationModel(store, currentTrick);
   const forceHandEndDrain = useCallback(() => dispatch({ type: "forceHandEndDrain" }), []);
   const clearHandEndEcho = useCallback(() => dispatch({ type: "clearHandEndEcho" }), []);
+  const completeTrickCollection = useCallback(() => {
+    const current = storeRef.current;
+    if (current.phase !== "collectTrick") return;
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("useTrickPresentation", "trick-collection-complete", {
+        trickNumber: current.frozenTrick?.trickNumber,
+        winnerId: current.frozenTrick?.winnerId,
+      });
+    }
+    dispatch({ type: "advancePhase" });
+  }, []);
   return {
     ...model,
     forceHandEndDrain,
     clearHandEndEcho,
+    completeTrickCollection,
   };
 }

@@ -2,6 +2,10 @@ import type { SerializedCard } from "./types";
 import { allEligibleDrawsComplete, canonicalHandDrawMetrics } from "../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import {
+  canStartDealPresentation as gateCanStartDealPresentation,
+  type DealPresentationGateInput,
+} from "./presentationPhaseOwnership";
+import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
   drawPlayerScheduleMs,
@@ -1052,13 +1056,19 @@ export function canStartDealPresentation(
   dealPresentationAllowed: boolean,
   sessionPhase: string | null | undefined,
   privateHandReady: boolean,
+  motionGate: Pick<
+    DealPresentationGateInput,
+    "trumpRevealActive" | "trumpMergeActive" | "anteAnimActive"
+  > = {},
 ): boolean {
-  const inDealPhase =
-    sessionPhase === "reveal" ||
-    sessionPhase === "decision" ||
-    sessionPhase === "draw" ||
-    sessionPhase === "play";
-  return dealPresentationAllowed && inDealPhase && privateHandReady;
+  return gateCanStartDealPresentation({
+    dealPresentationAllowed,
+    sessionPhase,
+    privateHandReady,
+    trumpRevealActive: motionGate.trumpRevealActive,
+    trumpMergeActive: motionGate.trumpMergeActive,
+    anteAnimActive: motionGate.anteAnimActive,
+  });
 }
 
 export function phaseScheduleMs(

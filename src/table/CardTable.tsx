@@ -188,6 +188,9 @@ export function CardTable({
     session,
     dealPresentationAllowed: handPresentation.dealPresentationAllowed,
     privateHandReady,
+    trumpRevealActive: handPresentation.trumpRevealActive,
+    trumpMergeActive: handPresentation.trumpMergeActive,
+    anteAnimActive: handPresentation.anteAnimActive,
     tableRootRef: wrapRef,
   });
   const anteSeatRing = seatRingPlayerIds(session.participantIds, session);
@@ -225,6 +228,7 @@ export function CardTable({
     handComplete,
     tableRootRef: wrapRef,
     onTrickCollectionStart: cardAudio.onTrickCollectionStart,
+    onCollectionComplete: trickPresentation.completeTrickCollection,
   });
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>

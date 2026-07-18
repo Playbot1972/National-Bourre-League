@@ -10,6 +10,7 @@ import {
 } from "../handPresentationMachine";
 import { canonicalHandDrawMetrics } from "../../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
+import { isHandPhaseTimerOwned } from "../presentationPhaseOwnership";
 import { resolveHandPresentationKey } from "../handServerUpdateGate";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
@@ -205,8 +206,20 @@ export function useHandPresentation({
     }
 
     clearTimers();
-    const delay = phaseScheduleMs(store, reduced);
-    if (delay <= 0) return;
+    const motionOwned = !isHandPhaseTimerOwned({
+      phase: store.phase,
+      anteAnimActive: store.anteAnimActive,
+      trumpMergeActive: store.trumpMergeActive,
+    });
+    const delay = motionOwned ? 0 : phaseScheduleMs(store, reduced);
+    if (delay <= 0) {
+      const watchdogMs =
+        store.phase === "drawPlayer" || store.phase === "drawReady"
+          ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
+          : PRESENTATION_WATCHDOG_MS;
+      schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
+      return;
+    }
 
     const armedAt = {
       handNumber: store.handNumber,
