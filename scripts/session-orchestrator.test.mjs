@@ -64,4 +64,19 @@ describe("session orchestrator", () => {
     assert.ok(body.includes("scheduleSessionOrchestration"));
     assert.equal(body.includes("processRobotActions"), false);
   });
+
+  it("runSessionOrchestration skips processRobotActions on human-only turns", () => {
+    const idx = src.indexOf("function runSessionOrchestration(");
+    assert.ok(idx >= 0);
+    const nextFn = src.indexOf("function scheduleSessionOrchestration", idx);
+    const body = src.slice(idx, nextFn);
+    assert.ok(body.includes("if (needsDriver || enrollmentActive || pagatClock)"));
+    assert.ok(body.includes("processRobotActions(sessionObj, scores)"));
+    assert.equal(body.includes("needsEnrollment"), false);
+    assert.equal(body.includes("sessionNeedsEnrollmentDriver"), false);
+  });
+
+  it("msSinceLastRobot is null until a robot has played", () => {
+    assert.ok(src.includes("lastRobotTrickAt > 0 ? Date.now() - lastRobotTrickAt : null"));
+  });
 });

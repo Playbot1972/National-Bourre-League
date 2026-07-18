@@ -1158,6 +1158,7 @@ let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
+/** Epoch ms when a client-driven robot last played; 0 = none yet this session view. */
 let lastRobotTrickAt = 0;
 let sessionOrchestrationTimer = null;
 let sessionOrchestrationCoalesce = false;
@@ -3408,15 +3409,15 @@ function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {
   const enrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
   const pagatClock = isPagatHandClock(sessionObj);
   const needsDriver = sessionNeedsBotDriver(sessionObj, scores);
-  const needsEnrollment = sessionNeedsEnrollmentDriver(sessionObj);
 
-  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver || needsEnrollment)) {
+  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver)) {
     startEnrollmentTimer();
   } else if (!enrollmentActive && !pagatClock && !needsDriver) {
     stopEnrollmentTimer();
   }
 
-  if (needsDriver || needsEnrollment || enrollmentActive || pagatClock) {
+  // Only wake bot paths when a driver is actually needed — not on every human turn.
+  if (needsDriver || enrollmentActive || pagatClock) {
     processRobotActions(sessionObj, scores);
   }
 }
@@ -3807,7 +3808,7 @@ function snapshotGameFlowContext(s, scores) {
     trickAnimBusy: isRawTablePresentationBusy(),
     presentationGate: snapshotTablePresentationGate(),
     robotActionInFlight,
-    msSinceLastRobot: Date.now() - lastRobotTrickAt,
+    msSinceLastRobot: lastRobotTrickAt > 0 ? Date.now() - lastRobotTrickAt : null,
   };
 }
 
