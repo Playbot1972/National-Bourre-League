@@ -314,6 +314,33 @@ export function animateTrumpMerge(card: HTMLElement): gsap.core.Animation {
   );
 }
 
+/** Brief felt/table compress after trick collection — calms trick-to-trick handoff. */
+export function animateTableTrickSettle(tableFelt: HTMLElement): gsap.core.Animation {
+  ensureMotion();
+  if (prefersReducedMotion()) {
+    return gsap.to(tableFelt, { duration: 0 });
+  }
+  gsap.set(tableFelt, { transformOrigin: "50% 48%", willChange: "transform" });
+  return trackTween(
+    tableFelt,
+    gsap.fromTo(
+      tableFelt,
+      { scale: 1, filter: "brightness(1)" },
+      {
+        scale: 0.988,
+        filter: "brightness(0.97)",
+        duration: scaledDuration(0.2),
+        ease: PREMIUM_EASE_IN_OUT,
+        yoyo: true,
+        repeat: 1,
+        onComplete: () => {
+          gsap.set(tableFelt, { clearProps: "transform,filter,willChange" });
+        },
+      },
+    ),
+  );
+}
+
 /** Lift card in hand before play (physical pick-up). */
 export function animatePlayLift(card: HTMLElement): gsap.core.Animation {
   ensureMotion();

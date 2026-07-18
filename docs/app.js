@@ -1195,7 +1195,7 @@ let robotPresentationUnsub = null;
 const clientBotThinkSchedule = createBotThinkScheduleState();
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
-const TRICK_PIPELINE_MS = 2630;
+const TRICK_PIPELINE_MS = 2670;
 const BOT_PLAY_STAGGER_MS = 380;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
 /** After settlement, force-open the next join window if auto-open stalls. */

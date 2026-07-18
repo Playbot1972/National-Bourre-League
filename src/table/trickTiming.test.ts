@@ -188,7 +188,7 @@ describe("trickTiming", () => {
   });
 
   it("live inter-player reveal stagger stays within the readability band", () => {
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 250 && CARD_REVEAL_STAGGER_MS <= 400);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
   });
 
   it("final-hand presentation watchdog covers staggered bot reveals plus resolution", () => {

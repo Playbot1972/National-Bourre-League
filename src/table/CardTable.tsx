@@ -16,6 +16,7 @@ import {
   TRICK_CARD_TRAVEL_MS,
   TRICK_RAKE_MS,
   TRICK_SWEEP_MS,
+  TRICK_TABLE_SETTLE_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
 import { handTimingScale } from "./handPresentationTiming";
@@ -28,6 +29,7 @@ import { useTableAntePresentation } from "./hooks/useTableAntePresentation";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
+import { useTrickTableSettle } from "./hooks/useTrickTableSettle";
 import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -230,6 +232,7 @@ export function CardTable({
     onTrickCollectionStart: cardAudio.onTrickCollectionStart,
     onCollectionComplete: trickPresentation.completeTrickCollection,
   });
+  useTrickTableSettle(trickPresentation.phase, wrapRef);
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
       isPlayerAtBourreRisk(
@@ -348,6 +351,7 @@ export function CardTable({
         ["--trick-rake-ms" as string]: `${TRICK_RAKE_MS}ms`,
         ["--trick-post-read-ms" as string]: `${POST_TRICK_READ_MS}ms`,
         ["--trick-next-lead-gap-ms" as string]: `${NEXT_LEAD_GAP_MS}ms`,
+        ["--trick-table-settle-ms" as string]: `${TRICK_TABLE_SETTLE_MS}ms`,
         ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,
         ["--deal-card-stagger-ms" as string]: `${handTiming.dealCardStaggerMs}ms`,
         ["--draw-discard-ms" as string]: `${handTiming.drawDiscardMs}ms`,
