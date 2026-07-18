@@ -274,17 +274,36 @@
     forwards;
 }
 
+.btrick__play--hero-handoff.btrick__play--fly-from-hand .pcard {
+  --trick-ease-fly: cubic-bezier(0.18, 0.88, 0.22, 1);
+  --trick-card-travel-ms: calc(var(--anim-trick-fly-ms, 520ms) * 1.18);
+}
+
 .btrick__play--fly-shallow.btrick__play--fly-from-hand .pcard {
   --trick-ease-fly: cubic-bezier(0.14, 0.92, 0.18, 1);
 }
 
 @keyframes btrick-fly-from-hand {
   0% {
-    transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 0) scale(0.92);
-    opacity: 0.86;
+    transform: translate3d(var(--fly-dx, 0), var(--fly-dy, 0), 14px) scale(0.88) rotateZ(-3deg);
+    opacity: 0.82;
+  }
+  42% {
+    transform: translate3d(
+        calc(var(--fly-dx, 0) * 0.38),
+        calc(var(--fly-dy, 0) * 0.38 - 16px),
+        26px
+      )
+      scale(0.95)
+      rotateZ(1.5deg);
+    opacity: 0.94;
+  }
+  76% {
+    transform: translate3d(0, 4px, 2px) scale(1.035) rotateZ(0.4deg);
+    opacity: 1;
   }
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1) rotateZ(0deg);
     opacity: 1;
   }
 }

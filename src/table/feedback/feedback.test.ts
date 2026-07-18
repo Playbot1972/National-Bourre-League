@@ -79,8 +79,9 @@ describe("sound pack registry", () => {
     );
   });
 
-  it("batch-1 cardPlace tier 1 aliases to card-place-normal (soft deferred)", () => {
-    assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-normal");
+  it("batch-1 cardPlace tier 0–1 resolve to card-place-soft", () => {
+    assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 0 }), "card-place-soft");
+    assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 1 }), "card-place-soft");
     assert.equal(resolveSoundAsset("classic", "cardPlace", { intensityTier: 2 }), "card-place-heavy");
   });
 

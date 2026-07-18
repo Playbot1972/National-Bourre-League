@@ -191,6 +191,17 @@
     );
   pointer-events: none;
   mix-blend-mode: soft-light;
+  animation: bfelt-ambient-breathe 12s ease-in-out infinite;
+}
+
+@keyframes bfelt-ambient-breathe {
+  0%,
+  100% {
+    opacity: 0.88;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 .table-oval .btable__felt::after {
@@ -595,6 +606,27 @@
   padding-top: clamp(10px, 2.5vmin, 20px);
 }
 
+/* Soft pulse on hero hand + avatar area when it's your turn */
+.btable-hero--your-turn .btable-hero__hand-row {
+  animation: bhero-turn-hand-pulse 2.4s ease-in-out infinite;
+}
+
+.btable-hero--your-turn .btable-hero__hand-row .hand--fan .hand__slot .pcard:not(.pcard--disabled) {
+  box-shadow: 0 0 0 1px rgba(244, 213, 141, 0.12);
+}
+
+@keyframes bhero-turn-hand-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgba(244, 213, 141, 0));
+    transform: translateY(0);
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgba(244, 213, 141, 0.22));
+    transform: translateY(-2px);
+  }
+}
+
 .btable-sr-only {
   position: absolute;
   width: 1px;
@@ -829,7 +861,21 @@
 }
 
 .btrick__play--leading .pcard--trick-leading {
-  transform: translateY(-2px) scale(1.01);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.btrick__play--leading .pcard--winner {
+  animation: btrick-leading-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes btrick-leading-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 4px 10px rgba(54, 185, 124, 0.32));
+  }
+  50% {
+    filter: drop-shadow(0 6px 16px rgba(54, 185, 124, 0.5));
+  }
 }
 
 .btrick__play--winner .pcard--winner {
@@ -1542,10 +1588,44 @@
 }
 
 .bseat--active-actor .bseat__avatar-wrap {
-  /* Ring carries turn emphasis — keep default avatar pose. */
+  animation: bseat-active-actor-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes bseat-active-actor-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.45),
+      0 0 0 2px rgba(244, 213, 141, 0.22);
+  }
+  50% {
+    box-shadow:
+      0 2px 10px rgba(0, 0, 0, 0.5),
+      0 0 0 3px rgba(244, 213, 141, 0.42),
+      0 0 18px rgba(244, 213, 141, 0.18);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .table-oval .btable__felt::before {
+    animation: none;
+    opacity: 0.92;
+  }
+
+  .btable-hero--your-turn .btable-hero__hand-row {
+    animation: none;
+    filter: none;
+    transform: none;
+  }
+
+  .bseat--active-actor .bseat__avatar-wrap {
+    animation: none;
+  }
+
+  .btrick__play--leading .pcard--winner {
+    animation: none;
+  }
+
   .bseat__turn-countdown-progress {
     transition: stroke 200ms ease, stroke-dashoffset 300ms linear;
   }
