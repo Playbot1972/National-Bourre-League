@@ -33,6 +33,7 @@ import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
 import { isHeroDrawOrPlayTurn, resolveSuppressTurnForHero } from "./localAction";
+import { isRevealCatchUpBusy } from "./matchKey";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
@@ -243,6 +244,12 @@ export function CardTable({
     session,
     currentUserId,
   });
+  const revealCatchUpActive = isRevealCatchUpBusy({
+    phase: trickPresentation.phase,
+    revealedCount: trickPresentation.revealedCount,
+    revealTarget: trickPresentation.revealTarget,
+    serverTrickPlays: session.currentTrick?.plays?.length ?? 0,
+  });
 
   const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
@@ -393,6 +400,7 @@ export function CardTable({
             potTick={microinteractions.potTick}
             trumpReminderPulse={microinteractions.trumpReminderPulse}
             instantTrickPlays={instantTrickPlays}
+            revealCatchUp={revealCatchUpActive}
             peakTrickPlayCount={trickPresentation.peakPlayCount}
             discardPileCards={discardPileCards}
             currentUserId={currentUserId}

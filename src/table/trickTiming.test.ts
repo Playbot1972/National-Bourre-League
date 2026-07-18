@@ -3,11 +3,15 @@ import { describe, it } from "node:test";
 import {
   BOT_PLAY_STAGGER_MS,
   CARD_LAND_MS,
+  CARD_REVEAL_CATCHUP_STAGGER_MS,
   CARD_REVEAL_STAGGER_MS,
   completedTrickPlays,
+  cardRevealStaggerMs,
   currentTrickLeaderId,
   detectTrickResolution,
+  estimateRevealCatchUpDrainMs,
   FINAL_HAND_TRICK_PRESENTATION_MS,
+  isRevealCatchUpMode,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
   suppressesTurnIndicator,
@@ -16,6 +20,7 @@ import {
   trumpBeatLedSuit,
   WINNER_REVEAL_MS,
 } from "./trickTiming";
+import { isRevealCatchUpBusy } from "./matchKey";
 
 describe("trickTiming", () => {
   it("finds trick winner from tricks delta", () => {
@@ -185,5 +190,53 @@ describe("trickTiming", () => {
       CARD_REVEAL_STAGGER_MS * 7 + CARD_LAND_MS + trickResolutionScheduleMs({}).pipelineMs;
     assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= minimum);
     assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 6500);
+  });
+});
+
+describe("revealCatchUp pacing", () => {
+  it("uses faster cadence than live reveal", () => {
+    const live = cardRevealStaggerMs({ catchUp: false });
+    const catchUp = cardRevealStaggerMs({ catchUp: true });
+    assert.ok(catchUp < live);
+    assert.equal(catchUp, CARD_REVEAL_CATCHUP_STAGGER_MS);
+    assert.equal(live, CARD_REVEAL_STAGGER_MS);
+  });
+
+  it("drains a backlog of 5 within the target timing budget", () => {
+    const drainMs = estimateRevealCatchUpDrainMs(5);
+    assert.ok(drainMs >= 800, `expected >= 800ms, got ${drainMs}`);
+    assert.ok(drainMs <= 1200, `expected <= 1200ms, got ${drainMs}`);
+  });
+
+  it("presentation gate clears when catch-up reveal count reaches target", () => {
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 4,
+        revealTarget: 5,
+        serverTrickPlays: 5,
+      }),
+      true,
+    );
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 5,
+        revealTarget: 5,
+        serverTrickPlays: 5,
+      }),
+      false,
+    );
+  });
+
+  it("detects catch-up mode only while behind authoritative play count", () => {
+    assert.equal(isRevealCatchUpMode(0, 5, 5), true);
+    assert.equal(isRevealCatchUpMode(5, 5, 5), false);
+    assert.equal(isRevealCatchUpMode(0, 5, 0), false);
+  });
+
+  it("normal live reveal timing remains unchanged", () => {
+    assert.equal(cardRevealStaggerMs({ catchUp: false }), CARD_REVEAL_STAGGER_MS);
+    assert.ok(CARD_REVEAL_STAGGER_MS > CARD_REVEAL_CATCHUP_STAGGER_MS * 3);
   });
 });

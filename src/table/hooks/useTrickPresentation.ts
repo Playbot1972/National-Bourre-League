@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useCallback } from "react";
 import {
   CARD_LAND_MS,
-  CARD_REVEAL_STAGGER_MS,
   FINAL_HAND_TRICK_PRESENTATION_MS,
+  REVEAL_CATCHUP_BATCH_THRESHOLD,
+  cardRevealStaggerMs,
+  isRevealCatchUpMode,
   prefersReducedMotion,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
@@ -440,19 +442,33 @@ export function useTrickPresentation({
     }
     if (revealTimerRef.current != null) return;
 
-    const timing = prefersReducedMotion()
-      ? Math.round(CARD_REVEAL_STAGGER_MS * 0.55)
-      : CARD_REVEAL_STAGGER_MS;
+    const serverPlays = currentTrick?.plays?.length ?? 0;
+    const catchUp = isRevealCatchUpMode(
+      store.revealedCount,
+      targetRevealRef.current,
+      serverPlays,
+    );
+    const backlog = targetRevealRef.current - store.revealedCount;
+    const reducedMotion = prefersReducedMotion();
+    const timing = cardRevealStaggerMs({ catchUp, reducedMotion });
+
     revealTimerRef.current = window.setTimeout(() => {
       revealTimerRef.current = null;
       if (presentationScopeRef.current !== presentationScopeKey(handNumber, serverTrickNumber(currentTrick))) {
         return;
       }
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("useTrickPresentation", "revealNextCard-timer", {
+        logGameFlow("useTrickPresentation", catchUp ? "revealNextCard-catchup" : "revealNextCard-timer", {
           revealedCount: store.revealedCount,
           targetReveal: targetRevealRef.current,
+          backlog,
+          timing,
+          batch: catchUp && backlog >= REVEAL_CATCHUP_BATCH_THRESHOLD,
         });
+      }
+      if (catchUp && backlog >= REVEAL_CATCHUP_BATCH_THRESHOLD) {
+        dispatch({ type: "revealThroughCount", count: targetRevealRef.current });
+        return;
       }
       dispatch({ type: "revealNextCard" });
     }, timing);

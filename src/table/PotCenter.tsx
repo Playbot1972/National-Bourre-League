@@ -48,6 +48,8 @@ interface PotCenterProps {
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
   instantTrickPlays?: boolean;
+  /** Fast-path fly/reveal while draining authoritative trick backlog. */
+  revealCatchUp?: boolean;
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
   discardPileCards?: DiscardPileCard[];
@@ -87,6 +89,7 @@ export function PotCenter({
   trumpMergeActive = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
   instantTrickPlays = false,
+  revealCatchUp = false,
   peakTrickPlayCount = 0,
   discardPileCards = [],
   currentUserId = null,
@@ -281,6 +284,7 @@ export function PotCenter({
               presentationPhase={trickPresentationPhase}
               playerNames={playerNames}
               instantTrickPlays={instantTrickPlays}
+              revealCatchUp={revealCatchUp}
               peakCardCount={peakTrickPlayCount}
               participantCount={participantCount}
               currentUserId={currentUserId}

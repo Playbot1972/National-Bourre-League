@@ -16,7 +16,8 @@ import {
 } from "./heroPlayHandoff";
 import {
   prefersReducedMotion,
-  TRICK_CARD_TRAVEL_MS,
+  batchTrickFlyStaggerMs,
+  trickCardTravelMs,
 } from "./trickTiming";
 import {
   trickSlotAwaitingFly,
@@ -24,9 +25,6 @@ import {
 } from "./trickPlaySlotFlyState";
 import type { TrickPlay, TrickPresentationPhase } from "./trickTiming";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
-
-/** Stagger fly starts when several plays appear in one reveal batch. */
-const BATCH_TRICK_FLY_STAGGER_MS = 72;
 
 export interface CardLandedAudioCallbackInput {
   cardId: string;
@@ -49,6 +47,8 @@ interface TrickPlaySlotProps {
   winnerPlayerId?: string | null;
   /** Skip fly animation for non-live echo / hold rows only. */
   instantPlace?: boolean;
+  /** Compress fly timing while draining authoritative backlog. */
+  revealCatchUp?: boolean;
   currentUserId?: string | null;
   onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
 }
@@ -114,6 +114,7 @@ export function TrickPlaySlot({
   leaderPlayerId = null,
   winnerPlayerId = null,
   instantPlace: _instantPlace = false,
+  revealCatchUp = false,
   currentUserId = null,
   onCardLanded,
 }: TrickPlaySlotProps) {
@@ -227,10 +228,11 @@ export function TrickPlaySlot({
     }
 
     const reduced = prefersReducedMotion();
-    const baseTravelMs = reduced ? Math.round(TRICK_CARD_TRAVEL_MS * 0.55) : TRICK_CARD_TRAVEL_MS;
+    const baseTravelMs = trickCardTravelMs({ catchUp: revealCatchUp, reducedMotion: reduced });
+    const flyStaggerStep = batchTrickFlyStaggerMs(revealCatchUp);
     const flyStaggerMs =
       displayCountRef.current > 1 && index < displayCountRef.current - 1
-        ? index * BATCH_TRICK_FLY_STAGGER_MS
+        ? index * flyStaggerStep
         : 0;
 
     const startFlight = () => {
@@ -306,6 +308,7 @@ export function TrickPlaySlot({
     play.playerId,
     playKey,
     handoffGateTick,
+    revealCatchUp,
   ]);
 
   const flyStyle: CSSProperties = {

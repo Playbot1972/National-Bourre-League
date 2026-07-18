@@ -19,6 +19,72 @@ export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 /** Stagger between revealing trick cards — slightly after land so prior card finishes. */
 export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
 
+/** Fast stagger while draining authoritative backlog (revealCatchUp). */
+export const CARD_REVEAL_CATCHUP_STAGGER_MS = 160;
+
+/** Compressed card travel during revealCatchUp backlog drain. */
+export const TRICK_CARD_TRAVEL_CATCHUP_MS = 200;
+
+/** Inter-card fly stagger inside a batched catch-up reveal batch. */
+export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 48;
+
+/** Backlog at or above this uses revealThroughCount in one cadence step. */
+export const REVEAL_CATCHUP_BATCH_THRESHOLD = 6;
+
+/** Estimated ms to drain a catch-up backlog (stagger + final travel). */
+export function estimateRevealCatchUpDrainMs(
+  backlog: number,
+  options: { reducedMotion?: boolean } = {},
+): number {
+  if (backlog <= 0) return 0;
+  const reduced = options.reducedMotion === true;
+  if (backlog >= REVEAL_CATCHUP_BATCH_THRESHOLD) {
+    const travel = trickCardTravelMs({ catchUp: true, reducedMotion: reduced });
+    const flyStagger = BATCH_TRICK_FLY_CATCHUP_STAGGER_MS * Math.max(0, backlog - 1);
+    const leadMs = cardRevealStaggerMs({ catchUp: true, reducedMotion: reduced });
+    return leadMs + travel + flyStagger;
+  }
+  const stagger = cardRevealStaggerMs({ catchUp: true, reducedMotion: reduced });
+  const travel = trickCardTravelMs({ catchUp: true, reducedMotion: reduced });
+  return stagger * Math.max(0, backlog - 1) + travel;
+}
+
+export function revealCatchUpBacklog(revealedCount: number, targetReveal: number): number {
+  return Math.max(0, targetReveal - revealedCount);
+}
+
+export function isRevealCatchUpMode(
+  revealedCount: number,
+  targetReveal: number,
+  serverTrickPlays: number,
+): boolean {
+  return (
+    serverTrickPlays > 0 &&
+    revealedCount < targetReveal &&
+    revealCatchUpBacklog(revealedCount, targetReveal) > 0
+  );
+}
+
+export function cardRevealStaggerMs(options: {
+  catchUp: boolean;
+  reducedMotion?: boolean;
+}): number {
+  const base = options.catchUp ? CARD_REVEAL_CATCHUP_STAGGER_MS : CARD_REVEAL_STAGGER_MS;
+  return options.reducedMotion ? Math.round(base * 0.55) : base;
+}
+
+export function trickCardTravelMs(options: {
+  catchUp: boolean;
+  reducedMotion?: boolean;
+}): number {
+  const base = options.catchUp ? TRICK_CARD_TRAVEL_CATCHUP_MS : TRICK_CARD_TRAVEL_MS;
+  return options.reducedMotion ? Math.round(base * 0.55) : base;
+}
+
+export function batchTrickFlyStaggerMs(catchUp: boolean): number {
+  return catchUp ? BATCH_TRICK_FLY_CATCHUP_STAGGER_MS : 72;
+}
+
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 380;
 

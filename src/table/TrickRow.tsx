@@ -14,6 +14,7 @@ interface TrickRowProps {
   /** Presentation-only: CSS-driven final-trick echo when the live row clears early. */
   variant?: "live" | "echo";
   instantTrickPlays?: boolean;
+  revealCatchUp?: boolean;
   /** Peak play count — reserves trick row width so the center cluster does not reflow mid-trick. */
   peakCardCount?: number;
   /** Seated players in the hand — reserves full trick width from trick start. */
@@ -32,6 +33,7 @@ export function TrickRow({
   playerNames = {},
   variant = "live",
   instantTrickPlays: _instantTrickPlays = false,
+  revealCatchUp = false,
   peakCardCount = 0,
   participantCount = 0,
   currentUserId = null,
@@ -141,6 +143,7 @@ export function TrickRow({
               leaderPlayerId={leaderPlayerId}
               winnerPlayerId={winnerPlayerId}
               instantPlace={false}
+              revealCatchUp={revealCatchUp}
               currentUserId={currentUserId}
               onCardLanded={onCardLanded}
             />
