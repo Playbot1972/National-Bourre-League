@@ -6,6 +6,7 @@ import {
   antePresentationFlightMs,
 } from "../handPresentationTiming";
 import { PREMIUM_EASE, prefersReducedMotion, scaledDuration } from "./motionTokens";
+import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 
 const ACTIVE_ANTE_TIMELINES = new Set<gsap.core.Timeline>();
@@ -131,19 +132,84 @@ export function runAntePresentation({
         const dx = targetCx - ghostCx;
         const dy = targetCy - ghostCy;
 
-        gsap.set(ghost, { x, y, opacity: reduced ? 1 : 0.85, scale: 0.9 });
-        gsap.to(ghost, {
-          x: dx,
-          y: dy,
-          opacity: 1,
-          scale: 1,
-          duration: travelSec,
-          ease: PREMIUM_EASE,
-          onComplete: () => {
-            ghost.remove();
-            markLanded(playerId);
-          },
+        const { midX, midY } = {
+          midX: dx * 0.38,
+          midY: dy * 0.38 - Math.max(18, Math.hypot(dx, dy) * 0.18),
+        };
+
+        gsap.set(ghost, {
+          x,
+          y,
+          opacity: reduced ? 1 : 0.88,
+          scale: reduced ? 1 : 0.82,
+          rotation: reduced ? 0 : -28,
         });
+
+        const onLand = () => {
+          ghost.remove();
+          markLanded(playerId);
+        };
+
+        if (reduced) {
+          gsap.to(ghost, {
+            x: dx,
+            y: dy,
+            opacity: 1,
+            scale: 1,
+            rotation: 0,
+            duration: travelSec,
+            ease: PREMIUM_EASE,
+            onComplete: onLand,
+          });
+          return;
+        }
+
+        const flight = gsap.timeline({ onComplete: onLand });
+        flight.add(
+          tweenAlongArc(ghost, {
+            path: [
+              { x, y },
+              { x: x + midX, y: y + midY },
+              { x: dx, y: dy },
+            ],
+            curviness: 1.15,
+            opacity: 1,
+            duration: travelSec,
+            ease: PREMIUM_EASE,
+          }),
+          0,
+        );
+        flight.to(
+          ghost,
+          {
+            rotation: 18,
+            scale: 1.05,
+            duration: travelSec * 0.55,
+            ease: PREMIUM_EASE,
+          },
+          0,
+        );
+        flight.to(
+          ghost,
+          {
+            rotation: 0,
+            scale: 1,
+            duration: travelSec * 0.45,
+            ease: PREMIUM_EASE,
+          },
+          travelSec * 0.55,
+        );
+        flight.to(
+          ghost,
+          {
+            scale: 0.96,
+            duration: travelSec * 0.12,
+            yoyo: true,
+            repeat: 1,
+            ease: "power1.inOut",
+          },
+          travelSec * 0.82,
+        );
       },
       undefined,
       position,

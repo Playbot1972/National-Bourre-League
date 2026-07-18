@@ -11,19 +11,19 @@
   --anim-deal-ms: 720ms;
   --anim-deal-stagger-ms: 130ms;
   --anim-play-lift-ms: 480ms;
-  --anim-trick-fly-ms: 395ms;
-  --anim-trick-land-ms: 395ms;
-  --anim-trick-settle-ms: 165ms;
+  --anim-trick-fly-ms: 520ms;
+  --anim-trick-land-ms: 520ms;
+  --anim-trick-settle-ms: 130ms;
   --anim-trick-shift-ms: 220ms;
-  --trick-card-travel-ms: 395ms;
-  --trick-card-settle-ms: 165ms;
+  --trick-card-travel-ms: 520ms;
+  --trick-card-settle-ms: 130ms;
   --trick-card-shift-ms: 220ms;
-  --trick-card-land-ms: 560ms;
+  --trick-card-land-ms: 650ms;
   --trick-ease-fly: cubic-bezier(0.22, 1, 0.36, 1);
   --trick-ease-shift: cubic-bezier(0.2, 0, 0, 1);
   --trick-ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --trick-sweep-ms: 900ms;
-  --trick-winner-highlight-ms: 525ms;
+  --trick-sweep-ms: 780ms;
+  --trick-winner-highlight-ms: 380ms;
 }
 
 /* --- Clockwise deal: invisible anchors beside avatar (never over the face) --- */
@@ -77,6 +77,32 @@
   opacity: 1 !important;
   visibility: visible;
   pointer-events: auto;
+}
+
+/* Deal reveal — surface glow only (GSAP disables transform on .pcard) */
+.btable-wrap--clockwise-dealing [data-deal-seat].deal-card--revealed .pcard .pcard__surface {
+  animation: bdeal-surface-reveal 200ms var(--premium-ease-bounce) backwards;
+}
+
+@keyframes bdeal-surface-reveal {
+  0% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      0 0 0 rgba(244, 213, 141, 0);
+    filter: brightness(0.92);
+  }
+  55% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.85),
+      0 0 12px rgba(244, 213, 141, 0.28);
+    filter: brightness(1.04);
+  }
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.65),
+      0 0 0 rgba(244, 213, 141, 0);
+    filter: none;
+  }
 }
 
 /* Trump upcard — hide until deal lands unless already revealed in trump phase */
@@ -271,11 +297,15 @@
 @keyframes btrick-card-land {
   0% {
     opacity: 0;
-    transform: translate3d(0, -16px, 0) scale(0.94);
+    transform: translate3d(0, -18px, 0) scale(0.93) rotateZ(-2deg);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(0, 2px, 0) scale(1.02) rotateZ(0.5deg);
   }
   100% {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1) rotateZ(0deg);
   }
 }
 
@@ -310,16 +340,16 @@
 
 @keyframes btrick-winner-emphasis {
   0% {
-    transform: scale(1);
+    transform: scale(1) translateY(0);
     filter: drop-shadow(0 0 0 rgba(54, 185, 124, 0));
   }
-  18% {
-    transform: scale(1.02);
-    filter: drop-shadow(0 4px 10px rgba(54, 185, 124, 0.35));
+  22% {
+    transform: scale(1.025) translateY(-2px);
+    filter: drop-shadow(0 5px 12px rgba(54, 185, 124, 0.42));
   }
   100% {
-    transform: scale(1.02);
-    filter: drop-shadow(0 6px 14px rgba(54, 185, 124, 0.4));
+    transform: scale(1.02) translateY(-1px);
+    filter: drop-shadow(0 4px 10px rgba(54, 185, 124, 0.36));
   }
 }
 
@@ -357,7 +387,7 @@
 
 /* Trick won — winner seat glow while cards fly to pile anchor */
 .bseat--trick-capture .bseat__avatar-wrap {
-  animation: bseat-book-receive 520ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: bseat-book-receive var(--trick-card-travel-ms, 520ms) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes bseat-book-receive {
@@ -628,6 +658,7 @@
   .bseat__hole-card,
   .bseat--trick-capture .bseat__avatar-wrap,
   .bseat--trick-capture.bseat--pile-reveal-ready .bseat__won-trick-pile-card:last-child,
+  .btable-wrap--clockwise-dealing [data-deal-seat].deal-card--revealed .pcard .pcard__surface,
   [data-gsap-motion="true"] .btrick--sweep .btrick__surface {
     animation-duration: 120ms !important;
   }

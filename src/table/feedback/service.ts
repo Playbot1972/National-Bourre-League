@@ -11,6 +11,7 @@ import {
   playOpenRoomSound,
   playShuffleSound,
   playTrickWinSound,
+  playAnteCoinSound,
   playUiButtonSound,
   ensureAudioUnlockedSync,
 } from "./audio";
@@ -31,6 +32,7 @@ export const DEAL_ANIM_DURATION_MS = 500;
 
 const SHUFFLE_COOLDOWN_MS = 700;
 const DRAW_COOLDOWN_MS = 500;
+const ANTE_COIN_COOLDOWN_MS = 72;
 const TRICK_WIN_COOLDOWN_MS = 450;
 const BIG_WIN_COOLDOWN_MS = 1200;
 const BOURRE_COOLDOWN_MS = 2000;
@@ -39,6 +41,7 @@ const ILLEGAL_ACTION_COOLDOWN_MS = 280;
 
 let lastShuffleAt = 0;
 let lastDrawAt = 0;
+let lastAnteCoinAt = 0;
 let lastTrickWinAt = 0;
 let lastBigWinAt = 0;
 let lastBourreAt = 0;
@@ -106,6 +109,14 @@ export function playDrawCountFeedback(cardCount: number): void {
   lastDrawAt = now;
   maybePlaySound("draw", () => playDrawCountSound(cardCount));
   fireHaptic("light");
+}
+
+/** Ante coin land — cosmetic accent synced to GSAP land; does not gate sequencing. */
+export function playAnteCoinLandFeedback(): void {
+  const now = Date.now();
+  if (now - lastAnteCoinAt < ANTE_COIN_COOLDOWN_MS) return;
+  lastAnteCoinAt = now;
+  maybePlaySound("trickCollect", playAnteCoinSound);
 }
 
 /** @deprecated Prefer playDrawCountFeedback on draw confirm; generic fallback only. */
