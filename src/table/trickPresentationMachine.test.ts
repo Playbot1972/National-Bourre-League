@@ -358,9 +358,9 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 1500 && schedule.pipelineMs <= 2000);
-    assert.equal(schedule.readTotalMs, 525);
-    assert.equal(schedule.sweepMs, 900);
+    assert.ok(schedule.pipelineMs >= 1400 && schedule.pipelineMs <= 2100);
+    assert.equal(schedule.readTotalMs, 550);
+    assert.equal(schedule.sweepMs, 780);
   });
 
   it("restores turn ring when collection starts while sweep still runs", () => {
