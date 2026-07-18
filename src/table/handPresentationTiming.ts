@@ -21,7 +21,7 @@ export const DEAL_CARD_STAGGER_MS = 130;
 export const DEAL_FAN_MS = 600;
 
 /** Dealer upcard / trump reveal hold (readable beat before deal). */
-export const TRUMP_REVEAL_HOLD_MS = 950;
+export const TRUMP_REVEAL_HOLD_MS = 3000;
 
 /** Trump merge into holder hand after first opening action (~480 ms). */
 export const TRUMP_MERGE_ANIM_MS = 480;

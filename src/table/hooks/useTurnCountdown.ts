@@ -14,6 +14,10 @@ import {
   type TurnCountdownState,
 } from "../turnCountdown";
 import { prefersReducedMotion } from "../trickTiming";
+import {
+  reportVisibleBotRingHidden,
+  reportVisibleBotRingShown,
+} from "../visibleBotRingBridge";
 
 export interface UseTurnCountdownResult {
   countdown: TurnCountdownState | null;
@@ -69,6 +73,53 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     return () => window.clearInterval(id);
   }, [activeActorId, activityKey, useBotWindow, botWindow?.turnKey]);
 
+  useEffect(() => {
+    const suppressed = input.suppressTurn || input.handComplete;
+    if (!useBotWindow || !botWindow || suppressed) {
+      if (botWindow?.turnKey) {
+        reportVisibleBotRingHidden({
+          turnKey: botWindow.turnKey,
+          reason: suppressed ? "turn_suppressed" : "not_bot_turn",
+          nowMs: Date.now(),
+        });
+      }
+      return;
+    }
+    if (botWindow.playerId !== activeActorId) {
+      reportVisibleBotRingHidden({
+        turnKey: botWindow.turnKey,
+        reason: "actor_mismatch",
+        nowMs: Date.now(),
+      });
+      return;
+    }
+
+    const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
+    const showTimer = window.setTimeout(() => {
+      reportVisibleBotRingShown({
+        turnKey: botWindow.turnKey,
+        playerId: botWindow.playerId,
+        nowMs: Date.now(),
+      });
+    }, activationMs);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      reportVisibleBotRingHidden({
+        turnKey: botWindow.turnKey,
+        reason: "ring_cleanup",
+        nowMs: Date.now(),
+      });
+    };
+  }, [
+    useBotWindow,
+    botWindow?.turnKey,
+    botWindow?.playerId,
+    activeActorId,
+    input.suppressTurn,
+    input.handComplete,
+  ]);
+
   let countdown: TurnCountdownState | null = null;
   if (activeActorId) {
     if (useBotWindow && botWindow) {
@@ -78,6 +129,7 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
         botWindow.totalMs,
         nowMs,
         TURN_RING_ACTIVATION_DELAY_MS,
+        botWindow.countingStartedAtMs,
       );
     } else if (!useBotWindow && startedAtRef.current != null) {
       countdown = buildTurnCountdownState(

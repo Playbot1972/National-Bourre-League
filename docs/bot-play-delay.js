@@ -1,12 +1,14 @@
 /**
  * Bot play-phase think delay — random submit window per turn; drives visible ring + submit gate.
+ * Submit may fire only after the avatar ring has been visibly active for chosenDelayMs (1500–3000).
  */
 
 export const BOT_PLAY_DELAY_MIN_MS = 1500;
 export const BOT_PLAY_DELAY_MAX_MS = 3000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
+export const BOT_VISIBLE_RING_POLL_MS = 50;
 
-/** @typedef {{ turnKey: string, playerId: string, startedAtMs: number, totalMs: number }} BotThinkWindowPayload */
+/** @typedef {{ turnKey: string, playerId: string, startedAtMs: number, totalMs: number, countingStartedAtMs?: number | null }} BotThinkWindowPayload */
 
 /** @type {((window: BotThinkWindowPayload | null) => void) | null} */
 let thinkWindowPublisher = null;
@@ -24,6 +26,12 @@ export function setBotThinkWindowPublisher(publisher) {
  */
 function publishThinkWindow(window) {
   thinkWindowPublisher?.(window);
+}
+
+function logVisibleRing(event, extra = {}) {
+  if (typeof console !== "undefined" && typeof console.debug === "function") {
+    console.debug(`[bot-visible-ring] ${event}`, extra);
+  }
 }
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
@@ -59,17 +67,23 @@ export function pickBotPlayDelayMs(rng = Math.random) {
 export function createBotPlayDelayState(options = {}) {
   const rng = options.rng ?? Math.random;
   let trackedHandNumber = null;
-  let turnEligibleKey = null;
-  let turnEligibleAtMs = 0;
+  let pendingTurnKey = null;
+  let pendingPlayerId = null;
+  /** @type {number | null} */
+  let visibleRingStartAtMs = null;
+  let visibleRingTurnKey = null;
   const delayByTurnKey = new Map();
 
   function syncHand(handNumber) {
     if (trackedHandNumber === handNumber) return;
     trackedHandNumber = handNumber;
-    turnEligibleKey = null;
-    turnEligibleAtMs = 0;
+    pendingTurnKey = null;
+    pendingPlayerId = null;
+    visibleRingStartAtMs = null;
+    visibleRingTurnKey = null;
     delayByTurnKey.clear();
     publishThinkWindow(null);
+    logVisibleRing("visible-ring-reset", { reason: "hand_change", handNumber });
   }
 
   function pickDelayForKey(turnKey) {
@@ -81,23 +95,129 @@ export function createBotPlayDelayState(options = {}) {
     return chosen;
   }
 
-  function markTurnEligible({ handNumber, trickNumber, turnPlayerId, nowMs }) {
+  function publishPendingWindow(turnKey, playerId, chosenDelayMs) {
+    if (!playerId) return;
+    publishThinkWindow({
+      turnKey,
+      playerId,
+      startedAtMs: visibleRingStartAtMs ?? 0,
+      countingStartedAtMs: visibleRingStartAtMs,
+      totalMs: chosenDelayMs,
+    });
+  }
+
+  /**
+   * Arm a bot turn — picks delay and publishes ring shell; visible timer starts on UI ack.
+   * @param {object} input
+   */
+  function prepareTurn({ handNumber, trickNumber, turnPlayerId, nowMs }) {
     syncHand(handNumber);
     const key = botPlayTurnKey({ handNumber, trickNumber, turnPlayerId });
-    if (turnEligibleKey !== key) {
-      turnEligibleKey = key;
-      turnEligibleAtMs = nowMs;
-      const chosenDelayMs = pickDelayForKey(key);
-      if (turnPlayerId) {
-        publishThinkWindow({
-          turnKey: key,
-          playerId: turnPlayerId,
-          startedAtMs: nowMs,
-          totalMs: chosenDelayMs,
-        });
-      }
+    const chosenDelayMs = pickDelayForKey(key);
+    if (pendingTurnKey !== key) {
+      pendingTurnKey = key;
+      pendingPlayerId = turnPlayerId ?? null;
+      visibleRingStartAtMs = null;
+      visibleRingTurnKey = null;
+      logVisibleRing("visible-ring-reset", {
+        reason: "turn_change",
+        turnKey: key,
+        chosenDelayMs,
+      });
+      publishPendingWindow(key, turnPlayerId, chosenDelayMs);
     }
-    return key;
+    return { turnKey: key, chosenDelayMs };
+  }
+
+  /** @deprecated Use prepareTurn — kept for callers that still mark eligibility. */
+  function markTurnEligible(input) {
+    return prepareTurn(input).turnKey;
+  }
+
+  /**
+   * UI reports the active bot avatar ring is visibly on screen.
+   * @param {object} input
+   * @param {string} input.turnKey
+   * @param {string} input.playerId
+   * @param {number} input.nowMs
+   * @param {(extra: object) => void} [input.log]
+   */
+  function notifyVisibleRingShown({ turnKey, playerId, nowMs, log }) {
+    if (!turnKey || pendingTurnKey !== turnKey) return false;
+    if (pendingPlayerId && playerId !== pendingPlayerId) return false;
+    if (visibleRingTurnKey === turnKey && visibleRingStartAtMs != null) {
+      return true;
+    }
+    visibleRingTurnKey = turnKey;
+    visibleRingStartAtMs = nowMs;
+    const chosenDelayMs = pickDelayForKey(turnKey);
+    publishThinkWindow({
+      turnKey,
+      playerId,
+      startedAtMs: nowMs,
+      countingStartedAtMs: nowMs,
+      totalMs: chosenDelayMs,
+    });
+    const payload = {
+      turnKey,
+      playerId,
+      visibleRingStartAt: nowMs,
+      chosenDelayMs,
+    };
+    log?.({ ...payload });
+    logVisibleRing("visible-ring-shown", payload);
+    return true;
+  }
+
+  /**
+   * Ring hidden, suppressed, or interrupted — only uninterrupted visible time counts.
+   * @param {object} input
+   */
+  function notifyVisibleRingHidden({ turnKey, reason, nowMs, log }) {
+    if (turnKey && visibleRingTurnKey !== turnKey && pendingTurnKey !== turnKey) return false;
+    const prevStart = visibleRingStartAtMs;
+    visibleRingStartAtMs = null;
+    visibleRingTurnKey = null;
+    if (pendingTurnKey && pendingPlayerId) {
+      const chosenDelayMs = pickDelayForKey(pendingTurnKey);
+      publishPendingWindow(pendingTurnKey, pendingPlayerId, chosenDelayMs);
+    } else {
+      publishThinkWindow(null);
+    }
+    const payload = {
+      turnKey: turnKey ?? pendingTurnKey,
+      reason,
+      previousVisibleRingStartAt: prevStart,
+      nowMs,
+    };
+    log?.(payload);
+    logVisibleRing("visible-ring-reset", payload);
+    return true;
+  }
+
+  /**
+   * @param {object} input
+   * @param {string} input.turnKey
+   * @param {number} input.nowMs
+   */
+  function getVisibleRingStatus({ turnKey, nowMs }) {
+    const chosenDelayMs = pickDelayForKey(turnKey);
+    const ringActive =
+      visibleRingTurnKey === turnKey && visibleRingStartAtMs != null && pendingTurnKey === turnKey;
+    const visibleRingElapsedMs = ringActive
+      ? Math.max(0, nowMs - visibleRingStartAtMs)
+      : 0;
+    const remainingVisibleMs = ringActive
+      ? Math.max(0, chosenDelayMs - visibleRingElapsedMs)
+      : chosenDelayMs;
+    return {
+      turnKey,
+      chosenDelayMs,
+      visibleRingStartAtMs: ringActive ? visibleRingStartAtMs : null,
+      visibleRingElapsedMs,
+      remainingVisibleMs,
+      visibleMinimumMet: ringActive && visibleRingElapsedMs >= chosenDelayMs,
+    };
   }
 
   /**
@@ -108,37 +228,40 @@ export function createBotPlayDelayState(options = {}) {
    * @param {number} input.nowMs
    */
   function resolvePlayDelayMs(input) {
-    syncHand(input.handNumber);
-    const key = markTurnEligible({
+    const { turnKey, chosenDelayMs } = prepareTurn({
       handNumber: input.handNumber,
       trickNumber: input.trickNumber,
       turnPlayerId: input.turnPlayerId,
       nowMs: input.nowMs,
     });
-    const chosenDelayMs = pickDelayForKey(key);
-    const elapsedSinceTurnMs = input.nowMs - turnEligibleAtMs;
-    const remainingTurnMs = Math.max(0, chosenDelayMs - elapsedSinceTurnMs);
+    const status = getVisibleRingStatus({ turnKey, nowMs: input.nowMs });
     return {
-      turnKey: key,
+      turnKey,
       chosenDelayMs,
-      elapsedSinceTurnMs,
+      elapsedSinceTurnMs: status.visibleRingElapsedMs,
       trickGapRemainingMs: 0,
-      delayMs: remainingTurnMs,
+      delayMs: status.remainingVisibleMs,
       remainingHandCount: null,
       isLastCard: false,
+      visibleRingStartAtMs: status.visibleRingStartAtMs,
+      visibleMinimumMet: status.visibleMinimumMet,
     };
   }
 
   return {
     syncHand,
+    prepareTurn,
     markTurnEligible,
+    notifyVisibleRingShown,
+    notifyVisibleRingHidden,
+    getVisibleRingStatus,
     resolvePlayDelayMs,
     delayByTurnKey,
   };
 }
 
 /**
- * Play-phase think scheduler — single pending timer per turn key, generation cancel.
+ * Play-phase think scheduler — polls until visible ring minimum + shouldFire.
  *
  * @param {object} [options]
  * @param {() => number} [options.rng]
@@ -149,6 +272,11 @@ export function createBotThinkScheduleState(options = {}) {
   let scheduleGeneration = 0;
   let pendingTurnKey = null;
   let pendingChosenDelayMs = null;
+
+  function schedulePoll(fn, delayMs) {
+    scheduledTimer = setTimeout(fn, delayMs);
+    scheduledTimer?.unref?.();
+  }
 
   function clearTimer() {
     if (scheduledTimer) {
@@ -184,10 +312,11 @@ export function createBotThinkScheduleState(options = {}) {
    * @param {{ handNumber: number, trickNumber: number|null, turnPlayerId: string|null, remainingHandCount?: number|null }} input.ctx
    * @param {number} input.nowMs
    * @param {() => boolean} input.shouldFire
+   * @param {() => { blocked?: boolean, revealCatchUp?: boolean, presentationBusy?: boolean, suppressing?: boolean }} [input.getPresentationState]
    * @param {(payload: { turnKey: string, generation: number, plan: object }) => void} input.onFire
-   * @param {{ armed?: Function, coalesced?: Function, rejected?: Function, accepted?: Function, delayChosen?: Function }} [input.log]
+   * @param {Record<string, Function>} [input.log]
    */
-  function armPlayThink({ ctx, nowMs, shouldFire, onFire, log }) {
+  function armPlayThink({ ctx, nowMs, shouldFire, getPresentationState, onFire, log }) {
     const turnKey = botPlayTurnKey(ctx);
     if (scheduledTimer && pendingTurnKey === turnKey) {
       log?.coalesced?.({
@@ -233,37 +362,110 @@ export function createBotThinkScheduleState(options = {}) {
       elapsedSinceTurnMs: plan.elapsedSinceTurnMs,
       remainingHandCount: plan.remainingHandCount,
       isLastCard: plan.isLastCard,
+      visibleRingStartAtMs: plan.visibleRingStartAtMs,
     });
 
-    scheduledTimer = setTimeout(() => {
+    const tick = () => {
       scheduledTimer = null;
       if (generation !== scheduleGeneration) return;
       if (pendingTurnKey !== turnKey) return;
-      pendingTurnKey = null;
-      pendingChosenDelayMs = null;
+
+      const now = Date.now();
+      const pres = getPresentationState?.() ?? {};
+      const status = playDelayState.getVisibleRingStatus({ turnKey, nowMs: now });
+
+      if (pres.blocked || pres.suppressing || pres.presentationBusy || pres.revealCatchUp) {
+        if (status.visibleRingStartAtMs != null) {
+          playDelayState.notifyVisibleRingHidden({
+            turnKey,
+            reason: pres.revealCatchUp
+              ? "reveal_catch_up"
+              : pres.suppressing
+                ? "turn_suppressed"
+                : "presentation_busy",
+            nowMs: now,
+            log: (extra) => log?.visibleRingReset?.(extra),
+          });
+        }
+        log?.submitBlocked?.({
+          turnKey,
+          generation,
+          reason: "presentation",
+          chosenDelayMs: status.chosenDelayMs,
+          visibleRingElapsedMs: status.visibleRingElapsedMs,
+          revealCatchUp: Boolean(pres.revealCatchUp),
+          presentationBusy: Boolean(pres.presentationBusy),
+          suppressing: Boolean(pres.suppressing),
+        });
+        scheduledTimer = setTimeout(tick, BOT_VISIBLE_RING_POLL_MS);
+        scheduledTimer?.unref?.();
+        return;
+      }
+
+      if (!status.visibleRingStartAtMs) {
+        log?.submitBlocked?.({
+          turnKey,
+          generation,
+          reason: "visible_ring_not_shown",
+          chosenDelayMs: status.chosenDelayMs,
+          visibleRingElapsedMs: 0,
+        });
+        schedulePoll(tick, BOT_VISIBLE_RING_POLL_MS);
+        return;
+      }
+
+      if (!status.visibleMinimumMet) {
+        log?.submitBlocked?.({
+          turnKey,
+          generation,
+          reason: "visible_minimum_not_met",
+          chosenDelayMs: status.chosenDelayMs,
+          visibleRingElapsedMs: status.visibleRingElapsedMs,
+          remainingVisibleMs: status.remainingVisibleMs,
+        });
+        schedulePoll(
+          tick,
+          Math.min(BOT_VISIBLE_RING_POLL_MS, Math.max(16, status.remainingVisibleMs)),
+        );
+        return;
+      }
 
       if (!shouldFire()) {
         log?.rejected?.({
           turnKey,
           generation,
-          chosenDelayMs: plan.chosenDelayMs,
-          remainingHandCount: plan.remainingHandCount,
+          chosenDelayMs: status.chosenDelayMs,
+          visibleRingElapsedMs: status.visibleRingElapsedMs,
+          remainingHandCount: ctx.remainingHandCount ?? null,
           isLastCard: plan.isLastCard,
         });
         return;
       }
 
+      pendingTurnKey = null;
+      pendingChosenDelayMs = null;
+      log?.submitAllowed?.({
+        turnKey,
+        generation,
+        chosenDelayMs: status.chosenDelayMs,
+        visibleRingElapsedMs: status.visibleRingElapsedMs,
+        delayMs: status.chosenDelayMs,
+        remainingHandCount: ctx.remainingHandCount ?? null,
+        isLastCard: plan.isLastCard,
+      });
       log?.accepted?.({
         turnKey,
         generation,
-        chosenDelayMs: plan.chosenDelayMs,
-        delayMs: plan.delayMs,
-        remainingHandCount: plan.remainingHandCount,
+        chosenDelayMs: status.chosenDelayMs,
+        delayMs: status.chosenDelayMs,
+        visibleRingElapsedMs: status.visibleRingElapsedMs,
+        remainingHandCount: ctx.remainingHandCount ?? null,
         isLastCard: plan.isLastCard,
       });
-      onFire({ turnKey, generation, plan });
-    }, plan.delayMs);
+      onFire({ turnKey, generation, plan: { ...plan, ...status } });
+    };
 
+    schedulePoll(tick, BOT_VISIBLE_RING_POLL_MS);
     return { action: "armed", turnKey, generation, ...plan };
   }
 

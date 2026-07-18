@@ -157,21 +157,21 @@ describe("trickTiming", () => {
     );
     assert.equal(trumpBeat, true);
     assert.equal(postTrickReadMs({ trumpBeat: true }), 1300);
-    assert.equal(postTrickReadMs({}), 1100);
+    assert.equal(postTrickReadMs({}), 1725);
   });
 
   it("schedules winner reveal after the post-trick read hold", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readBeforeWinnerMs, 1100);
+    assert.equal(schedule.readBeforeWinnerMs, 1725);
     assert.equal(schedule.winnerRevealMs, 650);
-    assert.equal(schedule.readTotalMs, 1750);
+    assert.equal(schedule.readTotalMs, 2375);
   });
 
   it("suppresses turn ring during read, winner glow, and sweep", () => {
     assert.equal(suppressesTurnIndicator("trickComplete"), true);
     assert.equal(suppressesTurnIndicator("winnerReveal"), true);
     assert.equal(suppressesTurnIndicator("collectTrick"), true);
-    assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
+    assert.equal(suppressesTurnIndicator("nextLeadReady"), true);
     assert.equal(suppressesTurnIndicator("live"), false);
   });
 
@@ -188,7 +188,7 @@ describe("trickTiming", () => {
   });
 
   it("live inter-player reveal stagger stays within the readability band", () => {
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 600 && CARD_REVEAL_STAGGER_MS <= 670);
   });
 
   it("final-hand presentation watchdog covers staggered bot reveals plus resolution", () => {
@@ -246,12 +246,17 @@ describe("revealCatchUp pacing", () => {
     assert.equal(isRevealCatchUpMode(0, 5, 5), true);
     assert.equal(isRevealCatchUpMode(5, 5, 5), false);
     assert.equal(isRevealCatchUpMode(0, 5, 0), false);
+    assert.equal(isRevealCatchUpMode(0, 1, 1), false);
   });
 
   it("resolveTrickPresentationTimingMode exposes only live and catch-up", () => {
     assert.equal(
       resolveTrickPresentationTimingMode({ revealedCount: 0, targetReveal: 3, serverTrickPlays: 3 }),
       "catch-up",
+    );
+    assert.equal(
+      resolveTrickPresentationTimingMode({ revealedCount: 0, targetReveal: 1, serverTrickPlays: 1 }),
+      "live",
     );
     assert.equal(
       resolveTrickPresentationTimingMode({ revealedCount: 3, targetReveal: 3, serverTrickPlays: 3 }),
