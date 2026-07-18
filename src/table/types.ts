@@ -69,7 +69,7 @@ export interface TablePlayer {
   /** Enrollment join/pass pulse from presentation layer. */
   enrollmentPulse?: "join" | "pass" | null;
   /** Active draw animation sub-phase at this seat. */
-  drawAnimSubPhase?: "discard" | "receive" | "done" | null;
+  drawAnimSubPhase?: "ring" | "discard" | "receive" | "done" | null;
   drawDiscardCount?: number;
   drawReplaceCount?: number;
   /** Ape Score ranking — public leaderboard data, not private hand info. */

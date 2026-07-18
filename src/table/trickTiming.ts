@@ -5,10 +5,10 @@ import { totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
 /** Card travel from seat to table center. */
-export const TRICK_CARD_TRAVEL_MS = 395;
+export const TRICK_CARD_TRAVEL_MS = 520;
 
 /** Arrival settle/pop after travel. */
-export const TRICK_CARD_SETTLE_MS = 165;
+export const TRICK_CARD_SETTLE_MS = 130;
 
 /** Compressed settle during catch-up mode. */
 export const TRICK_CARD_SETTLE_CATCHUP_MS = 40;
@@ -173,22 +173,22 @@ export function batchTrickFlyStaggerMs(modeOrCatchUp: TrickPresentationTimingMod
 export const BOT_PLAY_STAGGER_MS = 380;
 
 /** Readability pause after last card before winner highlight. */
-export const POST_TRICK_READ_MS = 525;
+export const POST_TRICK_READ_MS = 550;
 
 /** Winner glow inside the read pause (300–500 ms). */
-export const WINNER_REVEAL_MS = 400;
+export const WINNER_REVEAL_MS = 380;
 
 /** Longer read when trump beats led suit. */
-export const TRUMP_BEAT_READ_MS = 725;
+export const TRUMP_BEAT_READ_MS = 650;
 
 /** Directional collection toward winner seat (rake + gather + packet fly). */
-export const TRICK_SWEEP_MS = 900;
+export const TRICK_SWEEP_MS = 780;
 
 /** In-line rake before cards fly to the winner pile. */
 export const TRICK_RAKE_MS = 240;
 
 /** Gap before next lead indicators (150–250 ms). */
-export const NEXT_LEAD_GAP_MS = 230;
+export const NEXT_LEAD_GAP_MS = 200;
 
 /**
  * Max UI time for the final trick when the server ends the hand early:

@@ -28,7 +28,7 @@ function handCards(root: HTMLElement | null): HTMLElement[] {
 export interface HeroCardMotionOptions {
   dealing: boolean;
   dealStaggerMs: number;
-  drawAnimSubPhase: "discard" | "receive" | "done" | null;
+  drawAnimSubPhase: "ring" | "discard" | "receive" | "done" | null;
   drawDiscardCount?: number;
   drawReplaceCount?: number;
   pendingDiscardIndices: number[];

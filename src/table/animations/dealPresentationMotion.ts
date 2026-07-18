@@ -14,11 +14,11 @@ import { tweenAlongArc } from "./arcTween";
 import { invertFromFirst, rectFromElement, type MotionRect } from "./flip";
 
 /** Per-card travel from deck to seat. */
-export const DEAL_STEP_TRAVEL_MS = 255;
+export const DEAL_STEP_TRAVEL_MS = 265;
 /** Brief settle after each dealt card lands. */
 export const DEAL_STEP_SETTLE_MS = 50;
 /** Stagger between consecutive deal step starts (overlapping launches). */
-export const DEAL_STEP_GAP_MS = 63;
+export const DEAL_STEP_GAP_MS = 65;
 
 const ACTIVE_DEAL_TIMELINES = new Set<gsap.core.Timeline>();
 

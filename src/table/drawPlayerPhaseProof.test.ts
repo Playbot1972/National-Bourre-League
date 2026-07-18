@@ -105,9 +105,16 @@ function simulateAdvanceTimerFire(
 function finishDrawPresentationForActivePlayer(store: HandPresentationStore): HandPresentationStore {
   let s = store;
   let guard = 0;
-  while (s.phase === "drawPlayer" && s.animatingDrawPlayerId && s.drawAnimSubPhase !== "done" && guard < 8) {
+  while (s.phase === "drawPlayer" && s.animatingDrawPlayerId && s.drawAnimSubPhase !== "done" && guard < 12) {
     s = reduceHandPresentation(s, { type: "advancePhase" });
     guard += 1;
+  }
+  if (
+    s.phase === "drawPlayer" &&
+    s.animatingDrawPlayerId &&
+    s.drawAnimSubPhase === "done"
+  ) {
+    s = reduceHandPresentation(s, { type: "advancePhase" });
   }
   return s;
 }
@@ -125,17 +132,23 @@ function applyServerUpdateWithTimer(
 
   if (
     next.animatingDrawPlayerId &&
-    next.drawAnimSubPhase === "discard" &&
+    next.drawAnimSubPhase === "ring" &&
     next.animatingDrawPlayerId !== store.animatingDrawPlayerId
   ) {
-    const key = phaseKey(next);
+    let key = phaseKey(next);
     simulateAdvanceTimerArm(next, armedRef, logs);
-    const armedAt = { ...next };
+    let armedAt = { ...next };
     next = simulateAdvanceTimerFire(next, armedRef, key, armedAt, logs);
+    if (next.drawAnimSubPhase === "discard") {
+      key = phaseKey(next);
+      simulateAdvanceTimerArm(next, armedRef, logs);
+      armedAt = { ...next };
+      next = simulateAdvanceTimerFire(next, armedRef, key, armedAt, logs);
+    }
     if (next.drawAnimSubPhase === "receive") {
       const key2 = phaseKey(next);
-      const armedAt2 = { ...next };
       simulateAdvanceTimerArm(next, armedRef, logs);
+      const armedAt2 = { ...next };
       next = simulateAdvanceTimerFire(next, armedRef, key2, armedAt2, logs);
     }
   }
@@ -144,7 +157,7 @@ function applyServerUpdateWithTimer(
   return next;
 }
 
-function countDiscardEntries(logs: LogLine[]): Record<string, number> {
+function countDrawPresentationEntries(logs: LogLine[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const entry of logs) {
     if (!entry.line.includes("handPresentation :: serverUpdate")) continue;
@@ -152,7 +165,7 @@ function countDiscardEntries(logs: LogLine[]): Record<string, number> {
     if (!anim?.includes("->")) continue;
     const to = anim.split("->").pop()?.trim() ?? "";
     const sub = entry.data?.drawSubPhase as string | undefined;
-    if (!to || !sub?.endsWith("discard")) continue;
+    if (!to || !sub?.includes("-> ring")) continue;
     counts[to] = (counts[to] ?? 0) + 1;
   }
   return counts;
@@ -178,8 +191,14 @@ describe("drawPlayer phase proof — log capture", () => {
     const arm1dup = simulateAdvanceTimerArm(store, armedRef, logs);
     assert.equal(arm1dup.armed, false);
 
-    // Timer fires: discard → receive
+    // Timer fires: ring → discard
     store = simulateAdvanceTimerFire(store, armedRef, entry1Key, armedAt1, logs);
+    assert.equal(store.drawAnimSubPhase, "discard");
+    const armDiscard = simulateAdvanceTimerArm(store, armedRef, logs);
+    assert.equal(armDiscard.armed, true);
+    const entryDiscardKey = phaseKey(store);
+    const armedAtDiscard = { ...store };
+    store = simulateAdvanceTimerFire(store, armedRef, entryDiscardKey, armedAtDiscard, logs);
     assert.equal(store.drawAnimSubPhase, "receive");
     const arm2 = simulateAdvanceTimerArm(store, armedRef, logs);
     assert.equal(arm2.armed, true);
@@ -246,9 +265,9 @@ describe("drawPlayer phase proof — log capture", () => {
     assert.equal(armed.length, fired.length, "each armed timer fired exactly once");
     assert.ok(logs.some((l) => l.line.includes("idle-skip")), "idle drawPlayer skipped timer");
     assert.equal(
-      logs.filter((l) => l.line.includes("advancePhase-timer-armed") && (l.data?.phaseKey as string)?.includes("bot_a:discard")).length,
+      logs.filter((l) => l.line.includes("advancePhase-timer-armed") && (l.data?.phaseKey as string)?.includes("bot_a:ring")).length,
       1,
-      "bot_a discard armed once",
+      "bot_a ring armed once",
     );
   });
 
@@ -313,7 +332,7 @@ describe("drawPlayer phase proof — log capture", () => {
 
     end();
 
-    const discardEntries = countDiscardEntries(logs);
+    const discardEntries = countDrawPresentationEntries(logs);
     const consumedSkips = logs.filter((l) => l.line.includes("drawPresentation-consumed-skip"));
     const idleSkips = logs.filter((l) => l.line.includes("advancePhase-timer-idle-skip"));
 
@@ -321,7 +340,7 @@ describe("drawPlayer phase proof — log capture", () => {
     for (const entry of logs) {
       console.log(formatLog(entry));
     }
-    console.log("\n========== PER-PLAYER DISCARD ENTRIES ==========");
+    console.log("\n========== PER-PLAYER DRAW PRESENTATION ENTRIES ==========");
     for (const [id, count] of Object.entries(discardEntries)) {
       console.log(`  ${id}: ${count} discard entry/entries`);
     }
@@ -332,9 +351,9 @@ describe("drawPlayer phase proof — log capture", () => {
     console.log(`final consumed:                 ${store.drawPresentationConsumedIds.join(", ")}`);
     console.log("================================================\n");
 
-    assert.equal(discardEntries[botA], 1, "bot_a enters discard presentation once");
-    assert.equal(discardEntries[botB], 1, "bot_b enters discard presentation once");
-    assert.equal(discardEntries[hero], 1, "hero enters discard presentation once");
+    assert.equal(discardEntries[botA], 1, "bot_a enters draw presentation once");
+    assert.equal(discardEntries[botB], 1, "bot_b enters draw presentation once");
+    assert.equal(discardEntries[hero], 1, "hero enters draw presentation once");
     assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [botA, botB, hero].sort());
     assert.equal(store.phase, "drawReady");
     const staleReplays = logs.filter(
@@ -343,14 +362,13 @@ describe("drawPlayer phase proof — log capture", () => {
         (l.data?.drawSubPhase === "done" || true),
     );
     assert.ok(staleReplays.length >= 3, "ran multiple stale replay rounds");
-    const reopenDiscard = logs.filter(
+    const presentationStarts = logs.filter(
       (l) =>
         l.line.includes("handPresentation :: serverUpdate") &&
-        (l.data?.drawSubPhase as string)?.endsWith("discard") &&
-        staleReplays.length > 0,
+        String(l.data?.drawSubPhase ?? "").includes("-> ring"),
     );
-    // After all three players consumed, no further discard entries on stale replays
-    assert.equal(reopenDiscard.length, 3, "exactly three discard entries total (one per player)");
+    // After all three players consumed, no further ring entries on stale replays
+    assert.equal(presentationStarts.length, 3, "exactly three draw presentation entries total (one per player)");
   });
 
   it("stale/regressed draw snapshots do not re-open consumed players (max 8 seats)", () => {
@@ -409,7 +427,7 @@ describe("drawPlayer phase proof — log capture", () => {
         type: "serverUpdate",
         snapshot: { ...handSnap, drawCompletedIds: ids, turnPlayerId: turn },
       });
-      if (store.animatingDrawPlayerId === newlyCompleted && store.drawAnimSubPhase === "discard") {
+      if (store.animatingDrawPlayerId === newlyCompleted && store.drawAnimSubPhase === "ring") {
         assert.ok(
           store.drawPresentationConsumedIds.includes(newlyCompleted),
           `${newlyCompleted} reserved in consumed set at discard start`,
@@ -446,14 +464,14 @@ describe("drawPlayer phase proof — log capture", () => {
 
     end();
 
-    const discardEntries = countDiscardEntries(logs);
+    const discardEntries = countDrawPresentationEntries(logs);
     const candidateResolves = logs.filter((l) => l.line.includes("draw-candidate-resolve"));
     const staleNoOps = candidateResolves.filter(
       (l) => l.data?.chosen == null && String(l.data?.reason ?? "").includes("no-candidate"),
     );
     const serverUpdates = logs.filter((l) => l.line.includes("handPresentation :: serverUpdate"));
-    const discardArms = serverUpdates.filter((l) =>
-      String(l.data?.drawSubPhase ?? "").endsWith("discard"),
+    const presentationArms = serverUpdates.filter((l) =>
+      String(l.data?.drawSubPhase ?? "").includes("-> ring"),
     );
 
     console.log("\n========== MAX-BOT DRAW PROOF (8 players) ==========\n");
@@ -467,22 +485,22 @@ describe("drawPlayer phase proof — log capture", () => {
         console.log(formatLog(entry));
       }
     }
-    console.log("\n========== PER-PLAYER DISCARD ENTRIES ==========");
+    console.log("\n========== PER-PLAYER DRAW PRESENTATION ENTRIES ==========");
     for (const id of all) {
-      console.log(`  ${id}: ${discardEntries[id] ?? 0} discard entry/entries`);
+      console.log(`  ${id}: ${discardEntries[id] ?? 0} presentation entry/entries`);
     }
     console.log("\n========== SUMMARY ==========");
     console.log(`players:                        ${all.length}`);
-    console.log(`drawAnim discard arms:          ${discardArms.length}`);
+    console.log(`drawAnim ring arms:          ${presentationArms.length}`);
     console.log(`draw-candidate-resolve no-ops:  ${staleNoOps.length}`);
     console.log(`final phase:                    ${store.phase}`);
     console.log(`final consumed:                 ${store.drawPresentationConsumedIds.join(", ")}`);
     console.log("====================================================\n");
 
     for (const id of all) {
-      assert.equal(discardEntries[id], 1, `${id} enters discard presentation exactly once`);
+      assert.equal(discardEntries[id], 1, `${id} enters draw presentation exactly once`);
     }
-    assert.equal(discardArms.length, all.length, "exactly one discard arm per player");
+    assert.equal(presentationArms.length, all.length, "exactly one ring arm per player");
     assert.equal(store.phase, "drawReady");
     assert.deepEqual([...store.drawPresentationConsumedIds].sort(), [...all].sort());
     if (staleNoOps.length > 0) {
