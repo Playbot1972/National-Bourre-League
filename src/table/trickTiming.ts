@@ -19,8 +19,8 @@ export const TRICK_CARD_SHIFT_MS = 220;
 /** Full play-to-table presentation (travel + settle) — live mode. */
 export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
-/** Stagger between revealing trick cards in live mode (inter-player spacing). */
-export const CARD_REVEAL_STAGGER_MS = 320;
+/** Stagger between revealing trick cards in live mode (inter-player spacing, 350–550 ms). */
+export const CARD_REVEAL_STAGGER_MS = 440;
 
 /** Compressed inter-card cadence in catch-up mode (30–60ms target). */
 export const CARD_REVEAL_CATCHUP_STAGGER_MS = 45;
@@ -31,8 +31,8 @@ export const TRICK_CARD_TRAVEL_CATCHUP_MS = 160;
 /** Inter-card fly stagger inside a batched catch-up reveal batch. */
 export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 40;
 
-/** Live-mode fly stagger between opponent cards in a batched reveal (80–150 ms). */
-export const BATCH_TRICK_FLY_LIVE_STAGGER_MS = 110;
+/** Live-mode fly stagger between opponent cards in a batched reveal (matches reveal cadence). */
+export const BATCH_TRICK_FLY_LIVE_STAGGER_MS = 440;
 
 /** Backlog at or above this uses revealThroughCount in one cadence step (extreme only). */
 export const REVEAL_CATCHUP_BATCH_THRESHOLD = 8;
@@ -191,7 +191,10 @@ export const TRICK_SWEEP_MS = 400;
 export const TRICK_RAKE_MS = 240;
 
 /** Breathing room after trick collection before next lead (400–600 ms). */
-export const NEXT_LEAD_GAP_MS = 480;
+export const NEXT_LEAD_GAP_MS = 520;
+
+/** Subtle felt/table settle at the trick boundary (nextLeadReady). */
+export const TRICK_TABLE_SETTLE_MS = 360;
 
 /**
  * Max UI time for the final trick when the server ends the hand early:

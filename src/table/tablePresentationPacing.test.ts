@@ -25,8 +25,10 @@ import {
 } from "./animations/dealPresentationMotion";
 import {
   CARD_LAND_MS,
+  CARD_REVEAL_STAGGER_MS,
   NEXT_LEAD_GAP_MS,
   postTrickReadMs,
+  TRICK_TABLE_SETTLE_MS,
   trickCardTravelMs,
   trickResolutionScheduleMs,
   TRUMP_BEAT_READ_MS,
@@ -70,6 +72,8 @@ describe("table presentation pacing", () => {
     assert.ok(postTrickReadMs({}) >= 900 && postTrickReadMs({}) <= 1300);
     assert.ok(TRUMP_BEAT_READ_MS >= 900 && TRUMP_BEAT_READ_MS <= 1400);
     assert.ok(NEXT_LEAD_GAP_MS >= 400 && NEXT_LEAD_GAP_MS <= 600);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
+    assert.ok(TRICK_TABLE_SETTLE_MS >= 280 && TRICK_TABLE_SETTLE_MS <= 420);
     assert.ok(CARD_LAND_MS >= 550 && CARD_LAND_MS <= 720);
   });
 

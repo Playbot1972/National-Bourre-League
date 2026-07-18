@@ -129,7 +129,7 @@ describe("table pacing guarantees", () => {
 
   it("keeps live card travel and inter-player spacing readable", () => {
     assert.ok(TRICK_CARD_TRAVEL_MS >= 450 && TRICK_CARD_TRAVEL_MS <= 600);
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 250 && CARD_REVEAL_STAGGER_MS <= 400);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
     assert.ok(CARD_LAND_MS >= 550 && CARD_LAND_MS <= 720);
     assert.equal(TRICK_SWEEP_MS, 400);
   });
