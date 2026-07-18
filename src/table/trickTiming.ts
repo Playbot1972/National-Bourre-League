@@ -31,6 +31,9 @@ export const TRICK_CARD_TRAVEL_CATCHUP_MS = 160;
 /** Inter-card fly stagger inside a batched catch-up reveal batch. */
 export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 40;
 
+/** Live-mode fly stagger between opponent cards in a batched reveal (80–150 ms). */
+export const BATCH_TRICK_FLY_LIVE_STAGGER_MS = 110;
+
 /** Backlog at or above this uses revealThroughCount in one cadence step (extreme only). */
 export const REVEAL_CATCHUP_BATCH_THRESHOLD = 8;
 
@@ -166,7 +169,7 @@ export function batchTrickFlyStaggerMs(catchUp: boolean): number;
 export function batchTrickFlyStaggerMs(modeOrCatchUp: TrickPresentationTimingMode | boolean): number {
   const mode: TrickPresentationTimingMode =
     typeof modeOrCatchUp === "boolean" ? (modeOrCatchUp ? "catch-up" : "live") : modeOrCatchUp;
-  return mode === "catch-up" ? BATCH_TRICK_FLY_CATCHUP_STAGGER_MS : 72;
+  return mode === "catch-up" ? BATCH_TRICK_FLY_CATCHUP_STAGGER_MS : BATCH_TRICK_FLY_LIVE_STAGGER_MS;
 }
 
 /** Stagger between bot plays in the social driver (250–450 ms). */
@@ -187,8 +190,8 @@ export const TRICK_SWEEP_MS = 400;
 /** In-line rake before cards fly to the winner pile. */
 export const TRICK_RAKE_MS = 240;
 
-/** Gap before next lead indicators (150–250 ms). */
-export const NEXT_LEAD_GAP_MS = 200;
+/** Breathing room after trick collection before next lead (400–600 ms). */
+export const NEXT_LEAD_GAP_MS = 480;
 
 /**
  * Max UI time for the final trick when the server ends the hand early:

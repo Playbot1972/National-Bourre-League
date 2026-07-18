@@ -125,9 +125,9 @@ const RESET_MS: Record<SoundEventKey, number> = {
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
   shuffleFinal: 0.55,
-  draw: 0.45,
-  cardPlace: 0.38,
-  leadChange: 0.42,
+  draw: 0.32,
+  cardPlace: 0.28,
+  leadChange: 0.38,
   trickWin: 0.55,
   trickCollect: 0.4,
   trickCollectOther: 0.45,
@@ -139,9 +139,9 @@ const VOLUME: Record<SoundEventKey, number> = {
   openRoom: 0.55,
   deleteRoom: 0.5,
   fold: 0.42,
-  cardSelect: 0.45,
+  cardSelect: 0.32,
   cardIllegal: 0.5,
-  uiButton: 0.4,
+  uiButton: 0.26,
   turnTimer: 0.48,
 };
 

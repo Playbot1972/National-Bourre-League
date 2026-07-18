@@ -124,7 +124,7 @@ describe("table pacing guarantees", () => {
     assert.equal(suppressesTurnIndicator("collectTrick"), true);
     assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
     assert.equal(suppressesTurnIndicator("live"), false);
-    assert.ok(NEXT_LEAD_GAP_MS >= 150 && NEXT_LEAD_GAP_MS <= 250);
+    assert.ok(NEXT_LEAD_GAP_MS >= 400 && NEXT_LEAD_GAP_MS <= 600);
   });
 
   it("keeps live card travel and inter-player spacing readable", () => {

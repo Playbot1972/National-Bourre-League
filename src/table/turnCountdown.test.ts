@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   TURN_COUNTDOWN_MS,
+  TURN_RING_ACTIVATION_DELAY_MS,
   buildTurnCountdownState,
   resolveTableActiveActorId,
   turnCountdownActivityKey,
@@ -43,6 +44,28 @@ describe("turnCountdown", () => {
     assert.ok(nextCycle);
     assert.equal(nextCycle!.segment, "green");
     assert.ok(nextCycle!.remainingMs > TURN_COUNTDOWN_MS - 500);
+  });
+
+  it("holds the ring at full before the countdown ticks", () => {
+    const started = 1_000_000;
+    const duringDelay = buildTurnCountdownState(
+      "p1",
+      started,
+      started + TURN_RING_ACTIVATION_DELAY_MS - 1,
+      TURN_RING_ACTIVATION_DELAY_MS,
+    );
+    assert.ok(duringDelay);
+    assert.equal(duringDelay!.remainingMs, TURN_COUNTDOWN_MS);
+    assert.equal(duringDelay!.progress, 1);
+
+    const afterDelay = buildTurnCountdownState(
+      "p1",
+      started,
+      started + TURN_RING_ACTIVATION_DELAY_MS + 500,
+      TURN_RING_ACTIVATION_DELAY_MS,
+    );
+    assert.ok(afterDelay);
+    assert.ok(afterDelay!.remainingMs < TURN_COUNTDOWN_MS);
   });
 
   it("resolves active actor during play from turnPlayerId", () => {

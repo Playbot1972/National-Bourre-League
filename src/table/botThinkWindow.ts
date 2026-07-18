@@ -55,9 +55,10 @@ export function buildBotThinkCountdownState(
   startedAtMs: number,
   totalMs: number,
   nowMs: number,
+  activationDelayMs = 0,
 ): TurnCountdownState | null {
   if (totalMs <= 0) return null;
-  const elapsed = Math.max(0, nowMs - startedAtMs);
+  const elapsed = Math.max(0, nowMs - startedAtMs - activationDelayMs);
   const remainingMs = Math.max(0, totalMs - elapsed);
   return {
     playerId,

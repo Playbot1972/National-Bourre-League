@@ -256,8 +256,7 @@ export function resolveSoundAsset(
       return "draw";
     case "cardPlace":
       if (tier >= 2) return "card-place-heavy";
-      // Batch 1: tier 1 (soft) deferred — alias to normal.
-      return "card-place-normal";
+      return "card-place-soft";
     case "leadChange":
       return tier >= 2 ? "lead-sweetener-strong" : "lead-sweetener-light";
     case "trickWin":

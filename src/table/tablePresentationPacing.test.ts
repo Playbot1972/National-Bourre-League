@@ -69,7 +69,7 @@ describe("table presentation pacing", () => {
     assert.ok(trickCardTravelMs("live") >= 450 && trickCardTravelMs("live") <= 650);
     assert.ok(postTrickReadMs({}) >= 900 && postTrickReadMs({}) <= 1300);
     assert.ok(TRUMP_BEAT_READ_MS >= 900 && TRUMP_BEAT_READ_MS <= 1400);
-    assert.ok(NEXT_LEAD_GAP_MS >= 150 && NEXT_LEAD_GAP_MS <= 250);
+    assert.ok(NEXT_LEAD_GAP_MS >= 400 && NEXT_LEAD_GAP_MS <= 600);
     assert.ok(CARD_LAND_MS >= 550 && CARD_LAND_MS <= 720);
   });
 
@@ -154,6 +154,6 @@ describe("table presentation pacing", () => {
     assert.ok(schedule.winnerRevealMs >= 500 && schedule.winnerRevealMs <= 800);
     assert.ok(schedule.sweepMs >= 300 && schedule.sweepMs <= 500);
     assert.equal(schedule.readTotalMs, schedule.readBeforeWinnerMs + schedule.winnerRevealMs);
-    assert.ok(schedule.nextLeadGapMs >= 150 && schedule.nextLeadGapMs <= 250);
+    assert.ok(schedule.nextLeadGapMs >= 400 && schedule.nextLeadGapMs <= 600);
   });
 });

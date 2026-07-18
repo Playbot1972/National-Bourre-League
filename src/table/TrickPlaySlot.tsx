@@ -232,7 +232,8 @@ export function TrickPlaySlot({
     }
 
     const reduced = prefersReducedMotion();
-    const baseTravelMs = trickCardTravelMs(timingMode, reduced);
+    const heroTravelScale = isLocalHeroPlay ? 1.18 : 1;
+    const baseTravelMs = Math.round(trickCardTravelMs(timingMode, reduced) * heroTravelScale);
     const landMs = baseTravelMs + trickCardSettleMs(timingMode, reduced);
     const flyStaggerStep = batchTrickFlyStaggerMs(timingMode);
     const flyStaggerMs =

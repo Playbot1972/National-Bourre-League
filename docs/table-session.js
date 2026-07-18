@@ -12268,7 +12268,7 @@ function eu(e, t = !1) {
 	return t ? Math.round(n * .55) : n;
 }
 function tu(e) {
-	return (typeof e == "boolean" ? e ? "catch-up" : "live" : e) === "catch-up" ? 40 : 72;
+	return (typeof e == "boolean" ? e ? "catch-up" : "live" : e) === "catch-up" ? 40 : 110;
 }
 var nu = 1100, ru = 1300, iu = 2890 + su({}).pipelineMs + 500;
 function au(e) {
@@ -12281,7 +12281,7 @@ function ou(e = !1) {
 		postTrickReadMs: Math.round(nu * t),
 		winnerRevealMs: Math.round(650 * t),
 		trickSweepMs: Math.round(400 * t),
-		nextLeadGapMs: Math.round(200 * t),
+		nextLeadGapMs: Math.round(480 * t),
 		trumpBeatReadMs: Math.round(ru * t)
 	};
 }
@@ -13300,7 +13300,7 @@ function Mu(e, t, n = {}) {
 		case "shuffleFinal":
 		case "openRoom": return "card-shuffle-final";
 		case "draw": return "draw";
-		case "cardPlace": return r >= 2 ? "card-place-heavy" : "card-place-normal";
+		case "cardPlace": return r >= 2 ? "card-place-heavy" : "card-place-soft";
 		case "leadChange": return r >= 2 ? "lead-sweetener-strong" : "lead-sweetener-light";
 		case "trickWin": return "trick-win-normal";
 		case "trickCollect":
@@ -13476,11 +13476,11 @@ function rd() {
 //#endregion
 //#region src/audio/AudioManager.ts
 var id = {
-	"card-place-normal": .38,
-	"card-place-soft": .34,
-	"card-place-heavy": .42,
-	"lead-sweetener-light": .42,
-	"lead-sweetener-strong": .46,
+	"card-place-normal": .32,
+	"card-place-soft": .26,
+	"card-place-heavy": .38,
+	"lead-sweetener-light": .38,
+	"lead-sweetener-strong": .42,
 	"trick-win-normal": .55,
 	"trick-win-big": .6,
 	"coin-chime-light": .4,
@@ -13488,16 +13488,16 @@ var id = {
 	"hand-win-stinger": .6,
 	"card-shuffle-normal": .55,
 	"card-shuffle-final": .55,
-	"card-select": .45,
+	"card-select": .32,
 	"card-illegal": .5,
 	close: .5,
-	"ui-button-press": .4,
-	draw: .45,
-	draw1: .45,
-	draw2: .45,
-	draw3: .45,
-	draw4: .45,
-	draw5: .45,
+	"ui-button-press": .26,
+	draw: .32,
+	draw1: .3,
+	draw2: .3,
+	draw3: .3,
+	draw4: .3,
+	draw5: .3,
 	Fahhh: .5,
 	fahhh: .5,
 	fahhhh: .5,
@@ -13864,9 +13864,9 @@ var Ed = {
 }, Od = {
 	shuffle: .55,
 	shuffleFinal: .55,
-	draw: .45,
-	cardPlace: .38,
-	leadChange: .42,
+	draw: .32,
+	cardPlace: .28,
+	leadChange: .38,
 	trickWin: .55,
 	trickCollect: .4,
 	trickCollectOther: .45,
@@ -13878,9 +13878,9 @@ var Ed = {
 	openRoom: .55,
 	deleteRoom: .5,
 	fold: .42,
-	cardSelect: .45,
+	cardSelect: .32,
 	cardIllegal: .5,
-	uiButton: .4,
+	uiButton: .26,
 	turnTimer: .48
 };
 function kd(e, t, n, r) {
@@ -15264,49 +15264,49 @@ function im({ play: e, index: t, presentationPhase: n, displayCount: r, playerNa
 			}, n);
 			return;
 		}
-		let a = hu(), o = $l(L, a), s = o + eu(L, a), c = tu(L), l = P.current > 1 && t < P.current - 1 ? t * c : 0, u = () => {
+		let a = hu(), o = H ? 1.18 : 1, s = Math.round($l(L, a) * o), c = s + eu(L, a), l = tu(L), u = P.current > 1 && t < P.current - 1 ? t * l : 0, d = () => {
 			if (A.current) return;
 			let e = f.current;
 			if (!e) return;
 			let r = e.querySelector(".pcard");
 			if (!r) return;
 			A.current = !0;
-			let a = cc(ac(i, e.getBoundingClientRect(), r.getBoundingClientRect())), c = lc(o, a.rawMagnitude, a.shallowBoosted);
+			let a = cc(ac(i, e.getBoundingClientRect(), r.getBoundingClientRect())), o = lc(s, a.rawMagnitude, a.shallowBoosted);
 			y({
 				dx: a.dx,
 				dy: a.dy
-			}), C(a.shallowBoosted), T(a.shallowBoosted ? c : null), m() && h("TrickPlaySlot", "fly-start", {
+			}), C(a.shallowBoosted), T(a.shallowBoosted ? o : null), m() && h("TrickPlaySlot", "fly-start", {
 				playKey: te,
 				index: t,
-				travelMs: c,
-				flyStaggerMs: l,
+				travelMs: o,
+				flyStaggerMs: u,
 				shallowBoosted: a.shallowBoosted,
 				rawMagnitude: a.rawMagnitude,
 				magnitude: a.magnitude,
 				localHero: ee.current != null && I.current.playerId === ee.current
 			}), _("pending");
-			let u = window.setTimeout(() => {
+			let l = window.setTimeout(() => {
 				_("travel");
 			}, 0), d = window.setTimeout(() => {
 				rm(D, _, y, A, {
 					playKey: te,
 					index: t
 				}, n);
-			}, s);
+			}, c);
 			return () => {
-				window.clearTimeout(u), window.clearTimeout(d);
+				window.clearTimeout(l), window.clearTimeout(d);
 			};
 		};
-		if (l > 0) {
+		if (u > 0) {
 			_("pending");
 			let e, t = window.setTimeout(() => {
-				e = u();
-			}, l);
+				e = d();
+			}, u);
 			return () => {
 				window.clearTimeout(t), e?.();
 			};
 		}
-		return u();
+		return d();
 	}, [
 		E,
 		p,
@@ -18414,14 +18414,14 @@ function O_(e, t) {
 	let n = e / t;
 	return n > 2 / 3 ? "green" : n > 1 / 3 ? "yellow" : "red";
 }
-function k_(e, t, n, r) {
+function k_(e, t, n, r, i = 0) {
 	if (n <= 0) return null;
-	let i = Math.max(0, r - t), a = Math.max(0, n - i);
+	let a = Math.max(0, r - t - i), o = Math.max(0, n - a);
 	return {
 		playerId: e,
-		remainingMs: a,
-		progress: a / n,
-		segment: O_(a, n)
+		remainingMs: o,
+		progress: o / n,
+		segment: O_(o, n)
 	};
 }
 //#endregion
@@ -18695,8 +18695,8 @@ function V_({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			"--trick-sweep-ms": "400ms",
 			"--trick-rake-ms": "240ms",
 			"--trick-post-read-ms": `${nu}ms`,
-			"--trick-next-lead-gap-ms": "200ms",
-			"--trick-final-pipeline-ms": `${nu + 650 + 400 + 200}ms`,
+			"--trick-next-lead-gap-ms": "480ms",
+			"--trick-final-pipeline-ms": `${nu + 650 + 400 + 480}ms`,
 			"--deal-card-stagger-ms": `${V.dealCardStaggerMs}ms`,
 			"--draw-discard-ms": `${V.drawDiscardMs}ms`,
 			"--draw-replace-ms": `${V.drawReplaceMs}ms`
@@ -19106,8 +19106,8 @@ function Y_({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 			"--trick-sweep-ms": "400ms",
 			"--trick-rake-ms": "240ms",
 			"--trick-post-read-ms": `${nu}ms`,
-			"--trick-next-lead-gap-ms": "200ms",
-			"--trick-final-pipeline-ms": `${nu + 650 + 400 + 200}ms`,
+			"--trick-next-lead-gap-ms": "480ms",
+			"--trick-final-pipeline-ms": `${nu + 650 + 400 + 480}ms`,
 			"--deal-card-stagger-ms": `${ae.dealCardStaggerMs}ms`,
 			"--draw-discard-ms": `${ae.drawDiscardMs}ms`,
 			"--draw-replace-ms": `${ae.drawReplaceMs}ms`
@@ -19988,13 +19988,13 @@ function bv(e) {
 	});
 	return gv.has(t.phase) ? t.turnPlayerId : null;
 }
-function xv(e, t, n) {
-	let r = hv - Math.max(0, n - t) % hv;
+function xv(e, t, n, r = 0) {
+	let i = hv - Math.max(0, n - t - r) % hv;
 	return {
 		playerId: e,
-		remainingMs: r,
-		progress: r / hv,
-		segment: _v(r)
+		remainingMs: i,
+		progress: i / hv,
+		segment: _v(i)
 	};
 }
 //#endregion
@@ -20027,7 +20027,7 @@ function Sv(e) {
 		c?.turnKey
 	]);
 	let d = null;
-	return t && (u && c ? d = k_(c.playerId, c.startedAtMs, c.totalMs, a) : !u && r.current != null && (d = xv(t, r.current, a))), {
+	return t && (u && c ? d = k_(c.playerId, c.startedAtMs, c.totalMs, a, 200) : !u && r.current != null && (d = xv(t, r.current, a, 200))), {
 		countdown: d,
 		reducedMotion: hu()
 	};

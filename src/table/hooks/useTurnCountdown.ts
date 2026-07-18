@@ -8,6 +8,7 @@ import {
 import {
   buildTurnCountdownState,
   resolveTableActiveActorId,
+  TURN_RING_ACTIVATION_DELAY_MS,
   turnCountdownActivityKey,
   type TurnCountdownInput,
   type TurnCountdownState,
@@ -76,9 +77,15 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
         botWindow.startedAtMs,
         botWindow.totalMs,
         nowMs,
+        TURN_RING_ACTIVATION_DELAY_MS,
       );
     } else if (!useBotWindow && startedAtRef.current != null) {
-      countdown = buildTurnCountdownState(activeActorId, startedAtRef.current, nowMs);
+      countdown = buildTurnCountdownState(
+        activeActorId,
+        startedAtRef.current,
+        nowMs,
+        TURN_RING_ACTIVATION_DELAY_MS,
+      );
     }
   }
 

@@ -8,6 +8,9 @@ import type { TableSessionData } from "./types";
 /** Total visible turn timer duration (client presentation). */
 export const TURN_COUNTDOWN_MS = 15_000;
 
+/** Pause after the ring appears before the countdown begins (150–250 ms). */
+export const TURN_RING_ACTIVATION_DELAY_MS = 200;
+
 /** Remaining time thresholds for color segments. */
 export const TURN_COUNTDOWN_GREEN_UNTIL_MS = 10_000;
 export const TURN_COUNTDOWN_YELLOW_UNTIL_MS = 5_000;
@@ -107,8 +110,9 @@ export function buildTurnCountdownState(
   playerId: string,
   startedAtMs: number,
   nowMs: number,
+  activationDelayMs = 0,
 ): TurnCountdownState | null {
-  const elapsed = Math.max(0, nowMs - startedAtMs);
+  const elapsed = Math.max(0, nowMs - startedAtMs - activationDelayMs);
   const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
   const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
 
