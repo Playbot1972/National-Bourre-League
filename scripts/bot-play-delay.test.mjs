@@ -19,7 +19,7 @@ describe("bot play delay", () => {
     );
   });
 
-  it("bot turn delay is 350–900ms", () => {
+  it("bot turn delay is 1500–3000ms", () => {
     const min = pickBotPlayDelayMs(() => 0);
     const max = pickBotPlayDelayMs(() => 0.999999);
     assert.equal(min.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
@@ -48,7 +48,7 @@ describe("bot play delay", () => {
     assert.equal(retry.delayMs, Math.max(0, first.chosenDelayMs - 500));
   });
 
-  it("last card uses the same 350–900ms window as other plays", () => {
+  it("last card uses the same 1500–3000ms window as other plays", () => {
     const normal = pickBotPlayDelayMs(() => 0);
     const lastCard = pickBotPlayDelayMs(() => 0.99);
     assert.ok(normal.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
@@ -181,7 +181,7 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
-  it("arms random delay between 350 and 900 ms", () => {
+  it("arms random delay between 1500 and 3000 ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
@@ -195,7 +195,7 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("submit never fires before 350 ms", async () => {
+  it("submit never fires before 1500 ms", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
     schedule.armPlayThink({
@@ -212,7 +212,7 @@ describe("bot think schedule", () => {
     assert.equal(fired, true);
   });
 
-  it("submit fires by 900 ms when eligible and unblocked", async () => {
+  it("submit fires by 3000 ms when eligible and unblocked", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.999999 });
     let fired = false;
     const started = Date.now();

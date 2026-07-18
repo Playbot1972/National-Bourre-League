@@ -2,8 +2,8 @@
  * Bot play-phase think delay — random submit window per turn; drives visible ring + submit gate.
  */
 
-export const BOT_PLAY_DELAY_MIN_MS = 350;
-export const BOT_PLAY_DELAY_MAX_MS = 900;
+export const BOT_PLAY_DELAY_MIN_MS = 1500;
+export const BOT_PLAY_DELAY_MAX_MS = 3000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
 
 /** @typedef {{ turnKey: string, playerId: string, startedAtMs: number, totalMs: number }} BotThinkWindowPayload */
@@ -41,7 +41,7 @@ export function randomIntInclusive(min, max, rng = Math.random) {
 }
 
 /**
- * One random submit delay per eligible bot play turn (350–900 ms).
+ * One random submit delay per eligible bot play turn (1500–3000 ms).
  * @param {() => number} [rng]
  */
 export function pickBotPlayDelayMs(rng = Math.random) {

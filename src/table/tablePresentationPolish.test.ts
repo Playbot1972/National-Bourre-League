@@ -29,9 +29,9 @@ describe("table presentation polish safety", () => {
     assert.equal(TRICK_CARD_TRAVEL_MS, 520);
     assert.equal(TRICK_CARD_SETTLE_MS, 130);
     assert.equal(CARD_LAND_MS, 650);
-    assert.equal(POST_TRICK_READ_MS, 550);
-    assert.equal(WINNER_REVEAL_MS, 380);
-    assert.equal(TRICK_SWEEP_MS, 780);
+    assert.equal(POST_TRICK_READ_MS, 1100);
+    assert.equal(WINNER_REVEAL_MS, 650);
+    assert.equal(TRICK_SWEEP_MS, 400);
     assert.equal(ANTE_CHIP_TRAVEL_MS, 290);
     assert.equal(DRAW_RING_BEAT_MS, 340);
   });
@@ -54,15 +54,15 @@ describe("table presentation polish safety", () => {
     assert.equal(suppressesTurnIndicator("live"), false);
     assert.equal(suppressesTurnIndicator("trickComplete"), true);
     assert.equal(suppressesTurnIndicator("winnerReveal"), true);
-    assert.equal(suppressesTurnIndicator("collectTrick"), false);
+    assert.equal(suppressesTurnIndicator("collectTrick"), true);
     assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
   });
 
   it("syncs CSS cosmetic fallbacks to authoritative trick timing", () => {
     assert.match(cardAnimationsCss, /--trick-card-travel-ms:\s*520ms/);
     assert.match(cardAnimationsCss, /--trick-card-settle-ms:\s*130ms/);
-    assert.match(cardAnimationsCss, /--trick-sweep-ms:\s*780ms/);
-    assert.match(cardAnimationsCss, /--trick-winner-highlight-ms:\s*380ms/);
+    assert.match(cardAnimationsCss, /--trick-sweep-ms:\s*400ms/);
+    assert.match(cardAnimationsCss, /--trick-winner-highlight-ms:\s*650ms/);
   });
 
   it("includes reduced-motion overrides for deal reveal polish", () => {

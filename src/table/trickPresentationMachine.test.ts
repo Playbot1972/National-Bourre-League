@@ -358,9 +358,10 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 1400 && schedule.pipelineMs <= 2100);
-    assert.equal(schedule.readTotalMs, 550);
-    assert.equal(schedule.sweepMs, 780);
+    assert.ok(schedule.pipelineMs >= 2000 && schedule.pipelineMs <= 2800);
+    assert.equal(schedule.readBeforeWinnerMs, 1100);
+    assert.equal(schedule.winnerRevealMs, 650);
+    assert.equal(schedule.sweepMs, 400);
   });
 
   it("restores turn ring when collection starts while sweep still runs", () => {
@@ -380,7 +381,7 @@ describe("trickPresentationMachine", () => {
     store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "collectTrick");
     const model = buildTrickPresentationModel(store, null);
-    assert.equal(model.suppressTurnPlayerId, false);
+    assert.equal(model.suppressTurnPlayerId, true);
     assert.equal(model.isResolving, true);
   });
 

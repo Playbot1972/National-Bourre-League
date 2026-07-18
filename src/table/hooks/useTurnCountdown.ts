@@ -22,7 +22,7 @@ export interface UseTurnCountdownResult {
 /**
  * Single table-wide turn countdown — one ring on the active actor at a time.
  * Human actors use the 15s cycle; bot play turns use the published think window
- * (350–900 ms) from bot-play-delay so the ring matches the submit gate.
+ * (1500–3000 ms) from bot-play-delay so the ring matches the submit gate.
  */
 export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownResult {
   const activeActorId = resolveTableActiveActorId(input);
