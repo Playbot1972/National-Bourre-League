@@ -690,7 +690,7 @@ describe("handPresentationMachine", () => {
     assert.ok(t.anteChipTravelMs >= 250 && t.anteChipTravelMs <= 310);
     assert.ok(t.anteChipStaggerMs >= 60 && t.anteChipStaggerMs <= 90);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
-    assert.ok(t.trumpRevealHoldMs >= 900 && t.trumpRevealHoldMs <= 1100);
+    assert.ok(t.trumpRevealHoldMs >= 2500 && t.trumpRevealHoldMs <= 3500);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
@@ -809,11 +809,11 @@ describe("handPresentationMachine", () => {
 
 describe("trick timing with hand flow", () => {
   it("uses a readable post-trick hold before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 1100);
-    assert.ok(POST_TRICK_READ_MS >= 900 && POST_TRICK_READ_MS <= 1300);
+    assert.equal(POST_TRICK_READ_MS, 1725);
+    assert.ok(POST_TRICK_READ_MS >= 1600 && POST_TRICK_READ_MS <= 1850);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readBeforeWinnerMs, 1100);
+    assert.equal(schedule.readBeforeWinnerMs, 1725);
     assert.equal(schedule.winnerRevealMs, 650);
-    assert.ok(schedule.pipelineMs >= 2000 && schedule.pipelineMs <= 2800);
+    assert.ok(schedule.pipelineMs >= 3000 && schedule.pipelineMs <= 4000);
   });
 });

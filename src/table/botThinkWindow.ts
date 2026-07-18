@@ -6,6 +6,8 @@ export interface BotThinkWindow {
   playerId: string;
   startedAtMs: number;
   totalMs: number;
+  /** When set, ring countdown runs from this instant; null/0 = ring shell only. */
+  countingStartedAtMs?: number | null;
 }
 
 let currentWindow: BotThinkWindow | null = null;
@@ -56,9 +58,24 @@ export function buildBotThinkCountdownState(
   totalMs: number,
   nowMs: number,
   activationDelayMs = 0,
+  countingStartedAtMs?: number | null,
 ): TurnCountdownState | null {
   if (totalMs <= 0) return null;
-  const elapsed = Math.max(0, nowMs - startedAtMs - activationDelayMs);
+  const countFrom =
+    countingStartedAtMs != null
+      ? countingStartedAtMs
+      : startedAtMs > 0
+        ? startedAtMs
+        : null;
+  if (countFrom == null || countFrom <= 0) {
+    return {
+      playerId,
+      remainingMs: totalMs,
+      progress: 1,
+      segment: "green",
+    };
+  }
+  const elapsed = Math.max(0, nowMs - countFrom - activationDelayMs);
   const remainingMs = Math.max(0, totalMs - elapsed);
   return {
     playerId,

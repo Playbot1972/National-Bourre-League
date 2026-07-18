@@ -1185,6 +1185,7 @@ function getServerBotAdvance() {
       onWake: (latest, scores, actorId, opts) => scheduleServerBotAdvance(latest, scores, actorId, opts),
       onAdvanceError: (latest, scores, actorId) =>
         driveClientBotsForCurrentTurn(latest, scores, actorId, { reason: "advance-error-fallback" }),
+      getPresentationState: (session, scores) => botPlayPresentationState(session, scores),
       trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
     });
   }
@@ -1196,7 +1197,7 @@ let robotPresentationUnsub = null;
 const clientBotThinkSchedule = createBotThinkScheduleState();
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
-const TRICK_PIPELINE_MS = 2670;
+const TRICK_PIPELINE_MS = 3715;
 const BOT_PLAY_STAGGER_MS = 380;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
 /** After settlement, force-open the next join window if auto-open stalls. */
@@ -3501,10 +3502,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   }
 
   const expectedTurnKey = botPlayTurnKey(playCtx);
-  clientBotThinkSchedule.playDelayState.markTurnEligible({
-    ...playCtx,
-    nowMs: Date.now(),
-  });
   logBotOrchestrator("bot-turn-start", {
     ...ctx,
     turnPlayerId: turnId,
@@ -3515,6 +3512,10 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
     nowMs: Date.now(),
+    getPresentationState: () => {
+      const latest = currentSessions.find((x) => x.id === openSessionId);
+      return botPlayPresentationState(latest, openScores);
+    },
     shouldFire: () => {
       if (robotActionInFlight) return false;
       if (!currentRoomId || !openSessionId) return false;
@@ -3594,6 +3595,29 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
+      submitBlocked: (extra) =>
+        logBotOrchestrator("bot-submit-blocked", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+      submitAllowed: (extra) =>
+        logBotOrchestrator("bot-submit-allowed", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          trigger: reason,
+          ...extra,
+        }),
+      visibleRingReset: (extra) =>
+        logBotOrchestrator("visible-ring-reset", {
+          ...ctx,
+          turnPlayerId: turnId,
+          owner: "client",
+          ...extra,
+        }),
     },
   });
 
@@ -3629,6 +3653,27 @@ function wireBotThinkWindowPublisher(api) {
   });
 }
 
+function wireVisibleBotRingReporter(api) {
+  api?.setVisibleBotRingReporter?.({
+    onShown: (payload) => {
+      clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
+        ...payload,
+        log: (extra) =>
+          logBotOrchestrator("visible-ring-shown", { owner: "client", ...extra }),
+      });
+      getServerBotAdvance().notifyVisibleRingShown?.(payload);
+    },
+    onHidden: (payload) => {
+      clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
+        ...payload,
+        log: (extra) =>
+          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra }),
+      });
+      getServerBotAdvance().notifyVisibleRingHidden?.(payload);
+    },
+  });
+}
+
 function wakeRobotActions() {
   if (!tablePlayOpen || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
@@ -3642,6 +3687,7 @@ function wakeRobotActions() {
 
 function ensureRobotPresentationSubscription(api) {
   wireBotThinkWindowPublisher(api);
+  wireVisibleBotRingReporter(api);
   if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
   robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
     wakeRobotActions();
@@ -3779,6 +3825,22 @@ function snapshotTablePresentationGate() {
   } catch {
     return null;
   }
+}
+
+function botPlayPresentationState(s, scores) {
+  const gate = snapshotTablePresentationGate();
+  const blocked = s ? shouldBlockRobotForPresentation(s, scores) : true;
+  return {
+    blocked,
+    revealCatchUp: Boolean(gate?.revealCatchUp),
+    presentationBusy: Boolean(
+      gate?.pipelineActive || gate?.handPresenting || gate?.motionGateActive,
+    ),
+    suppressing:
+      gate?.blockReason === "handPresenting" ||
+      gate?.blockReason === "pipelineActive" ||
+      false,
+  };
 }
 
 function snapshotGameFlowContext(s, scores) {

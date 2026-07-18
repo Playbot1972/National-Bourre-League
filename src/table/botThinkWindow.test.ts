@@ -11,7 +11,7 @@ import {
 
 describe("botThinkWindow", () => {
   it("builds countdown from fixed think duration", () => {
-    const state = buildBotThinkCountdownState("bot_1", 0, 600, 100);
+    const state = buildBotThinkCountdownState("bot_1", 100, 600, 200, 0, 100);
     assert.ok(state);
     assert.equal(state!.playerId, "bot_1");
     assert.equal(state!.remainingMs, 500);
@@ -19,8 +19,15 @@ describe("botThinkWindow", () => {
     assert.equal(state!.segment, "green");
   });
 
+  it("shows full ring before visible counting starts", () => {
+    const state = buildBotThinkCountdownState("bot_1", 0, 2000, 500, 0, null);
+    assert.ok(state);
+    assert.equal(state!.remainingMs, 2000);
+    assert.equal(state!.progress, 1);
+  });
+
   it("expires at totalMs elapsed", () => {
-    const state = buildBotThinkCountdownState("bot_1", 0, 500, 500);
+    const state = buildBotThinkCountdownState("bot_1", 100, 500, 600, 0, 100);
     assert.ok(state);
     assert.equal(state!.remainingMs, 0);
     assert.equal(state!.progress, 0);

@@ -41,6 +41,7 @@ import {
   getBotThinkWindow,
   subscribeBotThinkWindow,
 } from "./botThinkWindow";
+import { setVisibleBotRingReporter } from "./visibleBotRingBridge";
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
@@ -111,6 +112,7 @@ export {
   publishBotThinkWindow,
   getBotThinkWindow,
   subscribeBotThinkWindow,
+  setVisibleBotRingReporter,
 };
 
 export type { TableSessionViewProps, TablePlayer, TableSessionData, TableSessionActions } from "./types";

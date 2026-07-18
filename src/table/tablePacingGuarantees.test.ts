@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   BOT_PLAY_DELAY_MAX_MS,
   BOT_PLAY_DELAY_MIN_MS,
+  botPlayTurnKey,
   createBotPlayDelayState,
   createBotThinkScheduleState,
   pickBotPlayDelayMs,
@@ -22,6 +23,25 @@ import {
   TRICK_SWEEP_MS,
   WINNER_REVEAL_MS,
 } from "./trickTiming";
+
+function armWithVisibleRing(
+  schedule: ReturnType<typeof createBotThinkScheduleState>,
+  ctx: { handNumber: number; trickNumber: number; turnPlayerId: string },
+  onFire: () => void,
+) {
+  const startedAt = Date.now();
+  schedule.armPlayThink({
+    ctx,
+    nowMs: startedAt,
+    shouldFire: () => true,
+    onFire,
+  });
+  schedule.playDelayState.notifyVisibleRingShown({
+    turnKey: botPlayTurnKey(ctx),
+    playerId: ctx.turnPlayerId,
+    nowMs: startedAt,
+  });
+}
 
 describe("table pacing guarantees", () => {
   it("assigns each bot turn a stable random delay between 1500 and 3000 ms", () => {
@@ -49,18 +69,14 @@ describe("table pacing guarantees", () => {
 
   it("does not shorten the chosen bot delay on rerender", () => {
     const state = createBotPlayDelayState({ rng: () => 0.5 });
-    const first = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_a",
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_a" };
+    const first = state.resolvePlayDelayMs({ ...ctx, nowMs: 0 });
+    state.notifyVisibleRingShown({
+      turnKey: botPlayTurnKey(ctx),
+      playerId: ctx.turnPlayerId,
       nowMs: 0,
     });
-    const rerender = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_a",
-      nowMs: 800,
-    });
+    const rerender = state.resolvePlayDelayMs({ ...ctx, nowMs: 800 });
     assert.equal(rerender.chosenDelayMs, first.chosenDelayMs);
     assert.equal(rerender.delayMs, Math.max(0, first.chosenDelayMs - 800));
   });
@@ -68,14 +84,13 @@ describe("table pacing guarantees", () => {
   it("blocks bot submit until the visible ring minimum expires", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
-    schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
-      nowMs: 0,
-      shouldFire: () => true,
-      onFire: () => {
+    armWithVisibleRing(
+      schedule,
+      { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      () => {
         fired = true;
       },
-    });
+    );
     await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS - 80));
     assert.equal(fired, false);
     await new Promise((r) => setTimeout(r, 120));
@@ -110,9 +125,9 @@ describe("table pacing guarantees", () => {
 
   it("schedules winner read after post-trick hold and before sweep", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.readBeforeWinnerMs >= 900 && schedule.readBeforeWinnerMs <= 1300);
+    assert.ok(schedule.readBeforeWinnerMs >= 1600 && schedule.readBeforeWinnerMs <= 1850);
     assert.ok(schedule.winnerRevealMs >= 500 && schedule.winnerRevealMs <= 800);
-    assert.ok(schedule.sweepMs >= 300 && schedule.sweepMs <= 500);
+    assert.ok(schedule.sweepMs >= 900 && schedule.sweepMs <= 1080);
     assert.equal(schedule.readBeforeWinnerMs, POST_TRICK_READ_MS);
     assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
     assert.equal(schedule.readTotalMs, POST_TRICK_READ_MS + WINNER_REVEAL_MS);
@@ -122,15 +137,15 @@ describe("table pacing guarantees", () => {
     assert.equal(suppressesTurnIndicator("trickComplete"), true);
     assert.equal(suppressesTurnIndicator("winnerReveal"), true);
     assert.equal(suppressesTurnIndicator("collectTrick"), true);
-    assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
+    assert.equal(suppressesTurnIndicator("nextLeadReady"), true);
     assert.equal(suppressesTurnIndicator("live"), false);
-    assert.ok(NEXT_LEAD_GAP_MS >= 400 && NEXT_LEAD_GAP_MS <= 600);
+    assert.ok(NEXT_LEAD_GAP_MS >= 300 && NEXT_LEAD_GAP_MS <= 400);
   });
 
   it("keeps live card travel and inter-player spacing readable", () => {
     assert.ok(TRICK_CARD_TRAVEL_MS >= 450 && TRICK_CARD_TRAVEL_MS <= 600);
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 600 && CARD_REVEAL_STAGGER_MS <= 670);
     assert.ok(CARD_LAND_MS >= 550 && CARD_LAND_MS <= 720);
-    assert.equal(TRICK_SWEEP_MS, 400);
+    assert.equal(TRICK_SWEEP_MS, 990);
   });
 });

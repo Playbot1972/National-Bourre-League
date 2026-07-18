@@ -19,8 +19,8 @@ export const TRICK_CARD_SHIFT_MS = 220;
 /** Full play-to-table presentation (travel + settle) — live mode. */
 export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
-/** Stagger between revealing trick cards in live mode (inter-player spacing, 350–550 ms). */
-export const CARD_REVEAL_STAGGER_MS = 440;
+/** Stagger between revealing trick cards in live mode (inter-player spacing, 600–670 ms). */
+export const CARD_REVEAL_STAGGER_MS = 635;
 
 /** Compressed inter-card cadence in catch-up mode (30–60ms target). */
 export const CARD_REVEAL_CATCHUP_STAGGER_MS = 45;
@@ -32,10 +32,13 @@ export const TRICK_CARD_TRAVEL_CATCHUP_MS = 160;
 export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 40;
 
 /** Live-mode fly stagger between opponent cards in a batched reveal (matches reveal cadence). */
-export const BATCH_TRICK_FLY_LIVE_STAGGER_MS = 440;
+export const BATCH_TRICK_FLY_LIVE_STAGGER_MS = 635;
 
 /** Backlog at or above this uses revealThroughCount in one cadence step (extreme only). */
 export const REVEAL_CATCHUP_BATCH_THRESHOLD = 8;
+
+/** Minimum cards behind server before live play switches to catch-up (recovery only). */
+export const REVEAL_CATCHUP_MIN_BACKLOG = 2;
 
 /** Authoritative trick presentation timing — live readability vs backlog drain. */
 export type TrickPresentationTimingMode = "live" | "catch-up";
@@ -93,10 +96,11 @@ export function isRevealCatchUpMode(
   targetReveal: number,
   serverTrickPlays: number,
 ): boolean {
+  const backlog = revealCatchUpBacklog(revealedCount, targetReveal);
   return (
     serverTrickPlays > 0 &&
-    revealedCount < targetReveal &&
-    revealCatchUpBacklog(revealedCount, targetReveal) > 0
+    backlog >= REVEAL_CATCHUP_MIN_BACKLOG &&
+    backlog > 0
   );
 }
 
@@ -176,7 +180,7 @@ export function batchTrickFlyStaggerMs(modeOrCatchUp: TrickPresentationTimingMod
 export const BOT_PLAY_STAGGER_MS = 380;
 
 /** Readability pause after last card lands — all plays stay visible (no winner yet). */
-export const POST_TRICK_READ_MS = 1100;
+export const POST_TRICK_READ_MS = 1725;
 
 /** Winner glow after the post-trick read hold. */
 export const WINNER_REVEAL_MS = 650;
@@ -185,13 +189,13 @@ export const WINNER_REVEAL_MS = 650;
 export const TRUMP_BEAT_READ_MS = 1300;
 
 /** Directional collection toward winner seat (rake + gather + packet fly). */
-export const TRICK_SWEEP_MS = 400;
+export const TRICK_SWEEP_MS = 990;
 
 /** In-line rake before cards fly to the winner pile. */
 export const TRICK_RAKE_MS = 240;
 
-/** Breathing room after trick collection before next lead (400–600 ms). */
-export const NEXT_LEAD_GAP_MS = 520;
+/** Breathing room after trick collection before next lead (300–400 ms). */
+export const NEXT_LEAD_GAP_MS = 350;
 
 /** Subtle felt/table settle at the trick boundary (nextLeadReady). */
 export const TRICK_TABLE_SETTLE_MS = 360;
@@ -239,9 +243,9 @@ export type TrickPresentationPhase =
   | "collectTrick"
   | "nextLeadReady";
 
-/** Phases where turn/lead UI must stay suppressed (read, winner glow, sweep). */
+/** Phases where turn/lead UI must stay suppressed (read, winner glow, sweep, next-lead gap). */
 export function suppressesTurnIndicator(phase: TrickPresentationPhase): boolean {
-  return phase === "trickComplete" || phase === "winnerReveal" || phase === "collectTrick";
+  return phase !== "live";
 }
 
 export interface FrozenTrick {

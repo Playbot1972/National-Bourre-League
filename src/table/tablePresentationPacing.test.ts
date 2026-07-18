@@ -61,18 +61,18 @@ describe("table presentation pacing", () => {
     assert.ok(duration >= 1800 && duration <= 2400, `deal ${duration}ms`);
   });
 
-  it("holds trump reveal in the 800–1200ms band without running long", () => {
-    assert.ok(TRUMP_REVEAL_HOLD_MS >= 800 && TRUMP_REVEAL_HOLD_MS <= 1200);
+  it("holds trump reveal in the 2500–3500ms band without running long", () => {
+    assert.ok(TRUMP_REVEAL_HOLD_MS >= 2500 && TRUMP_REVEAL_HOLD_MS <= 3500);
     const t = handTimingScale(false);
     assert.equal(t.trumpRevealHoldMs, TRUMP_REVEAL_HOLD_MS);
   });
 
   it("uses readable live trick travel and post-trick read windows", () => {
     assert.ok(trickCardTravelMs("live") >= 450 && trickCardTravelMs("live") <= 650);
-    assert.ok(postTrickReadMs({}) >= 900 && postTrickReadMs({}) <= 1300);
+    assert.ok(postTrickReadMs({}) >= 1600 && postTrickReadMs({}) <= 1850);
     assert.ok(TRUMP_BEAT_READ_MS >= 900 && TRUMP_BEAT_READ_MS <= 1400);
-    assert.ok(NEXT_LEAD_GAP_MS >= 400 && NEXT_LEAD_GAP_MS <= 600);
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 350 && CARD_REVEAL_STAGGER_MS <= 550);
+    assert.ok(NEXT_LEAD_GAP_MS >= 300 && NEXT_LEAD_GAP_MS <= 400);
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 600 && CARD_REVEAL_STAGGER_MS <= 670);
     assert.ok(TRICK_TABLE_SETTLE_MS >= 280 && TRICK_TABLE_SETTLE_MS <= 420);
     assert.ok(CARD_LAND_MS >= 550 && CARD_LAND_MS <= 720);
   });
@@ -154,10 +154,10 @@ describe("table presentation pacing", () => {
 
   it("holds post-trick read then winner reveal as separate beats", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.readBeforeWinnerMs >= 900 && schedule.readBeforeWinnerMs <= 1300);
+    assert.ok(schedule.readBeforeWinnerMs >= 1600 && schedule.readBeforeWinnerMs <= 1850);
     assert.ok(schedule.winnerRevealMs >= 500 && schedule.winnerRevealMs <= 800);
-    assert.ok(schedule.sweepMs >= 300 && schedule.sweepMs <= 500);
+    assert.ok(schedule.sweepMs >= 900 && schedule.sweepMs <= 1080);
     assert.equal(schedule.readTotalMs, schedule.readBeforeWinnerMs + schedule.winnerRevealMs);
-    assert.ok(schedule.nextLeadGapMs >= 400 && schedule.nextLeadGapMs <= 600);
+    assert.ok(schedule.nextLeadGapMs >= 300 && schedule.nextLeadGapMs <= 400);
   });
 });

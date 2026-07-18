@@ -11,6 +11,20 @@ import {
   setBotThinkWindowPublisher,
 } from "../docs/bot-play-delay.js";
 
+function showVisibleRing(schedule, ctx, nowMs = 0) {
+  schedule.playDelayState.notifyVisibleRingShown({
+    turnKey: botPlayTurnKey(ctx),
+    playerId: ctx.turnPlayerId,
+    nowMs,
+  });
+}
+
+function armWithVisibleRing(schedule, input) {
+  const result = schedule.armPlayThink(input);
+  showVisibleRing(schedule, input.ctx, input.nowMs ?? Date.now());
+  return result;
+}
+
 describe("bot play delay", () => {
   it("botPlayTurnKey is stable per hand/trick/turn", () => {
     assert.equal(
@@ -30,18 +44,14 @@ describe("bot play delay", () => {
   it("picks one fixed random delay per turn key", () => {
     let n = 0;
     const state = createBotPlayDelayState({ rng: () => (n += 0.25) });
-    const first = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_1",
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const first = state.resolvePlayDelayMs({ ...ctx, nowMs: 10_000 });
+    state.notifyVisibleRingShown({
+      turnKey: botPlayTurnKey(ctx),
+      playerId: "bot_1",
       nowMs: 10_000,
     });
-    const retry = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_1",
-      nowMs: 10_500,
-    });
+    const retry = state.resolvePlayDelayMs({ ...ctx, nowMs: 10_500 });
     assert.equal(first.chosenDelayMs, retry.chosenDelayMs);
     assert.ok(first.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
     assert.ok(first.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
@@ -58,45 +68,40 @@ describe("bot play delay", () => {
 
   it("rerender does not regenerate a shorter timer", () => {
     const state = createBotPlayDelayState({ rng: () => 0.5 });
-    const first = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 2,
-      turnPlayerId: "bot_x",
+    const ctx = { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_x" };
+    const first = state.resolvePlayDelayMs({ ...ctx, nowMs: 0 });
+    state.notifyVisibleRingShown({
+      turnKey: botPlayTurnKey(ctx),
+      playerId: "bot_x",
       nowMs: 0,
     });
-    const rerender = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 2,
-      turnPlayerId: "bot_x",
-      nowMs: 100,
-    });
+    const rerender = state.resolvePlayDelayMs({ ...ctx, nowMs: 100 });
     assert.equal(rerender.chosenDelayMs, first.chosenDelayMs);
     assert.equal(rerender.delayMs, Math.max(0, first.chosenDelayMs - 100));
     assert.ok(rerender.delayMs < first.delayMs);
   });
 
-  it("credits elapsed wait time against the chosen delay", () => {
+  it("credits elapsed visible ring time against the chosen delay", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_x" };
     const chosen = BOT_PLAY_DELAY_MIN_MS;
-    const at = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 2,
-      turnPlayerId: "bot_x",
-      nowMs: 0,
-    });
+    const at = state.resolvePlayDelayMs({ ...ctx, nowMs: 0 });
     assert.equal(at.chosenDelayMs, chosen);
     assert.equal(at.delayMs, chosen);
+    state.notifyVisibleRingShown({
+      turnKey: botPlayTurnKey(ctx),
+      playerId: "bot_x",
+      nowMs: 0,
+    });
 
     const laterRetry = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 2,
-      turnPlayerId: "bot_x",
+      ...ctx,
       nowMs: chosen - 50,
     });
     assert.equal(laterRetry.delayMs, 50);
   });
 
-  it("does not consume think delay before the turn is armed for play", () => {
+  it("does not consume think delay before the visible ring is shown", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     const armed = state.resolvePlayDelayMs({
       handNumber: 1,
@@ -107,14 +112,20 @@ describe("bot play delay", () => {
     assert.equal(armed.chosenDelayMs, BOT_PLAY_DELAY_MIN_MS);
     assert.equal(armed.elapsedSinceTurnMs, 0);
     assert.equal(armed.delayMs, BOT_PLAY_DELAY_MIN_MS);
+    assert.equal(armed.visibleMinimumMet, false);
   });
 
-  it("credits elapsed time only after the turn is marked eligible", () => {
+  it("credits elapsed time only after the visible ring is shown", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
-    state.markTurnEligible({
+    state.prepareTurn({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
       nowMs: 0,
     });
     const afterPresentation = state.resolvePlayDelayMs({
@@ -124,6 +135,30 @@ describe("bot play delay", () => {
       nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
     });
     assert.equal(afterPresentation.delayMs, 0);
+    assert.equal(afterPresentation.visibleMinimumMet, true);
+  });
+
+  it("resets visible ring elapsed time when hidden", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    state.notifyVisibleRingHidden({
+      turnKey: "1:1:bot_1",
+      reason: "presentation_busy",
+      nowMs: 500,
+    });
+    const status = state.getVisibleRingStatus({ turnKey: "1:1:bot_1", nowMs: 1000 });
+    assert.equal(status.visibleRingElapsedMs, 0);
+    assert.equal(status.visibleMinimumMet, false);
   });
 
   it("publishes one stable think window per eligible turn", () => {
@@ -132,21 +167,28 @@ describe("bot play delay", () => {
       if (window) windows.push(window);
     });
     const state = createBotPlayDelayState({ rng: () => 0.5 });
-    state.markTurnEligible({
+    state.prepareTurn({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 100,
     });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 100,
+    });
+    const afterVisible = windows.length;
     state.markTurnEligible({
       handNumber: 1,
       trickNumber: 1,
       turnPlayerId: "bot_1",
       nowMs: 200,
     });
-    assert.equal(windows.length, 1);
-    assert.equal(windows[0]?.playerId, "bot_1");
-    assert.ok(windows[0]?.totalMs >= BOT_PLAY_DELAY_MIN_MS);
+    assert.ok(afterVisible >= 1);
+    assert.equal(windows.length, afterVisible);
+    assert.equal(windows[windows.length - 1]?.playerId, "bot_1");
+    assert.ok(windows[windows.length - 1]?.totalMs >= BOT_PLAY_DELAY_MIN_MS);
     setBotThinkWindowPublisher(null);
   });
 
@@ -196,9 +238,9 @@ describe("bot play delay", () => {
 describe("bot think schedule", () => {
   it("arms random delay between 1500 and 3000 ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
-    const armed = schedule.armPlayThink({
+    const armed = armWithVisibleRing(schedule, {
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
-      nowMs: 0,
+      nowMs: Date.now(),
       shouldFire: () => true,
       onFire: () => {},
     });
@@ -208,12 +250,13 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("submit never fires before 1500 ms", async () => {
+  it("submit never fires before 1500 ms of visible ring", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const startedAt = Date.now();
     let fired = false;
-    schedule.armPlayThink({
+    armWithVisibleRing(schedule, {
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
-      nowMs: 0,
+      nowMs: startedAt,
       shouldFire: () => true,
       onFire: () => {
         fired = true;
@@ -225,18 +268,19 @@ describe("bot think schedule", () => {
     assert.equal(fired, true);
   });
 
-  it("submit fires by 3000 ms when eligible and unblocked", async () => {
+  it("submit fires by 3000 ms when visible ring eligible and unblocked", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.999999 });
     let fired = false;
-    const started = Date.now();
-    schedule.armPlayThink({
+    const startedAt = Date.now();
+    armWithVisibleRing(schedule, {
       ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2" },
-      nowMs: 0,
+      nowMs: startedAt,
       shouldFire: () => true,
       onFire: () => {
         fired = true;
       },
     });
+    const started = startedAt;
     const deadline = Date.now() + BOT_PLAY_DELAY_MAX_MS + 100;
     while (!fired && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 25));
@@ -245,11 +289,30 @@ describe("bot think schedule", () => {
     assert.ok(Date.now() - started <= BOT_PLAY_DELAY_MAX_MS + 150);
   });
 
-  it("coalesced rerender does not reset the armed timer", () => {
+  it("does not fire before visible ring is shown", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
-    const first = schedule.armPlayThink({
+    let fired = false;
+    schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
       nowMs: 0,
+      shouldFire: () => true,
+      onFire: () => {
+        fired = true;
+      },
+    });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    assert.equal(fired, false);
+    showVisibleRing(schedule, { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" }, Date.now());
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    assert.equal(fired, true);
+  });
+
+  it("coalesced rerender does not reset the armed timer", () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const startedAt = Date.now();
+    const first = armWithVisibleRing(schedule, {
+      ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
+      nowMs: startedAt,
       shouldFire: () => true,
       onFire: () => {},
     });
@@ -336,9 +399,9 @@ describe("bot think schedule", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
     let rejected = false;
-    schedule.armPlayThink({
+    armWithVisibleRing(schedule, {
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" },
-      nowMs: 0,
+      nowMs: Date.now(),
       shouldFire: () => false,
       onFire: () => {
         fired = true;
@@ -349,23 +412,23 @@ describe("bot think schedule", () => {
         },
       },
     });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 100));
     assert.equal(fired, false);
     assert.equal(rejected, true);
   });
 
-  it("fires after delay when presentation would be clear", async () => {
+  it("fires after visible delay when presentation would be clear", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
-    schedule.armPlayThink({
+    armWithVisibleRing(schedule, {
       ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2" },
-      nowMs: 0,
+      nowMs: Date.now(),
       shouldFire: () => true,
       onFire: () => {
         fired = true;
       },
     });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 100));
     assert.equal(fired, true);
   });
 
