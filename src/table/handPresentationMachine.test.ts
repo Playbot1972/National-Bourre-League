@@ -277,6 +277,7 @@ describe("handPresentationMachine", () => {
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botA));
 
     store = reduceHandPresentation(store, {
@@ -286,6 +287,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.animatingDrawPlayerId, botB);
     assert.ok(store.drawPresentationConsumedIds.includes(botB));
 
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botB));
@@ -367,6 +369,8 @@ describe("handPresentationMachine", () => {
       snapshot: { ...snap, drawCompletedIds: [botA], turnPlayerId: botB },
     });
     assert.equal(store.animatingDrawPlayerId, botA);
+    assert.equal(store.drawAnimSubPhase, "ring");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "discard");
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "receive");
@@ -382,7 +386,7 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botA));
     assert.equal(store.animatingDrawPlayerId, botB);
-    assert.equal(store.drawAnimSubPhase, "discard");
+    assert.equal(store.drawAnimSubPhase, "ring");
 
     const afterCommit = store;
     store = reduceHandPresentation(store, { type: "advancePhase" });
@@ -399,6 +403,8 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.phase, "drawPlayer");
     assert.equal(store.animatingDrawPlayerId, "p2");
+    assert.equal(store.drawAnimSubPhase, "ring");
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "discard");
     const model = buildHandPresentationModel(store);
     assert.equal(model.displayDrawCompletedIds.includes("p2"), false);
@@ -417,6 +423,9 @@ describe("handPresentationMachine", () => {
       heroDrawReplaceCount: 0,
     });
     assert.equal(store.animatingDrawPlayerId, "p2");
+    assert.equal(store.drawAnimSubPhase, "ring");
+    assert.ok(phaseScheduleMs(store) > 0);
+    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "done");
     assert.equal(phaseScheduleMs(store), 0);
   });
@@ -441,7 +450,7 @@ describe("handPresentationMachine", () => {
       type: "serverUpdate",
       snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p3" },
     });
-    assert.equal(store.drawAnimSubPhase, "discard");
+    assert.equal(store.drawAnimSubPhase, "ring");
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
       snapshot: { ...baseSnap, phase: "play", drawCompletedIds: ["p1", "p2", "p3"] },
@@ -800,10 +809,10 @@ describe("handPresentationMachine", () => {
 
 describe("trick timing with hand flow", () => {
   it("uses a sub-second post-trick read before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 525);
-    assert.ok(POST_TRICK_READ_MS >= 450 && POST_TRICK_READ_MS <= 600);
+    assert.equal(POST_TRICK_READ_MS, 550);
+    assert.ok(POST_TRICK_READ_MS >= 450 && POST_TRICK_READ_MS <= 650);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 525);
-    assert.ok(schedule.pipelineMs >= 1500 && schedule.pipelineMs <= 2000);
+    assert.equal(schedule.readTotalMs, 550);
+    assert.ok(schedule.pipelineMs >= 1400 && schedule.pipelineMs <= 2100);
   });
 });

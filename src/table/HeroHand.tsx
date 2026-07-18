@@ -67,7 +67,7 @@ interface HeroHandProps {
   privateHandReady?: boolean;
   className?: string;
   dealStaggerMs?: number;
-  drawAnimSubPhase?: "discard" | "receive" | "done" | null;
+  drawAnimSubPhase?: "ring" | "discard" | "receive" | "done" | null;
   drawDiscardCount?: number;
   drawReplaceCount?: number;
   currentUserId?: string | null;

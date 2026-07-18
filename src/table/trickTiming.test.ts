@@ -156,14 +156,14 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickReadMs({ trumpBeat: true }), 725);
-    assert.equal(postTrickReadMs({}), 525);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 650);
+    assert.equal(postTrickReadMs({}), 550);
   });
 
   it("schedules winner reveal inside the read pause", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 525);
-    assert.equal(schedule.winnerRevealMs, 325);
+    assert.equal(schedule.readTotalMs, 550);
+    assert.equal(schedule.winnerRevealMs, 350);
     assert.equal(schedule.readBeforeWinnerMs, 200);
   });
 
@@ -261,7 +261,7 @@ describe("revealCatchUp pacing", () => {
 
   it("normal live reveal timing remains unchanged", () => {
     assert.equal(cardRevealStaggerMs("live"), CARD_REVEAL_STAGGER_MS);
-    assert.equal(trickCardTravelMs("live"), 395);
+    assert.equal(trickCardTravelMs("live"), 520);
     assert.ok(CARD_REVEAL_STAGGER_MS > CARD_REVEAL_CATCHUP_STAGGER_MS * 3);
   });
 

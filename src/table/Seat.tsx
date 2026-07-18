@@ -88,6 +88,7 @@ export function Seat({
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
         player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
+        player.drawAnimSubPhase === "ring" ? "bseat--draw-ring" : "",
         player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
         player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
         bourrePulse ? "bseat--bourre-pulse" : "",

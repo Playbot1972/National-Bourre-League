@@ -8,7 +8,8 @@ import {
 import {
   type DrawAnimSubPhase,
   type HandPresentationPhase,
-  drawPlayerScheduleMs,
+  drawPlayerAnimScheduleMs,
+  drawSubPhaseSuppressesTurnRing,
   handTimingScale,
   PRESENTATION_WATCHDOG_MS,
 } from "./handPresentationTiming";
@@ -457,6 +458,13 @@ function commitDrawPlayerReceiveComplete(
 }
 
 function initialDrawAnimSubPhase(
+  _discardCount: number,
+  _replaceCount: number,
+): DrawAnimSubPhase {
+  return "ring";
+}
+
+function drawAnimSubPhaseAfterRing(
   discardCount: number,
   replaceCount: number,
 ): DrawAnimSubPhase {
@@ -935,6 +943,15 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
       return store;
 
     case "drawPlayer": {
+      if (store.drawAnimSubPhase === "ring") {
+        return {
+          ...store,
+          drawAnimSubPhase: drawAnimSubPhaseAfterRing(
+            store.drawDiscardCount,
+            store.drawReplaceCount,
+          ),
+        };
+      }
       if (store.drawAnimSubPhase === "discard" && store.drawReplaceCount > 0) {
         return { ...store, drawAnimSubPhase: "receive" };
       }
@@ -1044,7 +1061,8 @@ export function buildHandPresentationModel(
       store.phase === "settle" ||
       store.phase === "nextHandReset" ||
       store.phase === "handReset" ||
-      (store.phase === "drawPlayer" && store.drawAnimSubPhase !== "done"),
+      (store.phase === "drawPlayer" &&
+        drawSubPhaseSuppressesTurnRing(store.drawAnimSubPhase)),
     displayPotAmount: store.displayPotAmount,
     isPresenting: isHandPresentingPhase(store.phase),
     dealPresentationAllowed: store.dealPresentationAllowed,
@@ -1089,11 +1107,14 @@ export function phaseScheduleMs(
       if (store.drawAnimSubPhase === "done") {
         return 0;
       }
-      return drawPlayerScheduleMs(
-        store.drawAnimSubPhase === "receive" ? 0 : store.drawDiscardCount,
-        store.drawAnimSubPhase === "receive" ? store.drawReplaceCount : 0,
+      return drawPlayerAnimScheduleMs({
+        subPhase: store.drawAnimSubPhase,
+        discardCount:
+          store.drawAnimSubPhase === "receive" ? 0 : store.drawDiscardCount,
+        replaceCount:
+          store.drawAnimSubPhase === "receive" ? store.drawReplaceCount : 0,
         reducedMotion,
-      );
+      });
     case "drawReady":
       return t.drawReadyBeatMs;
     case "settle":

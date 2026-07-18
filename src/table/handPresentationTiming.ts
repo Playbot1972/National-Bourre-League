@@ -6,13 +6,13 @@
 import { FINAL_HAND_TRICK_PRESENTATION_MS, prefersReducedMotion } from "./trickTiming";
 
 /** Ante chip travel from seat to pot (per coin). */
-export const ANTE_CHIP_TRAVEL_MS = 280;
+export const ANTE_CHIP_TRAVEL_MS = 290;
 
 /** Stagger between consecutive ante launches (clockwise, dealer last). */
-export const ANTE_CHIP_STAGGER_MS = 72;
+export const ANTE_CHIP_STAGGER_MS = 78;
 
 /** Breathing beat after all ante coins land, before trump/deal. */
-export const ANTE_POST_HOLD_MS = 250;
+export const ANTE_POST_HOLD_MS = 240;
 
 /** Per-card deal stagger (90–140 ms). */
 export const DEAL_CARD_STAGGER_MS = 130;
@@ -21,7 +21,7 @@ export const DEAL_CARD_STAGGER_MS = 130;
 export const DEAL_FAN_MS = 600;
 
 /** Dealer upcard / trump reveal hold (readable beat before deal). */
-export const TRUMP_REVEAL_HOLD_MS = 1000;
+export const TRUMP_REVEAL_HOLD_MS = 950;
 
 /** Trump merge into holder hand after first opening action (~480 ms). */
 export const TRUMP_MERGE_ANIM_MS = 480;
@@ -29,17 +29,20 @@ export const TRUMP_MERGE_ANIM_MS = 480;
 /** Enrollment seat pulse when a player joins or passes. */
 export const ENROLLMENT_SEAT_PULSE_MS = 480;
 
-/** Draw discard slide to center pile (280–420 ms). */
-export const DRAW_DISCARD_MS = 400;
+/** Turn ring visible before each draw player's discard/receive. */
+export const DRAW_RING_BEAT_MS = 340;
 
-/** Draw replacement per card (100–160 ms). */
-export const DRAW_REPLACE_MS = 700;
+/** Draw discard slide to center pile (280–420 ms). */
+export const DRAW_DISCARD_MS = 340;
+
+/** Draw replacement per card (readable, not per-card dead air). */
+export const DRAW_REPLACE_MS = 380;
 
 /** Pause after all draws before first lead (400–600 ms). */
-export const DRAW_READY_BEAT_MS = 500;
+export const DRAW_READY_BEAT_MS = 480;
 
 /** Settle / payout hold (800–1200 ms). */
-export const SETTLE_HOLD_MS = 1000;
+export const SETTLE_HOLD_MS = 880;
 
 /** Next-hand reset pause (400–700 ms). */
 export const NEXT_HAND_RESET_MS = 550;
@@ -70,7 +73,7 @@ export type HandPresentationPhase =
   | "settle"
   | "nextHandReset";
 
-export type DrawAnimSubPhase = "discard" | "receive" | "done";
+export type DrawAnimSubPhase = "ring" | "discard" | "receive" | "done";
 
 export interface HandTimingScale {
   anteChipTravelMs: number;
@@ -81,6 +84,7 @@ export interface HandTimingScale {
   trumpRevealHoldMs: number;
   trumpMergeAnimMs: number;
   enrollmentSeatPulseMs: number;
+  drawRingBeatMs: number;
   drawDiscardMs: number;
   drawReplaceMs: number;
   drawReadyBeatMs: number;
@@ -101,6 +105,7 @@ export function handTimingScale(reducedMotion = prefersReducedMotion()): HandTim
     trumpRevealHoldMs: round(TRUMP_REVEAL_HOLD_MS),
     trumpMergeAnimMs: round(TRUMP_MERGE_ANIM_MS),
     enrollmentSeatPulseMs: round(ENROLLMENT_SEAT_PULSE_MS),
+    drawRingBeatMs: round(DRAW_RING_BEAT_MS),
     drawDiscardMs: round(DRAW_DISCARD_MS),
     drawReplaceMs: round(DRAW_REPLACE_MS),
     drawReadyBeatMs: round(DRAW_READY_BEAT_MS),
@@ -134,13 +139,54 @@ export function drawPlayerScheduleMs(
   replaceCount: number,
   reducedMotion = prefersReducedMotion(),
 ): number {
-  const t = handTimingScale(reducedMotion);
-  const discards = Math.max(0, discardCount);
-  const replacements = Math.max(0, replaceCount);
-  if (discards === 0 && replacements === 0) {
-    return Math.max(120, Math.round(t.drawDiscardMs * 0.6));
+  return drawPlayerAnimScheduleMs({
+    subPhase: "discard",
+    discardCount,
+    replaceCount,
+    reducedMotion,
+  });
+}
+
+export function drawPlayerAnimScheduleMs(input: {
+  subPhase: DrawAnimSubPhase;
+  discardCount: number;
+  replaceCount: number;
+  reducedMotion?: boolean;
+}): number {
+  const t = handTimingScale(input.reducedMotion);
+  if (input.subPhase === "ring") return t.drawRingBeatMs;
+  if (input.subPhase === "done") return 0;
+
+  const discards = Math.max(0, input.discardCount);
+  const replacements = Math.max(0, input.replaceCount);
+  if (input.subPhase === "receive") {
+    if (replacements === 0) return Math.max(120, Math.round(t.drawReplaceMs * 0.5));
+    return replacements * t.drawReplaceMs + 60;
   }
-  return discards * t.drawDiscardMs + replacements * t.drawReplaceMs + 80;
+  if (discards === 0 && replacements === 0) {
+    return Math.max(120, Math.round(t.drawDiscardMs * 0.55));
+  }
+  return discards * t.drawDiscardMs + 60;
+}
+
+/** Seat whose turn ring should show during draw presentation (ring beat only). */
+export function resolveDrawPresentationRingActor(input: {
+  phase: HandPresentationPhase;
+  drawAnimSubPhase: DrawAnimSubPhase;
+  animatingDrawPlayerId: string | null;
+}): string | null {
+  if (
+    input.phase === "drawPlayer" &&
+    input.drawAnimSubPhase === "ring" &&
+    input.animatingDrawPlayerId
+  ) {
+    return input.animatingDrawPlayerId;
+  }
+  return null;
+}
+
+export function drawSubPhaseSuppressesTurnRing(subPhase: DrawAnimSubPhase): boolean {
+  return subPhase === "discard" || subPhase === "receive";
 }
 
 export function suppressesHandTurnIndicator(phase: HandPresentationPhase): boolean {

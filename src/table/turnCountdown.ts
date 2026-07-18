@@ -36,6 +36,8 @@ export interface TurnCountdownInput {
   >;
   suppressTurn: boolean;
   handComplete: boolean;
+  /** Draw ring beat — show countdown on presenting seat instead of server turn. */
+  presentationActorId?: string | null;
 }
 
 const ACTIONABLE_FLOW_PHASES = new Set<string>([
@@ -90,6 +92,7 @@ function sessionViewFromTable(input: TurnCountdownInput): HandFlowSessionView {
  */
 export function resolveTableActiveActorId(input: TurnCountdownInput): string | null {
   if (input.handComplete || input.suppressTurn) return null;
+  if (input.presentationActorId) return input.presentationActorId;
 
   const snapshot = buildHandFlowSnapshot({
     session: sessionViewFromTable(input),

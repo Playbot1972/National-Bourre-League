@@ -18,6 +18,7 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
+import { resolveDrawPresentationRingActor } from "./handPresentationTiming";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
@@ -581,10 +582,17 @@ export function TableSessionView({
   });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
 
+  const drawRingActorId = resolveDrawPresentationRingActor({
+    phase: handPresentation.phase,
+    drawAnimSubPhase: handPresentation.drawAnimSubPhase,
+    animatingDrawPlayerId: handPresentation.animatingDrawPlayerId,
+  });
+
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    presentationActorId: drawRingActorId,
   });
 
   const activeActorId = turnCountdown?.playerId ?? null;
