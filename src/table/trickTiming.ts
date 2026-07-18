@@ -10,42 +10,74 @@ export const TRICK_CARD_TRAVEL_MS = 395;
 /** Arrival settle/pop after travel. */
 export const TRICK_CARD_SETTLE_MS = 165;
 
+/** Compressed settle during catch-up mode. */
+export const TRICK_CARD_SETTLE_CATCHUP_MS = 40;
+
 /** Existing table cards shift sideways when a new card lands. */
 export const TRICK_CARD_SHIFT_MS = 220;
 
-/** Full play-to-table presentation (travel + settle). */
+/** Full play-to-table presentation (travel + settle) — live mode. */
 export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
-/** Stagger between revealing trick cards — slightly after land so prior card finishes. */
+/** Stagger between revealing trick cards in live mode. */
 export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
 
-/** Fast stagger while draining authoritative backlog (revealCatchUp). */
-export const CARD_REVEAL_CATCHUP_STAGGER_MS = 160;
+/** Compressed inter-card cadence in catch-up mode (30–60ms target). */
+export const CARD_REVEAL_CATCHUP_STAGGER_MS = 45;
 
-/** Compressed card travel during revealCatchUp backlog drain. */
-export const TRICK_CARD_TRAVEL_CATCHUP_MS = 200;
+/** Compressed card travel during catch-up mode (120–200ms target). */
+export const TRICK_CARD_TRAVEL_CATCHUP_MS = 160;
 
 /** Inter-card fly stagger inside a batched catch-up reveal batch. */
-export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 48;
+export const BATCH_TRICK_FLY_CATCHUP_STAGGER_MS = 40;
 
-/** Backlog at or above this uses revealThroughCount in one cadence step. */
-export const REVEAL_CATCHUP_BATCH_THRESHOLD = 6;
+/** Backlog at or above this uses revealThroughCount in one cadence step (extreme only). */
+export const REVEAL_CATCHUP_BATCH_THRESHOLD = 8;
 
-/** Estimated ms to drain a catch-up backlog (stagger + final travel). */
+/** Authoritative trick presentation timing — live readability vs backlog drain. */
+export type TrickPresentationTimingMode = "live" | "catch-up";
+
+export function resolveTrickPresentationTimingMode(input: {
+  revealedCount: number;
+  targetReveal: number;
+  serverTrickPlays: number;
+}): TrickPresentationTimingMode {
+  return isRevealCatchUpMode(
+    input.revealedCount,
+    input.targetReveal,
+    input.serverTrickPlays,
+  )
+    ? "catch-up"
+    : "live";
+}
+
+/** Estimated ms to drain a catch-up backlog (parallel fly: last card lands after stagger chain). */
 export function estimateRevealCatchUpDrainMs(
   backlog: number,
   options: { reducedMotion?: boolean } = {},
 ): number {
   if (backlog <= 0) return 0;
   const reduced = options.reducedMotion === true;
+  const mode: TrickPresentationTimingMode = "catch-up";
   if (backlog >= REVEAL_CATCHUP_BATCH_THRESHOLD) {
-    const travel = trickCardTravelMs({ catchUp: true, reducedMotion: reduced });
-    const flyStagger = BATCH_TRICK_FLY_CATCHUP_STAGGER_MS * Math.max(0, backlog - 1);
-    const leadMs = cardRevealStaggerMs({ catchUp: true, reducedMotion: reduced });
+    const travel = trickCardTravelMs(mode, reduced);
+    const flyStagger = batchTrickFlyStaggerMs(mode) * Math.max(0, backlog - 1);
+    const leadMs = cardRevealStaggerMs(mode, reduced);
     return leadMs + travel + flyStagger;
   }
-  const stagger = cardRevealStaggerMs({ catchUp: true, reducedMotion: reduced });
-  const travel = trickCardTravelMs({ catchUp: true, reducedMotion: reduced });
+  const stagger = cardRevealStaggerMs(mode, reduced);
+  const travel = trickCardTravelMs(mode, reduced);
+  return stagger * Math.max(0, backlog - 1) + travel;
+}
+
+export function estimateLiveRevealDrainMs(
+  backlog: number,
+  options: { reducedMotion?: boolean } = {},
+): number {
+  if (backlog <= 0) return 0;
+  const reduced = options.reducedMotion === true;
+  const stagger = cardRevealStaggerMs("live", reduced);
+  const travel = trickCardTravelMs("live", reduced);
   return stagger * Math.max(0, backlog - 1) + travel;
 }
 
@@ -65,24 +97,76 @@ export function isRevealCatchUpMode(
   );
 }
 
+export function cardRevealStaggerMs(
+  mode: TrickPresentationTimingMode,
+  reducedMotion?: boolean,
+): number;
 export function cardRevealStaggerMs(options: {
   catchUp: boolean;
   reducedMotion?: boolean;
-}): number {
-  const base = options.catchUp ? CARD_REVEAL_CATCHUP_STAGGER_MS : CARD_REVEAL_STAGGER_MS;
-  return options.reducedMotion ? Math.round(base * 0.55) : base;
+}): number;
+export function cardRevealStaggerMs(
+  modeOrOptions: TrickPresentationTimingMode | { catchUp: boolean; reducedMotion?: boolean },
+  reducedMotion = false,
+): number {
+  const mode: TrickPresentationTimingMode =
+    typeof modeOrOptions === "string"
+      ? modeOrOptions
+      : modeOrOptions.catchUp
+        ? "catch-up"
+        : "live";
+  const reduced =
+    typeof modeOrOptions === "string" ? reducedMotion : (modeOrOptions.reducedMotion ?? false);
+  const base =
+    mode === "catch-up" ? CARD_REVEAL_CATCHUP_STAGGER_MS : CARD_REVEAL_STAGGER_MS;
+  return reduced ? Math.round(base * 0.55) : base;
 }
 
+export function trickCardTravelMs(
+  mode: TrickPresentationTimingMode,
+  reducedMotion?: boolean,
+): number;
 export function trickCardTravelMs(options: {
   catchUp: boolean;
   reducedMotion?: boolean;
-}): number {
-  const base = options.catchUp ? TRICK_CARD_TRAVEL_CATCHUP_MS : TRICK_CARD_TRAVEL_MS;
-  return options.reducedMotion ? Math.round(base * 0.55) : base;
+}): number;
+export function trickCardTravelMs(
+  modeOrOptions: TrickPresentationTimingMode | { catchUp: boolean; reducedMotion?: boolean },
+  reducedMotion = false,
+): number {
+  const mode: TrickPresentationTimingMode =
+    typeof modeOrOptions === "string"
+      ? modeOrOptions
+      : modeOrOptions.catchUp
+        ? "catch-up"
+        : "live";
+  const reduced =
+    typeof modeOrOptions === "string" ? reducedMotion : (modeOrOptions.reducedMotion ?? false);
+  const base = mode === "catch-up" ? TRICK_CARD_TRAVEL_CATCHUP_MS : TRICK_CARD_TRAVEL_MS;
+  return reduced ? Math.round(base * 0.55) : base;
 }
 
-export function batchTrickFlyStaggerMs(catchUp: boolean): number {
-  return catchUp ? BATCH_TRICK_FLY_CATCHUP_STAGGER_MS : 72;
+export function trickCardSettleMs(
+  mode: TrickPresentationTimingMode,
+  reducedMotion = false,
+): number {
+  const base = mode === "catch-up" ? TRICK_CARD_SETTLE_CATCHUP_MS : TRICK_CARD_SETTLE_MS;
+  return reducedMotion ? Math.round(base * 0.55) : base;
+}
+
+export function trickCardLandMs(
+  mode: TrickPresentationTimingMode,
+  reducedMotion = false,
+): number {
+  return trickCardTravelMs(mode, reducedMotion) + trickCardSettleMs(mode, reducedMotion);
+}
+
+export function batchTrickFlyStaggerMs(mode: TrickPresentationTimingMode): number;
+export function batchTrickFlyStaggerMs(catchUp: boolean): number;
+export function batchTrickFlyStaggerMs(modeOrCatchUp: TrickPresentationTimingMode | boolean): number {
+  const mode: TrickPresentationTimingMode =
+    typeof modeOrCatchUp === "boolean" ? (modeOrCatchUp ? "catch-up" : "live") : modeOrCatchUp;
+  return mode === "catch-up" ? BATCH_TRICK_FLY_CATCHUP_STAGGER_MS : 72;
 }
 
 /** Stagger between bot plays in the social driver (250–450 ms). */

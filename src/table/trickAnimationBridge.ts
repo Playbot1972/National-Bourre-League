@@ -21,6 +21,9 @@ export interface TrickAnimationBusyState {
   motionGateActive: boolean;
   peakPlayCount: number;
   displayedPlayCount: number;
+  /** Live reveal progress — gate clears when revealedCount >= revealTarget. */
+  revealedCount: number;
+  revealTarget: number;
   /** Hand deal / trump / draw presentation still running. */
   handPresenting: boolean;
   handPresentationPhase: string;
@@ -43,6 +46,8 @@ const IDLE: TrickAnimationBusyState = {
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
+  revealedCount: 0,
+  revealTarget: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
   dealPresentationActive: false,
@@ -83,6 +88,8 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
     a.motionGateActive === b.motionGateActive &&
     a.peakPlayCount === b.peakPlayCount &&
     a.displayedPlayCount === b.displayedPlayCount &&
+    a.revealedCount === b.revealedCount &&
+    a.revealTarget === b.revealTarget &&
     a.handPresenting === b.handPresenting &&
     a.handPresentationPhase === b.handPresentationPhase &&
     a.dealPresentationActive === b.dealPresentationActive &&
@@ -105,7 +112,11 @@ export function getTablePresentationBlockReason(
   if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
   if (s.revealCatchUp) return "revealCatchUp";
-  if (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0) {
+  if (
+    s.peakPlayCount > s.displayedPlayCount &&
+    s.peakPlayCount > 0 &&
+    s.revealedCount < s.revealTarget
+  ) {
     return "peakPlayCatchUp";
   }
   return null;
@@ -282,6 +293,8 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
         revealCatchUp: false,
         peakPlayCount: 0,
         displayedPlayCount: 0,
+        revealedCount: 0,
+        revealTarget: 0,
         trickCollectionActive: false,
       }
     : next;
@@ -328,6 +341,8 @@ export function syncAuthoritativePresentationScope(scopeKey: string): void {
       revealCatchUp: false,
       peakPlayCount: 0,
       displayedPlayCount: 0,
+      revealedCount: 0,
+      revealTarget: 0,
       trickCollectionActive: false,
     });
   }
@@ -355,7 +370,9 @@ export function isTrickAnimationBusy(): boolean {
     state.revealCatchUp ||
     state.motionGateActive ||
     state.trickCollectionActive ||
-    (state.peakPlayCount > state.displayedPlayCount && state.peakPlayCount > 0)
+    (state.peakPlayCount > state.displayedPlayCount &&
+      state.peakPlayCount > 0 &&
+      state.revealedCount < state.revealTarget)
   );
 }
 

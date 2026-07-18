@@ -9,14 +9,20 @@ import {
   cardRevealStaggerMs,
   currentTrickLeaderId,
   detectTrickResolution,
+  estimateLiveRevealDrainMs,
   estimateRevealCatchUpDrainMs,
   FINAL_HAND_TRICK_PRESENTATION_MS,
   isRevealCatchUpMode,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
+  resolveTrickPresentationTimingMode,
   suppressesTurnIndicator,
+  trickCardSettleMs,
+  trickCardTravelMs,
   trickResolutionScheduleMs,
   trickWinnerDelta,
+  TRICK_CARD_TRAVEL_CATCHUP_MS,
+  TRICK_CARD_SETTLE_CATCHUP_MS,
   trumpBeatLedSuit,
   WINNER_REVEAL_MS,
 } from "./trickTiming";
@@ -195,16 +201,23 @@ describe("trickTiming", () => {
 
 describe("revealCatchUp pacing", () => {
   it("uses faster cadence than live reveal", () => {
-    const live = cardRevealStaggerMs({ catchUp: false });
-    const catchUp = cardRevealStaggerMs({ catchUp: true });
+    const live = cardRevealStaggerMs("live");
+    const catchUp = cardRevealStaggerMs("catch-up");
     assert.ok(catchUp < live);
     assert.equal(catchUp, CARD_REVEAL_CATCHUP_STAGGER_MS);
     assert.equal(live, CARD_REVEAL_STAGGER_MS);
   });
 
-  it("drains a backlog of 5 within the target timing budget", () => {
+  it("catch-up timing path is faster than live for the same backlog", () => {
+    const liveDrain = estimateLiveRevealDrainMs(5);
+    const catchUpDrain = estimateRevealCatchUpDrainMs(5);
+    assert.ok(catchUpDrain < liveDrain);
+    assert.ok(liveDrain > 2000);
+  });
+
+  it("drains a backlog of 5 within the catch-up timing budget", () => {
     const drainMs = estimateRevealCatchUpDrainMs(5);
-    assert.ok(drainMs >= 800, `expected >= 800ms, got ${drainMs}`);
+    assert.ok(drainMs >= 250, `expected >= 250ms, got ${drainMs}`);
     assert.ok(drainMs <= 1200, `expected <= 1200ms, got ${drainMs}`);
   });
 
@@ -235,8 +248,26 @@ describe("revealCatchUp pacing", () => {
     assert.equal(isRevealCatchUpMode(0, 5, 0), false);
   });
 
+  it("resolveTrickPresentationTimingMode exposes only live and catch-up", () => {
+    assert.equal(
+      resolveTrickPresentationTimingMode({ revealedCount: 0, targetReveal: 3, serverTrickPlays: 3 }),
+      "catch-up",
+    );
+    assert.equal(
+      resolveTrickPresentationTimingMode({ revealedCount: 3, targetReveal: 3, serverTrickPlays: 3 }),
+      "live",
+    );
+  });
+
   it("normal live reveal timing remains unchanged", () => {
-    assert.equal(cardRevealStaggerMs({ catchUp: false }), CARD_REVEAL_STAGGER_MS);
+    assert.equal(cardRevealStaggerMs("live"), CARD_REVEAL_STAGGER_MS);
+    assert.equal(trickCardTravelMs("live"), 395);
     assert.ok(CARD_REVEAL_STAGGER_MS > CARD_REVEAL_CATCHUP_STAGGER_MS * 3);
+  });
+
+  it("catch-up uses compressed travel and settle", () => {
+    assert.equal(trickCardTravelMs("catch-up"), TRICK_CARD_TRAVEL_CATCHUP_MS);
+    assert.equal(trickCardSettleMs("catch-up"), TRICK_CARD_SETTLE_CATCHUP_MS);
+    assert.ok(trickCardTravelMs("catch-up") < trickCardTravelMs("live"));
   });
 });

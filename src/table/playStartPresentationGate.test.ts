@@ -29,6 +29,8 @@ const idleBusy = {
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
+  revealedCount: 0,
+  revealTarget: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
 };

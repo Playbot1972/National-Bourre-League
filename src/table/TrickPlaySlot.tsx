@@ -17,7 +17,9 @@ import {
 import {
   prefersReducedMotion,
   batchTrickFlyStaggerMs,
+  trickCardSettleMs,
   trickCardTravelMs,
+  type TrickPresentationTimingMode,
 } from "./trickTiming";
 import {
   trickSlotAwaitingFly,
@@ -141,6 +143,8 @@ export function TrickPlaySlot({
   indexRef.current = index;
   playRef.current = play;
   const playKey = playFlyKey(play);
+  const timingMode: TrickPresentationTimingMode = revealCatchUp ? "catch-up" : "live";
+  const settleMs = trickCardSettleMs(timingMode, prefersReducedMotion());
   const isLeading = leaderPlayerId != null && play.playerId === leaderPlayerId;
   const isWinner = winnerPlayerId != null && play.playerId === winnerPlayerId;
   /** Shift transition only after a completed land — never during fly keyframes. */
@@ -228,8 +232,9 @@ export function TrickPlaySlot({
     }
 
     const reduced = prefersReducedMotion();
-    const baseTravelMs = trickCardTravelMs({ catchUp: revealCatchUp, reducedMotion: reduced });
-    const flyStaggerStep = batchTrickFlyStaggerMs(revealCatchUp);
+    const baseTravelMs = trickCardTravelMs(timingMode, reduced);
+    const landMs = baseTravelMs + trickCardSettleMs(timingMode, reduced);
+    const flyStaggerStep = batchTrickFlyStaggerMs(timingMode);
     const flyStaggerMs =
       displayCountRef.current > 1 && index < displayCountRef.current - 1
         ? index * flyStaggerStep
@@ -280,7 +285,7 @@ export function TrickPlaySlot({
           playKey,
           index,
         }, audioCtx);
-      }, travelMs);
+      }, landMs);
 
       return () => {
         window.clearTimeout(showTimer);
@@ -309,6 +314,7 @@ export function TrickPlaySlot({
     playKey,
     handoffGateTick,
     revealCatchUp,
+    timingMode,
   ]);
 
   const flyStyle: CSSProperties = {
@@ -323,6 +329,7 @@ export function TrickPlaySlot({
     ...(flyTravelMs != null
       ? { ["--trick-card-travel-ms" as string]: `${flyTravelMs}ms` }
       : {}),
+    ["--trick-card-settle-ms" as string]: `${settleMs}ms`,
   };
 
   return (

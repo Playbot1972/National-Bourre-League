@@ -24,6 +24,8 @@ const idleTrickFields = {
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
+  revealedCount: 0,
+  revealTarget: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
   dealPresentationActive: false,
@@ -76,7 +78,7 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), true);
   });
 
-  it("blocks while peak plays exceed displayed count", () => {
+  it("blocks while peak plays exceed displayed count and reveal is behind target", () => {
     resetTrickAnimationBusyState();
     syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
@@ -84,6 +86,8 @@ describe("trickAnimationBridge", () => {
       presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
+      revealedCount: 1,
+      revealTarget: 3,
     });
     assert.equal(isTrickAnimationBusy(), true);
     assert.equal(isTablePresentationBusy(), true);
@@ -124,16 +128,27 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 
-  it("reports peak play catch-up as block reason", () => {
+  it("reports peak play catch-up as block reason only while reveal is behind target", () => {
     resetTrickAnimationBusyState();
     syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
+      matchKey: "sess-h1-t1-turn0-aseq1",
       presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
+      revealedCount: 1,
+      revealTarget: 3,
     });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
+
+    setTrickAnimationBusyState({
+      ...getTrickAnimationBusyState(),
+      revealedCount: 3,
+      revealTarget: 3,
+      displayedPlayCount: 1,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 
   it("getTrickAnimationBusyState returns latest snapshot", () => {

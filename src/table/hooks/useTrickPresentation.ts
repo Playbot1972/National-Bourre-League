@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useReducer, useRef, useCallback } from "react";
 import {
   CARD_LAND_MS,
-  FINAL_HAND_TRICK_PRESENTATION_MS,
   REVEAL_CATCHUP_BATCH_THRESHOLD,
   cardRevealStaggerMs,
-  isRevealCatchUpMode,
+  FINAL_HAND_TRICK_PRESENTATION_MS,
   prefersReducedMotion,
+  resolveTrickPresentationTimingMode,
   trickResolutionScheduleMs,
   trumpBeatLedSuit,
   type TrickPresentationPhase,
@@ -464,14 +464,15 @@ export function useTrickPresentation({
     if (revealTimerRef.current != null) return;
 
     const serverPlays = currentTrick?.plays?.length ?? 0;
-    const catchUp = isRevealCatchUpMode(
-      store.revealedCount,
-      targetRevealRef.current,
-      serverPlays,
-    );
+    const timingMode = resolveTrickPresentationTimingMode({
+      revealedCount: store.revealedCount,
+      targetReveal: targetRevealRef.current,
+      serverTrickPlays: serverPlays,
+    });
+    const catchUp = timingMode === "catch-up";
     const backlog = targetRevealRef.current - store.revealedCount;
     const reducedMotion = prefersReducedMotion();
-    const timing = cardRevealStaggerMs({ catchUp, reducedMotion });
+    const timing = cardRevealStaggerMs(timingMode, reducedMotion);
 
     revealTimerRef.current = window.setTimeout(() => {
       revealTimerRef.current = null;
@@ -484,6 +485,7 @@ export function useTrickPresentation({
           targetReveal: targetRevealRef.current,
           backlog,
           timing,
+          timingMode,
           batch: catchUp && backlog >= REVEAL_CATCHUP_BATCH_THRESHOLD,
         });
       }
