@@ -808,11 +808,12 @@ describe("handPresentationMachine", () => {
 });
 
 describe("trick timing with hand flow", () => {
-  it("uses a sub-second post-trick read before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 550);
-    assert.ok(POST_TRICK_READ_MS >= 450 && POST_TRICK_READ_MS <= 650);
+  it("uses a readable post-trick hold before winner highlight", () => {
+    assert.equal(POST_TRICK_READ_MS, 1100);
+    assert.ok(POST_TRICK_READ_MS >= 900 && POST_TRICK_READ_MS <= 1300);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 550);
-    assert.ok(schedule.pipelineMs >= 1400 && schedule.pipelineMs <= 2100);
+    assert.equal(schedule.readBeforeWinnerMs, 1100);
+    assert.equal(schedule.winnerRevealMs, 650);
+    assert.ok(schedule.pipelineMs >= 2000 && schedule.pipelineMs <= 2800);
   });
 });

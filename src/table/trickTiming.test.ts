@@ -156,27 +156,27 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickReadMs({ trumpBeat: true }), 650);
-    assert.equal(postTrickReadMs({}), 550);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 1300);
+    assert.equal(postTrickReadMs({}), 1100);
   });
 
-  it("schedules winner reveal inside the read pause", () => {
+  it("schedules winner reveal after the post-trick read hold", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 550);
-    assert.equal(schedule.winnerRevealMs, 350);
-    assert.equal(schedule.readBeforeWinnerMs, 200);
+    assert.equal(schedule.readBeforeWinnerMs, 1100);
+    assert.equal(schedule.winnerRevealMs, 650);
+    assert.equal(schedule.readTotalMs, 1750);
   });
 
-  it("suppresses turn ring only during brief read and winner glow", () => {
+  it("suppresses turn ring during read, winner glow, and sweep", () => {
     assert.equal(suppressesTurnIndicator("trickComplete"), true);
     assert.equal(suppressesTurnIndicator("winnerReveal"), true);
-    assert.equal(suppressesTurnIndicator("collectTrick"), false);
+    assert.equal(suppressesTurnIndicator("collectTrick"), true);
     assert.equal(suppressesTurnIndicator("nextLeadReady"), false);
     assert.equal(suppressesTurnIndicator("live"), false);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {
-    assert.ok(MIN_TRICK_PIPELINE_MS >= 1600);
+    assert.ok(MIN_TRICK_PIPELINE_MS >= 2200);
   });
 
   it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {
@@ -187,15 +187,15 @@ describe("trickTiming", () => {
     assert.ok(robotInterval >= MIN_TRICK_PIPELINE_MS);
   });
 
-  it("card reveal stagger waits for prior card land + shift", () => {
-    assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
+  it("live inter-player reveal stagger stays within the readability band", () => {
+    assert.ok(CARD_REVEAL_STAGGER_MS >= 250 && CARD_REVEAL_STAGGER_MS <= 400);
   });
 
   it("final-hand presentation watchdog covers staggered bot reveals plus resolution", () => {
     const minimum =
       CARD_REVEAL_STAGGER_MS * 7 + CARD_LAND_MS + trickResolutionScheduleMs({}).pipelineMs;
     assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= minimum);
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 6500);
+    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 5200);
   });
 });
 
@@ -212,7 +212,7 @@ describe("revealCatchUp pacing", () => {
     const liveDrain = estimateLiveRevealDrainMs(5);
     const catchUpDrain = estimateRevealCatchUpDrainMs(5);
     assert.ok(catchUpDrain < liveDrain);
-    assert.ok(liveDrain > 2000);
+    assert.ok(liveDrain > 1200);
   });
 
   it("drains a backlog of 5 within the catch-up timing budget", () => {

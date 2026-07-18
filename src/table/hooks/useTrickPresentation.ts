@@ -341,8 +341,7 @@ export function useTrickPresentation({
     }
 
     if (store.phase === "winnerReveal") {
-      const winnerHoldMs = Math.max(0, scheduleMs.readTotalMs - scheduleMs.readBeforeWinnerMs);
-      schedule(() => dispatch({ type: "advancePhase" }), winnerHoldMs);
+      schedule(() => dispatch({ type: "advancePhase" }), scheduleMs.winnerRevealMs);
       return;
     }
 

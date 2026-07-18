@@ -19,8 +19,8 @@ export const TRICK_CARD_SHIFT_MS = 220;
 /** Full play-to-table presentation (travel + settle) — live mode. */
 export const CARD_LAND_MS = TRICK_CARD_TRAVEL_MS + TRICK_CARD_SETTLE_MS;
 
-/** Stagger between revealing trick cards in live mode. */
-export const CARD_REVEAL_STAGGER_MS = CARD_LAND_MS + TRICK_CARD_SHIFT_MS / 2;
+/** Stagger between revealing trick cards in live mode (inter-player spacing). */
+export const CARD_REVEAL_STAGGER_MS = 320;
 
 /** Compressed inter-card cadence in catch-up mode (30–60ms target). */
 export const CARD_REVEAL_CATCHUP_STAGGER_MS = 45;
@@ -172,17 +172,17 @@ export function batchTrickFlyStaggerMs(modeOrCatchUp: TrickPresentationTimingMod
 /** Stagger between bot plays in the social driver (250–450 ms). */
 export const BOT_PLAY_STAGGER_MS = 380;
 
-/** Readability pause after last card before winner highlight. */
-export const POST_TRICK_READ_MS = 550;
+/** Readability pause after last card lands — all plays stay visible (no winner yet). */
+export const POST_TRICK_READ_MS = 1100;
 
-/** Winner glow inside the read pause (300–500 ms). */
-export const WINNER_REVEAL_MS = 380;
+/** Winner glow after the post-trick read hold. */
+export const WINNER_REVEAL_MS = 650;
 
 /** Longer read when trump beats led suit. */
-export const TRUMP_BEAT_READ_MS = 650;
+export const TRUMP_BEAT_READ_MS = 1300;
 
 /** Directional collection toward winner seat (rake + gather + packet fly). */
-export const TRICK_SWEEP_MS = 780;
+export const TRICK_SWEEP_MS = 400;
 
 /** In-line rake before cards fly to the winner pile. */
 export const TRICK_RAKE_MS = 240;
@@ -233,9 +233,9 @@ export type TrickPresentationPhase =
   | "collectTrick"
   | "nextLeadReady";
 
-/** Phases where turn/lead UI must stay suppressed (brief read + winner glow only). */
+/** Phases where turn/lead UI must stay suppressed (read, winner glow, sweep). */
 export function suppressesTurnIndicator(phase: TrickPresentationPhase): boolean {
-  return phase === "trickComplete" || phase === "winnerReveal";
+  return phase === "trickComplete" || phase === "winnerReveal" || phase === "collectTrick";
 }
 
 export interface FrozenTrick {
@@ -297,9 +297,9 @@ export function trickResolutionScheduleMs(options: {
   pipelineMs: number;
 } {
   const timing = trickTimingScale(options.reducedMotion);
-  const readTotalMs = options.trumpBeat ? timing.trumpBeatReadMs : timing.postTrickReadMs;
-  const winnerRevealMs = Math.min(timing.winnerRevealMs, readTotalMs - 200);
-  const readBeforeWinnerMs = Math.max(200, readTotalMs - winnerRevealMs);
+  const readBeforeWinnerMs = options.trumpBeat ? timing.trumpBeatReadMs : timing.postTrickReadMs;
+  const winnerRevealMs = timing.winnerRevealMs;
+  const readTotalMs = readBeforeWinnerMs + winnerRevealMs;
   const sweepMs = timing.trickSweepMs;
   const nextLeadGapMs = timing.nextLeadGapMs;
   return {

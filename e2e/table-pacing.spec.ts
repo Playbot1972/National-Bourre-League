@@ -20,7 +20,7 @@ import {
 } from "./helpers/pacingTimings";
 
 test.describe("Table pacing — bot play", () => {
-  test("bot ring appears before submit and delay stays within 350–900 ms", async ({ page }) => {
+  test("bot ring appears before submit and delay stays within 1500–3000 ms", async ({ page }) => {
     await page.goto(tablePacingFixtureUrl("bot-play", { rng: "0" }));
     await expect(page.getByTestId("table-root")).toBeVisible({ timeout: 15_000 });
 
