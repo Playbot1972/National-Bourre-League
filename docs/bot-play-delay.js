@@ -143,9 +143,46 @@ export function createBotPlayDelayState(options = {}) {
    * @param {(extra: object) => void} [input.log]
    */
   function notifyVisibleRingShown({ turnKey, playerId, nowMs, log }) {
-    if (!turnKey || pendingTurnKey !== turnKey) return false;
-    if (pendingPlayerId && playerId !== pendingPlayerId) return false;
+    logVisibleRing("visible-ring-seen", { turnKey, playerId, pendingTurnKey });
+    if (!turnKey || pendingTurnKey !== turnKey) {
+      logVisibleRing("visible-ring-rejected", {
+        turnKey,
+        playerId,
+        pendingTurnKey,
+        reason: "stale_turn_key",
+      });
+      log?.({
+        turnKey,
+        playerId,
+        pendingTurnKey,
+        reason: "stale_turn_key",
+        accepted: false,
+      });
+      return false;
+    }
+    if (pendingPlayerId && playerId !== pendingPlayerId) {
+      logVisibleRing("visible-ring-rejected", {
+        turnKey,
+        playerId,
+        pendingPlayerId,
+        reason: "player_mismatch",
+      });
+      log?.({
+        turnKey,
+        playerId,
+        pendingPlayerId,
+        reason: "player_mismatch",
+        accepted: false,
+      });
+      return false;
+    }
     if (visibleRingTurnKey === turnKey && visibleRingStartAtMs != null) {
+      logVisibleRing("visible-ring-accepted", {
+        turnKey,
+        playerId,
+        visibleRingStartAt: visibleRingStartAtMs,
+        duplicate: true,
+      });
       return true;
     }
     visibleRingTurnKey = turnKey;
@@ -164,8 +201,9 @@ export function createBotPlayDelayState(options = {}) {
       visibleRingStartAt: nowMs,
       chosenDelayMs,
     };
-    log?.({ ...payload });
+    log?.({ ...payload, accepted: true });
     logVisibleRing("visible-ring-shown", payload);
+    logVisibleRing("visible-ring-accepted", payload);
     return true;
   }
 
@@ -375,24 +413,19 @@ export function createBotThinkScheduleState(options = {}) {
       const status = playDelayState.getVisibleRingStatus({ turnKey, nowMs: now });
 
       if (pres.blocked || pres.suppressing || pres.presentationBusy || pres.revealCatchUp) {
-        if (status.visibleRingStartAtMs != null) {
-          playDelayState.notifyVisibleRingHidden({
-            turnKey,
-            reason: pres.revealCatchUp
-              ? "reveal_catch_up"
-              : pres.suppressing
-                ? "turn_suppressed"
-                : "presentation_busy",
-            nowMs: now,
-            log: (extra) => log?.visibleRingReset?.(extra),
-          });
-        }
         log?.submitBlocked?.({
           turnKey,
           generation,
-          reason: "presentation",
+          reason: pres.revealCatchUp
+            ? "reveal_catch_up"
+            : pres.suppressing
+              ? "turn_suppressed"
+              : pres.presentationBusy
+                ? "presentation_busy"
+                : "presentation",
           chosenDelayMs: status.chosenDelayMs,
           visibleRingElapsedMs: status.visibleRingElapsedMs,
+          visibleRingStartAtMs: status.visibleRingStartAtMs,
           revealCatchUp: Boolean(pres.revealCatchUp),
           presentationBusy: Boolean(pres.presentationBusy),
           suppressing: Boolean(pres.suppressing),

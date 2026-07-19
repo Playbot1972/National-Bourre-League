@@ -1,6 +1,5 @@
 /** Scoped resets when the authoritative match key advances. */
 
-import { publishBotThinkWindow } from "./botThinkWindow";
 import { cancelHeroPlayHandoff } from "./heroPlayHandoff";
 import { invalidateQueuedHeroIntentOlderThan } from "./heroQueuedIntent";
 import { resetPresentationMotionBusy } from "./presentationMotionBusy";
@@ -25,9 +24,8 @@ export function clearScopedPresentationState(prevMatchKey: string): void {
   });
 }
 
-export function clearTurnTimers(_prevMatchKey: string): void {
-  publishBotThinkWindow(null);
-}
+/** Bot think window lifecycle is owned by bot-play-delay (prepareTurn / cancelPending). */
+export function clearTurnTimers(_prevMatchKey: string): void {}
 
 export function clearTrickPresentation(prevMatchKey: string): void {
   const busy = getTrickAnimationBusyState();

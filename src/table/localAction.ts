@@ -1,4 +1,5 @@
 import type { TablePlayer, TableSessionData } from "./types";
+import { isRobotPlayerId } from "./botThinkWindow";
 import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
@@ -23,6 +24,25 @@ export interface LocalActionInput {
  * When the server already assigned play to this human, do not block hero input
  * (mirrors handPresentingBlocksBots during session play).
  */
+/**
+ * Presentation may lag server play turn during trick handoff animations.
+ * When the server already assigned play to a bot, keep the ring actor visible
+ * (mirrors resolveSuppressTurnForHero for humans).
+ */
+export function resolveSuppressTurnForBot(input: {
+  suppressTurn: boolean;
+  session: Pick<TableSessionData, "phase" | "turnPlayerId">;
+}): boolean {
+  if (!input.suppressTurn) return false;
+  if (
+    input.session.phase === "play" &&
+    isRobotPlayerId(input.session.turnPlayerId)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function resolveSuppressTurnForHero(input: {
   suppressTurn: boolean;
   session: Pick<TableSessionData, "phase" | "turnPlayerId">;

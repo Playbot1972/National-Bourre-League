@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  botPlayTurnKey,
   buildBotThinkCountdownState,
   getBotThinkWindow,
   isRobotPlayerId,
   subscribeBotThinkWindow,
 } from "../botThinkWindow";
+import { resolveSuppressTurnForBot } from "../localAction";
 import {
   buildTurnCountdownState,
   resolveTableActiveActorId,
@@ -30,10 +32,22 @@ export interface UseTurnCountdownResult {
  * (1500–3000 ms) from bot-play-delay so the ring matches the submit gate.
  */
 export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownResult {
-  const activeActorId = resolveTableActiveActorId(input);
-  const activityKey = turnCountdownActivityKey({ ...input, activeActorId });
+  const effectiveSuppressTurn = resolveSuppressTurnForBot({
+    suppressTurn: input.suppressTurn,
+    session: input.session,
+  });
+  const activeActorId = resolveTableActiveActorId({
+    ...input,
+    suppressTurn: effectiveSuppressTurn,
+  });
+  const activityKey = turnCountdownActivityKey({
+    ...input,
+    suppressTurn: effectiveSuppressTurn,
+    activeActorId,
+  });
   const startedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef<string>("");
+  const prevBotRingTurnKeyRef = useRef<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [, setBotWindowTick] = useState(0);
 
@@ -43,10 +57,22 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     isRobotPlayerId(activeActorId) &&
     input.session.phase === "play" &&
     !input.handComplete &&
-    !input.suppressTurn;
+    !effectiveSuppressTurn;
 
   const botWindow = isBotPlayTurn ? getBotThinkWindow() : null;
   const useBotWindow = botWindow != null && botWindow.playerId === activeActorId;
+
+  const botRingReport =
+    isBotPlayTurn && activeActorId
+      ? {
+          turnKey: botPlayTurnKey({
+            handNumber: input.session.handNumber,
+            trickNumber: input.session.currentTrick?.trickNumber ?? null,
+            turnPlayerId: activeActorId,
+          }),
+          playerId: activeActorId,
+        }
+      : null;
 
   useEffect(() => {
     if (!activeActorId || useBotWindow) {
@@ -74,51 +100,35 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   }, [activeActorId, activityKey, useBotWindow, botWindow?.turnKey]);
 
   useEffect(() => {
-    const suppressed = input.suppressTurn || input.handComplete;
-    if (!useBotWindow || !botWindow || suppressed) {
-      if (botWindow?.turnKey) {
-        reportVisibleBotRingHidden({
-          turnKey: botWindow.turnKey,
-          reason: suppressed ? "turn_suppressed" : "not_bot_turn",
-          nowMs: Date.now(),
-        });
-      }
-      return;
-    }
-    if (botWindow.playerId !== activeActorId) {
+    const prevTurnKey = prevBotRingTurnKeyRef.current;
+    const nextTurnKey = botRingReport?.turnKey ?? null;
+    if (prevTurnKey && prevTurnKey !== nextTurnKey) {
       reportVisibleBotRingHidden({
-        turnKey: botWindow.turnKey,
-        reason: "actor_mismatch",
+        turnKey: prevTurnKey,
+        reason: nextTurnKey ? "turn_change" : "ring_cleanup",
         nowMs: Date.now(),
       });
-      return;
     }
+    prevBotRingTurnKeyRef.current = nextTurnKey;
+  }, [botRingReport?.turnKey]);
+
+  useEffect(() => {
+    if (!botRingReport) return;
 
     const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
+    const { turnKey, playerId } = botRingReport;
     const showTimer = window.setTimeout(() => {
       reportVisibleBotRingShown({
-        turnKey: botWindow.turnKey,
-        playerId: botWindow.playerId,
+        turnKey,
+        playerId,
         nowMs: Date.now(),
       });
     }, activationMs);
 
     return () => {
       window.clearTimeout(showTimer);
-      reportVisibleBotRingHidden({
-        turnKey: botWindow.turnKey,
-        reason: "ring_cleanup",
-        nowMs: Date.now(),
-      });
     };
-  }, [
-    useBotWindow,
-    botWindow?.turnKey,
-    botWindow?.playerId,
-    activeActorId,
-    input.suppressTurn,
-    input.handComplete,
-  ]);
+  }, [botRingReport?.turnKey, botRingReport?.playerId]);
 
   let countdown: TurnCountdownState | null = null;
   if (activeActorId) {

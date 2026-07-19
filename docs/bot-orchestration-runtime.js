@@ -372,7 +372,7 @@ export function createServerBotAdvanceRuntime(deps) {
       thinkSchedule.cancelPending({ reason: "clear_schedule" });
     },
     notifyVisibleRingShown(payload) {
-      thinkSchedule.playDelayState.notifyVisibleRingShown({
+      return thinkSchedule.playDelayState.notifyVisibleRingShown({
         ...payload,
         log: (extra) =>
           logBotOrchestrator("visible-ring-shown", { owner: "server", ...extra }),
