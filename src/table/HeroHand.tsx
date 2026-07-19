@@ -7,13 +7,6 @@ import type { Card } from "../types";
 import { dealMotionWindowMs, useHeroCardMotion } from "./animations/useHeroCardMotion";
 import { formatHandPhase, isCardsDealtPhase, serializedToCard } from "./handUi";
 import { playFlyKey, snapshotHeroHandCardOrigin } from "./trickPlayFly";
-import {
-  beginHeroPlayHandoff,
-  cancelHeroPlayHandoff,
-  getHeroPlayHandoff,
-  subscribeHeroPlayHandoff,
-} from "./heroPlayHandoff";
-import { subscribeHeroQueuedIntentInvalidation } from "./heroQueuedIntent";
 import { MICRO_MS } from "./tableMicrointeractions";
 import { getBestPlayEnabled, saveBestPlayEnabled } from "./bestPlayPrefs";
 import {
@@ -22,15 +15,11 @@ import {
   isLegalPlayIndex,
   parsePlayActivityKey,
   planTapAutoplay,
-  queuedPlaySubmitDelayMs,
   resolveHeroPlayCardVisualTier,
   shouldClearQueuedPlayOnActivityChange,
-  shouldPreserveQueuedPlayTimerOnActivityChange,
   shouldShowBestPlayRecommendation,
-  shouldSubmitQueuedPlayOnTurnActivation,
   shouldSwipeImmediatePlay,
 } from "./heroHandPlayPreselect";
-import { prefersReducedMotion } from "./trickTiming";
 import { logPlayClick } from "./playClickDebug";
 import {
   playCardSelectFeedback,
@@ -67,7 +56,7 @@ interface HeroHandProps {
   privateHandReady?: boolean;
   className?: string;
   dealStaggerMs?: number;
-  drawAnimSubPhase?: "ring" | "discard" | "receive" | "done" | null;
+  drawAnimSubPhase?: "discard" | "receive" | "done" | null;
   drawDiscardCount?: number;
   drawReplaceCount?: number;
   currentUserId?: string | null;
@@ -84,23 +73,6 @@ interface HeroHandProps {
   onUserActivity?: () => void;
   /** Table-wide clockwise deal — disables hero-only deal motion. */
   skipHeroDealMotion?: boolean;
-}
-
-function serializedCardKey(c: SerializedCard): string {
-  return `${c.rank}-${c.suit}`;
-}
-
-function cardsWithHandoffGhost(
-  cards: SerializedCard[],
-  handoff: ReturnType<typeof getHeroPlayHandoff>,
-): SerializedCard[] {
-  if (!handoff) return cards;
-  const ghostKey = serializedCardKey(handoff.card);
-  if (cards.some((c) => serializedCardKey(c) === ghostKey)) return cards;
-  const next = [...cards];
-  const idx = Math.min(Math.max(handoff.slotIndex, 0), next.length);
-  next.splice(idx, 0, handoff.card);
-  return next;
 }
 
 function heroShellClass(
@@ -180,7 +152,6 @@ export function HeroHand({
   const [standPatPulse, setStandPatPulse] = useState(false);
   const [foldOutPulse, setFoldOutPulse] = useState(false);
   const [pendingDiscardIndices, setPendingDiscardIndices] = useState<number[]>([]);
-  const [handoffRevision, setHandoffRevision] = useState(0);
   const prevCardIdsRef = useRef<Set<string>>(new Set());
   const handRootRef = useRef<HTMLDivElement>(null);
   const playLockRef = useRef(false);
@@ -204,15 +175,10 @@ export function HeroHand({
   const [drawSelectionTouched, setDrawSelectionTouched] = useState(false);
   const executePlayRef = useRef<(index: number) => Promise<void>>(async () => {});
   const dealtPhase = isCardsDealtPhase(phase);
-  const heroPlayHandoff = useMemo(() => getHeroPlayHandoff(), [handoffRevision]);
-  const displayCards = useMemo(
-    () => cardsWithHandoffGhost(cards, heroPlayHandoff),
-    [cards, heroPlayHandoff],
-  );
-  const typedCards: Card[] = useMemo(() => displayCards.map(serializedToCard), [displayCards]);
+  const typedCards: Card[] = useMemo(() => cards.map(serializedToCard), [cards]);
   const handCardKey = useMemo(
-    () => displayCards.map((c) => serializedCardKey(c)).join("|"),
-    [displayCards],
+    () => cards.map((c) => `${c.rank}-${c.suit}`).join("|"),
+    [cards],
   );
   const recommendedDiscardKey = useMemo(
     () => recommendedDiscardIndices.slice().sort((a, b) => a - b).join(","),
@@ -220,12 +186,8 @@ export function HeroHand({
   );
   const inDrawPhase = phase === "draw";
   const inPlayPhase = phase === "play";
-  const handoffActive = heroPlayHandoff != null;
   const busy =
-    localBusy ||
-    actionFeedback?.status === "loading" ||
-    playingIndex !== null ||
-    handoffActive;
+    localBusy || actionFeedback?.status === "loading" || playingIndex !== null;
 
   playClickLogRef.current = {
     handNumber,
@@ -238,18 +200,10 @@ export function HeroHand({
 
   const slotClassFor = useCallback(
     (_: Card, i: number) => {
-      const classes: string[] = [];
-      if (heroPlayHandoff && i === heroPlayHandoff.slotIndex) {
-        classes.push("hand__slot--play-handoff");
-      }
-      if (revealedTrumpIndex === i) {
-        classes.push(
-          trumpMergeActive ? "hand__slot--trump-merge-target" : "hand__slot--trump-revealed",
-        );
-      }
-      return classes.join(" ");
+      if (revealedTrumpIndex !== i) return "";
+      return trumpMergeActive ? "hand__slot--trump-merge-target" : "hand__slot--trump-revealed";
     },
-    [heroPlayHandoff, revealedTrumpIndex, trumpMergeActive],
+    [revealedTrumpIndex, trumpMergeActive],
   );
 
   useEffect(() => {
@@ -276,22 +230,9 @@ export function HeroHand({
   }, [drawAnimSubPhase]);
 
   useEffect(() => {
-    return subscribeHeroPlayHandoff(() => {
-      setHandoffRevision((n) => n + 1);
-      if (!getHeroPlayHandoff()) {
-        setPlayingIndex(null);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!inPlayPhase) cancelHeroPlayHandoff();
-  }, [inPlayPhase, handNumber, trickNumber]);
-
-  useEffect(() => {
-    setHeroPlayMotionActive(playingIndex !== null || handoffActive);
+    setHeroPlayMotionActive(playingIndex !== null);
     return () => setHeroPlayMotionActive(false);
-  }, [playingIndex, handoffActive]);
+  }, [playingIndex]);
 
   useHeroCardMotion(handRootRef, {
     dealing,
@@ -334,14 +275,6 @@ export function HeroHand({
     }
     pendingPlayIndexRef.current = null;
   }, []);
-
-  useEffect(() => {
-    return subscribeHeroQueuedIntentInvalidation(() => {
-      clearPreselectTimer("match-key-change");
-      setSelectedPlay(null);
-      autoplayGenerationRef.current += 1;
-    });
-  }, [clearPreselectTimer]);
 
   const bumpAutoplayGeneration = useCallback(() => {
     autoplayGenerationRef.current += 1;
@@ -397,66 +330,42 @@ export function HeroHand({
     recommendedDiscardIndices,
   ]);
 
-  const scheduleQueuedPlaySubmit = useCallback(
-    (index: number) => {
-      clearPreselectTimer();
-      pendingPlayIndexRef.current = index;
-      const generation = autoplayGenerationRef.current;
-      const delayMs = queuedPlaySubmitDelayMs(prefersReducedMotion());
-      logPlayClick({
-        event: "tap-autoplay-armed",
-        reason: "turn-became-mine",
-        handNumber,
-        trickNumber,
-        turnPlayerId,
-        cardIndex: index,
-        selectedPlay: index,
-        isMyTurn: true,
-        isLegal: true,
-        gesture: "tap-autoplay",
-        generation,
-        delayMs,
-      });
-      preselectTimerRef.current = window.setTimeout(() => {
-        preselectTimerRef.current = null;
-        if (generation !== autoplayGenerationRef.current) return;
-        if (pendingPlayIndexRef.current !== index) return;
-        pendingPlayIndexRef.current = null;
-        logPlayClick({
-          event: "tap-autoplay-fire",
-          reason: "turn-became-mine",
-          handNumber,
-          trickNumber,
-          turnPlayerId,
-          cardIndex: index,
-          selectedPlay: index,
-          isMyTurn: true,
-          isLegal: true,
-          gesture: "tap-autoplay",
-          generation,
-        });
-        void executePlayRef.current(index);
-      }, delayMs);
-    },
-    [clearPreselectTimer, handNumber, trickNumber, turnPlayerId],
-  );
+  const prevIsMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    const becameMine = isMyTurn && !prevIsMyTurnRef.current;
+    prevIsMyTurnRef.current = isMyTurn;
+    if (!becameMine || !inPlayPhase || selectedPlay === null || playLockRef.current || busy) {
+      return;
+    }
+    if (!isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
+      setSelectedPlay(null);
+      pendingPlayIndexRef.current = null;
+      return;
+    }
+    logPlayClick({
+      event: "tap-immediate-play",
+      reason: "turn-became-mine",
+      handNumber,
+      trickNumber,
+      turnPlayerId,
+      cardIndex: selectedPlay,
+      selectedPlay,
+      isMyTurn,
+      isLegal: true,
+      gesture: "tap",
+    });
+    void executePlayRef.current(selectedPlay);
+  }, [inPlayPhase, isMyTurn, selectedPlay, legalPlayIndices, busy, handNumber, trickNumber, turnPlayerId]);
 
   const prevPlayActivityKeyRef = useRef(playActivityKey);
   useEffect(() => {
     if (prevPlayActivityKeyRef.current === playActivityKey) return;
     const prevCtx = parsePlayActivityKey(prevPlayActivityKeyRef.current);
     const nextCtx = parsePlayActivityKey(playActivityKey);
-    const preserveQueuedTimer = shouldPreserveQueuedPlayTimerOnActivityChange({
-      prev: prevCtx,
-      next: nextCtx,
-      isMyTurn,
-      selectedPlay,
-      isLegal: selectedPlay != null && isLegalPlayIndex(selectedPlay, legalPlayIndices),
-    });
     prevPlayActivityKeyRef.current = playActivityKey;
+    bumpAutoplayGeneration();
+    clearPreselectTimer("play-activity-change");
     if (shouldClearQueuedPlayOnActivityChange(prevCtx, nextCtx)) {
-      bumpAutoplayGeneration();
-      clearPreselectTimer("play-activity-change");
       logPlayClick({
         event: "queue-cleared",
         reason: "hand-or-phase-change",
@@ -466,11 +375,6 @@ export function HeroHand({
         selectedPlay,
       });
       setSelectedPlay(null);
-      return;
-    }
-    if (!preserveQueuedTimer) {
-      bumpAutoplayGeneration();
-      clearPreselectTimer("play-activity-change");
     }
   }, [
     playActivityKey,
@@ -479,39 +383,6 @@ export function HeroHand({
     handNumber,
     trickNumber,
     turnPlayerId,
-    isMyTurn,
-    selectedPlay,
-    legalPlayIndices,
-  ]);
-
-  const prevIsMyTurnRef = useRef(isMyTurn);
-  useEffect(() => {
-    const becameMine = isMyTurn && !prevIsMyTurnRef.current;
-    prevIsMyTurnRef.current = isMyTurn;
-    if (
-      !shouldSubmitQueuedPlayOnTurnActivation({
-        becameMine,
-        inPlayPhase,
-        selectedPlay,
-        playLocked: playLockRef.current,
-        busy,
-        isLegal: selectedPlay != null && isLegalPlayIndex(selectedPlay, legalPlayIndices),
-      })
-    ) {
-      if (becameMine && selectedPlay !== null && !isLegalPlayIndex(selectedPlay, legalPlayIndices)) {
-        setSelectedPlay(null);
-        pendingPlayIndexRef.current = null;
-      }
-      return;
-    }
-    scheduleQueuedPlaySubmit(selectedPlay!);
-  }, [
-    inPlayPhase,
-    isMyTurn,
-    selectedPlay,
-    legalPlayIndices,
-    busy,
-    scheduleQueuedPlaySubmit,
   ]);
 
   useEffect(() => {
@@ -631,27 +502,22 @@ export function HeroHand({
         generation: autoplayGenerationRef.current,
       });
       const card = typedCards[index];
-      const playKey =
-        currentUserId && card
-          ? playFlyKey({
-              playerId: currentUserId,
-              card: { rank: String(card.rank), suit: String(card.suit) },
-            })
-          : null;
-      if (currentUserId && card && playKey) {
-        snapshotHeroHandCardOrigin(currentUserId, playKey, index);
-        beginHeroPlayHandoff({
-          playKey,
-          card: { rank: String(card.rank), suit: String(card.suit) },
-          slotIndex: index,
-        });
+      if (currentUserId && card) {
+        snapshotHeroHandCardOrigin(
+          currentUserId,
+          playFlyKey({
+            playerId: currentUserId,
+            card: { rank: String(card.rank), suit: String(card.suit) },
+          }),
+          index,
+        );
       }
       try {
         await Promise.resolve(onPlayCard(index));
+        setPlayingIndex(null);
         setSelectedPlay(null);
         playLockRef.current = false;
       } catch {
-        cancelHeroPlayHandoff();
         setPlayingIndex(null);
         playLockRef.current = false;
       }

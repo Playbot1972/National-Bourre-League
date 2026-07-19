@@ -29,8 +29,6 @@ const idleBusy = {
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
-  revealedCount: 0,
-  revealTarget: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
 };
@@ -107,17 +105,5 @@ describe("play-start presentation gate", () => {
       handPresentationPhase: "drawPlayer",
     });
     assert.equal(isTablePresentationBusy(), false);
-  });
-
-  it("stale ante presentation does not block bots once server is in draw", () => {
-    resetTrickAnimationBusyState();
-    const handPresenting = handPresentingForBotGate(true, "draw", "ante");
-    assert.equal(handPresenting, false);
-    setTrickAnimationBusyState({
-      ...idleBusy,
-      handPresenting,
-      handPresentationPhase: "ante",
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 });

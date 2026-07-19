@@ -38,13 +38,7 @@ export function Seat({
   const trickCount = player.tricksThisHand;
   const cardsHeld = Math.max(0, player.holeCardCount ?? 0);
   const showWonTrickPile = trickCount > 0;
-  const showHoleCards = Boolean(
-    player.showHoleCards &&
-      !player.isSelf &&
-      player.inHand &&
-      cardsHeld > 0 &&
-      !clockwiseDealing,
-  );
+  const showHoleCards = Boolean(player.showHoleCards && !player.isSelf && player.inHand && cardsHeld > 0);
   const showBankroll = player.bankroll != null;
   const bourrePulse = player.bourreAlert === "pulse";
   const bourreMarker = player.bourreAlert === "marker" || player.bourreAlert === "pulse";
@@ -67,8 +61,6 @@ export function Seat({
   return (
     <div
       data-testid={seatTestId}
-      data-pacing-active-actor={player.isActiveActor ? "true" : "false"}
-      data-pacing-player-id={player.playerId}
       className={[
         "bseat",
         `bseat--${region}`,
@@ -88,7 +80,6 @@ export function Seat({
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
         player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
-        player.drawAnimSubPhase === "ring" ? "bseat--draw-ring" : "",
         player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
         player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
         bourrePulse ? "bseat--bourre-pulse" : "",

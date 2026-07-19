@@ -5,7 +5,7 @@ import { isHeroCardAreaEmpty } from "./heroCardArea";
 import { PotCenter } from "./PotCenter";
 import { Seat } from "./Seat";
 import { tableAspectForPlayers, isPlayerAtBourreRisk, displayLiveBankroll } from "./logic";
-import { orderPlayersForTable, seatRingPlayerIds } from "./layout/seatOrder";
+import { orderPlayersForTable } from "./layout/seatOrder";
 import { resolveSeatLayout } from "./layout/seatLayout";
 import {
   CARD_LAND_MS,
@@ -16,7 +16,6 @@ import {
   TRICK_CARD_TRAVEL_MS,
   TRICK_RAKE_MS,
   TRICK_SWEEP_MS,
-  TRICK_TABLE_SETTLE_MS,
   WINNER_HIGHLIGHT_MS,
 } from "./trickTiming";
 import { handTimingScale } from "./handPresentationTiming";
@@ -25,17 +24,14 @@ import { useDiscardPileState } from "./hooks/useDiscardPileState";
 import { useTableDiscardFly } from "./hooks/useTableDiscardFly";
 import { useTableDrawReceiveFly } from "./hooks/useTableDrawReceiveFly";
 import { useTableDrawMotionCleanup } from "./hooks/useTableDrawMotionCleanup";
-import { useTableAntePresentation } from "./hooks/useTableAntePresentation";
 import { useTableDealPresentation } from "./hooks/useTableDealPresentation";
 import { useTrumpMergePresentation } from "./hooks/useTrumpMergePresentation";
 import { useWonTrickCollection } from "./hooks/useWonTrickCollection";
-import { useTrickTableSettle } from "./hooks/useTrickTableSettle";
 import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { isHeroDrawOrPlayTurn, resolveSuppressTurnForHero } from "./localAction";
-import { isRevealCatchUpBusy } from "./matchKey";
+import { isHeroDrawOrPlayTurn } from "./localAction";
 import type { TrumpHolderPresentation } from "./trumpHolderPresentation";
 import { resolveSeatTrumpDisplay } from "./trumpHolderPresentation";
 import type { PotMetrics, SerializedCard, TableActionFeedback, TablePlayer, TableSessionData } from "./types";
@@ -69,9 +65,6 @@ interface CardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
-  /** Derived from match-key readiness — when set, gates hero draw/play affordances. */
-  heroCanAct?: boolean | null;
-  visualCatchUpBusy?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
@@ -110,8 +103,6 @@ export function CardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
-  heroCanAct = null,
-  visualCatchUpBusy = false,
   bigPotEvent = null,
   onDismissTableEvent,
   onToggleInHand,
@@ -188,24 +179,9 @@ export function CardTable({
   });
   const clockwiseDealing = useTableDealPresentation({
     session,
-    dealPresentationAllowed: handPresentation.dealPresentationAllowed,
+    heroCards,
     privateHandReady,
-    trumpRevealActive: handPresentation.trumpRevealActive,
-    trumpMergeActive: handPresentation.trumpMergeActive,
-    anteAnimActive: handPresentation.anteAnimActive,
     tableRootRef: wrapRef,
-  });
-  const anteSeatRing = seatRingPlayerIds(session.participantIds, session);
-  useTableAntePresentation({
-    handNumber: session.handNumber,
-    phase: handPresentation.phase,
-    anteAnimActive: handPresentation.anteAnimActive,
-    dealerId: session.dealerId,
-    participantIds: session.participantIds,
-    seatRing: anteSeatRing,
-    tableRootRef: wrapRef,
-    onCoinLanded: handPresentation.reportAnteCoinLanded,
-    onSequenceComplete: handPresentation.completeAnteSequence,
   });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
   const isTrumpHolder =
@@ -230,9 +206,7 @@ export function CardTable({
     handComplete,
     tableRootRef: wrapRef,
     onTrickCollectionStart: cardAudio.onTrickCollectionStart,
-    onCollectionComplete: trickPresentation.completeTrickCollection,
   });
-  useTrickTableSettle(trickPresentation.phase, wrapRef);
   const bourreRiskIds = new Set(
     session.participantIds.filter((pid) =>
       isPlayerAtBourreRisk(
@@ -243,26 +217,11 @@ export function CardTable({
       ),
     ),
   );
-  const activeActorId = turnCountdown?.playerId ?? null;
-  const rawSuppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
-  const suppressTurn = resolveSuppressTurnForHero({
-    suppressTurn: Boolean(rawSuppressTurn),
-    session,
-    currentUserId,
-  });
-  const revealCatchUpActive = isRevealCatchUpBusy({
-    phase: trickPresentation.phase,
-    revealedCount: trickPresentation.revealedCount,
-    revealTarget: trickPresentation.revealTarget,
-    serverTrickPlays: session.currentTrick?.plays?.length ?? 0,
-  });
-
   const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
-    const isActiveActor =
-      !suppressTurn && activeActorId != null && player.playerId === activeActorId;
+    const suppressTurn =
+      trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
@@ -282,11 +241,10 @@ export function CardTable({
         anteAlreadyPosted:
           session.postedAntes != null &&
           Object.prototype.hasOwnProperty.call(session.postedAntes, player.playerId),
-        anteLandedThisHand: handPresentation.anteLandedPlayerIds.includes(player.playerId),
       }),
       tricksThisHand,
-      isOnTurn: isActiveActor,
-      isActiveActor,
+      isOnTurn: suppressTurn ? false : player.isOnTurn,
+      isActiveActor: suppressTurn ? false : player.isActiveActor,
       isLeading:
         trickWinnerSeat &&
         (trickPresentation.phase === "winnerReveal" ||
@@ -320,6 +278,8 @@ export function CardTable({
     };
   });
   const selfPlayer = feltPlayers.find((p) => p.isSelf);
+  const suppressTurn =
+    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const drawCompleted =
     Boolean(
       currentUserId &&
@@ -351,7 +311,6 @@ export function CardTable({
         ["--trick-rake-ms" as string]: `${TRICK_RAKE_MS}ms`,
         ["--trick-post-read-ms" as string]: `${POST_TRICK_READ_MS}ms`,
         ["--trick-next-lead-gap-ms" as string]: `${NEXT_LEAD_GAP_MS}ms`,
-        ["--trick-table-settle-ms" as string]: `${TRICK_TABLE_SETTLE_MS}ms`,
         ["--trick-final-pipeline-ms" as string]: `${POST_TRICK_READ_MS + WINNER_HIGHLIGHT_MS + TRICK_SWEEP_MS + NEXT_LEAD_GAP_MS}ms`,
         ["--deal-card-stagger-ms" as string]: `${handTiming.dealCardStaggerMs}ms`,
         ["--draw-discard-ms" as string]: `${handTiming.drawDiscardMs}ms`,
@@ -371,13 +330,7 @@ export function CardTable({
           <PotCenter
             potMetrics={{
               ...potMetrics,
-              currentPot: handPresentation.antePotRevealed
-                ? handPresentation.displayPotAmount
-                : Math.max(
-                    0,
-                    handPresentation.displayPotAmount -
-                      potMetrics.anteAmount * Math.max(1, participantCount),
-                  ),
+              currentPot: handPresentation.displayPotAmount,
             }}
             participantCount={participantCount}
             trumpUpcard={session.trumpUpcard}
@@ -408,7 +361,6 @@ export function CardTable({
             potTick={microinteractions.potTick}
             trumpReminderPulse={microinteractions.trumpReminderPulse}
             instantTrickPlays={instantTrickPlays}
-            revealCatchUp={revealCatchUpActive}
             peakTrickPlayCount={trickPresentation.peakPlayCount}
             discardPileCards={discardPileCards}
             currentUserId={currentUserId}
@@ -472,18 +424,14 @@ export function CardTable({
         isInHand={Boolean(selfPlayer?.inHand)}
         isDealer={Boolean(selfPlayer?.isDealer)}
         signedIn={Boolean(currentUserId)}
-        isMyTurn={
-          heroCanAct != null
-            ? heroCanAct
-            : isHeroDrawOrPlayTurn({
-                currentUserId,
-                session,
-                suppressTurn: Boolean(suppressTurn),
-                handComplete,
-                enrollmentActive,
-                selfPlayer,
-              }) && !visualCatchUpBusy
-        }
+        isMyTurn={isHeroDrawOrPlayTurn({
+          currentUserId,
+          session,
+          suppressTurn: Boolean(suppressTurn),
+          handComplete,
+          enrollmentActive,
+          selfPlayer,
+        })}
         dealStaggerMs={handTiming.dealCardStaggerMs}
         drawAnimSubPhase={
           handPresentation.animatingDrawPlayerId === currentUserId

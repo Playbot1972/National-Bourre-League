@@ -58,6 +58,5 @@ describe("G — hand UI labels", () => {
     ];
     assert.equal(turnIndicatorLabel("p1", players), "Your turn");
     assert.equal(turnIndicatorLabel("p2", players), "Bob's turn");
-    assert.equal(turnIndicatorLabel(null, players), null);
   });
 });

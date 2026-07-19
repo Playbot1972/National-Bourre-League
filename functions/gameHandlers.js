@@ -25,7 +25,6 @@ import {
   botShouldPassDecision,
   buildPlayValidationState,
   effectivePlayerHand,
-  getLegalPlayIndices,
   maxDrawDiscards,
   HAND_PHASE,
   activateHandDecision,
@@ -36,7 +35,6 @@ import {
   decisionAsEnrollmentView,
   buildHandDecision,
   resolveActionOrder,
-  withServerActionSeq,
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, buildSoloWinSettlement, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
 import {
@@ -438,16 +436,14 @@ function getSessionCurrentHand(sessionData) {
 }
 
 function publicHandSessionUpdate(sessionData, nextPublicHand) {
-  const prev = getSessionCurrentHand(sessionData);
-  const bumped = withServerActionSeq(nextPublicHand, prev);
   if (sessionData?.liveEnrollment?.deal) {
     return {
-      "liveEnrollment.deal.publicHand": bumped,
-      currentHand: bumped,
+      "liveEnrollment.deal.publicHand": nextPublicHand,
+      currentHand: nextPublicHand,
       updatedAt: FieldValue.serverTimestamp(),
     };
   }
-  return { currentHand: bumped, updatedAt: FieldValue.serverTimestamp() };
+  return { currentHand: nextPublicHand, updatedAt: FieldValue.serverTimestamp() };
 }
 
 function embeddedPrivateHandData(sessionData, playerId) {
@@ -1034,88 +1030,6 @@ async function getDealingRule(db, roomId) {
 
 const BOT_ADVANCE_MAX_STEPS = 64;
 
-function botPlayPublicSnapshot(publicHand, playerId) {
-  const trick = publicHand?.currentTrick ?? null;
-  return {
-    phase: publicHand?.phase ?? null,
-    handNumber: publicHand?.handNumber ?? null,
-    turnPlayerId: publicHand?.turnPlayerId ?? null,
-    trickNumber: trick?.trickNumber ?? null,
-    trickPlays: trick?.plays?.length ?? 0,
-    leadSuit: publicHand?.leadSuit ?? trick?.leadSuit ?? null,
-    trumpSuit: publicHand?.trumpSuit ?? null,
-    participantCount: publicHand?.participantIds?.length ?? 0,
-    playerId,
-  };
-}
-
-function mapPlayEngineError(err) {
-  if (err instanceof HttpsError) return err;
-  const message = err?.message ?? String(err);
-  return new HttpsError("failed-precondition", message);
-}
-
-/** Prefer embedded deal mirror — must match readPrivateHandInTransaction. */
-async function loadBotPrivateHand(db, roomId, sessionId, sessionData, playerId) {
-  const embedded = embeddedPrivateHandData(sessionData, playerId);
-  if (embedded?.cards) {
-    return {
-      source: "embedded",
-      privateHand: deserializeCards(embedded.cards),
-    };
-  }
-  const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
-  if (!privateSnap.exists) {
-    return null;
-  }
-  return {
-    source: "subcollection",
-    privateHand: deserializeCards(privateSnap.data()?.cards || []),
-  };
-}
-
-/**
- * Pick a legal bot play from the same hand source the play transaction will read.
- * @returns {{ cardIndex: number, legalCount: number, handSize: number, effectiveSize: number }}
- */
-export function resolveBotPlayCardDecision(playerId, privateHand, publicHand) {
-  if (publicHand?.phase !== HAND_PHASE.PLAY) {
-    throw new HttpsError("failed-precondition", "Not in trick-play phase");
-  }
-  if (publicHand.turnPlayerId !== playerId) {
-    throw new HttpsError("failed-precondition", "Not your turn");
-  }
-  if (!publicHand.currentTrick) {
-    throw new HttpsError("failed-precondition", "No active trick");
-  }
-  if (!publicHand.trumpSuit) {
-    throw new HttpsError("failed-precondition", "Trump suit missing for bot play");
-  }
-
-  const effective = effectivePlayerHand(playerId, privateHand, publicHand);
-  if (!effective.length) {
-    throw new HttpsError("failed-precondition", "Bot has no cards to play");
-  }
-
-  const ctx = buildPlayValidationState({ hand: effective, publicHand });
-  const legal = getLegalPlayIndices(ctx);
-  if (!legal.length) {
-    throw new HttpsError("failed-precondition", "Bot has no legal plays");
-  }
-
-  let cardIndex = botPlayCardIndex(effective, ctx);
-  if (!legal.includes(cardIndex)) {
-    cardIndex = legal[0];
-  }
-
-  return {
-    cardIndex,
-    legalCount: legal.length,
-    handSize: privateHand.length,
-    effectiveSize: effective.length,
-  };
-}
-
 async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingRule) {
   const startedAt = Date.now();
   console.info(
@@ -1137,11 +1051,17 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
       elapsedMs: Date.now() - startedAt,
     }),
   );
-  const loaded = await loadBotPrivateHand(db, roomId, sessionId, sessionData, playerId);
-  if (!loaded) {
-    throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
+  const embedded = embeddedPrivateHandData(sessionData, playerId);
+  let privateHand;
+  if (embedded?.cards) {
+    privateHand = deserializeCards(embedded.cards);
+  } else {
+    const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
+    if (!privateSnap.exists) {
+      throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
+    }
+    privateHand = deserializeCards(privateSnap.data().cards || []);
   }
-  const privateHand = loaded.privateHand;
   const effective = effectivePlayerHand(playerId, privateHand, ch);
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
@@ -1195,65 +1115,34 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
     JSON.stringify({ kind: "play", playerId, roomId, sessionId }),
   );
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
-  const sessionData = sessionSnap.data() || {};
-  const ch = getSessionCurrentHand(sessionData);
-  const stateSnapshot = botPlayPublicSnapshot(ch, playerId);
+  const ch = sessionSnap.data()?.currentHand || {};
   console.info(
     "[nbl-bot]",
     "state-loaded",
     JSON.stringify({
       kind: "play",
-      ...stateSnapshot,
+      playerId,
+      phase: ch.phase ?? null,
+      turnPlayerId: ch.turnPlayerId ?? null,
+      trickNumber: ch.currentTrick?.trickNumber ?? null,
       elapsedMs: Date.now() - startedAt,
     }),
   );
-
-  const loaded = await loadBotPrivateHand(db, roomId, sessionId, sessionData, playerId);
-  if (!loaded) {
-    console.warn(
-      "[nbl-bot]",
-      "play-failed",
-      JSON.stringify({
-        kind: "play",
-        playerId,
-        reason: "private_hand_missing",
-        ...stateSnapshot,
-      }),
-    );
+  const privateSnap = await privateHandRef(db, roomId, sessionId, playerId).get();
+  if (!privateSnap.exists) {
     throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
   }
-
-  let decision;
-  try {
-    decision = resolveBotPlayCardDecision(playerId, loaded.privateHand, ch);
-  } catch (err) {
-    console.warn(
-      "[nbl-bot]",
-      "play-failed",
-      JSON.stringify({
-        kind: "play",
-        playerId,
-        handSource: loaded.source,
-        reason: err instanceof HttpsError ? err.message : String(err?.message ?? err),
-        ...stateSnapshot,
-      }),
-    );
-    throw err instanceof HttpsError ? err : mapPlayEngineError(err);
-  }
-
-  const { cardIndex, legalCount, handSize, effectiveSize } = decision;
+  const privateHand = deserializeCards(privateSnap.data().cards || []);
+  const hand = effectivePlayerHand(playerId, privateHand, ch);
+  const ctx = buildPlayValidationState({ hand, publicHand: ch });
+  const cardIndex = botPlayCardIndex(hand, ctx);
   console.info(
     "[nbl-bot]",
     "decision-made",
     JSON.stringify({
       kind: "play",
       playerId,
-      handSource: loaded.source,
       cardIndex,
-      legalCount,
-      handSize,
-      effectiveSize,
-      ...stateSnapshot,
       elapsedMs: Date.now() - startedAt,
     }),
   );
@@ -1262,31 +1151,12 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
     "submit-sent",
     JSON.stringify({ kind: "play", playerId, cardIndex }),
   );
-
-  let handComplete = false;
-  try {
-    ({ handComplete } = await runPlayCardTransaction(db, {
-      roomId,
-      sessionId,
-      playerId,
-      cardIndex,
-    }));
-  } catch (err) {
-    console.warn(
-      "[nbl-bot]",
-      "play-failed",
-      JSON.stringify({
-        kind: "play",
-        playerId,
-        cardIndex,
-        handSource: loaded.source,
-        reason: err instanceof HttpsError ? err.message : String(err?.message ?? err),
-        ...stateSnapshot,
-      }),
-    );
-    throw mapPlayEngineError(err);
-  }
-
+  const { handComplete } = await runPlayCardTransaction(db, {
+    roomId,
+    sessionId,
+    playerId,
+    cardIndex,
+  });
   console.info(
     "[nbl-bot]",
     "submit-resolved",
@@ -1305,14 +1175,10 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
 }
 
 /** Chain bot enrollment, draw, play, and co-win votes until a human must act. */
-export async function advanceBotsAfterAction(db, roomId, sessionId, actorId, options = {}) {
-  const maxSteps =
-    typeof options.maxSteps === "number" && options.maxSteps > 0
-      ? Math.min(options.maxSteps, BOT_ADVANCE_MAX_STEPS)
-      : BOT_ADVANCE_MAX_STEPS;
+export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
   const dealingRule = await getDealingRule(db, roomId);
   const steps = [];
-  for (let step = 0; step < maxSteps; step += 1) {
+  for (let step = 0; step < BOT_ADVANCE_MAX_STEPS; step += 1) {
     const snap = await sessionRef(db, roomId, sessionId).get();
     const sessionData = snap.data();
     if (!sessionData || sessionData.status === "final") {
@@ -1451,8 +1317,8 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId, opt
   checkInvariant(
     false,
     "bot_advance_step_cap",
-    `Bot advance hit ${maxSteps} steps without human pause`,
-    { roomId, sessionId, actorId, maxSteps },
+    `Bot advance hit ${BOT_ADVANCE_MAX_STEPS} steps without human pause`,
+    { roomId, sessionId, actorId },
   );
   return { status: "ok", steps, capped: true };
 }
@@ -2124,19 +1990,14 @@ async function runPlayCardTransaction(db, { roomId, sessionId, playerId, cardInd
     if (!handData) throw new HttpsError("not-found", "Private hand not found");
 
     const hand = deserializeCards(handData.cards || []);
-    let result;
-    try {
-      result = applyPlayerPlayCard({
-        publicHand: currentHand,
-        privateHand: hand,
-        playerId,
-        cardIndex,
-        actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
-        cinchEnabled: currentHand.cinchEnabled === true,
-      });
-    } catch (err) {
-      throw mapPlayEngineError(err);
-    }
+    const result = applyPlayerPlayCard({
+      publicHand: currentHand,
+      privateHand: hand,
+      playerId,
+      cardIndex,
+      actionOrder: actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
+      cinchEnabled: currentHand.cinchEnabled === true,
+    });
 
     handComplete = result.handComplete;
 
@@ -2587,42 +2448,20 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
   return { applied: plan.map((p) => p.playerId) };
 }
 
-export async function handleAdvanceBots(db, { roomId, sessionId, actorId, maxSteps }) {
+export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
   console.info(
     "[bot-advance]",
     "request",
-    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, maxSteps: maxSteps ?? null }),
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId }),
   );
   await assertRoomMember(db, roomId, actorId);
-  try {
-    const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId, { maxSteps });
-    console.info(
-      "[bot-advance]",
-      "complete",
-      JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
-    );
-    return { status: "ok", ...result };
-  } catch (err) {
-    const sessionSnap = await sessionRef(db, roomId, sessionId).get();
-    const ch = getSessionCurrentHand(sessionSnap.data() || {});
-    console.error(
-      "[bot-advance]",
-      "error",
-      JSON.stringify({
-        requester: actorId,
-        roomId,
-        sessionId,
-        message: err?.message ?? String(err),
-        code: err instanceof HttpsError ? err.code : "internal",
-        handPhase: ch.phase ?? null,
-        trickNumber: ch.currentTrick?.trickNumber ?? null,
-        trickPlays: ch.currentTrick?.plays?.length ?? 0,
-        turnPlayerId: ch.turnPlayerId ?? null,
-      }),
-    );
-    if (err instanceof HttpsError) throw err;
-    throw mapPlayEngineError(err);
-  }
+  const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  console.info(
+    "[bot-advance]",
+    "complete",
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
+  );
+  return { status: "ok", ...result };
 }
 
 export async function handleVoteCoWinSettlement(

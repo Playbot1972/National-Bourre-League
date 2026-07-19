@@ -200,10 +200,7 @@ export function processAnte(input: ProcessAnteInput): MoneyEngineResult & {
 
   const beforeSnapshot = {
     bankrolls: Object.fromEntries(
-      Object.entries(scoreById).map(([pid, row]) => [
-        pid,
-        scoreBankroll(row, buyInFallback),
-      ]),
+      participantIds.map((pid) => [pid, scoreBankroll(scoreById[pid], buyInFallback)]),
     ),
     carryOverPot,
     postedAntes: {},

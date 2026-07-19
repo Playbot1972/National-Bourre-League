@@ -52,14 +52,7 @@ import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
 import {
   botPlayTurnKey,
   createBotThinkScheduleState,
-  setBotThinkWindowPublisher,
 } from "./bot-play-delay.js";
-import {
-  buildMatchKey,
-  buildServerSnapshot,
-  collectBotIds,
-  deriveTableReadiness,
-} from "./match-key.js";
 import {
   logHandLifecycleTransition,
   isPagatHandClock,
@@ -194,7 +187,6 @@ import {
   deserializeCards,
   effectivePlayerHand,
   botShouldPassDecision,
-  canonicalHandDrawMetrics,
 } from "./game-engine.js";
 import {
   formatHandHistoryPublicLine,
@@ -1158,7 +1150,6 @@ let pendingDrawShuffle = false;
 let tableFeedbackApi = null;
 let enrollmentTimer = null;
 let robotActionInFlight = false;
-/** Epoch ms when a client-driven robot last played; 0 = none yet this session view. */
 let lastRobotTrickAt = 0;
 let sessionOrchestrationTimer = null;
 let sessionOrchestrationCoalesce = false;
@@ -1185,7 +1176,6 @@ function getServerBotAdvance() {
       onWake: (latest, scores, actorId, opts) => scheduleServerBotAdvance(latest, scores, actorId, opts),
       onAdvanceError: (latest, scores, actorId) =>
         driveClientBotsForCurrentTurn(latest, scores, actorId, { reason: "advance-error-fallback" }),
-      getPresentationState: (session, scores) => botPlayPresentationState(session, scores),
       trickIntervalMs: ROBOT_TRICK_INTERVAL_MS,
     });
   }
@@ -1197,7 +1187,7 @@ let robotPresentationUnsub = null;
 const clientBotThinkSchedule = createBotThinkScheduleState();
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
-const TRICK_PIPELINE_MS = 3715;
+const TRICK_PIPELINE_MS = 1850 + 1080 + 230;
 const BOT_PLAY_STAGGER_MS = 380;
 const ROBOT_TRICK_INTERVAL_MS = TRICK_PIPELINE_MS + BOT_PLAY_STAGGER_MS + 220;
 /** After settlement, force-open the next join window if auto-open stalls. */
@@ -1524,24 +1514,6 @@ async function ensureTableFeedbackApi() {
   return tableFeedbackApi;
 }
 
-function canonicalHandMetricsFromCurrentHand(ch) {
-  if (!ch) {
-    return {
-      eligibleIds: [],
-      actionOrder: [],
-      drawCompleted: 0,
-      drawTotal: 0,
-    };
-  }
-  return canonicalHandDrawMetrics({
-    participantIds: ch.participantIds ?? [],
-    drawCompletedIds: ch.drawCompletedIds ?? [],
-    actionOrder: ch.actionOrder,
-    dealerId: ch.dealerId ?? null,
-    seatedIds: ch.seatedIds ?? ch.participantIds ?? [],
-  });
-}
-
 function getActionErrorContext(actionKind) {
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   const currentHand = sessionObj ? getSessionCurrentHand(sessionObj) : null;
@@ -1555,7 +1527,7 @@ function getActionErrorContext(actionKind) {
     atMs: Date.now(),
     totalTricksPlayed: totalTricksPlayed(tricksByPlayer, participantIds),
     currentTrickLen: currentHand?.currentTrick?.length ?? 0,
-    drawCompletedCount: canonicalHandMetricsFromCurrentHand(currentHand).drawCompleted,
+    drawCompletedCount: (currentHand?.drawCompletedIds ?? []).length,
   };
 }
 
@@ -1607,49 +1579,6 @@ function sessionHasRobots(scores = openScores) {
 }
 
 /** True when robots may need a human room member (or server nudge) to keep the hand moving. */
-function resolveTableReadiness(sessionObj, scores = openScores, ch = getSessionCurrentHand(sessionObj)) {
-  if (!sessionObj || !ch || ch.serverActionSeq == null) return null;
-  try {
-    const handMetrics = canonicalHandMetricsFromCurrentHand(ch);
-    const snapshot = buildServerSnapshot({
-      sessionId: sessionObj.id,
-      handNumber: sessionHandNumber(sessionObj),
-      trickNumber: ch.currentTrick?.trickNumber,
-      turnPlayerId: ch.turnPlayerId,
-      serverActionSeq: ch.serverActionSeq,
-      actionOrder: handMetrics.actionOrder,
-      participantIds: handMetrics.eligibleIds,
-      dealerId: ch.dealerId ?? null,
-      seatedIds: ch.seatedIds ?? ch.participantIds ?? [],
-      drawCompletedIds: ch.drawCompletedIds ?? [],
-    });
-    const matchKey = buildMatchKey(snapshot);
-    const busy = tableMountApi?.getTrickAnimationBusyState?.() ?? {};
-    const presentation = {
-      matchKey: busy.matchKey ?? "",
-      pipelineActive: Boolean(busy.pipelineActive),
-      motionGateActive: Boolean(busy.motionGateActive),
-      revealCatchUp: Boolean(busy.revealCatchUp),
-      handPresenting: Boolean(busy.handPresenting),
-    };
-    const botIds = collectBotIds((scores ?? []).map((sc) => sc.playerId));
-    return {
-      matchKey,
-      ...deriveTableReadiness({
-        matchKey,
-        turnPlayerId: ch.turnPlayerId ?? null,
-        heroId: session?.uid ?? null,
-        botIds,
-        presentation,
-        drawCompleted: handMetrics.drawCompleted,
-        drawTotal: handMetrics.drawTotal,
-      }),
-    };
-  } catch {
-    return null;
-  }
-}
-
 function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   if (!sessionObj || sessionObj.status === "final") return false;
   if (getSessionEnrollment(sessionObj)?.active) return sessionHasRobots(scores);
@@ -1658,8 +1587,6 @@ function sessionNeedsBotDriver(sessionObj, scores = openScores) {
   }
   const ch = getSessionCurrentHand(sessionObj);
   if (ch?.phase === "draw" || ch?.phase === "play") {
-    const readiness = resolveTableReadiness(sessionObj, scores, ch);
-    if (readiness) return readiness.needsBotDriver;
     const turnId = ch.turnPlayerId;
     return Boolean(turnId && isRobotPlayerId(turnId));
   }
@@ -1712,13 +1639,6 @@ function startEnrollmentTimer() {
   enrollmentTimer = setInterval(() => {
     const sessionObj = currentSessions.find((x) => x.id === openSessionId);
     if (!sessionObj || sessionObj.status === "final") {
-      stopEnrollmentTimer();
-      return;
-    }
-    const tickEnrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
-    const tickPagatClock = isPagatHandClock(sessionObj);
-    const tickNeedsDriver = sessionNeedsBotDriver(sessionObj, openScores);
-    if (!tickEnrollmentActive && !tickPagatClock && !tickNeedsDriver) {
       stopEnrollmentTimer();
       return;
     }
@@ -3410,15 +3330,15 @@ function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {
   const enrollmentActive = getSessionEnrollment(sessionObj)?.active === true;
   const pagatClock = isPagatHandClock(sessionObj);
   const needsDriver = sessionNeedsBotDriver(sessionObj, scores);
+  const needsEnrollment = sessionNeedsEnrollmentDriver(sessionObj);
 
-  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver)) {
+  if (tablePlayOpen && (enrollmentActive || pagatClock || needsDriver || needsEnrollment)) {
     startEnrollmentTimer();
   } else if (!enrollmentActive && !pagatClock && !needsDriver) {
     stopEnrollmentTimer();
   }
 
-  // Only wake bot paths when a driver is actually needed — not on every human turn.
-  if (needsDriver || enrollmentActive || pagatClock) {
+  if (needsDriver || needsEnrollment || enrollmentActive || pagatClock) {
     processRobotActions(sessionObj, scores);
   }
 }
@@ -3483,6 +3403,10 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     remainingHandCount: ctx.remainingHandCount ?? null,
   };
   if (shouldBlockRobotForPresentation(s, scores)) {
+    clientBotThinkSchedule.playDelayState.markTurnEligible({
+      ...playCtx,
+      nowMs: Date.now(),
+    });
     logBotOrchestrator("bot-turn-start", {
       ...ctx,
       turnPlayerId: turnId,
@@ -3502,6 +3426,10 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   }
 
   const expectedTurnKey = botPlayTurnKey(playCtx);
+  clientBotThinkSchedule.playDelayState.markTurnEligible({
+    ...playCtx,
+    nowMs: Date.now(),
+  });
   logBotOrchestrator("bot-turn-start", {
     ...ctx,
     turnPlayerId: turnId,
@@ -3512,10 +3440,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
     nowMs: Date.now(),
-    getPresentationState: () => {
-      const latest = currentSessions.find((x) => x.id === openSessionId);
-      return botPlayPresentationState(latest, openScores);
-    },
     shouldFire: () => {
       if (robotActionInFlight) return false;
       if (!currentRoomId || !openSessionId) return false;
@@ -3595,29 +3519,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
-      submitBlocked: (extra) =>
-        logBotOrchestrator("bot-submit-blocked", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
-      submitAllowed: (extra) =>
-        logBotOrchestrator("bot-submit-allowed", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
-      visibleRingReset: (extra) =>
-        logBotOrchestrator("visible-ring-reset", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          ...extra,
-        }),
     },
   });
 
@@ -3643,58 +3544,6 @@ function stopRobotPresentationSubscription() {
     robotPresentationUnsub();
     robotPresentationUnsub = null;
   }
-  setBotThinkWindowPublisher(null);
-  tableMountApi?.publishBotThinkWindow?.(null);
-}
-
-function wireBotThinkWindowPublisher(api) {
-  setBotThinkWindowPublisher((window) => {
-    api?.publishBotThinkWindow?.(window ?? null);
-  });
-}
-
-function wireVisibleBotRingReporter(api) {
-  api?.setVisibleBotRingReporter?.({
-    onShown: (payload) => {
-      logBotOrchestrator("visible-ring-seen", { owner: "client", ...payload });
-      const clientAccepted = clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
-        ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-shown", { owner: "client", ...extra }),
-      });
-      if (clientAccepted) {
-        logBotOrchestrator("visible-ring-accepted", { owner: "client", ...payload });
-      }
-      const serverAccepted = getServerBotAdvance().notifyVisibleRingShown?.(payload);
-      if (serverAccepted === false) {
-        logBotOrchestrator("visible-ring-ignored-stale", { owner: "server", ...payload });
-      }
-    },
-    onHidden: (payload) => {
-      const clientCleared = clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "client", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra });
-        },
-      });
-      const serverCleared = getServerBotAdvance().notifyVisibleRingHidden?.({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
-        },
-      });
-      void clientCleared;
-      void serverCleared;
-    },
-  });
 }
 
 function wakeRobotActions() {
@@ -3709,8 +3558,6 @@ function wakeRobotActions() {
 }
 
 function ensureRobotPresentationSubscription(api) {
-  wireBotThinkWindowPublisher(api);
-  wireVisibleBotRingReporter(api);
   if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
   robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
     wakeRobotActions();
@@ -3727,14 +3574,13 @@ function finishRobotAction() {
 
 function robotTurnPresentationKey(s) {
   const ch = getSessionCurrentHand(s);
-  const drawMetrics = canonicalHandMetricsFromCurrentHand(ch);
   return [
     sessionHandNumber(s),
     ch?.phase ?? "",
     ch?.turnPlayerId ?? "",
     ch?.currentTrick?.trickNumber ?? 0,
     ch?.currentTrick?.plays?.length ?? 0,
-    drawMetrics.drawCompleted,
+    (ch?.drawCompletedIds ?? []).length,
   ].join(":");
 }
 
@@ -3754,15 +3600,13 @@ function isRawTablePresentationBusy() {
  * Works with legacy table-session.js (no evaluateBotPresentationGate export).
  */
 function shouldBlockRobotForPresentation(s, scores) {
-  const readiness = resolveTableReadiness(s, scores);
-  const busy =
-    readiness != null ? readiness.visualCatchUpBusy : isRawTablePresentationBusy();
+  const busy = isRawTablePresentationBusy();
   if (!busy) {
     robotPresentationBlockEpisode = null;
     return false;
   }
 
-  const turnKey = readiness?.matchKey ?? robotTurnPresentationKey(s);
+  const turnKey = robotTurnPresentationKey(s);
   const now = Date.now();
   if (
     !robotPresentationBlockEpisode ||
@@ -3850,26 +3694,10 @@ function snapshotTablePresentationGate() {
   }
 }
 
-function botPlayPresentationState(s, scores) {
-  const gate = snapshotTablePresentationGate();
-  const blocked = s ? shouldBlockRobotForPresentation(s, scores) : true;
-  return {
-    blocked,
-    revealCatchUp: Boolean(gate?.revealCatchUp),
-    presentationBusy: Boolean(
-      gate?.pipelineActive || gate?.handPresenting || gate?.motionGateActive,
-    ),
-    suppressing:
-      gate?.blockReason === "handPresenting" ||
-      gate?.blockReason === "pipelineActive" ||
-      false,
-  };
-}
-
 function snapshotGameFlowContext(s, scores) {
   const ch = getSessionCurrentHand(s);
-  const handMetrics = canonicalHandMetricsFromCurrentHand(ch);
-  const actionOrder = handMetrics.actionOrder;
+  const participants = ch?.participantIds ?? [];
+  const actionOrder = ch?.actionOrder ?? participants;
   const turnId = ch?.turnPlayerId ?? null;
   const turnIndex = turnId ? actionOrder.indexOf(turnId) : -1;
   const remainingHandCount =
@@ -3885,15 +3713,15 @@ function snapshotGameFlowContext(s, scores) {
     isLastCard: remainingHandCount === 1,
     dealerId: resolveHandDealerId(s?.dealerId ?? null, ch),
     actionOrder,
-    drawCompleted: handMetrics.drawCompleted,
-    drawTotal: handMetrics.drawTotal,
+    drawCompleted: (ch?.drawCompletedIds ?? []).length,
+    drawTotal: participants.length,
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
     trickAnimBusy: isRawTablePresentationBusy(),
     presentationGate: snapshotTablePresentationGate(),
     robotActionInFlight,
-    msSinceLastRobot: lastRobotTrickAt > 0 ? Date.now() - lastRobotTrickAt : null,
+    msSinceLastRobot: Date.now() - lastRobotTrickAt,
   };
 }
 
@@ -4355,8 +4183,6 @@ function buildTableSessionProps(s) {
     myPhotoUrl: session?.photoURL ?? null,
     sessionBuyIn,
     dealerId,
-    sortedPlayerIds: seatedIds,
-    scoreById,
     handParticipantIds,
     tricksThisHand,
     cardsDealt,
@@ -4411,7 +4237,6 @@ function buildTableSessionProps(s) {
       drawCompletedIds,
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
-      serverActionSeq: currentHand?.serverActionSeq ?? null,
       postedAntes: currentHand?.postedAntes ?? {},
       actionOrder: resolvedActionOrder ?? undefined,
       seatedIds: seatedIds.length > 0 ? seatedIds : undefined,

@@ -125,9 +125,9 @@ const RESET_MS: Record<SoundEventKey, number> = {
 const VOLUME: Record<SoundEventKey, number> = {
   shuffle: 0.55,
   shuffleFinal: 0.55,
-  draw: 0.32,
-  cardPlace: 0.28,
-  leadChange: 0.38,
+  draw: 0.45,
+  cardPlace: 0.38,
+  leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,
   trickCollectOther: 0.45,
@@ -139,9 +139,9 @@ const VOLUME: Record<SoundEventKey, number> = {
   openRoom: 0.55,
   deleteRoom: 0.5,
   fold: 0.42,
-  cardSelect: 0.32,
+  cardSelect: 0.45,
   cardIllegal: 0.5,
-  uiButton: 0.26,
+  uiButton: 0.4,
   turnTimer: 0.48,
 };
 
@@ -251,12 +251,6 @@ export function playLeadChangeSound(intensityTier = 0): void {
 
 export function playTrickCollectSound(): void {
   void playSoundEvent("trickCollect");
-}
-
-/** Light coin tap for ante posts — bypasses trickCollect overlap guard. */
-export function playAnteCoinSound(): void {
-  const packId = getActivePackId();
-  playResolvedAsset("trickCollect", "coin-chime-light", 0.34, packId);
 }
 
 export function playTrickWinSound(volumeScale = 1): void {

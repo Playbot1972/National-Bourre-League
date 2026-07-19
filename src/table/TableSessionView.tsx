@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import { CardTable } from "./CardTable";
 import { MobileCardTable } from "./MobileCardTable";
 import { CinematicSplash } from "./CinematicSplash";
@@ -11,6 +10,7 @@ import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
   formatHandPhase,
+  isCardsDealtPhase,
   isDecisionPhase,
   isRevealPhase,
   serializedToCard,
@@ -18,40 +18,21 @@ import {
 } from "./handUi";
 import { useTableEvents } from "./hooks/useTableEvents";
 import { useHandPresentation } from "./hooks/useHandPresentation";
-import { resolveDrawPresentationRingActor } from "./handPresentationTiming";
 import { useTurnCountdown } from "./hooks/useTurnCountdown";
 import { useTurnTimerWarning } from "./hooks/useTurnTimerWarning";
 import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { TableSceneOverlay } from "./TableSceneOverlay";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, resolveSuppressTurnForHero } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import { setTrickAnimationBusyState, handPresentingBlocksBots, handPresentingBlockReasonForBots } from "./trickAnimationBridge";
+import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
   isDealPresentationActive,
   isTrickCollectionActive,
 } from "./presentationMotionBusy";
-import { presentationScopeKey, serverTrickNumber } from "./presentationScope";
-import {
-  assertMatchKeyInvariants,
-  buildMatchKey,
-  buildServerSnapshot,
-  canonicalTableHandMetrics,
-  collectBotIds,
-  deriveTableReadiness,
-  isRevealCatchUpBusy,
-  presentationBoundaryFromMatchKey,
-} from "./matchKey";
-import {
-  clearScopedPresentationState,
-  clearTrickPresentation,
-  clearTurnTimers,
-  invalidateQueuedHeroIntentOlderThan,
-} from "./matchKeyLifecycle";
-import { syncAuthoritativeMatchKey } from "./trickAnimationBridge";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
 import { SplitPotDecisionToast } from "./SplitPotDecisionToast";
@@ -123,7 +104,6 @@ export function TableSessionView({
     playedCards: session.playedCards,
     turnPlayerId: session.turnPlayerId,
     handComplete,
-    currentUserId,
   });
 
   const forceTrickHandEndDrain = trickPresentation.forceHandEndDrain;
@@ -215,154 +195,26 @@ export function TableSessionView({
     session.phase,
   );
 
-  const presentationGateKeyRef = useRef("");
-  useEffect(() => {
-    const key = `${session.phase ?? ""}|${handPresentation.phase}|${handPresentingForBots}`;
-    if (key === presentationGateKeyRef.current) return;
-    const wasBlocked = presentationGateKeyRef.current.endsWith("|true");
-    presentationGateKeyRef.current = key;
-    if (!isGameFlowDebugEnabled()) return;
-    logGameFlow("tableSession", "presentation-gate", {
-      serverPhase: session.phase,
-      handPresentationPhase: handPresentation.phase,
-      handPresenting: handPresentingForBots,
-      isPresenting: handPresentation.isPresenting,
-      handPresentingBlockReason: handPresentingBlockReasonForBots(
-        handPresentation.isPresenting,
-        handPresentation.phase,
-        session.phase,
-      ),
-      becameUnblocked: wasBlocked && !handPresentingForBots,
-    });
-  }, [
-    session.phase,
-    handPresentation.phase,
-    handPresentation.isPresenting,
-    handPresentingForBots,
-  ]);
-
   const [motionBusyTick, setMotionBusyTick] = useState(0);
   useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
 
-  const presentationScope = useMemo(
-    () => presentationScopeKey(session.handNumber, serverTrickNumber(session.currentTrick)),
-    [session.handNumber, session.currentTrick?.trickNumber],
-  );
-
-  const botIds = useMemo(
-    () => collectBotIds(session.participantIds),
-    [session.participantIds],
-  );
-
-  const canonicalHand = useMemo(
-    () =>
-      canonicalTableHandMetrics({
-        participantIds: session.participantIds,
-        drawCompletedIds: session.drawCompletedIds,
-        actionOrder: session.actionOrder,
-        dealerId: session.dealerId,
-        seatedIds: session.seatedIds,
-      }),
-    [
-      session.participantIds,
-      session.drawCompletedIds,
-      session.actionOrder,
-      session.dealerId,
-      session.seatedIds,
-    ],
-  );
-
-  const serverSnapshot = useMemo(
-    () =>
-      buildServerSnapshot({
-        sessionId: session.sessionId,
-        handNumber: session.handNumber,
-        trickNumber: session.currentTrick?.trickNumber,
-        turnPlayerId: session.turnPlayerId,
-        serverActionSeq: session.serverActionSeq,
-        actionOrder: canonicalHand.actionOrder,
-        participantIds: canonicalHand.eligibleIds,
-        dealerId: session.dealerId,
-        seatedIds: session.seatedIds,
-        drawCompletedIds: session.drawCompletedIds,
-      }),
-    [
-      session.sessionId,
-      session.handNumber,
-      session.currentTrick?.trickNumber,
-      session.turnPlayerId,
-      session.serverActionSeq,
-      session.dealerId,
-      session.seatedIds,
-      session.drawCompletedIds,
-      canonicalHand.actionOrder,
-      canonicalHand.eligibleIds,
-    ],
-  );
-
-  const matchKey = useMemo(() => {
-    try {
-      return buildMatchKey(serverSnapshot);
-    } catch {
-      return null;
-    }
-  }, [serverSnapshot]);
-
-  const prevMatchKeyRef = useRef<string | null>(null);
-  const prevPresentationBoundaryRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!matchKey) return;
-    const prev = prevMatchKeyRef.current;
-    const prevBoundary = prev ? presentationBoundaryFromMatchKey(prev) : null;
-    const nextBoundary = presentationBoundaryFromMatchKey(matchKey);
-    if (prev && prev !== matchKey) {
-      if (prevBoundary !== nextBoundary) {
-        clearScopedPresentationState(prev);
-        clearTurnTimers(prev);
-        clearTrickPresentation(prev);
-      }
-      invalidateQueuedHeroIntentOlderThan(matchKey);
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("matchKey", "changed", { from: prev, to: matchKey, boundary: nextBoundary });
-      } else {
-        console.log(`[matchKey] changed -> ${matchKey}`);
-      }
-    }
-    prevMatchKeyRef.current = matchKey;
-    prevPresentationBoundaryRef.current = nextBoundary;
-    syncAuthoritativeMatchKey(matchKey);
-  }, [matchKey]);
-
-  const serverTrickPlays = session.currentTrick?.plays?.length ?? 0;
-  const revealCatchUpBusy = isRevealCatchUpBusy({
-    phase: trickPresentation.phase,
-    revealedCount: trickPresentation.revealedCount,
-    revealTarget: trickPresentation.revealTarget,
-    serverTrickPlays,
-  });
-
   useEffect(() => {
     setTrickAnimationBusyState({
-      matchKey: matchKey ?? "",
-      presentationScopeKey: presentationScope,
       pipelineActive: trickPresentation.isPipelineActive,
-      revealCatchUp: revealCatchUpBusy,
+      revealCatchUp:
+        trickPresentation.phase === "live" &&
+        trickPresentation.revealedCount < trickPresentation.revealTarget,
       motionGateActive: instantTrickPlays,
       peakPlayCount: trickPresentation.peakPlayCount,
       displayedPlayCount: trickPresentation.displayPlays.length,
-      revealedCount: trickPresentation.revealedCount,
-      revealTarget: trickPresentation.revealTarget,
       handPresenting: handPresentingForBots,
       handPresentationPhase: handPresentation.phase,
       dealPresentationActive: isDealPresentationActive(),
       trickCollectionActive: isTrickCollectionActive(),
     });
   }, [
-    presentationScope,
     trickPresentation.isPipelineActive,
     trickPresentation.phase,
-    trickPresentation.revealedCount,
-    trickPresentation.revealTarget,
     trickPresentation.revealedCount,
     trickPresentation.revealTarget,
     trickPresentation.peakPlayCount,
@@ -372,82 +224,9 @@ export function TableSessionView({
     handPresentation.phase,
     session.phase,
     motionBusyTick,
-    matchKey,
-    revealCatchUpBusy,
-    serverTrickPlays,
   ]);
 
-  const presentationReadiness = useMemo(
-    () => ({
-      matchKey: matchKey ?? "",
-      pipelineActive: trickPresentation.isPipelineActive,
-      motionGateActive: instantTrickPlays,
-      revealCatchUp: revealCatchUpBusy,
-      handPresenting: handPresentingForBots,
-    }),
-    [
-      matchKey,
-      trickPresentation.isPipelineActive,
-      instantTrickPlays,
-      revealCatchUpBusy,
-      handPresentingForBots,
-    ],
-  );
-
-  const tableReadiness = useMemo(() => {
-    if (!matchKey) return null;
-    return deriveTableReadiness({
-      matchKey,
-      turnPlayerId: session.turnPlayerId ?? null,
-      heroId: currentUserId ?? null,
-      botIds,
-      presentation: presentationReadiness,
-      drawCompleted: canonicalHand.drawCompleted,
-      drawTotal: canonicalHand.drawTotal,
-    });
-  }, [
-    matchKey,
-    session.turnPlayerId,
-    currentUserId,
-    botIds,
-    presentationReadiness,
-    canonicalHand.drawCompleted,
-    canonicalHand.drawTotal,
-  ]);
-
-  useEffect(() => {
-    if (!tableReadiness || !matchKey) return;
-    try {
-      assertMatchKeyInvariants({
-        matchKey,
-        turnPlayerId: session.turnPlayerId ?? null,
-        heroId: currentUserId ?? null,
-        botIds,
-        presentation: presentationReadiness,
-        drawCompleted: canonicalHand.drawCompleted,
-        drawTotal: canonicalHand.drawTotal,
-        ...tableReadiness,
-      });
-    } catch (err) {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("matchKey", "invariant-throw", {
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-  }, [
-    tableReadiness,
-    matchKey,
-    session.turnPlayerId,
-    currentUserId,
-    botIds,
-    presentationReadiness,
-    canonicalHand.drawCompleted,
-    canonicalHand.drawTotal,
-  ]);
-
-  const visualCatchUpBusy = tableReadiness?.visualCatchUpBusy ?? false;
-  const canHeroAct = tableReadiness?.canHeroAct ?? null;
+  const cardsDealt = isCardsDealtPhase(session.phase);
 
   const trumpHolderPresentation = useMemo(
     () =>
@@ -580,36 +359,13 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
-  const rawSuppressTurn =
+  const suppressTurn =
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
-  const suppressTurn = resolveSuppressTurnForHero({
-    suppressTurn: Boolean(rawSuppressTurn),
-    session,
-    currentUserId,
-  });
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
-
-  const drawRingActorId = resolveDrawPresentationRingActor({
-    phase: handPresentation.phase,
-    drawAnimSubPhase: handPresentation.drawAnimSubPhase,
-    animatingDrawPlayerId: handPresentation.animatingDrawPlayerId,
-  });
-
-  const { countdown: turnCountdown } = useTurnCountdown({
-    session,
-    suppressTurn: Boolean(suppressTurn),
-    handComplete,
-    presentationActorId: drawRingActorId,
-  });
-
-  const activeActorId = turnCountdown?.playerId ?? null;
   const turnLabel =
-    suppressTurn ? null : turnIndicatorLabel(activeActorId, players);
-  const showTurnOverlay = Boolean(
-    turnLabel &&
-    !suppressTurn &&
-    (enrollmentActive || session.phase === "draw" || session.phase === "play"),
-  );
+    suppressTurn
+      ? null
+      : turnIndicatorLabel(session.turnPlayerId, players);
   const selfPlayer = players.find((p) => p.isSelf);
   const lockedInLiveHand =
     currentUserId != null &&
@@ -622,23 +378,14 @@ export function TableSessionView({
     !coWinResultVisible &&
     selfPlayer?.isOut === true &&
     Boolean(actions.onRebuy);
-  const isMyTurn =
-    !suppressTurn &&
-    !handComplete &&
-    currentUserId != null &&
-    activeActorId === currentUserId &&
-    (enrollmentActive
-      ? Boolean(selfPlayer?.canToggleInHand || selfPlayer?.canPassEnrollment)
-      : canHeroAct != null
-        ? canHeroAct
-        : isHeroDrawOrPlayTurn({
-            currentUserId,
-            session,
-            suppressTurn: Boolean(suppressTurn),
-            handComplete,
-            enrollmentActive,
-            selfPlayer,
-          }));
+  const isMyTurn = isHeroDrawOrPlayTurn({
+    currentUserId,
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+    enrollmentActive,
+    selfPlayer,
+  });
 
   const localActionRequired = isLocalActionRequiredNow({
     currentUserId,
@@ -653,6 +400,12 @@ export function TableSessionView({
     currentUserId,
     enrollmentActive,
     selfPlayer,
+    session,
+    suppressTurn: Boolean(suppressTurn),
+    handComplete,
+  });
+
+  const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
@@ -792,8 +545,6 @@ export function TableSessionView({
     instantTrickPlays,
     turnCountdown,
     bigPotEvent,
-    visualCatchUpBusy,
-    heroCanAct: canHeroAct,
     onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
   };
@@ -902,7 +653,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={showTurnOverlay}
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
             />
             {gameplayStage}
           </div>
@@ -916,7 +667,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={showTurnOverlay}
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
             />
             {gameplayStage}
           </div>

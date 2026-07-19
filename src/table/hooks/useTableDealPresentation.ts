@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { activePlayerOrder, CARDS_PER_PLAYER } from "../../game/playerOrder";
-import { canStartDealPresentation } from "../handPresentationMachine";
 import { seatRingPlayerIds } from "../layout/seatOrder";
 import {
   buildClockwiseDealSteps,
@@ -11,25 +10,19 @@ import {
 } from "../animations/dealPresentationMotion";
 import { setDealPresentationActive } from "../presentationMotionBusy";
 import { prefersReducedMotion } from "../trickTiming";
-import type { TableSessionData } from "../types";
+import type { SerializedCard, TableSessionData } from "../types";
 
 export interface UseTableDealPresentationInput {
   session: TableSessionData;
-  dealPresentationAllowed: boolean;
+  heroCards: SerializedCard[];
   privateHandReady?: boolean;
-  trumpRevealActive?: boolean;
-  trumpMergeActive?: boolean;
-  anteAnimActive?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
 export function useTableDealPresentation({
   session,
-  dealPresentationAllowed,
+  heroCards,
   privateHandReady = false,
-  trumpRevealActive = false,
-  trumpMergeActive = false,
-  anteAnimActive = false,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
@@ -54,18 +47,18 @@ export function useTableDealPresentation({
     const root = tableRootRef.current;
     if (!root) return;
 
-    if (
-      !canStartDealPresentation(
-        dealPresentationAllowed,
-        session.phase,
-        privateHandReady,
-        { trumpRevealActive, trumpMergeActive, anteAnimActive },
-      )
-    ) {
+    const inDealPhase =
+      session.phase === "reveal" ||
+      session.phase === "decision" ||
+      session.phase === "draw" ||
+      session.phase === "play";
+
+    const cardCount = heroCards.length;
+    if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
       return;
     }
 
-    const dealKey = `${session.handNumber}:${session.participantIds.join(",")}`;
+    const dealKey = `${session.handNumber}:${cardCount}:${session.participantIds.join(",")}`;
     if (lastDealKeyRef.current === dealKey) return;
 
     const seatRing = seatRingPlayerIds(session.participantIds, session);
@@ -122,11 +115,8 @@ export function useTableDealPresentation({
     session.phase,
     session.dealerId,
     session.participantIds,
-    dealPresentationAllowed,
+    heroCards.length,
     privateHandReady,
-    trumpRevealActive,
-    trumpMergeActive,
-    anteAnimActive,
     tableRootRef,
   ]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { PlayingCard } from "../components/PlayingCard";
 import { SUIT_SYMBOL, type Rank, type Suit } from "../types";
 import { formatHandPhase, formatTrumpSuit } from "./handUi";
@@ -48,8 +48,6 @@ interface PotCenterProps {
   /** Force suit badge when trump card is visually merged into holder hand. */
   showTrumpSuitReminder?: boolean;
   instantTrickPlays?: boolean;
-  /** Fast-path fly/reveal while draining authoritative trick backlog. */
-  revealCatchUp?: boolean;
   /** Peak stable trick play count — defers trump swap while stagger catches up. */
   peakTrickPlayCount?: number;
   discardPileCards?: DiscardPileCard[];
@@ -89,7 +87,6 @@ export function PotCenter({
   trumpMergeActive = false,
   showTrumpSuitReminder: showTrumpSuitReminderProp = false,
   instantTrickPlays = false,
-  revealCatchUp = false,
   peakTrickPlayCount = 0,
   discardPileCards = [],
   currentUserId = null,
@@ -115,9 +112,6 @@ export function PotCenter({
 
   /** Defer trump upcard → suit-badge swap while trick cards are landing. */
   const [displayTrumpUpcard, setDisplayTrumpUpcard] = useState(trumpUpcard ?? null);
-  const trumpRevealWasActiveRef = useRef(false);
-  const [trumpRelocate, setTrumpRelocate] = useState(false);
-
   useEffect(() => {
     if (trumpUpcard) {
       setDisplayTrumpUpcard(trumpUpcard);
@@ -132,87 +126,52 @@ export function PotCenter({
     setDisplayTrumpUpcard(null);
   }, [trumpUpcard, trickPlaysPending, trickResolving, displayTrumpUpcard, trumpMergeActive]);
 
-  useEffect(() => {
-    if (trumpRevealActive) {
-      trumpRevealWasActiveRef.current = true;
-      return;
-    }
-    if (!trumpRevealWasActiveRef.current || !displayTrumpUpcard) return;
-    setTrumpRelocate(true);
-    const id = window.setTimeout(() => setTrumpRelocate(false), 260);
-    return () => window.clearTimeout(id);
-  }, [trumpRevealActive, displayTrumpUpcard]);
-
   const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
-  const trumpRevealedReady = hasTrumpCard && !trumpRevealActive;
   const showTrumpSuitReminder =
     showTrumpSuitReminderProp ||
     (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
-  const showDeckPile = !hasTrumpCard && !showTrumpSuitReminder;
+  const trumpKey = hasTrumpCard ? `${displayTrumpUpcard!.rank}-${displayTrumpUpcard!.suit}` : "trump-slot";
   const finalTrickEcho =
     showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);
 
   return (
     <div className="table-center-cluster" aria-label="Table center">
       <div className="deck-stack" aria-label="Deck and trump">
-        <div className="deck-stack__anchor">
+        {hasTrumpCard ? (
           <div
-            className={[
-              "deck-stack__pile",
-              showDeckPile ? "" : "deck-stack__layer--hidden",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-            data-testid="deal-button"
-            aria-hidden={!showDeckPile}
-          >
-            <div className="deck-stack__card deck-stack__card--back" />
-            <div className="deck-stack__card deck-stack__card--back deck-stack__card--offset" />
-            <span className="deck-stack__label muted small">
-              {enrollmentActive ? "Dealing" : "Deck"}
-            </span>
-          </div>
-
-          <div
+            key={trumpKey}
             className={[
               "deck-stack__trump",
-              "bpot__trump",
-              hasTrumpCard ? "" : "deck-stack__layer--hidden",
+              "bpot__trump--deal",
               trumpRevealActive ? "bpot__trump--reveal" : "",
-              trumpRelocate ? "bpot__trump--relocate" : "",
-              trumpRevealedReady ? "bpot__trump--revealed-ready deal-card--revealed" : "",
             ]
               .filter(Boolean)
               .join(" ")}
             data-testid="trump-button"
             data-trump-deal-target=""
-            aria-hidden={!hasTrumpCard}
           >
-            {displayTrumpUpcard && (
-              <PlayingCard
-                card={{
-                  rank: displayTrumpUpcard.rank as Rank,
-                  suit: displayTrumpUpcard.suit as Suit,
-                }}
-                size="sm"
-                state="trump"
-              />
-            )}
+            <PlayingCard
+              card={{
+                rank: displayTrumpUpcard!.rank as Rank,
+                suit: displayTrumpUpcard!.suit as Suit,
+              }}
+              size="sm"
+              state="trump"
+            />
             <span className="deck-stack__label muted small">Trump</span>
           </div>
-
+        ) : showTrumpSuitReminder ? (
           <div
             className={[
               "deck-stack__trump",
               "deck-stack__trump--suit-reminder",
-              showTrumpSuitReminder ? "" : "deck-stack__layer--hidden",
               trumpReminderPulse > 0 ? "deck-stack__trump--suit-reminder-pulse" : "",
             ]
               .filter(Boolean)
               .join(" ")}
+            key="trump-reminder"
             data-testid="trump-suit-reminder"
-            aria-label={showTrumpSuitReminder ? `Trump suit: ${formatTrumpSuit(trumpSuit)}` : undefined}
-            aria-hidden={!showTrumpSuitReminder}
+            aria-label={`Trump suit: ${formatTrumpSuit(trumpSuit)}`}
           >
             <div
               className={`trump-suit-badge trump-suit-badge--${trumpSuit}`}
@@ -222,7 +181,15 @@ export function PotCenter({
             </div>
             <span className="deck-stack__label muted small">Trump</span>
           </div>
-        </div>
+        ) : (
+          <div className="deck-stack__pile" data-testid="deal-button" aria-hidden="true">
+            <div className="deck-stack__card deck-stack__card--back" />
+            <div className="deck-stack__card deck-stack__card--back deck-stack__card--offset" />
+            <span className="deck-stack__label muted small">
+              {enrollmentActive ? "Dealing" : "Deck"}
+            </span>
+          </div>
+        )}
         {remainingDeckCount != null && remainingDeckCount > 0 && (
           <span className="deck-stack__count muted small">{remainingDeckCount} left</span>
         )}
@@ -242,8 +209,19 @@ export function PotCenter({
         data-trick-phase={trickPresentationPhase}
         data-trick-cards={liveTrickCardCount}
         data-hand-settling={settleAnimActive ? "true" : "false"}
-        data-pacing-ante-active={anteAnimActive ? "true" : "false"}
       >
+        {anteAnimActive && (
+          <div className="bpot__ante-chips" aria-hidden="true">
+            {Array.from({ length: Math.min(participantCount, 8) }, (_, i) => (
+              <span
+                key={i}
+                className="bpot__ante-chip"
+                style={{ ["--ante-i" as string]: i }}
+              />
+            ))}
+          </div>
+        )}
+
         {phase === "draw" ? <DiscardPile cards={discardPileCards} /> : null}
 
         <div
@@ -284,7 +262,6 @@ export function PotCenter({
               presentationPhase={trickPresentationPhase}
               playerNames={playerNames}
               instantTrickPlays={instantTrickPlays}
-              revealCatchUp={revealCatchUp}
               peakCardCount={peakTrickPlayCount}
               participantCount={participantCount}
               currentUserId={currentUserId}
@@ -309,7 +286,6 @@ export function PotCenter({
           <div
             className={`bpot__stat bpot__stat--pot${potTick > 0 ? " bpot__stat--tick" : ""}`}
             data-testid="pot-display"
-            data-ante-pot-target=""
             key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
           >
             <dt>Table pot</dt>

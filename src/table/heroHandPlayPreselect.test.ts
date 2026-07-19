@@ -8,16 +8,12 @@ import {
   isLegalPlayIndex,
   parsePlayActivityKey,
   planTapAutoplay,
-  queuedPlaySubmitDelayMs,
   resolveHeroPlayCardVisualTier,
   resolveManualOrRecommendedPlayState,
   shouldClearQueuedPlayOnActivityChange,
-  shouldPreserveQueuedPlayTimerOnActivityChange,
   shouldShowBestPlayRecommendation,
-  shouldSubmitQueuedPlayOnTurnActivation,
   shouldSwipeImmediatePlay,
   togglePlayPreselectIndex,
-  QUEUED_PLAY_TURN_BEAT_MS,
 } from "./heroHandPlayPreselect";
 import type { Card } from "../types";
 
@@ -129,61 +125,6 @@ test("shouldClearQueuedPlayOnActivityChange clears on hand or phase boundary", (
     shouldClearQueuedPlayOnActivityChange(base, { ...base, phase: "draw" }),
     true,
   );
-});
-
-test("shouldPreserveQueuedPlayTimerOnActivityChange keeps timer when hero turn activates", () => {
-  const base = { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_1", phase: "play" };
-  assert.equal(
-    shouldPreserveQueuedPlayTimerOnActivityChange({
-      prev: base,
-      next: { ...base, turnPlayerId: "p1" },
-      isMyTurn: true,
-      selectedPlay: 2,
-      isLegal: true,
-    }),
-    true,
-  );
-  assert.equal(
-    shouldPreserveQueuedPlayTimerOnActivityChange({
-      prev: base,
-      next: { ...base, turnPlayerId: "p1" },
-      isMyTurn: false,
-      selectedPlay: 2,
-      isLegal: true,
-    }),
-    false,
-  );
-});
-
-test("shouldSubmitQueuedPlayOnTurnActivation requires readable turn beat prerequisites", () => {
-  assert.equal(
-    shouldSubmitQueuedPlayOnTurnActivation({
-      becameMine: true,
-      inPlayPhase: true,
-      selectedPlay: 1,
-      playLocked: false,
-      busy: false,
-      isLegal: true,
-    }),
-    true,
-  );
-  assert.equal(
-    shouldSubmitQueuedPlayOnTurnActivation({
-      becameMine: true,
-      inPlayPhase: true,
-      selectedPlay: 1,
-      playLocked: false,
-      busy: true,
-      isLegal: true,
-    }),
-    false,
-  );
-});
-
-test("queuedPlaySubmitDelayMs provides a readable beat before queued submit", () => {
-  assert.equal(queuedPlaySubmitDelayMs(false), QUEUED_PLAY_TURN_BEAT_MS);
-  assert.ok(queuedPlaySubmitDelayMs(false) >= 300);
-  assert.ok(queuedPlaySubmitDelayMs(true) < QUEUED_PLAY_TURN_BEAT_MS);
 });
 
 test("buildPlayActivityKey round-trips through parsePlayActivityKey", () => {

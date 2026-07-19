@@ -62,11 +62,3 @@ test("illegal on-turn card is not interactive", () => {
   assert.equal(result.playInteractive, false);
   assert.equal(result.playableOutline, false);
 });
-
-test("hero on-turn legal card stays interactive when not busy", () => {
-  const result = resolveHandPlayCardInteraction({
-    ...onTurnLegal,
-    cardState: "default",
-  });
-  assert.equal(result.playInteractive, true);
-});

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
-  canStartDealPresentation,
   createHandPresentationStore,
   nextDrawPresentationTarget,
   phaseScheduleMs,
@@ -70,52 +69,6 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "completeTrumpMerge" });
     assert.equal(store.trumpMergeActive, false);
     assert.equal(store.trumpMergedIntoHand, true);
-  });
-
-  it("catches up from stale ante when server is already in draw", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-      trumpUpcard: { rank: "A", suit: "hearts" },
-    });
-    assert.equal(store.phase, "ante");
-    assert.equal(store.anteAnimActive, true);
-
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "draw",
-        drawCompletedIds: ["p1", "p2"],
-        turnPlayerId: "p3",
-      },
-    });
-
-    assert.equal(store.phase, "drawPlayer");
-    assert.equal(store.anteAnimActive, false);
-    assert.equal(store.trumpRevealActive, false);
-    assert.deepEqual(store.displayDrawCompletedIds, ["p1", "p2"]);
-    assert.ok(store.drawPresentationConsumedIds.includes("p1"));
-    assert.ok(store.drawPresentationConsumedIds.includes("p2"));
-  });
-
-  it("catches up from stale ante to drawReady when all seats drew on server", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-      trumpUpcard: { rank: "A", suit: "hearts" },
-    });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "draw",
-        drawCompletedIds: ["p1", "p2", "p3"],
-        turnPlayerId: "p1",
-      },
-    });
-    assert.equal(store.phase, "drawReady");
-    assert.equal(store.anteAnimActive, false);
   });
 
   it("arms ante on initial reveal mount", () => {
@@ -277,7 +230,6 @@ describe("handPresentationMachine", () => {
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botA));
 
     store = reduceHandPresentation(store, {
@@ -287,7 +239,6 @@ describe("handPresentationMachine", () => {
     assert.equal(store.animatingDrawPlayerId, botB);
     assert.ok(store.drawPresentationConsumedIds.includes(botB));
 
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botB));
@@ -369,8 +320,6 @@ describe("handPresentationMachine", () => {
       snapshot: { ...snap, drawCompletedIds: [botA], turnPlayerId: botB },
     });
     assert.equal(store.animatingDrawPlayerId, botA);
-    assert.equal(store.drawAnimSubPhase, "ring");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "discard");
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "receive");
@@ -386,7 +335,7 @@ describe("handPresentationMachine", () => {
     store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.ok(store.displayDrawCompletedIds.includes(botA));
     assert.equal(store.animatingDrawPlayerId, botB);
-    assert.equal(store.drawAnimSubPhase, "ring");
+    assert.equal(store.drawAnimSubPhase, "discard");
 
     const afterCommit = store;
     store = reduceHandPresentation(store, { type: "advancePhase" });
@@ -403,8 +352,6 @@ describe("handPresentationMachine", () => {
     });
     assert.equal(store.phase, "drawPlayer");
     assert.equal(store.animatingDrawPlayerId, "p2");
-    assert.equal(store.drawAnimSubPhase, "ring");
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "discard");
     const model = buildHandPresentationModel(store);
     assert.equal(model.displayDrawCompletedIds.includes("p2"), false);
@@ -423,9 +370,6 @@ describe("handPresentationMachine", () => {
       heroDrawReplaceCount: 0,
     });
     assert.equal(store.animatingDrawPlayerId, "p2");
-    assert.equal(store.drawAnimSubPhase, "ring");
-    assert.ok(phaseScheduleMs(store) > 0);
-    store = reduceHandPresentation(store, { type: "advancePhase" });
     assert.equal(store.drawAnimSubPhase, "done");
     assert.equal(phaseScheduleMs(store), 0);
   });
@@ -450,7 +394,7 @@ describe("handPresentationMachine", () => {
       type: "serverUpdate",
       snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p3" },
     });
-    assert.equal(store.drawAnimSubPhase, "ring");
+    assert.equal(store.drawAnimSubPhase, "discard");
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
       snapshot: { ...baseSnap, phase: "play", drawCompletedIds: ["p1", "p2", "p3"] },
@@ -590,37 +534,6 @@ describe("handPresentationMachine", () => {
     assert.equal(buildHandPresentationModel(store).settleAnimActive, false);
   });
 
-  it("resets presentation when server hand number advances past pending settle", () => {
-    let store = createHandPresentationStore({ ...baseSnap, phase: "play", handNumber: 5 });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "play",
-        handNumber: 5,
-        handComplete: true,
-      },
-    });
-    assert.equal(store.pendingHandSettle, true);
-    assert.equal(store.phase, "play");
-
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "reveal",
-        handNumber: 6,
-        handComplete: false,
-        participantIds: [],
-        trumpUpcard: { rank: "K", suit: "spades" },
-      },
-    });
-    assert.equal(store.handNumber, 6);
-    assert.equal(store.phase, "ante");
-    assert.equal(store.pendingHandSettle, false);
-    assert.equal(store.pendingSnapshot, null);
-  });
-
   it("advances through settle and nextHandReset without draw presentation", () => {
     let store = createHandPresentationStore({ ...baseSnap, phase: "play" });
     store = reduceHandPresentation(store, {
@@ -647,50 +560,11 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "enrollment");
   });
 
-  it("blocks deal presentation during trump reveal hold", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-    });
-    assert.equal(store.phase, "ante");
-    assert.equal(store.dealPresentationAllowed, false);
-    assert.equal(
-      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
-      false,
-    );
-
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpReveal");
-    assert.equal(store.dealPresentationAllowed, false);
-    assert.equal(
-      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
-      false,
-    );
-  });
-
-  it("allows deal presentation after trump reveal hold completes", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "reveal",
-    });
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "trumpReveal");
-
-    store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.equal(store.dealPresentationAllowed, true);
-    assert.equal(
-      canStartDealPresentation(store.dealPresentationAllowed, "reveal", true),
-      true,
-    );
-    assert.equal(buildHandPresentationModel(store).dealPresentationAllowed, true);
-  });
-
   it("exposes configurable timing defaults", () => {
     const t = handTimingScale(false);
-    assert.ok(t.anteChipTravelMs >= 250 && t.anteChipTravelMs <= 310);
-    assert.ok(t.anteChipStaggerMs >= 60 && t.anteChipStaggerMs <= 90);
+    assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
-    assert.ok(t.trumpRevealHoldMs >= 2500 && t.trumpRevealHoldMs <= 3500);
+    assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
   });
@@ -784,36 +658,13 @@ describe("handPresentationMachine", () => {
     assert.equal(store.trumpRevealActive, true);
     assert.equal(store.trumpMergedIntoHand, false);
   });
-
-  it("does not treat a folded seat in drawCompletedIds as extra draw completion", () => {
-    let store = createHandPresentationStore({
-      ...baseSnap,
-      phase: "draw",
-      drawCompletedIds: ["p1"],
-    });
-    store = reduceHandPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        ...baseSnap,
-        phase: "draw",
-        participantIds: ["p1", "p2"],
-        drawCompletedIds: ["p1", "p3"],
-        actionOrder: ["p2", "p1"],
-        turnPlayerId: "p2",
-      },
-    });
-    assert.equal(store.phase, "drawPlayer");
-    assert.notEqual(store.phase, "drawReady");
-  });
 });
 
 describe("trick timing with hand flow", () => {
-  it("uses a readable post-trick hold before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 1725);
-    assert.ok(POST_TRICK_READ_MS >= 1600 && POST_TRICK_READ_MS <= 1850);
+  it("holds complete trick for two seconds before winner highlight", () => {
+    assert.equal(POST_TRICK_READ_MS, 1850);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readBeforeWinnerMs, 1725);
-    assert.equal(schedule.winnerRevealMs, 650);
-    assert.ok(schedule.pipelineMs >= 3000 && schedule.pipelineMs <= 4000);
+    assert.equal(schedule.readTotalMs, 1850);
+    assert.ok(schedule.pipelineMs >= 3100);
   });
 });

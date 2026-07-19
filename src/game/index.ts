@@ -1,12 +1,3 @@
-export {
-  handEligibleParticipantIds,
-  drawTotalEligible,
-  drawCompletedAmongEligible,
-  staleDrawCompletedIds,
-  allEligibleDrawsComplete,
-  canonicalHandDrawMetrics,
-} from "./handParticipants";
-export type { CanonicalHandShape } from "./handParticipants";
 export { createDeck, shuffleDeck } from "./deck";
 export { shuffledDeckFromSeed, drawCardsFromDeck, remainingDeckCount } from "./deckState";
 export { dealInitialHand, assignTrumpUpcard } from "./deal";
@@ -29,7 +20,6 @@ export {
   deserializeCards,
 } from "./serialize";
 export type { SerializeHandOptions } from "./serialize";
-export { initialServerActionSeq, withServerActionSeq } from "./serverActionSeq";
 export {
   buildHandDecision,
   activateHandDecision,

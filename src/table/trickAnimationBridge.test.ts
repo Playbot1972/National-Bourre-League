@@ -12,20 +12,14 @@ import {
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
-  syncAuthoritativeMatchKey,
-  syncAuthoritativePresentationScope,
 } from "./trickAnimationBridge";
 
 const idleTrickFields = {
-  matchKey: "",
-  presentationScopeKey: "0:0",
   pipelineActive: false,
   revealCatchUp: false,
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
-  revealedCount: 0,
-  revealTarget: 0,
   handPresenting: false,
   handPresentationPhase: "idle",
   dealPresentationActive: false,
@@ -39,55 +33,22 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), false);
   });
 
-  it("ignores stale matchKey pipeline flags for bot blocking", () => {
+  it("blocks while trick pipeline is active", () => {
     resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("4:3");
-    syncAuthoritativeMatchKey("sess-h4-t3-turn0-aseq9");
     setTrickAnimationBusyState({
       ...idleTrickFields,
-      matchKey: "sess-h4-t2-turn0-aseq8",
-      presentationScopeKey: "4:3",
-      pipelineActive: true,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-    assert.equal(isTablePresentationBusyForBots(), false);
-  });
-
-  it("ignores stale-scope pipeline flags for bot blocking", () => {
-    resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("4:3");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      presentationScopeKey: "4:2",
-      pipelineActive: true,
-      trickCollectionActive: true,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-    assert.equal(isTablePresentationBusyForBots(), false);
-  });
-
-  it("blocks while trick pipeline is active for current scope", () => {
-    resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      presentationScopeKey: "1:1",
       pipelineActive: true,
     });
     assert.equal(isTrickAnimationBusy(), true);
     assert.equal(isTablePresentationBusy(), true);
   });
 
-  it("blocks while peak plays exceed displayed count and reveal is behind target", () => {
+  it("blocks while peak plays exceed displayed count", () => {
     resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
-      presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
-      revealedCount: 1,
-      revealTarget: 3,
     });
     assert.equal(isTrickAnimationBusy(), true);
     assert.equal(isTablePresentationBusy(), true);
@@ -128,56 +89,20 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 
-  it("reports peak play catch-up as block reason only while reveal is behind target", () => {
+  it("reports peak play catch-up as block reason", () => {
     resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
-      matchKey: "sess-h1-t1-turn0-aseq1",
-      presentationScopeKey: "1:1",
       peakPlayCount: 3,
       displayedPlayCount: 1,
-      revealedCount: 1,
-      revealTarget: 3,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
-
-    setTrickAnimationBusyState({
-      ...getTrickAnimationBusyState(),
-      revealedCount: 3,
-      revealTarget: 3,
-      displayedPlayCount: 1,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
-
-    setTrickAnimationBusyState({
-      ...getTrickAnimationBusyState(),
-      displayedPlayCount: 3,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-  });
-
-  it("blocks bots when only one card is still unrevealed on the table", () => {
-    resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      matchKey: "sess-h1-t1-turn0-aseq1",
-      presentationScopeKey: "1:1",
-      peakPlayCount: 1,
-      displayedPlayCount: 0,
-      revealedCount: 0,
-      revealTarget: 1,
     });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
 
   it("getTrickAnimationBusyState returns latest snapshot", () => {
     resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
-      presentationScopeKey: "1:1",
       revealCatchUp: true,
       peakPlayCount: 1,
       displayedPlayCount: 0,
@@ -186,12 +111,10 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
   });
 
-  it("does not block bots for draw or lagging reveal presentation during server draw", () => {
+  it("does not block bots for drawPlayer during server draw phase", () => {
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "ante", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), true);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {
@@ -212,10 +135,8 @@ describe("trickAnimationBridge", () => {
 
   it("force-releases presentation after hard timeout", () => {
     resetTrickAnimationBusyState();
-    syncAuthoritativePresentationScope("1:1");
     setTrickAnimationBusyState({
       ...idleTrickFields,
-      presentationScopeKey: "1:1",
       pipelineActive: true,
     });
     const start = 2_000_000;
