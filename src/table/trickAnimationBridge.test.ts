@@ -148,7 +148,28 @@ describe("trickAnimationBridge", () => {
       revealTarget: 3,
       displayedPlayCount: 1,
     });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
+
+    setTrickAnimationBusyState({
+      ...getTrickAnimationBusyState(),
+      displayedPlayCount: 3,
+    });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+  });
+
+  it("blocks bots when only one card is still unrevealed on the table", () => {
+    resetTrickAnimationBusyState();
+    syncAuthoritativePresentationScope("1:1");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      matchKey: "sess-h1-t1-turn0-aseq1",
+      presentationScopeKey: "1:1",
+      peakPlayCount: 1,
+      displayedPlayCount: 0,
+      revealedCount: 0,
+      revealTarget: 1,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
 
   it("getTrickAnimationBusyState returns latest snapshot", () => {

@@ -32,6 +32,17 @@ describe("heroPlayHandoff", () => {
     assert.equal(shouldDeferOpponentFly(1), false);
   });
 
+  it("defers all opponent slots while trick index is still unknown", () => {
+    cancelHeroPlayHandoff();
+    beginHeroPlayHandoff({
+      playKey: "p0:A:spades",
+      card: { rank: "A", suit: "spades" },
+      slotIndex: 2,
+    });
+    assert.equal(shouldDeferOpponentFly(1), true);
+    assert.equal(shouldDeferOpponentFly(2), true);
+  });
+
   it("ignores completion for a different play key", () => {
     cancelHeroPlayHandoff();
     beginHeroPlayHandoff({

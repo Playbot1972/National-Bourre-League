@@ -1,7 +1,6 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
-import { REVEAL_CATCHUP_MIN_BACKLOG } from "./trickTiming";
 import {
   getAuthoritativePresentationScope,
   isDealPresentationActive,
@@ -113,13 +112,12 @@ export function getTablePresentationBlockReason(
   if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
   if (s.revealCatchUp) return "revealCatchUp";
-  const revealBacklog = Math.max(0, s.revealTarget - s.revealedCount);
-  if (
-    s.peakPlayCount > s.displayedPlayCount &&
-    s.peakPlayCount > 0 &&
-    revealBacklog >= REVEAL_CATCHUP_MIN_BACKLOG
-  ) {
-    return "peakPlayCatchUp";
+  if (s.peakPlayCount > 0 && s.displayedPlayCount < s.peakPlayCount) {
+    const revealDebt = Math.max(0, s.peakPlayCount - s.revealedCount);
+    const displayDebt = Math.max(0, s.revealedCount - s.displayedPlayCount);
+    if (revealDebt > 0 || displayDebt > 0) {
+      return "peakPlayCatchUp";
+    }
   }
   return null;
 }
@@ -367,14 +365,21 @@ export function getTrickAnimationBusyState(): TrickAnimationBusyState {
 export function isTrickAnimationBusy(): boolean {
   if (isMatchKeyStale(state)) return false;
   if (isScopeStale(state)) return false;
+  const revealDebt =
+    state.peakPlayCount > 0 && state.displayedPlayCount < state.peakPlayCount
+      ? Math.max(0, state.peakPlayCount - state.revealedCount)
+      : 0;
+  const displayDebt =
+    state.peakPlayCount > 0 && state.displayedPlayCount < state.peakPlayCount
+      ? Math.max(0, state.revealedCount - state.displayedPlayCount)
+      : 0;
   return (
     state.pipelineActive ||
     state.revealCatchUp ||
     state.motionGateActive ||
     state.trickCollectionActive ||
-    (state.peakPlayCount > state.displayedPlayCount &&
-      state.peakPlayCount > 0 &&
-      Math.max(0, state.revealTarget - state.revealedCount) >= REVEAL_CATCHUP_MIN_BACKLOG)
+    revealDebt > 0 ||
+    displayDebt > 0
   );
 }
 

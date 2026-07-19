@@ -27,6 +27,7 @@ import {
 import {
   presentationScopeKey,
   serverTrickNumber,
+  effectivePresentationTrickNumber,
   shouldReinitPresentationScope,
 } from "../presentationScope";
 import { syncAuthoritativePresentationScope } from "../trickAnimationBridge";
@@ -166,6 +167,7 @@ export function useTrickPresentation({
     const enteredPlay = sessionPlayActive && !prevSessionPlayRef.current;
     prevSessionPlayRef.current = sessionPlayActive;
     const serverTrick = serverTrickNumber(currentTrick);
+    const scopeTrick = effectivePresentationTrickNumber(currentTrick, storeRef.current);
 
     if (
       shouldReinitPresentationScope({
@@ -181,8 +183,8 @@ export function useTrickPresentation({
       return;
     }
 
-    prevServerTrickRef.current = serverTrick;
-    presentationScopeRef.current = presentationScopeKey(handNumber, serverTrick);
+    prevServerTrickRef.current = serverTrick > 0 ? serverTrick : prevServerTrickRef.current;
+    presentationScopeRef.current = presentationScopeKey(handNumber, scopeTrick);
     syncAuthoritativePresentationScope(presentationScopeRef.current);
 
     if (
@@ -276,19 +278,25 @@ export function useTrickPresentation({
   ]);
 
   useLayoutEffect(() => {
-    const handoff = getHeroPlayHandoff();
-    if (!handoff || !currentUserId || !sessionPlayActive || store.phase !== "live") return;
-    if (!handoff.playKey.startsWith(`${currentUserId}:`)) return;
+    if (!currentUserId || !sessionPlayActive || store.phase !== "live") return;
 
     const livePlays = serializedPlays(currentTrick);
     const peakPlays = store.peakTrickPlays ?? [];
     const plays =
       peakPlays.length >= livePlays.length && peakPlays.length > 0 ? peakPlays : livePlays;
 
-    const heroIdx = plays.findIndex((p) => playFlyKey(p) === handoff.playKey);
+    const handoff = getHeroPlayHandoff();
+    let heroIdx = handoff?.playKey
+      ? plays.findIndex((p) => playFlyKey(p) === handoff.playKey)
+      : -1;
+    if (heroIdx < 0) {
+      heroIdx = plays.findIndex((p) => p.playerId === currentUserId);
+    }
     if (heroIdx < 0) return;
 
-    setHeroPlayTrickIndex(heroIdx);
+    if (handoff?.playKey.startsWith(`${currentUserId}:`)) {
+      setHeroPlayTrickIndex(heroIdx);
+    }
 
     const revealThrough = heroIdx + 1;
     if (store.revealedCount >= revealThrough) return;
@@ -300,9 +308,10 @@ export function useTrickPresentation({
     dispatch({ type: "revealThroughCount", count: revealThrough });
     if (isGameFlowDebugEnabled()) {
       logGameFlow("useTrickPresentation", "hero-play-immediate-reveal", {
-        playKey: handoff.playKey,
+        playKey: handoff?.playKey ?? playFlyKey(plays[heroIdx]!),
         trickIndex: heroIdx,
         revealThrough,
+        handoffActive: Boolean(handoff),
       });
     }
   }, [
