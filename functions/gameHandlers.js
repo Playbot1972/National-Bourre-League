@@ -1305,10 +1305,14 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
 }
 
 /** Chain bot enrollment, draw, play, and co-win votes until a human must act. */
-export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
+export async function advanceBotsAfterAction(db, roomId, sessionId, actorId, options = {}) {
+  const maxSteps =
+    typeof options.maxSteps === "number" && options.maxSteps > 0
+      ? Math.min(options.maxSteps, BOT_ADVANCE_MAX_STEPS)
+      : BOT_ADVANCE_MAX_STEPS;
   const dealingRule = await getDealingRule(db, roomId);
   const steps = [];
-  for (let step = 0; step < BOT_ADVANCE_MAX_STEPS; step += 1) {
+  for (let step = 0; step < maxSteps; step += 1) {
     const snap = await sessionRef(db, roomId, sessionId).get();
     const sessionData = snap.data();
     if (!sessionData || sessionData.status === "final") {
@@ -1447,8 +1451,8 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
   checkInvariant(
     false,
     "bot_advance_step_cap",
-    `Bot advance hit ${BOT_ADVANCE_MAX_STEPS} steps without human pause`,
-    { roomId, sessionId, actorId },
+    `Bot advance hit ${maxSteps} steps without human pause`,
+    { roomId, sessionId, actorId, maxSteps },
   );
   return { status: "ok", steps, capped: true };
 }
@@ -2583,15 +2587,15 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
   return { applied: plan.map((p) => p.playerId) };
 }
 
-export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
+export async function handleAdvanceBots(db, { roomId, sessionId, actorId, maxSteps }) {
   console.info(
     "[bot-advance]",
     "request",
-    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId }),
+    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, maxSteps: maxSteps ?? null }),
   );
   await assertRoomMember(db, roomId, actorId);
   try {
-    const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId, { maxSteps });
     console.info(
       "[bot-advance]",
       "complete",
