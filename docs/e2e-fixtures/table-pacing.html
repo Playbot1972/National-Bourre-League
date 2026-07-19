@@ -36,7 +36,7 @@
       <div id="table-root" data-testid="table-pacing-fixture"></div>
     </div>
     <script type="module">
-      import { mountTableSession, publishBotThinkWindow } from "/table-session.js";
+      import { mountTableSession, publishBotThinkWindow, setVisibleBotRingReporter } from "/table-session.js";
       import {
         BOT_PLAY_DELAY_MIN_MS,
         BOT_PLAY_DELAY_MAX_MS,
@@ -291,6 +291,14 @@
 
         setBotThinkWindowPublisher(publishBotThinkWindow);
         const thinkSchedule = createBotThinkScheduleState({ rng });
+        setVisibleBotRingReporter({
+          onShown: (payload) => {
+            thinkSchedule.playDelayState.notifyVisibleRingShown(payload);
+          },
+          onHidden: (payload) => {
+            thinkSchedule.playDelayState.notifyVisibleRingHidden(payload);
+          },
+        });
 
         function isBot(id) {
           return id.startsWith("bot_");
@@ -430,6 +438,11 @@
             delayMs: armed.delayMs,
           });
           render();
+          for (let i = 1; i <= 4; i += 1) {
+            window.setTimeout(() => {
+              if (turnPlayerId === botId && activeBotSubmit === botId) render();
+            }, i * 90);
+          }
         }
 
         watchRingVisibility(root);
