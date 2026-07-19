@@ -6,6 +6,7 @@ import {
   liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
+  shouldDeferHandNumberReinit,
   shouldReinitTrickPresentationStore,
   trickPlaysArePrefix,
   updatePeakTrickPlays,
@@ -410,7 +411,32 @@ describe("trickPresentationMachine", () => {
     store = reduceTrickPresentation(store, { type: "forceHandEndDrain" });
     assert.equal(store.phase, "live");
     assert.equal(store.pendingResolution, null);
+    assert.equal(store.handEndEchoTrick?.winnerId, "p1");
     assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
+  });
+
+  it("defers hand-number reinit while final-trick pipeline is active", () => {
+    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, completedTrick);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5, p2: 0 } },
+      participantIds: participants,
+    });
+    assert.ok(store.pendingResolution);
+    assert.equal(shouldDeferHandNumberReinit(store), true);
+
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    assert.equal(shouldDeferHandNumberReinit(store), true);
+
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "advancePhase" });
+    }
+    assert.equal(store.phase, "live");
+    assert.ok(store.handEndEchoTrick);
+    assert.equal(shouldDeferHandNumberReinit(store), true);
+
+    store = reduceTrickPresentation(store, { type: "clearHandEndEcho" });
+    assert.equal(shouldDeferHandNumberReinit(store), false);
   });
 
   it("latches hand-end echo when final trick pipeline completes with no next trick", () => {
