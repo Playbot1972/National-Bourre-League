@@ -21,6 +21,9 @@ import {
   reportVisibleBotRingShown,
 } from "../visibleBotRingBridge";
 
+/** Retry visible-ring ack while the live bot ring stays on screen. */
+const VISIBLE_RING_ACK_RETRY_MS = 250;
+
 export interface UseTurnCountdownResult {
   countdown: TurnCountdownState | null;
   reducedMotion: boolean;
@@ -49,7 +52,7 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   const lastKeyRef = useRef<string>("");
   const prevBotRingTurnKeyRef = useRef<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [, setBotWindowTick] = useState(0);
+  const [botWindowTick, setBotWindowTick] = useState(0);
 
   useEffect(() => subscribeBotThinkWindow(() => setBotWindowTick((n) => n + 1)), []);
 
@@ -62,13 +65,16 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   const botWindow = isBotPlayTurn ? getBotThinkWindow() : null;
   const useBotWindow = botWindow != null && botWindow.playerId === activeActorId;
 
+  const liveTurnPlayerId = input.session.turnPlayerId ?? null;
   const botRingReport =
-    isBotPlayTurn && activeActorId
+    isBotPlayTurn &&
+    activeActorId &&
+    liveTurnPlayerId === activeActorId
       ? {
           turnKey: botPlayTurnKey({
             handNumber: input.session.handNumber,
             trickNumber: input.session.currentTrick?.trickNumber ?? null,
-            turnPlayerId: activeActorId,
+            turnPlayerId: liveTurnPlayerId,
           }),
           playerId: activeActorId,
         }
@@ -99,41 +105,6 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     return () => window.clearInterval(id);
   }, [activeActorId, activityKey, useBotWindow, botWindow?.turnKey]);
 
-  useEffect(() => {
-    const prevTurnKey = prevBotRingTurnKeyRef.current;
-    const nextTurnKey = botRingReport?.turnKey ?? null;
-    if (prevTurnKey && nextTurnKey && prevTurnKey !== nextTurnKey) {
-      reportVisibleBotRingHidden({
-        turnKey: prevTurnKey,
-        reason: "turn_exit",
-        nowMs: Date.now(),
-      });
-    }
-    prevBotRingTurnKeyRef.current = nextTurnKey;
-  }, [botRingReport?.turnKey]);
-
-  useEffect(() => {
-    if (!botRingReport) return;
-
-    const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
-    const { turnKey, playerId } = botRingReport;
-    const handNumber = input.session.handNumber;
-    const trickNumber = input.session.currentTrick?.trickNumber ?? null;
-    const showTimer = window.setTimeout(() => {
-      reportVisibleBotRingShown({
-        turnKey,
-        playerId,
-        nowMs: Date.now(),
-        handNumber,
-        trickNumber,
-      });
-    }, activationMs);
-
-    return () => {
-      window.clearTimeout(showTimer);
-    };
-  }, [botRingReport?.turnKey, botRingReport?.playerId, input.session.handNumber, input.session.currentTrick?.trickNumber]);
-
   let countdown: TurnCountdownState | null = null;
   if (activeActorId) {
     if (useBotWindow && botWindow) {
@@ -154,6 +125,58 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
       );
     }
   }
+
+  const ringVisibleForBot =
+    botRingReport != null && countdown?.playerId === botRingReport.playerId;
+
+  useEffect(() => {
+    const prevTurnKey = prevBotRingTurnKeyRef.current;
+    const nextTurnKey = botRingReport?.turnKey ?? null;
+    if (prevTurnKey && nextTurnKey && prevTurnKey !== nextTurnKey) {
+      reportVisibleBotRingHidden({
+        turnKey: prevTurnKey,
+        reason: "turn_exit",
+        nowMs: Date.now(),
+      });
+    }
+    prevBotRingTurnKeyRef.current = nextTurnKey;
+  }, [botRingReport?.turnKey]);
+
+  useEffect(() => {
+    if (!ringVisibleForBot || !botRingReport) return;
+
+    const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
+    const { turnKey, playerId } = botRingReport;
+    const handNumber = input.session.handNumber;
+    const trickNumber = input.session.currentTrick?.trickNumber ?? null;
+
+    const emit = () => {
+      reportVisibleBotRingShown({
+        turnKey,
+        playerId,
+        nowMs: Date.now(),
+        handNumber,
+        trickNumber,
+      });
+    };
+
+    const showTimer = window.setTimeout(emit, activationMs);
+    const retryId = window.setInterval(emit, VISIBLE_RING_ACK_RETRY_MS);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearInterval(retryId);
+    };
+  }, [
+    ringVisibleForBot,
+    botRingReport?.turnKey,
+    botRingReport?.playerId,
+    botWindow?.turnKey,
+    botWindow?.countingStartedAtMs,
+    botWindowTick,
+    input.session.handNumber,
+    input.session.currentTrick?.trickNumber,
+  ]);
 
   return {
     countdown,

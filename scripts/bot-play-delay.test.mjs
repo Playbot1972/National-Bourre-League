@@ -332,6 +332,38 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
+  it("arms after an early visible ring ack and still satisfies the minimum", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const turnKey = botPlayTurnKey(ctx);
+    const startedAt = Date.now();
+    let fired = false;
+
+    schedule.playDelayState.notifyVisibleRingShown({
+      turnKey,
+      playerId: "bot_1",
+      nowMs: startedAt,
+    });
+
+    schedule.armPlayThink({
+      ctx,
+      nowMs: startedAt + 20,
+      shouldFire: () => true,
+      onFire: () => {
+        fired = true;
+      },
+    });
+
+    const latched = schedule.playDelayState.getVisibleRingStatus({
+      turnKey,
+      nowMs: startedAt + 100,
+    });
+    assert.equal(latched.visibleRingStartAtMs, startedAt);
+
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 200));
+    assert.equal(fired, true);
+  });
+
   it("arms random delay between 1500 and 3000 ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = armWithVisibleRing(schedule, {
