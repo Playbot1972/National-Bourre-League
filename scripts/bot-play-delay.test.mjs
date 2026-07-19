@@ -179,6 +179,41 @@ describe("bot play delay", () => {
     assert.equal(status.visibleMinimumMet, false);
   });
 
+  it("applies a pending visible ring ack when the turn is armed", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const turnKey = botPlayTurnKey(ctx);
+    const shownAt = 1_000;
+    const acceptedEarly = state.notifyVisibleRingShown({
+      turnKey,
+      playerId: "bot_1",
+      nowMs: shownAt,
+    });
+    assert.equal(acceptedEarly, false);
+    state.prepareTurn({ ...ctx, nowMs: shownAt + 50 });
+    const status = state.getVisibleRingStatus({ turnKey, nowMs: shownAt + 200 });
+    assert.equal(status.visibleRingStartAtMs, shownAt);
+    assert.equal(status.visibleRingElapsedMs, 200);
+  });
+
+  it("discards pending visible ring ack on turn mismatch", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 2,
+      turnPlayerId: "bot_1",
+      nowMs: 100,
+    });
+    const status = state.getVisibleRingStatus({ turnKey: "1:2:bot_1", nowMs: 500 });
+    assert.equal(status.visibleRingStartAtMs, null);
+    assert.equal(status.visibleRingElapsedMs, 0);
+  });
+
   it("ignores transient ring_cleanup and presentation_busy resets", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     state.prepareTurn({
