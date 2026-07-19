@@ -503,6 +503,47 @@ describe("bot think schedule", () => {
     assert.ok(status.visibleRingElapsedMs > 0);
   });
 
+  it("keeps latched elapsed monotonic through transient hidden and presentation churn", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const turnKey = botPlayTurnKey(ctx);
+    const startedAt = Date.now();
+    let fired = false;
+    let presentationBlocked = true;
+    schedule.armPlayThink({
+      ctx,
+      nowMs: startedAt,
+      shouldFire: () => true,
+      getPresentationState: () =>
+        presentationBlocked ? { blocked: true, revealCatchUp: true } : {},
+      onFire: () => {
+        fired = true;
+      },
+    });
+    schedule.playDelayState.notifyVisibleRingShown({
+      turnKey,
+      playerId: ctx.turnPlayerId,
+      nowMs: startedAt,
+    });
+    for (const reason of ["ring_cleanup", "not_bot_turn", "presentation_busy", "turn_suppressed"]) {
+      schedule.playDelayState.notifyVisibleRingHidden({
+        turnKey,
+        reason,
+        nowMs: startedAt + 200,
+      });
+    }
+    const mid = schedule.playDelayState.getVisibleRingStatus({
+      turnKey,
+      nowMs: startedAt + 600,
+    });
+    assert.equal(mid.visibleRingStartAtMs, startedAt);
+    assert.equal(mid.visibleRingElapsedMs, 600);
+
+    presentationBlocked = false;
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 200));
+    assert.equal(fired, true);
+  });
+
   it("fires after visible delay when presentation would be clear", async () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0 });
     let fired = false;
