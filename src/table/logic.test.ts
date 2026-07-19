@@ -134,25 +134,6 @@ describe("displayLiveBankroll", () => {
       8,
     );
   });
-
-  it("keeps bankroll until that seat's ante coin lands", () => {
-    assert.equal(
-      displayLiveBankroll(10, 2, {
-        inHand: true,
-        anteAnimActive: true,
-        anteLandedThisHand: false,
-      }),
-      8,
-    );
-    assert.equal(
-      displayLiveBankroll(10, 2, {
-        inHand: true,
-        anteAnimActive: true,
-        anteLandedThisHand: true,
-      }),
-      10,
-    );
-  });
 });
 
 describe("formatSeatDisplayName", () => {

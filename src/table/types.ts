@@ -69,7 +69,7 @@ export interface TablePlayer {
   /** Enrollment join/pass pulse from presentation layer. */
   enrollmentPulse?: "join" | "pass" | null;
   /** Active draw animation sub-phase at this seat. */
-  drawAnimSubPhase?: "ring" | "discard" | "receive" | "done" | null;
+  drawAnimSubPhase?: "discard" | "receive" | "done" | null;
   drawDiscardCount?: number;
   drawReplaceCount?: number;
   /** Ape Score ranking — public leaderboard data, not private hand info. */
@@ -132,8 +132,6 @@ export interface TableSessionData {
   postedAntes?: Record<string, number>;
   /** Clockwise draw/play order (dealer-relative seat ring). */
   actionOrder?: string[];
-  /** Monotonic authoritative action counter from session.currentHand. */
-  serverActionSeq?: number | null;
   /** Full table seat ring — not join order. */
   seatedIds?: string[];
   pendingCoWinSettlement?: {

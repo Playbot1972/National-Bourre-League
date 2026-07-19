@@ -98,15 +98,10 @@ export function formatBankroll(amount: number) {
 export function displayLiveBankroll(
   bankroll: number | null | undefined,
   anteAmount: number,
-  opts: {
-    inHand: boolean;
-    anteAnimActive: boolean;
-    anteAlreadyPosted?: boolean;
-    anteLandedThisHand?: boolean;
-  },
+  opts: { inHand: boolean; anteAnimActive: boolean; anteAlreadyPosted?: boolean },
 ): number | null | undefined {
   if (bankroll == null) return bankroll;
-  if (opts.anteAlreadyPosted || opts.anteLandedThisHand) return bankroll;
+  if (opts.anteAlreadyPosted) return bankroll;
   if (!opts.inHand || !opts.anteAnimActive) return bankroll;
   return Math.max(0, bankroll - Math.max(0, anteAmount));
 }

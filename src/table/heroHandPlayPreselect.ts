@@ -4,54 +4,6 @@ import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";
 import type { Card, Suit } from "../types";
 
-/** Readable beat after turn activation before a queued pre-play submits. */
-export const QUEUED_PLAY_TURN_BEAT_MS = 420;
-
-export function queuedPlaySubmitDelayMs(reducedMotion = false): number {
-  const scale = reducedMotion ? 0.55 : 1;
-  return Math.max(160, Math.round(QUEUED_PLAY_TURN_BEAT_MS * scale));
-}
-
-/** True when a queued legal card should auto-submit after the hero's turn activates. */
-export function shouldSubmitQueuedPlayOnTurnActivation(input: {
-  becameMine: boolean;
-  inPlayPhase: boolean;
-  selectedPlay: number | null;
-  playLocked: boolean;
-  busy: boolean;
-  isLegal: boolean;
-}): boolean {
-  return (
-    input.becameMine &&
-    input.inPlayPhase &&
-    input.selectedPlay !== null &&
-    !input.playLocked &&
-    !input.busy &&
-    input.isLegal
-  );
-}
-
-/**
- * Keep the queued-submit timer when the turn advances to the hero within the same trick.
- * Other activity changes still cancel stale autoplay timers.
- */
-export function shouldPreserveQueuedPlayTimerOnActivityChange(input: {
-  prev: PlayActivityContext;
-  next: PlayActivityContext;
-  isMyTurn: boolean;
-  selectedPlay: number | null;
-  isLegal: boolean;
-}): boolean {
-  if (shouldClearQueuedPlayOnActivityChange(input.prev, input.next)) return false;
-  return (
-    input.isMyTurn &&
-    input.selectedPlay !== null &&
-    input.isLegal &&
-    input.prev.turnPlayerId !== input.next.turnPlayerId &&
-    (input.next.phase ?? "") === "play"
-  );
-}
-
 /** Toggle play preselection — click same card to clear, different card to switch. */
 export function togglePlayPreselectIndex(
   current: number | null,

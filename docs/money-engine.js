@@ -24,11 +24,9 @@ function o(e, t) {
 	let n = e?.buyInAmount;
 	return n != null && Number(n) > 0 ? Math.max(1, Number(n) || 1) : i(t).buyInAmount;
 }
-function s(e, { carryOverPot: t = 0, postedAntes: n = {}, nextHandPot: r, buyInFallback: i = 0 } = {}) {
-	let a = Object.values(e || {}).reduce((e, t) => e + m(t, i), 0), o = Number(r);
-	if (Number.isFinite(o) && o >= 0) return a + o;
-	let s = Object.values(n || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
-	return a + Math.max(0, Number(t) || 0) + s;
+function s(e, { carryOverPot: t = 0, postedAntes: n = {}, buyInFallback: r = 0 } = {}) {
+	let i = Object.values(e || {}).reduce((e, t) => e + m(t, r), 0), a = Object.values(n || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
+	return i + Math.max(0, Number(t) || 0) + a;
 }
 function c({ anteAmount: e, limEnabled: t = !1, carryIn: n = 0, antePot: r }) {
 	let i = t === !0, a = Math.max(.01, Number(e) || 1), o = a * 20, s = Math.max(0, Number(r) || 0) + Math.max(0, Number(n) || 0), c = i ? Math.min(s, o) : s;
@@ -366,10 +364,8 @@ function M({ scoreById: e, participants: t, mode: n, winners: r, bourreIds: i, p
 //#endregion
 //#region src/game/money/conservation.ts
 function N(e) {
-	let t = Object.values(e.bankrolls || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0), n = Number(e.nextHandPot);
-	if (Number.isFinite(n) && n >= 0) return t + n;
-	let r = Math.max(0, Number(e.carryOverPot) || 0), i = Object.values(e.postedAntes || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
-	return t + r + i;
+	let t = Object.values(e.bankrolls || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0), n = Math.max(0, Number(e.carryOverPot) || 0), r = Object.values(e.postedAntes || {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
+	return t + n + r;
 }
 function P(e) {
 	let t = e.tolerance ?? .001, n = [], r = N(e.before), i = N(e.after) - r, a = Object.values(e.rebuyContributionByPlayer ?? {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0), o = Object.values(e.bourrePenaltyToPotByPlayer ?? {}).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0);
@@ -1237,7 +1233,7 @@ function Ce(e) {
 		carryOverPot: r,
 		buyInFallback: c
 	}), p = {
-		bankrolls: Object.fromEntries(Object.entries(a).map(([e, t]) => [e, m(t, c)])),
+		bankrolls: Object.fromEntries(i.map((e) => [e, m(a[e], c)])),
 		carryOverPot: r,
 		postedAntes: {}
 	}, h = V({
@@ -1586,7 +1582,6 @@ function Le(e) {
 	}), a = s(Object.fromEntries(e.participants.map((e) => [e, { bankroll: n.bankrolls[e] ?? 0 }])), {
 		carryOverPot: 0,
 		postedAntes: n.postedAntes,
-		nextHandPot: n.nextHandPot,
 		buyInFallback: r
 	});
 	return {

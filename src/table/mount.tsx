@@ -36,12 +36,6 @@ import {
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
 import { resetPresentationMotionBusy } from "./presentationMotionBusy";
-import {
-  publishBotThinkWindow,
-  getBotThinkWindow,
-  subscribeBotThinkWindow,
-} from "./botThinkWindow";
-import { setVisibleBotRingReporter } from "./visibleBotRingBridge";
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
@@ -78,7 +72,6 @@ export function unmountTableSession() {
   rootEl = null;
   resetTrickAnimationBusyState();
   resetPresentationMotionBusy();
-  publishBotThinkWindow(null);
 }
 
 export {
@@ -109,10 +102,6 @@ export {
   subscribeTrickAnimationBusy,
   clearWonTrickCollectionArtifacts,
   clearDrawFlyGhosts,
-  publishBotThinkWindow,
-  getBotThinkWindow,
-  subscribeBotThinkWindow,
-  setVisibleBotRingReporter,
 };
 
 export type { TableSessionViewProps, TablePlayer, TableSessionData, TableSessionActions } from "./types";

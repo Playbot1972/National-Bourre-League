@@ -169,7 +169,6 @@ export function runSettlementLifecycle(
     {
       carryOverPot: 0,
       postedAntes: deal.postedAntes,
-      nextHandPot: deal.nextHandPot,
       buyInFallback: buyIn,
     },
   );

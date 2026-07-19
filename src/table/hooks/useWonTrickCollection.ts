@@ -12,7 +12,6 @@ import {
 import { setTrickCollectionActive } from "../presentationMotionBusy";
 import { TRICK_RAKE_MS } from "../trickTiming";
 import { wonTrickBookKey } from "../wonTrickPileModel";
-import { presentationScopeKey } from "../presentationScope";
 
 export interface UseWonTrickCollectionInput {
   trickPresentation: TrickPresentation;
@@ -21,14 +20,9 @@ export interface UseWonTrickCollectionInput {
   handComplete?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
   onTrickCollectionStart?: (input: Omit<TrickCollectedAudioInput, "playerCount">) => void;
-  onCollectionComplete?: () => void;
 }
 
 const TRICK_RESOLVED_PHASES = new Set(["nextLeadReady", "live"]);
-
-/** Wait for trick-row DOM to mount before skipping collection animation. */
-const TRICK_ROW_DOM_WAIT_MS = 120;
-const TRICK_ROW_DOM_MAX_WAIT_MS = 900;
 
 /**
  * GSAP trick collection — blocks bots until the packet reaches the won-tricks pile.
@@ -40,14 +34,11 @@ export function useWonTrickCollection({
   handComplete = false,
   tableRootRef,
   onTrickCollectionStart,
-  onCollectionComplete,
 }: UseWonTrickCollectionInput): void {
   const lastCollectKeyRef = useRef<string | null>(null);
   const handNumberRef = useRef(handNumber);
   const prevPhaseRef = useRef(trickPresentation.phase);
   const trickCleanupTimerRef = useRef<number | null>(null);
-  const onCollectionCompleteRef = useRef(onCollectionComplete);
-  onCollectionCompleteRef.current = onCollectionComplete;
 
   const clearTrickCleanupTimer = () => {
     if (trickCleanupTimerRef.current != null) {
@@ -77,19 +68,12 @@ export function useWonTrickCollection({
       return;
     }
 
-    const handEndedWhileCollecting =
-      handComplete &&
-      trickPresentation.phase !== "collectTrick" &&
-      trickPresentation.phase !== "winnerReveal";
-    if (
-      handEndedWhileCollecting ||
-      (sessionPhase != null && sessionPhase !== "play")
-    ) {
+    if (handComplete || (sessionPhase != null && sessionPhase !== "play")) {
       lastCollectKeyRef.current = null;
       clearTrickCleanupTimer();
       clearWonTrickCollectionArtifacts(root);
     }
-  }, [handNumber, handComplete, sessionPhase, trickPresentation.phase, tableRootRef]);
+  }, [handNumber, handComplete, sessionPhase, tableRootRef]);
 
   useLayoutEffect(() => {
     const prev = prevPhaseRef.current;
@@ -121,88 +105,40 @@ export function useWonTrickCollection({
     removeStaleGhosts(root);
 
     const cardEls = readTrickRowCardElements(root);
-    const finishCollection = () => onCollectionCompleteRef.current?.();
-    const expectedCards = frozen.plays.length;
-
-    const runCollection = (elements: HTMLElement[]) => {
-      if (!elements.length) {
-        finishCollection();
-        return;
-      }
-
-      const bookIndex = Math.max(
-        0,
-        (trickPresentation.displayTricksByPlayer[winnerId] ?? 1) - 1,
-      );
-      const trickKey = wonTrickBookKey({
-        playerId: winnerId,
-        handNumber,
-        trickNumber: frozen.trickNumber,
-      });
-      const collectionScopeKey = presentationScopeKey(handNumber, frozen.trickNumber);
-
-      const rakeDelay = TRICK_RAKE_MS;
-      setTrickCollectionActive(true, collectionScopeKey);
-      const rakeTimer = window.setTimeout(() => {
-        onTrickCollectionStart?.({
-          trickId: frozen.trickNumber,
-          winningSeat: winnerId,
-        });
-        animateTrickCardsToWonPile(elements, {
-          winnerPlayerId: winnerId,
-          trickKey,
-          bookIndex,
-          root,
-          host: root,
-          onComplete: () => {
-            setTrickCollectionActive(false, collectionScopeKey);
-            finishCollection();
-          },
-        });
-      }, rakeDelay);
-
-      return () => {
-        window.clearTimeout(rakeTimer);
-        setTrickCollectionActive(false, collectionScopeKey);
-      };
-    };
-
-    if (cardEls.length >= expectedCards) {
-      return runCollection(cardEls);
-    }
-
-    if (expectedCards === 0) {
-      finishCollection();
+    if (!cardEls.length) {
       return;
     }
 
-    let cancelled = false;
-    let waitedMs = 0;
-    let cleanupRake: (() => void) | undefined;
-    const poll = () => {
-      if (cancelled) return;
-      const liveEls = readTrickRowCardElements(root);
-      if (liveEls.length >= expectedCards) {
-        cleanupRake = runCollection(liveEls);
-        return;
-      }
-      waitedMs += TRICK_ROW_DOM_WAIT_MS;
-      if (waitedMs >= TRICK_ROW_DOM_MAX_WAIT_MS) {
-        if (liveEls.length > 0) {
-          cleanupRake = runCollection(liveEls);
-        } else {
-          finishCollection();
-        }
-        return;
-      }
-      trickCleanupTimerRef.current = window.setTimeout(poll, TRICK_ROW_DOM_WAIT_MS);
-    };
-    trickCleanupTimerRef.current = window.setTimeout(poll, TRICK_ROW_DOM_WAIT_MS);
+    const bookIndex = Math.max(
+      0,
+      (trickPresentation.displayTricksByPlayer[winnerId] ?? 1) - 1,
+    );
+    const trickKey = wonTrickBookKey({
+      playerId: winnerId,
+      handNumber,
+      trickNumber: frozen.trickNumber,
+    });
+
+    const rakeDelay = TRICK_RAKE_MS;
+    setTrickCollectionActive(true);
+    const rakeTimer = window.setTimeout(() => {
+      onTrickCollectionStart?.({
+        trickId: frozen.trickNumber,
+        winningSeat: winnerId,
+      });
+      animateTrickCardsToWonPile(cardEls, {
+        winnerPlayerId: winnerId,
+        trickKey,
+        bookIndex,
+        root,
+        host: root,
+        onComplete: () => setTrickCollectionActive(false),
+      });
+    }, rakeDelay);
 
     return () => {
-      cancelled = true;
-      clearTrickCleanupTimer();
-      cleanupRake?.();
+      window.clearTimeout(rakeTimer);
+      setTrickCollectionActive(false);
     };
   }, [
     trickPresentation.phase,
@@ -212,7 +148,6 @@ export function useWonTrickCollection({
     handNumber,
     tableRootRef,
     onTrickCollectionStart,
-    onCollectionComplete,
   ]);
 
   useEffect(() => () => clearTrickCleanupTimer(), []);

@@ -59,22 +59,16 @@ export function resolveSessionBuyIn(sessionData, roomBourreSettings) {
 
 /**
  * Session chip conservation: bankrolls + table pot (carry + posted antes this deal).
- * When `nextHandPot` is set (post-funding snapshot), it already includes carry-in + posted
- * antes — use it instead of carryOverPot + postedAntes to avoid undercounting carried pots.
  * @param {Record<string, { bankroll?: number, net?: number }>} scoreById
  */
 export function sessionChipTotal(
   scoreById,
-  { carryOverPot = 0, postedAntes = {}, nextHandPot, buyInFallback = 0 } = {},
+  { carryOverPot = 0, postedAntes = {}, buyInFallback = 0 } = {},
 ) {
   const bankrollSum = Object.values(scoreById || {}).reduce(
     (sum, row) => sum + scoreBankroll(row, buyInFallback),
     0,
   );
-  const resolvedNextHandPot = Number(nextHandPot);
-  if (Number.isFinite(resolvedNextHandPot) && resolvedNextHandPot >= 0) {
-    return bankrollSum + resolvedNextHandPot;
-  }
   const antePot = Object.values(postedAntes || {}).reduce(
     (sum, n) => sum + Math.max(0, Number(n) || 0),
     0,

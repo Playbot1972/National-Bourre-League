@@ -46,36 +46,23 @@ export function readLivePlayOrigin(playerId: string): PlayOriginRect | null {
   return rectFromElement(el);
 }
 
-interface PrimePlayOriginOptions {
-  /** When false, keep an existing primed rect (hand lane at turn start). */
-  force?: boolean;
-}
-
 /** Cache the best-known hand origin for a player (refreshed each turn / layout). */
-export function primePlayOrigin(
-  playerId: string,
-  options: PrimePlayOriginOptions = {},
-): PlayOriginRect | null {
-  if (!options.force && primedOriginByPlayer.has(playerId)) {
-    return primedOriginByPlayer.get(playerId)!;
-  }
-  const rect = readLivePlayOrigin(playerId) ?? readSeatPlayOrigin(playerId);
+export function primePlayOrigin(playerId: string): PlayOriginRect | null {
+  const rect = readLivePlayOrigin(playerId);
   if (rect) {
     primedOriginByPlayer.set(playerId, rect);
     return rect;
   }
+  const seat = readSeatPlayOrigin(playerId);
+  if (seat) {
+    primedOriginByPlayer.set(playerId, seat);
+    return seat;
+  }
   return null;
 }
 
-export function forcePrimePlayOrigin(playerId: string): PlayOriginRect | null {
-  return primePlayOrigin(playerId, { force: true });
-}
-
-export function primePlayOrigins(
-  playerIds: string[],
-  options: PrimePlayOriginOptions = {},
-): void {
-  for (const playerId of playerIds) primePlayOrigin(playerId, options);
+export function primePlayOrigins(playerIds: string[]): void {
+  for (const playerId of playerIds) primePlayOrigin(playerId);
 }
 
 export function readPrimedPlayOrigin(playerId: string): PlayOriginRect | undefined {
@@ -99,16 +86,7 @@ export function resolvePlayOrigin(
 }
 
 export function snapshotPlayOrigin(playerId: string, playKey: string): PlayOriginRect | null {
-  const cached = playOriginByKey.get(playKey);
-  if (cached) return cached;
-
-  const primed = readPrimedPlayOrigin(playerId);
-  if (primed) {
-    playOriginByKey.set(playKey, primed);
-    return primed;
-  }
-
-  const rect = readLivePlayOrigin(playerId) ?? readSeatPlayOrigin(playerId);
+  const rect = resolvePlayOrigin(playerId, playKey);
   if (rect) playOriginByKey.set(playKey, rect);
   return rect;
 }
@@ -144,72 +122,6 @@ export function flyOffsetToSlot(
   const cx = cardRect.left + cardRect.width / 2;
   const cy = cardRect.top + cardRect.height / 2;
   return { dx: ox - cx, dy: oy - cy };
-}
-
-/** Paths shorter than this are hard to read on dense tables. */
-export const SHALLOW_FLY_THRESHOLD_PX = 160;
-
-/** Boost shallow vectors to at least this visible travel distance. */
-export const MIN_READABLE_FLY_OFFSET_PX = 200;
-
-/** Cap exaggeration so near-origin seats do not overshoot wildly. */
-export const MAX_SHALLOW_FLY_BOOST_RATIO = 2.5;
-
-/** Extra travel time for shallow paths (bounded). */
-export const SHALLOW_FLY_MAX_EXTRA_MS = 180;
-
-export function flyOffsetMagnitude(offset: { dx: number; dy: number }): number {
-  return Math.hypot(offset.dx, offset.dy);
-}
-
-export interface EnhancedFlyOffset {
-  dx: number;
-  dy: number;
-  magnitude: number;
-  rawMagnitude: number;
-  shallowBoosted: boolean;
-}
-
-/**
- * Scale shallow fly vectors along their true direction so geometry-close seats
- * remain accurate but travel farther on screen. Long paths (hero, corners) pass through.
- */
-export function enhanceShallowFlyOffset(offset: { dx: number; dy: number }): EnhancedFlyOffset {
-  const rawMagnitude = flyOffsetMagnitude(offset);
-  if (rawMagnitude < 1e-3) {
-    return { ...offset, magnitude: 0, rawMagnitude: 0, shallowBoosted: false };
-  }
-
-  if (rawMagnitude >= MIN_READABLE_FLY_OFFSET_PX) {
-    return { ...offset, magnitude: rawMagnitude, rawMagnitude, shallowBoosted: false };
-  }
-
-  const rawScale = MIN_READABLE_FLY_OFFSET_PX / rawMagnitude;
-  const scale = Math.min(rawScale, MAX_SHALLOW_FLY_BOOST_RATIO);
-  const magnitude = rawMagnitude * scale;
-  if (magnitude <= rawMagnitude + 1) {
-    return { ...offset, magnitude: rawMagnitude, rawMagnitude, shallowBoosted: false };
-  }
-
-  return {
-    dx: offset.dx * scale,
-    dy: offset.dy * scale,
-    magnitude,
-    rawMagnitude,
-    shallowBoosted: true,
-  };
-}
-
-/** Slightly longer travel for shallow paths so boosted distance reads on screen. */
-export function shallowFlyTravelMs(
-  baseMs: number,
-  rawMagnitude: number,
-  shallowBoosted: boolean,
-): number {
-  if (!shallowBoosted) return baseMs;
-  const shortfall = Math.max(0, MIN_READABLE_FLY_OFFSET_PX - rawMagnitude);
-  const extra = Math.min(SHALLOW_FLY_MAX_EXTRA_MS, Math.round(shortfall * 1.2));
-  return baseMs + extra;
 }
 
 export function clearPlayOriginCache(): void {

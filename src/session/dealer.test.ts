@@ -5,7 +5,7 @@ import { dealInitialHand } from "../game/deal";
 import { advanceAfterDraw } from "../game/draw";
 import { serializeHandState } from "../game/serialize";
 import { nextDealerId } from "./logic";
-import { resolveDisplayDealerId, resolveHandDealerId } from "./dealer";
+import { resolveHandDealerId } from "./dealer";
 import { HAND_PHASE } from "../game/types";
 
 const SORTED = ["p1", "p2", "p3", "p4"];
@@ -73,42 +73,5 @@ describe("dealer flow", () => {
     });
     assert.notEqual(deal.turnPlayerId, "p1");
     assert.equal(deal.turnPlayerId, "p2");
-  });
-});
-
-describe("resolveDisplayDealerId — dealer badge eligibility", () => {
-  const BUY_IN = 100;
-
-  it("broke/out player does not receive dealer badge", () => {
-    const scoreById = {
-      p1: { bankroll: 0, net: -100, out: true },
-      p2: { bankroll: 80, net: -20 },
-      p3: { bankroll: 120, net: 20 },
-    };
-    assert.equal(resolveDisplayDealerId("p1", SORTED, scoreById, BUY_IN), "p2");
-    assert.notEqual(resolveDisplayDealerId("p1", SORTED, scoreById, BUY_IN), "p1");
-  });
-
-  it("dealer badge advances clockwise to next eligible player", () => {
-    const scoreById = {
-      p1: { bankroll: 0, out: true },
-      p2: { bankroll: 0, out: true },
-      p3: { bankroll: 200, net: 100 },
-      p4: { bankroll: 100, net: 0 },
-    };
-    assert.equal(resolveDisplayDealerId("p1", SORTED, scoreById, BUY_IN), "p3");
-    assert.equal(resolveDisplayDealerId("p2", SORTED, scoreById, BUY_IN), "p3");
-    assert.equal(resolveDisplayDealerId("p4", SORTED, scoreById, BUY_IN), "p4");
-  });
-
-  it("returns null when fewer than two eligible players remain", () => {
-    const sole = {
-      p1: { bankroll: 300, net: 200 },
-      p2: { bankroll: 0, out: true },
-      p3: { bankroll: 0, out: true },
-      p4: { bankroll: 0, out: true },
-    };
-    assert.equal(resolveDisplayDealerId("p2", SORTED, sole, BUY_IN), null);
-    assert.equal(resolveDisplayDealerId("p1", SORTED, sole, BUY_IN), null);
   });
 });

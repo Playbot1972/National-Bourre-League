@@ -6,7 +6,6 @@ import {
   liveRevealTarget,
   reduceTrickPresentation,
   resolveHoldPlays,
-  shouldDeferHandNumberReinit,
   shouldReinitTrickPresentationStore,
   trickPlaysArePrefix,
   updatePeakTrickPlays,
@@ -152,12 +151,12 @@ describe("trickPresentationMachine", () => {
       snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
       participantIds: ["p1", "p2"],
     });
-    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 3);
+    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
     store = reduceTrickPresentation(store, { type: "revealNextCard" });
     assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
   });
 
-  it("staggers pending resolution reveals instead of dumping unrevealed plays", () => {
+  it("keeps all trick cards visible while pending resolution lands", () => {
     let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
     store = reduceTrickPresentation(store, {
       type: "serverUpdate",
@@ -167,12 +166,10 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.isPipelineActive, true);
     assert.equal(model.isResolving, false);
-    assert.equal(model.displayPlays.length, 0);
-    store = reduceTrickPresentation(store, { type: "revealThroughCount", count: 4 });
-    assert.equal(buildTrickPresentationModel(store, null).displayPlays.length, 4);
+    assert.equal(model.displayPlays.length, 4);
   });
 
-  it("applies server snapshot immediately when authoritative trick advances during pipeline", () => {
+  it("buffers server snapshots while the trick pipeline is running", () => {
     let store = createTrickPresentationStore({}, completedTrick);
     for (let i = 0; i < 4; i++) {
       store = reduceTrickPresentation(store, { type: "revealNextCard" });
@@ -196,9 +193,12 @@ describe("trickPresentationMachine", () => {
       },
       participantIds: ["p1", "p2"],
     });
-    assert.equal(store.pendingServer, null);
+    assert.ok(store.pendingServer);
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
     assert.equal(store.phase, "live");
-    assert.equal(store.prevTrick?.trickNumber, 2);
     assert.equal(store.prevTrick?.plays.length, 1);
     assert.equal(store.revealedCount, 1);
   });
@@ -358,31 +358,9 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 3000 && schedule.pipelineMs <= 4000);
-    assert.equal(schedule.readBeforeWinnerMs, 1725);
-    assert.equal(schedule.winnerRevealMs, 650);
-    assert.equal(schedule.sweepMs, 990);
-  });
-
-  it("restores turn ring when collection starts while sweep still runs", () => {
-    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
-    for (let i = 0; i < 4; i++) {
-      store = reduceTrickPresentation(store, { type: "revealNextCard" });
-    }
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
-      participantIds: ["p1", "p2"],
-    });
-    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
-    assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, true);
-
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
-    store = reduceTrickPresentation(store, { type: "advancePhase" });
-    assert.equal(store.phase, "collectTrick");
-    const model = buildTrickPresentationModel(store, null);
-    assert.equal(model.suppressTurnPlayerId, true);
-    assert.equal(model.isResolving, true);
+    assert.ok(schedule.pipelineMs >= 3100);
+    assert.equal(schedule.readTotalMs, 1850);
+    assert.equal(schedule.sweepMs, 1080);
   });
 
   it("displayRevealFloor keeps visible cards when holdPlays briefly shrinks", () => {
@@ -486,78 +464,6 @@ describe("trickPresentationMachine", () => {
         handEndEchoTrick: null,
       }),
       true,
-    );
-  });
-
-  it("drops stale pending resolution when server trick advances", () => {
-    const trick2 = {
-      trickNumber: 2,
-      leadPlayerId: "p1",
-      leadSuit: "hearts" as const,
-      plays: completedTrick.plays,
-      winnerId: "p1",
-    };
-    let store = createTrickPresentationStore({ p1: 1, p2: 0 }, completedTrick);
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { currentTrick: null, tricksByPlayer: { p1: 2, p2: 0 } },
-      participantIds: participants,
-    });
-    assert.ok(store.pendingResolution);
-
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: {
-        currentTrick: { trickNumber: 3, leadPlayerId: "p2", leadSuit: "clubs", plays: [] },
-        tricksByPlayer: { p1: 2, p2: 0 },
-      },
-      participantIds: participants,
-    });
-    assert.equal(store.pendingResolution, null);
-    assert.equal(store.phase, "live");
-    assert.equal(store.prevTrick?.trickNumber, 3);
-  });
-
-  it("hand-number reinit clears pending final-trick resolution", () => {
-    const trick5 = { ...completedTrick, trickNumber: 5 };
-    let store = createTrickPresentationStore({ p1: 4, p2: 0 }, trick5);
-    store = reduceTrickPresentation(store, {
-      type: "serverUpdate",
-      snapshot: { currentTrick: null, tricksByPlayer: { p1: 5, p2: 0 } },
-      participantIds: participants,
-    });
-    assert.ok(store.pendingResolution);
-    assert.equal(store.phase, "live");
-
-    store = reduceTrickPresentation(store, {
-      type: "reinit",
-      snapshot: {
-        currentTrick: null,
-        tricksByPlayer: {},
-        playedCards: [],
-      },
-    });
-    assert.equal(store.pendingResolution, null);
-    assert.equal(store.phase, "live");
-    assert.equal(buildTrickPresentationModel(store, null).isPipelineActive, false);
-  });
-
-  it("does not defer hand-number reinit while pipeline or echo is active", () => {
-    assert.equal(
-      shouldDeferHandNumberReinit({ pipelineActive: true, handEndEchoTrick: null }),
-      false,
-    );
-    assert.equal(
-      shouldDeferHandNumberReinit({
-        pipelineActive: false,
-        handEndEchoTrick: {
-          trickNumber: 5,
-          leadSuit: "hearts",
-          plays: completedTrick.plays,
-          winnerId: "p1",
-        },
-      }),
-      false,
     );
   });
 

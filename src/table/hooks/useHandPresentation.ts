@@ -8,9 +8,7 @@ import {
   type HandPresentationModel,
   type HandServerSnapshot,
 } from "../handPresentationMachine";
-import { canonicalHandDrawMetrics } from "../../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "../gameFlowDebug";
-import { isHandPhaseTimerOwned } from "../presentationPhaseOwnership";
 import { resolveHandPresentationKey } from "../handServerUpdateGate";
 import { PRESENTATION_WATCHDOG_MS, ENROLLMENT_SEAT_PULSE_MS, BOT_DRAW_PRESENTATION_WATCHDOG_MS, HAND_SETTLE_PIPELINE_WATCHDOG_MS } from "../handPresentationTiming";
 import { prefersReducedMotion } from "../trickTiming";
@@ -46,8 +44,6 @@ export interface UseHandPresentationInput {
 
 export type HandPresentation = HandPresentationModel & {
   completeTrumpMerge: () => void;
-  reportAnteCoinLanded: (playerId: string) => void;
-  completeAnteSequence: () => void;
 };
 
 export function useHandPresentation({
@@ -162,20 +158,13 @@ export function useHandPresentation({
     });
 
     if (isGameFlowDebugEnabled()) {
-      const drawMetrics = canonicalHandDrawMetrics({
-        participantIds: snapshot.participantIds,
-        drawCompletedIds: snapshot.drawCompletedIds,
-        actionOrder: snapshot.actionOrder,
-        dealerId: snapshot.dealerId,
-        seatedIds: snapshot.participantIds,
-      });
       logGameFlow("handPresentation", "serverUpdate", {
         presentationKey,
         phase: `${prevPhase ?? "null"} -> ${currentPhase ?? "null"}`,
         handNumber: snapshot.handNumber,
         serverPhase: snapshot.phase,
-        drawCompleted: drawMetrics.drawCompleted,
-        drawTotal: drawMetrics.drawTotal,
+        drawCompleted: snapshot.drawCompletedIds.length,
+        participantCount: snapshot.participantIds.length,
         trumpUpcard: Boolean(snapshot.trumpUpcard),
         turnPlayerId: snapshot.turnPlayerId,
       });
@@ -206,20 +195,8 @@ export function useHandPresentation({
     }
 
     clearTimers();
-    const motionOwned = !isHandPhaseTimerOwned({
-      phase: store.phase,
-      anteAnimActive: store.anteAnimActive,
-      trumpMergeActive: store.trumpMergeActive,
-    });
-    const delay = motionOwned ? 0 : phaseScheduleMs(store, reduced);
-    if (delay <= 0) {
-      const watchdogMs =
-        store.phase === "drawPlayer" || store.phase === "drawReady"
-          ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
-          : PRESENTATION_WATCHDOG_MS;
-      schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
-      return;
-    }
+    const delay = phaseScheduleMs(store, reduced);
+    if (delay <= 0) return;
 
     const armedAt = {
       handNumber: store.handNumber,
@@ -329,19 +306,5 @@ export function useHandPresentation({
     dispatch({ type: "completeTrumpMerge" });
   }, []);
 
-  const reportAnteCoinLanded = useCallback((playerId: string) => {
-    dispatch({ type: "anteCoinLanded", playerId });
-  }, []);
-
-  const completeAnteSequence = useCallback(() => {
-    dispatch({ type: "anteSequenceComplete" });
-    dispatch({ type: "advancePhase" });
-  }, []);
-
-  return {
-    ...buildHandPresentationModel(store),
-    completeTrumpMerge,
-    reportAnteCoinLanded,
-    completeAnteSequence,
-  };
+  return { ...buildHandPresentationModel(store), completeTrumpMerge };
 }

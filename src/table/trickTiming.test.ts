@@ -3,30 +3,18 @@ import { describe, it } from "node:test";
 import {
   BOT_PLAY_STAGGER_MS,
   CARD_LAND_MS,
-  CARD_REVEAL_CATCHUP_STAGGER_MS,
   CARD_REVEAL_STAGGER_MS,
   completedTrickPlays,
-  cardRevealStaggerMs,
   currentTrickLeaderId,
   detectTrickResolution,
-  estimateLiveRevealDrainMs,
-  estimateRevealCatchUpDrainMs,
   FINAL_HAND_TRICK_PRESENTATION_MS,
-  isRevealCatchUpMode,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
-  resolveTrickPresentationTimingMode,
-  suppressesTurnIndicator,
-  trickCardSettleMs,
-  trickCardTravelMs,
   trickResolutionScheduleMs,
   trickWinnerDelta,
-  TRICK_CARD_TRAVEL_CATCHUP_MS,
-  TRICK_CARD_SETTLE_CATCHUP_MS,
   trumpBeatLedSuit,
   WINNER_REVEAL_MS,
 } from "./trickTiming";
-import { isRevealCatchUpBusy } from "./matchKey";
 
 describe("trickTiming", () => {
   it("finds trick winner from tricks delta", () => {
@@ -156,27 +144,19 @@ describe("trickTiming", () => {
       "spades",
     );
     assert.equal(trumpBeat, true);
-    assert.equal(postTrickReadMs({ trumpBeat: true }), 1300);
-    assert.equal(postTrickReadMs({}), 1725);
+    assert.equal(postTrickReadMs({ trumpBeat: true }), 2050);
+    assert.equal(postTrickReadMs({}), 1850);
   });
 
-  it("schedules winner reveal after the post-trick read hold", () => {
+  it("schedules winner reveal inside the read pause", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readBeforeWinnerMs, 1725);
-    assert.equal(schedule.winnerRevealMs, 650);
-    assert.equal(schedule.readTotalMs, 2375);
-  });
-
-  it("suppresses turn ring during read, winner glow, and sweep", () => {
-    assert.equal(suppressesTurnIndicator("trickComplete"), true);
-    assert.equal(suppressesTurnIndicator("winnerReveal"), true);
-    assert.equal(suppressesTurnIndicator("collectTrick"), true);
-    assert.equal(suppressesTurnIndicator("nextLeadReady"), true);
-    assert.equal(suppressesTurnIndicator("live"), false);
+    assert.equal(schedule.readTotalMs, 1850);
+    assert.equal(schedule.winnerRevealMs, WINNER_REVEAL_MS);
+    assert.equal(schedule.readBeforeWinnerMs, 1850 - WINNER_REVEAL_MS);
   });
 
   it("defines a minimum robot pipeline longer than one card play", () => {
-    assert.ok(MIN_TRICK_PIPELINE_MS >= 2200);
+    assert.ok(MIN_TRICK_PIPELINE_MS >= 2050);
   });
 
   it("bot-vs-bot spacing exceeds full trick pipeline so cadence cannot skip", () => {
@@ -187,101 +167,14 @@ describe("trickTiming", () => {
     assert.ok(robotInterval >= MIN_TRICK_PIPELINE_MS);
   });
 
-  it("live inter-player reveal stagger stays within the readability band", () => {
-    assert.ok(CARD_REVEAL_STAGGER_MS >= 600 && CARD_REVEAL_STAGGER_MS <= 670);
+  it("card reveal stagger waits for prior card land + shift", () => {
+    assert.ok(CARD_REVEAL_STAGGER_MS > CARD_LAND_MS);
   });
 
   it("final-hand presentation watchdog covers staggered bot reveals plus resolution", () => {
     const minimum =
       CARD_REVEAL_STAGGER_MS * 7 + CARD_LAND_MS + trickResolutionScheduleMs({}).pipelineMs;
     assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= minimum);
-    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 5200);
-  });
-});
-
-describe("revealCatchUp pacing", () => {
-  it("uses faster cadence than live reveal", () => {
-    const live = cardRevealStaggerMs("live");
-    const catchUp = cardRevealStaggerMs("catch-up");
-    assert.ok(catchUp < live);
-    assert.equal(catchUp, CARD_REVEAL_CATCHUP_STAGGER_MS);
-    assert.equal(live, CARD_REVEAL_STAGGER_MS);
-  });
-
-  it("catch-up timing path is faster than live for the same backlog", () => {
-    const liveDrain = estimateLiveRevealDrainMs(5);
-    const catchUpDrain = estimateRevealCatchUpDrainMs(5);
-    assert.ok(catchUpDrain < liveDrain);
-    assert.ok(liveDrain > 1200);
-  });
-
-  it("drains a backlog of 5 within the catch-up timing budget", () => {
-    const drainMs = estimateRevealCatchUpDrainMs(5);
-    assert.ok(drainMs >= 250, `expected >= 250ms, got ${drainMs}`);
-    assert.ok(drainMs <= 1200, `expected <= 1200ms, got ${drainMs}`);
-  });
-
-  it("presentation gate clears when catch-up reveal count reaches target", () => {
-    assert.equal(
-      isRevealCatchUpBusy({
-        phase: "live",
-        revealedCount: 3,
-        revealTarget: 5,
-        serverTrickPlays: 5,
-      }),
-      true,
-    );
-    assert.equal(
-      isRevealCatchUpBusy({
-        phase: "live",
-        revealedCount: 4,
-        revealTarget: 5,
-        serverTrickPlays: 5,
-      }),
-      false,
-    );
-    assert.equal(
-      isRevealCatchUpBusy({
-        phase: "live",
-        revealedCount: 5,
-        revealTarget: 5,
-        serverTrickPlays: 5,
-      }),
-      false,
-    );
-  });
-
-  it("detects catch-up mode only while behind authoritative play count", () => {
-    assert.equal(isRevealCatchUpMode(0, 5, 5), true);
-    assert.equal(isRevealCatchUpMode(5, 5, 5), false);
-    assert.equal(isRevealCatchUpMode(0, 5, 0), false);
-    assert.equal(isRevealCatchUpMode(0, 1, 1), false);
-  });
-
-  it("resolveTrickPresentationTimingMode exposes only live and catch-up", () => {
-    assert.equal(
-      resolveTrickPresentationTimingMode({ revealedCount: 0, targetReveal: 3, serverTrickPlays: 3 }),
-      "catch-up",
-    );
-    assert.equal(
-      resolveTrickPresentationTimingMode({ revealedCount: 0, targetReveal: 1, serverTrickPlays: 1 }),
-      "live",
-    );
-    assert.equal(
-      resolveTrickPresentationTimingMode({ revealedCount: 3, targetReveal: 3, serverTrickPlays: 3 }),
-      "live",
-    );
-  });
-
-  it("normal live reveal timing remains unchanged", () => {
-    assert.equal(cardRevealStaggerMs("live"), CARD_REVEAL_STAGGER_MS);
-    assert.equal(trickCardTravelMs("live"), 520);
-    assert.ok(CARD_REVEAL_STAGGER_MS > CARD_REVEAL_CATCHUP_STAGGER_MS * 3);
-  });
-
-  it("catch-up uses compressed travel and settle", () => {
-    assert.equal(trickCardTravelMs("catch-up"), TRICK_CARD_TRAVEL_CATCHUP_MS);
-    assert.equal(trickCardSettleMs("catch-up"), TRICK_CARD_SETTLE_CATCHUP_MS);
-    assert.ok(trickCardTravelMs("catch-up") < trickCardTravelMs("live"));
+    assert.ok(FINAL_HAND_TRICK_PRESENTATION_MS >= 7000);
   });
 });

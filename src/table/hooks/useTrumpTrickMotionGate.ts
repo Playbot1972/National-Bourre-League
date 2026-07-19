@@ -5,9 +5,8 @@ import type { SerializedCard } from "../types";
 const TRUMP_TRICK_GATE_MS = CARD_LAND_MS + 320;
 
 /**
- * Presentation-busy signal while the center trump UI is settling
+ * Suppress trick-card fly animations while the center trump UI is settling
  * (upcard on table → opening lead clears trump → suit badge appears).
- * Live trick cards still fly from hand/seat — this gate no longer instant-places cards.
  */
 export function useTrumpTrickMotionGate(
   phase: string | null | undefined,

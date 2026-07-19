@@ -27,22 +27,13 @@ function eligibleIdsForAnteCollection(
   });
 }
 
-/** Bankroll-positive, non-out seats (same gate as next-hand ante collection). */
-export function eligiblePlayerIdsForNextHand(
-  sortedPlayerIds: string[],
-  scoreById: ScoreById,
-  buyInFallback = 0,
-): string[] {
-  return eligibleIdsForAnteCollection(sortedPlayerIds, scoreById, buyInFallback);
-}
-
 /** Bankroll-positive, non-out seats that may fund a contested next hand. */
 export function countEligibleForNextHand(
   participantIds: string[],
   scoreById: ScoreById,
   buyInFallback = 0,
 ): number {
-  return eligiblePlayerIdsForNextHand(participantIds, scoreById, buyInFallback).length;
+  return eligibleIdsForAnteCollection(participantIds, scoreById, buyInFallback).length;
 }
 
 /** True when a normal next-hand enrollment/deal may proceed. */

@@ -122,28 +122,6 @@ export function bufferServerSnapshot(
   return { ...store, pendingServer: snapshot };
 }
 
-/** Drain stale trick presentation when authoritative trickNumber advances past the client. */
-export function discardStalePresentationPipeline(
-  store: TrickPresentationStore,
-  snapshot: ServerTrickSnapshot,
-): TrickPresentationStore {
-  const livePlays = serializedPlays(snapshot.currentTrick);
-  return {
-    ...store,
-    phase: "live",
-    frozenTrick: null,
-    pendingResolution: null,
-    pendingServer: null,
-    resolvedTricks: null,
-    showWinnerTag: false,
-    handEndEchoTrick: null,
-    prevTrick: snapshot.currentTrick,
-    peakTrickPlays: livePlays,
-    revealedCount: livePlays.length,
-    displayRevealFloor: 0,
-  };
-}
-
 export function liveRevealTarget(store: TrickPresentationStore): number {
   return Math.max(
     store.pendingResolution?.frozen.plays.length ?? 0,
@@ -209,7 +187,6 @@ export type TrickPresentationEvent =
   | { type: "reinit"; snapshot: ServerTrickSnapshot }
   | { type: "serverUpdate"; snapshot: ServerTrickSnapshot; participantIds: string[]; trumpSuit?: string | null; reducedMotion?: boolean }
   | { type: "revealNextCard" }
-  | { type: "revealThroughCount"; count: number }
   | { type: "clampRevealedCount"; target: number }
   | { type: "commitTrickResolution" }
   | { type: "advancePhase" }
@@ -265,17 +242,6 @@ function reduceTrickPresentationCore(
         ...store,
         revealedCount,
         displayRevealFloor: Math.max(store.displayRevealFloor, revealedCount),
-      };
-    }
-
-    case "revealThroughCount": {
-      if (store.phase !== "live") return store;
-      const target = Math.min(event.count, liveRevealTarget(store));
-      if (store.revealedCount >= target) return store;
-      return {
-        ...store,
-        revealedCount: target,
-        displayRevealFloor: Math.max(store.displayRevealFloor, target),
       };
     }
 
@@ -388,29 +354,11 @@ function reduceTrickPresentationCore(
 
     case "serverUpdate": {
       const { snapshot, participantIds } = event;
-      const serverTrick = snapshot.currentTrick?.trickNumber ?? 0;
       if (store.pendingResolution) {
-        const pendingTrick = store.pendingResolution.frozen.trickNumber;
-        if (serverTrick > pendingTrick) {
-          return applyLiveServerUpdate(
-            discardStalePresentationPipeline(store, snapshot),
-            snapshot,
-          );
-        }
         return {
           ...store,
           pendingResolution: { frozen: store.pendingResolution.frozen, snapshot },
         };
-      }
-      if (
-        store.phase !== "live" &&
-        store.frozenTrick &&
-        serverTrick > store.frozenTrick.trickNumber
-      ) {
-        return applyLiveServerUpdate(
-          discardStalePresentationPipeline(store, snapshot),
-          snapshot,
-        );
       }
       if (store.phase !== "live") {
         return bufferServerSnapshot(store, snapshot);
@@ -480,10 +428,14 @@ export function buildTrickPresentationModel(
         : holdPlays;
   const rawRevealLimit =
     store.phase === "live"
-      ? Math.min(store.revealedCount, holdForDisplay.length)
+      ? store.pendingResolution
+        ? Math.max(store.revealedCount, holdForDisplay.length)
+        : Math.min(store.revealedCount, holdForDisplay.length)
       : holdForDisplay.length;
   const revealLimit =
-    store.phase === "live" ? Math.max(rawRevealLimit, floor) : rawRevealLimit;
+    store.phase === "live" && !store.pendingResolution
+      ? Math.max(rawRevealLimit, floor)
+      : rawRevealLimit;
   const displayPlays =
     store.phase === "live"
       ? holdForDisplay.slice(0, revealLimit)
@@ -539,15 +491,6 @@ export function buildTrickPresentationModel(
     showFinalTrickEcho,
     frozenTrick: store.frozenTrick,
   };
-}
-
-/** @deprecated Hand-number changes always hard-reinit; echo deferral uses shouldReinitTrickPresentationStore. */
-export function shouldDeferHandNumberReinit(input: {
-  pipelineActive: boolean;
-  handEndEchoTrick: FrozenTrick | null;
-}): boolean {
-  void input;
-  return false;
 }
 
 /** Guard for useTrickPresentation — do not wipe latched final-trick echo during settle/enrollment. */

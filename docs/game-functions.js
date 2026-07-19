@@ -89,6 +89,6 @@ export function gameVoteCoWinSettlement(roomId, sessionId, payload) {
   return callGame("gameVoteCoWinSettlement", { roomId, sessionId, ...payload });
 }
 
-export function gameAdvanceBots(roomId, sessionId, meta = {}) {
-  return callGame("gameAdvanceBots", { roomId, sessionId, ...meta });
+export function gameAdvanceBots(roomId, sessionId) {
+  return callGame("gameAdvanceBots", { roomId, sessionId });
 }

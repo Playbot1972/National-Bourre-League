@@ -103,12 +103,17 @@ export function createServerBotAdvanceRuntime(deps) {
 
     if (deps.shouldBlockForPresentation(session, scores)) {
       if (handPhase === "play") {
+        const ctx = playDelayContext(session, scores);
+        thinkSchedule.playDelayState.markTurnEligible({
+          ...ctx,
+          nowMs: Date.now(),
+        });
         logPlayDelay("bot-turn-start", session, scores, {
           requester: actorId,
           owner: "server",
           trigger: reason,
           action: "waiting_presentation",
-          turnPlayerId: playDelayContext(session, scores).turnPlayerId,
+          turnPlayerId: ctx.turnPlayerId,
         });
       } else {
         cancelPlayThink(session, scores, "presentation_blocked");
@@ -139,6 +144,10 @@ export function createServerBotAdvanceRuntime(deps) {
 
     if (handPhase === "play") {
       const ctx = playDelayContext(session, scores);
+      thinkSchedule.playDelayState.markTurnEligible({
+        ...ctx,
+        nowMs: Date.now(),
+      });
       const expectedTurnKey = botPlayTurnKey(ctx);
       logPlayDelay("bot-turn-start", session, scores, {
         requester: actorId,
@@ -150,7 +159,6 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = thinkSchedule.armPlayThink({
         ctx,
         nowMs: Date.now(),
-        getPresentationState: () => deps.getPresentationState?.(session, scores) ?? { blocked: false },
         shouldFire: () => {
           const sessionId = deps.getSessionId();
           const latest = sessionId ? deps.findSession(sessionId) : session;
@@ -161,11 +169,7 @@ export function createServerBotAdvanceRuntime(deps) {
           const sessionId = deps.getSessionId();
           const latest = sessionId ? deps.findSession(sessionId) : session;
           if (!latest) return;
-          void execute(latest, deps.getScores(), actorId, {
-            reason,
-            delayPlan: plan,
-            maxSteps: 1,
-          });
+          void execute(latest, deps.getScores(), actorId, { reason, delayPlan: plan });
         },
         log: {
           delayChosen: (extra) =>
@@ -205,33 +209,11 @@ export function createServerBotAdvanceRuntime(deps) {
               trigger: reason,
               ...extra,
             }),
-          rejected: (extra) => {
+          rejected: (extra) =>
             logPlayDelay("bot-think-fire-rejected", session, scores, {
               requester: actorId,
               owner: "server",
               trigger: reason,
-              ...extra,
-            });
-            pendingWake = true;
-          },
-          submitBlocked: (extra) =>
-            logPlayDelay("bot-submit-blocked", session, scores, {
-              requester: actorId,
-              owner: "server",
-              trigger: reason,
-              ...extra,
-            }),
-          submitAllowed: (extra) =>
-            logPlayDelay("bot-submit-allowed", session, scores, {
-              requester: actorId,
-              owner: "server",
-              trigger: reason,
-              ...extra,
-            }),
-          visibleRingReset: (extra) =>
-            logPlayDelay("visible-ring-reset", session, scores, {
-              requester: actorId,
-              owner: "server",
               ...extra,
             }),
         },
@@ -281,7 +263,7 @@ export function createServerBotAdvanceRuntime(deps) {
     });
   }
 
-  async function execute(session, scores, actorId, { reason = "snapshot", delayPlan = null, maxSteps } = {}) {
+  async function execute(session, scores, actorId, { reason = "snapshot", delayPlan = null } = {}) {
     if (inFlight) {
       assertBotAdvanceNotInFlight(true, { source: "executeServerBotAdvance", reason });
       return;
@@ -325,7 +307,6 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = await deps.advanceSessionBots(roomId, sessionId, {
         requester: actorId,
         trigger: reason,
-        maxSteps,
       });
       logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,
@@ -370,25 +351,6 @@ export function createServerBotAdvanceRuntime(deps) {
     clearSchedule: () => {
       clearDebounce();
       thinkSchedule.cancelPending({ reason: "clear_schedule" });
-    },
-    notifyVisibleRingShown(payload) {
-      return thinkSchedule.playDelayState.notifyVisibleRingShown({
-        ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-shown", { owner: "server", ...extra }),
-      });
-    },
-    notifyVisibleRingHidden(payload) {
-      return thinkSchedule.playDelayState.notifyVisibleRingHidden({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
-        },
-      });
     },
     get inFlight() {
       return inFlight;
