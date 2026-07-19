@@ -64,7 +64,7 @@ export function isHeroTableEstablished(): boolean {
 /** Opponent slots after the hero play wait until the hero card is established on the table. */
 export function shouldDeferOpponentFly(slotIndex: number): boolean {
   if (!active || tableEstablished) return false;
-  if (active.trickIndex == null) return false;
+  if (active.trickIndex == null) return true;
   return slotIndex > active.trickIndex;
 }
 

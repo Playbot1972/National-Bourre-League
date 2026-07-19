@@ -18,6 +18,21 @@ export function serverTrickNumber(
   return Math.max(0, currentTrick?.trickNumber ?? 0);
 }
 
+/** Scope trick while currentTrick is briefly null but presentation is still draining. */
+export function effectivePresentationTrickNumber(
+  currentTrick: CurrentTrickState | null | undefined,
+  store: TrickPresentationStore,
+): number {
+  const live = serverTrickNumber(currentTrick);
+  if (live > 0) return live;
+  const pending = store.pendingResolution?.frozen.trickNumber;
+  if (pending != null && pending > 0) return pending;
+  if (store.phase !== "live" && store.frozenTrick?.trickNumber) {
+    return store.frozenTrick.trickNumber;
+  }
+  return presentingTrickNumber(store);
+}
+
 /** Trick number the client presentation is still draining (may lag server). */
 export function presentingTrickNumber(store: TrickPresentationStore): number {
   if (store.phase !== "live") {

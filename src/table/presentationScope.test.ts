@@ -5,6 +5,7 @@ import {
   reduceTrickPresentation,
 } from "./trickPresentationMachine";
 import {
+  effectivePresentationTrickNumber,
   isStalePresentationScope,
   presentationScopeKey,
   presentingTrickNumber,
@@ -73,5 +74,29 @@ describe("presentationScope", () => {
       }),
       true,
     );
+  });
+
+  it("keeps effective trick scope while currentTrick is null but resolution is pending", () => {
+    const trick1 = {
+      trickNumber: 1,
+      leadPlayerId: "p1",
+      leadSuit: "hearts" as const,
+      plays: [
+        { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+        { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+        { playerId: "p3", card: { rank: "Q", suit: "hearts" } },
+      ],
+    };
+    let store = createTrickPresentationStore({ p1: 0, p2: 0, p3: 0 }, trick1);
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: {
+        currentTrick: null,
+        tricksByPlayer: { p1: 1, p2: 0, p3: 0 },
+      },
+      participantIds: participants,
+    });
+    assert.equal(effectivePresentationTrickNumber(null, store), 1);
+    assert.equal(presentingTrickNumber(store), 1);
   });
 });

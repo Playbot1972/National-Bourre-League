@@ -29,6 +29,20 @@ describe("hero-first trick presentation", () => {
     );
   });
 
+  it("reveals hero play from server ack without active handoff", () => {
+    const trick = {
+      trickNumber: 1,
+      leadPlayerId: "hero",
+      leadSuit: "hearts" as const,
+      plays: [{ playerId: "hero", card: { rank: "A", suit: "hearts" } }],
+    };
+    let store = createTrickPresentationStore({ hero: 0, p2: 0, p3: 0 }, trick);
+    assert.equal(buildTrickPresentationModel(store, trick).displayPlays.length, 0);
+    store = reduceTrickPresentation(store, { type: "revealThroughCount", count: 1 });
+    assert.equal(buildTrickPresentationModel(store, trick).displayPlays.length, 1);
+    assert.equal(buildTrickPresentationModel(store, trick).displayPlays[0]?.playerId, "hero");
+  });
+
   it("pendingResolution keeps unrevealed plays off the table during live presentation", () => {
     const fullTrick = {
       trickNumber: 1,

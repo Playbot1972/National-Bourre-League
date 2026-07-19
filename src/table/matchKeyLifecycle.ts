@@ -1,6 +1,5 @@
 /** Scoped resets when the authoritative match key advances. */
 
-import { cancelHeroPlayHandoff } from "./heroPlayHandoff";
 import { invalidateQueuedHeroIntentOlderThan } from "./heroQueuedIntent";
 import { resetPresentationMotionBusy } from "./presentationMotionBusy";
 import {
@@ -31,7 +30,6 @@ export function clearTrickPresentation(prevMatchKey: string): void {
   const busy = getTrickAnimationBusyState();
   if (busy.matchKey !== prevMatchKey) return;
   resetPresentationMotionBusy();
-  cancelHeroPlayHandoff();
 }
 
 export { invalidateQueuedHeroIntentOlderThan };

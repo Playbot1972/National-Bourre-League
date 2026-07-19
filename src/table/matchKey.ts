@@ -50,6 +50,17 @@ export function buildMatchKey(snapshot: ServerSnapshot): string {
   return `${snapshot.sessionId}-h${snapshot.handNumber}-t${snapshot.trickNumber ?? 0}-turn${snapshot.turnIndex ?? 0}-aseq${snapshot.serverActionSeq}`;
 }
 
+/** Hand + trick identity — stable across per-play action-seq bumps within one trick. */
+export function presentationBoundaryKey(snapshot: Pick<ServerSnapshot, "handNumber" | "trickNumber">): string {
+  return `h${snapshot.handNumber}-t${snapshot.trickNumber ?? 0}`;
+}
+
+export function presentationBoundaryFromMatchKey(matchKey: string): string {
+  const match = matchKey.match(/-h(\d+)-t(\d+)-turn/);
+  if (!match) return matchKey;
+  return `h${match[1]}-t${match[2]}`;
+}
+
 export function computeTurnIndex(
   actionOrder: readonly string[],
   turnPlayerId: string | null | undefined,

@@ -43,6 +43,7 @@ import {
   collectBotIds,
   deriveTableReadiness,
   isRevealCatchUpBusy,
+  presentationBoundaryFromMatchKey,
 } from "./matchKey";
 import {
   clearScopedPresentationState,
@@ -308,21 +309,27 @@ export function TableSessionView({
   }, [serverSnapshot]);
 
   const prevMatchKeyRef = useRef<string | null>(null);
+  const prevPresentationBoundaryRef = useRef<string | null>(null);
   useEffect(() => {
     if (!matchKey) return;
     const prev = prevMatchKeyRef.current;
+    const prevBoundary = prev ? presentationBoundaryFromMatchKey(prev) : null;
+    const nextBoundary = presentationBoundaryFromMatchKey(matchKey);
     if (prev && prev !== matchKey) {
-      clearScopedPresentationState(prev);
-      clearTurnTimers(prev);
-      clearTrickPresentation(prev);
+      if (prevBoundary !== nextBoundary) {
+        clearScopedPresentationState(prev);
+        clearTurnTimers(prev);
+        clearTrickPresentation(prev);
+      }
       invalidateQueuedHeroIntentOlderThan(matchKey);
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("matchKey", "changed", { from: prev, to: matchKey });
+        logGameFlow("matchKey", "changed", { from: prev, to: matchKey, boundary: nextBoundary });
       } else {
         console.log(`[matchKey] changed -> ${matchKey}`);
       }
     }
     prevMatchKeyRef.current = matchKey;
+    prevPresentationBoundaryRef.current = nextBoundary;
     syncAuthoritativeMatchKey(matchKey);
   }, [matchKey]);
 

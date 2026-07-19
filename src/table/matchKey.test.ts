@@ -8,6 +8,8 @@ import {
   deriveTableReadiness,
   isRevealCatchUpBusy,
   isStaleMatchKey,
+  presentationBoundaryFromMatchKey,
+  presentationBoundaryKey,
 } from "./matchKey";
 import {
   clearScopedPresentationState,
@@ -64,6 +66,19 @@ describe("buildMatchKey", () => {
   it("includes session, hand, trick, turn index, and action seq", () => {
     const key = buildMatchKey(snapshot(7));
     assert.equal(key, "sess-1-h2-t1-turn0-aseq7");
+  });
+
+  it("presentation boundary is stable across action-seq bumps within a trick", () => {
+    assert.equal(presentationBoundaryKey(snapshot(7)), "h2-t1");
+    assert.equal(presentationBoundaryKey(snapshot(9)), "h2-t1");
+    assert.equal(
+      presentationBoundaryFromMatchKey("sess-1-h2-t1-turn0-aseq7"),
+      "h2-t1",
+    );
+    assert.equal(
+      presentationBoundaryFromMatchKey("sess-1-h2-t2-turn1-aseq3"),
+      "h2-t2",
+    );
   });
 });
 
