@@ -36,6 +36,7 @@ export interface TurnCountdownInput {
     | "tricksByPlayer"
     | "handNumber"
     | "pendingCoWinSettlement"
+    | "currentTrick"
   >;
   suppressTurn: boolean;
   handComplete: boolean;

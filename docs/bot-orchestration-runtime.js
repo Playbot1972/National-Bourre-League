@@ -372,17 +372,22 @@ export function createServerBotAdvanceRuntime(deps) {
       thinkSchedule.cancelPending({ reason: "clear_schedule" });
     },
     notifyVisibleRingShown(payload) {
-      thinkSchedule.playDelayState.notifyVisibleRingShown({
+      return thinkSchedule.playDelayState.notifyVisibleRingShown({
         ...payload,
         log: (extra) =>
           logBotOrchestrator("visible-ring-shown", { owner: "server", ...extra }),
       });
     },
     notifyVisibleRingHidden(payload) {
-      thinkSchedule.playDelayState.notifyVisibleRingHidden({
+      return thinkSchedule.playDelayState.notifyVisibleRingHidden({
         ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra }),
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
+        },
       });
     },
     get inFlight() {

@@ -138,7 +138,25 @@ describe("bot play delay", () => {
     assert.equal(afterPresentation.visibleMinimumMet, true);
   });
 
-  it("resets visible ring elapsed time when hidden", () => {
+  it("rejects stale visible ring turn keys", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    const accepted = state.notifyVisibleRingShown({
+      turnKey: "1:2:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    assert.equal(accepted, false);
+    const status = state.getVisibleRingStatus({ turnKey: "1:1:bot_1", nowMs: 500 });
+    assert.equal(status.visibleRingStartAtMs, null);
+  });
+
+  it("resets visible ring elapsed time only on durable turn exit", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     state.prepareTurn({
       handNumber: 1,
@@ -153,11 +171,54 @@ describe("bot play delay", () => {
     });
     state.notifyVisibleRingHidden({
       turnKey: "1:1:bot_1",
-      reason: "presentation_busy",
+      reason: "turn_exit",
       nowMs: 500,
     });
     const status = state.getVisibleRingStatus({ turnKey: "1:1:bot_1", nowMs: 1000 });
     assert.equal(status.visibleRingElapsedMs, 0);
+    assert.equal(status.visibleMinimumMet, false);
+  });
+
+  it("ignores transient ring_cleanup and presentation_busy resets", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    assert.equal(
+      state.notifyVisibleRingHidden({
+        turnKey: "1:1:bot_1",
+        reason: "ring_cleanup",
+        nowMs: 200,
+      }),
+      false,
+    );
+    assert.equal(
+      state.notifyVisibleRingHidden({
+        turnKey: "1:1:bot_1",
+        reason: "not_bot_turn",
+        nowMs: 300,
+      }),
+      false,
+    );
+    assert.equal(
+      state.notifyVisibleRingHidden({
+        turnKey: "1:1:bot_1",
+        reason: "presentation_busy",
+        nowMs: 400,
+      }),
+      false,
+    );
+    const status = state.getVisibleRingStatus({ turnKey: "1:1:bot_1", nowMs: 800 });
+    assert.equal(status.visibleRingStartAtMs, 0);
+    assert.equal(status.visibleRingElapsedMs, 800);
     assert.equal(status.visibleMinimumMet, false);
   });
 
@@ -415,6 +476,31 @@ describe("bot think schedule", () => {
     await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 100));
     assert.equal(fired, false);
     assert.equal(rejected, true);
+  });
+
+  it("does not reset visible ring on temporary presentation block", async () => {
+    const schedule = createBotThinkScheduleState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const startedAt = Date.now();
+    schedule.armPlayThink({
+      ctx,
+      nowMs: startedAt,
+      shouldFire: () => true,
+      onFire: () => {},
+      getPresentationState: () => ({ blocked: true, presentationBusy: true }),
+    });
+    schedule.playDelayState.notifyVisibleRingShown({
+      turnKey: botPlayTurnKey(ctx),
+      playerId: ctx.turnPlayerId,
+      nowMs: startedAt,
+    });
+    await new Promise((r) => setTimeout(r, 120));
+    const status = schedule.playDelayState.getVisibleRingStatus({
+      turnKey: botPlayTurnKey(ctx),
+      nowMs: startedAt + 120,
+    });
+    assert.ok(status.visibleRingStartAtMs != null);
+    assert.ok(status.visibleRingElapsedMs > 0);
   });
 
   it("fires after visible delay when presentation would be clear", async () => {

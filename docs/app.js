@@ -3656,20 +3656,43 @@ function wireBotThinkWindowPublisher(api) {
 function wireVisibleBotRingReporter(api) {
   api?.setVisibleBotRingReporter?.({
     onShown: (payload) => {
-      clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
+      logBotOrchestrator("visible-ring-seen", { owner: "client", ...payload });
+      const clientAccepted = clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
         ...payload,
         log: (extra) =>
           logBotOrchestrator("visible-ring-shown", { owner: "client", ...extra }),
       });
-      getServerBotAdvance().notifyVisibleRingShown?.(payload);
+      if (clientAccepted) {
+        logBotOrchestrator("visible-ring-accepted", { owner: "client", ...payload });
+      }
+      const serverAccepted = getServerBotAdvance().notifyVisibleRingShown?.(payload);
+      if (serverAccepted === false) {
+        logBotOrchestrator("visible-ring-ignored-stale", { owner: "server", ...payload });
+      }
     },
     onHidden: (payload) => {
-      clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
+      const clientCleared = clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
         ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra }),
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "client", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra });
+        },
       });
-      getServerBotAdvance().notifyVisibleRingHidden?.(payload);
+      const serverCleared = getServerBotAdvance().notifyVisibleRingHidden?.({
+        ...payload,
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
+        },
+      });
+      void clientCleared;
+      void serverCleared;
     },
   });
 }

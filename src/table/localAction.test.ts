@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, resolveSuppressTurnForHero } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, resolveSuppressTurnForBot, resolveSuppressTurnForHero } from "./localAction";
 import { handPresentingBlocksBots } from "./trickAnimationBridge";
 import type { TablePlayer } from "./types";
 
@@ -188,6 +188,30 @@ describe("isLocalActionRequiredNow", () => {
     assert.equal(resolveSuppressTurnForHero(input), false);
     assert.equal(isHeroDrawOrPlayTurn(input), true);
     assert.equal(isLocalActionRequiredNow(input), true);
+  });
+
+  it("keeps bot play ring actor visible when server turn is bot during presentation lag", () => {
+    assert.equal(
+      resolveSuppressTurnForBot({
+        suppressTurn: true,
+        session: { phase: "play", turnPlayerId: "bot_1" },
+      }),
+      false,
+    );
+    assert.equal(
+      resolveSuppressTurnForBot({
+        suppressTurn: true,
+        session: { phase: "play", turnPlayerId: "p2" },
+      }),
+      true,
+    );
+    assert.equal(
+      resolveSuppressTurnForBot({
+        suppressTurn: true,
+        session: { phase: "draw", turnPlayerId: "bot_1" },
+      }),
+      true,
+    );
   });
 
   it("still suppresses hero draw during presentation animations", () => {
