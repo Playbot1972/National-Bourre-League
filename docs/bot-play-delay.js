@@ -89,16 +89,22 @@ export function createBotPlayDelayState(options = {}) {
   /** @type {number | null} */
   let visibleRingStartAtMs = null;
   let visibleRingTurnKey = null;
+  /** @type {{ turnKey: string, playerId: string, nowMs: number } | null} */
+  let pendingVisibleRingAck = null;
   const delayByTurnKey = new Map();
 
   function syncHand(handNumber) {
     if (trackedHandNumber === handNumber) return;
+    const handChanged = trackedHandNumber != null;
     trackedHandNumber = handNumber;
     pendingTurnKey = null;
     pendingPlayerId = null;
     visibleRingStartAtMs = null;
     visibleRingTurnKey = null;
     delayByTurnKey.clear();
+    if (handChanged) {
+      pendingVisibleRingAck = null;
+    }
     publishThinkWindow(null);
     logVisibleRing("visible-ring-reset", { reason: "hand_reset", handNumber });
   }
@@ -139,13 +145,35 @@ export function createBotPlayDelayState(options = {}) {
           nextTurnKey: key,
         });
       }
+      if (pendingVisibleRingAck && pendingVisibleRingAck.turnKey !== key) {
+        logVisibleRing("visible-ring-ignored-stale", {
+          turnKey: pendingVisibleRingAck.turnKey,
+          pendingTurnKey: key,
+          reason: "pending_turn_mismatch",
+        });
+        pendingVisibleRingAck = null;
+      }
       pendingTurnKey = key;
       pendingPlayerId = turnPlayerId ?? null;
       visibleRingStartAtMs = null;
       visibleRingTurnKey = null;
       publishPendingWindow(key, turnPlayerId, chosenDelayMs);
+      applyPendingVisibleRingAck();
     }
     return { turnKey: key, chosenDelayMs };
+  }
+
+  /**
+   * Apply a UI visible-ring ack that arrived before prepareTurn armed the turn.
+   * @param {(extra: object) => void} [log]
+   */
+  function applyPendingVisibleRingAck(log) {
+    if (!pendingVisibleRingAck || pendingTurnKey !== pendingVisibleRingAck.turnKey) {
+      return false;
+    }
+    const ack = pendingVisibleRingAck;
+    pendingVisibleRingAck = null;
+    return notifyVisibleRingShown({ ...ack, log });
   }
 
   /** @deprecated Use prepareTurn — kept for callers that still mark eligibility. */
@@ -163,7 +191,27 @@ export function createBotPlayDelayState(options = {}) {
    */
   function notifyVisibleRingShown({ turnKey, playerId, nowMs, log }) {
     logVisibleRing("visible-ring-seen", { turnKey, playerId, pendingTurnKey });
-    if (!turnKey || pendingTurnKey !== turnKey) {
+    if (!turnKey) {
+      logVisibleRing("visible-ring-ignored-stale", {
+        turnKey,
+        playerId,
+        pendingTurnKey,
+        reason: "missing_turn_key",
+      });
+      return false;
+    }
+    if (pendingTurnKey == null) {
+      pendingVisibleRingAck = { turnKey, playerId, nowMs };
+      logVisibleRing("visible-ring-pending", {
+        turnKey,
+        playerId,
+        pendingTurnKey,
+        nowMs,
+      });
+      log?.({ turnKey, playerId, pendingTurnKey, reason: "pending_before_arm", accepted: false });
+      return false;
+    }
+    if (pendingTurnKey !== turnKey) {
       logVisibleRing("visible-ring-ignored-stale", {
         turnKey,
         playerId,
@@ -179,6 +227,7 @@ export function createBotPlayDelayState(options = {}) {
       });
       return false;
     }
+    pendingVisibleRingAck = null;
     if (pendingPlayerId && playerId !== pendingPlayerId) {
       logVisibleRing("visible-ring-ignored-stale", {
         turnKey,
@@ -344,6 +393,7 @@ export function createBotPlayDelayState(options = {}) {
     markTurnEligible,
     notifyVisibleRingShown,
     notifyVisibleRingHidden,
+    applyPendingVisibleRingAck,
     getVisibleRingStatus,
     resolvePlayDelayMs,
     delayByTurnKey,
