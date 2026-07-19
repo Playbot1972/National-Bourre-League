@@ -4,6 +4,8 @@ export interface VisibleBotRingPayload {
   turnKey: string;
   playerId: string;
   nowMs: number;
+  handNumber?: number;
+  trickNumber?: number | null;
 }
 
 export interface VisibleBotRingHiddenPayload {

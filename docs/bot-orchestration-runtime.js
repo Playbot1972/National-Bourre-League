@@ -379,10 +379,15 @@ export function createServerBotAdvanceRuntime(deps) {
       });
     },
     notifyVisibleRingHidden(payload) {
-      thinkSchedule.playDelayState.notifyVisibleRingHidden({
+      return thinkSchedule.playDelayState.notifyVisibleRingHidden({
         ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra }),
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
+        },
       });
     },
     get inFlight() {

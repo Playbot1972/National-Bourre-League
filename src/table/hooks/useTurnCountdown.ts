@@ -102,10 +102,10 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   useEffect(() => {
     const prevTurnKey = prevBotRingTurnKeyRef.current;
     const nextTurnKey = botRingReport?.turnKey ?? null;
-    if (prevTurnKey && prevTurnKey !== nextTurnKey) {
+    if (prevTurnKey && nextTurnKey && prevTurnKey !== nextTurnKey) {
       reportVisibleBotRingHidden({
         turnKey: prevTurnKey,
-        reason: nextTurnKey ? "turn_change" : "ring_cleanup",
+        reason: "turn_exit",
         nowMs: Date.now(),
       });
     }
@@ -117,18 +117,22 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
 
     const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
     const { turnKey, playerId } = botRingReport;
+    const handNumber = input.session.handNumber;
+    const trickNumber = input.session.currentTrick?.trickNumber ?? null;
     const showTimer = window.setTimeout(() => {
       reportVisibleBotRingShown({
         turnKey,
         playerId,
         nowMs: Date.now(),
+        handNumber,
+        trickNumber,
       });
     }, activationMs);
 
     return () => {
       window.clearTimeout(showTimer);
     };
-  }, [botRingReport?.turnKey, botRingReport?.playerId]);
+  }, [botRingReport?.turnKey, botRingReport?.playerId, input.session.handNumber, input.session.currentTrick?.trickNumber]);
 
   let countdown: TurnCountdownState | null = null;
   if (activeActorId) {

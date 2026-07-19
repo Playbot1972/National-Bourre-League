@@ -8,6 +8,23 @@ export const BOT_PLAY_DELAY_MAX_MS = 3000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
 export const BOT_VISIBLE_RING_POLL_MS = 50;
 
+/** Only these reasons may clear a latched visible-ring start for a live turn. */
+export const DURABLE_VISIBLE_RING_RESET_REASONS = new Set([
+  "turn_exit",
+  "turn_change",
+  "ring_deactivated",
+  "hand_reset",
+  "hand_change",
+  "trick_reset",
+  "superseded",
+  "canceled",
+  "clear_schedule",
+]);
+
+export function isDurableVisibleRingResetReason(reason) {
+  return DURABLE_VISIBLE_RING_RESET_REASONS.has(reason);
+}
+
 /** @typedef {{ turnKey: string, playerId: string, startedAtMs: number, totalMs: number, countingStartedAtMs?: number | null }} BotThinkWindowPayload */
 
 /** @type {((window: BotThinkWindowPayload | null) => void) | null} */
@@ -83,7 +100,7 @@ export function createBotPlayDelayState(options = {}) {
     visibleRingTurnKey = null;
     delayByTurnKey.clear();
     publishThinkWindow(null);
-    logVisibleRing("visible-ring-reset", { reason: "hand_change", handNumber });
+    logVisibleRing("visible-ring-reset", { reason: "hand_reset", handNumber });
   }
 
   function pickDelayForKey(turnKey) {
@@ -115,15 +132,17 @@ export function createBotPlayDelayState(options = {}) {
     const key = botPlayTurnKey({ handNumber, trickNumber, turnPlayerId });
     const chosenDelayMs = pickDelayForKey(key);
     if (pendingTurnKey !== key) {
+      if (visibleRingStartAtMs != null && pendingTurnKey) {
+        logVisibleRing("visible-ring-reset", {
+          reason: "turn_exit",
+          turnKey: pendingTurnKey,
+          nextTurnKey: key,
+        });
+      }
       pendingTurnKey = key;
       pendingPlayerId = turnPlayerId ?? null;
       visibleRingStartAtMs = null;
       visibleRingTurnKey = null;
-      logVisibleRing("visible-ring-reset", {
-        reason: "turn_change",
-        turnKey: key,
-        chosenDelayMs,
-      });
       publishPendingWindow(key, turnPlayerId, chosenDelayMs);
     }
     return { turnKey: key, chosenDelayMs };
@@ -145,7 +164,7 @@ export function createBotPlayDelayState(options = {}) {
   function notifyVisibleRingShown({ turnKey, playerId, nowMs, log }) {
     logVisibleRing("visible-ring-seen", { turnKey, playerId, pendingTurnKey });
     if (!turnKey || pendingTurnKey !== turnKey) {
-      logVisibleRing("visible-ring-rejected", {
+      logVisibleRing("visible-ring-ignored-stale", {
         turnKey,
         playerId,
         pendingTurnKey,
@@ -161,7 +180,7 @@ export function createBotPlayDelayState(options = {}) {
       return false;
     }
     if (pendingPlayerId && playerId !== pendingPlayerId) {
-      logVisibleRing("visible-ring-rejected", {
+      logVisibleRing("visible-ring-ignored-stale", {
         turnKey,
         playerId,
         pendingPlayerId,
@@ -208,12 +227,45 @@ export function createBotPlayDelayState(options = {}) {
   }
 
   /**
-   * Ring hidden, suppressed, or interrupted — only uninterrupted visible time counts.
+   * Clear the turn-scoped visible-ring latch only on durable turn exit.
+   * Transient presentation churn (ring_cleanup, not_bot_turn, etc.) is ignored.
    * @param {object} input
    */
   function notifyVisibleRingHidden({ turnKey, reason, nowMs, log }) {
-    if (turnKey && visibleRingTurnKey !== turnKey && pendingTurnKey !== turnKey) return false;
+    const effectiveTurnKey = turnKey ?? pendingTurnKey;
+    if (!isDurableVisibleRingResetReason(reason)) {
+      const ignored = {
+        turnKey: effectiveTurnKey,
+        reason,
+        pendingTurnKey,
+        latched: visibleRingStartAtMs != null,
+        nowMs,
+        ignored: true,
+      };
+      log?.(ignored);
+      logVisibleRing("visible-ring-reset-ignored", ignored);
+      return false;
+    }
+    if (
+      effectiveTurnKey &&
+      visibleRingTurnKey !== effectiveTurnKey &&
+      pendingTurnKey !== effectiveTurnKey
+    ) {
+      const stale = {
+        turnKey: effectiveTurnKey,
+        reason,
+        pendingTurnKey,
+        visibleRingTurnKey,
+        ignored: true,
+      };
+      log?.(stale);
+      logVisibleRing("visible-ring-ignored-stale", stale);
+      return false;
+    }
     const prevStart = visibleRingStartAtMs;
+    if (prevStart == null && visibleRingTurnKey == null) {
+      return false;
+    }
     visibleRingStartAtMs = null;
     visibleRingTurnKey = null;
     if (pendingTurnKey && pendingPlayerId) {
@@ -223,7 +275,7 @@ export function createBotPlayDelayState(options = {}) {
       publishThinkWindow(null);
     }
     const payload = {
-      turnKey: turnKey ?? pendingTurnKey,
+      turnKey: effectiveTurnKey,
       reason,
       previousVisibleRingStartAt: prevStart,
       nowMs,

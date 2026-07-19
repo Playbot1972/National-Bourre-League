@@ -20109,24 +20109,31 @@ function Mv(e) {
 		f?.turnKey
 	]), (0, l.useEffect)(() => {
 		let e = o.current, t = m?.turnKey ?? null;
-		e && e !== t && jv({
+		e && t && e !== t && jv({
 			turnKey: e,
-			reason: t ? "turn_change" : "ring_cleanup",
+			reason: "turn_exit",
 			nowMs: Date.now()
 		}), o.current = t;
 	}, [m?.turnKey]), (0, l.useEffect)(() => {
 		if (!m) return;
-		let e = _u() ? 0 : 200, { turnKey: t, playerId: n } = m, r = window.setTimeout(() => {
+		let t = _u() ? 0 : 200, { turnKey: n, playerId: r } = m, i = e.session.handNumber, a = e.session.currentTrick?.trickNumber ?? null, o = window.setTimeout(() => {
 			Av({
-				turnKey: t,
-				playerId: n,
-				nowMs: Date.now()
+				turnKey: n,
+				playerId: r,
+				nowMs: Date.now(),
+				handNumber: i,
+				trickNumber: a
 			});
-		}, e);
+		}, t);
 		return () => {
-			window.clearTimeout(r);
+			window.clearTimeout(o);
 		};
-	}, [m?.turnKey, m?.playerId]);
+	}, [
+		m?.turnKey,
+		m?.playerId,
+		e.session.handNumber,
+		e.session.currentTrick?.trickNumber
+	]);
 	let h = null;
 	return n && (p && f ? h = c_(f.playerId, f.startedAtMs, f.totalMs, s, 200, f.countingStartedAtMs) : !p && i.current != null && (h = Dv(n, i.current, s, 200))), {
 		countdown: h,

@@ -3667,16 +3667,32 @@ function wireVisibleBotRingReporter(api) {
       }
       const serverAccepted = getServerBotAdvance().notifyVisibleRingShown?.(payload);
       if (serverAccepted === false) {
-        logBotOrchestrator("visible-ring-rejected", { owner: "server", ...payload });
+        logBotOrchestrator("visible-ring-ignored-stale", { owner: "server", ...payload });
       }
     },
     onHidden: (payload) => {
-      clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
+      const clientCleared = clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
         ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra }),
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "client", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra });
+        },
       });
-      getServerBotAdvance().notifyVisibleRingHidden?.(payload);
+      const serverCleared = getServerBotAdvance().notifyVisibleRingHidden?.({
+        ...payload,
+        log: (extra) => {
+          if (extra.ignored) {
+            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
+            return;
+          }
+          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
+        },
+      });
+      void clientCleared;
+      void serverCleared;
     },
   });
 }
