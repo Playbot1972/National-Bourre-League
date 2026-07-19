@@ -161,7 +161,11 @@ export function createServerBotAdvanceRuntime(deps) {
           const sessionId = deps.getSessionId();
           const latest = sessionId ? deps.findSession(sessionId) : session;
           if (!latest) return;
-          void execute(latest, deps.getScores(), actorId, { reason, delayPlan: plan });
+          void execute(latest, deps.getScores(), actorId, {
+            reason,
+            delayPlan: plan,
+            maxSteps: 1,
+          });
         },
         log: {
           delayChosen: (extra) =>
@@ -201,13 +205,15 @@ export function createServerBotAdvanceRuntime(deps) {
               trigger: reason,
               ...extra,
             }),
-          rejected: (extra) =>
+          rejected: (extra) => {
             logPlayDelay("bot-think-fire-rejected", session, scores, {
               requester: actorId,
               owner: "server",
               trigger: reason,
               ...extra,
-            }),
+            });
+            pendingWake = true;
+          },
           submitBlocked: (extra) =>
             logPlayDelay("bot-submit-blocked", session, scores, {
               requester: actorId,
@@ -275,7 +281,7 @@ export function createServerBotAdvanceRuntime(deps) {
     });
   }
 
-  async function execute(session, scores, actorId, { reason = "snapshot", delayPlan = null } = {}) {
+  async function execute(session, scores, actorId, { reason = "snapshot", delayPlan = null, maxSteps } = {}) {
     if (inFlight) {
       assertBotAdvanceNotInFlight(true, { source: "executeServerBotAdvance", reason });
       return;
@@ -319,6 +325,7 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = await deps.advanceSessionBots(roomId, sessionId, {
         requester: actorId,
         trigger: reason,
+        maxSteps,
       });
       logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,

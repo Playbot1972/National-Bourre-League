@@ -226,6 +226,18 @@ describe("isRevealCatchUpBusy", () => {
       true,
     );
   });
+
+  it("is false for a single-card backlog during ordinary live play", () => {
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 0,
+        revealTarget: 1,
+        serverTrickPlays: 1,
+      }),
+      false,
+    );
+  });
 });
 
 describe("isStaleMatchKey", () => {

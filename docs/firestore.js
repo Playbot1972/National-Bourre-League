@@ -4761,7 +4761,9 @@ export async function advanceSessionBots(roomId, sessionId, meta = {}) {
       sessionId,
     }),
   );
-  const result = await gameAdvanceBots(roomId, sessionId);
+  const result = await gameAdvanceBots(roomId, sessionId, {
+    maxSteps: meta.maxSteps,
+  });
   console.info(
     "[bot-orchestrator]",
     "gameAdvanceBots-result",

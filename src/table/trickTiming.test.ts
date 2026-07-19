@@ -225,11 +225,20 @@ describe("revealCatchUp pacing", () => {
     assert.equal(
       isRevealCatchUpBusy({
         phase: "live",
-        revealedCount: 4,
+        revealedCount: 3,
         revealTarget: 5,
         serverTrickPlays: 5,
       }),
       true,
+    );
+    assert.equal(
+      isRevealCatchUpBusy({
+        phase: "live",
+        revealedCount: 4,
+        revealTarget: 5,
+        serverTrickPlays: 5,
+      }),
+      false,
     );
     assert.equal(
       isRevealCatchUpBusy({

@@ -1,6 +1,7 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { REVEAL_CATCHUP_MIN_BACKLOG } from "./trickTiming";
 import {
   getAuthoritativePresentationScope,
   isDealPresentationActive,
@@ -112,10 +113,11 @@ export function getTablePresentationBlockReason(
   if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
   if (s.revealCatchUp) return "revealCatchUp";
+  const revealBacklog = Math.max(0, s.revealTarget - s.revealedCount);
   if (
     s.peakPlayCount > s.displayedPlayCount &&
     s.peakPlayCount > 0 &&
-    s.revealedCount < s.revealTarget
+    revealBacklog >= REVEAL_CATCHUP_MIN_BACKLOG
   ) {
     return "peakPlayCatchUp";
   }
@@ -372,7 +374,7 @@ export function isTrickAnimationBusy(): boolean {
     state.trickCollectionActive ||
     (state.peakPlayCount > state.displayedPlayCount &&
       state.peakPlayCount > 0 &&
-      state.revealedCount < state.revealTarget)
+      Math.max(0, state.revealTarget - state.revealedCount) >= REVEAL_CATCHUP_MIN_BACKLOG)
   );
 }
 

@@ -14398,7 +14398,14 @@ function Dp(e) {
 	return rp(e.presentationScopeKey, dp());
 }
 function Op(e) {
-	return Tp(e) || Dp(e) ? null : e.dealPresentationActive ? "dealPresentationActive" : e.trickCollectionActive ? "trickCollectionActive" : e.handPresenting ? "handPresenting" : e.pipelineActive ? "pipelineActive" : e.revealCatchUp ? "revealCatchUp" : e.peakPlayCount > e.displayedPlayCount && e.peakPlayCount > 0 && e.revealedCount < e.revealTarget ? "peakPlayCatchUp" : null;
+	if (Tp(e) || Dp(e)) return null;
+	if (e.dealPresentationActive) return "dealPresentationActive";
+	if (e.trickCollectionActive) return "trickCollectionActive";
+	if (e.handPresenting) return "handPresenting";
+	if (e.pipelineActive) return "pipelineActive";
+	if (e.revealCatchUp) return "revealCatchUp";
+	let t = Math.max(0, e.revealTarget - e.revealedCount);
+	return e.peakPlayCount > e.displayedPlayCount && e.peakPlayCount > 0 && t >= 2 ? "peakPlayCatchUp" : null;
 }
 function kp(e) {
 	return Op(e) != null;
@@ -14545,7 +14552,7 @@ function zp() {
 	return yp;
 }
 function Bp() {
-	return Tp(yp) || Dp(yp) ? !1 : yp.pipelineActive || yp.revealCatchUp || yp.motionGateActive || yp.trickCollectionActive || yp.peakPlayCount > yp.displayedPlayCount && yp.peakPlayCount > 0 && yp.revealedCount < yp.revealTarget;
+	return Tp(yp) || Dp(yp) ? !1 : yp.pipelineActive || yp.revealCatchUp || yp.motionGateActive || yp.trickCollectionActive || yp.peakPlayCount > yp.displayedPlayCount && yp.peakPlayCount > 0 && Math.max(0, yp.revealTarget - yp.revealedCount) >= 2;
 }
 function Vp() {
 	return kp(yp);
@@ -18497,7 +18504,7 @@ function L_(e) {
 	return jh(e);
 }
 function R_(e) {
-	return e.phase === "live" && e.serverTrickPlays > 0 && e.revealedCount < e.revealTarget;
+	return e.phase === "live" ? $l(e.revealedCount, e.revealTarget, e.serverTrickPlays) : !1;
 }
 function z_(e) {
 	let t = !!(e.turnPlayerId && e.heroId && e.turnPlayerId === e.heroId), n = !!(e.turnPlayerId && e.botIds.has(e.turnPlayerId)), r = e.presentation.matchKey === e.matchKey && (e.presentation.pipelineActive || e.presentation.motionGateActive || e.presentation.revealCatchUp || e.presentation.handPresenting);

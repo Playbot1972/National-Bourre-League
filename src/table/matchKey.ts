@@ -6,6 +6,7 @@ import {
 } from "../game/handParticipants";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
 import { isRobotPlayerId } from "./botThinkWindow";
+import { isRevealCatchUpMode } from "./trickTiming";
 
 export interface ServerSnapshot {
   sessionId: string;
@@ -104,10 +105,11 @@ export function isRevealCatchUpBusy(input: {
   revealTarget: number;
   serverTrickPlays: number;
 }): boolean {
-  return (
-    input.phase === "live" &&
-    input.serverTrickPlays > 0 &&
-    input.revealedCount < input.revealTarget
+  if (input.phase !== "live") return false;
+  return isRevealCatchUpMode(
+    input.revealedCount,
+    input.revealTarget,
+    input.serverTrickPlays,
   );
 }
 
