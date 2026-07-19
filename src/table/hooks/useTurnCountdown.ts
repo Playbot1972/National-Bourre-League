@@ -6,6 +6,11 @@ import {
   isRobotPlayerId,
   subscribeBotThinkWindow,
 } from "../botThinkWindow";
+import {
+  isDurableBotTurnExit,
+  stablePlayTrickNumber,
+  type BotTurnIdentity,
+} from "../stableBotTurnKey";
 import { resolveSuppressTurnForBot } from "../localAction";
 import {
   buildTurnCountdownState,
@@ -50,7 +55,9 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   });
   const startedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef<string>("");
-  const prevBotRingTurnKeyRef = useRef<string | null>(null);
+  const prevBotTurnIdentityRef = useRef<BotTurnIdentity | null>(null);
+  const stableTrickRef = useRef(0);
+  const stableHandRef = useRef(input.session.handNumber);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [botWindowTick, setBotWindowTick] = useState(0);
 
@@ -66,6 +73,13 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
   const useBotWindow = botWindow != null && botWindow.playerId === activeActorId;
 
   const liveTurnPlayerId = input.session.turnPlayerId ?? null;
+  const stableTrickNumber = stablePlayTrickNumber(
+    input.session.phase,
+    input.session.handNumber,
+    input.session.currentTrick?.trickNumber,
+    stableTrickRef,
+    stableHandRef,
+  );
   const botRingReport =
     isBotPlayTurn &&
     activeActorId &&
@@ -73,7 +87,7 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
       ? {
           turnKey: botPlayTurnKey({
             handNumber: input.session.handNumber,
-            trickNumber: input.session.currentTrick?.trickNumber ?? null,
+            trickNumber: stableTrickNumber,
             turnPlayerId: liveTurnPlayerId,
           }),
           playerId: activeActorId,
@@ -130,17 +144,33 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     botRingReport != null && countdown?.playerId === botRingReport.playerId;
 
   useEffect(() => {
-    const prevTurnKey = prevBotRingTurnKeyRef.current;
-    const nextTurnKey = botRingReport?.turnKey ?? null;
-    if (prevTurnKey && nextTurnKey && prevTurnKey !== nextTurnKey) {
+    const prevIdentity = prevBotTurnIdentityRef.current;
+    const nextIdentity: BotTurnIdentity | null =
+      botRingReport && liveTurnPlayerId
+        ? {
+            handNumber: input.session.handNumber,
+            trickNumber: stableTrickNumber,
+            turnPlayerId: liveTurnPlayerId,
+          }
+        : null;
+    if (
+      prevIdentity &&
+      nextIdentity &&
+      isDurableBotTurnExit(prevIdentity, nextIdentity)
+    ) {
       reportVisibleBotRingHidden({
-        turnKey: prevTurnKey,
+        turnKey: botPlayTurnKey(prevIdentity),
         reason: "turn_exit",
         nowMs: Date.now(),
       });
     }
-    prevBotRingTurnKeyRef.current = nextTurnKey;
-  }, [botRingReport?.turnKey]);
+    prevBotTurnIdentityRef.current = nextIdentity;
+  }, [
+    botRingReport?.turnKey,
+    input.session.handNumber,
+    liveTurnPlayerId,
+    stableTrickNumber,
+  ]);
 
   useEffect(() => {
     if (!ringVisibleForBot || !botRingReport) return;
@@ -148,7 +178,7 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     const activationMs = prefersReducedMotion() ? 0 : TURN_RING_ACTIVATION_DELAY_MS;
     const { turnKey, playerId } = botRingReport;
     const handNumber = input.session.handNumber;
-    const trickNumber = input.session.currentTrick?.trickNumber ?? null;
+    const trickNumber = stableTrickNumber;
 
     const emit = () => {
       reportVisibleBotRingShown({
@@ -175,7 +205,7 @@ export function useTurnCountdown(input: TurnCountdownInput): UseTurnCountdownRes
     botWindow?.countingStartedAtMs,
     botWindowTick,
     input.session.handNumber,
-    input.session.currentTrick?.trickNumber,
+    stableTrickNumber,
   ]);
 
   return {

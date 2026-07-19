@@ -371,10 +371,20 @@ export function useTrickPresentation({
     const playCount = store.pendingResolution.frozen.plays.length;
     if (store.revealedCount < playCount) return;
 
+    const visibleOnTable = buildTrickPresentationModel(
+      storeRef.current,
+      currentTrick,
+    ).displayPlays.length;
+    if (visibleOnTable < playCount) return;
+
     const landMs = prefersReducedMotion() ? Math.round(CARD_LAND_MS * 0.55) : CARD_LAND_MS;
     const scopeAtSchedule = presentationScopeRef.current;
     const id = window.setTimeout(() => {
       if (presentationScopeRef.current !== scopeAtSchedule) return;
+      const latest = storeRef.current;
+      if (!latest.pendingResolution || latest.phase !== "live") return;
+      const latestVisible = buildTrickPresentationModel(latest, currentTrick).displayPlays.length;
+      if (latestVisible < latest.pendingResolution.frozen.plays.length) return;
       dispatch({ type: "commitTrickResolution" });
     }, landMs);
     return () => window.clearTimeout(id);
@@ -384,6 +394,7 @@ export function useTrickPresentation({
     store.phase,
     store.pendingResolution,
     store.revealedCount,
+    currentTrick,
   ]);
 
   useEffect(() => {

@@ -196,6 +196,23 @@ describe("bot play delay", () => {
     assert.equal(status.visibleRingElapsedMs, 200);
   });
 
+  it("applies a pending visible ring ack when the same turn is re-armed", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    const ctx = { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1" };
+    const turnKey = botPlayTurnKey(ctx);
+    state.prepareTurn({ ...ctx, nowMs: 0 });
+    const pending = state.notifyVisibleRingShown({
+      turnKey,
+      playerId: "bot_1",
+      nowMs: 100,
+    });
+    assert.equal(pending, true);
+    state.prepareTurn({ ...ctx, nowMs: 150 });
+    const status = state.getVisibleRingStatus({ turnKey, nowMs: 400 });
+    assert.equal(status.visibleRingStartAtMs, 100);
+    assert.equal(status.visibleRingElapsedMs, 300);
+  });
+
   it("discards pending visible ring ack on turn mismatch", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     state.notifyVisibleRingShown({
