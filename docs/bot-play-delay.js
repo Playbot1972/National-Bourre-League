@@ -159,6 +159,8 @@ export function createBotPlayDelayState(options = {}) {
       visibleRingTurnKey = null;
       publishPendingWindow(key, turnPlayerId, chosenDelayMs);
       applyPendingVisibleRingAck();
+    } else {
+      applyPendingVisibleRingAck();
     }
     return { turnKey: key, chosenDelayMs };
   }
