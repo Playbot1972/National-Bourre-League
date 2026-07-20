@@ -92,3 +92,15 @@ export function gameVoteCoWinSettlement(roomId, sessionId, payload) {
 export function gameAdvanceBots(roomId, sessionId) {
   return callGame("gameAdvanceBots", { roomId, sessionId });
 }
+
+export function gameFindOrCreatePublicTable(payload) {
+  return callGame("gameFindOrCreatePublicTable", payload);
+}
+
+export function gameJoinPublicTable(payload) {
+  return callGame("gameJoinPublicTable", payload);
+}
+
+export function gameLeavePublicTable() {
+  return callGame("gameLeavePublicTable", {});
+}

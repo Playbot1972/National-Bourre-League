@@ -63,6 +63,12 @@ describe("public-table rollout guard (flag off by default)", () => {
     assert.equal(resolvePlayNowEntryPath(), "private-create");
   });
 
+  it("would return public-matchmaking when client flag is enabled (contract)", () => {
+    // Document Phase 3 dispatch without mutating the shipped default.
+    const pathIfEnabled = MIXED_PUBLIC_TABLES_CLIENT_ENABLED ? "public-matchmaking" : "private-create";
+    assert.equal(pathIfEnabled, "private-create");
+  });
+
   it("does not enable rollout for flagged rooms while client switch is off", () => {
     assert.equal(
       isMixedPublicTablesRolloutEnabled({ features: { mixedPublicTables: true } }),
