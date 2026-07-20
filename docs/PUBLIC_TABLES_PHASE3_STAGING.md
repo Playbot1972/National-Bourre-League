@@ -65,17 +65,23 @@ After the 7-day table, log one find→join→leave cycle per day. Mark **Pass** 
 
 ### Automated soak runner (optional)
 
-Run authenticated callable cycles and append to `artifacts/public-table-soak/soak-log.csv` (and optional markdown log). See `scripts/public-table-staging-soak.env.example`.
+Back-to-back authenticated callable cycles — default **no delay** between cycles. Appends to `artifacts/public-table-soak/soak-log.csv` (and optional markdown log). See `scripts/public-table-staging-soak.env.example`.
 
 ```bash
-# Staging (set SOAK_ENV=staging + credentials in .env.soak)
-npm run soak:public-table -- --cycles 10 --delay 500
+# Staging: 42 cycles in one session (e.g. cycles 9–50 after manual Days 1–8)
+npm run soak:public-table -- --cycles 42 --start-cycle 9
 
-# Local emulator smoke (1 cycle)
+# Single cycle
+npm run soak:public-table -- --cycles 1
+
+# Local emulator smoke
 npm run soak:public-table:emulator
+
+# Optional: pause between cycles (ms) or stop on first failure
+npm run soak:public-table -- --cycles 10 --delay 200 --stop-on-fail
 ```
 
-Copy passing cycle rows into the extended cycle log above. Client flag must remain off; staging server flag must be on.
+Copy passing rows into the extended cycle log above. Client flag must remain off; staging server flag must be on.
 
 ### Per-deploy full checklist
 

@@ -54,8 +54,9 @@ loadDotEnvFile(resolve(REPO_ROOT, ".env.soak"));
 function parseArgs(argv) {
   const opts = {
     cycles: Number(process.env.SOAK_CYCLES || 1),
-    delayMs: Number(process.env.SOAK_DELAY_MS || 500),
+    delayMs: Number(process.env.SOAK_DELAY_MS ?? 0),
     startCycle: Number(process.env.SOAK_START_CYCLE || 1),
+    stopOnFail: process.env.SOAK_STOP_ON_FAIL === "1",
     logCsv: process.env.SOAK_LOG_CSV || "artifacts/public-table-soak/soak-log.csv",
     logMd: process.env.SOAK_LOG_MD || "artifacts/public-table-soak/soak-log.md",
   };
@@ -69,6 +70,10 @@ function parseArgs(argv) {
       opts.startCycle = Number(argv[++i]);
     } else if (arg === "--log" && argv[i + 1]) {
       opts.logCsv = argv[++i];
+    } else if (arg === "--fast" || arg === "--back-to-back") {
+      opts.delayMs = 0;
+    } else if (arg === "--stop-on-fail") {
+      opts.stopOnFail = true;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -80,11 +85,23 @@ function parseArgs(argv) {
 function printHelp() {
   console.log(`Usage: node scripts/public-table-staging-soak.mjs [options]
 
+Runs authenticated find → join → leave cycles back-to-back (default: no delay).
+
 Options:
-  --cycles N         Number of cycles (default: SOAK_CYCLES or 1)
-  --delay MS         Delay between cycles (default: SOAK_DELAY_MS or 500)
+  --cycles N         Number of cycles in one invocation (default: SOAK_CYCLES or 1)
   --start-cycle N    Starting cycle number for log (default: 1)
+  --fast             Alias for --delay 0 (back-to-back, no pause between cycles)
+  --back-to-back     Same as --fast
+  --delay MS         Pause between cycles (default: SOAK_DELAY_MS or 0)
+  --stop-on-fail     Stop after first failed cycle (default: log all, exit 1 at end)
   --log PATH         CSV log path (default: artifacts/public-table-soak/soak-log.csv)
+
+Examples:
+  # 42 back-to-back cycles (9→50) after manual Days 1–8
+  npm run soak:public-table -- --cycles 42 --start-cycle 9
+
+  # Emulator smoke
+  npm run soak:public-table:emulator
 
 Environment: see scripts/public-table-staging-soak.env.example
 `);
@@ -341,12 +358,15 @@ async function main() {
 
   const csvPath = ensureLogHeader(opts.logCsv);
   const { auth, functions, db } = initFirebase();
+  const startedAt = Date.now();
+  const endCycle = opts.startCycle + opts.cycles - 1;
 
   console.log(
-    `[soak] starting cycles ${opts.startCycle}..${opts.startCycle + opts.cycles - 1} (delay ${opts.delayMs}ms)`,
+    `[soak] back-to-back cycles ${opts.startCycle}..${endCycle} (delay ${opts.delayMs}ms, stop-on-fail=${opts.stopOnFail})`,
   );
 
   let failures = 0;
+  let passes = 0;
   for (let i = 0; i < opts.cycles; i += 1) {
     const cycle = opts.startCycle + i;
     const timestamp = new Date().toISOString();
@@ -379,6 +399,7 @@ async function main() {
       row.joinId = result.joinId;
       row.hostUid = result.hostUid;
       row.guestUid = result.guestUid;
+      passes += 1;
       console.log(`[soak] cycle ${cycle} PASS room=${result.roomId}`);
     } catch (err) {
       failures += 1;
@@ -389,12 +410,20 @@ async function main() {
     appendCsvRow(csvPath, row);
     if (opts.logMd) appendMarkdownRow(opts.logMd, row);
 
+    if (opts.stopOnFail && failures > 0) {
+      console.error(`[soak] stopping after cycle ${cycle} failure`);
+      break;
+    }
+
     if (i < opts.cycles - 1 && opts.delayMs > 0) {
       await sleep(opts.delayMs);
     }
   }
 
-  console.log(`[soak] done. log=${csvPath} failures=${failures}`);
+  const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(
+    `[soak] done. log=${csvPath} pass=${passes} fail=${failures} elapsed=${elapsedSec}s`,
+  );
   if (failures > 0) process.exit(1);
 }
 
