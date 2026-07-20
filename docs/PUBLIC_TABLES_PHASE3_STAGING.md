@@ -25,6 +25,7 @@
 | Deployed staging `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` | Pending external verify | Check Firebase Functions env on staging project |
 | Per-deploy checklist Deploy #1 | Pending next staging deploy | Complete 6-step routine in Section A |
 | Soak regression (private rooms / Play Now) | Pending per-deploy | Required at deploy, not daily |
+| **Mid-soak checkpoint** | Day 3/7 min · 3/50 cycles | Next deploy checkpoint pending |
 
 ---
 
@@ -45,7 +46,7 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 |------|:-----------:|:----:|:-----:|:-----------:|:--------:|:---------:|:--------:|
 | 2026-07-20 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | 2026-07-21 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
-| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 2026-07-22 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
