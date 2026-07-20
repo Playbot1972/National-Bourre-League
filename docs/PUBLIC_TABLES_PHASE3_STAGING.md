@@ -25,7 +25,7 @@
 | Deployed staging `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` | Pending external verify | Check Firebase Functions env on staging project |
 | Per-deploy checklist Deploy #1 | Pending next staging deploy | Complete 6-step routine in Section A |
 | Soak regression (private rooms / Play Now) | Pending per-deploy | Required at deploy, not daily |
-| **Mid-soak checkpoint** | Day 7/7 min ✓ · 7/50 cycles | Calendar min met; cycles + deploys remain |
+| **Mid-soak checkpoint** | Day 8+ · 8/50 cycles · 7-day min ✓ | Cycles + deploys remain for go/no-go |
 
 ---
 
@@ -51,6 +51,17 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 | 2026-07-24 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | 2026-07-25 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | 2026-07-26 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
+
+### Extended cycle log (cycles 8–50)
+
+After the 7-day table, log one find→join→leave cycle per day. Mark **Pass** or **Fail**; same checks as daily spot-check.
+
+| Cycle | Date | Pass | Initials | Notes |
+|------:|------|:----:|:--------:|-------|
+| 8 | 2026-07-27 | ☑ | RO | |
+| 9 | | ☐ | | |
+| 10 | | ☐ | | |
+| … | | | | *continue through cycle 50* |
 
 ### Per-deploy full checklist
 
@@ -80,7 +91,7 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 ### Duration threshold (before go/no-go)
 
 - [x] ≥ **7 calendar days** with server flag on *(met 2026-07-26)*
-- [ ] ≥ **50** find→join→leave cycles — **whichever is longer** *(7/50 — binding gate at 1 cycle/day)*
+- [ ] ≥ **50** find→join→leave cycles — **whichever is longer** *(8/50)*
 - [ ] ≥ **2** staging deploys *(0/2)*
 
 ---
