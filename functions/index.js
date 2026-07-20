@@ -14,6 +14,11 @@ import {
   handleTimeoutEnrollment,
   handleVoteCoWinSettlement,
 } from "./gameHandlers.js";
+import {
+  handleFindOrCreatePublicTable,
+  handleJoinPublicTable,
+  handleLeavePublicTable,
+} from "./publicTable.js";
 
 initializeApp();
 
@@ -90,3 +95,11 @@ export const gameRecordHand = wrap(handleRecordHand, "gameRecordHand");
 
 /** Co-winner split / decline vote. */
 export const gameVoteCoWinSettlement = wrap(handleVoteCoWinSettlement, "gameVoteCoWinSettlement");
+
+/** Public mixed-table matchmaking (Phase 3). */
+export const gameFindOrCreatePublicTable = wrap(
+  handleFindOrCreatePublicTable,
+  "gameFindOrCreatePublicTable",
+);
+export const gameJoinPublicTable = wrap(handleJoinPublicTable, "gameJoinPublicTable");
+export const gameLeavePublicTable = wrap(handleLeavePublicTable, "gameLeavePublicTable");

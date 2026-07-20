@@ -210,6 +210,7 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
+import { gameFindOrCreatePublicTable } from "./game-functions.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
   blurActiveTextEntry,
@@ -2669,9 +2670,42 @@ async function runPlayNowFlow() {
   }
   if (playNowInFlight || playNowBtn?.disabled) return;
 
-  // Phase 3+: public matchmaking callable when resolvePlayNowEntryPath() === "public-matchmaking".
+  // Phase 3: public matchmaking callable when resolvePlayNowEntryPath() === "public-matchmaking".
   if (resolvePlayNowEntryPath() === "public-matchmaking") {
-    showRoomsError("Public Play Now is not available yet.");
+    playNowInFlight = true;
+    setPlayNowBusy(true);
+    try {
+      const joinId =
+        globalThis.crypto?.randomUUID?.() ??
+        `join_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      const result = await gameFindOrCreatePublicTable({
+        joinId,
+        displayName: session.displayName,
+        targetSeatCount: 6,
+        buyInAmount: PLAY_NOW_BUY_IN,
+        anteAmount: PLAY_NOW_ANTE,
+      });
+      if (!result?.roomId || !result?.sessionId) {
+        throw new Error("Public matchmaking did not return a table.");
+      }
+      openRoom(result.roomId, { silent: true });
+      await waitUntil(
+        () =>
+          currentRoomId === result.roomId &&
+          currentRoom &&
+          session?.uid &&
+          currentMembers.some((m) => m.userId === session.uid),
+        { label: "Public Play Now room load" },
+      );
+      openSession(result.sessionId);
+      showRoomsError("");
+    } catch (err) {
+      console.error("runPlayNowFlow (public):", err);
+      showRoomsError(formatClientGameError(err, "Public Play Now failed — please try again."));
+    } finally {
+      playNowInFlight = false;
+      setPlayNowBusy(false);
+    }
     return;
   }
 
