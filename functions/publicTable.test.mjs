@@ -191,3 +191,63 @@ describe("handleFindOrCreatePublicTable auth + flag guards", () => {
     );
   });
 });
+
+describe("DocumentSnapshot.exists (firebase-admin v13)", () => {
+  const prev = process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+    else process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = prev;
+  });
+
+  it("publicTable.js uses boolean exists property, not exists()", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const path = fileURLToPath(new URL("./publicTable.js", import.meta.url));
+    const src = readFileSync(path, "utf8");
+    assert.doesNotMatch(src, /\.exists\s*\(/, "found .exists() function call");
+    assert.match(src, /snap\.exists\b/, "expected boolean exists property usage");
+  });
+
+  it("handleFindOrCreatePublicTable reads matchQueue without exists() TypeError", async () => {
+    process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
+    const { handleFindOrCreatePublicTable } = await import("./publicTable.js");
+    let queueRead = false;
+    let existsTypeError = false;
+    const emptySnap = { exists: false, data: () => undefined, ref: { path: "x" } };
+    const db = {
+      collection: (name) => ({
+        doc: () => ({
+          get: async () => {
+            if (name === "matchQueue") {
+              queueRead = true;
+              return emptySnap;
+            }
+            return emptySnap;
+          },
+        }),
+        where: () => ({
+          limit: () => ({
+            get: async () => ({ docs: [], empty: true }),
+          }),
+        }),
+      }),
+      runTransaction: async () => {
+        throw new Error("mock-stop-after-queue-read");
+      },
+    };
+    try {
+      await handleFindOrCreatePublicTable(db, {
+        actorId: "user1",
+        joinId: "jid-queue-read",
+        displayName: "Tester",
+      });
+    } catch (err) {
+      if (String(err?.message ?? err).includes("exists is not a function")) {
+        existsTypeError = true;
+      }
+    }
+    assert.equal(queueRead, true);
+    assert.equal(existsTypeError, false);
+  });
+});
