@@ -147,6 +147,60 @@ service cloud.firestore {
       ]);
     }
 
+    // --- Public mixed-table fields (Phase 2): CF-only writes; absent === legacy private behavior ---
+
+    function roomCreateIsPrivateClientOnly() {
+      return (!request.resource.data.keys().hasAny(['visibility'])
+          || request.resource.data.visibility == 'private')
+        && !roomCreateRequestsMixedPublicTables()
+        && !request.resource.data.keys().hasAny(['targetSeatCount']);
+    }
+
+    function roomCreateRequestsMixedPublicTables() {
+      return request.resource.data.keys().hasAny(['features'])
+        && request.resource.data.features.mixedPublicTables == true;
+    }
+
+    function publicRoomFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'visibility',
+        'features',
+        'targetSeatCount',
+      ]);
+    }
+
+    function publicFeatureSessionFieldsOnCreate() {
+      return request.resource.data.keys().hasAny([
+        'publicTable',
+        'pendingJoins',
+        'replacementPlan',
+      ]);
+    }
+
+    function publicFeatureSessionFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'publicTable',
+        'pendingJoins',
+        'replacementPlan',
+      ]);
+    }
+
+    function publicScoreFieldsOnCreate() {
+      return request.resource.data.keys().hasAny([
+        'botRole',
+        'spectator',
+        'pendingReplacement',
+      ]);
+    }
+
+    function publicScoreFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'botRole',
+        'spectator',
+        'pendingReplacement',
+      ]);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
       allow write: if isUser(uid);
@@ -154,13 +208,16 @@ service cloud.firestore {
 
     match /rooms/{roomId} {
       allow read: if isMember(roomId) || resource.data.ownerId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if isRoomOwner(roomId);
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && roomCreateIsPrivateClientOnly();
+      allow update, delete: if isRoomOwner(roomId) && !publicRoomFieldsChanged();
 
       match /sessions/{sessionId} {
         allow read: if isMember(roomId);
-        allow create: if isMember(roomId);
+        allow create: if isMember(roomId) && !publicFeatureSessionFieldsOnCreate();
         allow update: if isMember(roomId)
+          && !publicFeatureSessionFieldsChanged()
           && (!sessionGameFieldsChanged()
             || memberEnrollmentSessionUpdate()
             || memberOpenEnrollmentUpdate()
@@ -170,8 +227,9 @@ service cloud.firestore {
 
         match /scores/{scoreId} {
           allow read: if isMember(roomId);
-          allow create: if isMember(roomId);
+          allow create: if isMember(roomId) && !publicScoreFieldsOnCreate();
           allow update: if isMember(roomId)
+            && !publicScoreFieldsChanged()
             && (!scoreLedgerFieldsChanged() || memberSettlementScoreUpdate());
           allow delete: if isRoomOwner(roomId);
         }
@@ -232,6 +290,18 @@ service cloud.firestore {
     match /players/{playerId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
+    }
+
+    // Public mixed-table queue (source of truth) — Cloud Functions only.
+    match /matchQueue/{userId} {
+      allow read: if isUser(userId);
+      allow write: if false;
+    }
+
+    // Public table matchmaking index (derived cache) — Cloud Functions only.
+    match /publicTableIndex/{sessionKey} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
   }
 }

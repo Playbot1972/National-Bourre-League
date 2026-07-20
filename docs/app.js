@@ -209,6 +209,7 @@ import {
   pickUniqueRobotNames,
   playNowBourreSettings,
 } from "./play-now.js";
+import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
   blurActiveTextEntry,
@@ -2667,6 +2668,12 @@ async function runPlayNowFlow() {
     return;
   }
   if (playNowInFlight || playNowBtn?.disabled) return;
+
+  // Phase 3+: public matchmaking callable when resolvePlayNowEntryPath() === "public-matchmaking".
+  if (resolvePlayNowEntryPath() === "public-matchmaking") {
+    showRoomsError("Public Play Now is not available yet.");
+    return;
+  }
 
   playNowInFlight = true;
   setPlayNowBusy(true);
