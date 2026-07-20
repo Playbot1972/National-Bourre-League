@@ -1654,8 +1654,12 @@ export async function handleSetHandParticipation(
 
   const pagatHandBefore = getSessionCurrentHand(sessionData);
   if (pagatHandBefore?.phase === HAND_PHASE.REVEAL && pagatHandBefore?.handDecision) {
-    await handleAdvanceHandReveal(db, { roomId, sessionId, actorId });
-    sessionData = (await ref.get()).data() || {};
+    if (pagatHandBefore.handDecision.active) {
+      // Fall through — play/pass handled in decision transaction below.
+    } else {
+      await handleAdvanceHandReveal(db, { roomId, sessionId, actorId });
+      return { status: "draw" };
+    }
   }
 
   const result = await db.runTransaction(async (tx) => {
