@@ -21,6 +21,8 @@ const copies = [
   ["docs/session-startup.js", "session-startup.js"],
   ["docs/play-now.js", "play-now.js"],
   ["docs/bot-rebuy.js", "bot-rebuy.js"],
+  ["docs/public-table-schema.js", "public-table-schema.js"],
+  ["docs/public-table-rollout.js", "public-table-rollout.js"],
 ];
 
 for (const [src, dest] of copies) {
