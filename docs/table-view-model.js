@@ -65,6 +65,10 @@ export function buildHeroCardsForTable(currentHand, privateCardList, playerId, h
   if (!currentHand || !playerId || !isHandCardsDealtPhase(handPhase)) {
     return privateCards;
   }
+  const participantIds = currentHand.participantIds ?? [];
+  if (participantIds.length > 0 && !participantIds.includes(playerId)) {
+    return [];
+  }
   const effective = effectivePlayerHand(
     playerId,
     deserializeCards(privateCards),

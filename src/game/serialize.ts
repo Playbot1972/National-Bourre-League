@@ -96,8 +96,10 @@ export function serializePagatRevealHand(
   deal: DealResult,
   options: Omit<SerializeHandOptions, "initialPhase" | "handDecision">,
 ): SerializedHandBundle {
+  // Play/pass decision applies only to players who were dealt (paid ante).
+  const decisionPlayerIds = [...deal.participantIds];
   const handDecision = buildHandDecision(
-    options.seatedIds?.length ? options.seatedIds : deal.participantIds,
+    decisionPlayerIds,
     options.dealerId,
     false,
   );
