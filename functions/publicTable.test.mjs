@@ -14,9 +14,11 @@ import {
 } from "./publicTable.js";
 import {
   BOT_ROLE,
+  MATCH_QUEUE_COLLECTION,
   MATCH_QUEUE_STATUS,
   PENDING_JOIN_STATUS,
   PUBLIC_TABLE_DEFAULT_TARGET_SEATS,
+  PUBLIC_TABLE_INDEX_COLLECTION,
 } from "./vendor/public-table-schema.js";
 import {
   MIXED_PUBLIC_TABLES_CLIENT_ENABLED,
@@ -249,5 +251,223 @@ describe("DocumentSnapshot.exists (firebase-admin v13)", () => {
     }
     assert.equal(queueRead, true);
     assert.equal(existsTypeError, false);
+  });
+});
+
+describe("handleLeavePublicTable", () => {
+  const prev = process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+    else process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = prev;
+  });
+
+  it("returns cleared:false when queue is absent", async () => {
+    process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
+    const { handleLeavePublicTable } = await import("./publicTable.js");
+    const db = {
+      collection: () => ({
+        doc: () => ({
+          get: async () => ({ exists: false, data: () => undefined }),
+        }),
+      }),
+    };
+    const result = await handleLeavePublicTable(db, { actorId: "nobody" });
+    assert.equal(result.ok, true);
+    assert.equal(result.cleared, false);
+  });
+
+  it("reads session before deleting queue in transaction", async () => {
+    process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
+    const { handleLeavePublicTable } = await import("./publicTable.js");
+    const ops = [];
+    let writeStarted = false;
+    const guestId = "leave_guest";
+    const roomId = "room_leave";
+    const sessionId = "sess_leave";
+    const queuePath = `matchQueue/${guestId}`;
+    const sessionPath = `rooms/${roomId}/sessions/${sessionId}`;
+
+    const makeRef = (path) => ({ path });
+
+    const db = {
+      collection: (name) => {
+        if (name === MATCH_QUEUE_COLLECTION) {
+          return {
+            doc: (id) => ({
+              path: `${name}/${id}`,
+              get: async () => ({
+                exists: true,
+                ref: makeRef(`${name}/${id}`),
+                data: () => ({
+                  status: MATCH_QUEUE_STATUS.SPECTATING,
+                  roomId,
+                  sessionId,
+                  activeJoinId: "guest-join",
+                }),
+              }),
+            }),
+          };
+        }
+        if (name === "rooms") {
+          return {
+            doc: (rid) => ({
+              collection: (sub) => ({
+                doc: (sid) => ({
+                  path: `rooms/${rid}/${sub}/${sid}`,
+                  collection: () => ({
+                    doc: () => ({ get: async () => ({ exists: false }) }),
+                    get: async () => ({ docs: [] }),
+                  }),
+                  get: async () => ({
+                    exists: true,
+                    data: () => ({
+                      status: "in_progress",
+                      publicTable: true,
+                      pendingJoins: {
+                        [guestId]: { joinId: "guest-join", status: PENDING_JOIN_STATUS.SPECTATING },
+                      },
+                      currentHand: { tricksByPlayer: {}, participantIds: [] },
+                    }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (name === PUBLIC_TABLE_INDEX_COLLECTION) {
+          return {
+            doc: () => ({
+              set: async () => {},
+              get: async () => ({ exists: false }),
+            }),
+          };
+        }
+        return {
+          doc: () => ({
+            get: async () => ({ exists: false, data: () => undefined }),
+          }),
+        };
+      },
+      runTransaction: async (fn) => {
+        const tx = {
+          get: async (ref) => {
+            if (writeStarted) {
+              throw new Error(
+                "Firestore transactions require all reads to be executed before all writes.",
+              );
+            }
+            ops.push(`read:${ref.path}`);
+            if (ref.path === queuePath) {
+              return {
+                exists: true,
+                data: () => ({
+                  status: MATCH_QUEUE_STATUS.SPECTATING,
+                  roomId,
+                  sessionId,
+                }),
+              };
+            }
+            if (ref.path === sessionPath) {
+              return {
+                exists: true,
+                data: () => ({
+                  pendingJoins: {
+                    [guestId]: { joinId: "guest-join", status: PENDING_JOIN_STATUS.SPECTATING },
+                  },
+                }),
+              };
+            }
+            return { exists: false, data: () => undefined };
+          },
+          delete: (ref) => {
+            writeStarted = true;
+            ops.push(`delete:${ref.path}`);
+          },
+          update: (ref) => {
+            writeStarted = true;
+            ops.push(`update:${ref.path}`);
+          },
+        };
+        await fn(tx);
+      },
+    };
+
+    const result = await handleLeavePublicTable(db, { actorId: guestId });
+    assert.equal(result.ok, true);
+    assert.equal(result.cleared, true);
+    assert.deepEqual(ops, [
+      `read:${queuePath}`,
+      `read:${sessionPath}`,
+      `delete:${queuePath}`,
+      `update:${sessionPath}`,
+    ]);
+  });
+
+  it("skips session update when pendingJoins entry is absent", async () => {
+    process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
+    const { handleLeavePublicTable } = await import("./publicTable.js");
+    const ops = [];
+    const guestId = "leave_guest2";
+    const roomId = "room_leave2";
+    const sessionId = "sess_leave2";
+    const queuePath = `matchQueue/${guestId}`;
+    const sessionPath = `rooms/${roomId}/sessions/${sessionId}`;
+
+    const db = {
+      collection: (name) => ({
+        doc: (id) => ({
+          path: `${name}/${id}`,
+          get: async () => ({
+            exists: name === MATCH_QUEUE_COLLECTION,
+            ref: { path: `${name}/${id}` },
+            data: () =>
+              name === MATCH_QUEUE_COLLECTION
+                ? {
+                    status: MATCH_QUEUE_STATUS.SPECTATING,
+                    roomId,
+                    sessionId,
+                  }
+                : undefined,
+          }),
+          collection: (sub) => ({
+            doc: (sid) => ({
+              path: `rooms/${id}/${sub}/${sid}`,
+              collection: () => ({
+                get: async () => ({ docs: [] }),
+              }),
+            }),
+          }),
+        }),
+      }),
+      runTransaction: async (fn) => {
+        const tx = {
+          get: async (ref) => {
+            ops.push(`read:${ref.path}`);
+            if (ref.path === queuePath) {
+              return {
+                exists: true,
+                data: () => ({
+                  status: MATCH_QUEUE_STATUS.SPECTATING,
+                  roomId,
+                  sessionId,
+                }),
+              };
+            }
+            if (ref.path === sessionPath) {
+              return { exists: true, data: () => ({ pendingJoins: {} }) };
+            }
+            return { exists: false, data: () => undefined };
+          },
+          delete: (ref) => ops.push(`delete:${ref.path}`),
+          update: (ref) => ops.push(`update:${ref.path}`),
+        };
+        await fn(tx);
+      },
+    };
+
+    const result = await handleLeavePublicTable(db, { actorId: guestId });
+    assert.equal(result.cleared, true);
+    assert.deepEqual(ops, [`read:${queuePath}`, `read:${sessionPath}`, `delete:${queuePath}`]);
   });
 });

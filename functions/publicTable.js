@@ -847,21 +847,27 @@ export async function handleLeavePublicTable(db, data) {
     const q = queueSnap.data();
     if (!isActiveQueueStatus(q.status)) return;
 
-    tx.delete(matchQueueRef(db, actorId));
-
+    let sessionRefDoc = null;
+    let pendingJoinsUpdate = null;
     if (q.roomId && q.sessionId && q.status === MATCH_QUEUE_STATUS.SPECTATING) {
-      const sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
+      sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
       const sessionSnap = await tx.get(sessionRefDoc);
       if (sessionSnap.exists) {
         const pendingJoins = { ...(sessionSnap.data().pendingJoins ?? {}) };
         if (pendingJoins[actorId]) {
           delete pendingJoins[actorId];
-          tx.update(sessionRefDoc, {
-            pendingJoins,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+          pendingJoinsUpdate = pendingJoins;
         }
       }
+    }
+
+    tx.delete(matchQueueRef(db, actorId));
+
+    if (sessionRefDoc && pendingJoinsUpdate) {
+      tx.update(sessionRefDoc, {
+        pendingJoins: pendingJoinsUpdate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
   });
 
