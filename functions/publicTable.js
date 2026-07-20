@@ -4,7 +4,7 @@
  * Callable handlers: find-or-create, join, leave.
  * publicTableIndex is derived — session/scores/pendingJoins/matchQueue are source of truth.
  *
- * Deferred to Phase 4/5: hand-boundary seating, replacementPlan, bankroll swap-in.
+ * Phase 5: hand-boundary bot replacement — see publicTableReplacement.js.
  */
 
 import { HttpsError } from "firebase-functions/v2/https";
@@ -334,6 +334,8 @@ async function rebuildPublicTableIndexFromSource(db, roomId, sessionId) {
 export async function rebuildPublicTableIndex(db, roomId, sessionId) {
   return rebuildPublicTableIndexFromSource(db, roomId, sessionId);
 }
+
+export { applyPendingReplacements } from "./publicTableReplacement.js";
 
 async function ensureRoomMembership(db, roomId, userId, displayName) {
   const ref = db.collection("roomMembers").doc(memberDocId(roomId, userId));

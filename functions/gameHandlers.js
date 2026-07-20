@@ -66,6 +66,7 @@ import {
   patchSessionPlayersWithRebuyNames,
   sessionHasRobotScores,
 } from "./vendor/bot-rebuy.js";
+import { applyPendingReplacements } from "./publicTableReplacement.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
@@ -1473,14 +1474,30 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       return { status: "noop" };
     }
   }
-  const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sortedIds = seatPlayerIds(data, scoreSnap.docs);
-  if (sortedIds.length < 2) return { status: "noop" };
-
   const roomSnap = await getRoomSnap(db, roomId);
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = data.handStake ?? 1;
+
+  await applyPendingReplacements(db, {
+    roomId,
+    sessionId,
+    roomData: roomSnap.data() ?? {},
+    sessionData: data,
+  }).catch((err) => {
+    console.warn("[ensure-hand-enrollment] pending replacement skipped", err?.message ?? err);
+  });
+
+  sessionSnap = await ref.get();
+  if (!sessionSnap.exists) return { status: "noop" };
+  data = sessionSnap.data();
+  if (sessionSnap.exists && sessionHandDealStarted(data)) {
+    return { status: "noop" };
+  }
+
+  const scoreSnap = await scoresCol(db, roomId, sessionId).get();
+  const sortedIds = seatPlayerIds(data, scoreSnap.docs);
+  if (sortedIds.length < 2) return { status: "noop" };
 
   const dealExtras = { sessionStake, buyIn, dealingRule, sortedIds };
 
