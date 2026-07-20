@@ -60,7 +60,11 @@ export function useWonTrickCollection({
     const root = tableRootRef.current;
     if (!root) return;
 
+    const presentationBusy =
+      trickPresentation.isPipelineActive || trickPresentation.showFinalTrickEcho;
+
     if (handNumberRef.current !== handNumber) {
+      if (presentationBusy) return;
       handNumberRef.current = handNumber;
       lastCollectKeyRef.current = null;
       clearTrickCleanupTimer();
@@ -69,11 +73,19 @@ export function useWonTrickCollection({
     }
 
     if (handComplete || (sessionPhase != null && sessionPhase !== "play")) {
+      if (presentationBusy) return;
       lastCollectKeyRef.current = null;
       clearTrickCleanupTimer();
       clearWonTrickCollectionArtifacts(root);
     }
-  }, [handNumber, handComplete, sessionPhase, tableRootRef]);
+  }, [
+    handNumber,
+    handComplete,
+    sessionPhase,
+    tableRootRef,
+    trickPresentation.isPipelineActive,
+    trickPresentation.showFinalTrickEcho,
+  ]);
 
   useLayoutEffect(() => {
     const prev = prevPhaseRef.current;

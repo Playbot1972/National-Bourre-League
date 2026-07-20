@@ -18,6 +18,7 @@ import {
   buildTrickPresentationModel,
   createTrickPresentationStore,
   reduceTrickPresentation,
+  shouldDeferHandNumberReinit,
   shouldReinitTrickPresentationStore,
   type TrickPresentationModel,
 } from "../trickPresentationMachine";
@@ -103,21 +104,33 @@ export function useTrickPresentation({
     prevHandNumberRef.current = handNumber;
 
     if (handNumberChanged && handNumber > 0) {
-      clearTimers();
-      resolutionKeyRef.current = null;
-      snapshottedPlaysRef.current.clear();
-      clearPlayOriginCache();
-      dispatch({
-        type: "reinit",
-        snapshot: { currentTrick, tricksByPlayer, playedCards },
-      });
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("useTrickPresentation", "reinit-hand-number", {
-          handNumber,
-          trickNumber: currentTrick?.trickNumber,
+      if (shouldDeferHandNumberReinit(storeRef.current)) {
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("useTrickPresentation", "reinit-hand-number-deferred", {
+            handNumber,
+            phase: storeRef.current.phase,
+            pendingResolution: Boolean(storeRef.current.pendingResolution),
+            handEndEchoTrick: Boolean(storeRef.current.handEndEchoTrick),
+          });
+        }
+      } else {
+        prevHandNumberRef.current = handNumber;
+        clearTimers();
+        resolutionKeyRef.current = null;
+        snapshottedPlaysRef.current.clear();
+        clearPlayOriginCache();
+        dispatch({
+          type: "reinit",
+          snapshot: { currentTrick, tricksByPlayer, playedCards },
         });
+        if (isGameFlowDebugEnabled()) {
+          logGameFlow("useTrickPresentation", "reinit-hand-number", {
+            handNumber,
+            trickNumber: currentTrick?.trickNumber,
+          });
+        }
+        return;
       }
-      return;
     }
 
     if (

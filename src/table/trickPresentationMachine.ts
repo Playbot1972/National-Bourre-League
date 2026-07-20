@@ -279,34 +279,13 @@ function reduceTrickPresentationCore(
       }
       if (next.phase === "live" && !next.pendingResolution) return next;
 
-      const pending = next.pendingServer;
-      const pendingTricks = pending?.tricksByPlayer ?? {};
-      const pendingHasTricks = Object.values(pendingTricks).some((v) => (v ?? 0) > 0);
-      const displayTricks = pendingHasTricks
-        ? { ...pendingTricks }
-        : { ...next.displayTricksByPlayer };
-      const pendingReveal = serializedPlays(pending?.currentTrick).length;
-      const handEnded = pending != null && pending.currentTrick == null && next.frozenTrick != null;
-      return {
-        ...next,
-        phase: "live",
-        frozenTrick: null,
-        handEndEchoTrick: handEnded
-          ? next.frozenTrick
-          : pending?.currentTrick
-            ? null
-            : next.handEndEchoTrick,
-        showWinnerTag: false,
-        revealedCount: pendingReveal,
-        resolvedTricks: null,
-        pendingResolution: null,
-        pendingServer: null,
-        prevTricks: pendingHasTricks ? { ...pendingTricks } : next.prevTricks,
-        prevTrick: pending?.currentTrick ?? next.prevTrick,
-        displayTricksByPlayer: displayTricks,
-        peakTrickPlays: serializedPlays(pending?.currentTrick),
-        displayRevealFloor: pendingReveal,
-      };
+      // Walk the normal phase chain instead of jumping to live — preserves
+      // handEndEchoTrick latch and matches advancePhase semantics on trick #5.
+      const maxSteps = 8;
+      for (let step = 0; step < maxSteps && next.phase !== "live"; step++) {
+        next = reduceTrickPresentationCore(next, { type: "advancePhase" });
+      }
+      return next;
     }
 
     case "advancePhase": {
@@ -491,6 +470,15 @@ export function buildTrickPresentationModel(
     showFinalTrickEcho,
     frozenTrick: store.frozenTrick,
   };
+}
+
+/** Defer hand-number reinit while trick #5 (or any) resolution pipeline is still running. */
+export function shouldDeferHandNumberReinit(store: TrickPresentationStore): boolean {
+  return (
+    store.phase !== "live" ||
+    Boolean(store.pendingResolution) ||
+    store.handEndEchoTrick != null
+  );
 }
 
 /** Guard for useTrickPresentation — do not wipe latched final-trick echo during settle/enrollment. */
