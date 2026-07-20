@@ -11,12 +11,20 @@
 | **Start** | 2026-07-20 |
 | **End** | *(in progress)* |
 | **Deploys** | 0 / 2 min |
-| **Cycles** | 2 / 50 min |
+| **Cycles** | 3 / 50 min |
 
 | Flag | Staging | User-facing |
 |------|---------|-------------|
 | Server (`MIXED_PUBLIC_TABLES_SERVER_ENABLED`) | ON | Policy decision |
 | Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | OFF | OFF until go/no-go |
+
+### Open operational confirmations
+
+| Item | Status | Owner action |
+|------|--------|--------------|
+| Deployed staging `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` | Pending external verify | Check Firebase Functions env on staging project |
+| Per-deploy checklist Deploy #1 | Pending next staging deploy | Complete 6-step routine in Section A |
+| Soak regression (private rooms / Play Now) | Pending per-deploy | Required at deploy, not daily |
 
 ---
 
