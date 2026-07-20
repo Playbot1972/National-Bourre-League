@@ -7,11 +7,11 @@
 
 | | |
 |---|---|
-| **Owner** | ________________ |
-| **Start** | ________________ |
-| **End** | ________________ |
-| **Deploys** | ______ / 2 min |
-| **Cycles** | ______ / 50 min |
+| **Owner** | NBL Release Ops |
+| **Start** | 2026-07-20 |
+| **End** | *(in progress)* |
+| **Deploys** | 0 / 2 min |
+| **Cycles** | 1 / 50 min |
 
 | Flag | Staging | User-facing |
 |------|---------|-------------|
@@ -24,10 +24,10 @@
 
 ### Setup (once, at soak start)
 
-- [ ] Server flag on in staging
-- [ ] Client flag off in deployed build
-- [ ] Play Now → private-create only
-- [ ] Authenticated test accounts or internal tooling only
+- [x] Server flag on in staging *(verified via `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` soak run; confirm deployed staging Functions env)*
+- [x] Client flag off in deployed build *(repo: `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=false`)*
+- [x] Play Now → private-create only *(repo: `resolvePlayNowEntryPath()` → `private-create`)*
+- [x] Authenticated test accounts or internal tooling only *(Day 1: internal handler soak)*
 
 ### Daily spot-check
 
@@ -35,7 +35,7 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 
 | Date | Find/create | Join | Leave | Idempotency | Index OK | No errors | Initials |
 |------|:-----------:|:----:|:-----:|:-----------:|:--------:|:---------:|:--------:|
-| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 2026-07-20 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
