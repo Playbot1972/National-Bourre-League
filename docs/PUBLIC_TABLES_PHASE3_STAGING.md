@@ -11,7 +11,7 @@
 | **Start** | 2026-07-20 |
 | **End** | *(in progress)* |
 | **Deploys** | 0 / 2 min |
-| **Cycles** | 1 / 50 min |
+| **Cycles** | 2 / 50 min |
 
 | Flag | Staging | User-facing |
 |------|---------|-------------|
@@ -36,7 +36,7 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 | Date | Find/create | Join | Leave | Idempotency | Index OK | No errors | Initials |
 |------|:-----------:|:----:|:-----:|:-----------:|:--------:|:---------:|:--------:|
 | 2026-07-20 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
-| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 2026-07-21 | ☑ | ☑ | ☑ | ☑ | ☑ | ☑ | RO |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
@@ -45,9 +45,20 @@ One find → join → leave per day. Confirm repeat find (same join ID) and repe
 
 ### Per-deploy full checklist
 
+**Run on next staging deploy** — complete Deploy #1 row below before marking deploy count.
+
+| Step | Action |
+|------|--------|
+| 1 | Re-verify server flag on + client flag off in deployed build |
+| 2 | Confirm daily spot-check items still pass post-deploy |
+| 3 | Private rooms — create, join, play unchanged |
+| 4 | Play Now still creates private room (not public matchmaking) |
+| 5 | Confirm no user-facing public matchmaking exposure |
+| 6 | Record deploy date and sign-off initials |
+
 | Deploy # | Date | Setup OK | Daily items pass | Private rooms OK | Play Now private | No user exposure | Sign-off |
 |:--------:|------|:--------:|:----------------:|:----------------:|:----------------:|:----------------:|:--------:|
-| 1 | | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 1 | *(pending)* | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | 2 | | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | 3+ | | ☐ | ☐ | ☐ | ☐ | ☐ | |
 
