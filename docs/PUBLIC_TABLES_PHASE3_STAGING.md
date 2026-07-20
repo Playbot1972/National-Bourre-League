@@ -1,98 +1,116 @@
-# Phase 3 public tables — staging soak & rollout gate
+# Phase 3 public tables — staging soak signoff
 
-**Status:** Server-side matchmaking approved for staging. User-facing rollout gated.
+**Release:** Phase 3 server-side matchmaking  
+**Status:** Staging approved · User-facing rollout gated  
+**Tracked artifact:** use daily during soak; complete go/no-go at end
 
-| Flag | Staging posture | Production user-facing |
-|------|-----------------|------------------------|
-| `MIXED_PUBLIC_TABLES_SERVER_ENABLED` | `true` | Policy decision (backend-only OK without client flag) |
-| `MIXED_PUBLIC_TABLES_CLIENT_ENABLED` | `false` | `false` until go/no-go passes |
+| Flag | Staging | User-facing |
+|------|---------|-------------|
+| Server (`MIXED_PUBLIC_TABLES_SERVER_ENABLED`) | **ON** | Policy decision |
+| Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | **OFF** | **OFF** until go/no-go |
 
-**Verified (pre-soak):** find/create (idempotent), join (spectating), leave (idempotent), index rebuild, prior runtime blockers resolved. Private rooms and Play Now unchanged while client flag is off.
+---
+
+## Signoff record
+
+| Field | Value |
+|-------|-------|
+| **Soak owner** | |
+| **Start date** | |
+| **End date** | |
+| **Deploy count** | / 2 minimum |
+| **Cycle count** | / 50 minimum |
 
 ---
 
 ## A. Soak checklist
 
-Track each item per deploy and at end of soak period. Mark **Pass / Fail / N/A** and date.
+### Setup (once, at soak start)
 
-### Preconditions
+- [ ] Server flag on in staging
+- [ ] Client flag off in deployed build
+- [ ] Play Now → private-create only (no public matchmaking exposed)
+- [ ] Soak uses authenticated test accounts or internal tooling only
 
-- [ ] Staging Functions deployed with `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true`
-- [ ] `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=false` in deployed client/build
-- [ ] Play Now routes to private-create (no public matchmaking exposed)
-- [ ] Soak uses authenticated test accounts or controlled internal tooling only
+### Daily spot-check (mark Pass / Fail + date)
 
-### Callable path (per deploy + daily spot-check)
+| Date | Find/create | Join | Leave | Idempotency | Index OK | No errors | Initials |
+|------|-------------|------|-------|-------------|----------|-----------|----------|
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | |
 
-- [ ] **Find/create** — succeeds; structured response; same join ID → same table
-- [ ] **Join** — succeeds; spectating state recorded; guest not seated immediately
-- [ ] **Leave** — succeeds; queue and pending join cleared
-- [ ] **Idempotent retries** — repeat find (same join ID) and repeat leave (after clear) do not throw or corrupt state
-- [ ] **Index consistency** — public table index matches session data after find, join, and leave
-- [ ] **No runtime exceptions** — no callable failures attributable to matchmaking handlers in Functions logs
+**Daily spot-check means:** one find→join→leave cycle; confirm repeat find (same join ID) and repeat leave are safe; confirm index matches session after leave.
+
+### Per-deploy full checklist
+
+| Deploy # | Date | Setup OK | All daily items | Private rooms OK | Play Now private | No user exposure | Sign-off |
+|----------|------|----------|-----------------|------------------|------------------|------------------|----------|
+| 1 | | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 2 | | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| 3+ | | ☐ | ☐ | ☐ | ☐ | ☐ | |
 
 ### Regression (each soak period)
 
-- [ ] **Private rooms** — create, join, and play still work
-- [ ] **Play Now (client flag off)** — still creates private room, not public matchmaking
-- [ ] **No user-facing exposure** — end users cannot reach public matchmaking without explicit client flag change
+- [ ] Private rooms — create, join, play unchanged
+- [ ] Play Now still creates private room
+- [ ] No end-user public matchmaking without client flag change
 
-### Soak duration threshold
+### Duration threshold (required before go/no-go)
 
-- [ ] **7 calendar days** minimum with server flag on, **or**
-- [ ] **50+** successful find → join → leave cycles (whichever is longer)
-- [ ] Soak spans **at least 2** staging deploys
-
-**Soak owner:** _______________ **Start date:** __________ **End date:** __________
+- [ ] ≥ **7 calendar days** with server flag on, **or** ≥ **50** find→join→leave cycles (whichever is longer)
+- [ ] Soak spans ≥ **2** staging deploys
 
 ---
 
-## B. Rollout gate criteria (go / no-go for client enablement)
+## B. Rollout gate criteria
 
-Client enablement may be **considered** only when **all** are true:
+Client enablement may be **considered** only when **all** are checked:
 
-- [ ] Soak checklist (Section A) complete for full duration
-- [ ] No unresolved **runtime blockers** in server-flag path (Section C)
-- [ ] Harness-only and fixture-only issues classified; none mistaken for Phase 3 production defects
-- [ ] No Phase 3 fixture gap affects staging callable behavior
-- [ ] Private rooms verified unchanged during soak
-- [ ] **Policy signoff** recorded (written approval for user-facing public matchmaking)
-- [ ] **Deliberate client wiring decision** — team agrees to enable `MIXED_PUBLIC_TABLES_CLIENT_ENABLED` and route Play Now to public matchmaking
-- [ ] **Rollback plan** agreed — client flag off reverts user exposure without requiring Functions redeploy; server flag can be disabled independently if needed
+- [ ] Section A complete for full soak period
+- [ ] No unresolved runtime blockers (Section C)
+- [ ] Harness/fixture issues classified — not treated as production defects
+- [ ] Private rooms unchanged during soak
+- [ ] Policy signoff recorded
+- [ ] Deliberate decision to enable client flag and route Play Now to public matchmaking
+- [ ] Rollback plan agreed (see Section E)
 
-**Go/no-go decision:** __________ **Date:** __________ **Approver:** __________
+### Go / no-go decision
+
+| Field | Value |
+|-------|-------|
+| **Decision** | ☐ Go · ☐ No-go |
+| **Date** | |
+| **Approver** | |
+| **Notes** | |
 
 ---
 
 ## C. Block conditions
 
-### Runtime blockers (block client enablement)
+### Runtime blockers — no-go until resolved and re-soaked
 
-| Condition | Track |
-|-----------|-------|
-| Find/create, join, or leave fails for valid authenticated requests | |
-| Leave does not clear queue or pending join | |
-| Public table index persistently wrong after rebuild | |
-| Callable or Firestore errors in staging Functions logs tied to matchmaking | |
-| Private-room regression | |
-| Play Now routes to public matchmaking while client flag should be off | |
-| Cross-user or unauthenticated queue/session corruption | |
-| Policy signoff not obtained | |
-| Soak checklist or duration threshold not met | |
+- Find, join, or leave fails for valid authenticated requests
+- Leave does not clear queue or pending join
+- Public table index persistently wrong after rebuild
+- Matchmaking errors in staging Functions logs
+- Private-room regression
+- Public matchmaking exposed while client flag should be off
+- Queue or session corruption across users
+- Policy signoff not obtained
+- Soak checklist or duration threshold not met
 
-### Harness-only (non-blocking for client gate)
+### Harness-only — non-blocking
 
-| Issue | Classification |
-|-------|----------------|
-| `scripts/public-table-matchmaking.test.mjs` — `firebase-admin` import fails from `scripts/` | Harness-only |
-| Use `functions/publicTableLeave.integration.test.mjs` and unit tests for Phase 3 verification | |
+- Matchmaking test script fails to run from `scripts/` due to import path — use leave integration test and unit tests for Phase 3 verification
 
-### Fixture-only (non-blocking for Phase 3 client gate)
+### Fixture-only — non-blocking for Phase 3 client gate
 
-| Issue | Classification |
-|-------|----------------|
-| `functions/publicTableReplacement.integration.test.mjs` — money-engine buy-in setup gaps | Fixture-only (Phase 5, separate track) |
-| Phase 5 replacement verified separately; does not gate Phase 3 client enablement | |
+- Phase 5 replacement integration test money-engine setup gaps — separate track; does not gate Phase 3
 
 ---
 
@@ -102,38 +120,31 @@ Client enablement may be **considered** only when **all** are true:
 
 | When | Action |
 |------|--------|
-| **Daily** (active soak) | Scan Functions error logs; one manual find → join → leave cycle |
-| **Per staging deploy** | Run full Section A callable + regression checks |
-| **End of soak** | Roll up results against Section B go/no-go |
+| **Daily** | Log scan + one find→join→leave; fill daily spot-check table |
+| **Per deploy** | Run per-deploy full checklist |
+| **End of soak** | Complete Section B go/no-go |
 
-### What to observe
+### What to watch
 
-| Area | Look for |
-|------|----------|
-| Success rates | Find/create, join, leave completions vs errors |
-| Errors | Unauthenticated, already-exists, failed-precondition; uncaught exceptions |
-| Index health | Spectator/open-seat counts consistent after join and leave |
-| Idempotency | Duplicate find and leave safe |
-| Client flag | Deployed build keeps `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=false` |
-| Private rooms | Spot-check unchanged behavior |
+- Callable success vs errors (find, join, leave)
+- Index counts consistent after join and leave
+- Client flag remains off in deployed build
+- Private-room spot-checks pass
 
 ### Escalation
 
-1. **Runtime symptom** → stop client-enablement discussion; triage as blocker vs harness/fixture
-2. **Harness/fixture only** → document; continue soak; do not fail staging on these alone
-3. **Any Section C runtime blocker** → no-go until resolved and re-soaked
+1. **Runtime symptom** → pause client-enablement discussion; triage blocker vs harness/fixture
+2. **Harness/fixture only** → document in notes; continue soak
+3. **Any runtime blocker** → no-go; fix and re-soak affected period
 
 ---
 
 ## E. Final recommendation
 
-1. **Now:** Keep server flag on in staging; client flag off. Execute Section A checklist.
-2. **During soak:** Monitor per Section D; classify issues using Section C.
-3. **After soak:** Section B go/no-go; require policy signoff before client flag change.
-4. **Client enablement:** Separate release step — staging client flag first, then production, with rollback = client flag off.
+1. **Now:** Server flag on, client flag off — run Section A daily and per deploy.
+2. **During soak:** Monitor per Section D; classify issues per Section C.
+3. **After soak:** Complete Section B go/no-go; require policy signoff before client flag change.
+4. **Rollback:** Client flag off reverts user exposure without Functions redeploy; server flag can be disabled independently.
+5. **Client enablement:** Separate release — staging client flag first, then production.
 
 Phase 3 backend is staging-approved. User-facing public matchmaking is **not** available until soak completes, go/no-go passes, and policy approves client enablement.
-
----
-
-*Related: `docs/public-table-rollout.js`, `docs/PUBLIC_TABLES_PHASE2.md`, PR #622 (leave transaction fix).*
