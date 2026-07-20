@@ -26,6 +26,7 @@ public/build-meta.json
 *.njsproj
 *.sln
 # Playwright artifacts
+artifacts/public-table-soak/
 test-results/
 playwright-report/
 blob-report/

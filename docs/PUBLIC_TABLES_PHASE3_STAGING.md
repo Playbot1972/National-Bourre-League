@@ -63,6 +63,20 @@ After the 7-day table, log one find→join→leave cycle per day. Mark **Pass** 
 | 10 | | ☐ | | |
 | … | | | | *continue through cycle 50* |
 
+### Automated soak runner (optional)
+
+Run authenticated callable cycles and append to `artifacts/public-table-soak/soak-log.csv` (and optional markdown log). See `scripts/public-table-staging-soak.env.example`.
+
+```bash
+# Staging (set SOAK_ENV=staging + credentials in .env.soak)
+npm run soak:public-table -- --cycles 10 --delay 500
+
+# Local emulator smoke (1 cycle)
+npm run soak:public-table:emulator
+```
+
+Copy passing cycle rows into the extended cycle log above. Client flag must remain off; staging server flag must be on.
+
 ### Per-deploy full checklist
 
 **Run on next staging deploy** — complete Deploy #1 row below before marking deploy count.
@@ -153,7 +167,7 @@ Client enablement is a **separate release decision**. Consider only when **all**
 
 | When | Action |
 |------|--------|
-| **Daily** | Log scan + one find→join→leave; fill daily table |
+| **Daily** | Log scan + one find→join→leave; fill 7-day table or extended cycle log |
 | **Per deploy** | Complete per-deploy checklist row |
 | **End of soak** | Complete Section B go/no-go |
 
