@@ -12,6 +12,7 @@ dist
 .firebase
 .firebase-sa-key.json
 .env.firebase
+.env.soak
 public/build-meta.json
 
 *.local
