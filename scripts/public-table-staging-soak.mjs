@@ -309,6 +309,16 @@ async function runOneCycle({
     throw new Error(`missing roomId/sessionId: ${JSON.stringify(created)}`);
   }
 
+  const hostLeft = await callAs(functions, "gameLeavePublicTable", {});
+  if (!hostLeft?.cleared) {
+    throw new Error(`host leave expected cleared:true: ${JSON.stringify(hostLeft)}`);
+  }
+
+  const hostQueueSnap = await getDoc(doc(db, "matchQueue", hostUid));
+  if (hostQueueSnap.exists()) {
+    throw new Error("host matchQueue still exists after leave");
+  }
+
   await signOut(auth);
   const guestUser = await ensureSignedIn(auth, guestEmail, guestPassword);
   guestUid = guestUser.uid;
