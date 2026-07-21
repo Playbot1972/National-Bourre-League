@@ -8,6 +8,7 @@ import {
   buildHandEnrollment,
   deriveWinnersFromTricks,
   handleAdvanceBots,
+  isBenignBotAdvanceRaceError,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -112,5 +113,20 @@ describe("handleAdvanceBots", () => {
       () => handleAdvanceBots(db, { sessionId: "s1", actorId: "u1" }),
       (err) => err instanceof HttpsError && err.code === "invalid-argument",
     );
+  });
+});
+
+describe("isBenignBotAdvanceRaceError", () => {
+  it("treats failed-precondition and not-found as benign races", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition" }), true);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "not-found" }), true);
+  });
+
+  it("does not treat auth, permission, or validation errors as benign", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "unauthenticated" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "permission-denied" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "invalid-argument" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "internal" }), false);
+    assert.equal(isBenignBotAdvanceRaceError(null), false);
   });
 });

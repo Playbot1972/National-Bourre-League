@@ -2564,7 +2564,7 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
   return { applied: plan.map((p) => p.playerId) };
 }
 
-function isBenignBotAdvanceRaceError(err) {
+export function isBenignBotAdvanceRaceError(err) {
   const code = err?.code;
   return code === "failed-precondition" || code === "not-found";
 }
