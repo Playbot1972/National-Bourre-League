@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   PUBLIC_TABLE_MAX_SEATS,
   PUBLIC_TABLE_MIN_SEATS,
@@ -87,5 +89,20 @@ describe("Play Now flag-off behavior contract", () => {
     const path = resolvePlayNowEntryPath();
     assert.equal(path, "private-create");
     assert.notEqual(path, "public-matchmaking");
+  });
+});
+
+describe("public Play Now client integration (code-complete, flag off)", () => {
+  it("keeps client master switch disabled while public path is wired", () => {
+    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, false);
+    assert.equal(resolvePlayNowEntryPath(), "private-create");
+  });
+
+  it("app.js wires public handoff and queue cleanup behind the rollout gate", () => {
+    const appJs = readFileSync(join(process.cwd(), "docs/app.js"), "utf8");
+    assert.match(appJs, /triggerSessionPlay\("play-now-public"\)/);
+    assert.match(appJs, /gameLeavePublicTable/);
+    assert.match(appJs, /roomHasMixedPublicTables/);
+    assert.match(appJs, /clearPublicTableQueueBestEffort/);
   });
 });
