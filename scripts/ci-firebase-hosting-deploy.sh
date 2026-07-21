@@ -69,6 +69,10 @@ deploy_adc() {
     bash "${ROOT}/scripts/fix-public-table-callable-invoker.sh" "${PROJECT_ID}" us-central1 || {
       echo "::warning::public-table invoker fix failed — run scripts/fix-public-table-callable-invoker.sh manually"
     }
+    echo "==> Ensuring MIXED_PUBLIC_TABLES_SERVER_ENABLED on Phase 3 public-table callables"
+    bash "${ROOT}/scripts/set-public-table-server-flag.sh" "${PROJECT_ID}" us-central1 || {
+      echo "::warning::public-table server flag failed — run scripts/set-public-table-server-flag.sh manually"
+    }
   fi
   return "$code"
 }
