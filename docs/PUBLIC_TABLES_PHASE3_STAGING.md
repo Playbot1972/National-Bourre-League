@@ -71,14 +71,14 @@ Back-to-back authenticated callable cycles — default **no delay** between cycl
 
 Use this ordered checklist before remote soak signoff. Emulator validation is already green; remote soak is the remaining gate.
 
-1. **Provision soak accounts** — In Firebase Console → **national-bourre-league** → **Authentication** → **Users**, create **two** dedicated email/password accounts (host + guest). Use soak-only addresses; do not use personal accounts.
+1. **Provision soak accounts** — Firebase Console → **national-bourre-league** → **Authentication** → **Users** → **Add user**. Create **two** dedicated accounts: one **host**, one **guest**. Use **email/password** only. Soak-only addresses — not personal logins.
 2. **Create `.env.soak`** — From repo root: `cp scripts/public-table-staging-soak.env.example .env.soak` (gitignored; never commit).
-3. **Fill required env vars** — Set all rows in the table below. Confirm `SOAK_USE_EMULATOR` is **unset** (not `1`). Confirm `SOAK_ENV=staging` and `SOAK_ALLOW_PRODUCTION=1`.
+3. **Fill `.env.soak`** — Set: `SOAK_ENV=staging`, `SOAK_ALLOW_PRODUCTION=1`, `SOAK_FIREBASE_PROJECT_ID=national-bourre-league`, Firebase web config (`SOAK_FIREBASE_API_KEY`, `SOAK_FIREBASE_AUTH_DOMAIN`, `SOAK_FIREBASE_APP_ID`), `SOAK_HOST_EMAIL`, `SOAK_HOST_PASSWORD`, `SOAK_GUEST_EMAIL`, `SOAK_GUEST_PASSWORD`. Leave **`SOAK_USE_EMULATOR` unset** (do not set to `1`).
 4. **Verify live server flag** — Repo/CI cannot prove the deployed value. Confirm `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` on the live Functions deployment (Console or `gcloud` below). **Stop if not `true`.**
 5. **Run 1-cycle smoke** — `npm run soak:public-table -- --cycles 1`. **Stop if exit code ≠ 0 or CSV shows `pass=false`.**
 6. **Inspect smoke logs** — Open `artifacts/public-table-soak/soak-log.csv` and `soak-log.md`. Confirm one row, `pass=true`, empty `error` column.
 7. **Run 42-cycle batch** — `npm run soak:public-table -- --cycles 42 --start-cycle 9` (back-to-back, default delay 0). Do not use `--stop-on-fail` unless debugging a single failure.
-8. **Inspect batch logs** — CSV must have 42 rows (cycles 9–50), all `pass=true`, `fail=0` in terminal summary. Copy passing rows into the extended cycle log (Section A).
+8. **Inspect batch logs** — `artifacts/public-table-soak/soak-log.csv` must have **42 rows** (cycles **9–50**), all `pass=true`, terminal `pass=42 fail=0`. Each cycle has a **unique** `joinId` (`soak-{timestamp}-{cycle}`). No `different joinId` or host queue carryover errors. Copy passing rows into the extended cycle log (Section A).
 9. **Sign off or no-go** — See success signals and no-go conditions below.
 
 | Variable | Required | Notes |
