@@ -40,6 +40,7 @@
     "setup:github-secrets": "./scripts/setup-github-secrets.sh",
     "sync:github-sa-secret": "bash scripts/sync-github-sa-secret.sh",
     "fix:deploy-iam": "bash scripts/fix-functions-deploy-iam.sh",
+    "fix:public-table-invoker": "bash scripts/fix-public-table-callable-invoker.sh",
     "fix:deploy": "bash scripts/fix-deploy-all.sh",
     "enable:functions-apis": "bash scripts/enable-functions-apis.sh",
     "verify:sa-key": "node scripts/validate-service-account-key.mjs",
