@@ -2,6 +2,7 @@
 # Firebase deploy helper for GitHub Actions (hosting / rules / functions).
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ONLY="${1:?usage: ci-firebase-hosting-deploy.sh <only> e.g. hosting}"
 PROJECT_ID="${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID required}"
 FB_TOOLS="${FIREBASE_TOOLS_VERSION:-14.9.0}"
@@ -62,6 +63,12 @@ deploy_adc() {
       echo "::warning::Functions deployed; artifact cleanup policy not configured (non-fatal)"
       return 0
     fi
+  fi
+  if [[ $code -eq 0 && "$ONLY" == "functions" ]]; then
+    echo "==> Ensuring public invoker on Phase 3 public-table callables"
+    bash "${ROOT}/scripts/fix-public-table-callable-invoker.sh" "${PROJECT_ID}" us-central1 || {
+      echo "::warning::public-table invoker fix failed — run scripts/fix-public-table-callable-invoker.sh manually"
+    }
   fi
   return "$code"
 }
