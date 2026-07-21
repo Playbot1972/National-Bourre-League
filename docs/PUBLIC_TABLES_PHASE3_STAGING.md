@@ -67,15 +67,19 @@ After the 7-day table, log one find→join→leave cycle per day. Mark **Pass** 
 
 Back-to-back authenticated callable cycles — default **no delay** between cycles. Appends to `artifacts/public-table-soak/soak-log.csv` (and optional markdown log). See `scripts/public-table-staging-soak.env.example`.
 
-#### Remote soak credentials (required before `npm run soak:public-table`)
+#### Remote soak operator checklist
 
-There is **no separate staging Firebase project** in this repo. Remote soak targets the live project (`national-bourre-league` / `booray.win`) with `SOAK_ALLOW_PRODUCTION=1`, server flag on, and client flag off. **Do not commit** `.env.soak` (gitignored).
+Use this ordered checklist before remote soak signoff. Emulator validation is already green; remote soak is the remaining gate.
 
-1. Copy `scripts/public-table-staging-soak.env.example` → `.env.soak`.
-2. Create **two dedicated Firebase Auth email/password accounts** (host + guest) for soak only — not personal accounts.
-3. Fill all **required** vars below. Leave `SOAK_USE_EMULATOR` unset (or commented out).
-4. Confirm deployed Cloud Functions have `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` (see **Verify server flag on live project** below).
-5. Run smoke (`--cycles 1`), then the back-to-back batch (`--cycles 42 --start-cycle 9`).
+1. **Provision soak accounts** — In Firebase Console → **national-bourre-league** → **Authentication** → **Users**, create **two** dedicated email/password accounts (host + guest). Use soak-only addresses; do not use personal accounts.
+2. **Create `.env.soak`** — From repo root: `cp scripts/public-table-staging-soak.env.example .env.soak` (gitignored; never commit).
+3. **Fill required env vars** — Set all rows in the table below. Confirm `SOAK_USE_EMULATOR` is **unset** (not `1`). Confirm `SOAK_ENV=staging` and `SOAK_ALLOW_PRODUCTION=1`.
+4. **Verify live server flag** — Repo/CI cannot prove the deployed value. Confirm `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` on the live Functions deployment (Console or `gcloud` below). **Stop if not `true`.**
+5. **Run 1-cycle smoke** — `npm run soak:public-table -- --cycles 1`. **Stop if exit code ≠ 0 or CSV shows `pass=false`.**
+6. **Inspect smoke logs** — Open `artifacts/public-table-soak/soak-log.csv` and `soak-log.md`. Confirm one row, `pass=true`, empty `error` column.
+7. **Run 42-cycle batch** — `npm run soak:public-table -- --cycles 42 --start-cycle 9` (back-to-back, default delay 0). Do not use `--stop-on-fail` unless debugging a single failure.
+8. **Inspect batch logs** — CSV must have 42 rows (cycles 9–50), all `pass=true`, `fail=0` in terminal summary. Copy passing rows into the extended cycle log (Section A).
+9. **Sign off or no-go** — See success signals and no-go conditions below.
 
 | Variable | Required | Notes |
 |----------|:--------:|-------|
@@ -90,8 +94,27 @@ There is **no separate staging Firebase project** in this repo. Remote soak targ
 | `SOAK_FIREBASE_AUTH_DOMAIN` | recommended | `booray.win` |
 | `SOAK_FIREBASE_APP_ID` | recommended | Web app `appId` from Firebase Console |
 | `SOAK_FUNCTIONS_REGION` | optional | Default `us-central1` |
+| `SOAK_USE_EMULATOR` | must be unset | Remote soak only |
 
-#### Verify server flag on live project (before remote soak)
+**Example `.env.soak` block** (fill email/password lines):
+
+```bash
+SOAK_ENV=staging
+SOAK_ALLOW_PRODUCTION=1
+SOAK_FIREBASE_PROJECT_ID=national-bourre-league
+SOAK_FIREBASE_API_KEY=<from Firebase Console web app>
+SOAK_FIREBASE_AUTH_DOMAIN=booray.win
+SOAK_FIREBASE_APP_ID=<from Firebase Console web app>
+SOAK_FUNCTIONS_REGION=us-central1
+SOAK_HOST_EMAIL=<soak-host@your-domain>
+SOAK_HOST_PASSWORD=<host-password>
+SOAK_GUEST_EMAIL=<soak-guest@your-domain>
+SOAK_GUEST_PASSWORD=<guest-password>
+SOAK_LOG_CSV=artifacts/public-table-soak/soak-log.csv
+SOAK_LOG_MD=artifacts/public-table-soak/soak-log.md
+```
+
+#### Verify server flag on live project (step 4)
 
 `MIXED_PUBLIC_TABLES_SERVER_ENABLED` is **not** set by repo deploy CI. It is read at **Cloud Functions runtime** from `process.env` (see `functions/vendor/public-table-rollout.js`). Repo state alone cannot prove the live value — check GCP after each Functions deploy.
 
@@ -108,6 +131,48 @@ gcloud functions describe gameFindOrCreatePublicTable \
 If unset or not `true`, public-table callables return `failed-precondition` / *Mixed public tables are disabled.* and the soak will fail at `gameFindOrCreatePublicTable`.
 
 **Set or update (requires deploy permission):** Firebase Console → Functions → Environment variables, or redeploy with the var set on the Gen2 service. CI (`.github/workflows/deploy.yml`) does not inject this var today.
+
+#### Remote soak success signals
+
+**1-cycle smoke (`--cycles 1`):**
+
+- Terminal: `[soak] cycle 1 PASS room=…` and `[soak] done. … pass=1 fail=0`
+- Exit code `0`
+- `soak-log.csv`: one data row with `pass=true`, populated `roomId`/`sessionId`/`joinId`, empty `error`
+- `soak-log.md`: one row with ☑
+
+**42-cycle batch (`--cycles 42 --start-cycle 9`):**
+
+- Terminal: cycles `9..50` each log `PASS`, summary `pass=42 fail=0`
+- Exit code `0`
+- `soak-log.csv`: 42 rows, all `pass=true`, no `different joinId` or `host matchQueue` errors
+- Unique `joinId` per cycle (`soak-{timestamp}-{cycle}`)
+
+#### Remote soak no-go stop conditions
+
+**Stop before running** if any of:
+
+- `SOAK_USE_EMULATOR=1` is set
+- `SOAK_ENV` is not `staging`
+- `SOAK_ALLOW_PRODUCTION` is not `1` (runner refuses `national-bourre-league` without it)
+- Any required `SOAK_*` email/password var is missing
+- Live `MIXED_PUBLIC_TABLES_SERVER_ENABLED` is not `true`
+
+**Stop after 1-cycle smoke** (do not run batch) if:
+
+- Exit code ≠ `0`
+- Callable error *Mixed public tables are disabled.*
+- Auth/sign-in failure
+- CSV row has `pass=false` or non-empty `error`
+
+**Stop / no-go after batch** if:
+
+- Any cycle has `pass=false` in CSV
+- Terminal reports `fail > 0`
+- Errors mention `active public table queue with a different joinId` (host queue carryover)
+- Errors mention `host matchQueue still exists` or guest cleanup verification failures (`matchQueue`, `pendingJoins`, `publicTableIndex`)
+
+Default runner behavior: log all cycles, exit `1` at end if any failed (`--stop-on-fail` optional for early abort while debugging).
 
 ```bash
 # Staging: 42 cycles in one session (e.g. cycles 9–50 after manual Days 1–8)
