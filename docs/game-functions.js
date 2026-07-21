@@ -91,14 +91,12 @@ export function gameVoteCoWinSettlement(roomId, sessionId, payload) {
 
 export async function gameAdvanceBots(roomId, sessionId) {
   if (!roomId || !sessionId) {
-    const err = new Error("gameAdvanceBots: roomId and sessionId are required");
-    err.code = "invalid-argument";
     console.warn(
       "[gameAdvanceBots]",
       "skip",
       JSON.stringify({ roomId: roomId ?? null, sessionId: sessionId ?? null }),
     );
-    throw err;
+    return { status: "skipped", reason: "missing_room_or_session" };
   }
   const payload = { roomId, sessionId };
   try {

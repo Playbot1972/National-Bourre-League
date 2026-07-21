@@ -270,7 +270,18 @@ export function createServerBotAdvanceRuntime(deps) {
     }
     const roomId = deps.getRoomId();
     const sessionId = deps.getSessionId();
-    if (!roomId || !sessionId) return;
+    if (!roomId || !sessionId) {
+      logPlayDelay("skip-request", session, scores, {
+        reason: "missing_room_or_session",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        roomId: roomId ?? null,
+        sessionId: sessionId ?? null,
+        action: "blocked",
+      });
+      return;
+    }
 
     const sessionObj = deps.findSession(sessionId) ?? session;
     if (!sessionObj || sessionObj.status === "final") return;

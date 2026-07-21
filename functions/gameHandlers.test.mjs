@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { HttpsError } from "firebase-functions/v2/https";
 import {
   HAND_ENROLLMENT_MS,
   isRobotPlayerId,
   canActForPlayer,
   buildHandEnrollment,
   deriveWinnersFromTricks,
+  handleAdvanceBots,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -96,5 +98,19 @@ describe("deriveWinnersFromTricks", () => {
     const result = deriveWinnersFromTricks({ a: 2, b: 2, c: 1 }, ["a", "b", "c"]);
     assert.equal(result.ready, true);
     assert.deepEqual(result.winnerIds.sort(), ["a", "b"]);
+  });
+});
+
+describe("handleAdvanceBots", () => {
+  it("rejects missing roomId or sessionId at handler entry", async () => {
+    const db = {};
+    await assert.rejects(
+      () => handleAdvanceBots(db, { roomId: "", sessionId: "s1", actorId: "u1" }),
+      (err) => err instanceof HttpsError && err.code === "invalid-argument",
+    );
+    await assert.rejects(
+      () => handleAdvanceBots(db, { sessionId: "s1", actorId: "u1" }),
+      (err) => err instanceof HttpsError && err.code === "invalid-argument",
+    );
   });
 });
