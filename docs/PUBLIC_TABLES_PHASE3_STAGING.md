@@ -74,7 +74,7 @@ There is **no separate staging Firebase project** in this repo. Remote soak targ
 1. Copy `scripts/public-table-staging-soak.env.example` → `.env.soak`.
 2. Create **two dedicated Firebase Auth email/password accounts** (host + guest) for soak only — not personal accounts.
 3. Fill all **required** vars below. Leave `SOAK_USE_EMULATOR` unset (or commented out).
-4. Confirm deployed Cloud Functions have `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true`.
+4. Confirm deployed Cloud Functions have `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` (see **Verify server flag on live project** below).
 5. Run smoke (`--cycles 1`), then the back-to-back batch (`--cycles 42 --start-cycle 9`).
 
 | Variable | Required | Notes |
@@ -90,6 +90,24 @@ There is **no separate staging Firebase project** in this repo. Remote soak targ
 | `SOAK_FIREBASE_AUTH_DOMAIN` | recommended | `booray.win` |
 | `SOAK_FIREBASE_APP_ID` | recommended | Web app `appId` from Firebase Console |
 | `SOAK_FUNCTIONS_REGION` | optional | Default `us-central1` |
+
+#### Verify server flag on live project (before remote soak)
+
+`MIXED_PUBLIC_TABLES_SERVER_ENABLED` is **not** set by repo deploy CI. It is read at **Cloud Functions runtime** from `process.env` (see `functions/vendor/public-table-rollout.js`). Repo state alone cannot prove the live value — check GCP after each Functions deploy.
+
+**Console:** Firebase Console → **national-bourre-league** → **Functions** → open `gameFindOrCreatePublicTable` (or any Phase 3 callable) → **Configuration** → **Environment variables** → confirm `MIXED_PUBLIC_TABLES_SERVER_ENABLED` = `true`.
+
+**CLI (project Owner or Functions Viewer):**
+
+```bash
+gcloud functions describe gameFindOrCreatePublicTable \
+  --gen2 --region=us-central1 --project=national-bourre-league \
+  --format="yaml(serviceConfig.environmentVariables)"
+```
+
+If unset or not `true`, public-table callables return `failed-precondition` / *Mixed public tables are disabled.* and the soak will fail at `gameFindOrCreatePublicTable`.
+
+**Set or update (requires deploy permission):** Firebase Console → Functions → Environment variables, or redeploy with the var set on the Gen2 service. CI (`.github/workflows/deploy.yml`) does not inject this var today.
 
 ```bash
 # Staging: 42 cycles in one session (e.g. cycles 9–50 after manual Days 1–8)
