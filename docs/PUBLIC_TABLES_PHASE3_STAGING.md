@@ -67,6 +67,30 @@ After the 7-day table, log one find→join→leave cycle per day. Mark **Pass** 
 
 Back-to-back authenticated callable cycles — default **no delay** between cycles. Appends to `artifacts/public-table-soak/soak-log.csv` (and optional markdown log). See `scripts/public-table-staging-soak.env.example`.
 
+#### Remote soak credentials (required before `npm run soak:public-table`)
+
+There is **no separate staging Firebase project** in this repo. Remote soak targets the live project (`national-bourre-league` / `booray.win`) with `SOAK_ALLOW_PRODUCTION=1`, server flag on, and client flag off. **Do not commit** `.env.soak` (gitignored).
+
+1. Copy `scripts/public-table-staging-soak.env.example` → `.env.soak`.
+2. Create **two dedicated Firebase Auth email/password accounts** (host + guest) for soak only — not personal accounts.
+3. Fill all **required** vars below. Leave `SOAK_USE_EMULATOR` unset (or commented out).
+4. Confirm deployed Cloud Functions have `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true`.
+5. Run smoke (`--cycles 1`), then the back-to-back batch (`--cycles 42 --start-cycle 9`).
+
+| Variable | Required | Notes |
+|----------|:--------:|-------|
+| `SOAK_ENV` | yes | Must be `staging` |
+| `SOAK_ALLOW_PRODUCTION` | yes | Required for `national-bourre-league` / `booray.win` |
+| `SOAK_FIREBASE_API_KEY` | yes | Web app `apiKey` from Firebase Console |
+| `SOAK_FIREBASE_PROJECT_ID` | yes | `national-bourre-league` |
+| `SOAK_HOST_EMAIL` | yes | Dedicated soak host account |
+| `SOAK_HOST_PASSWORD` | yes | Host password |
+| `SOAK_GUEST_EMAIL` | yes | Dedicated soak guest account |
+| `SOAK_GUEST_PASSWORD` | yes | Guest password |
+| `SOAK_FIREBASE_AUTH_DOMAIN` | recommended | `booray.win` |
+| `SOAK_FIREBASE_APP_ID` | recommended | Web app `appId` from Firebase Console |
+| `SOAK_FUNCTIONS_REGION` | optional | Default `us-central1` |
+
 ```bash
 # Staging: 42 cycles in one session (e.g. cycles 9–50 after manual Days 1–8)
 npm run soak:public-table -- --cycles 42 --start-cycle 9
