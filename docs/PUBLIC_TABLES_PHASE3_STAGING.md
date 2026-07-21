@@ -16,7 +16,7 @@
 | Flag | Staging | User-facing |
 |------|---------|-------------|
 | Server (`MIXED_PUBLIC_TABLES_SERVER_ENABLED`) | ON | Policy decision |
-| Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | OFF | OFF until go/no-go |
+| Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | OFF | OFF until go/no-go; public Play Now path code-complete in `docs/app.js` |
 
 ### Open operational confirmations
 
@@ -35,6 +35,7 @@
 
 - [x] Server flag on in staging *(verified via `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` soak run; confirm deployed staging Functions env)*
 - [x] Client flag off in deployed build *(repo: `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=false`)*
+- [x] Public Play Now client path code-complete behind flag *(handoff + `gameLeavePublicTable` cleanup in `docs/app.js`; not user-visible until flag on)*
 - [x] Play Now → private-create only *(repo: `resolvePlayNowEntryPath()` → `private-create`)*
 - [x] Authenticated test accounts or internal tooling only *(Day 1: internal handler soak)*
 

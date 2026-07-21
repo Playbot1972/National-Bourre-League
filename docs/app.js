@@ -210,7 +210,8 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
-import { gameFindOrCreatePublicTable } from "./game-functions.js";
+import { roomHasMixedPublicTables } from "./public-table-schema.js";
+import { gameFindOrCreatePublicTable, gameLeavePublicTable } from "./game-functions.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
   blurActiveTextEntry,
@@ -2257,6 +2258,10 @@ function teardownTableOverlay({ restoreDetail = true } = {}) {
 }
 
 function teardownRoomState() {
+  const roomSnapshot = currentRoom;
+  if (roomSnapshot) {
+    void clearPublicTableQueueBestEffort(roomSnapshot);
+  }
   clearPendingSelfJoin();
   pendingOpenSessions.clear();
   clearDetailSubs();
@@ -2345,11 +2350,27 @@ function renderRoomsList() {
     .join("");
 }
 
+function resolveRoomSnapshotForLeave(roomId) {
+  if (roomId === currentRoomId && currentRoom) return currentRoom;
+  return myRooms.find((r) => r.id === roomId) ?? null;
+}
+
+/** Clear matchQueue for mixed public tables — no-op for private rooms. */
+async function clearPublicTableQueueBestEffort(room) {
+  if (!session || !roomHasMixedPublicTables(room)) return;
+  try {
+    await gameLeavePublicTable();
+  } catch (err) {
+    console.warn("gameLeavePublicTable (best-effort):", err);
+  }
+}
+
 async function onLeaveRoom(roomId) {
   if (!session) return;
   if (!window.confirm("Leave this room? It will disappear from your list.")) return;
   showRoomsError("");
   try {
+    await clearPublicTableQueueBestEffort(resolveRoomSnapshotForLeave(roomId));
     await leaveRoom(roomId, session);
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
@@ -2674,6 +2695,7 @@ async function runPlayNowFlow() {
   if (resolvePlayNowEntryPath() === "public-matchmaking") {
     playNowInFlight = true;
     setPlayNowBusy(true);
+    let publicRoomId = null;
     try {
       const joinId =
         globalThis.crypto?.randomUUID?.() ??
@@ -2688,6 +2710,7 @@ async function runPlayNowFlow() {
       if (!result?.roomId || !result?.sessionId) {
         throw new Error("Public matchmaking did not return a table.");
       }
+      publicRoomId = result.roomId;
       openRoom(result.roomId, { silent: true });
       await waitUntil(
         () =>
@@ -2698,13 +2721,33 @@ async function runPlayNowFlow() {
         { label: "Public Play Now room load" },
       );
       openSession(result.sessionId);
+      await waitUntil(
+        () =>
+          openSessionId === result.sessionId &&
+          tableReadyPlayerCount(resolveActiveSession()) >= 2,
+        { label: "Public Play Now session ready" },
+      );
       showRoomsError("");
+      await triggerSessionPlay("play-now-public");
     } catch (err) {
       console.error("runPlayNowFlow (public):", err);
-      showRoomsError(formatClientGameError(err, "Public Play Now failed — please try again."));
+      silentTableEntry = false;
+      document.body.classList.remove("table-entry-silent");
+      const hint =
+        publicRoomId != null
+          ? "Public Play Now could not finish — your table is open; try again or leave the room."
+          : "Public Play Now failed — please try again.";
+      showRoomsError(formatClientGameError(err, hint));
+      if (publicRoomId) {
+        openRoom(publicRoomId);
+      }
     } finally {
       playNowInFlight = false;
       setPlayNowBusy(false);
+      if (!tablePlayOpen) {
+        silentTableEntry = false;
+        document.body.classList.remove("table-entry-silent");
+      }
     }
     return;
   }
