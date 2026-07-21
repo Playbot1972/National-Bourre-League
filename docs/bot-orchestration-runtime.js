@@ -270,7 +270,18 @@ export function createServerBotAdvanceRuntime(deps) {
     }
     const roomId = deps.getRoomId();
     const sessionId = deps.getSessionId();
-    if (!roomId || !sessionId) return;
+    if (!roomId || !sessionId) {
+      logPlayDelay("skip-request", session, scores, {
+        reason: "missing_room_or_session",
+        requester: actorId,
+        owner: "server",
+        trigger: reason,
+        roomId: roomId ?? null,
+        sessionId: sessionId ?? null,
+        action: "blocked",
+      });
+      return;
+    }
 
     const sessionObj = deps.findSession(sessionId) ?? session;
     if (!sessionObj || sessionObj.status === "final") return;
@@ -307,6 +318,9 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = await deps.advanceSessionBots(roomId, sessionId, {
         requester: actorId,
         trigger: reason,
+        handNumber: ctx.handNumber ?? null,
+        trickNumber: ctx.trickNumber ?? null,
+        turnPlayerId: ctx.turnPlayerId ?? null,
       });
       logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,
@@ -323,11 +337,16 @@ export function createServerBotAdvanceRuntime(deps) {
         owner: "server",
         roomId,
         sessionId,
+        code: err?.code ?? null,
         message: err?.message ?? String(err),
         action: "error",
         ...ctx,
       });
-      console.warn("advanceSessionBots:", err);
+      console.warn(
+        "advanceSessionBots:",
+        err?.code ?? "unknown",
+        err?.message ?? err,
+      );
       try {
         deps.onAdvanceError?.(sessionObj, scores, actorId, err);
       } catch (fallbackErr) {

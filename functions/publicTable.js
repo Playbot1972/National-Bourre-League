@@ -4,7 +4,7 @@
  * Callable handlers: find-or-create, join, leave.
  * publicTableIndex is derived — session/scores/pendingJoins/matchQueue are source of truth.
  *
- * Deferred to Phase 4/5: hand-boundary seating, replacementPlan, bankroll swap-in.
+ * Phase 5: hand-boundary bot replacement — see publicTableReplacement.js.
  */
 
 import { HttpsError } from "firebase-functions/v2/https";
@@ -268,7 +268,7 @@ async function loadUserDisplayName(db, userId, fallback = "Player") {
 
 async function loadMatchQueue(db, userId) {
   const snap = await matchQueueRef(db, userId).get();
-  return snap.exists() ? { ref: snap.ref, data: snap.data() } : null;
+  return snap.exists ? { ref: snap.ref, data: snap.data() } : null;
 }
 
 function assertCompatibleActiveQueue(queueData, joinId) {
@@ -284,12 +284,12 @@ function assertCompatibleActiveQueue(queueData, joinId) {
 
 async function loadAuthoritativeTableContext(db, roomId, sessionId) {
   const roomSnap = await db.collection("rooms").doc(roomId).get();
-  if (!roomSnap.exists()) {
+  if (!roomSnap.exists) {
     throw new HttpsError("not-found", "Room not found");
   }
   const roomData = roomSnap.data();
   const sessionSnap = await sessionRef(db, roomId, sessionId).get();
-  if (!sessionSnap.exists()) {
+  if (!sessionSnap.exists) {
     throw new HttpsError("not-found", "Session not found");
   }
   const sessionData = sessionSnap.data();
@@ -335,10 +335,12 @@ export async function rebuildPublicTableIndex(db, roomId, sessionId) {
   return rebuildPublicTableIndexFromSource(db, roomId, sessionId);
 }
 
+export { applyPendingReplacements } from "./publicTableReplacement.js";
+
 async function ensureRoomMembership(db, roomId, userId, displayName) {
   const ref = db.collection("roomMembers").doc(memberDocId(roomId, userId));
   const snap = await ref.get();
-  if (snap.exists()) return;
+  if (snap.exists) return;
   await ref.set({
     roomId,
     userId,
@@ -436,7 +438,7 @@ async function joinPublicTableAsSpectator(
 
   await db.runTransaction(async (tx) => {
     const queueSnap = await tx.get(matchQueueRef(db, actorId));
-    if (queueSnap.exists()) {
+    if (queueSnap.exists) {
       const q = queueSnap.data();
       if (isActiveQueueStatus(q.status) && q.activeJoinId !== joinId) {
         throw new HttpsError(
@@ -456,7 +458,7 @@ async function joinPublicTableAsSpectator(
 
     const sessionRefDoc = sessionRef(db, roomId, sessionId);
     const sessionSnap = await tx.get(sessionRefDoc);
-    if (!sessionSnap.exists()) {
+    if (!sessionSnap.exists) {
       throw new HttpsError("not-found", "Session not found");
     }
     const sessionData = sessionSnap.data();
@@ -544,7 +546,7 @@ async function createPublicTable(
 
   await db.runTransaction(async (tx) => {
     const queueSnap = await tx.get(matchQueueRef(db, actorId));
-    if (queueSnap.exists()) {
+    if (queueSnap.exists) {
       const q = queueSnap.data();
       if (isActiveQueueStatus(q.status) && q.activeJoinId !== joinId) {
         throw new HttpsError(
@@ -841,25 +843,31 @@ export async function handleLeavePublicTable(db, data) {
 
   await db.runTransaction(async (tx) => {
     const queueSnap = await tx.get(matchQueueRef(db, actorId));
-    if (!queueSnap.exists()) return;
+    if (!queueSnap.exists) return;
     const q = queueSnap.data();
     if (!isActiveQueueStatus(q.status)) return;
 
-    tx.delete(matchQueueRef(db, actorId));
-
+    let sessionRefDoc = null;
+    let pendingJoinsUpdate = null;
     if (q.roomId && q.sessionId && q.status === MATCH_QUEUE_STATUS.SPECTATING) {
-      const sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
+      sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
       const sessionSnap = await tx.get(sessionRefDoc);
-      if (sessionSnap.exists()) {
+      if (sessionSnap.exists) {
         const pendingJoins = { ...(sessionSnap.data().pendingJoins ?? {}) };
         if (pendingJoins[actorId]) {
           delete pendingJoins[actorId];
-          tx.update(sessionRefDoc, {
-            pendingJoins,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+          pendingJoinsUpdate = pendingJoins;
         }
       }
+    }
+
+    tx.delete(matchQueueRef(db, actorId));
+
+    if (sessionRefDoc && pendingJoinsUpdate) {
+      tx.update(sessionRefDoc, {
+        pendingJoins: pendingJoinsUpdate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
   });
 

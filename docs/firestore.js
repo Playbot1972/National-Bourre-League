@@ -4824,6 +4824,19 @@ export async function advanceSessionBots(roomId, sessionId, meta = {}) {
     );
     return { status: "skipped", reason: "server_authority_disabled" };
   }
+  if (!roomId || !sessionId) {
+    console.info(
+      "[bot-orchestrator]",
+      "skip-call",
+      JSON.stringify({
+        reason: "missing_room_or_session",
+        roomId: roomId ?? null,
+        sessionId: sessionId ?? null,
+        ...meta,
+      }),
+    );
+    return { status: "skipped", reason: "missing_room_or_session" };
+  }
   console.info(
     "[bot-orchestrator]",
     "invoke-gameAdvanceBots",
@@ -4833,13 +4846,24 @@ export async function advanceSessionBots(roomId, sessionId, meta = {}) {
       trigger: meta.trigger ?? "client",
       roomId,
       sessionId,
+      handNumber: meta.handNumber ?? null,
+      trickNumber: meta.trickNumber ?? null,
+      turnPlayerId: meta.turnPlayerId ?? null,
     }),
   );
   const result = await gameAdvanceBots(roomId, sessionId);
   console.info(
     "[bot-orchestrator]",
     "gameAdvanceBots-result",
-    JSON.stringify({ roomId, sessionId, requester: meta.requester ?? null, result }),
+    JSON.stringify({
+      roomId,
+      sessionId,
+      requester: meta.requester ?? null,
+      status: result?.status ?? null,
+      skipped: result?.skipped === true,
+      reason: result?.reason ?? null,
+      result,
+    }),
   );
   return result;
 }

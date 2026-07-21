@@ -169,7 +169,7 @@ describe("public-table matchmaking integration", () => {
       .collection("scores")
       .doc(GUEST_UID)
       .get();
-    assert.equal(guestScore.exists(), false);
+    assert.equal(guestScore.exists, false);
 
     const sessionSnap = await db
       .collection("rooms")
@@ -189,7 +189,7 @@ describe("public-table matchmaking integration", () => {
     assert.equal(left.cleared, true);
 
     const queueSnap = await db.collection(MATCH_QUEUE_COLLECTION).doc(GUEST_UID).get();
-    assert.equal(queueSnap.exists(), false);
+    assert.equal(queueSnap.exists, false);
 
     const sessionSnap = await db
       .collection("rooms")
@@ -210,7 +210,7 @@ describe("public-table matchmaking integration", () => {
       .collection("scores")
       .doc(HOST_UID)
       .get();
-    assert.equal(hostScores.exists(), true);
+    assert.equal(hostScores.exists, true);
   });
 
   it("rebuilds stale index from source-of-truth", async (t) => {

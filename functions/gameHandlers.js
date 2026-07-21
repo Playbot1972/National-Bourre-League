@@ -66,6 +66,7 @@ import {
   patchSessionPlayersWithRebuyNames,
   sessionHasRobotScores,
 } from "./vendor/bot-rebuy.js";
+import { applyPendingReplacements } from "./publicTableReplacement.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
@@ -1302,11 +1303,27 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     switch (hint.kind) {
       case "cowin": {
         const pending = sessionData.pendingCoWinSettlement;
+        const winnerIds = pending?.winnerIds;
+        if (!Array.isArray(winnerIds) || winnerIds.length < 2) {
+          console.info(
+            "[bot-advance]",
+            "skip",
+            JSON.stringify({
+              requester: actorId,
+              owner: "server",
+              roomId,
+              sessionId,
+              reason: "cowin_stale",
+              step,
+            }),
+          );
+          return { status: "ok", steps, reason: "cowin_stale" };
+        }
         await handleVoteCoWinSettlement(db, {
           roomId,
           sessionId,
           participantIds: pending.participantIds || sessionData.currentHand?.participantIds || [],
-          winnerIds: pending.winnerIds,
+          winnerIds,
           voterId: hint.turnPlayerId,
           choice: "push",
           recordedBy: actorId,
@@ -1473,14 +1490,30 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       return { status: "noop" };
     }
   }
-  const scoreSnap = await scoresCol(db, roomId, sessionId).get();
-  const sortedIds = seatPlayerIds(data, scoreSnap.docs);
-  if (sortedIds.length < 2) return { status: "noop" };
-
   const roomSnap = await getRoomSnap(db, roomId);
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = data.handStake ?? 1;
+
+  await applyPendingReplacements(db, {
+    roomId,
+    sessionId,
+    roomData: roomSnap.data() ?? {},
+    sessionData: data,
+  }).catch((err) => {
+    console.warn("[ensure-hand-enrollment] pending replacement skipped", err?.message ?? err);
+  });
+
+  sessionSnap = await ref.get();
+  if (!sessionSnap.exists) return { status: "noop" };
+  data = sessionSnap.data();
+  if (sessionSnap.exists && sessionHandDealStarted(data)) {
+    return { status: "noop" };
+  }
+
+  const scoreSnap = await scoresCol(db, roomId, sessionId).get();
+  const sortedIds = seatPlayerIds(data, scoreSnap.docs);
+  if (sortedIds.length < 2) return { status: "noop" };
 
   const dealExtras = { sessionStake, buyIn, dealingRule, sortedIds };
 
@@ -2531,20 +2564,64 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
   return { applied: plan.map((p) => p.playerId) };
 }
 
+export function isBenignBotAdvanceRaceError(err) {
+  const code = err?.code;
+  return code === "failed-precondition" || code === "not-found";
+}
+
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {
+  if (!roomId || !sessionId) {
+    throw new HttpsError("invalid-argument", "roomId and sessionId are required");
+  }
   console.info(
     "[bot-advance]",
     "request",
     JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId }),
   );
   await assertRoomMember(db, roomId, actorId);
-  const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  console.info(
-    "[bot-advance]",
-    "complete",
-    JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
-  );
-  return { status: "ok", ...result };
+  try {
+    const result = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    console.info(
+      "[bot-advance]",
+      "complete",
+      JSON.stringify({ requester: actorId, owner: "server", roomId, sessionId, result }),
+    );
+    return { status: "ok", ...result };
+  } catch (err) {
+    if (isBenignBotAdvanceRaceError(err)) {
+      console.info(
+        "[bot-advance]",
+        "skipped-race",
+        JSON.stringify({
+          requester: actorId,
+          owner: "server",
+          roomId,
+          sessionId,
+          code: err?.code ?? null,
+          message: err?.message ?? String(err),
+        }),
+      );
+      return {
+        status: "ok",
+        skipped: true,
+        reason: err?.message ?? "stale_bot_advance",
+        code: err?.code ?? null,
+      };
+    }
+    console.error(
+      "[bot-advance]",
+      "error",
+      JSON.stringify({
+        requester: actorId,
+        owner: "server",
+        roomId,
+        sessionId,
+        code: err?.code ?? null,
+        message: err?.message ?? String(err),
+      }),
+    );
+    throw err;
+  }
 }
 
 export async function handleVoteCoWinSettlement(

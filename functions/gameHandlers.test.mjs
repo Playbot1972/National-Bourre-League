@@ -1,11 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { HttpsError } from "firebase-functions/v2/https";
 import {
   HAND_ENROLLMENT_MS,
   isRobotPlayerId,
   canActForPlayer,
   buildHandEnrollment,
   deriveWinnersFromTricks,
+  handleAdvanceBots,
+  isBenignBotAdvanceRaceError,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -96,5 +99,34 @@ describe("deriveWinnersFromTricks", () => {
     const result = deriveWinnersFromTricks({ a: 2, b: 2, c: 1 }, ["a", "b", "c"]);
     assert.equal(result.ready, true);
     assert.deepEqual(result.winnerIds.sort(), ["a", "b"]);
+  });
+});
+
+describe("handleAdvanceBots", () => {
+  it("rejects missing roomId or sessionId at handler entry", async () => {
+    const db = {};
+    await assert.rejects(
+      () => handleAdvanceBots(db, { roomId: "", sessionId: "s1", actorId: "u1" }),
+      (err) => err instanceof HttpsError && err.code === "invalid-argument",
+    );
+    await assert.rejects(
+      () => handleAdvanceBots(db, { sessionId: "s1", actorId: "u1" }),
+      (err) => err instanceof HttpsError && err.code === "invalid-argument",
+    );
+  });
+});
+
+describe("isBenignBotAdvanceRaceError", () => {
+  it("treats failed-precondition and not-found as benign races", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition" }), true);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "not-found" }), true);
+  });
+
+  it("does not treat auth, permission, or validation errors as benign", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "unauthenticated" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "permission-denied" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "invalid-argument" }), false);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "internal" }), false);
+    assert.equal(isBenignBotAdvanceRaceError(null), false);
   });
 });
