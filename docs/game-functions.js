@@ -89,8 +89,46 @@ export function gameVoteCoWinSettlement(roomId, sessionId, payload) {
   return callGame("gameVoteCoWinSettlement", { roomId, sessionId, ...payload });
 }
 
-export function gameAdvanceBots(roomId, sessionId) {
-  return callGame("gameAdvanceBots", { roomId, sessionId });
+export async function gameAdvanceBots(roomId, sessionId) {
+  if (!roomId || !sessionId) {
+    const err = new Error("gameAdvanceBots: roomId and sessionId are required");
+    err.code = "invalid-argument";
+    console.warn(
+      "[gameAdvanceBots]",
+      "skip",
+      JSON.stringify({ roomId: roomId ?? null, sessionId: sessionId ?? null }),
+    );
+    throw err;
+  }
+  const payload = { roomId, sessionId };
+  try {
+    const result = await callGame("gameAdvanceBots", payload);
+    console.info(
+      "[gameAdvanceBots]",
+      "ok",
+      JSON.stringify({
+        roomId,
+        sessionId,
+        status: result?.status ?? null,
+        skipped: result?.skipped === true,
+        reason: result?.reason ?? null,
+      }),
+    );
+    return result;
+  } catch (err) {
+    console.warn(
+      "[gameAdvanceBots]",
+      "error",
+      JSON.stringify({
+        roomId,
+        sessionId,
+        code: err?.code ?? null,
+        message: err?.message ?? String(err),
+        details: err?.details ?? null,
+      }),
+    );
+    throw err;
+  }
 }
 
 export function gameFindOrCreatePublicTable(payload) {

@@ -307,6 +307,9 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = await deps.advanceSessionBots(roomId, sessionId, {
         requester: actorId,
         trigger: reason,
+        handNumber: ctx.handNumber ?? null,
+        trickNumber: ctx.trickNumber ?? null,
+        turnPlayerId: ctx.turnPlayerId ?? null,
       });
       logPlayDelay("complete", sessionObj, scores, {
         requester: actorId,
@@ -323,11 +326,16 @@ export function createServerBotAdvanceRuntime(deps) {
         owner: "server",
         roomId,
         sessionId,
+        code: err?.code ?? null,
         message: err?.message ?? String(err),
         action: "error",
         ...ctx,
       });
-      console.warn("advanceSessionBots:", err);
+      console.warn(
+        "advanceSessionBots:",
+        err?.code ?? "unknown",
+        err?.message ?? err,
+      );
       try {
         deps.onAdvanceError?.(sessionObj, scores, actorId, err);
       } catch (fallbackErr) {
