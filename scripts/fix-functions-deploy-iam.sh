@@ -44,6 +44,7 @@ fi
 echo "==> Project roles for ${SA_EMAIL}"
 for ROLE in \
   roles/cloudfunctions.developer \
+  roles/cloudscheduler.admin \
   roles/serviceusage.serviceUsageViewer \
   roles/serviceusage.serviceUsageAdmin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \

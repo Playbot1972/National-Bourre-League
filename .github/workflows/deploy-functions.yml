@@ -88,6 +88,14 @@ jobs:
           gcloud services list --enabled --project "$FIREBASE_PROJECT_ID" \
             --filter="config.name:cloudscheduler.googleapis.com" --format="value(config.name)"
 
+      - name: Prepare gcOrphanRooms scheduler deploy
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
+          bash scripts/ensure-gc-orphan-scheduler-deploy.sh
+
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
@@ -114,4 +122,9 @@ jobs:
           done
           echo "==> Cloud Scheduler jobs (us-central1)"
           gcloud scheduler jobs list --location="$REGION" --project="$FIREBASE_PROJECT_ID" \
-            --format="table(name,schedule,state)" || true
+            --format="table(name,schedule,state)"
+          echo "==> Verifying gcOrphanRooms scheduler job"
+          gcloud scheduler jobs describe firebase-schedule-gcOrphanRooms-us-central1 \
+            --location="$REGION" \
+            --project="$FIREBASE_PROJECT_ID" \
+            --format="yaml(name,schedule,state,timeZone)"
