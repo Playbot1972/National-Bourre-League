@@ -153,7 +153,7 @@ export const onRoomMemberCreatedClearOrphan = onDocumentCreated(
 
 /** Tier A orphan-room GC — zero members + lastMemberLeftAt past grace (72h). */
 export const gcOrphanRooms = onSchedule(
-  { schedule: "every 6 hours", timeZone: "UTC" },
+  { schedule: "every 6 hours", timeZone: "UTC", region: "us-central1" },
   async () => {
     try {
       const result = await runOrphanRoomGc(db);

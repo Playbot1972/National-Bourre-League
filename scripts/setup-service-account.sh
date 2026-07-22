@@ -67,6 +67,7 @@ for ROLE in \
   roles/firebasehosting.admin \
   roles/firebaserules.admin \
   roles/cloudfunctions.developer \
+  roles/cloudscheduler.admin \
   roles/serviceusage.serviceUsageViewer \
   roles/serviceusage.serviceUsageAdmin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
@@ -74,7 +75,7 @@ for ROLE in \
     --role "${ROLE}" \
     --quiet >/dev/null
 done
-echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer + Service Usage Viewer + Service Usage Admin"
+echo "    Firebase Hosting Admin + Firebase Rules Admin + Cloud Functions Developer + Cloud Scheduler Admin + Service Usage Viewer + Service Usage Admin"
 
 APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
 PROJECT_NUMBER="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"

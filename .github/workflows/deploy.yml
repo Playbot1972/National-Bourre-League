@@ -172,6 +172,14 @@ jobs:
           echo "https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com?project=${FIREBASE_PROJECT_ID}"
           exit 1
 
+      - name: Prepare gcOrphanRooms scheduler deploy
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
+          bash scripts/ensure-gc-orphan-scheduler-deploy.sh
+
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
