@@ -33,6 +33,7 @@ APIS=(
   pubsub.googleapis.com
   storage.googleapis.com
   firebaseextensions.googleapis.com
+  cloudscheduler.googleapis.com
   serviceusage.googleapis.com
 )
 
