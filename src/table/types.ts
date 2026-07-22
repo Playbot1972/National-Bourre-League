@@ -199,6 +199,9 @@ export interface TableSessionViewProps {
   rawHeroCards?: SerializedCard[];
   /** True after the first privateHand snapshot (or error) for this session. */
   privateHandReady?: boolean;
+  /** Public-table spectator — watch current hand without seated affordances. */
+  watchOnly?: boolean;
+  watchOnlyMessage?: string;
   /** True when all five tricks are recorded for the current hand. */
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;

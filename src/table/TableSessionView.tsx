@@ -75,6 +75,8 @@ export function TableSessionView({
   handComplete = false,
   actionFeedback,
   actions,
+  watchOnly = false,
+  watchOnlyMessage,
 }: TableSessionViewProps) {
   const { settings } = useTableTheme();
   const nativeMobile = useMobileTable();
@@ -372,6 +374,7 @@ export function TableSessionView({
     session.participantIds.includes(currentUserId) &&
     (session.phase === "draw" || session.phase === "play");
   const showRebuyOffer =
+    !watchOnly &&
     rebuyEnabled &&
     !session.isFinal &&
     !lockedInLiveHand &&
@@ -385,6 +388,7 @@ export function TableSessionView({
     handComplete,
     enrollmentActive,
     selfPlayer,
+    watchOnly,
   });
 
   const localActionRequired = isLocalActionRequiredNow({
@@ -394,6 +398,7 @@ export function TableSessionView({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    watchOnly,
   });
 
   const turnReminderActivityKey = localActionActivityKey({
@@ -403,6 +408,7 @@ export function TableSessionView({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    watchOnly,
   });
 
   const { countdown: turnCountdown } = useTurnCountdown({
@@ -574,6 +580,7 @@ export function TableSessionView({
   }, [session.handNumber, session.sessionId]);
 
   useEffect(() => {
+    if (watchOnly) return;
     if (session.phase !== "reveal") return;
     if (handPresentation.anteAnimActive || handPresentation.trumpRevealActive) return;
     if (handPresentation.phase !== "drawPlayer" && handPresentation.phase !== "drawReady") return;
@@ -596,6 +603,7 @@ export function TableSessionView({
     handPresentation.trumpRevealActive,
     handPresentation.phase,
     actions,
+    watchOnly,
   ]);
 
   useEffect(() => {
@@ -637,6 +645,16 @@ export function TableSessionView({
           {phaseLabel}
         </span>
       </header>
+
+      {watchOnly ? (
+        <div
+          className="btable-session__watch-banner"
+          role="status"
+          data-testid="watch-only-banner"
+        >
+          {watchOnlyMessage ?? "Watching this hand — you'll join the next deal."}
+        </div>
+      ) : null}
 
       {!nativeMobile && (
         <p className="btable-session__rotate-hint" role="note">
