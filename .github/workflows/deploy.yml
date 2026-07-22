@@ -146,6 +146,23 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: bash scripts/ci-firebase-hosting-deploy.sh firestore:rules
 
+      - name: Enable Cloud Scheduler API
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          chmod +x scripts/enable-cloud-scheduler-api.sh
+          SA_EMAIL="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,'utf8')).client_email")"
+          echo "Deploy service account: ${SA_EMAIL}"
+          if ! bash scripts/enable-cloud-scheduler-api.sh; then
+            echo "::warning::Could not enable cloudscheduler.googleapis.com — trying IAM grant + retry"
+            gcloud projects add-iam-policy-binding "${FIREBASE_PROJECT_ID}" \
+              --member="serviceAccount:${SA_EMAIL}" \
+              --role="roles/serviceusage.serviceUsageAdmin" \
+              --quiet 2>/dev/null || true
+            bash scripts/enable-cloud-scheduler-api.sh
+          fi
+
       - name: Deploy Cloud Functions
         if: steps.cfg.outputs.ready == 'true'
         env:
