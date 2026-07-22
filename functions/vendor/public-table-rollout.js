@@ -10,10 +10,10 @@
 import { roomHasMixedPublicTables } from "./public-table-schema.js";
 
 /**
- * Client-side master switch. Intentionally false until Phase 3 rollout.
- * Do not enable in production without matchmaking + rules soak.
+ * Client-side master switch for Play Now public matchmaking.
+ * Enabled deliberately after Phase 3 server soak + client integration (#631).
  */
-export const MIXED_PUBLIC_TABLES_CLIENT_ENABLED = false;
+export const MIXED_PUBLIC_TABLES_CLIENT_ENABLED = true;
 
 /**
  * Server-side master switch (Cloud Functions). Defaults false; set env
