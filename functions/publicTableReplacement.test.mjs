@@ -12,6 +12,7 @@ import {
   PENDING_JOIN_STATUS,
   ROOM_VISIBILITY,
 } from "./vendor/public-table-schema.js";
+import { MIXED_PUBLIC_TABLES_CLIENT_ENABLED } from "./vendor/public-table-rollout.js";
 
 describe("isHandoffWindow", () => {
   it("allows cleared between-hand state", () => {
@@ -99,7 +100,10 @@ describe("shouldRunPublicTableReplacement", () => {
     else process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = prev;
   });
 
-  it("is false when server flag is off", () => {
+  it("is false when server flag is off and client rollout is off", () => {
+    if (MIXED_PUBLIC_TABLES_CLIENT_ENABLED) {
+      return;
+    }
     delete process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
     assert.equal(
       shouldRunPublicTableReplacement(

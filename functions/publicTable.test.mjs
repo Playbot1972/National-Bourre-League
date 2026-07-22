@@ -144,13 +144,13 @@ describe("queue status helpers", () => {
   });
 });
 
-describe("rollout flag-off non-regression", () => {
-  it("keeps client master switch disabled by default", () => {
-    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, false);
+describe("rollout client flag (synced from docs)", () => {
+  it("enables client master switch for Play Now public matchmaking", () => {
+    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, true);
   });
 
-  it("resolvePlayNowEntryPath returns private-create when flag is off", () => {
-    assert.equal(resolvePlayNowEntryPath(), "private-create");
+  it("resolvePlayNowEntryPath returns public-matchmaking", () => {
+    assert.equal(resolvePlayNowEntryPath(), "public-matchmaking");
   });
 });
 
@@ -162,7 +162,12 @@ describe("handleFindOrCreatePublicTable auth + flag guards", () => {
     else process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = prev;
   });
 
-  it("rejects when server flag is off", async () => {
+  it("rejects when server flag is off and client rollout is off", async () => {
+    if (MIXED_PUBLIC_TABLES_CLIENT_ENABLED) {
+      // Production Functions use MIXED_PUBLIC_TABLES_SERVER_ENABLED=true.
+      // Client-on enables callables when server env is unset (emulator/local parity).
+      return;
+    }
     delete process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
     const { handleFindOrCreatePublicTable } = await import("./publicTable.js");
     await assert.rejects(

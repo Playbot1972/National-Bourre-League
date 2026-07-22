@@ -56,49 +56,43 @@ describe("public-table schema contracts", () => {
   });
 });
 
-describe("public-table rollout guard (flag off by default)", () => {
-  it("keeps client master switch disabled in Phase 2", () => {
-    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, false);
+describe("public-table rollout guard (client flag on)", () => {
+  it("enables client master switch for Play Now public matchmaking", () => {
+    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, true);
   });
 
-  it("resolvePlayNowEntryPath returns private-create when flag is off", () => {
-    assert.equal(resolvePlayNowEntryPath(), "private-create");
+  it("resolvePlayNowEntryPath returns public-matchmaking when flag is on", () => {
+    assert.equal(resolvePlayNowEntryPath(), "public-matchmaking");
   });
 
-  it("would return public-matchmaking when client flag is enabled (contract)", () => {
-    // Document Phase 3 dispatch without mutating the shipped default.
-    const pathIfEnabled = MIXED_PUBLIC_TABLES_CLIENT_ENABLED ? "public-matchmaking" : "private-create";
-    assert.equal(pathIfEnabled, "private-create");
-  });
-
-  it("does not enable rollout for flagged rooms while client switch is off", () => {
+  it("enables rollout for flagged rooms when client switch is on", () => {
     assert.equal(
       isMixedPublicTablesRolloutEnabled({ features: { mixedPublicTables: true } }),
-      false,
+      true,
     );
   });
 
-  it("detects publicTable session marker without enabling flows", () => {
+  it("detects publicTable session marker", () => {
     assert.equal(isPublicTableSession({ publicTable: true }), true);
     assert.equal(isPublicTableSession({}), false);
   });
 });
 
-describe("Play Now flag-off behavior contract", () => {
-  it("private-create path is the only Play Now entry when rollout is disabled", () => {
+describe("Play Now flag-on behavior contract", () => {
+  it("public-matchmaking path is the Play Now entry when rollout is enabled", () => {
     const path = resolvePlayNowEntryPath();
-    assert.equal(path, "private-create");
-    assert.notEqual(path, "public-matchmaking");
+    assert.equal(path, "public-matchmaking");
+    assert.notEqual(path, "private-create");
   });
 });
 
-describe("public Play Now client integration (code-complete, flag off)", () => {
-  it("keeps client master switch disabled while public path is wired", () => {
-    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, false);
-    assert.equal(resolvePlayNowEntryPath(), "private-create");
+describe("public Play Now client integration", () => {
+  it("routes Play Now to public matchmaking with client flag on", () => {
+    assert.equal(MIXED_PUBLIC_TABLES_CLIENT_ENABLED, true);
+    assert.equal(resolvePlayNowEntryPath(), "public-matchmaking");
   });
 
-  it("app.js wires public handoff and queue cleanup behind the rollout gate", () => {
+  it("app.js wires public handoff and queue cleanup", () => {
     const appJs = readFileSync(join(process.cwd(), "docs/app.js"), "utf8");
     assert.match(appJs, /triggerSessionPlay\("play-now-public"\)/);
     assert.match(appJs, /gameLeavePublicTable/);

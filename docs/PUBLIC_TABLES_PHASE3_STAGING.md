@@ -1,7 +1,7 @@
 # Phase 3 public tables — staging soak signoff
 
-> **Staging approved · User-facing rollout gated**  
-> Server flag on · Client flag off · Play Now private-create only
+> **Client flag-on rollout**  
+> Server flag on · Client flag **ON** (Play Now → public matchmaking) · Post-deploy smoke required
 
 ## Signoff record
 
@@ -16,7 +16,7 @@
 | Flag | Staging | User-facing |
 |------|---------|-------------|
 | Server (`MIXED_PUBLIC_TABLES_SERVER_ENABLED`) | ON | Policy decision |
-| Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | OFF | OFF until go/no-go; public Play Now path code-complete in `docs/app.js` |
+| Client (`MIXED_PUBLIC_TABLES_CLIENT_ENABLED`) | ON | Play Now → `public-matchmaking` via `gameFindOrCreatePublicTable` |
 
 ### Open operational confirmations
 
@@ -34,9 +34,9 @@
 ### Setup (once, at soak start)
 
 - [x] Server flag on in staging *(verified via `MIXED_PUBLIC_TABLES_SERVER_ENABLED=true` soak run; confirm deployed staging Functions env)*
-- [x] Client flag off in deployed build *(repo: `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=false`)*
-- [x] Public Play Now client path code-complete behind flag *(handoff + `gameLeavePublicTable` cleanup in `docs/app.js`; not user-visible until flag on)*
-- [x] Play Now → private-create only *(repo: `resolvePlayNowEntryPath()` → `private-create`)*
+- [x] Client flag on in deployed build *(repo: `MIXED_PUBLIC_TABLES_CLIENT_ENABLED=true`)*
+- [x] Public Play Now client path code-complete *(handoff + `gameLeavePublicTable` cleanup in `docs/app.js`)*
+- [x] Play Now → public-matchmaking when client flag on *(repo: `resolvePlayNowEntryPath()` → `public-matchmaking`)*
 - [x] Authenticated test accounts or internal tooling only *(Day 1: internal handler soak)*
 
 ### Daily spot-check
@@ -303,4 +303,34 @@ Client enablement is a **separate release decision**. Consider only when **all**
 4. **Rollback:** Client flag off reverts user exposure without Functions redeploy; server flag can be disabled independently.
 5. **Client enablement:** Separate release — staging client flag first, then production.
 
-Phase 3 backend is staging-approved. User-facing public matchmaking is **not** available until soak completes, go/no-go passes, and policy approves client enablement.
+Phase 3 backend is staging-approved. **Run Section F production smoke after each client-flag-on hosting deploy** before policy signoff.
+
+---
+
+## F. Client flag-on production smoke (post-deploy)
+
+Run on **https://booray.win/social/** immediately after hosting deploy merges this flag-on build.
+
+| Step | Action | Pass signal |
+|------|--------|-------------|
+| 1 | Sign in with a real account | Session shows display name; no auth errors |
+| 2 | Tap **Play Now** | Live table opens (not stuck on silent/blank room detail); enrollment or play UI visible |
+| 3 | Tap **Back to rooms** (or leave table overlay) | Returns to room list without error toast |
+| 4 | Tap **Play Now** again | Succeeds — no `different joinId` / queue carryover error |
+| 5 | Open the public table room → **Leave room** → confirm | Room removed from list |
+| 6 | Tap **Play Now** again | Succeeds — fresh table |
+| 7 | **Private room regression** — Create room + invite join (or join-by-code) | Private create/join/play unchanged |
+
+**Stop / rollback** if any step fails. Do not record policy signoff until all seven pass.
+
+---
+
+## G. Client flag-on rollback
+
+If public Play Now misbehaves after enablement:
+
+1. Set `MIXED_PUBLIC_TABLES_CLIENT_ENABLED = false` in `docs/public-table-rollout.js`.
+2. Redeploy **hosting only** (`npm run build:hosting` + CI deploy, or hosting workflow).
+3. **Do not** change `MIXED_PUBLIC_TABLES_SERVER_ENABLED` on Functions — server callables and soak remain valid; users revert to private-create Play Now only.
+
+No Functions redeploy required for client rollback.
