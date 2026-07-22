@@ -1,7 +1,14 @@
 import { initializeApp } from "firebase-admin/app";
 import { onCall } from "firebase-functions/v2/https";
+import { onDocumentCreated, onDocumentDeleted } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2/options";
 import { getFirestore } from "firebase-admin/firestore";
+import {
+  handleRoomMemberCreated,
+  handleRoomMemberDeleted,
+  runOrphanRoomGc,
+} from "./orphanRoomCleanup.js";
 import {
   handleAdvanceBots,
   handleAdvanceHandReveal,
@@ -103,3 +110,57 @@ export const gameFindOrCreatePublicTable = wrap(
 );
 export const gameJoinPublicTable = wrap(handleJoinPublicTable, "gameJoinPublicTable");
 export const gameLeavePublicTable = wrap(handleLeavePublicTable, "gameLeavePublicTable");
+
+/** Stamp lastMemberLeftAt when the final roomMembers row is removed. */
+export const onRoomMemberDeletedSignal = onDocumentDeleted(
+  "roomMembers/{memberDocId}",
+  async (event) => {
+    const data = event.data?.data();
+    if (!data?.roomId) return;
+    try {
+      const outcome = await handleRoomMemberDeleted(db, data);
+      if (outcome.marked) {
+        console.info(
+          "[onRoomMemberDeletedSignal]",
+          JSON.stringify({ roomId: data.roomId, outcome }),
+        );
+      }
+    } catch (err) {
+      console.error(
+        "[onRoomMemberDeletedSignal]",
+        JSON.stringify({ roomId: data.roomId, error: err?.message ?? String(err) }),
+      );
+    }
+  },
+);
+
+/** Clear orphan signal when a member (re)joins. */
+export const onRoomMemberCreatedClearOrphan = onDocumentCreated(
+  "roomMembers/{memberDocId}",
+  async (event) => {
+    const data = event.data?.data();
+    if (!data?.roomId) return;
+    try {
+      await handleRoomMemberCreated(db, data);
+    } catch (err) {
+      console.error(
+        "[onRoomMemberCreatedClearOrphan]",
+        JSON.stringify({ roomId: data.roomId, error: err?.message ?? String(err) }),
+      );
+    }
+  },
+);
+
+/** Tier A orphan-room GC — zero members + lastMemberLeftAt past grace (72h). */
+export const gcOrphanRooms = onSchedule(
+  { schedule: "every 6 hours", timeZone: "UTC" },
+  async () => {
+    try {
+      const result = await runOrphanRoomGc(db);
+      console.info("[gcOrphanRooms]", JSON.stringify(result));
+    } catch (err) {
+      console.error("[gcOrphanRooms]", err?.message ?? String(err));
+      throw err;
+    }
+  },
+);
