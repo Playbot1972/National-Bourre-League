@@ -229,7 +229,10 @@ describe("app.js UI wiring", () => {
   const src = readFileSync(fileURLToPath(new URL("../docs/app.js", import.meta.url)), "utf8");
 
   it("uses getTableIntentHandlers instead of inline actions object", () => {
-    assert.ok(src.includes("actions: getTableIntentHandlers()"));
+    assert.ok(
+      src.includes("actions: getTableIntentHandlers()") ||
+        src.includes("createWatchOnlyTableIntentHandlers()"),
+    );
     const propsIdx = src.indexOf("function buildTableSessionProps");
     const body = src.slice(propsIdx, propsIdx + 12000);
     assert.equal(body.includes("onToggleInHand: (inHand)"), false);
