@@ -44,7 +44,8 @@ fi
 echo "==> Project roles for ${SA_EMAIL}"
 for ROLE in \
   roles/cloudfunctions.developer \
-  roles/serviceusage.serviceUsageViewer; do
+  roles/serviceusage.serviceUsageViewer \
+  roles/serviceusage.serviceUsageAdmin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SA_EMAIL}" \
     --role "${ROLE}" \
@@ -64,6 +65,10 @@ grant_service_account_user() {
 grant_service_account_user "${APP_ENGINE_SA}"
 grant_service_account_user "${COMPUTE_SA}"
 
+echo ""
+echo "Also enable Cloud Scheduler API (required for gcOrphanRooms onSchedule):"
+echo "  npm run enable:functions-apis"
+echo "  or: gcloud services enable cloudscheduler.googleapis.com --project=${PROJECT_ID}"
 echo ""
 echo "Done. Re-run deploy:"
 echo "  gh workflow run deploy.yml --ref main"

@@ -1,0 +1,117 @@
+name: Deploy Functions Only
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-deploy-functions
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-functions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Firebase secrets
+        id: cfg
+        env:
+          PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          missing=""
+          for name in PROJECT_ID SERVICE_ACCOUNT; do
+            eval "val=\$$name"
+            if [ -z "$val" ]; then
+              missing="$missing FIREBASE_${name}"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Functions deploy blocked — missing GitHub Actions secrets:$missing"
+            exit 1
+          fi
+          printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-sa.json"
+          node scripts/validate-service-account-key.mjs "$RUNNER_TEMP/firebase-sa.json" --project "$PROJECT_ID"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        if: steps.cfg.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Install Cloud Functions dependencies
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm ci --prefix functions --omit=dev
+
+      - name: Build Cloud Functions bundle
+        if: steps.cfg.outputs.ready == 'true'
+        run: npm run build:functions
+
+      - name: Authenticate to Google Cloud
+        if: steps.cfg.outputs.ready == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Setup gcloud SDK
+        if: steps.cfg.outputs.ready == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Enable Cloud Scheduler API
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          echo "==> Checking cloudscheduler.googleapis.com"
+          if gcloud services list --enabled --project "$FIREBASE_PROJECT_ID" \
+            --filter="config.name:cloudscheduler.googleapis.com" --format="value(config.name)" | grep -q cloudscheduler; then
+            echo "    Already enabled"
+          else
+            echo "    Enabling cloudscheduler.googleapis.com"
+            gcloud services enable cloudscheduler.googleapis.com --project "$FIREBASE_PROJECT_ID" --quiet
+          fi
+          gcloud services list --enabled --project "$FIREBASE_PROJECT_ID" \
+            --filter="config.name:cloudscheduler.googleapis.com" --format="value(config.name)"
+
+      - name: Deploy Cloud Functions
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          chmod +x scripts/ci-firebase-hosting-deploy.sh
+          bash scripts/ci-firebase-hosting-deploy.sh functions --force
+
+      - name: Verify orphan-room exports
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          REGION=us-central1
+          for fn in onRoomMemberDeletedSignal onRoomMemberCreatedClearOrphan gcOrphanRooms; do
+            echo "==> Checking function: $fn"
+            gcloud functions describe "$fn" \
+              --gen2 \
+              --region="$REGION" \
+              --project="$FIREBASE_PROJECT_ID" \
+              --format="value(name,state)"
+          done
+          echo "==> Cloud Scheduler jobs (us-central1)"
+          gcloud scheduler jobs list --location="$REGION" --project="$FIREBASE_PROJECT_ID" \
+            --format="table(name,schedule,state)" || true
