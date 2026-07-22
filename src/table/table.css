@@ -14,6 +14,19 @@
   flex-shrink: 0;
 }
 
+.btable-session__watch-banner {
+  flex-shrink: 0;
+  margin: 0 12px 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--btable-accent, #d4af37) 45%, transparent);
+  background: color-mix(in srgb, var(--btable-surface-elevated, #1a2332) 92%, #000 8%);
+  color: var(--btable-text, #f4f1ea);
+  font-size: 0.875rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .btable-session__title {
   margin: 0 0 4px;
   font-family: Georgia, serif;

@@ -16,6 +16,7 @@ export interface LocalActionInput {
   >;
   suppressTurn: boolean;
   handComplete: boolean;
+  watchOnly?: boolean;
 }
 
 /**
@@ -24,7 +25,7 @@ export interface LocalActionInput {
  */
 export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   const uid = input.currentUserId;
-  if (!uid || input.handComplete) return false;
+  if (!uid || input.handComplete || input.watchOnly) return false;
 
   const self = input.selfPlayer;
   const lockedInLiveHand = isPlayerLockedInLiveHand({
@@ -89,7 +90,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
 /** Hero draw/play controls — same gate as server `canSubmitHandAction`. */
 export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
   const uid = input.currentUserId;
-  if (!uid || input.handComplete || input.suppressTurn) return false;
+  if (!uid || input.handComplete || input.suppressTurn || input.watchOnly) return false;
 
   const snapshot = buildHandFlowSnapshot({
     session: {

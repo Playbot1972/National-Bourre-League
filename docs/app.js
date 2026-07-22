@@ -211,6 +211,11 @@ import {
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
 import { roomHasMixedPublicTables } from "./public-table-schema.js";
+import {
+  createWatchOnlyTableIntentHandlers,
+  isPublicTableWatchOnly,
+  PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
+} from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable } from "./game-functions.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
@@ -1812,10 +1817,12 @@ function restoreSessionCleanupTimers(roomId) {
   }
 }
 
-function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
+function mergeScoresWithMembers(scores, members, sessionPlayers = [], sessionData = null) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
+  const scoreIds = new Set(scores.map((s) => s.playerId).filter(Boolean));
   for (const m of members) {
     if (!m.userId || map.has(m.userId)) continue;
+    if (isPublicTableWatchOnly(sessionData, m.userId, { scorePlayerIds: scoreIds })) continue;
     map.set(m.userId, {
       playerId: m.userId,
       displayName: m.displayName,
@@ -1879,11 +1886,21 @@ async function refreshOpenSessionFromServer(roomId, sessionId) {
 
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
-  return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+  return mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    sessionObj.players || [],
+    sessionObj,
+  ).length;
 }
 
 function tableReadyRoster(sessionObj) {
-  return mergeScoresWithMembers(openScores, currentMembers, sessionObj?.players || []).map(
+  return mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    sessionObj?.players || [],
+    sessionObj,
+  ).map(
     (sc) => ({
       playerId: sc.playerId,
       displayName: sc.displayName,
@@ -4072,13 +4089,22 @@ function driveClientBotsForCurrentTurn(s, scores, actorId, { reason = "fallback"
 }
 
 function buildTableSessionProps(s) {
-  const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
+  const mergedScores = mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    s.players || [],
+    s,
+  );
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
   const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
   const myUid = session?.uid ?? null;
+  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
   let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
-  if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
+  if (watchOnly) {
+    displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
+  } else if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
     displayScores = [
       ...displayScores,
       {
@@ -4098,13 +4124,16 @@ function buildTableSessionProps(s) {
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
   const tricksThisHand = currentHand?.tricksByPlayer || {};
   const cardsDealt = isHandCardsDealtPhase(handPhase);
-  const privateHeroCards = openPrivateHand?.cards ?? [];
+  const privateHeroCards = watchOnly ? [] : (openPrivateHand?.cards ?? []);
   const heroCardList =
-    myUid && cardsDealt
+    !watchOnly && myUid && cardsDealt
       ? buildHeroCardsForTable(currentHand, privateHeroCards, myUid, handPhase)
       : privateHeroCards;
   const legalPlayIndices =
-    cardsDealt && handPhase === "play" && myUid === currentHand?.turnPlayerId
+    !watchOnly &&
+    cardsDealt &&
+    handPhase === "play" &&
+    myUid === currentHand?.turnPlayerId
       ? computeLegalPlayIndices(currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
@@ -4360,7 +4389,9 @@ function buildTableSessionProps(s) {
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
-    actions: getTableIntentHandlers(),
+    watchOnly,
+    watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
+    actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
   maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback);
   return tableProps;

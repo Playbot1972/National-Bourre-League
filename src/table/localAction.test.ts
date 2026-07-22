@@ -170,6 +170,43 @@ describe("isLocalActionRequiredNow", () => {
       true,
     );
   });
+
+  it("blocks local action prompts while public-table watch-only", () => {
+    const input = {
+      currentUserId: "me",
+      enrollmentActive: false,
+      selfPlayer: { ...self, canToggleInHand: true },
+      session: {
+        phase: "play",
+        turnPlayerId: "me",
+        drawCompletedIds: ["me"],
+        participantIds: ["me", "p2"],
+      },
+      suppressTurn: false,
+      handComplete: false,
+      watchOnly: true,
+    };
+    assert.equal(isLocalActionRequiredNow(input), false);
+    assert.equal(isHeroDrawOrPlayTurn(input), false);
+  });
+
+  it("allows seated play after watch-only clears at promotion", () => {
+    const input = {
+      currentUserId: "me",
+      enrollmentActive: false,
+      selfPlayer: self,
+      session: {
+        phase: "play",
+        turnPlayerId: "me",
+        drawCompletedIds: ["me"],
+        participantIds: ["me", "p2"],
+      },
+      suppressTurn: false,
+      handComplete: false,
+      watchOnly: false,
+    };
+    assert.equal(isHeroDrawOrPlayTurn(input), true);
+  });
 });
 
 describe("localActionActivityKey", () => {

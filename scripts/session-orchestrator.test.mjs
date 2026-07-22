@@ -48,7 +48,10 @@ describe("session orchestrator", () => {
     assert.ok(idx >= 0);
     const body = intentsSrc.slice(idx, idx + 1200);
     assert.equal(body.includes("processRobotActions"), false);
-    assert.equal(src.includes("actions: getTableIntentHandlers()"), true);
+    assert.ok(
+      src.includes("actions: getTableIntentHandlers()") ||
+        src.includes("createWatchOnlyTableIntentHandlers()"),
+    );
   });
 
   it("has orchestration storm coalesce", () => {
