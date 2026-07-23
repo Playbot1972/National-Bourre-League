@@ -16,6 +16,8 @@ export interface UseTableDealPresentationInput {
   session: TableSessionData;
   heroCards: SerializedCard[];
   privateHandReady?: boolean;
+  /** From hand presentation — deal must not start during trump reveal hold. */
+  dealPresentationAllowed?: boolean;
   tableRootRef: React.RefObject<HTMLElement | null>;
 }
 
@@ -23,6 +25,7 @@ export function useTableDealPresentation({
   session,
   heroCards,
   privateHandReady = false,
+  dealPresentationAllowed = true,
   tableRootRef,
 }: UseTableDealPresentationInput): boolean {
   const [clockwiseDealing, setClockwiseDealing] = useState(false);
@@ -54,7 +57,7 @@ export function useTableDealPresentation({
       session.phase === "play";
 
     const cardCount = heroCards.length;
-    if (!inDealPhase || !privateHandReady || cardCount < CARDS_PER_PLAYER) {
+    if (!inDealPhase || !privateHandReady || !dealPresentationAllowed || cardCount < CARDS_PER_PLAYER) {
       return;
     }
 
@@ -117,6 +120,7 @@ export function useTableDealPresentation({
     session.participantIds,
     heroCards.length,
     privateHandReady,
+    dealPresentationAllowed,
     tableRootRef,
   ]);
 

@@ -44,6 +44,8 @@ export interface HandPresentationModel {
   nextHandResetActive: boolean;
   /** Latched when the server reports handComplete; cleared when settle begins. */
   pendingHandSettle: boolean;
+  /** Clockwise deal motion may start (trump reveal hold finished). */
+  dealPresentationAllowed: boolean;
   suppressTurnIndicator: boolean;
   displayPotAmount: number;
   isPresenting: boolean;
@@ -80,6 +82,15 @@ export interface HandPresentationStore {
 export function trumpKey(card: SerializedCard | null): string {
   if (!card?.rank || !card?.suit) return "";
   return `${card.rank}-${card.suit}`;
+}
+
+/** True when major deal motion may start (trump reveal hold complete). */
+export function isDealPresentationAllowed(
+  store: Pick<HandPresentationStore, "phase" | "trumpRevealActive" | "trumpMergeActive">,
+): boolean {
+  if (store.trumpRevealActive) return false;
+  if (store.phase === "trumpReveal" || store.phase === "trumpMerge") return false;
+  return true;
 }
 
 export function isHandPresentingPhase(phase: HandPresentationPhase): boolean {
@@ -891,6 +902,7 @@ export function buildHandPresentationModel(
     settleCarryOver: store.settleCarryOver,
     nextHandResetActive: store.nextHandResetActive,
     pendingHandSettle: store.pendingHandSettle,
+    dealPresentationAllowed: isDealPresentationAllowed(store),
     suppressTurnIndicator:
       store.pendingHandSettle ||
       store.phase === "trumpReveal" ||
