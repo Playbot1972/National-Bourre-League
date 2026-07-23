@@ -1196,6 +1196,7 @@ describe("1–8 player bourré settlement (PR #344 invariant)", () => {
 
   it("5 players at $20 ante: bust bourré shortfall defers remainder, chips conserved", () => {
     const ante = 20;
+    const handPot = ante * 5;
     const pids = participantsFor(5);
     const tricksByPlayer = renameTricks(winTricksByCount[5], pids);
     const scoreById = Object.fromEntries(pids.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
@@ -1208,8 +1209,8 @@ describe("1–8 player bourré settlement (PR #344 invariant)", () => {
       tricksByPlayer,
     });
     assert.equal(carryOverPot, 0);
-    assert.equal(scoreById.p4.fundingContribution, 20);
-    assert.equal(scoreById.p4.bourreReplacementDue, 20);
+    assert.equal(scoreById.p4.fundingContribution, handPot);
+    assert.equal(scoreById.p4.bourreReplacementDue, handPot - (buyIn - ante));
     assert.equal(
       sessionChipTotal(scoreById, { carryOverPot, buyInFallback: buyIn }),
       buyIn * 5,
