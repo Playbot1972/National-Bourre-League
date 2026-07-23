@@ -22,6 +22,7 @@ import {
   settleCompletedHand,
   validateMoneyInvariants,
 } from "./canonical";
+import { SETTLEMENT_AUDIT_DEBUG } from "./settlementAudit";
 
 export { mergeNextDealFundingIntoScoreById };
 
@@ -128,8 +129,6 @@ export function recordHandSettlement(
     const remainder = bourreRemainders[pid];
     if (remainder != null && remainder > 0 && nextDealFunding.byPlayer[pid]) {
       nextDealFunding.byPlayer[pid].bourreReplacementDue = remainder;
-      nextDealFunding.byPlayer[pid].fundingContribution = remainder;
-      nextDealFunding.byPlayer[pid].fundingReason = "bourre_full_pot_penalty";
     }
   }
 
@@ -183,6 +182,29 @@ export function recordHandSettlement(
     carryInBeforeSettlement: carryIn,
     postedAntesBeforeSettlement: postedAntes,
   });
+
+  if (SETTLEMENT_AUDIT_DEBUG) {
+    console.info("[settlement-audit:pre-settle]", {
+      mode,
+      winners,
+      participants,
+      carryIn,
+      postedAntes,
+      stackByPlayer,
+      completedHandPot: potState.maxWinThisHand,
+      bourreIds,
+    });
+    console.info("[settlement-audit:post-settle]", {
+      carryOverPot: phase1.carryoverPot,
+      bankrolls,
+      appliedDeltas,
+      nextDealFunding: {
+        nextPot: nextDealFunding.nextPot,
+        bourrePlayerIds: nextDealFunding.bourrePlayerIds,
+        fundingContributionByPlayer: nextDealFunding.fundingContributionByPlayer,
+      },
+    });
+  }
 
   const nominalDeltas = { ...appliedDeltas };
   const bourreMatch = bourreIds.length * potState.maxWinThisHand;

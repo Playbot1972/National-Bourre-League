@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   assertChipConservation,
   collectHandAntes,
+  collectFundingForHandStart,
   collectNextHandAntes,
   handAnteContribution,
   isChipConserved,
@@ -164,6 +165,42 @@ describe("money engine — edge cases", () => {
     assert.ok(settlement.scoreById.human.bankroll! > buyIn - 1);
     assert.ok(settlement.scoreById.bot1.bankroll! > buyIn - 1);
     assert.equal(settlement.carryOverPot, 0);
+  });
+
+  it("5p bourré partial stack: deal collects full stack, defers remainder", () => {
+    const five = ["p0", "p1", "p2", "p3", "p4"];
+    const scoreById = Object.fromEntries(five.map((pid) => [pid, { bankroll: buyIn, net: 0 }]));
+    const deal = collectHandAntes({
+      participants: five,
+      scoreById,
+      buyInFallback: buyIn,
+      stakeForPlayer: () => ante,
+    });
+    const bankrolled = Object.fromEntries(
+      five.map((pid) => [pid, { ...scoreById[pid], bankroll: deal.bankrolls[pid] }]),
+    );
+    const settlement = recordHandSettlement({
+      mode: "win",
+      winners: ["p0"],
+      participants: five,
+      tricksByPlayer: { p0: 2, p1: 1, p2: 1, p3: 1, p4: 0 },
+      scoreById: bankrolled,
+      sessionStake: ante,
+      postedAntes: deal.postedAntes,
+      buyInFallback: buyIn,
+    });
+    assert.equal(settlement.nextDealFunding.byPlayer.p4.fundingContribution, 100);
+    const nextDeal = collectFundingForHandStart({
+      scoreById: settlement.scoreById,
+      nextDealFunding: settlement.nextDealFunding,
+      carryOverPot: settlement.carryOverPot,
+      participantIds: five,
+      sessionStake: ante,
+      buyInFallback: buyIn,
+    });
+    assert.equal(nextDeal.postedAntes.p4, 80);
+    assert.equal(nextDeal.bankrolls.p4, 0);
+    assert.equal(settlement.scoreById.p4.bourreReplacementDue, 20);
   });
 
   it("bourré bust shortfall defers bourreReplacementDue and conserves chips", () => {
