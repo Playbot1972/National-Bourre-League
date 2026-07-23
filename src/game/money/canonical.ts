@@ -314,14 +314,11 @@ export function computeFundingContributionByPlayer(
 
   for (const pid of participantIds) {
     const remainder = bourreReplacementRemainderByPlayer[pid];
-    if (remainder != null && remainder > 0) {
-      fundingContributionByPlayer[pid] = remainder;
-      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
-      continue;
-    }
-
     if (bourrePlayerIds.includes(pid)) {
       fundingContributionByPlayer[pid] = pot;
+      fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
+    } else if (remainder != null && remainder > 0) {
+      fundingContributionByPlayer[pid] = remainder;
       fundingReasonByPlayer[pid] = "bourre_full_pot_penalty";
     } else if (tie && !splitPot && tiedWinnerIds.includes(pid)) {
       fundingContributionByPlayer[pid] = 0;
