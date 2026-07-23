@@ -71,6 +71,8 @@ import {
   enforcePublicTableIdlePolicy,
   isIdleSitOutBlockingEnrollment,
   recordPublicTablePlayerActivity,
+  resolveIdleSitOutMidHandAction,
+  shouldEnforcePublicTableIdle,
 } from "./publicTableIdle.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1289,6 +1291,53 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     }
 
     const snapshot = buildHandFlowSnapshot({ session: freshSession });
+    if (shouldEnforcePublicTableIdle(roomSnap.data() ?? {}, freshSession)) {
+      const idleMidHand = resolveIdleSitOutMidHandAction(freshSession, scoreById);
+      if (idleMidHand) {
+        console.info(
+          "[idle-midhand]",
+          "auto-action",
+          JSON.stringify({
+            roomId,
+            sessionId,
+            requester: actorId,
+            action: idleMidHand.action,
+            playerId: idleMidHand.playerId,
+            phase: idleMidHand.phase,
+          }),
+        );
+        steps.push({
+          kind: `idle_${idleMidHand.action}`,
+          turnPlayerId: idleMidHand.playerId,
+          phase: idleMidHand.phase,
+        });
+        switch (idleMidHand.action) {
+          case "draw_fold":
+            await handleFoldDraw(db, {
+              roomId,
+              sessionId,
+              playerId: idleMidHand.playerId,
+              actorId,
+            });
+            continue;
+          case "decision_pass":
+            await handleSetHandParticipation(db, {
+              roomId,
+              sessionId,
+              playerId: idleMidHand.playerId,
+              inHand: false,
+              actorId,
+            });
+            continue;
+          case "play_bot":
+            await executeBotPlay(db, roomId, sessionId, idleMidHand.playerId, actorId);
+            continue;
+          default:
+            break;
+        }
+      }
+    }
+
     const hint = resolveBotAdvanceHint({
       snapshot,
       session: freshSession,
