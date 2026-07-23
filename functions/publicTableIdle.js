@@ -26,6 +26,8 @@ import {
 import { pickUniqueRobotNames } from "./vendor/play-now.js";
 import { deriveScoreNet, resolveSessionBuyIn } from "./vendor/bourre-rules.js";
 import { isHandoffWindow } from "./publicTableReplacement.js";
+import { buildHandFlowSnapshot, HAND_FLOW_PHASE } from "./vendor/session-startup.js";
+import { HAND_PHASE } from "./vendor/game-engine.js";
 
 function isRobotPlayerId(playerId) {
   return typeof playerId === "string" && playerId.startsWith("bot_");
@@ -452,6 +454,52 @@ export async function enforcePublicTableIdlePolicy(
     removed: removeResult.removed,
     atHandoff,
   };
+}
+
+/**
+ * When a sitOut human holds the current turn during draw/decision/play, return the auto-action.
+ * Pre-deal enrollment sit-out is handled separately via isIdleSitOutBlockingEnrollment.
+ *
+ * @returns {{ action: 'draw_fold'|'decision_pass'|'play_bot', playerId: string, phase: string } | null}
+ */
+export function resolveIdleSitOutMidHandAction(sessionData, scoreById) {
+  const snapshot = buildHandFlowSnapshot({ session: sessionData });
+  const turnPlayerId = snapshot.turnPlayerId;
+  if (!turnPlayerId || isRobotPlayerId(turnPlayerId)) return null;
+
+  const row = scoreById[turnPlayerId];
+  if (row?.sitOut !== true) return null;
+
+  if (snapshot.pagatDecisionActive && snapshot.handPhase === HAND_PHASE.DECISION) {
+    const decision = sessionData?.currentHand?.handDecision;
+    const playing = decision?.playingIds ?? [];
+    const passed = decision?.passedIds ?? [];
+    if (playing.includes(turnPlayerId) || passed.includes(turnPlayerId)) return null;
+    return { action: "decision_pass", playerId: turnPlayerId, phase: "decision" };
+  }
+
+  if (snapshot.phase === HAND_FLOW_PHASE.ENROLLMENT && !snapshot.pagatDecisionActive) {
+    return null;
+  }
+
+  if (snapshot.phase === HAND_FLOW_PHASE.DRAW) {
+    const hand = sessionData?.currentHand ?? {};
+    if (!hand.participantIds?.includes(turnPlayerId)) return null;
+    if (hand.turnPlayerId !== turnPlayerId) return null;
+    const drawDone = hand.drawCompletedIds ?? [];
+    if (drawDone.includes(turnPlayerId)) return null;
+    return { action: "draw_fold", playerId: turnPlayerId, phase: "draw" };
+  }
+
+  if (snapshot.phase === HAND_FLOW_PHASE.PLAY) {
+    if (snapshot.handComplete) return null;
+    const hand = sessionData?.currentHand ?? {};
+    if (!hand.participantIds?.includes(turnPlayerId)) return null;
+    if (hand.turnPlayerId !== turnPlayerId) return null;
+    return { action: "play_bot", playerId: turnPlayerId, phase: "play" };
+  }
+
+  return null;
 }
 
 /** True when a seated human blocks enrollment progression on their turn. */
