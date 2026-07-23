@@ -184,9 +184,14 @@ export function rankPublicTableCandidates(candidates) {
   });
 }
 
+/**
+ * Whether matchmaking may route a new player to this table.
+ * Seated capacity uses openSeats; spectators may queue when humans are already present.
+ */
 export function isJoinableIndexDoc(indexDoc) {
   if (!indexDoc || indexDoc.status === "closed") return false;
-  return (indexDoc.openSeats ?? 0) > 0;
+  if ((indexDoc.openSeats ?? 0) > 0) return true;
+  return (indexDoc.realPlayerCount ?? 0) > 0;
 }
 
 export function buildPublicTableResult({
@@ -348,6 +353,36 @@ async function ensureRoomMembership(db, roomId, userId, displayName) {
     role: "player",
     joinedAt: FieldValue.serverTimestamp(),
   });
+}
+
+async function attemptJoinJoinableCandidates(
+  db,
+  { actorId, displayName, joinId, buyInAmount, anteAmount },
+) {
+  const candidates = await queryJoinableIndexCandidates(db, buyInAmount, anteAmount);
+  for (const candidate of candidates) {
+    const verified = await verifyCandidateFromSource(db, candidate);
+    if (!verified) {
+      await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
+        () => {},
+      );
+      continue;
+    }
+    try {
+      return await joinPublicTableAsSpectator(db, {
+        actorId,
+        displayName,
+        joinId,
+        roomId: candidate.roomId,
+        sessionId: candidate.sessionId,
+        mode: "joined-existing",
+      });
+    } catch (err) {
+      if (err?.code === "already-exists") throw err;
+      continue;
+    }
+  }
+  return null;
 }
 
 async function queryJoinableIndexCandidates(db, buyInAmount, anteAmount) {
@@ -740,29 +775,13 @@ export async function handleFindOrCreatePublicTable(db, data) {
     }
   }
 
-  const candidates = await queryJoinableIndexCandidates(db, buyInAmount, anteAmount);
-  for (const candidate of candidates) {
-    const verified = await verifyCandidateFromSource(db, candidate);
-    if (!verified) {
-      await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
-        () => {},
-      );
-      continue;
-    }
-    try {
-      return await joinPublicTableAsSpectator(db, {
-        actorId,
-        displayName,
-        joinId,
-        roomId: candidate.roomId,
-        sessionId: candidate.sessionId,
-        mode: "joined-existing",
-      });
-    } catch (err) {
-      if (err?.code === "already-exists") throw err;
-      continue;
-    }
-  }
+  const joinArgs = { actorId, displayName, joinId, buyInAmount, anteAmount };
+  const joined = await attemptJoinJoinableCandidates(db, joinArgs);
+  if (joined) return joined;
+
+  // Race: a concurrent Play Now may have created a table after our first index read.
+  const lateJoined = await attemptJoinJoinableCandidates(db, joinArgs);
+  if (lateJoined) return lateJoined;
 
   return createPublicTable(db, {
     actorId,
