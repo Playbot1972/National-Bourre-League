@@ -1311,13 +1311,14 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
           turnPlayerId: idleMidHand.playerId,
           phase: idleMidHand.phase,
         });
+        const seatActorId = idleMidHand.playerId;
         switch (idleMidHand.action) {
           case "draw_fold":
             await handleFoldDraw(db, {
               roomId,
               sessionId,
               playerId: idleMidHand.playerId,
-              actorId,
+              actorId: seatActorId,
             });
             continue;
           case "decision_pass":
@@ -1326,11 +1327,12 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
               sessionId,
               playerId: idleMidHand.playerId,
               inHand: false,
-              actorId,
+              actorId: seatActorId,
+              skipActivityBump: true,
             });
             continue;
           case "play_bot":
-            await executeBotPlay(db, roomId, sessionId, idleMidHand.playerId, actorId);
+            await executeBotPlay(db, roomId, sessionId, idleMidHand.playerId, seatActorId);
             continue;
           default:
             break;
@@ -1831,14 +1833,16 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId, 
 
 export async function handleSetHandParticipation(
   db,
-  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0 },
+  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0, skipActivityBump = false },
 ) {
   if (!playerId || !actorId) throw new HttpsError("invalid-argument", "Missing player");
   if (!canActForPlayer(playerId, actorId)) {
     throw new HttpsError("permission-denied", "You can only change your own hand participation");
   }
   await assertRoomMember(db, roomId, actorId);
-  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
+  if (!skipActivityBump) {
+    await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
+  }
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();

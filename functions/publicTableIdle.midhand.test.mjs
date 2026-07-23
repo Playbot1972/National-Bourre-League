@@ -187,9 +187,9 @@ describe("advanceBotsAfterAction idle mid-hand wiring", () => {
     assert.match(block, /resolveIdleSitOutMidHandAction/);
     assert.match(block, /shouldEnforcePublicTableIdle/);
     assert.match(block, /\[idle-midhand\]/);
-    assert.match(block, /case "draw_fold":[\s\S]*handleFoldDraw/);
-    assert.match(block, /case "decision_pass":[\s\S]*handleSetHandParticipation/);
-    assert.match(block, /case "play_bot":[\s\S]*executeBotPlay/);
+    assert.match(block, /case "draw_fold":[\s\S]*actorId: seatActorId/);
+    assert.match(block, /case "decision_pass":[\s\S]*skipActivityBump: true/);
+    assert.match(block, /case "play_bot":[\s\S]*seatActorId/);
     const midHandIdx = block.indexOf("resolveIdleSitOutMidHandAction");
     const hintIdx = block.indexOf("resolveBotAdvanceHint");
     assert.ok(midHandIdx >= 0 && hintIdx > midHandIdx, "mid-hand idle runs before bot hints");
