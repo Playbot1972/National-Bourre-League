@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   buildHandPresentationModel,
   createHandPresentationStore,
+  isDealPresentationAllowed,
   nextDrawPresentationTarget,
   phaseScheduleMs,
   reduceHandPresentation,
@@ -564,9 +565,29 @@ describe("handPresentationMachine", () => {
     const t = handTimingScale(false);
     assert.ok(t.anteChipTravelMs >= 180 && t.anteChipTravelMs <= 260);
     assert.ok(t.dealCardStaggerMs >= 90 && t.dealCardStaggerMs <= 140);
-    assert.ok(t.trumpRevealHoldMs >= 4500 && t.trumpRevealHoldMs <= 5500);
+    assert.ok(t.trumpRevealHoldMs >= 900 && t.trumpRevealHoldMs <= 1100);
     assert.ok(t.trumpMergeAnimMs >= 400 && t.trumpMergeAnimMs <= 600);
     assert.ok(drawPlayerScheduleMs(2, 2, false) >= 400);
+  });
+
+  it("dealPresentationAllowed is false during trump reveal hold, true after", () => {
+    let store = createHandPresentationStore({
+      ...baseSnap,
+      phase: "reveal",
+      trumpUpcard: { rank: "K", suit: "spades" },
+    });
+    assert.equal(isDealPresentationAllowed(store), false);
+    assert.equal(buildHandPresentationModel(store).dealPresentationAllowed, false);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "trumpReveal");
+    assert.equal(isDealPresentationAllowed(store), false);
+
+    store = reduceHandPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "drawPlayer");
+    assert.equal(store.trumpRevealActive, false);
+    assert.equal(isDealPresentationAllowed(store), true);
+    assert.equal(buildHandPresentationModel(store).dealPresentationAllowed, true);
   });
 
   it("clears enrollment pulse on demand", () => {
@@ -661,10 +682,10 @@ describe("handPresentationMachine", () => {
 });
 
 describe("trick timing with hand flow", () => {
-  it("holds complete trick for two seconds before winner highlight", () => {
-    assert.equal(POST_TRICK_READ_MS, 1850);
+  it("holds complete trick briefly before winner highlight", () => {
+    assert.equal(POST_TRICK_READ_MS, 525);
     const schedule = trickResolutionScheduleMs({});
-    assert.equal(schedule.readTotalMs, 1850);
-    assert.ok(schedule.pipelineMs >= 3100);
+    assert.equal(schedule.readTotalMs, 525);
+    assert.ok(schedule.pipelineMs >= 1500);
   });
 });

@@ -123,6 +123,28 @@ describe("trickPresentationMachine", () => {
     const model = buildTrickPresentationModel(store, null);
     assert.equal(model.showWinnerTag, true);
     assert.equal(model.displayTricksByPlayer.p1, 0);
+    assert.equal(model.suppressTurnPlayerId, true);
+  });
+
+  it("allows turn indicator during trick collection before live", () => {
+    let store = createTrickPresentationStore({ p1: 0, p2: 0 }, completedTrick);
+    for (let i = 0; i < 4; i++) {
+      store = reduceTrickPresentation(store, { type: "revealNextCard" });
+    }
+    store = reduceTrickPresentation(store, {
+      type: "serverUpdate",
+      snapshot: { currentTrick: null, tricksByPlayer: { p1: 1 } },
+      participantIds: ["p1", "p2"],
+    });
+    store = reduceTrickPresentation(store, { type: "commitTrickResolution" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "collectTrick");
+    const collecting = buildTrickPresentationModel(store, null);
+    assert.equal(collecting.suppressTurnPlayerId, false);
+    store = reduceTrickPresentation(store, { type: "advancePhase" });
+    assert.equal(store.phase, "nextLeadReady");
+    assert.equal(buildTrickPresentationModel(store, null).suppressTurnPlayerId, false);
   });
 
   it("increments trick count only when collection starts", () => {
@@ -359,8 +381,8 @@ describe("trickPresentationMachine", () => {
 
   it("does not allow live phase until pipeline completes", () => {
     const schedule = trickResolutionScheduleMs({});
-    assert.ok(schedule.pipelineMs >= 3100);
-    assert.equal(schedule.readTotalMs, 1850);
+    assert.ok(schedule.pipelineMs >= 1500);
+    assert.equal(schedule.readTotalMs, 525);
     assert.equal(schedule.sweepMs, 1080);
   });
 

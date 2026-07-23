@@ -200,6 +200,7 @@ export function MobileCardTable({
     session,
     heroCards,
     privateHandReady,
+    dealPresentationAllowed: handPresentation.dealPresentationAllowed,
     tableRootRef: wrapRef,
   });
   const trumpHolderId = session.trumpHolderId ?? session.dealerId ?? null;
