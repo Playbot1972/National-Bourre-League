@@ -1652,19 +1652,74 @@ function stopPublicTableActivityHeartbeat() {
     clearInterval(publicTableActivityTimer);
     publicTableActivityTimer = null;
   }
+  unbindPublicTableActivityGestures();
 }
 
-function touchPublicTableActivityBestEffort() {
+function unbindPublicTableActivityGestures() {
+  if (!publicTableActivityGestureBound) return;
+  const overlay = $("#table-play-overlay");
+  if (overlay) {
+    overlay.removeEventListener("pointerdown", onPublicTableUserActivity);
+    overlay.removeEventListener("keydown", onPublicTableUserActivity);
+  }
+  publicTableActivityGestureBound = false;
+}
+
+function onPublicTableUserActivity() {
+  touchPublicTableActivityBestEffort({ force: true });
+}
+
+function bindPublicTableActivityGestures() {
+  if (publicTableActivityGestureBound) return;
+  const overlay = $("#table-play-overlay");
+  if (!overlay) return;
+  overlay.addEventListener("pointerdown", onPublicTableUserActivity, { passive: true });
+  overlay.addEventListener("keydown", onPublicTableUserActivity);
+  publicTableActivityGestureBound = true;
+}
+
+function notePublicTableHeroScorePresence(scores, myUid, sessionObj) {
+  if (!myUid || !isPublicTableSession(sessionObj)) return;
+  const hasRow = scores.some((sc) => sc.playerId === myUid);
+  if (hasRow) {
+    publicTableHeroHadScoreRow = true;
+    return;
+  }
+  if (publicTableHeroHadScoreRow && !isPublicTableWatchOnly(sessionObj, myUid, {
+    scorePlayerIds: scores.map((sc) => sc.playerId).filter(Boolean),
+  })) {
+    publicTableIdleRemovalNotice = true;
+  }
+}
+
+function resetPublicTableIdleClientState() {
+  publicTableHeroHadScoreRow = false;
+  publicTableIdleRemovalNotice = false;
+  publicTableActivityLastTouchMs = 0;
+}
+
+function touchPublicTableActivityBestEffort({ force = false } = {}) {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
   const now = Date.now();
-  if (now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
+  if (!force && now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
   publicTableActivityLastTouchMs = now;
-  gameTouchPublicTableActivity(currentRoomId, openSessionId).catch((err) => {
-    if (err?.code === "functions/unauthenticated") return;
-    console.warn("public table activity touch:", err?.message ?? err);
-  });
+  gameTouchPublicTableActivity(currentRoomId, openSessionId)
+    .then((result) => {
+      if (
+        result?.reason === "not_seated" ||
+        result?.reason === "removed_rejoin_required"
+      ) {
+        publicTableIdleRemovalNotice = true;
+        const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+        if (sessionObj) scheduleTableSessionSync(sessionObj);
+      }
+    })
+    .catch((err) => {
+      if (err?.code === "functions/unauthenticated") return;
+      console.warn("public table activity touch:", err?.message ?? err);
+    });
 }
 
 function startPublicTableActivityHeartbeat() {
@@ -1672,7 +1727,9 @@ function startPublicTableActivityHeartbeat() {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
-  touchPublicTableActivityBestEffort();
+  resetPublicTableIdleClientState();
+  bindPublicTableActivityGestures();
+  touchPublicTableActivityBestEffort({ force: true });
   publicTableActivityTimer = setInterval(() => {
     touchPublicTableActivityBestEffort();
   }, PUBLIC_TABLE_ACTIVITY_INTERVAL_MS);
@@ -1722,6 +1779,9 @@ function startEnrollmentTimer() {
 let tablePlayOpen = false;
 let publicTableActivityTimer = null;
 let publicTableActivityLastTouchMs = 0;
+let publicTableActivityGestureBound = false;
+let publicTableHeroHadScoreRow = false;
+let publicTableIdleRemovalNotice = false;
 const PUBLIC_TABLE_ACTIVITY_INTERVAL_MS = 20_000;
 const PUBLIC_TABLE_ACTIVITY_THROTTLE_MS = 5_000;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
@@ -2303,6 +2363,7 @@ function navigateAwayFromTable() {
 function teardownTableOverlay({ restoreDetail = true } = {}) {
   if (!tablePlayOpen) return;
   tablePlayOpen = false;
+  resetPublicTableIdleClientState();
   localHandActionCommit = null;
   cancelNextHandOpenTimer();
   stopTablePlaySideEffects();
@@ -4470,6 +4531,7 @@ function buildTableSessionProps(s) {
       s,
       myUid,
       displayScores.find((sc) => sc.playerId === myUid),
+      { removedNotice: publicTableIdleRemovalNotice },
     ),
     actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
@@ -4629,6 +4691,8 @@ function openSession(sessionId) {
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    const sessionObj = currentSessions.find((x) => x.id === sessionId);
+    notePublicTableHeroScorePresence(scores, session?.uid ?? null, sessionObj);
     refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
     scheduleRenderRoomDetail();

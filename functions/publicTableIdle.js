@@ -174,8 +174,52 @@ export function shouldEnforcePublicTableIdle(roomData, sessionData) {
   return true;
 }
 
+/** Build Firestore patch for a successful activity touch (clears idle sit-out). */
+export function buildActivityTouchPatch(scoreRow = {}) {
+  const patch = {
+    lastActivityTimestamp: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (scoreRow?.sitOut === true) {
+    patch.sitOut = FieldValue.delete();
+    patch.idleSitOutAt = FieldValue.delete();
+    patch.idleSitOutReason = FieldValue.delete();
+  }
+  return patch;
+}
+
+/**
+ * Record seated human activity on a public table (game moves + heartbeat).
+ * Does not throw — safe to call from hot paths.
+ */
+export async function recordPublicTablePlayerActivity(db, { roomId, sessionId, playerId }) {
+  if (!roomId || !sessionId || !playerId || isRobotPlayerId(playerId)) {
+    return { ok: false, reason: "skipped" };
+  }
+
+  const sessionSnap = await sessionDocRef(db, roomId, sessionId).get();
+  const sessionData = sessionSnap.data();
+  if (!sessionData) return { ok: false, reason: "session_missing" };
+
+  const roomSnap = await db.collection("rooms").doc(roomId).get();
+  if (!shouldEnforcePublicTableIdle(roomSnap.data(), sessionData)) {
+    return { ok: false, reason: "not_public_table" };
+  }
+
+  const scoreRef = scoresCollection(db, roomId, sessionId).doc(playerId);
+  const scoreSnap = await scoreRef.get();
+  if (!scoreSnap.exists) return { ok: false, reason: "not_seated" };
+
+  const row = scoreSnap.data() ?? {};
+  if (row.idleRemovedAt) return { ok: false, reason: "removed_rejoin_required" };
+
+  await scoreRef.set(buildActivityTouchPatch(row), { merge: true });
+  return { ok: true, sitOut: false };
+}
+
 /**
  * Record player activity; clears idle sit-out when player returns before removal.
+ * Also piggybacks idle-policy enforcement for the whole table (launch-safe sweeper).
  */
 export async function handleTouchPublicTableActivity(db, { roomId, sessionId, actorId }) {
   if (!roomId || !sessionId || !actorId) {
@@ -185,29 +229,29 @@ export async function handleTouchPublicTableActivity(db, { roomId, sessionId, ac
   const { assertRoomMember } = await import("./gameHandlers.js");
   await assertRoomMember(db, roomId, actorId);
 
-  const scoreRef = scoresCollection(db, roomId, sessionId).doc(actorId);
-  const scoreSnap = await scoreRef.get();
-  if (!scoreSnap.exists) {
-    return { ok: false, reason: "not_seated" };
+  const sessionSnap = await sessionDocRef(db, roomId, sessionId).get();
+  const roomSnap = await db.collection("rooms").doc(roomId).get();
+  const sessionData = sessionSnap.data() ?? {};
+  const roomData = roomSnap.data() ?? {};
+
+  if (!shouldEnforcePublicTableIdle(roomData, sessionData)) {
+    return { ok: false, reason: "not_public_table" };
   }
 
-  const row = scoreSnap.data() ?? {};
-  if (row.idleRemovedAt) {
-    return { ok: false, reason: "removed_rejoin_required" };
-  }
+  const touch = await recordPublicTablePlayerActivity(db, { roomId, sessionId, playerId: actorId });
+  if (touch.reason === "removed_rejoin_required") return touch;
 
-  const patch = {
-    lastActivityTimestamp: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  if (row.sitOut === true) {
-    patch.sitOut = FieldValue.delete();
-    patch.idleSitOutAt = FieldValue.delete();
-    patch.idleSitOutReason = FieldValue.delete();
-  }
+  const idlePolicy = await enforcePublicTableIdlePolicy(db, {
+    roomId,
+    sessionId,
+    roomData,
+    sessionData,
+  }).catch((err) => {
+    console.warn("[public-table-idle] enforce on touch skipped", err?.message ?? err);
+    return null;
+  });
 
-  await scoreRef.set(patch, { merge: true });
-  return { ok: true, sitOut: false };
+  return { ...touch, idlePolicy: idlePolicy?.status ?? null };
 }
 
 async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {

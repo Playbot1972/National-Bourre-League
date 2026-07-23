@@ -32,4 +32,12 @@ describe("public-table idle UI helpers", () => {
       /Sitting out/i,
     );
   });
+
+  it("hero banner uses removedNotice when score row is gone", () => {
+    const session = { publicTable: true };
+    assert.match(
+      publicTableHeroIdleBanner(session, "u1", null, { removedNotice: true }) ?? "",
+      /Play Now/i,
+    );
+  });
 });

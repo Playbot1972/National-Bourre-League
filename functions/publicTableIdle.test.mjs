@@ -5,6 +5,7 @@ import {
   PUBLIC_TABLE_IDLE_SIT_OUT_MS,
 } from "./vendor/public-table-schema.js";
 import {
+  buildActivityTouchPatch,
   buildEnrollmentPatchForIdleSitOut,
   classifyIdleStage,
   evaluateIdlePolicyForSeatedHumans,
@@ -112,5 +113,12 @@ describe("public-table idle policy (unit)", () => {
     const patch = buildEnrollmentPatchForIdleSitOut(enrollment, "human_a", null, NOW);
     assert.equal(patch.handEnrollment.currentIndex, 0);
     assert.ok(patch.handEnrollment.declinedIds.includes("human_a"));
+  });
+
+  it("buildActivityTouchPatch clears idle sit-out fields", () => {
+    const patch = buildActivityTouchPatch({ sitOut: true, bankroll: 100 });
+    assert.ok(patch.lastActivityTimestamp);
+    assert.ok("sitOut" in patch);
+    assert.ok("idleSitOutAt" in patch);
   });
 });
