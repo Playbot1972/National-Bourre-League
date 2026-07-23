@@ -585,6 +585,7 @@ if (FIRESTORE_EMULATOR) {
 
 export { formatInviteCodeDisplay, isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
 import { isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
+import { isPublicTableSpectator } from "./public-table-spectator.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -3915,6 +3916,7 @@ export async function ensureSessionPlayer(
   if (!sessionSnap.exists()) return false;
   const sessionData = sessionSnap.data();
   if (sessionData.status === "final") return false;
+  if (isPublicTableSpectator(sessionData, playerId)) return false;
 
   const scoreRef = scoreDoc(roomId, sessionId, playerId);
   const scoreSnap = await getDoc(scoreRef);
@@ -3989,10 +3991,16 @@ export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
 
+  const sessionData = sessionSnap.data();
   const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const existingIds = new Set(scoreSnap.docs.map((d) => d.id));
 
-  const missing = members.filter((m) => m.userId && !existingIds.has(m.userId));
+  const missing = members.filter(
+    (m) =>
+      m.userId &&
+      !existingIds.has(m.userId) &&
+      !isPublicTableSpectator(sessionData, m.userId),
+  );
   await Promise.all(
     missing.map((m) =>
       ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName, { joinCurrentHand: false }),

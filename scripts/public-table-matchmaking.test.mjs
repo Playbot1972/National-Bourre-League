@@ -116,6 +116,25 @@ describe("public-table matchmaking integration", () => {
     assert.equal(roomSnap.data()?.features?.mixedPublicTables, true);
   });
 
+  it("second Play Now joins first player's bot-filled table as spectating", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    const guestJoinId = "guest-play-now-find";
+    const joined = await handleFindOrCreatePublicTable(db, {
+      actorId: GUEST_UID,
+      joinId: guestJoinId,
+      displayName: "Guest",
+    });
+    assert.equal(joined.mode, "joined-existing");
+    assert.equal(joined.status, "spectating");
+    assert.equal(joined.roomId, hostTable.roomId);
+    assert.equal(joined.sessionId, hostTable.sessionId);
+    assert.equal(joined.realPlayerCount, 1);
+    assert.equal(joined.openSeats, 0);
+  });
+
   it("returns the same result for the same joinId (idempotent)", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running");

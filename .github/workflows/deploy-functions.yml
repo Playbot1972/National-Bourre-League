@@ -90,6 +90,7 @@ jobs:
 
       - name: Prepare gcOrphanRooms scheduler deploy
         if: steps.cfg.outputs.ready == 'true'
+        id: gc_orphan
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
         run: |
@@ -102,8 +103,13 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
+          ONLY="functions"
+          if [[ "${{ steps.gc_orphan.outputs.force_gc_orphan_deploy }}" == "true" ]]; then
+            ONLY="functions:gcOrphanRooms"
+            echo "Deploying only ${ONLY} after scheduler recovery"
+          fi
           chmod +x scripts/ci-firebase-hosting-deploy.sh
-          bash scripts/ci-firebase-hosting-deploy.sh functions --force
+          bash scripts/ci-firebase-hosting-deploy.sh "${ONLY}" --force
 
       - name: Verify orphan-room exports
         if: steps.cfg.outputs.ready == 'true'

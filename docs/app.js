@@ -211,7 +211,22 @@ import {
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
 import { roomHasMixedPublicTables } from "./public-table-schema.js";
+import {
+  createWatchOnlyTableIntentHandlers,
+  isPublicTableWatchOnly,
+  PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
+} from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable } from "./game-functions.js";
+import {
+  clearStoredPublicTableJoinId,
+  forceNewPublicTableJoinId,
+  isPublicTableJoinIdMismatchError,
+  PUBLIC_TABLE_QUEUE_RECOVERY_MESSAGE,
+  PUBLIC_TABLE_QUEUE_RESUME_MESSAGE,
+  PUBLIC_TABLE_QUEUE_RETRY_MESSAGE,
+  resolvePublicTableJoinId,
+  saveStoredPublicTableJoinId,
+} from "./public-table-queue.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
 import {
   blurActiveTextEntry,
@@ -1812,10 +1827,12 @@ function restoreSessionCleanupTimers(roomId) {
   }
 }
 
-function mergeScoresWithMembers(scores, members, sessionPlayers = []) {
+function mergeScoresWithMembers(scores, members, sessionPlayers = [], sessionData = null) {
   const map = new Map(scores.map((s) => [s.playerId, s]));
+  const scoreIds = new Set(scores.map((s) => s.playerId).filter(Boolean));
   for (const m of members) {
     if (!m.userId || map.has(m.userId)) continue;
+    if (isPublicTableWatchOnly(sessionData, m.userId, { scorePlayerIds: scoreIds })) continue;
     map.set(m.userId, {
       playerId: m.userId,
       displayName: m.displayName,
@@ -1879,11 +1896,21 @@ async function refreshOpenSessionFromServer(roomId, sessionId) {
 
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
-  return mergeScoresWithMembers(openScores, currentMembers, sessionObj.players || []).length;
+  return mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    sessionObj.players || [],
+    sessionObj,
+  ).length;
 }
 
 function tableReadyRoster(sessionObj) {
-  return mergeScoresWithMembers(openScores, currentMembers, sessionObj?.players || []).map(
+  return mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    sessionObj?.players || [],
+    sessionObj,
+  ).map(
     (sc) => ({
       playerId: sc.playerId,
       displayName: sc.displayName,
@@ -2359,10 +2386,30 @@ function resolveRoomSnapshotForLeave(roomId) {
 async function clearPublicTableQueueBestEffort(room) {
   if (!session || !roomHasMixedPublicTables(room)) return;
   try {
-    await gameLeavePublicTable();
+    const left = await gameLeavePublicTable();
+    if (left?.cleared !== false) {
+      clearStoredPublicTableJoinId(session.uid);
+    }
   } catch (err) {
     console.warn("gameLeavePublicTable (best-effort):", err);
   }
+}
+
+async function callPublicPlayNowMatchmaking(joinId) {
+  return gameFindOrCreatePublicTable({
+    joinId,
+    displayName: session.displayName,
+    targetSeatCount: 6,
+    buyInAmount: PLAY_NOW_BUY_IN,
+    anteAmount: PLAY_NOW_ANTE,
+  });
+}
+
+async function recoverPublicTableQueueAndRetry() {
+  await gameLeavePublicTable();
+  const joinId = forceNewPublicTableJoinId(session.uid);
+  const result = await callPublicPlayNowMatchmaking(joinId);
+  return { joinId, result };
 }
 
 async function onLeaveRoom(roomId) {
@@ -2697,16 +2744,21 @@ async function runPlayNowFlow() {
     setPlayNowBusy(true);
     let publicRoomId = null;
     try {
-      const joinId =
-        globalThis.crypto?.randomUUID?.() ??
-        `join_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const result = await gameFindOrCreatePublicTable({
-        joinId,
-        displayName: session.displayName,
-        targetSeatCount: 6,
-        buyInAmount: PLAY_NOW_BUY_IN,
-        anteAmount: PLAY_NOW_ANTE,
-      });
+      const uid = session.uid;
+      const resolved = resolvePublicTableJoinId(uid);
+      let joinId = resolved.joinId;
+      if (resolved.resumed) {
+        showRoomsError(PUBLIC_TABLE_QUEUE_RESUME_MESSAGE, "info");
+      }
+      let result;
+      try {
+        result = await callPublicPlayNowMatchmaking(joinId);
+      } catch (err) {
+        if (!isPublicTableJoinIdMismatchError(err)) throw err;
+        showRoomsError(PUBLIC_TABLE_QUEUE_RECOVERY_MESSAGE, "info");
+        ({ joinId, result } = await recoverPublicTableQueueAndRetry());
+      }
+      saveStoredPublicTableJoinId(uid, joinId);
       if (!result?.roomId || !result?.sessionId) {
         throw new Error("Public matchmaking did not return a table.");
       }
@@ -2733,8 +2785,9 @@ async function runPlayNowFlow() {
       console.error("runPlayNowFlow (public):", err);
       silentTableEntry = false;
       document.body.classList.remove("table-entry-silent");
-      const hint =
-        publicRoomId != null
+      const hint = isPublicTableJoinIdMismatchError(err)
+        ? PUBLIC_TABLE_QUEUE_RETRY_MESSAGE
+        : publicRoomId != null
           ? "Public Play Now could not finish — your table is open; try again or leave the room."
           : "Public Play Now failed — please try again.";
       showRoomsError(formatClientGameError(err, hint));
@@ -4072,13 +4125,22 @@ function driveClientBotsForCurrentTurn(s, scores, actorId, { reason = "fallback"
 }
 
 function buildTableSessionProps(s) {
-  const mergedScores = mergeScoresWithMembers(openScores, currentMembers, s.players || []);
+  const mergedScores = mergeScoresWithMembers(
+    openScores,
+    currentMembers,
+    s.players || [],
+    s,
+  );
   const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
   const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
   const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
   const myUid = session?.uid ?? null;
+  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
   let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
-  if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
+  if (watchOnly) {
+    displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
+  } else if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
     displayScores = [
       ...displayScores,
       {
@@ -4098,13 +4160,16 @@ function buildTableSessionProps(s) {
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
   const tricksThisHand = currentHand?.tricksByPlayer || {};
   const cardsDealt = isHandCardsDealtPhase(handPhase);
-  const privateHeroCards = openPrivateHand?.cards ?? [];
+  const privateHeroCards = watchOnly ? [] : (openPrivateHand?.cards ?? []);
   const heroCardList =
-    myUid && cardsDealt
+    !watchOnly && myUid && cardsDealt
       ? buildHeroCardsForTable(currentHand, privateHeroCards, myUid, handPhase)
       : privateHeroCards;
   const legalPlayIndices =
-    cardsDealt && handPhase === "play" && myUid === currentHand?.turnPlayerId
+    !watchOnly &&
+    cardsDealt &&
+    handPhase === "play" &&
+    myUid === currentHand?.turnPlayerId
       ? computeLegalPlayIndices(currentHand, privateHeroCards, myUid)
       : null;
   const handStake = s.handStake ?? 1;
@@ -4360,7 +4425,9 @@ function buildTableSessionProps(s) {
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
-    actions: getTableIntentHandlers(),
+    watchOnly,
+    watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
+    actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
   maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback);
   return tableProps;
