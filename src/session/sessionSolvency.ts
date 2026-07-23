@@ -23,6 +23,7 @@ function eligibleIdsForAnteCollection(
   return (participantIds || []).filter((pid) => {
     const row = scoreById?.[pid];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return scoreBankroll(row, buyInFallback) > 0;
   });
 }

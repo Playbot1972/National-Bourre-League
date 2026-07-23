@@ -42,6 +42,9 @@ export interface TablePlayer {
   isLeading?: boolean;
   isWinner: boolean;
   enrollmentSatOut?: boolean;
+  /** Public-table idle sit-out (server-owned). */
+  idleSitOut?: boolean;
+  idleSitOutLabel?: string | null;
   enrollmentJoined?: boolean;
   isRobot?: boolean;
   canToggleInHand: boolean;
@@ -202,6 +205,8 @@ export interface TableSessionViewProps {
   /** Public-table spectator — watch current hand without seated affordances. */
   watchOnly?: boolean;
   watchOnlyMessage?: string;
+  /** Public-table idle policy banner for local hero. */
+  idleStatusBanner?: string | null;
   /** True when all five tricks are recorded for the current hand. */
   handComplete?: boolean;
   actionFeedback?: TableActionFeedback | null;

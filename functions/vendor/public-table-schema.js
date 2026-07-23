@@ -16,6 +16,18 @@ export const PUBLIC_TABLE_MIN_SEATS = 2;
 /** Default target seat count for future Play Now public tables (Phase 3+). */
 export const PUBLIC_TABLE_DEFAULT_TARGET_SEATS = 6;
 
+/** Stage 1: auto sit-out after this much seated inactivity (ms). */
+export const PUBLIC_TABLE_IDLE_SIT_OUT_MS = 45_000;
+
+/** Stage 2: remove seated player after this much total inactivity (ms). */
+export const PUBLIC_TABLE_IDLE_REMOVAL_MS = 4 * 60_000;
+
+/** Idle sit-out reason stamped on score rows (server-owned). */
+export const PUBLIC_IDLE_SIT_OUT_REASON = "idle_timeout";
+
+/** Idle removal reason for matchQueue / audit (server-owned). */
+export const PUBLIC_IDLE_REMOVAL_REASON = "idle_removal";
+
 /** Room visibility values. Absent visibility === private (legacy rooms). */
 export const ROOM_VISIBILITY = Object.freeze({
   PRIVATE: "private",
@@ -85,6 +97,10 @@ export const PENDING_JOIN_STATUS = Object.freeze({
  * @property {'fill'} [botRole] - Only fill bots are replaceable (Phase 5+).
  * @property {boolean} [spectator] - True while queued/spectating, before seated.
  * @property {boolean} [pendingReplacement] - Reserved for boundary batch (Phase 5+).
+ * @property {import('firebase/firestore').Timestamp|Date} [lastActivityTimestamp] - Server heartbeat.
+ * @property {boolean} [sitOut] - Idle sit-out (skips hands, keeps seat until removal).
+ * @property {import('firebase/firestore').Timestamp|Date} [idleSitOutAt]
+ * @property {import('firebase/firestore').Timestamp|Date} [idleRemovedAt]
  */
 
 /**

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "lint": "node --check index.js && node --check gameHandlers.js && node --check orphanRoomCleanup.js",
-    "test": "node --test gameHandlers.test.mjs publicTable.test.mjs publicTableReplacement.test.mjs orphanRoomCleanup.test.mjs",
+    "test": "node --test gameHandlers.test.mjs publicTable.test.mjs publicTableReplacement.test.mjs publicTableIdle.test.mjs orphanRoomCleanup.test.mjs",
     "sync-engine": "node ../scripts/sync-functions-engine.mjs"
   },
   "dependencies": {

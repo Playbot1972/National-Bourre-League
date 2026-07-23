@@ -306,7 +306,9 @@ export function Seat({
             <span className="bseat__out-tag muted small">Out</span>
           )}
           {player.enrollmentSatOut && !player.isOut && (
-            <span className="bseat__enroll-tag muted small">Sat out</span>
+            <span className="bseat__enroll-tag muted small">
+              {player.idleSitOutLabel ?? "Sat out"}
+            </span>
           )}
           {player.enrollmentJoined && !player.inHand && !player.isOut && (
             <span className="bseat__enroll-tag muted small">

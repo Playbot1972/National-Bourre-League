@@ -77,6 +77,7 @@ export function TableSessionView({
   actions,
   watchOnly = false,
   watchOnlyMessage,
+  idleStatusBanner,
 }: TableSessionViewProps) {
   const { settings } = useTableTheme();
   const nativeMobile = useMobileTable();
@@ -653,6 +654,16 @@ export function TableSessionView({
           data-testid="watch-only-banner"
         >
           {watchOnlyMessage ?? "Watching this hand — you'll join the next deal."}
+        </div>
+      ) : null}
+
+      {!watchOnly && idleStatusBanner ? (
+        <div
+          className="btable-session__watch-banner btable-session__idle-banner"
+          role="status"
+          data-testid="idle-status-banner"
+        >
+          {idleStatusBanner}
         </div>
       ) : null}
 

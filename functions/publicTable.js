@@ -680,6 +680,7 @@ async function createPublicTable(
       net: 0,
       total: 0,
       joinedAtHandCount: 0,
+      lastActivityTimestamp: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

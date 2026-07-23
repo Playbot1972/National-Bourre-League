@@ -67,6 +67,10 @@ import {
   sessionHasRobotScores,
 } from "./vendor/bot-rebuy.js";
 import { applyPendingReplacements } from "./publicTableReplacement.js";
+import {
+  enforcePublicTableIdlePolicy,
+  isIdleSitOutBlockingEnrollment,
+} from "./publicTableIdle.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
@@ -485,6 +489,7 @@ export function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, b
   const activeIds = sortedPlayerIds.filter((id) => {
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, activeIds);
@@ -720,6 +725,7 @@ function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, session
     if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   if (eligible.length < 2) return null;
@@ -1252,16 +1258,40 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
       return { status: "noop", steps, reason: "session_final_or_missing" };
     }
 
-    const snapshot = buildHandFlowSnapshot({ session: sessionData });
+    const roomSnap = await getRoomSnap(db, roomId);
+    await enforcePublicTableIdlePolicy(db, {
+      roomId,
+      sessionId,
+      roomData: roomSnap.data() ?? {},
+      sessionData,
+    }).catch((err) => {
+      console.warn("[bot-advance] idle policy skipped", err?.message ?? err);
+    });
+
+    const freshSnap = await sessionRef(db, roomId, sessionId).get();
+    const freshSession = freshSnap.data();
+    if (!freshSession || freshSession.status === "final") {
+      return { status: "noop", steps, reason: "session_final_or_missing" };
+    }
+
+    const scoreSnap = await scoresCol(db, roomId, sessionId).get();
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const enrollment = getSessionEnrollment(freshSession);
+    if (isIdleSitOutBlockingEnrollment(enrollment, scoreById)) {
+      await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
+      continue;
+    }
+
+    const snapshot = buildHandFlowSnapshot({ session: freshSession });
     const hint = resolveBotAdvanceHint({
       snapshot,
-      session: sessionData,
+      session: freshSession,
       nowMs: Date.now(),
     });
     if (!hint) {
       const emptyReason = resolveBotAdvanceEmptyReason({
         snapshot,
-        session: sessionData,
+        session: freshSession,
         nowMs: Date.now(),
       });
       if (step === 0) {
@@ -1302,7 +1332,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
 
     switch (hint.kind) {
       case "cowin": {
-        const pending = sessionData.pendingCoWinSettlement;
+        const pending = freshSession.pendingCoWinSettlement;
         const winnerIds = pending?.winnerIds;
         if (!Array.isArray(winnerIds) || winnerIds.length < 2) {
           console.info(
@@ -1322,7 +1352,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
         await handleVoteCoWinSettlement(db, {
           roomId,
           sessionId,
-          participantIds: pending.participantIds || sessionData.currentHand?.participantIds || [],
+          participantIds: pending.participantIds || freshSession.currentHand?.participantIds || [],
           winnerIds,
           voterId: hint.turnPlayerId,
           choice: "push",
@@ -1494,6 +1524,19 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   const dealingRule = roomSnap.data()?.houseRules?.dealing ?? null;
   const buyIn = resolveSessionBuyIn(data, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = data.handStake ?? 1;
+
+  await enforcePublicTableIdlePolicy(db, {
+    roomId,
+    sessionId,
+    roomData: roomSnap.data() ?? {},
+    sessionData: data,
+  }).catch((err) => {
+    console.warn("[ensure-hand-enrollment] idle policy skipped", err?.message ?? err);
+  });
+
+  sessionSnap = await ref.get();
+  if (!sessionSnap.exists) return { status: "noop" };
+  data = sessionSnap.data();
 
   await applyPendingReplacements(db, {
     roomId,

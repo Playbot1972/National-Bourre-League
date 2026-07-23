@@ -140,3 +140,7 @@ export function gameJoinPublicTable(payload) {
 export function gameLeavePublicTable() {
   return callGame("gameLeavePublicTable", {});
 }
+
+export function gameTouchPublicTableActivity(roomId, sessionId) {
+  return callGame("gameTouchPublicTableActivity", { roomId, sessionId });
+}

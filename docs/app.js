@@ -216,7 +216,9 @@ import {
   isPublicTableWatchOnly,
   PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
 } from "./public-table-spectator.js";
-import { gameFindOrCreatePublicTable, gameLeavePublicTable } from "./game-functions.js";
+import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
+import { publicTableHeroIdleBanner } from "./public-table-idle.js";
+import { isPublicTableSession } from "./public-table-rollout.js";
 import {
   clearStoredPublicTableJoinId,
   forceNewPublicTableJoinId,
@@ -1642,6 +1644,38 @@ function stopTablePlaySideEffects() {
   clearBotAdvanceSchedule();
   clearSessionOrchestrationSchedule();
   stopRobotPresentationSubscription();
+  stopPublicTableActivityHeartbeat();
+}
+
+function stopPublicTableActivityHeartbeat() {
+  if (publicTableActivityTimer) {
+    clearInterval(publicTableActivityTimer);
+    publicTableActivityTimer = null;
+  }
+}
+
+function touchPublicTableActivityBestEffort() {
+  if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (!isPublicTableSession(sessionObj)) return;
+  const now = Date.now();
+  if (now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
+  publicTableActivityLastTouchMs = now;
+  gameTouchPublicTableActivity(currentRoomId, openSessionId).catch((err) => {
+    if (err?.code === "functions/unauthenticated") return;
+    console.warn("public table activity touch:", err?.message ?? err);
+  });
+}
+
+function startPublicTableActivityHeartbeat() {
+  stopPublicTableActivityHeartbeat();
+  if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  if (!isPublicTableSession(sessionObj)) return;
+  touchPublicTableActivityBestEffort();
+  publicTableActivityTimer = setInterval(() => {
+    touchPublicTableActivityBestEffort();
+  }, PUBLIC_TABLE_ACTIVITY_INTERVAL_MS);
 }
 
 function startEnrollmentTimer() {
@@ -1686,6 +1720,10 @@ function startEnrollmentTimer() {
   }, 500);
 }
 let tablePlayOpen = false;
+let publicTableActivityTimer = null;
+let publicTableActivityLastTouchMs = 0;
+const PUBLIC_TABLE_ACTIVITY_INTERVAL_MS = 20_000;
+const PUBLIC_TABLE_ACTIVITY_THROTTLE_MS = 5_000;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
 let pendingRoomAnteOverride = null;
 /** Local buy-in override while Bourré settings save or snapshot re-render is in flight. */
@@ -3312,6 +3350,7 @@ async function openTablePlay({ fromHistory = false } = {}) {
     openSessionObj;
   await syncTableSession(refreshed);
   scheduleSessionOrchestration(refreshed, openScores, { reason: "open-table-play" });
+  startPublicTableActivityHeartbeat();
   const feedbackApi = await ensureTableFeedbackApi();
   feedbackApi?.playGameStartFeedback?.();
   try {
@@ -4427,6 +4466,11 @@ function buildTableSessionProps(s) {
     currentUserId: myUid,
     watchOnly,
     watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
+    idleStatusBanner: publicTableHeroIdleBanner(
+      s,
+      myUid,
+      displayScores.find((sc) => sc.playerId === myUid),
+    ),
     actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
   maybeLogHandTransitionSnapshot(s, displayScores, privateHeroCards, tableActionFeedback);
