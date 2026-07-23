@@ -70,6 +70,7 @@ import { applyPendingReplacements } from "./publicTableReplacement.js";
 import {
   enforcePublicTableIdlePolicy,
   isIdleSitOutBlockingEnrollment,
+  recordPublicTablePlayerActivity,
 } from "./publicTableIdle.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -165,6 +166,11 @@ function assertRecordHandChipConservation({
 }
 
 export { canActForPlayer } from "./vendor/session-startup.js";
+
+async function bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId) {
+  if (!playerId || isRobotPlayerId(playerId)) return;
+  await recordPublicTablePlayerActivity(db, { roomId, sessionId, playerId }).catch(() => {});
+}
 
 export function sessionRef(db, roomId, sessionId) {
   return db.collection("rooms").doc(roomId).collection("sessions").doc(sessionId);
@@ -1783,6 +1789,7 @@ export async function handleSetHandParticipation(
     throw new HttpsError("permission-denied", "You can only change your own hand participation");
   }
   await assertRoomMember(db, roomId, actorId);
+  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
@@ -2021,6 +2028,7 @@ export async function handleSubmitDraw(
     throw new HttpsError("permission-denied", "You can only draw for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
+  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
   let result;
   try {
     result = await runSubmitDrawTransaction(db, {
@@ -2244,6 +2252,7 @@ export async function handlePlayCard(db, { roomId, sessionId, playerId, cardInde
     throw new HttpsError("permission-denied", "You can only play for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
+  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
 
   const { handComplete } = await runPlayCardTransaction(db, {
     roomId,

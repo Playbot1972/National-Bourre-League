@@ -20,9 +20,12 @@ export function publicTableIdleSeatLabel(scoreRow) {
 }
 
 /** Banner for local hero when removed from public table seating. */
-export function publicTableHeroIdleBanner(sessionData, myUid, scoreRow) {
+export function publicTableHeroIdleBanner(sessionData, myUid, scoreRow, { removedNotice = false } = {}) {
   if (!isPublicTableSession(sessionData) || !myUid) return null;
   if (!scoreRow) {
+    if (removedNotice) {
+      return "Removed for inactivity — use Play Now to rejoin.";
+    }
     const pending = sessionData?.pendingJoins?.[myUid];
     if (pending?.cancelReason === "idle_removal") {
       return "Removed for inactivity — use Play Now to rejoin.";

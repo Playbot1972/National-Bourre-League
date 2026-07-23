@@ -11,6 +11,7 @@ import {
   buildPlayValidationState,
   displayHoleCardCount,
 } from "./game-engine.js";
+import { publicTableIdleSeatLabel } from "./public-table-idle.js";
 import {
   deriveWinnersFromTricks,
   isHandComplete,
@@ -291,7 +292,9 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     enrollmentSatOut:
       declinedEnrollmentIds.includes(sc.playerId) || sc.sitOut === true,
     idleSitOut: sc.sitOut === true,
-    idleSitOutLabel: sc.sitOut === true ? "Sitting Out" : null,
+    idleSitOutLabel:
+      publicTableIdleSeatLabel(sc) ??
+      (declinedEnrollmentIds.includes(sc.playerId) ? "Sat out" : null),
     enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
     decisionPlannedDiscards: plannedDiscards[sc.playerId],
     isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
