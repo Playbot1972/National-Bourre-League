@@ -190,6 +190,11 @@ service cloud.firestore {
         'botRole',
         'spectator',
         'pendingReplacement',
+        'lastActivityTimestamp',
+        'sitOut',
+        'idleSitOutAt',
+        'idleSitOutReason',
+        'idleRemovedAt',
       ]);
     }
 
@@ -198,6 +203,11 @@ service cloud.firestore {
         'botRole',
         'spectator',
         'pendingReplacement',
+        'lastActivityTimestamp',
+        'sitOut',
+        'idleSitOutAt',
+        'idleSitOutReason',
+        'idleRemovedAt',
       ]);
     }
 

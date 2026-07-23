@@ -329,6 +329,7 @@ export async function applyPendingReplacements(db, { roomId, sessionId, roomData
           handsWon: 0,
           total: 0,
           joinedAtHandCount: freshSession.handCount ?? 0,
+          lastActivityTimestamp: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true },

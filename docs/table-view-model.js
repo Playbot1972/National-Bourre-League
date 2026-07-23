@@ -288,7 +288,10 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     isDealer: sc.playerId === ctx.dealerId,
     isLeading: !handComplete && handReady && activeWinnerIds.includes(sc.playerId),
     isWinner: handComplete && handReady && activeWinnerIds.includes(sc.playerId),
-    enrollmentSatOut: declinedEnrollmentIds.includes(sc.playerId),
+    enrollmentSatOut:
+      declinedEnrollmentIds.includes(sc.playerId) || sc.sitOut === true,
+    idleSitOut: sc.sitOut === true,
+    idleSitOutLabel: sc.sitOut === true ? "Sitting Out" : null,
     enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
     decisionPlannedDiscards: plannedDiscards[sc.playerId],
     isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),

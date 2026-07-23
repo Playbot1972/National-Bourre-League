@@ -153,7 +153,7 @@ function w(e) {
 function T(e, t, n = 0) {
 	return (e || []).filter((e) => {
 		let r = t?.[e];
-		return r?.out === !0 ? !1 : w(m(r, n));
+		return r?.out === !0 || r?.sitOut === !0 ? !1 : w(m(r, n));
 	});
 }
 function E(e = {}) {

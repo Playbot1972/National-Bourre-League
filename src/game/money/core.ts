@@ -419,6 +419,7 @@ export function eligibleIdsForAnteCollection(participantIds, scoreById, buyInFal
   return (participantIds || []).filter((pid) => {
     const row = scoreById?.[pid];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyInFallback));
   });
 }

@@ -1183,6 +1183,7 @@ export function eligibleSeatPlayerIds(sessionData, scoreSnap, buyIn) {
   return seatPlayerIds(sessionData, scoreSnap).filter((id) => {
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
 }
@@ -1724,6 +1725,7 @@ function buildHandEnrollment(sortedPlayerIds, dealerId, scoreById = {}, buyIn = 
   const activeIds = sortedPlayerIds.filter((id) => {
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   const orderedPlayerIds = enrollmentOrderFromDealer(dealerId, activeIds);

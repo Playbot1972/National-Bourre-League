@@ -26,6 +26,7 @@ import {
   handleJoinPublicTable,
   handleLeavePublicTable,
 } from "./publicTable.js";
+import { handleTouchPublicTableActivity } from "./publicTableIdle.js";
 
 initializeApp();
 
@@ -110,6 +111,11 @@ export const gameFindOrCreatePublicTable = wrap(
 );
 export const gameJoinPublicTable = wrap(handleJoinPublicTable, "gameJoinPublicTable");
 export const gameLeavePublicTable = wrap(handleLeavePublicTable, "gameLeavePublicTable");
+/** Public-table seated activity heartbeat (clears idle sit-out). */
+export const gameTouchPublicTableActivity = wrap(
+  handleTouchPublicTableActivity,
+  "gameTouchPublicTableActivity",
+);
 
 /** Stamp lastMemberLeftAt when the final roomMembers row is removed. */
 export const onRoomMemberDeletedSignal = onDocumentDeleted(
