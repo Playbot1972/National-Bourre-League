@@ -114,6 +114,32 @@ describe("computePublicTableIndexDoc", () => {
     assert.equal(doc.status, "open");
     assert.equal(doc.stakesKey, "1000_50");
   });
+
+  it("marks bot-filled host tables as matchmaking-joinable via realPlayerCount", () => {
+    const doc = computePublicTableIndexDoc({
+      roomId: "room1",
+      sessionId: "sess1",
+      roomData: { targetSeatCount: 6, bourreSettings: { buyInAmount: 1000, anteAmount: 50 } },
+      sessionData: {
+        status: "in_progress",
+        buyInAmount: 1000,
+        handStake: 50,
+        currentHand: { tricksByPlayer: {}, participantIds: [] },
+      },
+      scoreRows: [
+        { playerId: "human1" },
+        { playerId: "bot_a", botRole: BOT_ROLE.FILL },
+        { playerId: "bot_b", botRole: BOT_ROLE.FILL },
+        { playerId: "bot_c", botRole: BOT_ROLE.FILL },
+        { playerId: "bot_d", botRole: BOT_ROLE.FILL },
+        { playerId: "bot_e", botRole: BOT_ROLE.FILL },
+      ],
+      pendingJoins: {},
+    });
+    assert.equal(doc.realPlayerCount, 1);
+    assert.equal(doc.openSeats, 0);
+    assert.equal(isJoinableIndexDoc(doc), true);
+  });
 });
 
 describe("rankPublicTableCandidates", () => {
@@ -130,10 +156,22 @@ describe("rankPublicTableCandidates", () => {
 });
 
 describe("isJoinableIndexDoc", () => {
-  it("rejects closed or full tables", () => {
+  it("rejects closed tables", () => {
     assert.equal(isJoinableIndexDoc({ status: "closed", openSeats: 1 }), false);
-    assert.equal(isJoinableIndexDoc({ status: "open", openSeats: 0 }), false);
+  });
+
+  it("allows tables with open seated capacity", () => {
+    assert.equal(isJoinableIndexDoc({ status: "open", openSeats: 2 }), true);
     assert.equal(isJoinableIndexDoc({ status: "in_hand", openSeats: 2 }), true);
+  });
+
+  it("allows spectator matchmaking when humans are present but seats are full", () => {
+    assert.equal(isJoinableIndexDoc({ status: "open", openSeats: 0, realPlayerCount: 1 }), true);
+    assert.equal(isJoinableIndexDoc({ status: "in_hand", openSeats: 0, realPlayerCount: 2 }), true);
+  });
+
+  it("rejects empty tables with no humans and no open seats", () => {
+    assert.equal(isJoinableIndexDoc({ status: "open", openSeats: 0, realPlayerCount: 0 }), false);
   });
 });
 
