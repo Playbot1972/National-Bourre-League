@@ -135,6 +135,7 @@ import {
   gameAdvanceBots,
 } from "./game-functions.js";
 import { isBenignTableActionError } from "./table-action-feedback.js";
+import { shouldSettlementFallbackToClient } from "./settlement-write-routing.js";
 import {
   logHandTransition,
   markHandCardsDealt,
@@ -407,7 +408,7 @@ async function callSettlementOrClient(clientFn, serverFn) {
     try {
       return await serverFn();
     } catch (serverErr) {
-      if (isCloudFunctionUnavailable(serverErr)) {
+      if (shouldSettlementFallbackToClient(serverErr)) {
         console.warn(
           "Settlement Cloud Function unavailable, trying client batch.",
           serverErr?.code || serverErr?.message || serverErr,

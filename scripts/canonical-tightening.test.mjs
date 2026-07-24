@@ -46,7 +46,7 @@ describe("settlement write authority routing", () => {
       src.indexOf("async function callSettlementOrClient"),
       src.indexOf("function isSettlementDevLogging"),
     );
-    assert.match(fn, /isCloudFunctionUnavailable\(serverErr\)/);
+    assert.match(fn, /shouldSettlementFallbackToClient\(serverErr\)/);
     assert.match(fn, /isBenignTableActionError\(serverErr\)/);
     assert.doesNotMatch(fn, /Settlement Cloud Function failed, trying client batch/);
   });
