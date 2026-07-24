@@ -253,7 +253,21 @@ export async function handleTouchPublicTableActivity(db, { roomId, sessionId, ac
     return null;
   });
 
-  return { ...touch, idlePolicy: idlePolicy?.status ?? null };
+  let botAdvance = null;
+  if (idlePolicy && idlePolicy.status !== "skipped") {
+    try {
+      const { advanceBotsAfterAction } = await import("./gameHandlers.js");
+      botAdvance = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    } catch (err) {
+      console.warn("[public-table-idle] bot advance after touch skipped", err?.message ?? err);
+    }
+  }
+
+  return {
+    ...touch,
+    idlePolicy: idlePolicy?.status ?? null,
+    botAdvance: botAdvance?.status ?? null,
+  };
 }
 
 async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {

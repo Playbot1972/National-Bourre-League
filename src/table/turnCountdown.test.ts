@@ -119,6 +119,25 @@ describe("turnCountdown", () => {
     assert.equal(id, "p2");
   });
 
+  it("clears active actor when turn owner is idle sit-out", () => {
+    const id = resolveTableActiveActorId({
+      session: {
+        phase: "draw",
+        turnPlayerId: "human_a",
+        drawCompletedIds: [],
+        participantIds: ["human_a", "bot_b"],
+        tricksByPlayer: {},
+        handNumber: 2,
+        handEnrollment: null,
+        pendingCoWinSettlement: null,
+      },
+      suppressTurn: false,
+      handComplete: false,
+      sitOutPlayerIds: ["human_a"],
+    });
+    assert.equal(id, null);
+  });
+
   it("does not resolve actor outside actionable phases", () => {
     const id = resolveTableActiveActorId({
       session: {
