@@ -83,3 +83,25 @@ describe("spectator touch does not refresh idle peer activity", () => {
     assert.doesNotMatch(block, /for \(const pid of/);
   });
 });
+
+describe("spectator mid-hand join policy unchanged", () => {
+  it("joinPublicTableAsSpectator writes pendingJoins only — no score row or session.players seat", () => {
+    const src = readFileSync(join(root, "publicTable.js"), "utf8");
+    const start = src.indexOf("async function joinPublicTableAsSpectator");
+    assert.ok(start >= 0);
+    const block = src.slice(start, start + 3200);
+    assert.match(block, /PENDING_JOIN_STATUS\.SPECTATING/);
+    assert.match(block, /pendingJoins\[actorId\]/);
+    assert.doesNotMatch(block, /scoresCol.*\.doc\(actorId\)/);
+    assert.doesNotMatch(block, /players\.push/);
+  });
+
+  it("handleTouchPublicTableActivity does not seat spectators", () => {
+    const src = readFileSync(join(root, "publicTableIdle.js"), "utf8");
+    const start = src.indexOf("export async function handleTouchPublicTableActivity");
+    assert.ok(start >= 0);
+    const block = src.slice(start, start + 1400);
+    assert.doesNotMatch(block, /pendingJoins/);
+    assert.doesNotMatch(block, /applyPendingReplacements/);
+  });
+});

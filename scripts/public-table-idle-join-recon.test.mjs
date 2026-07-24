@@ -26,4 +26,12 @@ describe("public-table idle join recon (client)", () => {
     assert.match(src, /isOnTurn:\s*\n\s*sc\.sitOut !== true && cardsDealt/);
     assert.match(src, /isActiveActor:\s*\n\s*sc\.sitOut === true\s*\n\s*\?\s*false/);
   });
+
+  it("TableSessionView passes sitOutPlayerIds into turn countdown hooks", () => {
+    const src = readFileSync(join(root, "../src/table/TableSessionView.tsx"), "utf8");
+    assert.match(src, /sitOutPlayerIds/);
+    assert.match(src, /players\.filter\(\(p\) => p\.idleSitOut\)/);
+    assert.match(src, /useTurnCountdown\(\{[\s\S]*sitOutPlayerIds/);
+    assert.match(src, /useTurnTimerWarning\(\{[\s\S]*sitOutPlayerIds/);
+  });
 });
