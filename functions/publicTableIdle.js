@@ -47,6 +47,14 @@ export function resolveLastActivityMs(scoreRow, nowMs = Date.now()) {
   if (direct > 0) return direct;
   const updated = timestampMs(scoreRow?.updatedAt);
   if (updated > 0) return updated;
+  const hasTimestampField =
+    scoreRow?.lastActivityTimestamp != null || scoreRow?.updatedAt != null;
+  if (!hasTimestampField) {
+    const seated =
+      scoreRow?.playerId &&
+      (scoreRow.bankroll != null || scoreRow.net != null || scoreRow.displayName != null);
+    if (seated) return nowMs - PUBLIC_TABLE_IDLE_SIT_OUT_MS - 1;
+  }
   return nowMs;
 }
 
@@ -253,7 +261,21 @@ export async function handleTouchPublicTableActivity(db, { roomId, sessionId, ac
     return null;
   });
 
-  return { ...touch, idlePolicy: idlePolicy?.status ?? null };
+  let botAdvance = null;
+  if (idlePolicy && idlePolicy.status !== "skipped") {
+    try {
+      const { advanceBotsAfterAction } = await import("./gameHandlers.js");
+      botAdvance = await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+    } catch (err) {
+      console.warn("[public-table-idle] bot advance after touch skipped", err?.message ?? err);
+    }
+  }
+
+  return {
+    ...touch,
+    idlePolicy: idlePolicy?.status ?? null,
+    botAdvance: botAdvance?.status ?? null,
+  };
 }
 
 async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
@@ -278,7 +300,15 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
       const scoreSnap = await tx.get(scoreRef);
       if (!scoreSnap.exists) continue;
       const row = scoreSnap.data();
-      if (row.sitOut === true) continue;
+      if (row.sitOut === true) {
+        if (enrollment && !enrollmentPatch) {
+          const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex ?? 0];
+          if (currentId === pid) {
+            enrollmentPatch = buildEnrollmentPatchForIdleSitOut(enrollment, pid, null, nowMs);
+          }
+        }
+        continue;
+      }
 
       tx.set(
         scoreRef,
@@ -432,8 +462,13 @@ export async function enforcePublicTableIdlePolicy(
 
   const atHandoff = isHandoffWindow(sessionData);
   const toRemove = atHandoff ? remove : [];
+  // 4min+ idle mid-hand: sit out now; hand-boundary removal runs only at handoff.
+  const sitOutFromRemovalStage = !atHandoff
+    ? remove.filter((pid) => scoreById[pid]?.sitOut !== true)
+    : [];
+  const allSitOut = [...new Set([...sitOut, ...sitOutFromRemovalStage])];
 
-  const sitOutResult = await applyIdleSitOuts(db, { roomId, sessionId, playerIds: sitOut, nowMs });
+  const sitOutResult = await applyIdleSitOuts(db, { roomId, sessionId, playerIds: allSitOut, nowMs });
 
   let removeResult = { removed: [] };
   if (toRemove.length) {
@@ -446,6 +481,19 @@ export async function enforcePublicTableIdlePolicy(
       buyIn,
       nowMs,
     });
+  }
+
+  const postSessionSnap = await sessionDocRef(db, roomId, sessionId).get();
+  const postSession = postSessionSnap.data() ?? {};
+  const postScores = await scoresCollection(db, roomId, sessionId).get();
+  const postScoreById = Object.fromEntries(postScores.docs.map((d) => [d.id, d.data()]));
+  const postEnrollment = postSession.handEnrollment?.active
+    ? postSession.handEnrollment
+    : postSession.liveEnrollment?.active
+      ? postSession.liveEnrollment
+      : null;
+  if (isIdleSitOutBlockingEnrollment(postEnrollment, postScoreById, nowMs)) {
+    await skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs });
   }
 
   return {
@@ -502,12 +550,57 @@ export function resolveIdleSitOutMidHandAction(sessionData, scoreById) {
   return null;
 }
 
+/**
+ * Advance enrollment past a sit-out / idle human without waiting for the 12s timer.
+ * Safe when isIdleSitOutBlockingEnrollment is true.
+ */
+export async function skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs = Date.now() }) {
+  const sessionRef = sessionDocRef(db, roomId, sessionId);
+  let advanced = false;
+  await db.runTransaction(async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists) return;
+    const sessionData = sessionSnap.data();
+    const enrollment = sessionData.handEnrollment?.active
+      ? sessionData.handEnrollment
+      : sessionData.liveEnrollment?.active
+        ? sessionData.liveEnrollment
+        : null;
+    if (!enrollment?.active) return;
+
+    const scoreSnap = await tx.get(scoresCollection(db, roomId, sessionId));
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    if (!isIdleSitOutBlockingEnrollment(enrollment, scoreById, nowMs)) return;
+
+    const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex ?? 0];
+    if (!currentId) return;
+    const patch = buildEnrollmentPatchForIdleSitOut(enrollment, currentId, null, nowMs);
+    if (!patch?.handEnrollment) return;
+
+    const sessionUpdate = {
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (sessionData.handEnrollment?.active) {
+      sessionUpdate.handEnrollment = patch.handEnrollment;
+    } else if (sessionData.liveEnrollment?.active) {
+      sessionUpdate.liveEnrollment = patch.handEnrollment;
+    }
+    if (patch.currentHand) {
+      sessionUpdate.currentHand = patch.currentHand;
+    }
+    tx.update(sessionRef, sessionUpdate);
+    advanced = true;
+  });
+  return advanced;
+}
+
 /** True when a seated human blocks enrollment progression on their turn. */
 export function isIdleSitOutBlockingEnrollment(enrollment, scoreById, nowMs = Date.now()) {
   if (!enrollment?.active) return false;
   const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex ?? 0];
   if (!currentId || isRobotPlayerId(currentId)) return false;
   const row = scoreById[currentId];
-  if (row?.sitOut === true) return true;
+  if (!row) return false;
+  if (row.sitOut === true) return true;
   return classifyIdleStage({ ...row, playerId: currentId }, nowMs) === "sit_out";
 }

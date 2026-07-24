@@ -412,16 +412,23 @@ export function TableSessionView({
     watchOnly,
   });
 
+  const sitOutPlayerIds = useMemo(
+    () => players.filter((p) => p.idleSitOut).map((p) => p.playerId),
+    [players],
+  );
+
   const { countdown: turnCountdown } = useTurnCountdown({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    sitOutPlayerIds,
   });
 
   useTurnTimerWarning({
     session,
     suppressTurn: Boolean(suppressTurn),
     handComplete,
+    sitOutPlayerIds,
     currentUserId,
     localActionPending: actionFeedback?.status === "loading",
   });

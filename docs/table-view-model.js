@@ -301,11 +301,14 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     showHoleCards:
       cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
     holeCardCount: cardsDealt ? displayHoleCardCount(currentHand || {}, sc.playerId, false) : 0,
-    isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
+    isOnTurn:
+      sc.sitOut !== true && cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     isActiveActor:
-      (enrollmentActive || pagatDecisionActive) && currentEnrollmentPlayerId === sc.playerId
-        ? true
-        : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
+      sc.sitOut === true
+        ? false
+        : (enrollmentActive || pagatDecisionActive) && currentEnrollmentPlayerId === sc.playerId
+          ? true
+          : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     canToggleInHand: canPlayerShowHandChoice({
       enrollmentGateActive: enrollmentActive,
       isSelf,
