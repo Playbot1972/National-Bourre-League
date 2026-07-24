@@ -101,6 +101,14 @@ describe("public-table idle policy (unit)", () => {
     assert.equal(resolveLastActivityMs({ updatedAt: NOW - 60_000 }, NOW), NOW - 60_000);
   });
 
+  it("resolveLastActivityMs treats missing timestamps as idle-eligible (not perpetually active)", () => {
+    assert.equal(
+      resolveLastActivityMs({ playerId: "human_a", bankroll: 100 }, NOW),
+      NOW - PUBLIC_TABLE_IDLE_SIT_OUT_MS - 1,
+    );
+    assert.equal(resolveLastActivityMs({ playerId: "human_b" }, NOW), NOW);
+  });
+
   it("buildEnrollmentPatchForIdleSitOut declines non-current idle player without advancing index", () => {
     const enrollment = {
       active: true,

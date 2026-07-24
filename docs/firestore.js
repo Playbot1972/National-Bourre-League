@@ -1746,6 +1746,7 @@ function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, session
     if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   if (eligible.length < 2) return null;
@@ -3978,7 +3979,7 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
-    ...(isRobot ? { isRobot: true } : {}),
+    ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
