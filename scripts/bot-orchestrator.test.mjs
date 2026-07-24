@@ -9,6 +9,8 @@ import {
   shouldClientDriveBotsDirectly,
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
+import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
+import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
@@ -72,5 +74,74 @@ describe("app.js bot paths", () => {
     assert.ok(src.includes("createServerBotAdvanceRuntime"));
     assert.ok(src.includes("advanceSessionBots,"));
     assert.ok(runtimeSrc.includes("deps.advanceSessionBots"));
+  });
+
+  it("play-phase presentation block defers but still arms bot think timer", () => {
+    assert.match(runtimeSrc, /presentationBlocked && handPhase !== "play"/);
+    assert.match(runtimeSrc, /action: presentationBlocked \? "waiting_presentation"/);
+    assert.doesNotMatch(
+      runtimeSrc,
+      /waiting_presentation[\s\S]{0,400}return;\s*\n\s*if \(inFlight\)/,
+      "play presentation wait must not return before armPlayThink",
+    );
+    const clientPlay = src.slice(
+      src.indexOf("function scheduleClientBotPlayCard"),
+      src.indexOf("function stopRobotPresentationSubscription"),
+    );
+    assert.match(clientPlay, /presentationBlocked/);
+    assert.match(clientPlay, /action: "deferred"/);
+    assert.doesNotMatch(
+      clientPlay,
+      /presentation_blocked[\s\S]{0,200}action: "blocked"[\s\S]{0,80}return;/,
+      "client play must not return before armPlayThink when presentation blocked",
+    );
+  });
+});
+
+describe("server bot advance runtime presentation deferral", () => {
+  it("arms think during play even when presentation is blocked, then executes after clear", async () => {
+    let presentationBlocked = true;
+    let advanceCalls = 0;
+    const session = {
+      id: "sess_1",
+      status: "active",
+      currentHand: {
+        phase: "play",
+        turnPlayerId: "bot_a",
+        participantIds: ["human", "bot_a"],
+        currentTrick: { trickNumber: 1, plays: [] },
+        tricksByPlayer: { human: 0, bot_a: 0 },
+      },
+    };
+    const scores = [{ playerId: "bot_a", isRobot: true }];
+    const runtime = createServerBotAdvanceRuntime({
+      shouldRequestAdvance: () => true,
+      sessionNeedsBotDriver: () => true,
+      shouldBlockForPresentation: () => presentationBlocked,
+      snapshotContext: () => ({
+        handNumber: 1,
+        trickNumber: 1,
+        turnPlayerId: "bot_a",
+      }),
+      getRoomId: () => "room_1",
+      getSessionId: () => "sess_1",
+      getHandPhase: (s) => s.currentHand?.phase ?? null,
+      advanceSessionBots: async () => {
+        advanceCalls += 1;
+        return { ok: true };
+      },
+      findSession: () => session,
+      getScores: () => scores,
+      onWake: () => {},
+    });
+
+    runtime.schedule(session, scores, "human", { reason: "test" });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    assert.equal(advanceCalls, 0, "should not fire while presentation blocked");
+
+    presentationBlocked = false;
+    runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    assert.equal(advanceCalls, 1, "should execute after presentation clears");
   });
 });

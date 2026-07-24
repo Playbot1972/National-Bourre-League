@@ -13794,11 +13794,15 @@ function Bd(e = Date.now()) {
 		softUnblock: !1,
 		forceReleased: !1
 	};
-	(!Pd || Pd.reason !== t) && (Pd = {
+	Pd ? Pd.reason !== t && (Pd = {
+		reason: t,
+		since: Pd.since,
+		blockedLogged: Pd.blockedLogged
+	}) : Pd = {
 		reason: t,
 		since: e,
 		blockedLogged: !1
-	});
+	};
 	let n = e - Pd.since;
 	return n >= 7e3 ? (Od() && !Pd.blockedLogged && kd("trickAnimationBridge", "gate-force-release", {
 		reason: t,

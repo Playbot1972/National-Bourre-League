@@ -3636,29 +3636,7 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     remainingHandCount: ctx.remainingHandCount ?? null,
   };
-  if (shouldBlockRobotForPresentation(s, scores)) {
-    clientBotThinkSchedule.playDelayState.markTurnEligible({
-      ...playCtx,
-      nowMs: Date.now(),
-    });
-    logBotOrchestrator("bot-turn-start", {
-      ...ctx,
-      turnPlayerId: turnId,
-      owner: "client",
-      trigger: reason,
-      action: "waiting_presentation",
-    });
-    logBotOrchestrator("skip-request", {
-      ...ctx,
-      turnPlayerId: turnId,
-      reason: "presentation_blocked",
-      owner: "client",
-      trigger: reason,
-      action: "blocked",
-    });
-    return;
-  }
-
+  const presentationBlocked = shouldBlockRobotForPresentation(s, scores);
   const expectedTurnKey = botPlayTurnKey(playCtx);
   clientBotThinkSchedule.playDelayState.markTurnEligible({
     ...playCtx,
@@ -3669,7 +3647,18 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     owner: "client",
     trigger: reason,
+    ...(presentationBlocked ? { action: "waiting_presentation" } : {}),
   });
+  if (presentationBlocked) {
+    logBotOrchestrator("skip-request", {
+      ...ctx,
+      turnPlayerId: turnId,
+      reason: "presentation_blocked",
+      owner: "client",
+      trigger: reason,
+      action: "deferred",
+    });
+  }
 
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
