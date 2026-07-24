@@ -30,6 +30,9 @@ import {
 } from "./bourre-rules.js";
 import { apeClass, apeStatus } from "./ranking.js";
 import { canPlayerShowHandChoice, isRobotPlayerId } from "./session-startup.js";
+import { resolveCoWinPresentation } from "./co-win-presentation.js";
+
+export { resolveCoWinPresentation } from "./co-win-presentation.js";
 
 export function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
