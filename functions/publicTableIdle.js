@@ -28,6 +28,7 @@ import { deriveScoreNet, resolveSessionBuyIn } from "./vendor/bourre-rules.js";
 import { isHandoffWindow } from "./publicTableReplacement.js";
 import { buildHandFlowSnapshot, HAND_FLOW_PHASE } from "./vendor/session-startup.js";
 import { HAND_PHASE } from "./vendor/game-engine.js";
+import { HAND_ENROLLMENT_MS } from "./vendor/hand-enrollment-ms.js";
 
 function isRobotPlayerId(playerId) {
   return typeof playerId === "string" && playerId.startsWith("bot_");
@@ -146,7 +147,7 @@ export function buildEnrollmentPatchForIdleSitOut(enrollment, playerId, dealCont
         enrolledIds,
         declinedIds,
         currentIndex: nextIndex,
-        turnDeadlineMs: nowMs + 12_000,
+        turnDeadlineMs: nowMs + HAND_ENROLLMENT_MS,
       },
       currentHand: emptyPreDealHand(),
     };
@@ -159,7 +160,7 @@ export function buildEnrollmentPatchForIdleSitOut(enrollment, playerId, dealCont
         enrolledIds: [],
         declinedIds: [],
         currentIndex: 0,
-        turnDeadlineMs: nowMs + 12_000,
+        turnDeadlineMs: nowMs + HAND_ENROLLMENT_MS,
       },
       currentHand: emptyPreDealHand(),
     };
@@ -171,7 +172,7 @@ export function buildEnrollmentPatchForIdleSitOut(enrollment, playerId, dealCont
       enrolledIds,
       declinedIds,
       currentIndex: nextIndex,
-      turnDeadlineMs: nowMs + 12_000,
+      turnDeadlineMs: nowMs + HAND_ENROLLMENT_MS,
     },
     currentHand: emptyPreDealHand(),
   };
