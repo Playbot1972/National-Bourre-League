@@ -77,6 +77,42 @@ describe("turnCountdown", () => {
     );
   });
 
+  it("clears active actor for public-table watch-only spectators", () => {
+    assert.equal(
+      resolveTableActiveActorId({
+        session: {
+          phase: "play",
+          turnPlayerId: "bot_abc",
+          participantIds: ["host", "bot_abc"],
+          tricksByPlayer: {},
+          handNumber: 2,
+        },
+        suppressTurn: false,
+        handComplete: false,
+        watchOnly: true,
+      }),
+      null,
+    );
+  });
+
+  it("still resolves active actor for seated participants when not watch-only", () => {
+    assert.equal(
+      resolveTableActiveActorId({
+        session: {
+          phase: "play",
+          turnPlayerId: "p2",
+          participantIds: ["p1", "p2"],
+          tricksByPlayer: {},
+          handNumber: 1,
+        },
+        suppressTurn: false,
+        handComplete: false,
+        watchOnly: false,
+      }),
+      "p2",
+    );
+  });
+
   it("activity key changes when turn ownership changes", () => {
     const base = {
       session: {

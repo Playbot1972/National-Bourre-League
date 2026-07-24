@@ -82,6 +82,13 @@ describe("legacy sync guard wiring", () => {
     assert.match(src, /watchOnly \? createWatchOnlyTableIntentHandlers\(\)/);
     assert.match(src, /PUBLIC_TABLE_WATCH_ONLY_MESSAGE/);
   });
+
+  it("turn urgency hooks receive watchOnly from TableSessionView", () => {
+    const src = readFileSync(join(root, "src/table/turnCountdown.ts"), "utf8");
+    assert.match(src, /watchOnly\)/);
+    const viewSrc = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
+    assert.match(viewSrc, /watchOnly,\s*\n\s*currentUserId/);
+  });
 });
 
 describe("watch-only banner copy", () => {

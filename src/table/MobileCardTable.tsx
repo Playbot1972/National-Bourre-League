@@ -74,6 +74,7 @@ interface MobileCardTableProps {
   microinteractions: TableMicrointeractions;
   instantTrickPlays?: boolean;
   turnCountdown?: TurnCountdownState | null;
+  watchOnly?: boolean;
   bigPotEvent?: TableEvent | null;
   onDismissTableEvent?: (id: string) => void;
   onToggleInHand: (playerId: string, inHand: boolean) => void;
@@ -111,6 +112,7 @@ export function MobileCardTable({
   microinteractions,
   instantTrickPlays = false,
   turnCountdown = null,
+  watchOnly = false,
   bigPotEvent = null,
   onDismissTableEvent,
   onToggleInHand,
@@ -243,6 +245,7 @@ export function MobileCardTable({
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
     const suppressTurn =
       trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+    const suppressTurnUrgency = suppressTurn || watchOnly;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
     const drawingNow = handPresentation.animatingDrawPlayerId === player.playerId;
@@ -264,8 +267,8 @@ export function MobileCardTable({
           Object.prototype.hasOwnProperty.call(session.postedAntes, player.playerId),
       }),
       tricksThisHand,
-      isOnTurn: suppressTurn ? false : player.isOnTurn,
-      isActiveActor: suppressTurn ? false : player.isActiveActor,
+      isOnTurn: suppressTurnUrgency ? false : player.isOnTurn,
+      isActiveActor: suppressTurnUrgency ? false : player.isActiveActor,
       isLeading:
         trickWinnerSeat &&
         (trickPresentation.phase === "winnerReveal" ||
@@ -491,6 +494,7 @@ export function MobileCardTable({
             handComplete,
             enrollmentActive,
             selfPlayer,
+            watchOnly,
           })}
           dealStaggerMs={handTiming.dealCardStaggerMs}
           drawAnimSubPhase={
