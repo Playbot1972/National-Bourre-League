@@ -79,7 +79,23 @@ functions/
 
 Priority scenarios run first in the serial suite. Guest public joins wait for `publicTableIndex` so matchmaking routes to spectate (not create a new seated table).
 
-Nightly CI: `.github/workflows/nightly-live-player-e2e.yml` (optional, not PR-gating; `--retries=1`).
+### Preflight gate (`live-players.preflight.spec.ts`)
+
+Before the serial suite, a lightweight preflight checks:
+
+1. Emulator boot (UI :4000, Auth :9099, Firestore :8088)
+2. Social app smoke (`#hero-signup` on :8080)
+3. Single-user signup/bootstrap
+4. Two-user `createPlayerPair` smoke
+
+Diagnostics land in `test-results/live-player-preflight.json` (timings, page crash/close events). On failure the run is classified as `ENVIRONMENT_FAILURE`, `HARNESS_FAILURE`, or `APP_FLOW_FAILURE` and the heavy suite is skipped.
+
+```bash
+npm run test:e2e:live-players:preflight   # gate only
+npm run test:e2e:live-players             # preflight + serial suite (scripts/run-live-player-e2e.mjs)
+```
+
+Nightly CI: `.github/workflows/nightly-live-player-e2e.yml` (optional, not PR-gating; preflight step + `--retries=1`).
 
 ### Track 2 — Canonical (`canonical-live-players.test.mjs`)
 
@@ -98,7 +114,8 @@ npm run test:rules   # includes canonical-live-players.test.mjs
 
 # Live-player E2E (emulators required)
 npm run emulators    # terminal 1 — auth :9099, firestore :8088, functions :5001
-PLAYWRIGHT_EMULATORS=1 npm run test:e2e:live-players
+PLAYWRIGHT_EMULATORS=1 npm run test:e2e:live-players:preflight  # gate only
+PLAYWRIGHT_EMULATORS=1 npm run test:e2e:live-players            # preflight + serial suite
 ```
 
 ## Next increments (not in this PR)

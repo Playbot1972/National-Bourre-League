@@ -27,9 +27,13 @@ import {
   waitForPlayEnabled,
   waitPastRevealPhase,
 } from "./helpers/livePlayerHarness";
+import { logPreflightSummary, runLivePlayerPreflight, type PreflightResult } from "./helpers/livePlayerPreflight";
 import { expectHandPhase, tryHandEnrollmentActions } from "./helpers/roomFlow";
 
 const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
+const skipPreflight = process.env.LIVE_PLAYER_SKIP_PREFLIGHT === "1";
+
+let preflightResult: PreflightResult | null = null;
 
 function tableOverlay(page: import("@playwright/test").Page) {
   return page.locator("#table-play-overlay");
@@ -41,11 +45,28 @@ test.describe("Live players — emulator E2E", () => {
   test.setTimeout(300_000);
   test.use({ actionTimeout: 30_000, navigationTimeout: 45_000 });
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser }) => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
+    if (skipPreflight) return;
+    preflightResult = await runLivePlayerPreflight(browser);
+    if (!preflightResult.ok) {
+      logPreflightSummary(preflightResult);
+    }
   });
 
-  test.beforeEach(async () => {
+  test.beforeEach(async ({}, testInfo) => {
+    if (preflightResult && !preflightResult.ok) {
+      const label =
+        preflightResult.failureClass === "environment"
+          ? "ENVIRONMENT_FAILURE"
+          : preflightResult.failureClass === "app"
+            ? "APP_FLOW_FAILURE"
+            : "HARNESS_FAILURE";
+      test.skip(
+        true,
+        `${label}: preflight failed at ${preflightResult.stage} — ${preflightResult.message}`,
+      );
+    }
     await clearEmulatorData();
   });
 
