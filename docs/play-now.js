@@ -82,6 +82,38 @@ export function pickPlayNowRobotCount(maxTablePlayers, occupiedSeats, rng = Math
   return randomInt(1, available - 1, rng);
 }
 
+/** Weighted bot counts for bots-only public Play Now (server picks once at create). */
+export const BOTS_ONLY_BOT_COUNT_WEIGHTS = Object.freeze({
+  2: 22,
+  3: 22,
+  4: 22,
+  5: 20,
+  6: 9,
+  7: 5,
+});
+
+const BOTS_ONLY_BOT_COUNT_BUCKETS = Object.freeze(
+  Object.entries(BOTS_ONLY_BOT_COUNT_WEIGHTS).map(([count, weight]) => [
+    Number(count),
+    weight,
+  ]),
+);
+
+/**
+ * Weighted-random fill-bot count for bots-only Play Now (2–7 bots; host seat is separate).
+ * @param {() => number} [rng]
+ * @returns {number}
+ */
+export function pickBotsOnlyBotCount(rng = Math.random) {
+  const totalWeight = BOTS_ONLY_BOT_COUNT_BUCKETS.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = rng() * totalWeight;
+  for (const [count, weight] of BOTS_ONLY_BOT_COUNT_BUCKETS) {
+    roll -= weight;
+    if (roll < 0) return count;
+  }
+  return BOTS_ONLY_BOT_COUNT_BUCKETS[BOTS_ONLY_BOT_COUNT_BUCKETS.length - 1][0];
+}
+
 /**
  * Pick a vacation-style room name; lightweight suffix if taken.
  * @param {string[]} takenNames

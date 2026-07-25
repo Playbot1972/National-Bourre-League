@@ -77,6 +77,7 @@ export const PENDING_JOIN_STATUS = Object.freeze({
  * @property {'private'|'public'} [visibility] - Absent === private.
  * @property {PublicRoomFeatures} [features]
  * @property {number} [targetSeatCount] - 2–8 preference for public tables.
+ * @property {number} [botsOnlyBotCount] - Canonical fill-bot count chosen at bots-only create (2–7).
  */
 
 /**
