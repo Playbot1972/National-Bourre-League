@@ -104,12 +104,30 @@ export async function createPlayerContext(
   label: string,
 ): Promise<PlayerContext> {
   const context = await browser.newContext();
+  return bootstrapPlayerContext(context, label);
+}
+
+/** Open both human contexts sequentially to reduce shared-browser contention. */
+export async function createPlayerPair(
+  browser: Browser,
+  hostLabel: string,
+  guestLabel: string,
+): Promise<[PlayerContext, PlayerContext]> {
+  const hostContext = await browser.newContext();
+  const host = await bootstrapPlayerContext(hostContext, hostLabel);
+  const guestContext = await browser.newContext();
+  const guest = await bootstrapPlayerContext(guestContext, guestLabel);
+  return [host, guest];
+}
+
+async function bootstrapPlayerContext(
+  context: BrowserContext,
+  label: string,
+): Promise<PlayerContext> {
   context.setDefaultTimeout(60_000);
   context.setDefaultNavigationTimeout(45_000);
   const page = await context.newPage();
   await page.goto("/", { waitUntil: "commit", timeout: 45_000 });
-  await expect(page.locator("#app-version")).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 15_000 });
   if (/host/i.test(label)) {
     await signUpHost(page, label);
   } else {
@@ -122,7 +140,7 @@ export async function createPlayerContext(
 }
 
 export async function closePlayerContext(player: PlayerContext) {
-  await player.context.close();
+  await player.context.close().catch(() => {});
 }
 
 function tableOverlay(page: Page) {

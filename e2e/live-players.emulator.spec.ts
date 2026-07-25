@@ -9,8 +9,8 @@
 import { test, expect } from "@playwright/test";
 import {
   clearEmulatorData,
+  createPlayerPair,
   closePlayerContext,
-  createPlayerContext,
   driveLiveHumansToPlay,
   emulatorReady,
   expectNoHeroTurnUrgency,
@@ -53,8 +53,7 @@ test.describe("Live players — emulator E2E", () => {
     browser,
   }) => {
     test.setTimeout(300_000);
-    const host = await createPlayerContext(browser, "Draw Host");
-    const guest = await createPlayerContext(browser, "Draw Guest");
+    const [host, guest] = await createPlayerPair(browser, "Draw Host", "Draw Guest");
 
     try {
       const roomName = "Private Draw Play Room";
@@ -82,8 +81,7 @@ test.describe("Live players — emulator E2E", () => {
     browser,
   }) => {
     test.setTimeout(240_000);
-    const host = await createPlayerContext(browser, "Public Host");
-    const guest = await createPlayerContext(browser, "Public Guest");
+    const [host, guest] = await createPlayerPair(browser, "Public Host", "Public Guest");
 
     try {
       await joinPublicMixedTableAsSpectator(host.page, guest.page);
@@ -120,8 +118,7 @@ test.describe("Live players — emulator E2E", () => {
 
   test("two humans join the same private room (separate contexts)", async ({ browser }) => {
     test.setTimeout(180_000);
-    const host = await createPlayerContext(browser, "Live Host");
-    const guest = await createPlayerContext(browser, "Live Guest");
+    const [host, guest] = await createPlayerPair(browser, "Live Host", "Live Guest");
 
     try {
       await hostPrivateSession(host.page);
@@ -141,8 +138,7 @@ test.describe("Live players — emulator E2E", () => {
 
   test("mixed humans + bot: host adds robot after guest joins", async ({ browser }) => {
     test.setTimeout(180_000);
-    const host = await createPlayerContext(browser, "Mixed Host");
-    const guest = await createPlayerContext(browser, "Mixed Guest");
+    const [host, guest] = await createPlayerPair(browser, "Mixed Host", "Mixed Guest");
 
     try {
       const roomName = "Mixed Humans Bots Room";
@@ -164,8 +160,7 @@ test.describe("Live players — emulator E2E", () => {
     browser,
   }) => {
     test.setTimeout(180_000);
-    const host = await createPlayerContext(browser, "Table Host");
-    const guest = await createPlayerContext(browser, "Table Guest");
+    const [host, guest] = await createPlayerPair(browser, "Table Host", "Table Guest");
 
     try {
       await joinPublicMixedTableAsSpectator(host.page, guest.page);

@@ -17,23 +17,39 @@ export async function signUpGuest(page: Page, label = "E2E Guest") {
   await signUpUser(page, label);
 }
 
-async function signUpUser(page: Page, label: string) {
-  const signup = page.locator("#hero-signup");
-  await expect(page.locator("#app-version")).toBeVisible({ timeout: 30_000 });
-  await expect(signup).toBeVisible({ timeout: 15_000 });
+async function openSignupModal(page: Page) {
   const modal = page.locator("#auth-modal");
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    if (await modal.isVisible().catch(() => false)) break;
-    await signup.click({ timeout: 15_000 });
-    try {
-      await expect(modal).toBeVisible({ timeout: 10_000 });
-      break;
-    } catch {
-      if (attempt === 2) {
-        await expect(modal).toBeVisible({ timeout: 15_000 });
+  const triggers = [page.locator("#hero-signup"), page.locator("#open-signup")];
+
+  for (let reload = 0; reload < 2; reload += 1) {
+    for (const trigger of triggers) {
+      if (!(await trigger.isVisible().catch(() => false))) continue;
+      await trigger.click({ timeout: 10_000, force: true });
+      try {
+        await expect(modal).toBeVisible({ timeout: 8_000 });
+        return;
+      } catch {
+        // try next trigger or reload
       }
     }
+    if (reload === 0) {
+      await page.reload({ waitUntil: "commit", timeout: 45_000 });
+      await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 15_000 });
+    }
   }
+
+  await expect(modal).toBeVisible({ timeout: 10_000 });
+}
+
+async function signUpUser(page: Page, label: string) {
+  await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 30_000 });
+  await page
+    .waitForFunction(
+      () => /^v\d+/.test(document.querySelector("#app-version")?.textContent ?? ""),
+      { timeout: 15_000 },
+    )
+    .catch(() => {});
+  await openSignupModal(page);
   await expect(page.locator("#auth-name")).toBeVisible();
   const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const email = `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;

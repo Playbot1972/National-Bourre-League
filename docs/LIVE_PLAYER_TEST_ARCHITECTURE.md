@@ -61,6 +61,7 @@ functions/
 - `clearEmulatorData()` — wipe Auth + Firestore; best-effort verify collections empty
 - `waitForPublicTableIndex(n)` — poll emulator until `publicTableIndex` exists (guest matchmaking)
 - `roomDetail(page)` / `visibleSetupPlayButton(page)` — scope to visible `#room-detail-view`
+- `createPlayerPair(browser, hostLabel, guestLabel)` — sequential two-human contexts (shared browser)
 - `joinPublicMixedTableAsSpectator(host, guest)` — host Play Now → index wait → guest spectates
 - `rejoinPublicMixedAsSpectator(guest)` — Play Now again after leave (index wait)
 - `driveLiveHumansToPlay(pages)` — coordinate enrollment + draw across human overlays
