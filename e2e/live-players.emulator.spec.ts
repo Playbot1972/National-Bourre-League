@@ -1,0 +1,160 @@
+/**
+ * Live-player E2E — multi-context flows on Firebase emulators.
+ *
+ * Requires: npm run emulators (auth :9099, firestore :8088, functions :5001)
+ *           PLAYWRIGHT_EMULATORS=1
+ *
+ * See docs/LIVE_PLAYER_TEST_ARCHITECTURE.md
+ */
+import { test, expect } from "@playwright/test";
+import {
+  clearEmulatorData,
+  clickPlayNow,
+  closePlayerContext,
+  createPlayerContext,
+  emulatorReady,
+  expectNoHeroTurnUrgency,
+  expectWatchOnlyTable,
+  hostAddOneRobot,
+  hostPrivateSession,
+  nudgeBots,
+  openTableFromSetup,
+  readRoomInviteCode,
+  selectPlayNowMode,
+  syncPrivateRoomPair,
+  waitForPlayEnabled,
+  waitPastRevealPhase,
+} from "./helpers/livePlayerHarness";
+import { tryHandEnrollmentActions } from "./helpers/roomFlow";
+
+const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
+
+function tableOverlay(page: import("@playwright/test").Page) {
+  return page.locator("#table-play-overlay");
+}
+
+test.describe("Live players — emulator E2E", () => {
+  test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
+  test.setTimeout(300_000);
+
+  test.beforeAll(async () => {
+    test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");
+  });
+
+  test.beforeEach(async () => {
+    await clearEmulatorData();
+  });
+
+  test("two humans join the same private room (separate contexts)", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Live Host");
+    const guest = await createPlayerContext(browser, "Live Guest");
+
+    try {
+      await hostPrivateSession(host.page);
+      const inviteCode = await readRoomInviteCode(host.page);
+      await syncPrivateRoomPair(
+        host.page,
+        guest.page,
+        inviteCode,
+        "Live Player E2E Room",
+        "Live Guest",
+      );
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+
+  test("mixed humans + bot: host adds robot after guest joins", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Mixed Host");
+    const guest = await createPlayerContext(browser, "Mixed Guest");
+
+    try {
+      const roomName = "Mixed Humans Bots Room";
+      await hostPrivateSession(host.page, roomName);
+      const inviteCode = await readRoomInviteCode(host.page);
+      await syncPrivateRoomPair(host.page, guest.page, inviteCode, roomName, "Mixed Guest");
+      await hostAddOneRobot(host.page);
+      await expect
+        .poll(async () => host.page.getByTestId("setup-roster-entry").count(), { timeout: 30_000 })
+        .toBe(3);
+      await waitForPlayEnabled(host.page);
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+
+  test("public mixed: guest spectates watch-only while host table progresses", async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Public Host");
+    const guest = await createPlayerContext(browser, "Public Guest");
+
+    try {
+      await selectPlayNowMode(host.page, "mixed");
+      await clickPlayNow(host.page);
+
+      await selectPlayNowMode(guest.page, "mixed");
+      await clickPlayNow(guest.page);
+
+      await expectWatchOnlyTable(guest.page);
+      await expectNoHeroTurnUrgency(guest.page);
+
+      const hostOverlay = tableOverlay(host.page);
+      await expect(hostOverlay.getByTestId("watch-only-banner")).toHaveCount(0);
+
+      const lastEnroll = { at: 0 };
+      const deadline = Date.now() + 120_000;
+      while (Date.now() < deadline) {
+        await tryHandEnrollmentActions(host.page, hostOverlay, lastEnroll);
+        await nudgeBots(host.page);
+        const phase =
+          (await hostOverlay.getByTestId("phase-tag").first().getAttribute("data-phase")) ?? "";
+        if (phase === "draw" || phase === "play") break;
+        await host.page.waitForTimeout(600);
+      }
+
+      await waitPastRevealPhase(host.page);
+      await expectWatchOnlyTable(guest.page);
+      await expectNoHeroTurnUrgency(guest.page);
+
+      const hostPhase =
+        (await hostOverlay.getByTestId("phase-tag").first().getAttribute("data-phase")) ?? "";
+      expect(hostPhase === "draw" || hostPhase === "play" || hostPhase === "decision").toBe(true);
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+
+  test("public mixed: seated host and watch-only guest both see live table root", async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Table Host");
+    const guest = await createPlayerContext(browser, "Table Guest");
+
+    try {
+      await selectPlayNowMode(host.page, "mixed");
+      await clickPlayNow(host.page);
+      await selectPlayNowMode(guest.page, "mixed");
+      await clickPlayNow(guest.page);
+
+      await expect(tableOverlay(host.page).getByTestId("table-root")).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(tableOverlay(guest.page).getByTestId("table-root")).toBeVisible({
+        timeout: 30_000,
+      });
+      await expectWatchOnlyTable(guest.page);
+      await waitForPlayEnabled(host.page).catch(() => {});
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+});

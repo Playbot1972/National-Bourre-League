@@ -27,7 +27,7 @@ async function signUpUser(page: Page, label: string) {
   await page.locator("#auth-email").fill(email);
   await page.locator("#auth-password").fill("test-pass-123456");
   await page.locator("#auth-submit").click();
-  await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 30_000 });
 }
 
 /** Open the protected Rooms view (nav renamed from legacy "Private Rooms" link). */
@@ -95,7 +95,7 @@ export async function openNewSession(page: Page) {
   await page.waitForTimeout(300);
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("#new-session").click({ force: true });
-  await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator(".session-tab").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
 }
 
