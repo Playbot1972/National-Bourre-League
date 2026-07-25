@@ -2903,8 +2903,17 @@ async function runPlayNowFlow() {
           currentMembers.some((m) => m.userId === session.uid),
         { label: "Public Play Now room load" },
       );
-      openSession(result.sessionId);
       const spectating = result.status === "spectating";
+      if (spectating) {
+        await waitUntil(
+          () => {
+            const active = currentSessions.find((s) => s.id === result.sessionId);
+            return active && isPublicTableWatchOnly(active, uid, { scorePlayerIds: [] });
+          },
+          { label: "Public table spectator pendingJoin" },
+        );
+      }
+      openSession(result.sessionId);
       await waitUntil(
         () => {
           if (openSessionId !== result.sessionId) return false;
