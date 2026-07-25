@@ -61,18 +61,27 @@ jobs:
 
       - name: Start Firebase emulators
         run: |
+          export MIXED_PUBLIC_TABLES_SERVER_ENABLED=true
           npm run emulators > /tmp/firebase-emulators.log 2>&1 &
           echo $! > /tmp/emulator.pid
           for i in $(seq 1 90); do
             if curl -sf http://127.0.0.1:4000 >/dev/null; then
-              echo "Emulators ready"
-              exit 0
+              echo "Emulators ready (UI :4000)"
+              break
             fi
             sleep 2
           done
-          echo "Emulator startup failed"
-          tail -50 /tmp/firebase-emulators.log
-          exit 1
+          if ! curl -sf http://127.0.0.1:4000 >/dev/null; then
+            echo "Emulator startup failed"
+            tail -50 /tmp/firebase-emulators.log
+            exit 1
+          fi
+          echo "MIXED_PUBLIC_TABLES_SERVER_ENABLED=${MIXED_PUBLIC_TABLES_SERVER_ENABLED}"
+
+      - name: Smoke-check public matchmaking flag + index rebuild
+        env:
+          MIXED_PUBLIC_TABLES_SERVER_ENABLED: "true"
+        run: node scripts/smoke-public-table-index.mjs
 
       - name: Validate live-player E2E (preflight + consecutive passes)
         env:

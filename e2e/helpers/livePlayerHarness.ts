@@ -24,6 +24,22 @@ const FIRESTORE_CLEAR_URL =
   "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents";
 const FIRESTORE_DOCS_BASE = FIRESTORE_CLEAR_URL;
 const PUBLIC_TABLE_INDEX_COLLECTION = "publicTableIndex";
+/** Must match docs/firebase-config.js FIREBASE_SDK_VERSION. */
+const FIREBASE_SDK_CDN = "https://www.gstatic.com/firebasejs/12.14.0";
+
+/**
+ * Emulator admin REST (`/emulator/v1/...`) supports DELETE only — GET list returns 404.
+ * Poll publicTableIndex through the signed-in page's Firestore client instead.
+ */
+async function countPublicTableIndexFromPage(page: Page): Promise<number> {
+  return page.evaluate(async (cdn) => {
+    const { getApp } = await import(`${cdn}/firebase-app.js`);
+    const { collection, getDocs, getFirestore } = await import(`${cdn}/firebase-firestore.js`);
+    const db = getFirestore(getApp());
+    const snap = await getDocs(collection(db, "publicTableIndex"));
+    return snap.size;
+  }, FIREBASE_SDK_CDN);
+}
 
 async function countEmulatorCollection(collection: string): Promise<number> {
   try {
@@ -74,10 +90,14 @@ export async function clearEmulatorData() {
 }
 
 /** Matchmaking indexes the host table before a guest can spectate (not create a new table). */
-export async function waitForPublicTableIndex(minCount = 1, timeoutMs = 45_000) {
+export async function waitForPublicTableIndex(
+  page: Page,
+  minCount = 1,
+  timeoutMs = 45_000,
+) {
   await pollUntil(
     `publicTableIndex (>= ${minCount})`,
-    async () => (await countEmulatorCollection(PUBLIC_TABLE_INDEX_COLLECTION)) >= minCount,
+    async () => (await countPublicTableIndexFromPage(page)) >= minCount,
     timeoutMs,
   );
 }
@@ -429,7 +449,7 @@ export async function joinPublicMixedTableAsSpectator(
   await selectPlayNowMode(guestPage, mode);
   await clickPlayNow(hostPage);
   await expect(tableOverlay(hostPage).getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
-  await waitForPublicTableIndex(1);
+  await waitForPublicTableIndex(hostPage, 1);
   await clickPlayNow(guestPage);
   await expectWatchOnlyTable(guestPage);
   await expectNoHeroTurnUrgency(guestPage);
@@ -439,7 +459,7 @@ export async function joinPublicMixedTableAsSpectator(
 export async function rejoinPublicMixedAsSpectator(guestPage: Page, mode: PlayNowMode = "mixed") {
   await waitForPlayNowReady(guestPage);
   await selectPlayNowMode(guestPage, mode);
-  await waitForPublicTableIndex(1);
+  await waitForPublicTableIndex(guestPage, 1);
   await clickPlayNow(guestPage);
   await expectWatchOnlyTable(guestPage);
   await expectNoHeroTurnUrgency(guestPage);
