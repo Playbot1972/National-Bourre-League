@@ -4,7 +4,7 @@
  *
  * Uses firebase-admin from functions/ (bypasses rules; matches production index writes).
  */
-import { spawnSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -71,27 +71,50 @@ const PROJECT_ID = "demo-national-bourre-league";
 const flag = process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED ?? "(unset)";
 console.log(`[smoke-public-table] MIXED_PUBLIC_TABLES_SERVER_ENABLED=${flag}`);
 
-const callableProbe = spawnSync(
-  "node",
-  ["--input-type=module", "-e", CALLABLE_PROBE],
-  {
-    cwd: ROOT,
-    env: {
-      ...process.env,
-      FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8088",
-      SMOKE_PROJECT_ID: PROJECT_ID,
+const maxAttempts = Number(process.env.SMOKE_PUBLIC_TABLE_ATTEMPTS ?? "30");
+let lastStdout = "";
+let lastStderr = "";
+let roomId = "";
+let sessionId = "";
+
+for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  const callableProbe = spawnSync(
+    "node",
+    ["--input-type=module", "-e", CALLABLE_PROBE],
+    {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        FIRESTORE_EMULATOR_HOST: process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8088",
+        SMOKE_PROJECT_ID: PROJECT_ID,
+      },
+      encoding: "utf8",
     },
-    encoding: "utf8",
-  },
-);
+  );
 
-if (callableProbe.status !== 0) {
-  process.stdout.write(callableProbe.stdout ?? "");
-  process.stderr.write(callableProbe.stderr ?? "");
-  process.exit(callableProbe.status ?? 1);
+  lastStdout = callableProbe.stdout ?? "";
+  lastStderr = callableProbe.stderr ?? "";
+
+  if (callableProbe.status === 0) {
+    ({ roomId, sessionId } = JSON.parse(lastStdout.trim()));
+    break;
+  }
+
+  const retryable =
+    lastStderr.includes("functions/not-found") ||
+    lastStderr.includes("ECONNREFUSED") ||
+    lastStderr.includes("connect ECONNREFUSED");
+  if (!retryable || attempt === maxAttempts) {
+    process.stdout.write(lastStdout);
+    process.stderr.write(lastStderr);
+    process.exit(callableProbe.status ?? 1);
+  }
+
+  console.log(
+    `[smoke-public-table] waiting for Functions emulator (attempt ${attempt}/${maxAttempts})`,
+  );
+  execSync("sleep 2");
 }
-
-const { roomId, sessionId } = JSON.parse(callableProbe.stdout.trim());
 
 const adminCount = spawnSync(
   "node",
