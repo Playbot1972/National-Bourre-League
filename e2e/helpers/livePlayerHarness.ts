@@ -104,9 +104,12 @@ export async function createPlayerContext(
   label: string,
 ): Promise<PlayerContext> {
   const context = await browser.newContext();
+  context.setDefaultTimeout(60_000);
+  context.setDefaultNavigationTimeout(45_000);
   const page = await context.newPage();
   await page.goto("/", { waitUntil: "commit", timeout: 45_000 });
-  await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#app-version")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 15_000 });
   if (/host/i.test(label)) {
     await signUpHost(page, label);
   } else {

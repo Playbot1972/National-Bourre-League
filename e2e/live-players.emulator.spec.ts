@@ -39,6 +39,7 @@ test.describe("Live players — emulator E2E", () => {
   test.describe.configure({ mode: "serial" });
   test.skip(!useEmulators, "Set PLAYWRIGHT_EMULATORS=1 with npm run emulators running");
   test.setTimeout(300_000);
+  test.use({ actionTimeout: 30_000, navigationTimeout: 45_000 });
 
   test.beforeAll(async () => {
     test.skip(!(await emulatorReady()), "Firebase emulator UI not reachable on :4000");

@@ -19,17 +19,18 @@ export async function signUpGuest(page: Page, label = "E2E Guest") {
 
 async function signUpUser(page: Page, label: string) {
   const signup = page.locator("#hero-signup");
-  await expect(signup).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("#app-version")).toBeVisible({ timeout: 30_000 });
+  await expect(signup).toBeVisible({ timeout: 15_000 });
   const modal = page.locator("#auth-modal");
   for (let attempt = 0; attempt < 3; attempt += 1) {
     if (await modal.isVisible().catch(() => false)) break;
-    await signup.click();
+    await signup.click({ timeout: 15_000 });
     try {
       await expect(modal).toBeVisible({ timeout: 10_000 });
       break;
     } catch {
       if (attempt === 2) {
-        await expect(modal).toBeVisible({ timeout: 30_000 });
+        await expect(modal).toBeVisible({ timeout: 15_000 });
       }
     }
   }
