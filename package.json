@@ -61,6 +61,7 @@
     "test:e2e:live-players:preflight": "PLAYWRIGHT_EMULATORS=1 playwright test e2e/live-players.preflight.spec.ts",
     "test:e2e:live-players:suite": "PLAYWRIGHT_EMULATORS=1 LIVE_PLAYER_SKIP_PREFLIGHT=1 playwright test e2e/live-players.emulator.spec.ts",
     "test:e2e:live-players": "node scripts/run-live-player-e2e.mjs",
+    "test:e2e:live-players:nightly": "node scripts/run-live-player-nightly-validation.mjs",
     "test:rules:public-table": "npm run build:functions && MIXED_PUBLIC_TABLES_SERVER_ENABLED=true npx firebase emulators:exec --only firestore --project demo-national-bourre-league \"node --test scripts/public-table-matchmaking.test.mjs\"",
     "test:rules:firestore": "npx firebase emulators:exec --only firestore --project demo-national-bourre-league \"node --test --test-concurrency=1 scripts/firestore-settlement-rules.test.mjs scripts/firestore-public-table-rules.test.mjs\"",
     "proof:live-settlement": "npm run build:functions && npx firebase emulators:exec --only auth,firestore,functions --project demo-national-bourre-league \"node scripts/live-emulator-settlement-trace.mjs single-bourre\"",

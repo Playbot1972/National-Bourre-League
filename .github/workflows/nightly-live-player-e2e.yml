@@ -6,6 +6,12 @@ on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
+    inputs:
+      validation_passes:
+        description: Consecutive serial suite passes required after preflight
+        required: false
+        default: "3"
+        type: string
 
 concurrency:
   group: nightly-live-player-e2e
@@ -14,7 +20,7 @@ concurrency:
 jobs:
   live-player-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,19 +61,28 @@ jobs:
           tail -50 /tmp/firebase-emulators.log
           exit 1
 
-      - name: Run live-player preflight
-        run: PLAYWRIGHT_EMULATORS=1 npm run test:e2e:live-players:preflight
+      - name: Validate live-player E2E (preflight + consecutive passes)
+        env:
+          LIVE_PLAYER_VALIDATION_PASSES: ${{ github.event.inputs.validation_passes || '3' }}
+          LIVE_PLAYER_E2E_RETRIES: "0"
+        run: node scripts/run-live-player-nightly-validation.mjs
 
-      - name: Run live-player E2E suite
-        if: success()
-        run: PLAYWRIGHT_EMULATORS=1 LIVE_PLAYER_SKIP_PREFLIGHT=1 npx playwright test e2e/live-players.emulator.spec.ts --retries=1
-
-      - name: Upload preflight diagnostics
+      - name: Upload live-player diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: live-player-preflight
-          path: test-results/live-player-preflight.json
+          name: live-player-diagnostics-${{ github.run_id }}
+          path: |
+            test-results/live-player-preflight.json
+            test-results/live-player-nightly-validation.json
+          if-no-files-found: ignore
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-player-playwright-${{ github.run_id }}
+          path: test-results/
           if-no-files-found: ignore
 
       - name: Stop emulators
