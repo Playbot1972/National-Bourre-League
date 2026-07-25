@@ -1,4 +1,4 @@
 # Bump this file (or its timestamp) to trigger Nightly live-player E2E on GitHub Actions.
 # Workflow on main checks out this branch and runs preflight + 3 consecutive serial passes.
-run_id=validation-2026-07-25T20:15:00Z
+run_id=validation-2026-07-25T20:25:00Z
 validation_passes=3

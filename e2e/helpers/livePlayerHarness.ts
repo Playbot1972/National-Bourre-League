@@ -104,7 +104,8 @@ export async function waitForPublicTableIndex(
 
 /**
  * Public-table spectators join mid-hand. If the guest queues while the host is still
- * between hands, server replacement can promote them into a seat before deal.
+ * between hands (enrollment/reveal/decision), server replacement can promote them into
+ * a seat before the current hand locks.
  */
 async function waitForHostPublicHandInProgress(hostPage: Page, timeoutMs = 120_000) {
   const overlay = tableOverlay(hostPage);
@@ -115,12 +116,12 @@ async function waitForHostPublicHandInProgress(hostPage: Page, timeoutMs = 120_0
     await nudgeBots(hostPage);
     const phase =
       (await overlay.getByTestId("phase-tag").first().getAttribute("data-phase")) ?? "";
-    if (phase === "reveal" || phase === "decision" || phase === "draw" || phase === "play") {
+    if (phase === "draw" || phase === "play") {
       return;
     }
     await hostPage.waitForTimeout(400);
   }
-  throw new Error("Host public table did not reach in-hand phase before guest join");
+  throw new Error("Host public table did not reach draw/play before guest join");
 }
 
 function roomDetail(page: Page) {
