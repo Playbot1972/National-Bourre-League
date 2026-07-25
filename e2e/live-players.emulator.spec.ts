@@ -19,16 +19,14 @@ import {
   hostPrivateSession,
   joinPublicMixedTableAsSpectator,
   leaveCurrentPublicRoom,
-  nudgeBots,
   openPrivateRoomTablesSequential,
   readRoomInviteCode,
   rejoinPublicMixedAsSpectator,
   syncPrivateRoomPair,
   waitForPlayEnabled,
-  waitPastRevealPhase,
 } from "./helpers/livePlayerHarness";
 import { logPreflightSummary, runLivePlayerPreflight, type PreflightResult } from "./helpers/livePlayerPreflight";
-import { expectHandPhase, tryHandEnrollmentActions } from "./helpers/roomFlow";
+import { expectHandPhase } from "./helpers/roomFlow";
 
 const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
 const skipPreflight = process.env.LIVE_PLAYER_SKIP_PREFLIGHT === "1";
@@ -110,24 +108,13 @@ test.describe("Live players — emulator E2E", () => {
       const hostOverlay = tableOverlay(host.page);
       await expect(hostOverlay.getByTestId("watch-only-banner")).toHaveCount(0);
 
-      const lastEnroll = { at: 0 };
-      const deadline = Date.now() + 120_000;
-      while (Date.now() < deadline) {
-        await tryHandEnrollmentActions(host.page, hostOverlay, lastEnroll);
-        await nudgeBots(host.page);
-        const phase =
-          (await hostOverlay.getByTestId("phase-tag").first().getAttribute("data-phase")) ?? "";
-        if (phase === "draw" || phase === "play") break;
-        await host.page.waitForTimeout(600);
-      }
-
-      await waitPastRevealPhase(host.page);
+      // Assert mid-hand spectate before hand 1 can complete and promote the guest at handoff.
       await expectWatchOnlyTable(guest.page);
       await expectNoHeroTurnUrgency(guest.page);
 
       const hostPhase =
         (await hostOverlay.getByTestId("phase-tag").first().getAttribute("data-phase")) ?? "";
-      expect(hostPhase === "draw" || hostPhase === "play" || hostPhase === "decision").toBe(true);
+      expect(hostPhase === "draw" || hostPhase === "play").toBe(true);
 
       await leaveCurrentPublicRoom(guest.page);
       await rejoinPublicMixedAsSpectator(guest.page);
