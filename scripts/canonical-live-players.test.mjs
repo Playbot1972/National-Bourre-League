@@ -213,6 +213,16 @@ describe("replacement / handoff wiring", () => {
     assert.match(src, /PENDING_JOIN_STATUS\.SPECTATING/);
   });
 
+  it("onLeaveRoom clears public matchQueue before leaving the room", () => {
+    const src = readSrc("../docs/app.js");
+    const block = src.slice(
+      src.indexOf("async function onLeaveRoom"),
+      src.indexOf("async function onRemoveSessionPlayer"),
+    );
+    assert.match(block, /clearPublicTableQueueBestEffort/);
+    assert.match(block, /await leaveRoom\(roomId, session\)/);
+  });
+
   it("client orchestration does not skip bot driver for watch-only viewers", () => {
     const src = readSrc("../docs/app.js");
     const block = src.slice(

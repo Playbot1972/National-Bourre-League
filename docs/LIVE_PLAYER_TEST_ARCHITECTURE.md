@@ -65,15 +65,21 @@ functions/
 - `clickPlayNow(page)` — waits for table overlay or room open
 - `expectWatchOnlyTable(page)` / `expectSeatedTable(page)` — banner + control gating
 - `expectNoHeroTurnUrgency(page)` — no `seat-opt-in`, `draw-button`, or hero `turn-countdown-ring`
-- `nudgeBots(page)` — `window.__nblE2E.nudgeBots()`
+- `joinPublicMixedTableAsSpectator(host, guest)` — host Play Now, then guest joins as spectator
+- `driveLiveHumansToPlay(pages)` — coordinate enrollment + draw across human overlays
+- `leaveCurrentPublicRoom(page)` — leave from room detail or rooms list
 
 ## First implemented scenarios (this PR)
 
 ### Track 1 — Playwright (`live-players.emulator.spec.ts`)
 
-1. **Two humans, private room** — host creates session, guest joins by code, both reach draw phase.
-2. **Mixed humans + bot** — same flow + host adds one robot; three seats enroll to draw.
-3. **Public mixed watch-only** — host Play Now (seated); guest Play Now (spectator); guest sees watch-only banner, no hero urgency; host table advances past reveal with bot nudge.
+1. **Two humans join private room** — membership sync + Play enabled.
+2. **Two humans private room: enrollment → draw → play** — sequential overlays, coordinated `driveLiveHumansToPlay`.
+3. **Mixed humans + bot** — guest joins, host adds robot, 3-seat roster.
+4. **Public mixed watch-only + leave/rejoin** — guest spectates; host progresses; guest leaves and rejoins watch-only mid-hand.
+5. **Public mixed table root** — seated host + watch-only guest both see table.
+
+Nightly CI: `.github/workflows/nightly-live-player-e2e.yml` (optional, not PR-gating).
 
 ### Track 2 — Canonical (`canonical-live-players.test.mjs`)
 
@@ -82,6 +88,7 @@ functions/
 3. Enrollment eligibility: `sitOut` and `out` excluded from `eligibleSeatPlayerIds` / `buildHandEnrollment` wiring.
 4. View-model guardrails: idle sit-out suppresses `isOnTurn` / `isActiveActor`.
 5. Public-table identity: spectators skip `ensureSessionPlayer` / watch-only intent handlers.
+6. `onLeaveRoom` clears public matchQueue before `leaveRoom` (leave/rejoin hygiene).
 
 ## CI commands
 
@@ -96,8 +103,7 @@ PLAYWRIGHT_EMULATORS=1 npm run test:e2e:live-players
 
 ## Next increments (not in this PR)
 
-- Private room leave mid-hand + rejoin watch-only boundary
-- Public table promotion at handoff (guest becomes seated next deal)
+- Public table promotion at handoff (guest becomes seated next deal — needs hand completion)
 - Reconnect/refresh matrix (reveal, draw, play, settlement)
 - Full idle sit-out E2E with injected clock (Functions emulator test hook)
 - Bot-only + spectator freeze regression as Playwright (optional; canonical guard exists)

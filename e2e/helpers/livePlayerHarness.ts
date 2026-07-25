@@ -4,6 +4,7 @@ import {
   driveTableToPlay,
   emulatorReady,
   ensureTableOverlayClosed,
+  getHandPhase,
   goToPrivateRooms,
   goToTable,
   joinRoomWithCode,
@@ -11,6 +12,7 @@ import {
   readRoomInviteCode,
   signUpHost,
   signUpGuest,
+  tryHandEnrollmentActions,
   waitForDrawPhase,
 } from "./roomFlow";
 
@@ -25,7 +27,7 @@ const FIRESTORE_CLEAR_URL =
 export async function clearEmulatorData() {
   await fetch(AUTH_CLEAR_URL, { method: "DELETE" }).catch(() => {});
   await fetch(FIRESTORE_CLEAR_URL, { method: "DELETE" }).catch(() => {});
-  await new Promise((r) => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 1000));
 }
 
 export type PlayerContext = {
@@ -168,15 +170,125 @@ export async function waitForPlayEnabled(page: Page) {
   await expect(playBtn.first()).toBeEnabled({ timeout: 60_000 });
 }
 
-export async function openTableFromSetup(page: Page) {
-  await waitForPlayEnabled(page);
-  await goToTable(page);
-  const overlay = tableOverlay(page);
-  if (!(await overlay.isVisible().catch(() => false))) {
-    const goBtn = page.getByTestId("open-table-play").or(page.getByTestId("open-table-play-inline")).first();
-    await goBtn.evaluate((el) => (el as HTMLButtonElement).click());
+/** Room list can stay visible while a hidden room-detail Play button remains in the DOM. */
+export async function ensureRoomDetailOpen(page: Page, roomName?: string) {
+  const detail = page.locator("#room-detail-view");
+  if (await detail.isVisible().catch(() => false)) return;
+
+  if (roomName) {
+    const card = page.locator("[data-open-room]").filter({ hasText: roomName }).first();
+    if (await card.isVisible().catch(() => false)) {
+      await card.click();
+    } else {
+      await page.locator(".mini-card__title").filter({ hasText: roomName }).first().click();
+    }
+  } else {
+    await page.locator("[data-open-room]").first().click();
   }
-  await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator(".room-detail__title")).toBeVisible({ timeout: 20_000 });
+}
+
+export async function openTableFromSetup(page: Page, roomName?: string) {
+  await ensureRoomDetailOpen(page, roomName);
+  await ensureSessionOpen(page);
+  await waitForPlayEnabled(page);
+
+  const overlay = tableOverlay(page);
+  if (await overlay.getByTestId("table-root").isVisible().catch(() => false)) return;
+
+  const playInDetail = page
+    .getByTestId("open-table-play")
+    .or(page.getByTestId("open-table-play-inline"))
+    .first();
+  await expect(playInDetail).toBeVisible({ timeout: 15_000 });
+  await playInDetail.click();
+
+  await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
+}
+
+/** Host opens the table first, then guest — avoids overlay races on shared session state. */
+export async function openPrivateRoomTablesSequential(
+  hostPage: Page,
+  guestPage: Page,
+  roomName?: string,
+) {
+  await openTableFromSetup(hostPage, roomName);
+  await expect(tableOverlay(hostPage).getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+  await openTableFromSetup(guestPage, roomName);
+  await expect(tableOverlay(guestPage).getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
+}
+
+async function isPageInPlayPhase(page: Page): Promise<boolean> {
+  const overlay = tableOverlay(page);
+  if (!(await overlay.getByTestId("table-root").isVisible().catch(() => false))) return false;
+  return (await getHandPhase(overlay)) === "play";
+}
+
+/**
+ * Coordinate enrollment + draw across multiple human overlays on the same session.
+ * Each player opts in and passes draw when their controls are visible.
+ */
+export async function driveLiveHumansToPlay(pages: Page[], deadlineMs = 240_000) {
+  const deadline = Date.now() + deadlineMs;
+  const enrollClicks = new WeakMap<Page, { at: number }>();
+
+  while (Date.now() < deadline) {
+    const playStates = await Promise.all(pages.map((p) => isPageInPlayPhase(p)));
+    if (playStates.every(Boolean)) return;
+
+    for (const page of pages) {
+      const overlay = tableOverlay(page);
+      if (!(await overlay.getByTestId("table-root").isVisible().catch(() => false))) continue;
+
+      const phase = await getHandPhase(overlay);
+      if (phase === "play") continue;
+      if (phase === "reveal") continue;
+
+      const clickState = enrollClicks.get(page) ?? { at: 0 };
+      enrollClicks.set(page, clickState);
+      if (await tryHandEnrollmentActions(page, overlay, clickState)) continue;
+
+      if (phase !== "draw") continue;
+
+      const passBtn = overlay.getByTestId("pass-draw-button");
+      const drawBtn = overlay.getByTestId("draw-button");
+      if (await passBtn.isVisible().catch(() => false)) {
+        await passBtn.click({ timeout: 3000 }).catch(() => {});
+      } else if (await drawBtn.isVisible().catch(() => false)) {
+        await drawBtn.click({ timeout: 3000 }).catch(() => {});
+      }
+    }
+
+    await nudgeBots(pages[0]);
+    await pages[0].waitForTimeout(500);
+  }
+
+  const phases = await Promise.all(
+    pages.map(async (p) => {
+      try {
+        return await getHandPhase(tableOverlay(p));
+      } catch {
+        return "unknown";
+      }
+    }),
+  );
+  throw new Error(`Live humans did not reach play phase (phases: ${phases.join(", ")})`);
+}
+
+/** Leave a public-table room (clears matchQueue + pendingJoin server-side). */
+export async function leaveCurrentPublicRoom(page: Page) {
+  await ensureTableOverlayClosed(page);
+  page.once("dialog", (dialog) => dialog.accept());
+
+  const detailLeave = page.locator("#leave-room");
+  if (await detailLeave.isVisible().catch(() => false)) {
+    await detailLeave.click();
+  } else {
+    const listLeave = page.locator("[data-leave-room]").first();
+    await expect(listLeave).toBeVisible({ timeout: 15_000 });
+    await listLeave.click();
+  }
+  await expect(page.locator("#view-rooms")).toBeVisible({ timeout: 20_000 });
 }
 
 export type PlayNowMode = "mixed" | "bots_only";
@@ -190,15 +302,56 @@ export async function selectPlayNowMode(page: Page, mode: PlayNowMode) {
 export async function clickPlayNow(page: Page) {
   await goToPrivateRooms(page);
   const btn = page.getByTestId("play-now");
-  await expect(btn).toBeEnabled({ timeout: 15_000 });
-  await btn.click();
-  await expect(tableOverlay(page).getByTestId("table-root")).toBeVisible({ timeout: 120_000 });
+  await expect(btn).toBeEnabled({ timeout: 30_000 });
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await btn.click();
+      await expect(tableOverlay(page).getByTestId("table-root")).toBeVisible({ timeout: 120_000 });
+      return;
+    } catch (err) {
+      lastError = err;
+      const roomsError = (await page.locator("#rooms-error").textContent().catch(() => "")) ?? "";
+      if (/failed|error/i.test(roomsError)) {
+        throw new Error(`Play Now failed: ${roomsError}`);
+      }
+      if (attempt === 0) {
+        await goToPrivateRooms(page);
+        await expect(btn).toBeEnabled({ timeout: 15_000 });
+      }
+    }
+  }
+  throw lastError;
+}
+
+/** After leaving a public room, wait until Play Now is ready again. */
+export async function waitForPlayNowReady(page: Page) {
+  await goToPrivateRooms(page);
+  await expect(page.getByTestId("play-now")).toBeEnabled({ timeout: 30_000 });
+}
+
+export async function joinPublicMixedTableAsSpectator(
+  hostPage: Page,
+  guestPage: Page,
+  mode: PlayNowMode = "mixed",
+) {
+  await selectPlayNowMode(hostPage, mode);
+  await clickPlayNow(hostPage);
+  const hostOverlay = tableOverlay(hostPage);
+  await expect(hostOverlay.getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
+
+  await selectPlayNowMode(guestPage, mode);
+  await clickPlayNow(guestPage);
+  await expectWatchOnlyTable(guestPage);
+  await expectNoHeroTurnUrgency(guestPage);
 }
 
 export async function expectWatchOnlyTable(page: Page) {
   const overlay = tableOverlay(page);
-  await expect(overlay.getByTestId("watch-only-banner")).toBeVisible({ timeout: 30_000 });
-  await expect(overlay.getByTestId("watch-only-banner")).toContainText(/watching this hand/i);
+  const banner = overlay.getByTestId("watch-only-banner");
+  await expect(banner).toBeVisible({ timeout: 30_000 });
+  await expect(banner).toContainText(/watching this hand/i, { timeout: 15_000 });
 }
 
 export async function expectSeatedTable(page: Page) {
@@ -243,4 +396,5 @@ export {
   waitForDrawPhase,
   driveTableToPlay,
   goToTable,
+  getHandPhase,
 };

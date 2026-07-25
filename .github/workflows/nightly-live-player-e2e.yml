@@ -1,0 +1,66 @@
+# Nightly live-player Playwright E2E (emulator-backed, multi-context).
+# Optional — does not gate PR merges. Run manually via workflow_dispatch as well.
+name: Nightly live-player E2E
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-live-player-e2e
+  cancel-in-progress: true
+
+jobs:
+  live-player-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Java (Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Cloud Functions
+        run: npm run build:functions
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Start Firebase emulators
+        run: |
+          npm run emulators > /tmp/firebase-emulators.log 2>&1 &
+          echo $! > /tmp/emulator.pid
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:4000 >/dev/null; then
+              echo "Emulators ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Emulator startup failed"
+          tail -50 /tmp/firebase-emulators.log
+          exit 1
+
+      - name: Run live-player E2E
+        run: PLAYWRIGHT_EMULATORS=1 npx playwright test e2e/live-players.emulator.spec.ts --retries=1
+
+      - name: Stop emulators
+        if: always()
+        run: |
+          if [ -f /tmp/emulator.pid ]; then
+            kill "$(cat /tmp/emulator.pid)" 2>/dev/null || true
+          fi

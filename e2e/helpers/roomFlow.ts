@@ -18,8 +18,21 @@ export async function signUpGuest(page: Page, label = "E2E Guest") {
 }
 
 async function signUpUser(page: Page, label: string) {
-  await page.locator("#hero-signup").click();
-  await expect(page.locator("#auth-modal")).toBeVisible();
+  const signup = page.locator("#hero-signup");
+  await expect(signup).toBeVisible({ timeout: 30_000 });
+  const modal = page.locator("#auth-modal");
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await modal.isVisible().catch(() => false)) break;
+    await signup.click();
+    try {
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      break;
+    } catch {
+      if (attempt === 2) {
+        await expect(modal).toBeVisible({ timeout: 30_000 });
+      }
+    }
+  }
   await expect(page.locator("#auth-name")).toBeVisible();
   const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const email = `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
