@@ -116,13 +116,16 @@ describe("randomInt", () => {
 });
 
 describe("Play Now home UI", () => {
-  it("renders Play Now as the sole primary CTA above join form", () => {
+  it("renders Play Now as the primary CTA with an explicit mode selector", () => {
     const createIdx = indexHtml.indexOf('id="create-room"');
     const playIdx = indexHtml.indexOf('data-testid="play-now"');
+    const modeIdx = indexHtml.indexOf('data-testid="play-now-mode"');
     const joinIdx = indexHtml.indexOf('id="join-form"');
     assert.ok(createIdx >= 0);
     assert.ok(playIdx >= 0);
+    assert.ok(modeIdx >= 0);
     assert.ok(joinIdx >= 0);
+    assert.ok(modeIdx < playIdx);
     assert.ok(playIdx < createIdx);
     assert.ok(playIdx < joinIdx);
     const playSnippet = indexHtml.slice(Math.max(0, playIdx - 120), playIdx + 120);
@@ -130,6 +133,8 @@ describe("Play Now home UI", () => {
     assert.match(playSnippet, /btn btn--primary/);
     assert.match(playSnippet, /Play Now/);
     assert.doesNotMatch(createSnippet, /btn--primary/);
+    assert.match(indexHtml, /value="mixed"/);
+    assert.match(indexHtml, /value="bots_only"/);
   });
 });
 

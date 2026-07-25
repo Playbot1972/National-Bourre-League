@@ -80,7 +80,7 @@ describe("legacy sync guard wiring", () => {
     const src = readFileSync(join(root, "docs/app.js"), "utf8");
     assert.match(src, /isPublicTableWatchOnly\(s, myUid/);
     assert.match(src, /watchOnly \? createWatchOnlyTableIntentHandlers\(\)/);
-    assert.match(src, /PUBLIC_TABLE_WATCH_ONLY_MESSAGE/);
+    assert.match(src, /playNowWatchOnlyMessage/);
   });
 
   it("turn urgency hooks receive watchOnly from TableSessionView", () => {

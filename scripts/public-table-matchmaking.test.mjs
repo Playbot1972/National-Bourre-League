@@ -232,6 +232,40 @@ describe("public-table matchmaking integration", () => {
     assert.equal(hostScores.exists, true);
   });
 
+  it("bots-only Play Now always creates a seated bot-filled table", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    const botsOnlyHost = "pub_bots_only_host";
+    const created = await handleFindOrCreatePublicTable(db, {
+      actorId: botsOnlyHost,
+      joinId: "bots-only-join-1",
+      displayName: "Solo",
+      queueMode: "bots_only",
+      targetSeatCount: 6,
+    });
+    assert.equal(created.mode, "created");
+    assert.equal(created.status, "seated");
+    assert.equal(created.queueMode, "bots_only");
+    assert.equal(created.realPlayerCount, 1);
+    assert.equal(created.botFillCount, 5);
+
+    const roomSnap = await db.collection("rooms").doc(created.roomId).get();
+    assert.equal(roomSnap.data()?.features?.botsOnlyPublicTables, true);
+    assert.notEqual(roomSnap.data()?.features?.mixedPublicTables, true);
+
+    const guestJoin = await handleFindOrCreatePublicTable(db, {
+      actorId: GUEST_UID,
+      joinId: "bots-only-guest-attempt",
+      displayName: "Guest",
+      queueMode: "bots_only",
+    });
+    assert.equal(guestJoin.mode, "created");
+    assert.equal(guestJoin.status, "seated");
+    assert.notEqual(guestJoin.roomId, created.roomId);
+  });
+
   it("rebuilds stale index from source-of-truth", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running");
