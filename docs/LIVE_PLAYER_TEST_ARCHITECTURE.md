@@ -58,14 +58,11 @@ functions/
 
 ## Reusable Playwright harness (`livePlayerHarness.ts`)
 
-- `clearEmulatorData()` — wipe Auth + Firestore between tests
-- `createPlayerContext(browser, label)` — isolated context + signed-up page
-- `waitForSetupRosterCount(page, n)` — `data-testid="setup-roster-entry"` count
-- `selectPlayNowMode(page, "mixed" \| "bots_only")`
-- `clickPlayNow(page)` — waits for table overlay or room open
-- `expectWatchOnlyTable(page)` / `expectSeatedTable(page)` — banner + control gating
-- `expectNoHeroTurnUrgency(page)` — no `seat-opt-in`, `draw-button`, or hero `turn-countdown-ring`
-- `joinPublicMixedTableAsSpectator(host, guest)` — host Play Now, then guest joins as spectator
+- `clearEmulatorData()` — wipe Auth + Firestore; best-effort verify collections empty
+- `waitForPublicTableIndex(n)` — poll emulator until `publicTableIndex` exists (guest matchmaking)
+- `roomDetail(page)` / `visibleSetupPlayButton(page)` — scope to visible `#room-detail-view`
+- `joinPublicMixedTableAsSpectator(host, guest)` — host Play Now → index wait → guest spectates
+- `rejoinPublicMixedAsSpectator(guest)` — Play Now again after leave (index wait)
 - `driveLiveHumansToPlay(pages)` — coordinate enrollment + draw across human overlays
 - `leaveCurrentPublicRoom(page)` — leave from room detail or rooms list
 
@@ -79,7 +76,9 @@ functions/
 4. **Public mixed watch-only + leave/rejoin** — guest spectates; host progresses; guest leaves and rejoins watch-only mid-hand.
 5. **Public mixed table root** — seated host + watch-only guest both see table.
 
-Nightly CI: `.github/workflows/nightly-live-player-e2e.yml` (optional, not PR-gating).
+Priority scenarios run first in the serial suite. Guest public joins wait for `publicTableIndex` so matchmaking routes to spectate (not create a new seated table).
+
+Nightly CI: `.github/workflows/nightly-live-player-e2e.yml` (optional, not PR-gating; `--retries=1`).
 
 ### Track 2 — Canonical (`canonical-live-players.test.mjs`)
 

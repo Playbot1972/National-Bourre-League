@@ -22,12 +22,74 @@ const AUTH_CLEAR_URL =
   "http://127.0.0.1:9099/emulator/v1/projects/demo-national-bourre-league/accounts";
 const FIRESTORE_CLEAR_URL =
   "http://127.0.0.1:8088/emulator/v1/projects/demo-national-bourre-league/databases/(default)/documents";
+const FIRESTORE_DOCS_BASE = FIRESTORE_CLEAR_URL;
+const PUBLIC_TABLE_INDEX_COLLECTION = "publicTableIndex";
+
+async function countEmulatorCollection(collection: string): Promise<number> {
+  try {
+    const res = await fetch(`${FIRESTORE_DOCS_BASE}/${collection}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.status === 404) return 0;
+    if (!res.ok) return -1;
+    const data = (await res.json()) as { documents?: unknown[] };
+    return data.documents?.length ?? 0;
+  } catch {
+    return -1;
+  }
+}
+
+async function pollUntil(
+  label: string,
+  predicate: () => Promise<boolean>,
+  timeoutMs = 15_000,
+  intervalMs = 300,
+) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(`Timed out waiting for ${label}`);
+}
 
 /** Wipe emulator Auth + Firestore between multi-user scenarios. */
 export async function clearEmulatorData() {
   await fetch(AUTH_CLEAR_URL, { method: "DELETE" }).catch(() => {});
   await fetch(FIRESTORE_CLEAR_URL, { method: "DELETE" }).catch(() => {});
-  await new Promise((r) => setTimeout(r, 1000));
+  try {
+    await pollUntil(
+      "emulator data cleared",
+      async () => {
+        const rooms = await countEmulatorCollection("rooms");
+        const index = await countEmulatorCollection(PUBLIC_TABLE_INDEX_COLLECTION);
+        if (rooms < 0 || index < 0) return true;
+        return rooms === 0 && index === 0;
+      },
+      8_000,
+    );
+  } catch {
+    // Best-effort — proceed if the emulator list API is slow after DELETE.
+  }
+}
+
+/** Matchmaking indexes the host table before a guest can spectate (not create a new table). */
+export async function waitForPublicTableIndex(minCount = 1, timeoutMs = 45_000) {
+  await pollUntil(
+    `publicTableIndex (>= ${minCount})`,
+    async () => (await countEmulatorCollection(PUBLIC_TABLE_INDEX_COLLECTION)) >= minCount,
+    timeoutMs,
+  );
+}
+
+function roomDetail(page: Page) {
+  return page.locator("#room-detail-view:not([hidden])");
+}
+
+function visibleSetupPlayButton(page: Page) {
+  return roomDetail(page)
+    .getByTestId("open-table-play")
+    .or(roomDetail(page).getByTestId("open-table-play-inline"));
 }
 
 export type PlayerContext = {
@@ -43,13 +105,16 @@ export async function createPlayerContext(
 ): Promise<PlayerContext> {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "commit", timeout: 45_000 });
   await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 30_000 });
   if (/host/i.test(label)) {
     await signUpHost(page, label);
   } else {
     await signUpGuest(page, label);
   }
+  await goToPrivateRooms(page);
+  await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
+  await ensureTableOverlayClosed(page);
   return { context, page, label };
 }
 
@@ -69,8 +134,8 @@ export async function waitForSetupRosterCount(page: Page, count: number) {
 /** True when an in-progress session tab/roster is showing (not just the idle setup shell). */
 async function hasActiveSessionUi(page: Page): Promise<boolean> {
   if (await page.getByTestId("game-setup-roster").isVisible().catch(() => false)) return true;
-  if (await page.getByTestId("open-table-play").isVisible().catch(() => false)) return true;
-  return (await page.locator(".session-tab").count()) > 0;
+  if (await visibleSetupPlayButton(page).isVisible().catch(() => false)) return true;
+  return (await roomDetail(page).locator(".session-tab").count()) > 0;
 }
 
 /** Open the first session tab or create one when no active session is visible. */
@@ -110,9 +175,11 @@ export async function hostPrivateSession(page: Page, roomName = "Live Player E2E
 /** Guest flow: join an existing private room by invite code and open the active session. */
 export async function guestJoinPrivateRoom(page: Page, inviteCode: string) {
   await joinRoomWithCode(page, inviteCode);
-  await expect(page.locator(".room-detail__title")).toContainText(/.+/, { timeout: 20_000 });
+  await expect(roomDetail(page).locator(".room-detail__title")).toContainText(/.+/, {
+    timeout: 20_000,
+  });
   await ensureTableOverlayClosed(page);
-  const tabs = page.locator(".session-tab");
+  const tabs = roomDetail(page).locator(".session-tab");
   if ((await tabs.count()) > 0) {
     await tabs.first().click();
   }
@@ -125,8 +192,12 @@ export async function refreshHostRoomDetail(page: Page, roomName: string) {
   const back = page.locator("#back-to-rooms");
   if (await back.isVisible().catch(() => false)) {
     await back.click();
-    await page.locator(".mini-card__title").filter({ hasText: roomName }).click();
-    await expect(page.locator(".room-detail__title")).toContainText(roomName, { timeout: 15_000 });
+    const card = page.locator("[data-open-room]").filter({ hasText: roomName }).first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await card.click();
+    await expect(roomDetail(page).locator(".room-detail__title")).toContainText(roomName, {
+      timeout: 15_000,
+    });
   }
 }
 
@@ -148,8 +219,9 @@ export async function syncPrivateRoomPair(
 
 /** Host adds one robot to the open session roster. */
 export async function hostAddOneRobot(page: Page) {
-  await page.getByTestId("add-player-robot").check();
-  await page.getByTestId("session-add-player-pill").click();
+  await ensureRoomDetailOpen(page);
+  await roomDetail(page).getByTestId("add-player-robot").check();
+  await roomDetail(page).getByTestId("session-add-player-pill").click();
   await expect(page.locator(".game-setup-roster__role").filter({ hasText: "robot" })).toHaveCount(1, {
     timeout: 15_000,
   });
@@ -164,30 +236,6 @@ export async function waitForRoomMember(page: Page, displayName: string) {
     .toBeGreaterThanOrEqual(1);
 }
 
-/** Both players need Play enabled (≥2 roster entries) before opening the table. */
-export async function waitForPlayEnabled(page: Page) {
-  const playBtn = page.getByTestId("open-table-play").or(page.getByTestId("open-table-play-inline"));
-  await expect(playBtn.first()).toBeEnabled({ timeout: 60_000 });
-}
-
-/** Room list can stay visible while a hidden room-detail Play button remains in the DOM. */
-export async function ensureRoomDetailOpen(page: Page, roomName?: string) {
-  const detail = page.locator("#room-detail-view");
-  if (await detail.isVisible().catch(() => false)) return;
-
-  if (roomName) {
-    const card = page.locator("[data-open-room]").filter({ hasText: roomName }).first();
-    if (await card.isVisible().catch(() => false)) {
-      await card.click();
-    } else {
-      await page.locator(".mini-card__title").filter({ hasText: roomName }).first().click();
-    }
-  } else {
-    await page.locator("[data-open-room]").first().click();
-  }
-  await expect(page.locator(".room-detail__title")).toBeVisible({ timeout: 20_000 });
-}
-
 export async function openTableFromSetup(page: Page, roomName?: string) {
   await ensureRoomDetailOpen(page, roomName);
   await ensureSessionOpen(page);
@@ -196,14 +244,34 @@ export async function openTableFromSetup(page: Page, roomName?: string) {
   const overlay = tableOverlay(page);
   if (await overlay.getByTestId("table-root").isVisible().catch(() => false)) return;
 
-  const playInDetail = page
-    .getByTestId("open-table-play")
-    .or(page.getByTestId("open-table-play-inline"))
-    .first();
-  await expect(playInDetail).toBeVisible({ timeout: 15_000 });
+  const playInDetail = visibleSetupPlayButton(page);
   await playInDetail.click();
 
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
+}
+
+/** Room list can stay visible while a hidden room-detail Play button remains in the DOM. */
+export async function ensureRoomDetailOpen(page: Page, roomName?: string) {
+  if (await roomDetail(page).isVisible().catch(() => false)) return;
+
+  if (roomName) {
+    const card = page.locator("[data-open-room]").filter({ hasText: roomName }).first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await card.click();
+  } else {
+    const card = page.locator("[data-open-room]").first();
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await card.click();
+  }
+  await expect(roomDetail(page).locator(".room-detail__title")).toBeVisible({ timeout: 20_000 });
+}
+
+/** Both players need Play enabled (≥2 roster entries) before opening the table. */
+export async function waitForPlayEnabled(page: Page) {
+  await ensureRoomDetailOpen(page);
+  const playBtn = visibleSetupPlayButton(page);
+  await expect(playBtn).toBeVisible({ timeout: 60_000 });
+  await expect(playBtn).toBeEnabled({ timeout: 60_000 });
 }
 
 /** Host opens the table first, then guest — avoids overlay races on shared session state. */
@@ -260,7 +328,7 @@ export async function driveLiveHumansToPlay(pages: Page[], deadlineMs = 240_000)
     }
 
     await nudgeBots(pages[0]);
-    await pages[0].waitForTimeout(500);
+    await pages[0].waitForTimeout(250);
   }
 
   const phases = await Promise.all(
@@ -337,11 +405,20 @@ export async function joinPublicMixedTableAsSpectator(
   mode: PlayNowMode = "mixed",
 ) {
   await selectPlayNowMode(hostPage, mode);
-  await clickPlayNow(hostPage);
-  const hostOverlay = tableOverlay(hostPage);
-  await expect(hostOverlay.getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
-
   await selectPlayNowMode(guestPage, mode);
+  await clickPlayNow(hostPage);
+  await expect(tableOverlay(hostPage).getByTestId("table-root")).toBeVisible({ timeout: 60_000 });
+  await waitForPublicTableIndex(1);
+  await clickPlayNow(guestPage);
+  await expectWatchOnlyTable(guestPage);
+  await expectNoHeroTurnUrgency(guestPage);
+}
+
+/** Guest leaves a public table and re-queues as watch-only on the same indexed table. */
+export async function rejoinPublicMixedAsSpectator(guestPage: Page, mode: PlayNowMode = "mixed") {
+  await waitForPlayNowReady(guestPage);
+  await selectPlayNowMode(guestPage, mode);
+  await waitForPublicTableIndex(1);
   await clickPlayNow(guestPage);
   await expectWatchOnlyTable(guestPage);
   await expectNoHeroTurnUrgency(guestPage);

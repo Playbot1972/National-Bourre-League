@@ -9,7 +9,6 @@
 import { test, expect } from "@playwright/test";
 import {
   clearEmulatorData,
-  clickPlayNow,
   closePlayerContext,
   createPlayerContext,
   driveLiveHumansToPlay,
@@ -23,10 +22,9 @@ import {
   nudgeBots,
   openPrivateRoomTablesSequential,
   readRoomInviteCode,
-  selectPlayNowMode,
+  rejoinPublicMixedAsSpectator,
   syncPrivateRoomPair,
   waitForPlayEnabled,
-  waitForPlayNowReady,
   waitPastRevealPhase,
 } from "./helpers/livePlayerHarness";
 import { expectHandPhase, tryHandEnrollmentActions } from "./helpers/roomFlow";
@@ -48,31 +46,6 @@ test.describe("Live players — emulator E2E", () => {
 
   test.beforeEach(async () => {
     await clearEmulatorData();
-  });
-
-  test.afterEach(async () => {
-    await new Promise((r) => setTimeout(r, 1500));
-  });
-
-  test("two humans join the same private room (separate contexts)", async ({ browser }) => {
-    test.setTimeout(180_000);
-    const host = await createPlayerContext(browser, "Live Host");
-    const guest = await createPlayerContext(browser, "Live Guest");
-
-    try {
-      await hostPrivateSession(host.page);
-      const inviteCode = await readRoomInviteCode(host.page);
-      await syncPrivateRoomPair(
-        host.page,
-        guest.page,
-        inviteCode,
-        "Live Player E2E Room",
-        "Live Guest",
-      );
-    } finally {
-      await closePlayerContext(host);
-      await closePlayerContext(guest);
-    }
   });
 
   test("two humans private room: enrollment → draw → play in separate overlays", async ({
@@ -98,27 +71,6 @@ test.describe("Live players — emulator E2E", () => {
       await expectHandPhase(guestOverlay, "play");
       await expect(hostOverlay.getByTestId("hero-hand")).toBeVisible();
       await expect(guestOverlay.getByTestId("hero-hand")).toBeVisible();
-    } finally {
-      await closePlayerContext(host);
-      await closePlayerContext(guest);
-    }
-  });
-
-  test("mixed humans + bot: host adds robot after guest joins", async ({ browser }) => {
-    test.setTimeout(180_000);
-    const host = await createPlayerContext(browser, "Mixed Host");
-    const guest = await createPlayerContext(browser, "Mixed Guest");
-
-    try {
-      const roomName = "Mixed Humans Bots Room";
-      await hostPrivateSession(host.page, roomName);
-      const inviteCode = await readRoomInviteCode(host.page);
-      await syncPrivateRoomPair(host.page, guest.page, inviteCode, roomName, "Mixed Guest");
-      await hostAddOneRobot(host.page);
-      await expect
-        .poll(async () => host.page.getByTestId("setup-roster-entry").count(), { timeout: 30_000 })
-        .toBe(3);
-      await waitForPlayEnabled(host.page);
     } finally {
       await closePlayerContext(host);
       await closePlayerContext(guest);
@@ -158,11 +110,49 @@ test.describe("Live players — emulator E2E", () => {
       expect(hostPhase === "draw" || hostPhase === "play" || hostPhase === "decision").toBe(true);
 
       await leaveCurrentPublicRoom(guest.page);
-      await waitForPlayNowReady(guest.page);
-      await selectPlayNowMode(guest.page, "mixed");
-      await clickPlayNow(guest.page);
-      await expectWatchOnlyTable(guest.page);
-      await expectNoHeroTurnUrgency(guest.page);
+      await rejoinPublicMixedAsSpectator(guest.page);
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+
+  test("two humans join the same private room (separate contexts)", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Live Host");
+    const guest = await createPlayerContext(browser, "Live Guest");
+
+    try {
+      await hostPrivateSession(host.page);
+      const inviteCode = await readRoomInviteCode(host.page);
+      await syncPrivateRoomPair(
+        host.page,
+        guest.page,
+        inviteCode,
+        "Live Player E2E Room",
+        "Live Guest",
+      );
+    } finally {
+      await closePlayerContext(host);
+      await closePlayerContext(guest);
+    }
+  });
+
+  test("mixed humans + bot: host adds robot after guest joins", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const host = await createPlayerContext(browser, "Mixed Host");
+    const guest = await createPlayerContext(browser, "Mixed Guest");
+
+    try {
+      const roomName = "Mixed Humans Bots Room";
+      await hostPrivateSession(host.page, roomName);
+      const inviteCode = await readRoomInviteCode(host.page);
+      await syncPrivateRoomPair(host.page, guest.page, inviteCode, roomName, "Mixed Guest");
+      await hostAddOneRobot(host.page);
+      await expect
+        .poll(async () => host.page.getByTestId("setup-roster-entry").count(), { timeout: 30_000 })
+        .toBe(3);
+      await waitForPlayEnabled(host.page);
     } finally {
       await closePlayerContext(host);
       await closePlayerContext(guest);
