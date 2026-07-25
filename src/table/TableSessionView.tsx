@@ -77,6 +77,7 @@ export function TableSessionView({
   actions,
   watchOnly = false,
   watchOnlyMessage,
+  playNowModeLabel,
   idleStatusBanner,
 }: TableSessionViewProps) {
   const { settings } = useTableTheme();
@@ -664,6 +665,16 @@ export function TableSessionView({
           data-testid="watch-only-banner"
         >
           {watchOnlyMessage ?? "Watching this hand — you'll join the next deal."}
+        </div>
+      ) : null}
+
+      {!watchOnly && playNowModeLabel ? (
+        <div
+          className="btable-session__mode-banner"
+          role="status"
+          data-testid="play-now-mode-banner"
+        >
+          {playNowModeLabel}
         </div>
       ) : null}
 
