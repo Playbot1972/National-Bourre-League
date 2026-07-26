@@ -10,7 +10,7 @@ on:
       branch:
         description: Git ref with live-player E2E code (PR branch)
         required: true
-        default: cursor/live-player-test-program-46fb
+        default: main
         type: string
       validation_passes:
         description: Consecutive serial suite passes required after preflight
@@ -19,7 +19,7 @@ on:
         type: string
   push:
     branches:
-      - cursor/live-player-test-program-46fb
+      - main
     paths:
       - .github/live-player-e2e-run
 
@@ -31,11 +31,13 @@ jobs:
   live-player-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      MIXED_PUBLIC_TABLES_SERVER_ENABLED: "true"
     steps:
       - name: Checkout E2E branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || 'cursor/live-player-test-program-46fb' }}
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -60,18 +62,27 @@ jobs:
 
       - name: Start Firebase emulators
         run: |
+          export MIXED_PUBLIC_TABLES_SERVER_ENABLED=true
           npm run emulators > /tmp/firebase-emulators.log 2>&1 &
           echo $! > /tmp/emulator.pid
           for i in $(seq 1 90); do
             if curl -sf http://127.0.0.1:4000 >/dev/null; then
-              echo "Emulators ready"
-              exit 0
+              echo "Emulators ready (UI :4000)"
+              break
             fi
             sleep 2
           done
-          echo "Emulator startup failed"
-          tail -50 /tmp/firebase-emulators.log
-          exit 1
+          if ! curl -sf http://127.0.0.1:4000 >/dev/null; then
+            echo "Emulator startup failed"
+            tail -50 /tmp/firebase-emulators.log
+            exit 1
+          fi
+          echo "MIXED_PUBLIC_TABLES_SERVER_ENABLED=${MIXED_PUBLIC_TABLES_SERVER_ENABLED}"
+
+      - name: Smoke-check public matchmaking flag + index rebuild
+        env:
+          MIXED_PUBLIC_TABLES_SERVER_ENABLED: "true"
+        run: node scripts/smoke-public-table-index.mjs
 
       - name: Validate live-player E2E (preflight + consecutive passes)
         env:

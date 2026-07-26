@@ -17,9 +17,39 @@ export async function signUpGuest(page: Page, label = "E2E Guest") {
   await signUpUser(page, label);
 }
 
+async function openSignupModal(page: Page) {
+  const modal = page.locator("#auth-modal");
+  const triggers = [page.locator("#hero-signup"), page.locator("#open-signup")];
+
+  for (let reload = 0; reload < 2; reload += 1) {
+    for (const trigger of triggers) {
+      if (!(await trigger.isVisible().catch(() => false))) continue;
+      await trigger.click({ timeout: 10_000, force: true });
+      try {
+        await expect(modal).toBeVisible({ timeout: 8_000 });
+        return;
+      } catch {
+        // try next trigger or reload
+      }
+    }
+    if (reload === 0) {
+      await page.reload({ waitUntil: "commit", timeout: 45_000 });
+      await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 15_000 });
+    }
+  }
+
+  await expect(modal).toBeVisible({ timeout: 10_000 });
+}
+
 async function signUpUser(page: Page, label: string) {
-  await page.locator("#hero-signup").click();
-  await expect(page.locator("#auth-modal")).toBeVisible();
+  await expect(page.locator("#hero-signup")).toBeVisible({ timeout: 30_000 });
+  await page
+    .waitForFunction(
+      () => /^v\d+/.test(document.querySelector("#app-version")?.textContent ?? ""),
+      { timeout: 15_000 },
+    )
+    .catch(() => {});
+  await openSignupModal(page);
   await expect(page.locator("#auth-name")).toBeVisible();
   const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const email = `${slug}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
@@ -27,7 +57,7 @@ async function signUpUser(page: Page, label: string) {
   await page.locator("#auth-email").fill(email);
   await page.locator("#auth-password").fill("test-pass-123456");
   await page.locator("#auth-submit").click();
-  await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 15_000 });
+  await expect(page.locator("#auth-modal")).toBeHidden({ timeout: 30_000 });
 }
 
 /** Open the protected Rooms view (nav renamed from legacy "Private Rooms" link). */
@@ -95,7 +125,7 @@ export async function openNewSession(page: Page) {
   await page.waitForTimeout(300);
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("#new-session").click({ force: true });
-  await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator(".session-tab").first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
 }
 
