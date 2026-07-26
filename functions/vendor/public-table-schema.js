@@ -22,6 +22,9 @@ export const PUBLIC_TABLE_IDLE_SIT_OUT_MS = 45_000;
 /** Stage 2: remove seated player after this much total inactivity (ms). */
 export const PUBLIC_TABLE_IDLE_REMOVAL_MS = 4 * 60_000;
 
+/** Mixed tables: grace before bots-only fallback when active live human count hits 0 (ms). */
+export const MIXED_ZERO_ACTIVE_GRACE_MS = 60_000;
+
 /** Idle sit-out reason stamped on score rows (server-owned). */
 export const PUBLIC_IDLE_SIT_OUT_REASON = "idle_timeout";
 

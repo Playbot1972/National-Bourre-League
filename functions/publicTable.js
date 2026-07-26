@@ -47,6 +47,7 @@ import {
   randomizePresetOrder,
 } from "./vendor/session-presets.js";
 import { isRobotPlayerId, privateHandRef, scoresCol, sessionRef } from "./gameHandlers.js";
+import { isActiveLiveHuman, reconcileMixedTableStaleMembers } from "./publicTableStaleReconcile.js";
 
 const ACTIVE_QUEUE_STATUSES = new Set([
   MATCH_QUEUE_STATUS.QUEUED,
@@ -134,7 +135,9 @@ export function computePublicTableIndexDoc({
     roomData?.targetSeatCount ?? PUBLIC_TABLE_DEFAULT_TARGET_SEATS,
   );
   let realPlayerCount = 0;
+  let activeLiveHumanCount = 0;
   let botFillCount = 0;
+  const nowMs = Date.now();
   for (const row of scoreRows) {
     const id = row.playerId ?? row.id;
     if (!id || row.spectator === true) continue;
@@ -142,6 +145,9 @@ export function computePublicTableIndexDoc({
       if (row.botRole === BOT_ROLE.FILL) botFillCount += 1;
     } else {
       realPlayerCount += 1;
+      if (isActiveLiveHuman({ ...row, playerId: id }, nowMs)) {
+        activeLiveHumanCount += 1;
+      }
     }
   }
   const seatedCount = realPlayerCount + botFillCount;
@@ -164,6 +170,7 @@ export function computePublicTableIndexDoc({
     targetSeatCount,
     openSeats,
     realPlayerCount,
+    activeLiveHumanCount,
     botFillCount,
     spectatorCount,
     status: deriveIndexStatus(sessionData),
@@ -200,8 +207,11 @@ export function isJoinableIndexDoc(indexDoc) {
   if (normalizePlayNowQueueMode(indexDoc.queueMode) === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
     return false;
   }
+  const activeLive = indexDoc.activeLiveHumanCount ?? indexDoc.realPlayerCount ?? 0;
+  const seatedHumans = indexDoc.realPlayerCount ?? 0;
   if ((indexDoc.openSeats ?? 0) > 0) return true;
-  return (indexDoc.realPlayerCount ?? 0) > 0;
+  // Spectators may queue when active humans are seated, or sit-out humans still hold a seat.
+  return activeLive > 0 || seatedHumans > 0;
 }
 
 export function buildPublicTableResult({
@@ -543,7 +553,36 @@ async function attemptJoinJoinableCandidates(
   { actorId, displayName, joinId, buyInAmount, anteAmount },
 ) {
   const candidates = await queryJoinableIndexCandidates(db, buyInAmount, anteAmount);
+  let sawBotGraveyardOnly = false;
   for (const candidate of candidates) {
+    let ctx = null;
+    try {
+      ctx = await loadAuthoritativeTableContext(db, candidate.roomId, candidate.sessionId);
+      assertPublicTableEligible(ctx.roomData, ctx.sessionData);
+    } catch {
+      await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
+        () => {},
+      );
+      continue;
+    }
+
+    const reconcile = await reconcileMixedTableStaleMembers(db, {
+      roomId: candidate.roomId,
+      sessionId: candidate.sessionId,
+      trigger: "matchmaking",
+      joiningActorId: actorId,
+      roomData: ctx.roomData,
+      sessionData: ctx.sessionData,
+    });
+    await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
+      () => {},
+    );
+
+    if (reconcile.botsOnlyGraveyard) {
+      sawBotGraveyardOnly = true;
+      continue;
+    }
+
     const verified = await verifyCandidateFromSource(db, candidate);
     if (!verified) {
       await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
@@ -560,7 +599,8 @@ async function attemptJoinJoinableCandidates(
       mode: "joined-existing",
     };
     try {
-      return await joinPublicTableAsSpectator(db, joinArgs);
+      const joined = await joinPublicTableAsSpectator(db, joinArgs);
+      return { joined, sawBotGraveyardOnly };
     } catch (err) {
       if (
         err?.code === "already-exists" &&
@@ -570,7 +610,8 @@ async function attemptJoinJoinableCandidates(
         const cleared = await tryClearStaleSelfSeat(db, actorId, candidate);
         if (cleared) {
           try {
-            return await joinPublicTableAsSpectator(db, joinArgs);
+            const joined = await joinPublicTableAsSpectator(db, joinArgs);
+            return { joined, sawBotGraveyardOnly };
           } catch (retryErr) {
             if (retryErr?.code === "already-exists") throw retryErr;
             continue;
@@ -581,7 +622,7 @@ async function attemptJoinJoinableCandidates(
       continue;
     }
   }
-  return null;
+  return { joined: null, sawBotGraveyardOnly };
 }
 
 async function queryJoinableIndexCandidates(db, buyInAmount, anteAmount) {
@@ -641,7 +682,18 @@ async function joinPublicTableAsSpectator(
     throw new HttpsError("failed-precondition", "Bots-only tables do not accept spectators.");
   }
 
-  const existingPending = ctx.pendingJoins[actorId];
+  await reconcileMixedTableStaleMembers(db, {
+    roomId,
+    sessionId,
+    trigger: "join",
+    joiningActorId: actorId,
+    roomData: ctx.roomData,
+    sessionData: ctx.sessionData,
+  });
+  await rebuildPublicTableIndexFromSource(db, roomId, sessionId).catch(() => {});
+
+  const refreshedCtx = await loadAuthoritativeTableContext(db, roomId, sessionId);
+  const existingPending = refreshedCtx.pendingJoins[actorId];
   if (existingPending?.joinId === joinId && existingPending?.status === PENDING_JOIN_STATUS.SPECTATING) {
     const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
     return buildPublicTableResult({
@@ -659,13 +711,13 @@ async function joinPublicTableAsSpectator(
     });
   }
 
-  if (ctx.scoreRows.some((row) => row.playerId === actorId && row.spectator !== true)) {
+  if (refreshedCtx.scoreRows.some((row) => row.playerId === actorId && row.spectator !== true)) {
     throw new HttpsError("already-exists", "You are already seated at this table.");
   }
 
   await ensureRoomMembership(db, roomId, actorId, displayName);
 
-  const handCount = ctx.sessionData.handCount ?? 0;
+  const handCount = refreshedCtx.sessionData.handCount ?? 0;
   const pendingEntry = {
     joinId,
     status: PENDING_JOIN_STATUS.SPECTATING,
@@ -1018,12 +1070,30 @@ export async function handleFindOrCreatePublicTable(db, data) {
   }
 
   const joinArgs = { actorId, displayName, joinId, buyInAmount, anteAmount };
-  const joined = await attemptJoinJoinableCandidates(db, joinArgs);
-  if (joined) return joined;
+  const firstAttempt = await attemptJoinJoinableCandidates(db, joinArgs);
+  if (firstAttempt.joined) return firstAttempt.joined;
 
   // Race: a concurrent Play Now may have created a table after our first index read.
-  const lateJoined = await attemptJoinJoinableCandidates(db, joinArgs);
-  if (lateJoined) return lateJoined;
+  const lateAttempt = await attemptJoinJoinableCandidates(db, joinArgs);
+  if (lateAttempt.joined) return lateAttempt.joined;
+
+  const sawBotGraveyard =
+    firstAttempt.sawBotGraveyardOnly || lateAttempt.sawBotGraveyardOnly;
+  if (sawBotGraveyard) {
+    console.info("[mixed-stale-reconcile] bots-only fallback — no active humans on candidate tables", {
+      actorId,
+      joinId,
+    });
+    return createPublicTable(db, {
+      actorId,
+      displayName,
+      joinId,
+      targetSeatCount,
+      buyInAmount,
+      anteAmount,
+      queueMode: PLAY_NOW_QUEUE_MODE.BOTS_ONLY,
+    });
+  }
 
   return createPublicTable(db, {
     actorId,
