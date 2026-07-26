@@ -53,8 +53,6 @@ import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
 import {
   botPlayTurnKey,
   createBotThinkScheduleState,
-  isSameDurableBotPlayTurn,
-  setBotThinkWindowPublisher,
 } from "./bot-play-delay.js";
 import {
   logHandLifecycleTransition,
@@ -1206,7 +1204,6 @@ function getServerBotAdvance() {
       getRoomId: () => currentRoomId,
       getSessionId: () => openSessionId,
       getHandPhase: (s) => getSessionCurrentHand(s)?.phase ?? null,
-      getPresentationState: (session, scores) => botPlayPresentationState(session, scores),
       advanceSessionBots,
       findSession: (id) => currentSessions.find((x) => x.id === id),
       getScores: () => openScores,
@@ -3773,10 +3770,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
     nowMs: Date.now(),
-    getPresentationState: () => {
-      const latest = currentSessions.find((x) => x.id === openSessionId);
-      return botPlayPresentationState(latest, openScores);
-    },
     shouldFire: () => {
       if (robotActionInFlight) return false;
       if (!currentRoomId || !openSessionId) return false;
@@ -3786,13 +3779,12 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
       const latestCtx = snapshotGameFlowContext(latest, openScores);
       const latestTurnId = latestCtx.turnPlayerId;
       if (latestTurnId !== turnId) return false;
-      return isSameDurableBotPlayTurn(
+      return (
         botPlayTurnKey({
           handNumber: latestCtx.handNumber ?? 0,
           trickNumber: latestCtx.trickNumber ?? null,
           turnPlayerId: latestTurnId,
-        }),
-        expectedTurnKey,
+        }) === expectedTurnKey
       );
     },
     onFire: ({ plan }) => {
@@ -3857,22 +3849,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
-      submitBlocked: (extra) =>
-        logBotOrchestrator("bot-submit-blocked", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
-      submitAllowed: (extra) =>
-        logBotOrchestrator("bot-submit-allowed", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
     },
   });
 
@@ -3898,56 +3874,6 @@ function stopRobotPresentationSubscription() {
     robotPresentationUnsub();
     robotPresentationUnsub = null;
   }
-  setBotThinkWindowPublisher(null);
-  tableMountApi?.publishBotThinkWindow?.(null);
-}
-
-function wireBotThinkWindowPublisher(api) {
-  setBotThinkWindowPublisher((window) => {
-    api?.publishBotThinkWindow?.(window ?? null);
-  });
-}
-
-function wireVisibleBotRingReporter(api) {
-  api?.setVisibleBotRingReporter?.({
-    onShown: (payload) => {
-      logBotOrchestrator("visible-ring-seen", { owner: "client", ...payload });
-      const clientAccepted = clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
-        ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-shown", { owner: "client", ...extra }),
-      });
-      if (clientAccepted) {
-        logBotOrchestrator("visible-ring-accepted", { owner: "client", ...payload });
-      }
-      const serverAccepted = getServerBotAdvance().notifyVisibleRingShown?.(payload);
-      if (serverAccepted === false) {
-        logBotOrchestrator("visible-ring-ignored-stale", { owner: "server", ...payload });
-      }
-    },
-    onHidden: (payload) => {
-      clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "client", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra });
-        },
-      });
-      getServerBotAdvance().notifyVisibleRingHidden?.({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
-        },
-      });
-    },
-  });
 }
 
 function wakeRobotActions() {
@@ -3962,8 +3888,6 @@ function wakeRobotActions() {
 }
 
 function ensureRobotPresentationSubscription(api) {
-  wireBotThinkWindowPublisher(api);
-  wireVisibleBotRingReporter(api);
   if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
   robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
     wakeRobotActions();
@@ -4081,28 +4005,6 @@ function shouldBlockRobotForPresentation(s, scores) {
   return true;
 }
 
-function botPlayPresentationState(s, scores) {
-  const gate = snapshotTablePresentationGate();
-  const blocked = s ? shouldBlockRobotForPresentation(s, scores) : true;
-  return {
-    blocked,
-    revealCatchUp: Boolean(gate?.revealCatchUp),
-    revealedCount: gate?.revealedCount ?? 0,
-    revealTarget: gate?.revealTarget ?? 0,
-    pipelineActive: Boolean(gate?.pipelineActive),
-    dealPresentationActive: Boolean(gate?.dealPresentationActive),
-    trickCollectionActive: Boolean(gate?.trickCollectionActive),
-    handPresenting: Boolean(gate?.handPresenting),
-    presentationBusy: Boolean(
-      gate?.dealPresentationActive || gate?.trickCollectionActive || gate?.handPresenting,
-    ),
-    suppressing:
-      gate?.blockReason === "handPresenting" ||
-      gate?.blockReason === "pipelineActive" ||
-      false,
-  };
-}
-
 function snapshotTablePresentationGate() {
   try {
     const busy = tableMountApi?.getTrickAnimationBusyState?.();
@@ -4113,13 +4015,9 @@ function snapshotTablePresentationGate() {
       handPresenting: busy.handPresenting,
       pipelineActive: busy.pipelineActive,
       revealCatchUp: busy.revealCatchUp,
-      revealedCount: busy.revealedCount,
-      revealTarget: busy.revealTarget,
       motionGateActive: busy.motionGateActive,
       peakPlayCount: busy.peakPlayCount,
       displayedPlayCount: busy.displayedPlayCount,
-      dealPresentationActive: busy.dealPresentationActive,
-      trickCollectionActive: busy.trickCollectionActive,
     };
   } catch {
     return null;

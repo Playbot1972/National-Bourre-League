@@ -9,7 +9,6 @@ import {
   BOT_ADVANCE_DEBOUNCE_MS,
   botPlayTurnKey,
   createBotThinkScheduleState,
-  isSameDurableBotPlayTurn,
   resolveBotAdvanceDelayMs,
 } from "./bot-play-delay.js";
 
@@ -27,7 +26,6 @@ import {
  * @param {(session: object, scores: object[], actorId: string, opts: object) => void} deps.onWake
  * @param {(session: object, scores: object[], actorId: string, err: unknown) => void} [deps.onAdvanceError]
  * @param {(session: object) => string | null} [deps.getHandPhase]
- * @param {(session: object, scores: object[]) => object} [deps.getPresentationState]
  */
 export function createServerBotAdvanceRuntime(deps) {
   let inFlight = false;
@@ -77,10 +75,7 @@ export function createServerBotAdvanceRuntime(deps) {
     if (!deps.shouldRequestAdvance()) return false;
     if (!deps.sessionNeedsBotDriver(session, scores)) return false;
     if (deps.shouldBlockForPresentation(session, scores)) return false;
-    return isSameDurableBotPlayTurn(
-      botPlayTurnKey(playDelayContext(session, scores)),
-      expectedTurnKey,
-    );
+    return botPlayTurnKey(playDelayContext(session, scores)) === expectedTurnKey;
   }
 
   function schedule(session, scores, actorId, { reason = "snapshot" } = {}) {
@@ -162,7 +157,6 @@ export function createServerBotAdvanceRuntime(deps) {
       const result = thinkSchedule.armPlayThink({
         ctx,
         nowMs: Date.now(),
-        getPresentationState: () => deps.getPresentationState?.(session, scores) ?? { blocked: false },
         shouldFire: () => {
           const sessionId = deps.getSessionId();
           const latest = sessionId ? deps.findSession(sessionId) : session;
@@ -215,20 +209,6 @@ export function createServerBotAdvanceRuntime(deps) {
             }),
           rejected: (extra) =>
             logPlayDelay("bot-think-fire-rejected", session, scores, {
-              requester: actorId,
-              owner: "server",
-              trigger: reason,
-              ...extra,
-            }),
-          submitBlocked: (extra) =>
-            logPlayDelay("bot-submit-blocked", session, scores, {
-              requester: actorId,
-              owner: "server",
-              trigger: reason,
-              ...extra,
-            }),
-          submitAllowed: (extra) =>
-            logPlayDelay("bot-submit-allowed", session, scores, {
               requester: actorId,
               owner: "server",
               trigger: reason,
@@ -394,25 +374,6 @@ export function createServerBotAdvanceRuntime(deps) {
     },
     markPendingWake() {
       pendingWake = true;
-    },
-    notifyVisibleRingShown(payload) {
-      return thinkSchedule.playDelayState.notifyVisibleRingShown({
-        ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-shown", { owner: "server", ...extra }),
-      });
-    },
-    notifyVisibleRingHidden(payload) {
-      return thinkSchedule.playDelayState.notifyVisibleRingHidden({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
-        },
-      });
     },
   };
 }

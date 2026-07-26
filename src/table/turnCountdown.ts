@@ -8,9 +8,6 @@ import type { TableSessionData } from "./types";
 /** Total visible turn timer duration (client presentation). */
 export const TURN_COUNTDOWN_MS = 15_000;
 
-/** Delay before the ring begins counting down (avatar settle). */
-export const TURN_RING_ACTIVATION_DELAY_MS = 200;
-
 /** Remaining time thresholds for color segments. */
 export const TURN_COUNTDOWN_GREEN_UNTIL_MS = 10_000;
 export const TURN_COUNTDOWN_YELLOW_UNTIL_MS = 5_000;
@@ -36,7 +33,6 @@ export interface TurnCountdownInput {
     | "tricksByPlayer"
     | "handNumber"
     | "pendingCoWinSettlement"
-    | "currentTrick"
   >;
   suppressTurn: boolean;
   handComplete: boolean;
@@ -114,9 +110,8 @@ export function buildTurnCountdownState(
   playerId: string,
   startedAtMs: number,
   nowMs: number,
-  activationDelayMs = 0,
 ): TurnCountdownState | null {
-  const elapsed = Math.max(0, nowMs - startedAtMs - activationDelayMs);
+  const elapsed = Math.max(0, nowMs - startedAtMs);
   const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
   const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
 

@@ -208,8 +208,6 @@ export function TableSessionView({
       revealCatchUp:
         trickPresentation.phase === "live" &&
         trickPresentation.revealedCount < trickPresentation.revealTarget,
-      revealedCount: trickPresentation.revealedCount,
-      revealTarget: trickPresentation.revealTarget,
       motionGateActive: instantTrickPlays,
       peakPlayCount: trickPresentation.peakPlayCount,
       displayedPlayCount: trickPresentation.displayPlays.length,

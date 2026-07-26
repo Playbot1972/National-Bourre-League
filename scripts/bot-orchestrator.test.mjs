@@ -10,10 +10,7 @@ import {
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
-import {
-  BOT_PLAY_DELAY_MIN_MS,
-  BOT_PLAY_DELAY_MAX_MS,
-} from "../docs/bot-play-delay.js";
+import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
@@ -135,10 +132,6 @@ describe("server bot advance runtime presentation deferral", () => {
       getRoomId: () => "room_1",
       getSessionId: () => "sess_1",
       getHandPhase: (s) => s.currentHand?.phase ?? null,
-      getPresentationState: () => ({
-        blocked: presentationBlocked,
-        revealCatchUp: false,
-      }),
       advanceSessionBots: async () => {
         advanceCalls += 1;
         return { ok: true };
@@ -153,13 +146,8 @@ describe("server bot advance runtime presentation deferral", () => {
     assert.equal(advanceCalls, 0, "should not fire while presentation blocked");
 
     presentationBlocked = false;
-    runtime.notifyVisibleRingShown({
-      turnKey: "1:1:bot_a",
-      playerId: "bot_a",
-      nowMs: Date.now(),
-    });
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MAX_MS + 150));
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
     assert.equal(advanceCalls, 1, "should execute after presentation clears");
   });
 
@@ -193,10 +181,6 @@ describe("server bot advance runtime presentation deferral", () => {
       getRoomId: () => "room_1",
       getSessionId: () => "sess_reveal",
       getHandPhase: (s) => s.currentHand?.phase ?? null,
-      getPresentationState: () => ({
-        blocked: presentationBlocked,
-        revealCatchUp: false,
-      }),
       advanceSessionBots: async () => {
         advanceCalls += 1;
         return { ok: true };
