@@ -205,8 +205,6 @@ export interface TableSessionViewProps {
   /** Public-table spectator — watch current hand without seated affordances. */
   watchOnly?: boolean;
   watchOnlyMessage?: string;
-  /** Public Play Now mode label (Mixed / Bots only) for seated players. */
-  playNowModeLabel?: string;
   /** Public-table idle policy banner for local hero. */
   idleStatusBanner?: string | null;
   /** True when all five tricks are recorded for the current hand. */

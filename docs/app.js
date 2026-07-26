@@ -211,21 +211,11 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
-import {
-  resolvePublicTableQueueMode,
-  roomHasPublicTableFeatures,
-} from "./public-table-schema.js";
-import {
-  loadPlayNowQueueMode,
-  playNowMatchmakingStatusMessage,
-  playNowQueueModeShortLabel,
-  playNowWatchOnlyMessage,
-  readPlayNowQueueModeFromDom,
-  savePlayNowQueueMode,
-} from "./play-now-queue-mode.js";
+import { roomHasMixedPublicTables } from "./public-table-schema.js";
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
+  PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
 } from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
@@ -2489,9 +2479,9 @@ function resolveRoomSnapshotForLeave(roomId) {
   return myRooms.find((r) => r.id === roomId) ?? null;
 }
 
-/** Clear matchQueue for public Play Now tables — no-op for private rooms. */
+/** Clear matchQueue for mixed public tables — no-op for private rooms. */
 async function clearPublicTableQueueBestEffort(room) {
-  if (!session || !roomHasPublicTableFeatures(room)) return;
+  if (!session || !roomHasMixedPublicTables(room)) return;
   try {
     const left = await gameLeavePublicTable();
     if (left?.cleared !== false) {
@@ -2503,10 +2493,8 @@ async function clearPublicTableQueueBestEffort(room) {
 }
 
 async function callPublicPlayNowMatchmaking(joinId) {
-  const queueMode = readPlayNowQueueModeFromDom();
   return gameFindOrCreatePublicTable({
     joinId,
-    queueMode,
     displayName: session.displayName,
     targetSeatCount: 6,
     buyInAmount: PLAY_NOW_BUY_IN,
@@ -2755,25 +2743,6 @@ if (playNowBtn) {
   });
 }
 
-function initPlayNowModeSelector() {
-  const fieldset = document.querySelector('[data-testid="play-now-mode"]');
-  if (!fieldset) return;
-  const saved = loadPlayNowQueueMode();
-  for (const input of fieldset.querySelectorAll('input[name="play-now-mode"]')) {
-    if (input.value === saved) input.checked = true;
-    input.addEventListener("change", () => {
-      if (!input.checked) return;
-      const nextMode = readPlayNowQueueModeFromDom();
-      savePlayNowQueueMode(nextMode);
-      if (session?.uid) {
-        clearStoredPublicTableJoinId(session.uid);
-      }
-    });
-  }
-}
-
-initPlayNowModeSelector();
-
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");
   if (!btn) return;
@@ -2871,15 +2840,12 @@ async function runPlayNowFlow() {
     playNowInFlight = true;
     setPlayNowBusy(true);
     let publicRoomId = null;
-    const queueMode = readPlayNowQueueModeFromDom();
     try {
       const uid = session.uid;
       const resolved = resolvePublicTableJoinId(uid);
       let joinId = resolved.joinId;
       if (resolved.resumed) {
         showRoomsError(PUBLIC_TABLE_QUEUE_RESUME_MESSAGE, "info");
-      } else {
-        showRoomsError(playNowMatchmakingStatusMessage(queueMode), "info");
       }
       let result;
       try {
@@ -4258,10 +4224,6 @@ function buildTableSessionProps(s) {
   const myUid = session?.uid ?? null;
   const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
   const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
-  const publicQueueMode = resolvePublicTableQueueMode(currentRoom);
-  const playNowModeLabel = publicQueueMode
-    ? `${playNowQueueModeShortLabel(publicQueueMode)} table`
-    : undefined;
   let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
   if (watchOnly) {
     displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
@@ -4544,10 +4506,7 @@ function buildTableSessionProps(s) {
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     watchOnly,
-    watchOnlyMessage: watchOnly
-      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed")
-      : undefined,
-    playNowModeLabel: !watchOnly ? playNowModeLabel : undefined,
+    watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
     idleStatusBanner: publicTableHeroIdleBanner(
       s,
       myUid,

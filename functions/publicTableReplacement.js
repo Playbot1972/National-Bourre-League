@@ -12,7 +12,7 @@ import {
   PENDING_JOIN_STATUS,
   publicTableIndexKey,
   isPublicVisibility,
-  roomHasPublicTableFeatures,
+  roomHasMixedPublicTables,
 } from "./vendor/public-table-schema.js";
 import {
   isMixedPublicTablesServerEnabled,
@@ -77,7 +77,7 @@ export function isHandoffWindow(sessionData) {
 export function shouldRunPublicTableReplacement(roomData, sessionData) {
   if (!isMixedPublicTablesServerEnabled()) return false;
   if (!isPublicTableSession(sessionData)) return false;
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) return false;
+  if (!isPublicVisibility(roomData) || !roomHasMixedPublicTables(roomData)) return false;
   return true;
 }
 

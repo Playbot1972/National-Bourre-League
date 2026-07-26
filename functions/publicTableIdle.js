@@ -17,7 +17,7 @@ import {
   PUBLIC_TABLE_IDLE_SIT_OUT_MS,
   publicTableIndexKey,
   isPublicVisibility,
-  roomHasPublicTableFeatures,
+  roomHasMixedPublicTables,
 } from "./vendor/public-table-schema.js";
 import {
   isMixedPublicTablesServerEnabled,
@@ -181,7 +181,7 @@ export function buildEnrollmentPatchForIdleSitOut(enrollment, playerId, dealCont
 export function shouldEnforcePublicTableIdle(roomData, sessionData) {
   if (!isMixedPublicTablesServerEnabled()) return false;
   if (!isPublicTableSession(sessionData)) return false;
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) return false;
+  if (!isPublicVisibility(roomData) || !roomHasMixedPublicTables(roomData)) return false;
   return true;
 }
 

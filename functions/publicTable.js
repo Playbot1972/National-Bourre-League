@@ -19,14 +19,9 @@ import {
   PUBLIC_TABLE_MAX_SEATS,
   PUBLIC_TABLE_MIN_SEATS,
   ROOM_VISIBILITY,
-  PLAY_NOW_QUEUE_MODE,
   publicTableIndexKey,
   isPublicVisibility,
   roomHasMixedPublicTables,
-  roomHasBotsOnlyPublicTables,
-  roomHasPublicTableFeatures,
-  normalizePlayNowQueueMode,
-  resolvePublicTableQueueMode,
 } from "./vendor/public-table-schema.js";
 import {
   isMixedPublicTablesServerEnabled,
@@ -169,7 +164,6 @@ export function computePublicTableIndexDoc({
     buyInAmount,
     anteAmount,
     stakesKey: stakesKey(buyInAmount, anteAmount),
-    queueMode: resolvePublicTableQueueMode(roomData) ?? PLAY_NOW_QUEUE_MODE.MIXED,
     updatedAt: FieldValue.serverTimestamp(),
   };
 }
@@ -196,9 +190,6 @@ export function rankPublicTableCandidates(candidates) {
  */
 export function isJoinableIndexDoc(indexDoc) {
   if (!indexDoc || indexDoc.status === "closed") return false;
-  if (normalizePlayNowQueueMode(indexDoc.queueMode) === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
-    return false;
-  }
   if ((indexDoc.openSeats ?? 0) > 0) return true;
   return (indexDoc.realPlayerCount ?? 0) > 0;
 }
@@ -214,7 +205,6 @@ export function buildPublicTableResult({
   botFillCount,
   openSeats,
   spectatorCount = 0,
-  queueMode = PLAY_NOW_QUEUE_MODE.MIXED,
 }) {
   return {
     ok: true,
@@ -228,7 +218,6 @@ export function buildPublicTableResult({
     botFillCount,
     openSeats,
     spectatorCount,
-    queueMode: normalizePlayNowQueueMode(queueMode),
   };
 }
 
@@ -287,23 +276,15 @@ async function loadMatchQueue(db, userId) {
   return snap.exists ? { ref: snap.ref, data: snap.data() } : null;
 }
 
-function assertCompatibleActiveQueue(queueData, joinId, queueMode = PLAY_NOW_QUEUE_MODE.MIXED) {
+function assertCompatibleActiveQueue(queueData, joinId) {
   if (!queueData || !isActiveQueueStatus(queueData.status)) return null;
-  if (queueData.activeJoinId !== joinId) {
-    throw new HttpsError(
-      "already-exists",
-      "You already have an active public table queue with a different joinId.",
-    );
+  if (queueData.activeJoinId === joinId) {
+    return queueData;
   }
-  const storedMode = normalizePlayNowQueueMode(queueData.queueMode);
-  const requestedMode = normalizePlayNowQueueMode(queueMode);
-  if (storedMode !== requestedMode) {
-    throw new HttpsError(
-      "already-exists",
-      "Active queue is for a different matchmaking mode.",
-    );
-  }
-  return queueData;
+  throw new HttpsError(
+    "already-exists",
+    "You already have an active public table queue with a different joinId.",
+  );
 }
 
 async function loadAuthoritativeTableContext(db, roomId, sessionId) {
@@ -328,8 +309,8 @@ async function loadAuthoritativeTableContext(db, roomId, sessionId) {
 }
 
 function assertPublicTableEligible(roomData, sessionData) {
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) {
-    throw new HttpsError("failed-precondition", "Not a public table.");
+  if (!isPublicVisibility(roomData) || !roomHasMixedPublicTables(roomData)) {
+    throw new HttpsError("failed-precondition", "Not a public mixed table.");
   }
   if (!isPublicTableSession(sessionData)) {
     throw new HttpsError("failed-precondition", "Session is not a public table.");
@@ -452,7 +433,7 @@ export async function handlePublicTableMemberRemoved(db, deletedMemberData) {
   const roomSnap = await db.collection("rooms").doc(roomId).get();
   if (!roomSnap.exists) return { handled: false, reason: "room_missing" };
   const roomData = roomSnap.data();
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) {
+  if (!isPublicVisibility(roomData) || !roomHasMixedPublicTables(roomData)) {
     return { handled: false, reason: "not_public_table" };
   }
 
@@ -636,9 +617,6 @@ async function joinPublicTableAsSpectator(
   const sessionKey = publicTableIndexKey(roomId, sessionId);
   const ctx = await loadAuthoritativeTableContext(db, roomId, sessionId);
   assertPublicTableEligible(ctx.roomData, ctx.sessionData);
-  if (roomHasBotsOnlyPublicTables(ctx.roomData)) {
-    throw new HttpsError("failed-precondition", "Bots-only tables do not accept spectators.");
-  }
 
   const existingPending = ctx.pendingJoins[actorId];
   if (existingPending?.joinId === joinId && existingPending?.status === PENDING_JOIN_STATUS.SPECTATING) {
@@ -654,7 +632,6 @@ async function joinPublicTableAsSpectator(
       botFillCount: indexDoc.botFillCount,
       openSeats: indexDoc.openSeats,
       spectatorCount: indexDoc.spectatorCount,
-      queueMode: indexDoc.queueMode,
     });
   }
 
@@ -710,7 +687,6 @@ async function joinPublicTableAsSpectator(
         sessionId,
         activeJoinId: joinId,
         status: MATCH_QUEUE_STATUS.SPECTATING,
-        queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
         requestedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -733,24 +709,13 @@ async function joinPublicTableAsSpectator(
     botFillCount: indexDoc.botFillCount,
     openSeats: indexDoc.openSeats,
     spectatorCount: indexDoc.spectatorCount,
-    queueMode: indexDoc.queueMode,
   });
 }
 
 async function createPublicTable(
   db,
-  {
-    actorId,
-    displayName,
-    joinId,
-    targetSeatCount,
-    buyInAmount,
-    anteAmount,
-    queueMode = PLAY_NOW_QUEUE_MODE.MIXED,
-  },
+  { actorId, displayName, joinId, targetSeatCount, buyInAmount, anteAmount },
 ) {
-  const normalizedQueueMode = normalizePlayNowQueueMode(queueMode);
-  const botsOnly = normalizedQueueMode === PLAY_NOW_QUEUE_MODE.BOTS_ONLY;
   const existingQueue = await loadMatchQueue(db, actorId);
   if (
     existingQueue?.data &&
@@ -773,7 +738,6 @@ async function createPublicTable(
       botFillCount: indexDoc.botFillCount,
       openSeats: indexDoc.openSeats,
       spectatorCount: indexDoc.spectatorCount,
-      queueMode: indexDoc.queueMode,
     });
   }
 
@@ -829,7 +793,7 @@ async function createPublicTable(
       claimedSessionNames: [],
       status: "open",
       visibility: ROOM_VISIBILITY.PUBLIC,
-      features: botsOnly ? { botsOnlyPublicTables: true } : { mixedPublicTables: true },
+      features: { mixedPublicTables: true },
       targetSeatCount,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -932,7 +896,6 @@ async function createPublicTable(
       sessionId,
       activeJoinId: joinId,
       status: MATCH_QUEUE_STATUS.SEATED,
-      queueMode: normalizedQueueMode,
       requestedAt: FieldValue.serverTimestamp(),
     });
   });
@@ -949,7 +912,6 @@ async function createPublicTable(
     botFillCount: indexDoc.botFillCount,
     openSeats: indexDoc.openSeats,
     spectatorCount: indexDoc.spectatorCount,
-    queueMode: indexDoc.queueMode,
   });
 }
 
@@ -964,7 +926,6 @@ export async function handleFindOrCreatePublicTable(db, data) {
     throw new HttpsError("unauthenticated", "Sign in required");
   }
   const joinId = assertJoinIdFormat(data?.joinId);
-  const queueMode = normalizePlayNowQueueMode(data?.queueMode);
   const targetSeatCount = clampTargetSeatCount(data?.targetSeatCount);
   const { buyInAmount, anteAmount } = normalizeStakes(data);
   const displayName =
@@ -973,7 +934,7 @@ export async function handleFindOrCreatePublicTable(db, data) {
 
   const existingQueue = await loadMatchQueue(db, actorId);
   if (existingQueue?.data) {
-    const compatible = assertCompatibleActiveQueue(existingQueue.data, joinId, queueMode);
+    const compatible = assertCompatibleActiveQueue(existingQueue.data, joinId);
     if (compatible) {
       const { roomId, sessionId, status } = compatible;
       if (roomId && sessionId) {
@@ -989,22 +950,9 @@ export async function handleFindOrCreatePublicTable(db, data) {
           botFillCount: indexDoc.botFillCount,
           openSeats: indexDoc.openSeats,
           spectatorCount: indexDoc.spectatorCount,
-          queueMode: indexDoc.queueMode,
         });
       }
     }
-  }
-
-  if (queueMode === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
-    return createPublicTable(db, {
-      actorId,
-      displayName,
-      joinId,
-      targetSeatCount,
-      buyInAmount,
-      anteAmount,
-      queueMode,
-    });
   }
 
   const joinArgs = { actorId, displayName, joinId, buyInAmount, anteAmount };
@@ -1022,7 +970,6 @@ export async function handleFindOrCreatePublicTable(db, data) {
     targetSeatCount,
     buyInAmount,
     anteAmount,
-    queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
   });
 }
 
