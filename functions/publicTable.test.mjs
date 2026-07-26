@@ -442,8 +442,8 @@ describe("handleLeavePublicTable", () => {
     assert.deepEqual(ops, [
       `read:${queuePath}`,
       `read:${sessionPath}`,
-      `delete:${queuePath}`,
       `update:${sessionPath}`,
+      `delete:${queuePath}`,
     ]);
   });
 
@@ -512,5 +512,120 @@ describe("handleLeavePublicTable", () => {
     const result = await handleLeavePublicTable(db, { actorId: guestId });
     assert.equal(result.cleared, true);
     assert.deepEqual(ops, [`read:${queuePath}`, `read:${sessionPath}`, `delete:${queuePath}`]);
+  });
+
+  it("vacates seated score row and session.players on SEATED leave", async () => {
+    process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
+    const { handleLeavePublicTable } = await import("./publicTable.js");
+    const ops = [];
+    const hostId = "leave_host_seated";
+    const roomId = "room_leave_seated";
+    const sessionId = "sess_leave_seated";
+    const queuePath = `matchQueue/${hostId}`;
+    const sessionPath = `rooms/${roomId}/sessions/${sessionId}`;
+    const scorePath = `${sessionPath}/scores/${hostId}`;
+
+    const db = {
+      collection: (name) => {
+        if (name === MATCH_QUEUE_COLLECTION) {
+          return {
+            doc: (id) => ({
+              path: `${name}/${id}`,
+              get: async () => ({
+                exists: true,
+                ref: { path: `${name}/${id}` },
+                data: () => ({
+                  status: MATCH_QUEUE_STATUS.SEATED,
+                  roomId,
+                  sessionId,
+                  activeJoinId: "host-join",
+                }),
+              }),
+            }),
+          };
+        }
+        if (name === "rooms") {
+          return {
+            doc: (rid) => ({
+              collection: (sub) => ({
+                doc: (sid) => ({
+                  path: `rooms/${rid}/${sub}/${sid}`,
+                  collection: (inner) => ({
+                    doc: (pid) => ({
+                      path: `rooms/${rid}/${sub}/${sid}/${inner}/${pid}`,
+                    }),
+                    get: async () => ({ docs: [] }),
+                  }),
+                }),
+              }),
+            }),
+          };
+        }
+        if (name === PUBLIC_TABLE_INDEX_COLLECTION) {
+          return { doc: () => ({ set: async () => {}, get: async () => ({ exists: false }) }) };
+        }
+        return { doc: () => ({ get: async () => ({ exists: false }) }) };
+      },
+      runTransaction: async (fn) => {
+        const tx = {
+          get: async (ref) => {
+            ops.push(`read:${ref.path}`);
+            if (ref.path === queuePath) {
+              return {
+                exists: true,
+                data: () => ({ status: MATCH_QUEUE_STATUS.SEATED, roomId, sessionId }),
+              };
+            }
+            if (ref.path === sessionPath) {
+              return {
+                exists: true,
+                data: () => ({
+                  players: [{ playerId: hostId, displayName: "Host" }],
+                  pendingJoins: {},
+                  tableOptInIds: [hostId],
+                }),
+              };
+            }
+            if (ref.path === scorePath) {
+              return { exists: true, data: () => ({ playerId: hostId, spectator: false }) };
+            }
+            if (ref.path.endsWith("/privateHands/" + hostId)) {
+              return { exists: false };
+            }
+            return { exists: false, data: () => undefined };
+          },
+          delete: (ref) => ops.push(`delete:${ref.path}`),
+          update: (ref) => ops.push(`update:${ref.path}`),
+        };
+        await fn(tx);
+      },
+    };
+
+    const result = await handleLeavePublicTable(db, { actorId: hostId });
+    assert.equal(result.cleared, true);
+    assert.equal(result.seatVacated, true);
+    assert.ok(ops.includes(`delete:${scorePath}`));
+    assert.ok(ops.includes(`update:${sessionPath}`));
+    assert.ok(ops.includes(`delete:${queuePath}`));
+  });
+});
+
+describe("vacatePublicTableHumanSeat", () => {
+  const prev = process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED;
+    else process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = prev;
+  });
+
+  it("no-ops for robot player ids", async () => {
+    const { vacatePublicTableHumanSeat } = await import("./publicTable.js");
+    const result = await vacatePublicTableHumanSeat(null, {
+      roomId: "r",
+      sessionId: "s",
+      userId: "bot_abc123",
+      reason: "test",
+    });
+    assert.equal(result.vacated, false);
   });
 });

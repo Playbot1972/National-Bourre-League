@@ -36,6 +36,10 @@ export interface TurnCountdownInput {
   >;
   suppressTurn: boolean;
   handComplete: boolean;
+  /** Seated humans in idle sit-out — suppress turn urgency while server advances. */
+  sitOutPlayerIds?: string[];
+  /** Public-table spectator — no turn urgency until seated on the next deal. */
+  watchOnly?: boolean;
 }
 
 const ACTIONABLE_FLOW_PHASES = new Set<string>([
@@ -89,7 +93,7 @@ function sessionViewFromTable(input: TurnCountdownInput): HandFlowSessionView {
  * Mirrors `resolveHandFlowTurnPlayerId` / seat `isActiveActor`.
  */
 export function resolveTableActiveActorId(input: TurnCountdownInput): string | null {
-  if (input.handComplete || input.suppressTurn) return null;
+  if (input.handComplete || input.suppressTurn || input.watchOnly) return null;
 
   const snapshot = buildHandFlowSnapshot({
     session: sessionViewFromTable(input),
@@ -97,7 +101,9 @@ export function resolveTableActiveActorId(input: TurnCountdownInput): string | n
   });
 
   if (!ACTIONABLE_FLOW_PHASES.has(snapshot.phase)) return null;
-  return snapshot.turnPlayerId;
+  const turnPlayerId = snapshot.turnPlayerId;
+  if (turnPlayerId && input.sitOutPlayerIds?.includes(turnPlayerId)) return null;
+  return turnPlayerId;
 }
 
 export function buildTurnCountdownState(

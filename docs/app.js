@@ -35,6 +35,7 @@ import {
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
+  resolveCoWinPresentation,
 } from "./table-view-model.js";
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
@@ -210,11 +211,21 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
-import { roomHasMixedPublicTables } from "./public-table-schema.js";
+import {
+  resolvePublicTableQueueMode,
+  roomHasPublicTableFeatures,
+} from "./public-table-schema.js";
+import {
+  loadPlayNowQueueMode,
+  playNowMatchmakingStatusMessage,
+  playNowQueueModeShortLabel,
+  playNowWatchOnlyMessage,
+  readPlayNowQueueModeFromDom,
+  savePlayNowQueueMode,
+} from "./play-now-queue-mode.js";
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
-  PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
 } from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
@@ -1652,19 +1663,74 @@ function stopPublicTableActivityHeartbeat() {
     clearInterval(publicTableActivityTimer);
     publicTableActivityTimer = null;
   }
+  unbindPublicTableActivityGestures();
 }
 
-function touchPublicTableActivityBestEffort() {
+function unbindPublicTableActivityGestures() {
+  if (!publicTableActivityGestureBound) return;
+  const overlay = $("#table-play-overlay");
+  if (overlay) {
+    overlay.removeEventListener("pointerdown", onPublicTableUserActivity);
+    overlay.removeEventListener("keydown", onPublicTableUserActivity);
+  }
+  publicTableActivityGestureBound = false;
+}
+
+function onPublicTableUserActivity() {
+  touchPublicTableActivityBestEffort({ force: true });
+}
+
+function bindPublicTableActivityGestures() {
+  if (publicTableActivityGestureBound) return;
+  const overlay = $("#table-play-overlay");
+  if (!overlay) return;
+  overlay.addEventListener("pointerdown", onPublicTableUserActivity, { passive: true });
+  overlay.addEventListener("keydown", onPublicTableUserActivity);
+  publicTableActivityGestureBound = true;
+}
+
+function notePublicTableHeroScorePresence(scores, myUid, sessionObj) {
+  if (!myUid || !isPublicTableSession(sessionObj)) return;
+  const hasRow = scores.some((sc) => sc.playerId === myUid);
+  if (hasRow) {
+    publicTableHeroHadScoreRow = true;
+    return;
+  }
+  if (publicTableHeroHadScoreRow && !isPublicTableWatchOnly(sessionObj, myUid, {
+    scorePlayerIds: scores.map((sc) => sc.playerId).filter(Boolean),
+  })) {
+    publicTableIdleRemovalNotice = true;
+  }
+}
+
+function resetPublicTableIdleClientState() {
+  publicTableHeroHadScoreRow = false;
+  publicTableIdleRemovalNotice = false;
+  publicTableActivityLastTouchMs = 0;
+}
+
+function touchPublicTableActivityBestEffort({ force = false } = {}) {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
   const now = Date.now();
-  if (now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
+  if (!force && now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
   publicTableActivityLastTouchMs = now;
-  gameTouchPublicTableActivity(currentRoomId, openSessionId).catch((err) => {
-    if (err?.code === "functions/unauthenticated") return;
-    console.warn("public table activity touch:", err?.message ?? err);
-  });
+  gameTouchPublicTableActivity(currentRoomId, openSessionId)
+    .then((result) => {
+      if (
+        result?.reason === "not_seated" ||
+        result?.reason === "removed_rejoin_required"
+      ) {
+        publicTableIdleRemovalNotice = true;
+        const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+        if (sessionObj) scheduleTableSessionSync(sessionObj);
+      }
+    })
+    .catch((err) => {
+      if (err?.code === "functions/unauthenticated") return;
+      console.warn("public table activity touch:", err?.message ?? err);
+    });
 }
 
 function startPublicTableActivityHeartbeat() {
@@ -1672,10 +1738,10 @@ function startPublicTableActivityHeartbeat() {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
-  touchPublicTableActivityBestEffort();
-  publicTableActivityTimer = setInterval(() => {
-    touchPublicTableActivityBestEffort();
-  }, PUBLIC_TABLE_ACTIVITY_INTERVAL_MS);
+  resetPublicTableIdleClientState();
+  bindPublicTableActivityGestures();
+  // One-time open touch only — periodic bumps defeated the 45s idle sit-out policy.
+  touchPublicTableActivityBestEffort({ force: true });
 }
 
 function startEnrollmentTimer() {
@@ -1722,7 +1788,9 @@ function startEnrollmentTimer() {
 let tablePlayOpen = false;
 let publicTableActivityTimer = null;
 let publicTableActivityLastTouchMs = 0;
-const PUBLIC_TABLE_ACTIVITY_INTERVAL_MS = 20_000;
+let publicTableActivityGestureBound = false;
+let publicTableHeroHadScoreRow = false;
+let publicTableIdleRemovalNotice = false;
 const PUBLIC_TABLE_ACTIVITY_THROTTLE_MS = 5_000;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
 let pendingRoomAnteOverride = null;
@@ -2303,6 +2371,7 @@ function navigateAwayFromTable() {
 function teardownTableOverlay({ restoreDetail = true } = {}) {
   if (!tablePlayOpen) return;
   tablePlayOpen = false;
+  resetPublicTableIdleClientState();
   localHandActionCommit = null;
   cancelNextHandOpenTimer();
   stopTablePlaySideEffects();
@@ -2420,9 +2489,9 @@ function resolveRoomSnapshotForLeave(roomId) {
   return myRooms.find((r) => r.id === roomId) ?? null;
 }
 
-/** Clear matchQueue for mixed public tables — no-op for private rooms. */
+/** Clear matchQueue for public Play Now tables — no-op for private rooms. */
 async function clearPublicTableQueueBestEffort(room) {
-  if (!session || !roomHasMixedPublicTables(room)) return;
+  if (!session || !roomHasPublicTableFeatures(room)) return;
   try {
     const left = await gameLeavePublicTable();
     if (left?.cleared !== false) {
@@ -2434,8 +2503,10 @@ async function clearPublicTableQueueBestEffort(room) {
 }
 
 async function callPublicPlayNowMatchmaking(joinId) {
+  const queueMode = readPlayNowQueueModeFromDom();
   return gameFindOrCreatePublicTable({
     joinId,
+    queueMode,
     displayName: session.displayName,
     targetSeatCount: 6,
     buyInAmount: PLAY_NOW_BUY_IN,
@@ -2684,6 +2755,25 @@ if (playNowBtn) {
   });
 }
 
+function initPlayNowModeSelector() {
+  const fieldset = document.querySelector('[data-testid="play-now-mode"]');
+  if (!fieldset) return;
+  const saved = loadPlayNowQueueMode();
+  for (const input of fieldset.querySelectorAll('input[name="play-now-mode"]')) {
+    if (input.value === saved) input.checked = true;
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      const nextMode = readPlayNowQueueModeFromDom();
+      savePlayNowQueueMode(nextMode);
+      if (session?.uid) {
+        clearStoredPublicTableJoinId(session.uid);
+      }
+    });
+  }
+}
+
+initPlayNowModeSelector();
+
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");
   if (!btn) return;
@@ -2781,12 +2871,15 @@ async function runPlayNowFlow() {
     playNowInFlight = true;
     setPlayNowBusy(true);
     let publicRoomId = null;
+    const queueMode = readPlayNowQueueModeFromDom();
     try {
       const uid = session.uid;
       const resolved = resolvePublicTableJoinId(uid);
       let joinId = resolved.joinId;
       if (resolved.resumed) {
         showRoomsError(PUBLIC_TABLE_QUEUE_RESUME_MESSAGE, "info");
+      } else {
+        showRoomsError(playNowMatchmakingStatusMessage(queueMode), "info");
       }
       let result;
       try {
@@ -3578,29 +3671,7 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     remainingHandCount: ctx.remainingHandCount ?? null,
   };
-  if (shouldBlockRobotForPresentation(s, scores)) {
-    clientBotThinkSchedule.playDelayState.markTurnEligible({
-      ...playCtx,
-      nowMs: Date.now(),
-    });
-    logBotOrchestrator("bot-turn-start", {
-      ...ctx,
-      turnPlayerId: turnId,
-      owner: "client",
-      trigger: reason,
-      action: "waiting_presentation",
-    });
-    logBotOrchestrator("skip-request", {
-      ...ctx,
-      turnPlayerId: turnId,
-      reason: "presentation_blocked",
-      owner: "client",
-      trigger: reason,
-      action: "blocked",
-    });
-    return;
-  }
-
+  const presentationBlocked = shouldBlockRobotForPresentation(s, scores);
   const expectedTurnKey = botPlayTurnKey(playCtx);
   clientBotThinkSchedule.playDelayState.markTurnEligible({
     ...playCtx,
@@ -3611,7 +3682,18 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     owner: "client",
     trigger: reason,
+    ...(presentationBlocked ? { action: "waiting_presentation" } : {}),
   });
+  if (presentationBlocked) {
+    logBotOrchestrator("skip-request", {
+      ...ctx,
+      turnPlayerId: turnId,
+      reason: "presentation_blocked",
+      owner: "client",
+      trigger: reason,
+      action: "deferred",
+    });
+  }
 
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
@@ -4176,6 +4258,10 @@ function buildTableSessionProps(s) {
   const myUid = session?.uid ?? null;
   const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
   const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
+  const publicQueueMode = resolvePublicTableQueueMode(currentRoom);
+  const playNowModeLabel = publicQueueMode
+    ? `${playNowQueueModeShortLabel(publicQueueMode)} table`
+    : undefined;
   let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
   if (watchOnly) {
     displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
@@ -4229,7 +4315,7 @@ function buildTableSessionProps(s) {
     localHandActionCommit &&
     myUid &&
     localHandActionCommit.kind === LOCAL_HAND_ACTION.DRAW &&
-    Date.now() - (localHandActionCommit.atMs ?? 0) > 12_000 &&
+    Date.now() - (localHandActionCommit.atMs ?? 0) > HAND_LIFECYCLE_WATCHDOG_MS &&
     !(currentHand?.drawCompletedIds ?? []).includes(myUid)
   ) {
     clearLocalHandCommit();
@@ -4310,14 +4396,6 @@ function buildTableSessionProps(s) {
     tableActionFeedback = null;
     tableActionFeedbackContext = null;
   }
-  const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
-  const activeWinnerIds =
-    handReady && derivedWinnerIds.length > 0
-      ? derivedWinnerIds
-      : pendingWinners?.length
-        ? pendingWinners
-        : [];
-
   const postedAntes = currentHand?.postedAntes ?? {};
   const seatedIds =
     currentHand?.seatedIds?.length > 0
@@ -4350,13 +4428,14 @@ function buildTableSessionProps(s) {
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
 
-  const showCoWinSettlement =
-    handComplete &&
-    ((handReady && derivedWinnerIds.length >= 2) ||
-      (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2));
-  const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
-  const splitSharePerWinner =
-    coWinnerCount >= 2 ? potMetrics.maxWinThisHand / coWinnerCount : 0;
+  const { activeWinnerIds, showCoWinSettlement, splitSharePerWinner } =
+    resolveCoWinPresentation({
+      handComplete,
+      handReady,
+      derivedWinnerIds,
+      pendingCoWinSettlement: s.pendingCoWinSettlement,
+      maxWinThisHand: potMetrics.maxWinThisHand,
+    });
 
   const myHandContribution =
     myUid != null && handParticipantIds.includes(myUid)
@@ -4465,11 +4544,15 @@ function buildTableSessionProps(s) {
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     watchOnly,
-    watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
+    watchOnlyMessage: watchOnly
+      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed")
+      : undefined,
+    playNowModeLabel: !watchOnly ? playNowModeLabel : undefined,
     idleStatusBanner: publicTableHeroIdleBanner(
       s,
       myUid,
       displayScores.find((sc) => sc.playerId === myUid),
+      { removedNotice: publicTableIdleRemovalNotice },
     ),
     actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
@@ -4629,6 +4712,8 @@ function openSession(sessionId) {
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
+    const sessionObj = currentSessions.find((x) => x.id === sessionId);
+    notePublicTableHeroScorePresence(scores, session?.uid ?? null, sessionObj);
     refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
     scheduleRenderRoomDetail();

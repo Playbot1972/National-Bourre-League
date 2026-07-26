@@ -5,6 +5,7 @@ import {
   PUBLIC_TABLE_IDLE_SIT_OUT_MS,
 } from "./vendor/public-table-schema.js";
 import {
+  buildActivityTouchPatch,
   buildEnrollmentPatchForIdleSitOut,
   classifyIdleStage,
   evaluateIdlePolicyForSeatedHumans,
@@ -100,6 +101,14 @@ describe("public-table idle policy (unit)", () => {
     assert.equal(resolveLastActivityMs({ updatedAt: NOW - 60_000 }, NOW), NOW - 60_000);
   });
 
+  it("resolveLastActivityMs treats missing timestamps as idle-eligible (not perpetually active)", () => {
+    assert.equal(
+      resolveLastActivityMs({ playerId: "human_a", bankroll: 100 }, NOW),
+      NOW - PUBLIC_TABLE_IDLE_SIT_OUT_MS - 1,
+    );
+    assert.equal(resolveLastActivityMs({ playerId: "human_b" }, NOW), NOW);
+  });
+
   it("buildEnrollmentPatchForIdleSitOut declines non-current idle player without advancing index", () => {
     const enrollment = {
       active: true,
@@ -112,5 +121,12 @@ describe("public-table idle policy (unit)", () => {
     const patch = buildEnrollmentPatchForIdleSitOut(enrollment, "human_a", null, NOW);
     assert.equal(patch.handEnrollment.currentIndex, 0);
     assert.ok(patch.handEnrollment.declinedIds.includes("human_a"));
+  });
+
+  it("buildActivityTouchPatch clears idle sit-out fields", () => {
+    const patch = buildActivityTouchPatch({ sitOut: true, bankroll: 100 });
+    assert.ok(patch.lastActivityTimestamp);
+    assert.ok("sitOut" in patch);
+    assert.ok("idleSitOutAt" in patch);
   });
 });
