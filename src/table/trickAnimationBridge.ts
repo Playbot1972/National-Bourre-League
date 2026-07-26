@@ -160,11 +160,8 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
     };
   }
 
-  if (!blockEpisode) {
+  if (!blockEpisode || blockEpisode.reason !== reason) {
     blockEpisode = { reason, since: now, blockedLogged: false };
-  } else if (blockEpisode.reason !== reason) {
-    // Keep episode start time when reasons churn — prevents indefinite soft/force unblock delay.
-    blockEpisode = { reason, since: blockEpisode.since, blockedLogged: blockEpisode.blockedLogged };
   }
 
   const blockedMs = now - blockEpisode.since;
