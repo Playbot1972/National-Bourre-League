@@ -21,7 +21,9 @@ export function isBenignTableActionError(err) {
     lower.includes("not your turn to draw") ||
     lower.includes("not in draw phase") ||
     lower.includes("not in trick-play") ||
-    lower.includes("illegal phase transition")
+    lower.includes("illegal phase transition") ||
+    lower.includes("bot private hand missing") ||
+    lower.includes("enrollment step did not apply")
   ) {
     return true;
   }

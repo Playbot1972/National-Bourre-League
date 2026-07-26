@@ -1508,7 +1508,14 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   if (data.status === "final") return { status: "noop" };
 
   if (isHandAwaitingSettlement(data)) {
-    await finalizeHandFromCardPlay(db, roomId, sessionId, actorId);
+    try {
+      await finalizeHandFromCardPlay(db, roomId, sessionId, actorId);
+    } catch (err) {
+      console.warn(
+        "[ensure-hand-enrollment] finalize during enrollment skipped",
+        err?.message ?? err,
+      );
+    }
     sessionSnap = await ref.get();
     if (!sessionSnap.exists) return { status: "noop" };
     data = sessionSnap.data();
@@ -1716,10 +1723,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       }
     }
   });
-  if (dealResult.status === "solo_win" || dealResult.status === "auto_dealt") {
-    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
-  }
-  return dealResult;
+  return runEnsureEnrollmentBotAdvance(db, roomId, sessionId, actorId, dealResult);
 }
 
 export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }) {
@@ -2687,6 +2691,44 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
 export function isBenignBotAdvanceRaceError(err) {
   const code = err?.code;
   return code === "failed-precondition" || code === "not-found";
+}
+
+/** Post-deal bot nudge failures that should not fail enrollment/deal callables. */
+export function isBenignEnsureEnrollmentFollowUpError(err) {
+  if (isBenignBotAdvanceRaceError(err)) return true;
+  const msg = String(err?.message ?? err ?? "").toLowerCase();
+  return (
+    msg.includes("decision step did not apply") ||
+    msg.includes("enrollment step did not apply") ||
+    msg.includes("bot private hand missing") ||
+    msg.includes("not in reveal phase") ||
+    msg.includes("draw already completed")
+  );
+}
+
+async function runEnsureEnrollmentBotAdvance(db, roomId, sessionId, actorId, dealResult) {
+  if (dealResult.status !== "solo_win" && dealResult.status !== "auto_dealt") return dealResult;
+  try {
+    await advanceBotsAfterAction(db, roomId, sessionId, actorId);
+  } catch (err) {
+    if (isBenignEnsureEnrollmentFollowUpError(err)) {
+      console.info(
+        "[ensure-hand-enrollment] bot advance skipped after deal",
+        JSON.stringify({
+          roomId,
+          sessionId,
+          code: err?.code ?? null,
+          message: err?.message ?? String(err),
+        }),
+      );
+      return dealResult;
+    }
+    console.warn(
+      "[ensure-hand-enrollment] bot advance after deal failed",
+      err?.message ?? err,
+    );
+  }
+  return dealResult;
 }
 
 export async function handleAdvanceBots(db, { roomId, sessionId, actorId }) {

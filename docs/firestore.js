@@ -4058,6 +4058,18 @@ async function waitForMinSeatedPlayers(
   return seatPlayerIds(sessionSnap.data(), scoreSnap).length;
 }
 
+function isBenignEnsureEnrollmentServerError(err) {
+  if (isBenignTableActionError(err)) return true;
+  const code = String(err?.code ?? "").toLowerCase();
+  return code === "functions/failed-precondition" || code === "functions/not-found";
+}
+
+async function enrollmentAlreadyProgressing(rid, sid) {
+  const data = await readSessionDataForHandVerify(rid, sid);
+  if (!data || data.status === "final") return false;
+  return sessionHandDealStarted(data) || getSessionEnrollment(data)?.active === true;
+}
+
 async function attemptAutoDeal(roomId, sessionId) {
   const resolved = resolveSessionHandRef(roomId, sessionId, sessionDoc);
   if (!resolved) {
@@ -4080,6 +4092,9 @@ async function attemptAutoDeal(roomId, sessionId) {
       return;
     } catch (serverErr) {
       if (await dealAlreadyStarted()) return;
+      if (isBenignEnsureEnrollmentServerError(serverErr) && (await enrollmentAlreadyProgressing(rid, sid))) {
+        return;
+      }
       if (!isCloudFunctionUnavailable(serverErr)) {
         throw describeEnrollmentStartError(serverErr);
       }

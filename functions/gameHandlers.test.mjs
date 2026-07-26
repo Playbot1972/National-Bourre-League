@@ -9,6 +9,7 @@ import {
   deriveWinnersFromTricks,
   handleAdvanceBots,
   isBenignBotAdvanceRaceError,
+  isBenignEnsureEnrollmentFollowUpError,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -112,6 +113,21 @@ describe("handleAdvanceBots", () => {
     await assert.rejects(
       () => handleAdvanceBots(db, { sessionId: "s1", actorId: "u1" }),
       (err) => err instanceof HttpsError && err.code === "invalid-argument",
+    );
+  });
+});
+
+describe("isBenignEnsureEnrollmentFollowUpError", () => {
+  it("treats post-deal bot nudge races as benign", () => {
+    assert.equal(
+      isBenignEnsureEnrollmentFollowUpError(
+        new Error("Bot private hand missing (bot_abc)"),
+      ),
+      true,
+    );
+    assert.equal(
+      isBenignEnsureEnrollmentFollowUpError({ code: "failed-precondition", message: "Not in reveal phase" }),
+      true,
     );
   });
 });
