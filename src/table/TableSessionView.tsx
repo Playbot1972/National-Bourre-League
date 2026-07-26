@@ -366,7 +366,7 @@ export function TableSessionView({
     trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
-    watchOnly || suppressTurn
+    suppressTurn
       ? null
       : turnIndicatorLabel(session.turnPlayerId, players);
   const selfPlayer = players.find((p) => p.isSelf);
@@ -422,7 +422,6 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
     sitOutPlayerIds,
-    watchOnly,
   });
 
   useTurnTimerWarning({
@@ -430,7 +429,6 @@ export function TableSessionView({
     suppressTurn: Boolean(suppressTurn),
     handComplete,
     sitOutPlayerIds,
-    watchOnly,
     currentUserId,
     localActionPending: actionFeedback?.status === "loading",
   });
@@ -560,7 +558,6 @@ export function TableSessionView({
     microinteractions,
     instantTrickPlays,
     turnCountdown,
-    watchOnly,
     bigPotEvent,
     onDismissTableEvent: dismissEvent,
     ...tableCallbacks,
@@ -692,10 +689,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={
-                !watchOnly &&
-                Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
-              }
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
             />
             {gameplayStage}
           </div>
@@ -709,10 +703,7 @@ export function TableSessionView({
               feedbackSuccessPulse={microinteractions.feedbackSuccessPulse}
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
-              showTurn={
-                !watchOnly &&
-                Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
-              }
+              showTurn={Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")}
             />
             {gameplayStage}
           </div>
