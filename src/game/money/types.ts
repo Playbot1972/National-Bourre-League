@@ -3,6 +3,7 @@ export interface ScoreRow {
   bankroll?: number;
   net?: number;
   out?: boolean;
+  sitOut?: boolean;
   skipNextAnte?: boolean;
   bourreReplacementDue?: number;
   perHandStake?: number;
