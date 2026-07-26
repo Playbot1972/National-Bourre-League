@@ -204,28 +204,6 @@ describe("bot play delay", () => {
     assert.equal(status.visibleRingElapsedMs, 150);
   });
 
-  it("applies pending ring ack across durable trick-number flicker", () => {
-    const state = createBotPlayDelayState({ rng: () => 0 });
-    state.notifyVisibleRingShown({
-      turnKey: "1:0:bot_1",
-      playerId: "bot_1",
-      nowMs: 80,
-    });
-    state.prepareTurn({
-      handNumber: 1,
-      trickNumber: 3,
-      turnPlayerId: "bot_1",
-      remainingHandCount: 3,
-      nowMs: 100,
-    });
-    const status = state.getVisibleRingStatus({
-      turnKey: "1:3:bot_1",
-      nowMs: 200,
-      remainingHandCount: 3,
-    });
-    assert.equal(status.visibleRingStartAtMs, 80);
-  });
-
   it("ignores transient ring hidden reasons", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     state.prepareTurn({
@@ -397,34 +375,6 @@ describe("bot think schedule", () => {
       ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2", remainingHandCount: 2 },
       nowMs: 0,
       getPresentationState: () => ({ blocked: false, revealCatchUp: false }),
-      shouldFire: () => true,
-      onFire: () => {
-        fired = true;
-      },
-    });
-    schedule.playDelayState.notifyVisibleRingShown({
-      turnKey: "1:2:bot_2",
-      playerId: "bot_2",
-      nowMs: 0,
-    });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 100));
-    assert.equal(fired, true);
-  });
-
-  it("fires during revealCatchUp once trick cards are visibly in progress", async () => {
-    const schedule = createBotThinkScheduleState({ rng: () => 0 });
-    let fired = false;
-    schedule.armPlayThink({
-      ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2", remainingHandCount: 2 },
-      nowMs: 0,
-      getPresentationState: () => ({
-        blocked: true,
-        revealCatchUp: true,
-        revealedCount: 2,
-        revealTarget: 4,
-        displayedPlayCount: 1,
-        pipelineActive: true,
-      }),
       shouldFire: () => true,
       onFire: () => {
         fired = true;

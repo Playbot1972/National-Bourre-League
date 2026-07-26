@@ -4089,7 +4089,6 @@ function botPlayPresentationState(s, scores) {
     revealCatchUp: Boolean(gate?.revealCatchUp),
     revealedCount: gate?.revealedCount ?? 0,
     revealTarget: gate?.revealTarget ?? 0,
-    displayedPlayCount: gate?.displayedPlayCount ?? 0,
     pipelineActive: Boolean(gate?.pipelineActive),
     dealPresentationActive: Boolean(gate?.dealPresentationActive),
     trickCollectionActive: Boolean(gate?.trickCollectionActive),
@@ -4099,8 +4098,7 @@ function botPlayPresentationState(s, scores) {
     ),
     suppressing:
       gate?.blockReason === "handPresenting" ||
-      (gate?.blockReason === "pipelineActive" &&
-        !(gate?.revealedCount > 0 || gate?.displayedPlayCount > 0)) ||
+      gate?.blockReason === "pipelineActive" ||
       false,
   };
 }
