@@ -932,6 +932,73 @@ body.room-detail-open .room-actions {
   line-height: 1.45;
 }
 
+.play-now-mode {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.play-now-mode__legend {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gold-300);
+  margin: 0 0 8px;
+}
+
+.play-now-mode__options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.play-now-mode__option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-default);
+  background: var(--surface-raised, rgba(255, 255, 255, 0.03));
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.play-now-mode__option:has(input:checked) {
+  border-color: var(--gold-400, #c9a227);
+  background: rgba(201, 162, 39, 0.08);
+}
+
+.play-now-mode__option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.play-now-mode__label {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.play-now-mode__hint {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted, var(--text-light));
+}
+
+.btable-session__mode-banner {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--gold-200, #e8d48b);
+  background: rgba(201, 162, 39, 0.12);
+  border: 1px solid rgba(201, 162, 39, 0.25);
+}
+
 .rooms-scope-tabs {
   margin: 12px 0 16px;
 }

@@ -418,15 +418,11 @@ async function callSettlementOrClient(clientFn, serverFn) {
           throw settlementError(clientErr, "client-batch", serverErr);
         }
       }
-      console.warn(
-        "Settlement Cloud Function failed, trying client batch.",
-        serverErr?.code || serverErr?.message || serverErr,
-      );
-      try {
-        return await clientFn();
-      } catch (clientErr) {
-        throw settlementError(clientErr, "client-batch", serverErr);
+      if (isBenignTableActionError(serverErr)) {
+        logBenignTableActionRace("settlement", serverErr);
+        return undefined;
       }
+      throw settlementError(serverErr, "cloud-function");
     }
   }
   try {
@@ -1746,6 +1742,7 @@ function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, session
     if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
+    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   if (eligible.length < 2) return null;
@@ -3978,7 +3975,7 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
-    ...(isRobot ? { isRobot: true } : {}),
+    ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();

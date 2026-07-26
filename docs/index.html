@@ -162,6 +162,21 @@
             </p>
             <div class="room-actions">
               <div class="room-actions__primary">
+                <fieldset class="play-now-mode" data-testid="play-now-mode">
+                  <legend class="play-now-mode__legend">Matchmaking</legend>
+                  <div class="play-now-mode__options" role="radiogroup" aria-label="Play Now matchmaking mode">
+                    <label class="play-now-mode__option">
+                      <input type="radio" name="play-now-mode" value="mixed" checked />
+                      <span class="play-now-mode__label">Mixed</span>
+                      <span class="play-now-mode__hint">Live players + bots</span>
+                    </label>
+                    <label class="play-now-mode__option">
+                      <input type="radio" name="play-now-mode" value="bots_only" />
+                      <span class="play-now-mode__label">Bots only</span>
+                      <span class="play-now-mode__hint">Instant seat vs bots</span>
+                    </label>
+                  </div>
+                </fieldset>
                 <button class="btn btn--primary btn--cta-orb" id="play-now" type="button" data-testid="play-now" aria-busy="false">
                   Play Now
                 </button>

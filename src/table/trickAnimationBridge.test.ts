@@ -146,4 +146,32 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), false);
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
   });
+
+  it("soft-unblocks when block reasons churn without resetting the episode clock", () => {
+    resetTrickAnimationBusyState();
+    const start = 5_000_000;
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      peakPlayCount: 0,
+      displayedPlayCount: 0,
+    });
+    evaluateBotPresentationGate(start);
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: false,
+      peakPlayCount: 2,
+      displayedPlayCount: 0,
+    });
+    evaluateBotPresentationGate(start + 1_000);
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      pipelineActive: true,
+      peakPlayCount: 2,
+      displayedPlayCount: 1,
+    });
+    const soft = evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS);
+    assert.equal(soft.blocked, false);
+    assert.equal(soft.softUnblock, true);
+  });
 });
