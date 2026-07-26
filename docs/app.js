@@ -143,6 +143,10 @@ import {
   subscribeLeaderboard,
   isPermissionDenied,
   logFirestoreError,
+  isSessionMemberSyncPaused,
+  resetSessionMemberSyncPause,
+  getSessionMemberSyncBackoffMs,
+  logFirestoreError,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
@@ -1800,6 +1804,7 @@ let pendingRoomBuyInOverride = null;
 let pendingRoomBourreOverrides = null;
 let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
+let lastSessionMemberSyncAttemptMs = 0;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
 let tableSyncFrame = 0;
@@ -2072,18 +2077,57 @@ function clearPendingSelfJoin(roomId = null) {
   }
 }
 
+/**
+ * Public mixed tables use server-authoritative roster writes. Watch-only spectators
+ * and sit-out viewers must not run client roster sync (ensureSessionPlayer fails rules).
+ */
+function shouldClientSyncSessionMembers(sessionObj) {
+  if (!sessionObj || !session?.uid) return false;
+
+  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  if (!scorePlayerIds.includes(session.uid)) return false;
+
+  if (!isPublicTableSession(sessionObj)) return true;
+
+  if (isPublicTableWatchOnly(sessionObj, session.uid, { scorePlayerIds })) {
+    return false;
+  }
+
+  const hand = getSessionCurrentHand(sessionObj);
+  const phase = hand?.phase ?? null;
+  const liveHand =
+    phase === "reveal" ||
+    phase === "decision" ||
+    phase === "draw" ||
+    phase === "play";
+  if (!liveHand) return true;
+
+  return (hand?.participantIds ?? []).includes(session.uid);
+}
+
 function scheduleSyncSessionMembers() {
   if (!currentRoomId || !openSessionId || currentMembers.length === 0) return;
+  if (!session?.uid) return;
+  if (isSessionMemberSyncPaused()) return;
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
+  if (!shouldClientSyncSessionMembers(sObj)) return;
   if (syncMembersPromise) return;
-  syncMembersPromise = syncSessionWithRoomMembers(
-    currentRoomId,
-    openSessionId,
-    currentMembers,
-  )
+
+  const now = Date.now();
+  const backoffMs = getSessionMemberSyncBackoffMs();
+  if (now - lastSessionMemberSyncAttemptMs < backoffMs) return;
+  lastSessionMemberSyncAttemptMs = now;
+
+  syncMembersPromise = syncSessionWithRoomMembers(currentRoomId, openSessionId, currentMembers, {
+    actorUid: session.uid,
+  })
     .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
-    .catch((e) => console.error("syncSessionWithRoomMembers:", e))
+    .catch((e) => {
+      if (!isPermissionDenied(e)) {
+        console.error("syncSessionWithRoomMembers:", e);
+      }
+    })
     .finally(() => {
       syncMembersPromise = null;
     });
@@ -2413,6 +2457,8 @@ function teardownRoomState() {
   currentSessions = [];
   openScores = [];
   openHands = [];
+  resetSessionMemberSyncPause();
+  lastSessionMemberSyncAttemptMs = 0;
 }
 
 function applyRoomNavFromLocation() {
@@ -4751,10 +4797,23 @@ function openSession(sessionId) {
   });
   startPrivateHandSubscription();
   renderRoomDetail();
-  if (currentMembers.length > 0) {
-    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
+  const sessionObj = currentSessions.find((x) => x.id === sessionId);
+  if (
+    currentMembers.length > 0 &&
+    session?.uid &&
+    !isSessionMemberSyncPaused() &&
+    shouldClientSyncSessionMembers(sessionObj)
+  ) {
+    lastSessionMemberSyncAttemptMs = Date.now();
+    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers, {
+      actorUid: session.uid,
+    })
       .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
-      .catch((e) => console.error("openSession sync:", e));
+      .catch((e) => {
+        if (!isPermissionDenied(e)) {
+          console.error("openSession sync:", e);
+        }
+      });
   }
 }
 

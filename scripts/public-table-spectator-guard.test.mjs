@@ -76,6 +76,23 @@ describe("legacy sync guard wiring", () => {
     assert.match(src, /!isPublicTableSpectator\(sessionData, m\.userId\)/);
   });
 
+  it("scheduleSyncSessionMembers skips public-table watch-only and sit-out viewers", () => {
+    const src = readFileSync(join(root, "docs/app.js"), "utf8");
+    assert.match(src, /function shouldClientSyncSessionMembers\(/);
+    assert.match(src, /if \(!shouldClientSyncSessionMembers\(sObj\)\) return;/);
+    assert.match(src, /shouldClientSyncSessionMembers\(sessionObj\)/);
+    assert.match(src, /isSessionMemberSyncPaused\(\)/);
+    assert.match(src, /getSessionMemberSyncBackoffMs\(\)/);
+  });
+
+  it("syncSessionWithRoomMembers pauses on permission errors with structured logging", () => {
+    const src = readFileSync(join(root, "docs/firestore.js"), "utf8");
+    assert.match(src, /export function isSessionMemberSyncPaused\(/);
+    assert.match(src, /pauseSessionMemberSync\(/);
+    assert.match(src, /sessionMemberSyncAuthContext\(/);
+    assert.match(src, /handleSessionMemberSyncError\(/);
+  });
+
   it("buildTableSessionProps avoids pseudo seated row for spectators", () => {
     const src = readFileSync(join(root, "docs/app.js"), "utf8");
     assert.match(src, /isPublicTableWatchOnly\(s, myUid/);
