@@ -2072,10 +2072,38 @@ function clearPendingSelfJoin(roomId = null) {
   }
 }
 
+/**
+ * Public mixed tables use server-authoritative roster writes. Watch-only spectators
+ * and sit-out viewers must not run client roster sync (ensureSessionPlayer fails rules).
+ */
+function shouldClientSyncSessionMembers(sessionObj) {
+  if (!sessionObj || !session?.uid) return false;
+  if (!isPublicTableSession(sessionObj)) return true;
+
+  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
+  if (isPublicTableWatchOnly(sessionObj, session.uid, { scorePlayerIds })) {
+    return false;
+  }
+
+  const hand = getSessionCurrentHand(sessionObj);
+  const phase = hand?.phase ?? null;
+  const liveHand =
+    phase === "reveal" ||
+    phase === "decision" ||
+    phase === "draw" ||
+    phase === "play";
+  if (!liveHand) {
+    return scorePlayerIds.includes(session.uid);
+  }
+
+  return (hand?.participantIds ?? []).includes(session.uid);
+}
+
 function scheduleSyncSessionMembers() {
   if (!currentRoomId || !openSessionId || currentMembers.length === 0) return;
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
+  if (!shouldClientSyncSessionMembers(sObj)) return;
   if (syncMembersPromise) return;
   syncMembersPromise = syncSessionWithRoomMembers(
     currentRoomId,
@@ -4751,7 +4779,8 @@ function openSession(sessionId) {
   });
   startPrivateHandSubscription();
   renderRoomDetail();
-  if (currentMembers.length > 0) {
+  const sessionObj = currentSessions.find((x) => x.id === sessionId);
+  if (currentMembers.length > 0 && shouldClientSyncSessionMembers(sessionObj)) {
     syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
       .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
       .catch((e) => console.error("openSession sync:", e));
