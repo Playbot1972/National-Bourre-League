@@ -1729,8 +1729,10 @@ function startPublicTableActivityHeartbeat() {
   if (!isPublicTableSession(sessionObj)) return;
   resetPublicTableIdleClientState();
   bindPublicTableActivityGestures();
-  // One-time open touch only — periodic bumps defeated the 45s idle sit-out policy.
   touchPublicTableActivityBestEffort({ force: true });
+  publicTableActivityTimer = setInterval(() => {
+    touchPublicTableActivityBestEffort();
+  }, PUBLIC_TABLE_ACTIVITY_INTERVAL_MS);
 }
 
 function startEnrollmentTimer() {
@@ -1780,6 +1782,7 @@ let publicTableActivityLastTouchMs = 0;
 let publicTableActivityGestureBound = false;
 let publicTableHeroHadScoreRow = false;
 let publicTableIdleRemovalNotice = false;
+const PUBLIC_TABLE_ACTIVITY_INTERVAL_MS = 20_000;
 const PUBLIC_TABLE_ACTIVITY_THROTTLE_MS = 5_000;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
 let pendingRoomAnteOverride = null;

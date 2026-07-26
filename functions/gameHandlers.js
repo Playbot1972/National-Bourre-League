@@ -73,7 +73,6 @@ import {
   recordPublicTablePlayerActivity,
   resolveIdleSitOutMidHandAction,
   shouldEnforcePublicTableIdle,
-  skipIdleEnrollmentTurn,
 } from "./publicTableIdle.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1287,7 +1286,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
     const enrollment = getSessionEnrollment(freshSession);
     if (isIdleSitOutBlockingEnrollment(enrollment, scoreById)) {
-      await skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs: Date.now() });
+      await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
       continue;
     }
 
@@ -1603,19 +1602,6 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
     sessionData: data,
   }).catch((err) => {
     console.warn("[ensure-hand-enrollment] pending replacement skipped", err?.message ?? err);
-  });
-
-  sessionSnap = await ref.get();
-  if (!sessionSnap.exists) return { status: "noop" };
-  data = sessionSnap.data();
-
-  await enforcePublicTableIdlePolicy(db, {
-    roomId,
-    sessionId,
-    roomData: roomSnap.data() ?? {},
-    sessionData: data,
-  }).catch((err) => {
-    console.warn("[ensure-hand-enrollment] idle policy after replacement skipped", err?.message ?? err);
   });
 
   sessionSnap = await ref.get();

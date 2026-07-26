@@ -36,8 +36,6 @@ export interface TurnCountdownInput {
   >;
   suppressTurn: boolean;
   handComplete: boolean;
-  /** Seated humans in idle sit-out — suppress turn urgency while server advances. */
-  sitOutPlayerIds?: string[];
 }
 
 const ACTIONABLE_FLOW_PHASES = new Set<string>([
@@ -99,9 +97,7 @@ export function resolveTableActiveActorId(input: TurnCountdownInput): string | n
   });
 
   if (!ACTIONABLE_FLOW_PHASES.has(snapshot.phase)) return null;
-  const turnPlayerId = snapshot.turnPlayerId;
-  if (turnPlayerId && input.sitOutPlayerIds?.includes(turnPlayerId)) return null;
-  return turnPlayerId;
+  return snapshot.turnPlayerId;
 }
 
 export function buildTurnCountdownState(
