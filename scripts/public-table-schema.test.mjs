@@ -14,10 +14,6 @@ import {
   PENDING_JOIN_STATUS,
   publicTableIndexKey,
   roomHasMixedPublicTables,
-  roomHasBotsOnlyPublicTables,
-  roomHasPublicTableFeatures,
-  normalizePlayNowQueueMode,
-  PLAY_NOW_QUEUE_MODE,
   isPublicVisibility,
 } from "../docs/public-table-schema.js";
 import {
@@ -51,13 +47,6 @@ describe("public-table schema contracts", () => {
     assert.equal(roomHasMixedPublicTables({ features: { mixedPublicTables: true } }), true);
   });
 
-  it("tracks bots-only public tables separately from mixed", () => {
-    assert.equal(roomHasBotsOnlyPublicTables({ features: { botsOnlyPublicTables: true } }), true);
-    assert.equal(roomHasPublicTableFeatures({ features: { botsOnlyPublicTables: true } }), true);
-    assert.equal(roomHasPublicTableFeatures({ features: { mixedPublicTables: true } }), true);
-    assert.equal(normalizePlayNowQueueMode("bots_only"), PLAY_NOW_QUEUE_MODE.BOTS_ONLY);
-  });
-
   it("documents collection names for rules and Phase 3 queries", () => {
     assert.equal(MATCH_QUEUE_COLLECTION, "matchQueue");
     assert.equal(PUBLIC_TABLE_INDEX_COLLECTION, "publicTableIndex");
@@ -79,10 +68,6 @@ describe("public-table rollout guard (client flag on)", () => {
   it("enables rollout for flagged rooms when client switch is on", () => {
     assert.equal(
       isMixedPublicTablesRolloutEnabled({ features: { mixedPublicTables: true } }),
-      true,
-    );
-    assert.equal(
-      isMixedPublicTablesRolloutEnabled({ features: { botsOnlyPublicTables: true } }),
       true,
     );
   });
@@ -111,7 +96,7 @@ describe("public Play Now client integration", () => {
     const appJs = readFileSync(join(process.cwd(), "docs/app.js"), "utf8");
     assert.match(appJs, /triggerSessionPlay\("play-now-public"\)/);
     assert.match(appJs, /gameLeavePublicTable/);
-    assert.match(appJs, /roomHasPublicTableFeatures/);
+    assert.match(appJs, /roomHasMixedPublicTables/);
     assert.match(appJs, /clearPublicTableQueueBestEffort/);
   });
 });

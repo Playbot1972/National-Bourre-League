@@ -5,7 +5,7 @@ import {
   isJoinableIndexDoc,
   rankPublicTableCandidates,
 } from "../functions/publicTable.js";
-import { BOT_ROLE, PENDING_JOIN_STATUS, PLAY_NOW_QUEUE_MODE } from "../docs/public-table-schema.js";
+import { BOT_ROLE, PENDING_JOIN_STATUS } from "../docs/public-table-schema.js";
 
 describe("public-table matchmaking routing (unit)", () => {
   it("prefers live human tables over creating a new bot room", () => {
@@ -46,18 +46,6 @@ describe("public-table matchmaking routing (unit)", () => {
     );
     assert.equal(
       isJoinableIndexDoc({ status: "open", openSeats: 0, realPlayerCount: 0 }),
-      false,
-    );
-  });
-
-  it("does not route mixed matchmaking to bots-only index docs", () => {
-    assert.equal(
-      isJoinableIndexDoc({
-        status: "open",
-        openSeats: 5,
-        realPlayerCount: 1,
-        queueMode: PLAY_NOW_QUEUE_MODE.BOTS_ONLY,
-      }),
       false,
     );
   });

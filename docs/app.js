@@ -35,7 +35,6 @@ import {
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
-  resolveCoWinPresentation,
 } from "./table-view-model.js";
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
@@ -53,8 +52,6 @@ import { createServerBotAdvanceRuntime } from "./bot-orchestration-runtime.js";
 import {
   botPlayTurnKey,
   createBotThinkScheduleState,
-  isSameDurableBotPlayTurn,
-  setBotThinkWindowPublisher,
 } from "./bot-play-delay.js";
 import {
   logHandLifecycleTransition,
@@ -145,9 +142,6 @@ import {
   subscribeLeaderboard,
   isPermissionDenied,
   logFirestoreError,
-  isSessionMemberSyncPaused,
-  resetSessionMemberSyncPause,
-  getSessionMemberSyncBackoffMs,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
@@ -216,21 +210,11 @@ import {
   playNowBourreSettings,
 } from "./play-now.js";
 import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
-import {
-  resolvePublicTableQueueMode,
-  roomHasPublicTableFeatures,
-} from "./public-table-schema.js";
-import {
-  loadPlayNowQueueMode,
-  playNowMatchmakingStatusMessage,
-  playNowQueueModeShortLabel,
-  playNowWatchOnlyMessage,
-  readPlayNowQueueModeFromDom,
-  savePlayNowQueueMode,
-} from "./play-now-queue-mode.js";
+import { roomHasMixedPublicTables } from "./public-table-schema.js";
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
+  PUBLIC_TABLE_WATCH_ONLY_MESSAGE,
 } from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
@@ -1206,7 +1190,6 @@ function getServerBotAdvance() {
       getRoomId: () => currentRoomId,
       getSessionId: () => openSessionId,
       getHandPhase: (s) => getSessionCurrentHand(s)?.phase ?? null,
-      getPresentationState: (session, scores) => botPlayPresentationState(session, scores),
       advanceSessionBots,
       findSession: (id) => currentSessions.find((x) => x.id === id),
       getScores: () => openScores,
@@ -1669,74 +1652,19 @@ function stopPublicTableActivityHeartbeat() {
     clearInterval(publicTableActivityTimer);
     publicTableActivityTimer = null;
   }
-  unbindPublicTableActivityGestures();
 }
 
-function unbindPublicTableActivityGestures() {
-  if (!publicTableActivityGestureBound) return;
-  const overlay = $("#table-play-overlay");
-  if (overlay) {
-    overlay.removeEventListener("pointerdown", onPublicTableUserActivity);
-    overlay.removeEventListener("keydown", onPublicTableUserActivity);
-  }
-  publicTableActivityGestureBound = false;
-}
-
-function onPublicTableUserActivity() {
-  touchPublicTableActivityBestEffort({ force: true });
-}
-
-function bindPublicTableActivityGestures() {
-  if (publicTableActivityGestureBound) return;
-  const overlay = $("#table-play-overlay");
-  if (!overlay) return;
-  overlay.addEventListener("pointerdown", onPublicTableUserActivity, { passive: true });
-  overlay.addEventListener("keydown", onPublicTableUserActivity);
-  publicTableActivityGestureBound = true;
-}
-
-function notePublicTableHeroScorePresence(scores, myUid, sessionObj) {
-  if (!myUid || !isPublicTableSession(sessionObj)) return;
-  const hasRow = scores.some((sc) => sc.playerId === myUid);
-  if (hasRow) {
-    publicTableHeroHadScoreRow = true;
-    return;
-  }
-  if (publicTableHeroHadScoreRow && !isPublicTableWatchOnly(sessionObj, myUid, {
-    scorePlayerIds: scores.map((sc) => sc.playerId).filter(Boolean),
-  })) {
-    publicTableIdleRemovalNotice = true;
-  }
-}
-
-function resetPublicTableIdleClientState() {
-  publicTableHeroHadScoreRow = false;
-  publicTableIdleRemovalNotice = false;
-  publicTableActivityLastTouchMs = 0;
-}
-
-function touchPublicTableActivityBestEffort({ force = false } = {}) {
+function touchPublicTableActivityBestEffort() {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
   const now = Date.now();
-  if (!force && now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
+  if (now - publicTableActivityLastTouchMs < PUBLIC_TABLE_ACTIVITY_THROTTLE_MS) return;
   publicTableActivityLastTouchMs = now;
-  gameTouchPublicTableActivity(currentRoomId, openSessionId)
-    .then((result) => {
-      if (
-        result?.reason === "not_seated" ||
-        result?.reason === "removed_rejoin_required"
-      ) {
-        publicTableIdleRemovalNotice = true;
-        const sessionObj = currentSessions.find((x) => x.id === openSessionId);
-        if (sessionObj) scheduleTableSessionSync(sessionObj);
-      }
-    })
-    .catch((err) => {
-      if (err?.code === "functions/unauthenticated") return;
-      console.warn("public table activity touch:", err?.message ?? err);
-    });
+  gameTouchPublicTableActivity(currentRoomId, openSessionId).catch((err) => {
+    if (err?.code === "functions/unauthenticated") return;
+    console.warn("public table activity touch:", err?.message ?? err);
+  });
 }
 
 function startPublicTableActivityHeartbeat() {
@@ -1744,10 +1672,10 @@ function startPublicTableActivityHeartbeat() {
   if (!tablePlayOpen || !currentRoomId || !openSessionId) return;
   const sessionObj = currentSessions.find((x) => x.id === openSessionId);
   if (!isPublicTableSession(sessionObj)) return;
-  resetPublicTableIdleClientState();
-  bindPublicTableActivityGestures();
-  // One-time open touch only — periodic bumps defeated the 45s idle sit-out policy.
-  touchPublicTableActivityBestEffort({ force: true });
+  touchPublicTableActivityBestEffort();
+  publicTableActivityTimer = setInterval(() => {
+    touchPublicTableActivityBestEffort();
+  }, PUBLIC_TABLE_ACTIVITY_INTERVAL_MS);
 }
 
 function startEnrollmentTimer() {
@@ -1794,9 +1722,7 @@ function startEnrollmentTimer() {
 let tablePlayOpen = false;
 let publicTableActivityTimer = null;
 let publicTableActivityLastTouchMs = 0;
-let publicTableActivityGestureBound = false;
-let publicTableHeroHadScoreRow = false;
-let publicTableIdleRemovalNotice = false;
+const PUBLIC_TABLE_ACTIVITY_INTERVAL_MS = 20_000;
 const PUBLIC_TABLE_ACTIVITY_THROTTLE_MS = 5_000;
 /** Local ante override while Bourré settings save or snapshot re-render is in flight. */
 let pendingRoomAnteOverride = null;
@@ -1806,7 +1732,6 @@ let pendingRoomBuyInOverride = null;
 let pendingRoomBourreOverrides = null;
 let renderRoomDetailTimer = 0;
 let syncMembersPromise = null;
-let lastSessionMemberSyncAttemptMs = 0;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
 let tableSyncFrame = 0;
@@ -2079,57 +2004,18 @@ function clearPendingSelfJoin(roomId = null) {
   }
 }
 
-/**
- * Public mixed tables use server-authoritative roster writes. Watch-only spectators
- * and sit-out viewers must not run client roster sync (ensureSessionPlayer fails rules).
- */
-function shouldClientSyncSessionMembers(sessionObj) {
-  if (!sessionObj || !session?.uid) return false;
-
-  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-  if (!scorePlayerIds.includes(session.uid)) return false;
-
-  if (!isPublicTableSession(sessionObj)) return true;
-
-  if (isPublicTableWatchOnly(sessionObj, session.uid, { scorePlayerIds })) {
-    return false;
-  }
-
-  const hand = getSessionCurrentHand(sessionObj);
-  const phase = hand?.phase ?? null;
-  const liveHand =
-    phase === "reveal" ||
-    phase === "decision" ||
-    phase === "draw" ||
-    phase === "play";
-  if (!liveHand) return true;
-
-  return (hand?.participantIds ?? []).includes(session.uid);
-}
-
 function scheduleSyncSessionMembers() {
   if (!currentRoomId || !openSessionId || currentMembers.length === 0) return;
-  if (!session?.uid) return;
-  if (isSessionMemberSyncPaused()) return;
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
-  if (!shouldClientSyncSessionMembers(sObj)) return;
   if (syncMembersPromise) return;
-
-  const now = Date.now();
-  const backoffMs = getSessionMemberSyncBackoffMs();
-  if (now - lastSessionMemberSyncAttemptMs < backoffMs) return;
-  lastSessionMemberSyncAttemptMs = now;
-
-  syncMembersPromise = syncSessionWithRoomMembers(currentRoomId, openSessionId, currentMembers, {
-    actorUid: session.uid,
-  })
+  syncMembersPromise = syncSessionWithRoomMembers(
+    currentRoomId,
+    openSessionId,
+    currentMembers,
+  )
     .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
-    .catch((e) => {
-      if (!isPermissionDenied(e)) {
-        console.error("syncSessionWithRoomMembers:", e);
-      }
-    })
+    .catch((e) => console.error("syncSessionWithRoomMembers:", e))
     .finally(() => {
       syncMembersPromise = null;
     });
@@ -2417,7 +2303,6 @@ function navigateAwayFromTable() {
 function teardownTableOverlay({ restoreDetail = true } = {}) {
   if (!tablePlayOpen) return;
   tablePlayOpen = false;
-  resetPublicTableIdleClientState();
   localHandActionCommit = null;
   cancelNextHandOpenTimer();
   stopTablePlaySideEffects();
@@ -2459,8 +2344,6 @@ function teardownRoomState() {
   currentSessions = [];
   openScores = [];
   openHands = [];
-  resetSessionMemberSyncPause();
-  lastSessionMemberSyncAttemptMs = 0;
 }
 
 function applyRoomNavFromLocation() {
@@ -2537,9 +2420,9 @@ function resolveRoomSnapshotForLeave(roomId) {
   return myRooms.find((r) => r.id === roomId) ?? null;
 }
 
-/** Clear matchQueue for public Play Now tables — no-op for private rooms. */
+/** Clear matchQueue for mixed public tables — no-op for private rooms. */
 async function clearPublicTableQueueBestEffort(room) {
-  if (!session || !roomHasPublicTableFeatures(room)) return;
+  if (!session || !roomHasMixedPublicTables(room)) return;
   try {
     const left = await gameLeavePublicTable();
     if (left?.cleared !== false) {
@@ -2551,10 +2434,8 @@ async function clearPublicTableQueueBestEffort(room) {
 }
 
 async function callPublicPlayNowMatchmaking(joinId) {
-  const queueMode = readPlayNowQueueModeFromDom();
   return gameFindOrCreatePublicTable({
     joinId,
-    queueMode,
     displayName: session.displayName,
     targetSeatCount: 6,
     buyInAmount: PLAY_NOW_BUY_IN,
@@ -2803,25 +2684,6 @@ if (playNowBtn) {
   });
 }
 
-function initPlayNowModeSelector() {
-  const fieldset = document.querySelector('[data-testid="play-now-mode"]');
-  if (!fieldset) return;
-  const saved = loadPlayNowQueueMode();
-  for (const input of fieldset.querySelectorAll('input[name="play-now-mode"]')) {
-    if (input.value === saved) input.checked = true;
-    input.addEventListener("change", () => {
-      if (!input.checked) return;
-      const nextMode = readPlayNowQueueModeFromDom();
-      savePlayNowQueueMode(nextMode);
-      if (session?.uid) {
-        clearStoredPublicTableJoinId(session.uid);
-      }
-    });
-  }
-}
-
-initPlayNowModeSelector();
-
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");
   if (!btn) return;
@@ -2919,15 +2781,12 @@ async function runPlayNowFlow() {
     playNowInFlight = true;
     setPlayNowBusy(true);
     let publicRoomId = null;
-    const queueMode = readPlayNowQueueModeFromDom();
     try {
       const uid = session.uid;
       const resolved = resolvePublicTableJoinId(uid);
       let joinId = resolved.joinId;
       if (resolved.resumed) {
         showRoomsError(PUBLIC_TABLE_QUEUE_RESUME_MESSAGE, "info");
-      } else {
-        showRoomsError(playNowMatchmakingStatusMessage(queueMode), "info");
       }
       let result;
       try {
@@ -2951,33 +2810,12 @@ async function runPlayNowFlow() {
           currentMembers.some((m) => m.userId === session.uid),
         { label: "Public Play Now room load" },
       );
-      const spectating = result.status === "spectating";
-      if (spectating) {
-        await waitUntil(
-          () => {
-            const active = currentSessions.find((s) => s.id === result.sessionId);
-            return active && isPublicTableWatchOnly(active, uid, { scorePlayerIds: [] });
-          },
-          { label: "Public table spectator pendingJoin" },
-        );
-      }
       openSession(result.sessionId);
       await waitUntil(
-        () => {
-          if (openSessionId !== result.sessionId) return false;
-          const active = resolveActiveSession();
-          if (!active) return false;
-          if (spectating) {
-            const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-            return isPublicTableWatchOnly(active, uid, { scorePlayerIds });
-          }
-          return tableReadyPlayerCount(active) >= 2;
-        },
-        {
-          label: spectating
-            ? "Public Play Now spectator ready"
-            : "Public Play Now session ready",
-        },
+        () =>
+          openSessionId === result.sessionId &&
+          tableReadyPlayerCount(resolveActiveSession()) >= 2,
+        { label: "Public Play Now session ready" },
       );
       showRoomsError("");
       await triggerSessionPlay("play-now-public");
@@ -3484,16 +3322,10 @@ async function openTablePlay({ fromHistory = false } = {}) {
       return;
     }
     if (startupAnalysis.needsEnrollment) {
-      const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-      const watchOnly = isPublicTableWatchOnly(mergedSession, session?.uid ?? null, {
-        scorePlayerIds,
+      await ensureHandEnrollment(currentRoomId, openSessionId, {
+        members: currentMembers,
+        roster: tableReadyRoster(mergedSession),
       });
-      if (!watchOnly) {
-        await ensureHandEnrollment(currentRoomId, openSessionId, {
-          members: currentMembers,
-          roster: tableReadyRoster(mergedSession),
-        });
-      }
     }
   } catch (err) {
     console.error("openTablePlay prepare:", err);
@@ -3746,7 +3578,29 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     remainingHandCount: ctx.remainingHandCount ?? null,
   };
-  const presentationBlocked = shouldBlockRobotForPresentation(s, scores);
+  if (shouldBlockRobotForPresentation(s, scores)) {
+    clientBotThinkSchedule.playDelayState.markTurnEligible({
+      ...playCtx,
+      nowMs: Date.now(),
+    });
+    logBotOrchestrator("bot-turn-start", {
+      ...ctx,
+      turnPlayerId: turnId,
+      owner: "client",
+      trigger: reason,
+      action: "waiting_presentation",
+    });
+    logBotOrchestrator("skip-request", {
+      ...ctx,
+      turnPlayerId: turnId,
+      reason: "presentation_blocked",
+      owner: "client",
+      trigger: reason,
+      action: "blocked",
+    });
+    return;
+  }
+
   const expectedTurnKey = botPlayTurnKey(playCtx);
   clientBotThinkSchedule.playDelayState.markTurnEligible({
     ...playCtx,
@@ -3757,26 +3611,11 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
     turnPlayerId: turnId,
     owner: "client",
     trigger: reason,
-    ...(presentationBlocked ? { action: "waiting_presentation" } : {}),
   });
-  if (presentationBlocked) {
-    logBotOrchestrator("skip-request", {
-      ...ctx,
-      turnPlayerId: turnId,
-      reason: "presentation_blocked",
-      owner: "client",
-      trigger: reason,
-      action: "deferred",
-    });
-  }
 
   const result = clientBotThinkSchedule.armPlayThink({
     ctx: playCtx,
     nowMs: Date.now(),
-    getPresentationState: () => {
-      const latest = currentSessions.find((x) => x.id === openSessionId);
-      return botPlayPresentationState(latest, openScores);
-    },
     shouldFire: () => {
       if (robotActionInFlight) return false;
       if (!currentRoomId || !openSessionId) return false;
@@ -3786,13 +3625,12 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
       const latestCtx = snapshotGameFlowContext(latest, openScores);
       const latestTurnId = latestCtx.turnPlayerId;
       if (latestTurnId !== turnId) return false;
-      return isSameDurableBotPlayTurn(
+      return (
         botPlayTurnKey({
           handNumber: latestCtx.handNumber ?? 0,
           trickNumber: latestCtx.trickNumber ?? null,
           turnPlayerId: latestTurnId,
-        }),
-        expectedTurnKey,
+        }) === expectedTurnKey
       );
     },
     onFire: ({ plan }) => {
@@ -3857,22 +3695,6 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
-      submitBlocked: (extra) =>
-        logBotOrchestrator("bot-submit-blocked", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
-      submitAllowed: (extra) =>
-        logBotOrchestrator("bot-submit-allowed", {
-          ...ctx,
-          turnPlayerId: turnId,
-          owner: "client",
-          trigger: reason,
-          ...extra,
-        }),
     },
   });
 
@@ -3898,56 +3720,6 @@ function stopRobotPresentationSubscription() {
     robotPresentationUnsub();
     robotPresentationUnsub = null;
   }
-  setBotThinkWindowPublisher(null);
-  tableMountApi?.publishBotThinkWindow?.(null);
-}
-
-function wireBotThinkWindowPublisher(api) {
-  setBotThinkWindowPublisher((window) => {
-    api?.publishBotThinkWindow?.(window ?? null);
-  });
-}
-
-function wireVisibleBotRingReporter(api) {
-  api?.setVisibleBotRingReporter?.({
-    onShown: (payload) => {
-      logBotOrchestrator("visible-ring-seen", { owner: "client", ...payload });
-      const clientAccepted = clientBotThinkSchedule.playDelayState.notifyVisibleRingShown({
-        ...payload,
-        log: (extra) =>
-          logBotOrchestrator("visible-ring-shown", { owner: "client", ...extra }),
-      });
-      if (clientAccepted) {
-        logBotOrchestrator("visible-ring-accepted", { owner: "client", ...payload });
-      }
-      const serverAccepted = getServerBotAdvance().notifyVisibleRingShown?.(payload);
-      if (serverAccepted === false) {
-        logBotOrchestrator("visible-ring-ignored-stale", { owner: "server", ...payload });
-      }
-    },
-    onHidden: (payload) => {
-      clientBotThinkSchedule.playDelayState.notifyVisibleRingHidden({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "client", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "client", ...extra });
-        },
-      });
-      getServerBotAdvance().notifyVisibleRingHidden?.({
-        ...payload,
-        log: (extra) => {
-          if (extra.ignored) {
-            logBotOrchestrator("visible-ring-reset-ignored", { owner: "server", ...extra });
-            return;
-          }
-          logBotOrchestrator("visible-ring-reset", { owner: "server", ...extra });
-        },
-      });
-    },
-  });
 }
 
 function wakeRobotActions() {
@@ -3962,8 +3734,6 @@ function wakeRobotActions() {
 }
 
 function ensureRobotPresentationSubscription(api) {
-  wireBotThinkWindowPublisher(api);
-  wireVisibleBotRingReporter(api);
   if (robotPresentationUnsub || !api?.subscribeTrickAnimationBusy) return;
   robotPresentationUnsub = api.subscribeTrickAnimationBusy(() => {
     wakeRobotActions();
@@ -4081,30 +3851,6 @@ function shouldBlockRobotForPresentation(s, scores) {
   return true;
 }
 
-function botPlayPresentationState(s, scores) {
-  const gate = snapshotTablePresentationGate();
-  const blocked = s ? shouldBlockRobotForPresentation(s, scores) : true;
-  return {
-    blocked,
-    revealCatchUp: Boolean(gate?.revealCatchUp),
-    revealedCount: gate?.revealedCount ?? 0,
-    revealTarget: gate?.revealTarget ?? 0,
-    displayedPlayCount: gate?.displayedPlayCount ?? 0,
-    pipelineActive: Boolean(gate?.pipelineActive),
-    dealPresentationActive: Boolean(gate?.dealPresentationActive),
-    trickCollectionActive: Boolean(gate?.trickCollectionActive),
-    handPresenting: Boolean(gate?.handPresenting),
-    presentationBusy: Boolean(
-      gate?.dealPresentationActive || gate?.trickCollectionActive || gate?.handPresenting,
-    ),
-    suppressing:
-      gate?.blockReason === "handPresenting" ||
-      (gate?.blockReason === "pipelineActive" &&
-        !(gate?.revealedCount > 0 || gate?.displayedPlayCount > 0)) ||
-      false,
-  };
-}
-
 function snapshotTablePresentationGate() {
   try {
     const busy = tableMountApi?.getTrickAnimationBusyState?.();
@@ -4115,13 +3861,9 @@ function snapshotTablePresentationGate() {
       handPresenting: busy.handPresenting,
       pipelineActive: busy.pipelineActive,
       revealCatchUp: busy.revealCatchUp,
-      revealedCount: busy.revealedCount,
-      revealTarget: busy.revealTarget,
       motionGateActive: busy.motionGateActive,
       peakPlayCount: busy.peakPlayCount,
       displayedPlayCount: busy.displayedPlayCount,
-      dealPresentationActive: busy.dealPresentationActive,
-      trickCollectionActive: busy.trickCollectionActive,
     };
   } catch {
     return null;
@@ -4434,10 +4176,6 @@ function buildTableSessionProps(s) {
   const myUid = session?.uid ?? null;
   const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
   const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
-  const publicQueueMode = resolvePublicTableQueueMode(currentRoom);
-  const playNowModeLabel = publicQueueMode
-    ? `${playNowQueueModeShortLabel(publicQueueMode)} table`
-    : undefined;
   let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
   if (watchOnly) {
     displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
@@ -4491,7 +4229,7 @@ function buildTableSessionProps(s) {
     localHandActionCommit &&
     myUid &&
     localHandActionCommit.kind === LOCAL_HAND_ACTION.DRAW &&
-    Date.now() - (localHandActionCommit.atMs ?? 0) > HAND_LIFECYCLE_WATCHDOG_MS &&
+    Date.now() - (localHandActionCommit.atMs ?? 0) > 12_000 &&
     !(currentHand?.drawCompletedIds ?? []).includes(myUid)
   ) {
     clearLocalHandCommit();
@@ -4572,6 +4310,14 @@ function buildTableSessionProps(s) {
     tableActionFeedback = null;
     tableActionFeedbackContext = null;
   }
+  const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
+  const activeWinnerIds =
+    handReady && derivedWinnerIds.length > 0
+      ? derivedWinnerIds
+      : pendingWinners?.length
+        ? pendingWinners
+        : [];
+
   const postedAntes = currentHand?.postedAntes ?? {};
   const seatedIds =
     currentHand?.seatedIds?.length > 0
@@ -4604,14 +4350,13 @@ function buildTableSessionProps(s) {
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
 
-  const { activeWinnerIds, showCoWinSettlement, splitSharePerWinner } =
-    resolveCoWinPresentation({
-      handComplete,
-      handReady,
-      derivedWinnerIds,
-      pendingCoWinSettlement: s.pendingCoWinSettlement,
-      maxWinThisHand: potMetrics.maxWinThisHand,
-    });
+  const showCoWinSettlement =
+    handComplete &&
+    ((handReady && derivedWinnerIds.length >= 2) ||
+      (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2));
+  const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
+  const splitSharePerWinner =
+    coWinnerCount >= 2 ? potMetrics.maxWinThisHand / coWinnerCount : 0;
 
   const myHandContribution =
     myUid != null && handParticipantIds.includes(myUid)
@@ -4720,15 +4465,11 @@ function buildTableSessionProps(s) {
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
     currentUserId: myUid,
     watchOnly,
-    watchOnlyMessage: watchOnly
-      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed")
-      : undefined,
-    playNowModeLabel: !watchOnly ? playNowModeLabel : undefined,
+    watchOnlyMessage: watchOnly ? PUBLIC_TABLE_WATCH_ONLY_MESSAGE : undefined,
     idleStatusBanner: publicTableHeroIdleBanner(
       s,
       myUid,
       displayScores.find((sc) => sc.playerId === myUid),
-      { removedNotice: publicTableIdleRemovalNotice },
     ),
     actions: watchOnly ? createWatchOnlyTableIntentHandlers() : getTableIntentHandlers(),
   };
@@ -4888,8 +4629,6 @@ function openSession(sessionId) {
   pendingDrawShuffle = false;
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
-    const sessionObj = currentSessions.find((x) => x.id === sessionId);
-    notePublicTableHeroScorePresence(scores, session?.uid ?? null, sessionObj);
     refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
     scheduleSyncSessionMembers();
     scheduleRenderRoomDetail();
@@ -4900,23 +4639,10 @@ function openSession(sessionId) {
   });
   startPrivateHandSubscription();
   renderRoomDetail();
-  const sessionObj = currentSessions.find((x) => x.id === sessionId);
-  if (
-    currentMembers.length > 0 &&
-    session?.uid &&
-    !isSessionMemberSyncPaused() &&
-    shouldClientSyncSessionMembers(sessionObj)
-  ) {
-    lastSessionMemberSyncAttemptMs = Date.now();
-    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers, {
-      actorUid: session.uid,
-    })
+  if (currentMembers.length > 0) {
+    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
       .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
-      .catch((e) => {
-        if (!isPermissionDenied(e)) {
-          console.error("openSession sync:", e);
-        }
-      });
+      .catch((e) => console.error("openSession sync:", e));
   }
 }
 

@@ -19,14 +19,9 @@ import {
   PUBLIC_TABLE_MAX_SEATS,
   PUBLIC_TABLE_MIN_SEATS,
   ROOM_VISIBILITY,
-  PLAY_NOW_QUEUE_MODE,
   publicTableIndexKey,
   isPublicVisibility,
   roomHasMixedPublicTables,
-  roomHasBotsOnlyPublicTables,
-  roomHasPublicTableFeatures,
-  normalizePlayNowQueueMode,
-  resolvePublicTableQueueMode,
 } from "./vendor/public-table-schema.js";
 import {
   isMixedPublicTablesServerEnabled,
@@ -35,7 +30,6 @@ import {
 import {
   PLAY_NOW_ANTE,
   PLAY_NOW_BUY_IN,
-  pickBotsOnlyBotCount,
   pickUniqueRobotNames,
   pickVacationRoomName,
 } from "./vendor/play-now.js";
@@ -46,7 +40,7 @@ import {
   nextAvailableSessionName,
   randomizePresetOrder,
 } from "./vendor/session-presets.js";
-import { isRobotPlayerId, privateHandRef, scoresCol, sessionRef } from "./gameHandlers.js";
+import { isRobotPlayerId, scoresCol, sessionRef } from "./gameHandlers.js";
 
 const ACTIVE_QUEUE_STATUSES = new Set([
   MATCH_QUEUE_STATUS.QUEUED,
@@ -170,7 +164,6 @@ export function computePublicTableIndexDoc({
     buyInAmount,
     anteAmount,
     stakesKey: stakesKey(buyInAmount, anteAmount),
-    queueMode: resolvePublicTableQueueMode(roomData) ?? PLAY_NOW_QUEUE_MODE.MIXED,
     updatedAt: FieldValue.serverTimestamp(),
   };
 }
@@ -197,9 +190,6 @@ export function rankPublicTableCandidates(candidates) {
  */
 export function isJoinableIndexDoc(indexDoc) {
   if (!indexDoc || indexDoc.status === "closed") return false;
-  if (normalizePlayNowQueueMode(indexDoc.queueMode) === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
-    return false;
-  }
   if ((indexDoc.openSeats ?? 0) > 0) return true;
   return (indexDoc.realPlayerCount ?? 0) > 0;
 }
@@ -215,7 +205,6 @@ export function buildPublicTableResult({
   botFillCount,
   openSeats,
   spectatorCount = 0,
-  queueMode = PLAY_NOW_QUEUE_MODE.MIXED,
 }) {
   return {
     ok: true,
@@ -229,7 +218,6 @@ export function buildPublicTableResult({
     botFillCount,
     openSeats,
     spectatorCount,
-    queueMode: normalizePlayNowQueueMode(queueMode),
   };
 }
 
@@ -288,23 +276,15 @@ async function loadMatchQueue(db, userId) {
   return snap.exists ? { ref: snap.ref, data: snap.data() } : null;
 }
 
-function assertCompatibleActiveQueue(queueData, joinId, queueMode = PLAY_NOW_QUEUE_MODE.MIXED) {
+function assertCompatibleActiveQueue(queueData, joinId) {
   if (!queueData || !isActiveQueueStatus(queueData.status)) return null;
-  if (queueData.activeJoinId !== joinId) {
-    throw new HttpsError(
-      "already-exists",
-      "You already have an active public table queue with a different joinId.",
-    );
+  if (queueData.activeJoinId === joinId) {
+    return queueData;
   }
-  const storedMode = normalizePlayNowQueueMode(queueData.queueMode);
-  const requestedMode = normalizePlayNowQueueMode(queueMode);
-  if (storedMode !== requestedMode) {
-    throw new HttpsError(
-      "already-exists",
-      "Active queue is for a different matchmaking mode.",
-    );
-  }
-  return queueData;
+  throw new HttpsError(
+    "already-exists",
+    "You already have an active public table queue with a different joinId.",
+  );
 }
 
 async function loadAuthoritativeTableContext(db, roomId, sessionId) {
@@ -329,8 +309,8 @@ async function loadAuthoritativeTableContext(db, roomId, sessionId) {
 }
 
 function assertPublicTableEligible(roomData, sessionData) {
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) {
-    throw new HttpsError("failed-precondition", "Not a public table.");
+  if (!isPublicVisibility(roomData) || !roomHasMixedPublicTables(roomData)) {
+    throw new HttpsError("failed-precondition", "Not a public mixed table.");
   }
   if (!isPublicTableSession(sessionData)) {
     throw new HttpsError("failed-precondition", "Session is not a public table.");
@@ -360,145 +340,6 @@ export async function rebuildPublicTableIndex(db, roomId, sessionId) {
   return rebuildPublicTableIndexFromSource(db, roomId, sessionId);
 }
 
-/**
- * Transaction helper — remove a human's seated/pending state from a public table session.
- * @returns {Promise<boolean>} true when session docs were updated
- */
-async function applyVacatePublicTableHumanSeatTx(tx, db, { roomId, sessionId, userId, sessionSnap }) {
-  if (!userId || isRobotPlayerId(userId) || !sessionSnap?.exists) return false;
-
-  const sessionData = sessionSnap.data();
-  const sessionRefDoc = sessionRef(db, roomId, sessionId);
-  const scoreRef = scoresCol(db, roomId, sessionId).doc(userId);
-  const scoreSnap = await tx.get(scoreRef);
-  const privateHandDoc = privateHandRef(db, roomId, sessionId, userId);
-  const privateHandSnap = await tx.get(privateHandDoc);
-
-  const hasSeat = scoreSnap.exists && scoreSnap.data()?.spectator !== true;
-  const hasPending = !!sessionData.pendingJoins?.[userId];
-  if (!hasSeat && !hasPending) return false;
-
-  if (hasSeat) {
-    tx.delete(scoreRef);
-    if (privateHandSnap.exists) {
-      tx.delete(privateHandDoc);
-    }
-  }
-
-  const players = (sessionData.players ?? []).filter((p) => {
-    const id = typeof p === "string" ? p : p?.playerId;
-    return id !== userId;
-  });
-  const tableOptInIds = (sessionData.tableOptInIds ?? []).filter((id) => id !== userId);
-  const pendingJoins = { ...(sessionData.pendingJoins ?? {}) };
-  delete pendingJoins[userId];
-
-  tx.update(sessionRefDoc, {
-    players,
-    tableOptInIds,
-    pendingJoins,
-    updatedAt: FieldValue.serverTimestamp(),
-  });
-
-  return true;
-}
-
-/**
- * Canonical server cleanup when a seated human vacates a public table seat.
- */
-export async function vacatePublicTableHumanSeat(db, { roomId, sessionId, userId, reason }) {
-  if (!roomId || !sessionId || !userId || isRobotPlayerId(userId)) {
-    return { vacated: false, reason: reason ?? null };
-  }
-
-  let changed = false;
-  let hadSeat = false;
-  await db.runTransaction(async (tx) => {
-    const sessionRefDoc = sessionRef(db, roomId, sessionId);
-    const sessionSnap = await tx.get(sessionRefDoc);
-    if (!sessionSnap.exists) return;
-
-    const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId).doc(userId));
-    hadSeat = scoreSnap.exists && scoreSnap.data()?.spectator !== true;
-    changed = await applyVacatePublicTableHumanSeatTx(tx, db, {
-      roomId,
-      sessionId,
-      userId,
-      sessionSnap,
-    });
-  });
-
-  if (changed) {
-    await rebuildPublicTableIndexFromSource(db, roomId, sessionId).catch(() => {});
-  }
-
-  return {
-    vacated: hadSeat && changed,
-    changed,
-    roomId,
-    sessionId,
-    userId,
-    reason: reason ?? null,
-  };
-}
-
-/**
- * Firestore onDelete hook body — vacate seated/pending state when room membership ends.
- */
-export async function handlePublicTableMemberRemoved(db, deletedMemberData) {
-  const roomId = deletedMemberData?.roomId;
-  const userId = deletedMemberData?.userId;
-  if (!roomId || !userId) return { handled: false, reason: "missing_ids" };
-
-  const roomSnap = await db.collection("rooms").doc(roomId).get();
-  if (!roomSnap.exists) return { handled: false, reason: "room_missing" };
-  const roomData = roomSnap.data();
-  if (!isPublicVisibility(roomData) || !roomHasPublicTableFeatures(roomData)) {
-    return { handled: false, reason: "not_public_table" };
-  }
-
-  const queue = await loadMatchQueue(db, userId);
-  let sessionId = null;
-  let clearedQueue = false;
-
-  if (queue?.data?.roomId === roomId && isActiveQueueStatus(queue.data.status)) {
-    sessionId = queue.data.sessionId ?? null;
-    if (sessionId) {
-      await vacatePublicTableHumanSeat(db, {
-        roomId,
-        sessionId,
-        userId,
-        reason: "member_removed",
-      });
-    }
-    await matchQueueRef(db, userId).delete();
-    clearedQueue = true;
-  } else {
-    const sessionsSnap = await db
-      .collection("rooms")
-      .doc(roomId)
-      .collection("sessions")
-      .where("publicTable", "==", true)
-      .limit(8)
-      .get();
-    for (const sessionDoc of sessionsSnap.docs) {
-      if (sessionDoc.data()?.status === "final") continue;
-      const scoreSnap = await scoresCol(db, roomId, sessionDoc.id).doc(userId).get();
-      if (!scoreSnap.exists || scoreSnap.data()?.spectator === true) continue;
-      sessionId = sessionDoc.id;
-      await vacatePublicTableHumanSeat(db, {
-        roomId,
-        sessionId,
-        userId,
-        reason: "member_removed_stale",
-      });
-      break;
-    }
-  }
-
-  return { handled: true, clearedQueue, sessionId };
-}
-
 export { applyPendingReplacements } from "./publicTableReplacement.js";
 
 async function ensureRoomMembership(db, roomId, userId, displayName) {
@@ -514,30 +355,6 @@ async function ensureRoomMembership(db, roomId, userId, displayName) {
   });
 }
 
-async function tryClearStaleSelfSeat(db, actorId, candidate) {
-  const { roomId, sessionId } = candidate;
-  const queue = await loadMatchQueue(db, actorId);
-  if (
-    queue?.data &&
-    isActiveQueueStatus(queue.data.status) &&
-    queue.data.roomId === roomId &&
-    queue.data.sessionId === sessionId
-  ) {
-    return false;
-  }
-
-  const memberSnap = await db.collection("roomMembers").doc(memberDocId(roomId, actorId)).get();
-  if (memberSnap.exists) return false;
-
-  const result = await vacatePublicTableHumanSeat(db, {
-    roomId,
-    sessionId,
-    userId: actorId,
-    reason: "stale_self_seat",
-  });
-  return result.vacated;
-}
-
 async function attemptJoinJoinableCandidates(
   db,
   { actorId, displayName, joinId, buyInAmount, anteAmount },
@@ -551,32 +368,16 @@ async function attemptJoinJoinableCandidates(
       );
       continue;
     }
-    const joinArgs = {
-      actorId,
-      displayName,
-      joinId,
-      roomId: candidate.roomId,
-      sessionId: candidate.sessionId,
-      mode: "joined-existing",
-    };
     try {
-      return await joinPublicTableAsSpectator(db, joinArgs);
+      return await joinPublicTableAsSpectator(db, {
+        actorId,
+        displayName,
+        joinId,
+        roomId: candidate.roomId,
+        sessionId: candidate.sessionId,
+        mode: "joined-existing",
+      });
     } catch (err) {
-      if (
-        err?.code === "already-exists" &&
-        typeof err.message === "string" &&
-        err.message.includes("already seated")
-      ) {
-        const cleared = await tryClearStaleSelfSeat(db, actorId, candidate);
-        if (cleared) {
-          try {
-            return await joinPublicTableAsSpectator(db, joinArgs);
-          } catch (retryErr) {
-            if (retryErr?.code === "already-exists") throw retryErr;
-            continue;
-          }
-        }
-      }
       if (err?.code === "already-exists") throw err;
       continue;
     }
@@ -637,9 +438,6 @@ async function joinPublicTableAsSpectator(
   const sessionKey = publicTableIndexKey(roomId, sessionId);
   const ctx = await loadAuthoritativeTableContext(db, roomId, sessionId);
   assertPublicTableEligible(ctx.roomData, ctx.sessionData);
-  if (roomHasBotsOnlyPublicTables(ctx.roomData)) {
-    throw new HttpsError("failed-precondition", "Bots-only tables do not accept spectators.");
-  }
 
   const existingPending = ctx.pendingJoins[actorId];
   if (existingPending?.joinId === joinId && existingPending?.status === PENDING_JOIN_STATUS.SPECTATING) {
@@ -655,13 +453,14 @@ async function joinPublicTableAsSpectator(
       botFillCount: indexDoc.botFillCount,
       openSeats: indexDoc.openSeats,
       spectatorCount: indexDoc.spectatorCount,
-      queueMode: indexDoc.queueMode,
     });
   }
 
   if (ctx.scoreRows.some((row) => row.playerId === actorId && row.spectator !== true)) {
     throw new HttpsError("already-exists", "You are already seated at this table.");
   }
+
+  await ensureRoomMembership(db, roomId, actorId, displayName);
 
   const handCount = ctx.sessionData.handCount ?? 0;
   const pendingEntry = {
@@ -709,7 +508,6 @@ async function joinPublicTableAsSpectator(
         sessionId,
         activeJoinId: joinId,
         status: MATCH_QUEUE_STATUS.SPECTATING,
-        queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
         requestedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
@@ -719,10 +517,6 @@ async function joinPublicTableAsSpectator(
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
-
-  // Room membership after pendingJoins so host clients running syncSessionWithRoomMembers
-  // see spectating status and do not create a premature score row.
-  await ensureRoomMembership(db, roomId, actorId, displayName);
 
   const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
   return buildPublicTableResult({
@@ -736,24 +530,13 @@ async function joinPublicTableAsSpectator(
     botFillCount: indexDoc.botFillCount,
     openSeats: indexDoc.openSeats,
     spectatorCount: indexDoc.spectatorCount,
-    queueMode: indexDoc.queueMode,
   });
 }
 
 async function createPublicTable(
   db,
-  {
-    actorId,
-    displayName,
-    joinId,
-    targetSeatCount,
-    buyInAmount,
-    anteAmount,
-    queueMode = PLAY_NOW_QUEUE_MODE.MIXED,
-  },
+  { actorId, displayName, joinId, targetSeatCount, buyInAmount, anteAmount },
 ) {
-  const normalizedQueueMode = normalizePlayNowQueueMode(queueMode);
-  const botsOnly = normalizedQueueMode === PLAY_NOW_QUEUE_MODE.BOTS_ONLY;
   const existingQueue = await loadMatchQueue(db, actorId);
   if (
     existingQueue?.data &&
@@ -776,7 +559,6 @@ async function createPublicTable(
       botFillCount: indexDoc.botFillCount,
       openSeats: indexDoc.openSeats,
       spectatorCount: indexDoc.spectatorCount,
-      queueMode: indexDoc.queueMode,
     });
   }
 
@@ -786,15 +568,7 @@ async function createPublicTable(
   const sessionId = sessionRefDoc.id;
   const sessionKey = publicTableIndexKey(roomId, sessionId);
   const inviteCode = generateInviteCode();
-  let resolvedTargetSeatCount;
-  let botsOnlyBotCount = null;
-  if (botsOnly) {
-    botsOnlyBotCount = pickBotsOnlyBotCount();
-    resolvedTargetSeatCount = botsOnlyBotCount + 1;
-  } else {
-    resolvedTargetSeatCount = clampTargetSeatCount(targetSeatCount);
-  }
-  const botCount = botsOnly ? botsOnlyBotCount : Math.max(0, resolvedTargetSeatCount - 1);
+  const botCount = Math.max(0, targetSeatCount - 1);
   const botNames = pickUniqueRobotNames(botCount, [displayName]);
   const botIds = botNames.map(() => createBotPlayerId());
 
@@ -840,9 +614,8 @@ async function createPublicTable(
       claimedSessionNames: [],
       status: "open",
       visibility: ROOM_VISIBILITY.PUBLIC,
-      features: botsOnly ? { botsOnlyPublicTables: true } : { mixedPublicTables: true },
-      targetSeatCount: resolvedTargetSeatCount,
-      ...(botsOnlyBotCount != null ? { botsOnlyBotCount } : {}),
+      features: { mixedPublicTables: true },
+      targetSeatCount,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -944,7 +717,6 @@ async function createPublicTable(
       sessionId,
       activeJoinId: joinId,
       status: MATCH_QUEUE_STATUS.SEATED,
-      queueMode: normalizedQueueMode,
       requestedAt: FieldValue.serverTimestamp(),
     });
   });
@@ -961,7 +733,6 @@ async function createPublicTable(
     botFillCount: indexDoc.botFillCount,
     openSeats: indexDoc.openSeats,
     spectatorCount: indexDoc.spectatorCount,
-    queueMode: indexDoc.queueMode,
   });
 }
 
@@ -976,7 +747,6 @@ export async function handleFindOrCreatePublicTable(db, data) {
     throw new HttpsError("unauthenticated", "Sign in required");
   }
   const joinId = assertJoinIdFormat(data?.joinId);
-  const queueMode = normalizePlayNowQueueMode(data?.queueMode);
   const targetSeatCount = clampTargetSeatCount(data?.targetSeatCount);
   const { buyInAmount, anteAmount } = normalizeStakes(data);
   const displayName =
@@ -985,7 +755,7 @@ export async function handleFindOrCreatePublicTable(db, data) {
 
   const existingQueue = await loadMatchQueue(db, actorId);
   if (existingQueue?.data) {
-    const compatible = assertCompatibleActiveQueue(existingQueue.data, joinId, queueMode);
+    const compatible = assertCompatibleActiveQueue(existingQueue.data, joinId);
     if (compatible) {
       const { roomId, sessionId, status } = compatible;
       if (roomId && sessionId) {
@@ -1001,22 +771,9 @@ export async function handleFindOrCreatePublicTable(db, data) {
           botFillCount: indexDoc.botFillCount,
           openSeats: indexDoc.openSeats,
           spectatorCount: indexDoc.spectatorCount,
-          queueMode: indexDoc.queueMode,
         });
       }
     }
-  }
-
-  if (queueMode === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
-    return createPublicTable(db, {
-      actorId,
-      displayName,
-      joinId,
-      targetSeatCount,
-      buyInAmount,
-      anteAmount,
-      queueMode,
-    });
   }
 
   const joinArgs = { actorId, displayName, joinId, buyInAmount, anteAmount };
@@ -1034,7 +791,6 @@ export async function handleFindOrCreatePublicTable(db, data) {
     targetSeatCount,
     buyInAmount,
     anteAmount,
-    queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
   });
 }
 
@@ -1104,7 +860,6 @@ export async function handleLeavePublicTable(db, data) {
   }
 
   const { roomId, sessionId, status } = queue.data;
-  let seatVacated = false;
 
   await db.runTransaction(async (tx) => {
     const queueSnap = await tx.get(matchQueueRef(db, actorId));
@@ -1112,45 +867,33 @@ export async function handleLeavePublicTable(db, data) {
     const q = queueSnap.data();
     if (!isActiveQueueStatus(q.status)) return;
 
-    if (q.roomId && q.sessionId) {
-      const sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
+    let sessionRefDoc = null;
+    let pendingJoinsUpdate = null;
+    if (q.roomId && q.sessionId && q.status === MATCH_QUEUE_STATUS.SPECTATING) {
+      sessionRefDoc = sessionRef(db, q.roomId, q.sessionId);
       const sessionSnap = await tx.get(sessionRefDoc);
       if (sessionSnap.exists) {
-        if (q.status === MATCH_QUEUE_STATUS.SEATED) {
-          const scoreSnap = await tx.get(scoresCol(db, q.roomId, q.sessionId).doc(actorId));
-          seatVacated = scoreSnap.exists && scoreSnap.data()?.spectator !== true;
-          await applyVacatePublicTableHumanSeatTx(tx, db, {
-            roomId: q.roomId,
-            sessionId: q.sessionId,
-            userId: actorId,
-            sessionSnap,
-          });
-        } else if (q.status === MATCH_QUEUE_STATUS.SPECTATING) {
-          const pendingJoins = { ...(sessionSnap.data().pendingJoins ?? {}) };
-          if (pendingJoins[actorId]) {
-            delete pendingJoins[actorId];
-            tx.update(sessionRefDoc, {
-              pendingJoins,
-              updatedAt: FieldValue.serverTimestamp(),
-            });
-          }
+        const pendingJoins = { ...(sessionSnap.data().pendingJoins ?? {}) };
+        if (pendingJoins[actorId]) {
+          delete pendingJoins[actorId];
+          pendingJoinsUpdate = pendingJoins;
         }
       }
     }
 
     tx.delete(matchQueueRef(db, actorId));
+
+    if (sessionRefDoc && pendingJoinsUpdate) {
+      tx.update(sessionRefDoc, {
+        pendingJoins: pendingJoinsUpdate,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
   });
 
-  if (roomId && sessionId) {
+  if (roomId && sessionId && status === MATCH_QUEUE_STATUS.SPECTATING) {
     await rebuildPublicTableIndexFromSource(db, roomId, sessionId).catch(() => {});
   }
 
-  return {
-    ok: true,
-    cleared: true,
-    seatVacated,
-    roomId: roomId ?? null,
-    sessionId: sessionId ?? null,
-    status: status ?? null,
-  };
+  return { ok: true, cleared: true, roomId: roomId ?? null, sessionId: sessionId ?? null };
 }

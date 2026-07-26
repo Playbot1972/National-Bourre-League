@@ -10,9 +10,6 @@ export interface TrickAnimationBusyState {
   pipelineActive: boolean;
   /** Staggered reveal still catching up to server/peak play count. */
   revealCatchUp: boolean;
-  /** Live reveal progress — gate clears when revealedCount >= revealTarget. */
-  revealedCount: number;
-  revealTarget: number;
   /** Trump upcard → suit-badge settle window (instant-place gate). */
   motionGateActive: boolean;
   peakPlayCount: number;
@@ -34,8 +31,6 @@ export const BOT_PRESENTATION_FORCE_RELEASE_MS = 7_000;
 const IDLE: TrickAnimationBusyState = {
   pipelineActive: false,
   revealCatchUp: false,
-  revealedCount: 0,
-  revealTarget: 0,
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
@@ -59,8 +54,6 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   return (
     a.pipelineActive === b.pipelineActive &&
     a.revealCatchUp === b.revealCatchUp &&
-    a.revealedCount === b.revealedCount &&
-    a.revealTarget === b.revealTarget &&
     a.motionGateActive === b.motionGateActive &&
     a.peakPlayCount === b.peakPlayCount &&
     a.displayedPlayCount === b.displayedPlayCount &&
@@ -71,14 +64,6 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   );
 }
 
-/** Cards are visibly in flight or on the table — safe to unblock bot submit gates. */
-export function trickCardsVisiblyInProgress(s: TrickAnimationBusyState): boolean {
-  if (s.displayedPlayCount > 0) return true;
-  if (s.revealedCount > 0) return true;
-  if (s.revealTarget > 0 && s.revealedCount >= s.revealTarget) return true;
-  return false;
-}
-
 /** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
@@ -86,17 +71,10 @@ export function getTablePresentationBlockReason(
   if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
   if (s.handPresenting) return "handPresenting";
-  const cardsVisible = trickCardsVisiblyInProgress(s);
-  if (s.pipelineActive && !cardsVisible) return "pipelineActive";
-  if (s.revealCatchUp && !cardsVisible) {
-    return "revealCatchUp";
-  }
-  if (s.peakPlayCount > 0 && s.displayedPlayCount < s.peakPlayCount) {
-    const revealDebt = Math.max(0, s.peakPlayCount - s.revealedCount);
-    // displayDebt (revealed but animating to seat) is visual-only once reveal started.
-    if (revealDebt > 0 && !cardsVisible) {
-      return "peakPlayCatchUp";
-    }
+  if (s.pipelineActive) return "pipelineActive";
+  if (s.revealCatchUp) return "revealCatchUp";
+  if (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0) {
+    return "peakPlayCatchUp";
   }
   return null;
 }
@@ -182,11 +160,8 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
     };
   }
 
-  if (!blockEpisode) {
+  if (!blockEpisode || blockEpisode.reason !== reason) {
     blockEpisode = { reason, since: now, blockedLogged: false };
-  } else if (blockEpisode.reason !== reason) {
-    // Keep episode start time when reasons churn — prevents indefinite soft/force unblock delay.
-    blockEpisode = { reason, since: blockEpisode.since, blockedLogged: blockEpisode.blockedLogged };
   }
 
   const blockedMs = now - blockEpisode.since;
@@ -269,24 +244,12 @@ export function getTrickAnimationBusyState(): TrickAnimationBusyState {
 
 /** True while trick UI must finish before the next bot card play. */
 export function isTrickAnimationBusy(): boolean {
-  const revealDebt =
-    state.peakPlayCount > 0 && state.displayedPlayCount < state.peakPlayCount
-      ? Math.max(0, state.peakPlayCount - state.revealedCount)
-      : 0;
-  const displayDebt =
-    state.peakPlayCount > 0 && state.displayedPlayCount < state.peakPlayCount
-      ? Math.max(0, state.revealedCount - state.displayedPlayCount)
-      : 0;
-  const revealCatchUpBusy =
-    state.revealCatchUp &&
-    !(state.revealTarget > 0 && state.revealedCount >= state.revealTarget);
   return (
     state.pipelineActive ||
-    revealCatchUpBusy ||
+    state.revealCatchUp ||
     state.motionGateActive ||
     state.trickCollectionActive ||
-    revealDebt > 0 ||
-    displayDebt > 0
+    (state.peakPlayCount > state.displayedPlayCount && state.peakPlayCount > 0)
   );
 }
 

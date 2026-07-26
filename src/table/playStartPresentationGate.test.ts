@@ -26,8 +26,6 @@ function handPresentingForBotGate(
 const idleBusy = {
   pipelineActive: false,
   revealCatchUp: false,
-  revealedCount: 0,
-  revealTarget: 0,
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,

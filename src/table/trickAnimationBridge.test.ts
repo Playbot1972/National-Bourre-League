@@ -12,14 +12,11 @@ import {
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
-  trickCardsVisiblyInProgress,
 } from "./trickAnimationBridge";
 
 const idleTrickFields = {
   pipelineActive: false,
   revealCatchUp: false,
-  revealedCount: 0,
-  revealTarget: 0,
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
@@ -46,28 +43,15 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), true);
   });
 
-  it("blocks while peak plays exceed displayed count and no card is visible yet", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      peakPlayCount: 3,
-      displayedPlayCount: 0,
-      revealedCount: 0,
-    });
-    assert.equal(isTrickAnimationBusy(), true);
-    assert.equal(isTablePresentationBusy(), true);
-  });
-
-  it("does not block bots once displayed play count shows trick cards", () => {
+  it("blocks while peak plays exceed displayed count", () => {
     resetTrickAnimationBusyState();
     setTrickAnimationBusyState({
       ...idleTrickFields,
       peakPlayCount: 3,
       displayedPlayCount: 1,
-      revealedCount: 1,
     });
     assert.equal(isTrickAnimationBusy(), true);
-    assert.equal(isTablePresentationBusy(), false);
+    assert.equal(isTablePresentationBusy(), true);
   });
 
   it("does not block when peak matches display", () => {
@@ -105,13 +89,12 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 
-  it("reports peak play catch-up as block reason before any card is visible", () => {
+  it("reports peak play catch-up as block reason", () => {
     resetTrickAnimationBusyState();
     setTrickAnimationBusyState({
       ...idleTrickFields,
       peakPlayCount: 3,
-      displayedPlayCount: 0,
-      revealedCount: 0,
+      displayedPlayCount: 1,
     });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
@@ -126,68 +109,6 @@ describe("trickAnimationBridge", () => {
     });
     assert.equal(getTrickAnimationBusyState().revealCatchUp, true);
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
-  });
-
-  it("does not block bots when revealCatchUp flag is stale but cards are revealed", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: true,
-      revealedCount: 4,
-      revealTarget: 4,
-      peakPlayCount: 4,
-      displayedPlayCount: 2,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-    assert.equal(trickCardsVisiblyInProgress(getTrickAnimationBusyState()), true);
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: true,
-      revealedCount: 4,
-      revealTarget: 4,
-      peakPlayCount: 4,
-      displayedPlayCount: 4,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-    assert.equal(isTrickAnimationBusy(), false);
-  });
-
-  it("does not block bots during revealCatchUp once any trick card is visible", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: true,
-      revealedCount: 1,
-      revealTarget: 4,
-      peakPlayCount: 4,
-      displayedPlayCount: 0,
-    });
-    assert.equal(trickCardsVisiblyInProgress(getTrickAnimationBusyState()), true);
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-  });
-
-  it("does not block bots on pipelineActive when trick cards are already visible", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      pipelineActive: true,
-      revealedCount: 2,
-      revealTarget: 4,
-      peakPlayCount: 2,
-      displayedPlayCount: 2,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
-  });
-
-  it("still blocks peakPlayCatchUp while no trick card is visible yet", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      peakPlayCount: 3,
-      revealedCount: 0,
-      displayedPlayCount: 0,
-    });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
 
   it("does not block bots for drawPlayer during server draw phase", () => {
@@ -224,34 +145,5 @@ describe("trickAnimationBridge", () => {
     assert.equal(forced.forceReleased, true);
     assert.equal(isTablePresentationBusy(), false);
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
-  });
-
-  it("soft-unblocks when block reasons churn without resetting the episode clock", () => {
-    resetTrickAnimationBusyState();
-    const start = 5_000_000;
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: true,
-      peakPlayCount: 0,
-      displayedPlayCount: 0,
-    });
-    evaluateBotPresentationGate(start);
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: false,
-      peakPlayCount: 2,
-      displayedPlayCount: 0,
-    });
-    evaluateBotPresentationGate(start + 1_000);
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      pipelineActive: true,
-      peakPlayCount: 2,
-      displayedPlayCount: 0,
-      revealedCount: 0,
-    });
-    const soft = evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS);
-    assert.equal(soft.blocked, false);
-    assert.equal(soft.softUnblock, true);
   });
 });

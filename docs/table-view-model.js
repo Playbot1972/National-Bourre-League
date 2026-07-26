@@ -11,7 +11,6 @@ import {
   buildPlayValidationState,
   displayHoleCardCount,
 } from "./game-engine.js";
-import { publicTableIdleSeatLabel } from "./public-table-idle.js";
 import {
   deriveWinnersFromTricks,
   isHandComplete,
@@ -30,9 +29,6 @@ import {
 } from "./bourre-rules.js";
 import { apeClass, apeStatus } from "./ranking.js";
 import { canPlayerShowHandChoice, isRobotPlayerId } from "./session-startup.js";
-import { resolveCoWinPresentation } from "./co-win-presentation.js";
-
-export { resolveCoWinPresentation } from "./co-win-presentation.js";
 
 export function cardKeyFromSerialized(card) {
   if (!card?.rank || !card?.suit) return null;
@@ -295,23 +291,18 @@ export function buildTablePlayerSeatFlags(sc, ctx) {
     enrollmentSatOut:
       declinedEnrollmentIds.includes(sc.playerId) || sc.sitOut === true,
     idleSitOut: sc.sitOut === true,
-    idleSitOutLabel:
-      publicTableIdleSeatLabel(sc) ??
-      (declinedEnrollmentIds.includes(sc.playerId) ? "Sat out" : null),
+    idleSitOutLabel: sc.sitOut === true ? "Sitting Out" : null,
     enrollmentJoined: enrolledDuringSignup.includes(sc.playerId),
     decisionPlannedDiscards: plannedDiscards[sc.playerId],
     isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
     showHoleCards:
       cardsDealt && handParticipantIds.includes(sc.playerId) && sc.playerId !== myUid,
     holeCardCount: cardsDealt ? displayHoleCardCount(currentHand || {}, sc.playerId, false) : 0,
-    isOnTurn:
-      sc.sitOut !== true && cardsDealt && currentHand?.turnPlayerId === sc.playerId,
+    isOnTurn: cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     isActiveActor:
-      sc.sitOut === true
-        ? false
-        : (enrollmentActive || pagatDecisionActive) && currentEnrollmentPlayerId === sc.playerId
-          ? true
-          : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
+      (enrollmentActive || pagatDecisionActive) && currentEnrollmentPlayerId === sc.playerId
+        ? true
+        : cardsDealt && currentHand?.turnPlayerId === sc.playerId,
     canToggleInHand: canPlayerShowHandChoice({
       enrollmentGateActive: enrollmentActive,
       isSelf,

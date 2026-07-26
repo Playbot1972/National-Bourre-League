@@ -34,12 +34,6 @@ export const ROOM_VISIBILITY = Object.freeze({
   PUBLIC: "public",
 });
 
-/** Explicit Play Now matchmaking intent (client + matchQueue source of truth). */
-export const PLAY_NOW_QUEUE_MODE = Object.freeze({
-  MIXED: "mixed",
-  BOTS_ONLY: "bots_only",
-});
-
 /** Score-row bot role for replaceable fill bots (Phase 5+). Absent/null === legacy/private bot. */
 export const BOT_ROLE = Object.freeze({
   FILL: "fill",
@@ -71,13 +65,11 @@ export const PENDING_JOIN_STATUS = Object.freeze({
  * Room-level public-table metadata (source of truth).
  * @typedef {Object} PublicRoomFeatures
  * @property {boolean} [mixedPublicTables] - Gate for public mixed-table flows.
- * @property {boolean} [botsOnlyPublicTables] - Gate for bots-only public Play Now tables.
  *
  * @typedef {Object} PublicRoomMetadata
  * @property {'private'|'public'} [visibility] - Absent === private.
  * @property {PublicRoomFeatures} [features]
  * @property {number} [targetSeatCount] - 2–8 preference for public tables.
- * @property {number} [botsOnlyBotCount] - Canonical fill-bot count chosen at bots-only create (2–7).
  */
 
 /**
@@ -125,7 +117,6 @@ export const PENDING_JOIN_STATUS = Object.freeze({
  * @property {number} [buyInAmount]
  * @property {number} [anteAmount]
  * @property {number} [targetSeatCount]
- * @property {typeof PLAY_NOW_QUEUE_MODE[keyof typeof PLAY_NOW_QUEUE_MODE]} [queueMode]
  */
 
 /**
@@ -136,7 +127,6 @@ export const PENDING_JOIN_STATUS = Object.freeze({
  * @property {string} sessionId
  * @property {string} activeJoinId - Latest accepted joinId (idempotency).
  * @property {typeof MATCH_QUEUE_STATUS[keyof typeof MATCH_QUEUE_STATUS]} status
- * @property {typeof PLAY_NOW_QUEUE_MODE[keyof typeof PLAY_NOW_QUEUE_MODE]} [queueMode]
  * @property {import('firebase/firestore').Timestamp|Date} [expiresAt]
  * @property {import('firebase/firestore').Timestamp|Date} [requestedAt]
  */
@@ -149,37 +139,6 @@ export function publicTableIndexKey(roomId, sessionId) {
 /** True when room doc carries the public mixed-table feature flag. */
 export function roomHasMixedPublicTables(roomData) {
   return roomData?.features?.mixedPublicTables === true;
-}
-
-/** True when room doc is a bots-only public Play Now table. */
-export function roomHasBotsOnlyPublicTables(roomData) {
-  return roomData?.features?.botsOnlyPublicTables === true;
-}
-
-/** True when room participates in any server-canonical public Play Now flow. */
-export function roomHasPublicTableFeatures(roomData) {
-  return roomHasMixedPublicTables(roomData) || roomHasBotsOnlyPublicTables(roomData);
-}
-
-/**
- * Normalize client/callable queue mode; unknown values default to mixed.
- * @param {unknown} value
- * @returns {typeof PLAY_NOW_QUEUE_MODE[keyof typeof PLAY_NOW_QUEUE_MODE]}
- */
-export function normalizePlayNowQueueMode(value) {
-  if (value === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) return PLAY_NOW_QUEUE_MODE.BOTS_ONLY;
-  return PLAY_NOW_QUEUE_MODE.MIXED;
-}
-
-/**
- * Derive queue mode from authoritative room features.
- * @param {object|null|undefined} roomData
- * @returns {typeof PLAY_NOW_QUEUE_MODE[keyof typeof PLAY_NOW_QUEUE_MODE]|null}
- */
-export function resolvePublicTableQueueMode(roomData) {
-  if (roomHasBotsOnlyPublicTables(roomData)) return PLAY_NOW_QUEUE_MODE.BOTS_ONLY;
-  if (roomHasMixedPublicTables(roomData)) return PLAY_NOW_QUEUE_MODE.MIXED;
-  return null;
 }
 
 /** True when visibility is public (absent === private). */

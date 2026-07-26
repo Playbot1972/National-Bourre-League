@@ -8,9 +8,6 @@ import type { TableSessionData } from "./types";
 /** Total visible turn timer duration (client presentation). */
 export const TURN_COUNTDOWN_MS = 15_000;
 
-/** Delay before the ring begins counting down (avatar settle). */
-export const TURN_RING_ACTIVATION_DELAY_MS = 200;
-
 /** Remaining time thresholds for color segments. */
 export const TURN_COUNTDOWN_GREEN_UNTIL_MS = 10_000;
 export const TURN_COUNTDOWN_YELLOW_UNTIL_MS = 5_000;
@@ -36,14 +33,9 @@ export interface TurnCountdownInput {
     | "tricksByPlayer"
     | "handNumber"
     | "pendingCoWinSettlement"
-    | "currentTrick"
   >;
   suppressTurn: boolean;
   handComplete: boolean;
-  /** Seated humans in idle sit-out — suppress turn urgency while server advances. */
-  sitOutPlayerIds?: string[];
-  /** Public-table spectator — no turn urgency until seated on the next deal. */
-  watchOnly?: boolean;
 }
 
 const ACTIONABLE_FLOW_PHASES = new Set<string>([
@@ -97,7 +89,7 @@ function sessionViewFromTable(input: TurnCountdownInput): HandFlowSessionView {
  * Mirrors `resolveHandFlowTurnPlayerId` / seat `isActiveActor`.
  */
 export function resolveTableActiveActorId(input: TurnCountdownInput): string | null {
-  if (input.handComplete || input.suppressTurn || input.watchOnly) return null;
+  if (input.handComplete || input.suppressTurn) return null;
 
   const snapshot = buildHandFlowSnapshot({
     session: sessionViewFromTable(input),
@@ -105,18 +97,15 @@ export function resolveTableActiveActorId(input: TurnCountdownInput): string | n
   });
 
   if (!ACTIONABLE_FLOW_PHASES.has(snapshot.phase)) return null;
-  const turnPlayerId = snapshot.turnPlayerId;
-  if (turnPlayerId && input.sitOutPlayerIds?.includes(turnPlayerId)) return null;
-  return turnPlayerId;
+  return snapshot.turnPlayerId;
 }
 
 export function buildTurnCountdownState(
   playerId: string,
   startedAtMs: number,
   nowMs: number,
-  activationDelayMs = 0,
 ): TurnCountdownState | null {
-  const elapsed = Math.max(0, nowMs - startedAtMs - activationDelayMs);
+  const elapsed = Math.max(0, nowMs - startedAtMs);
   const cycleElapsed = elapsed % TURN_COUNTDOWN_MS;
   const remainingMs = TURN_COUNTDOWN_MS - cycleElapsed;
 

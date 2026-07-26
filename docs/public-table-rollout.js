@@ -7,7 +7,7 @@
  * @see docs/PUBLIC_TABLES_PHASE2.md
  */
 
-import { roomHasPublicTableFeatures } from "./public-table-schema.js";
+import { roomHasMixedPublicTables } from "./public-table-schema.js";
 
 /**
  * Client-side master switch for Play Now public matchmaking.
@@ -47,7 +47,7 @@ export function isMixedPublicTablesRolloutEnabled(roomData) {
   if (!isMixedPublicTablesServerEnabled()) {
     return false;
   }
-  return roomHasPublicTableFeatures(roomData);
+  return roomHasMixedPublicTables(roomData);
 }
 
 /**

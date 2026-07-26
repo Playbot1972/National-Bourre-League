@@ -76,35 +76,11 @@ describe("legacy sync guard wiring", () => {
     assert.match(src, /!isPublicTableSpectator\(sessionData, m\.userId\)/);
   });
 
-  it("scheduleSyncSessionMembers skips public-table watch-only and sit-out viewers", () => {
-    const src = readFileSync(join(root, "docs/app.js"), "utf8");
-    assert.match(src, /function shouldClientSyncSessionMembers\(/);
-    assert.match(src, /if \(!shouldClientSyncSessionMembers\(sObj\)\) return;/);
-    assert.match(src, /shouldClientSyncSessionMembers\(sessionObj\)/);
-    assert.match(src, /isSessionMemberSyncPaused\(\)/);
-    assert.match(src, /getSessionMemberSyncBackoffMs\(\)/);
-  });
-
-  it("syncSessionWithRoomMembers pauses on permission errors with structured logging", () => {
-    const src = readFileSync(join(root, "docs/firestore.js"), "utf8");
-    assert.match(src, /export function isSessionMemberSyncPaused\(/);
-    assert.match(src, /pauseSessionMemberSync\(/);
-    assert.match(src, /sessionMemberSyncAuthContext\(/);
-    assert.match(src, /handleSessionMemberSyncError\(/);
-  });
-
   it("buildTableSessionProps avoids pseudo seated row for spectators", () => {
     const src = readFileSync(join(root, "docs/app.js"), "utf8");
     assert.match(src, /isPublicTableWatchOnly\(s, myUid/);
     assert.match(src, /watchOnly \? createWatchOnlyTableIntentHandlers\(\)/);
-    assert.match(src, /playNowWatchOnlyMessage/);
-  });
-
-  it("turn urgency hooks receive watchOnly from TableSessionView", () => {
-    const src = readFileSync(join(root, "src/table/turnCountdown.ts"), "utf8");
-    assert.match(src, /watchOnly\)/);
-    const viewSrc = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
-    assert.match(viewSrc, /watchOnly,\s*\n\s*currentUserId/);
+    assert.match(src, /PUBLIC_TABLE_WATCH_ONLY_MESSAGE/);
   });
 });
 

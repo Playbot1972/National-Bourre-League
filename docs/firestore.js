@@ -77,7 +77,7 @@
 //   }
 // ---------------------------------------------------------------------------
 
-import { app, whenAuthReady, currentUser } from "./auth.js";
+import { app, whenAuthReady } from "./auth.js";
 import { nextRiskStake } from "./risk-stakes.js";
 import {
   scoreBankroll,
@@ -238,90 +238,6 @@ const db = getFirestore(app);
 export function isPermissionDenied(err) {
   const code = err?.code ?? "";
   return code === "permission-denied" || code === "PERMISSION_DENIED";
-}
-
-const SESSION_MEMBER_SYNC_BACKOFF_BASE_MS = 500;
-const SESSION_MEMBER_SYNC_BACKOFF_MAX_MS = 30_000;
-const SESSION_MEMBER_SYNC_PAUSE_MS = 5 * 60_000;
-
-let sessionMemberSyncPausedUntil = 0;
-let sessionMemberSyncPermLogged = false;
-let sessionMemberSyncBackoffMs = SESSION_MEMBER_SYNC_BACKOFF_BASE_MS;
-
-function sessionMemberSyncAuthContext() {
-  const user = currentUser();
-  return {
-    uid: user?.uid ?? null,
-    authenticated: Boolean(user?.uid),
-    email: user?.email ?? null,
-  };
-}
-
-function sessionMemberSyncPath(roomId, sessionId, scoreId = null) {
-  const base = `rooms/${roomId}/sessions/${sessionId}`;
-  return scoreId ? `${base}/scores/${scoreId}` : base;
-}
-
-function isSessionMemberSyncAuthError(err) {
-  if (isPermissionDenied(err) || isEnrollmentPermissionError(err)) return true;
-  const code = String(err?.code ?? "");
-  return code === "unauthenticated" || code === "functions/unauthenticated";
-}
-
-/** True when a prior permission/auth failure paused client roster sync. */
-export function isSessionMemberSyncPaused() {
-  return Date.now() < sessionMemberSyncPausedUntil;
-}
-
-/** Clear pause/backoff after leaving a room or successful auth refresh. */
-export function resetSessionMemberSyncPause() {
-  sessionMemberSyncPausedUntil = 0;
-  sessionMemberSyncPermLogged = false;
-  sessionMemberSyncBackoffMs = SESSION_MEMBER_SYNC_BACKOFF_BASE_MS;
-}
-
-export function getSessionMemberSyncBackoffMs() {
-  return sessionMemberSyncBackoffMs;
-}
-
-function noteSessionMemberSyncSuccess() {
-  sessionMemberSyncBackoffMs = SESSION_MEMBER_SYNC_BACKOFF_BASE_MS;
-  sessionMemberSyncPermLogged = false;
-}
-
-function noteSessionMemberSyncTransientFailure() {
-  sessionMemberSyncBackoffMs = Math.min(
-    sessionMemberSyncBackoffMs * 2,
-    SESSION_MEMBER_SYNC_BACKOFF_MAX_MS,
-  );
-}
-
-function pauseSessionMemberSync(err, operation, path, extra = {}) {
-  sessionMemberSyncPausedUntil = Date.now() + SESSION_MEMBER_SYNC_PAUSE_MS;
-  sessionMemberSyncBackoffMs = SESSION_MEMBER_SYNC_BACKOFF_MAX_MS;
-  if (!sessionMemberSyncPermLogged) {
-    sessionMemberSyncPermLogged = true;
-    logFirestoreError(operation, path, err, {
-      collection: path.includes("/scores/") ? "scores" : "sessions",
-      ...sessionMemberSyncAuthContext(),
-      syncPausedMs: SESSION_MEMBER_SYNC_PAUSE_MS,
-      ...extra,
-    });
-  }
-}
-
-function handleSessionMemberSyncError(err, operation, path, extra = {}) {
-  if (isSessionMemberSyncAuthError(err)) {
-    pauseSessionMemberSync(err, operation, path, extra);
-    return true;
-  }
-  logFirestoreError(operation, path, err, {
-    collection: path.includes("/scores/") ? "scores" : "sessions",
-    ...sessionMemberSyncAuthContext(),
-    ...extra,
-  });
-  noteSessionMemberSyncTransientFailure();
-  return false;
 }
 
 export function logFirestoreError(operation, path, err, extra = {}) {
@@ -502,11 +418,15 @@ async function callSettlementOrClient(clientFn, serverFn) {
           throw settlementError(clientErr, "client-batch", serverErr);
         }
       }
-      if (isBenignTableActionError(serverErr)) {
-        logBenignTableActionRace("settlement", serverErr);
-        return undefined;
+      console.warn(
+        "Settlement Cloud Function failed, trying client batch.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+      try {
+        return await clientFn();
+      } catch (clientErr) {
+        throw settlementError(clientErr, "client-batch", serverErr);
       }
-      throw settlementError(serverErr, "cloud-function");
     }
   }
   try {
@@ -1826,7 +1746,6 @@ function tryAutoEnrollmentDeal(sessionData, sortedIds, scoreById, buyIn, session
     if (!optIn.includes(id)) return false;
     const row = scoreById[id];
     if (row?.out === true) return false;
-    if (row?.sitOut === true) return false;
     return canEnrollWithBankroll(scoreBankroll(row, buyIn));
   });
   if (eligible.length < 2) return null;
@@ -4002,18 +3921,10 @@ export async function ensureSessionPlayer(
   if (isPublicTableSpectator(sessionData, playerId)) return false;
 
   const scoreRef = scoreDoc(roomId, sessionId, playerId);
-  const scorePath = sessionMemberSyncPath(roomId, sessionId, playerId);
   const scoreSnap = await getDoc(scoreRef);
   if (scoreSnap.exists()) {
     if (displayName && scoreSnap.data().displayName !== displayName) {
-      try {
-        await updateDoc(scoreRef, { displayName, updatedAt: serverTimestamp() });
-      } catch (err) {
-        if (handleSessionMemberSyncError(err, "ensureSessionPlayer:updateScore", scorePath, { playerId })) {
-          return false;
-        }
-        throw err;
-      }
+      await updateDoc(scoreRef, { displayName, updatedAt: serverTimestamp() });
     }
     return false;
   }
@@ -4067,18 +3978,10 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
-    ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
+    ...(isRobot ? { isRobot: true } : {}),
     updatedAt: serverTimestamp(),
   });
-  const sessionPath = sessionMemberSyncPath(roomId, sessionId);
-  try {
-    await batch.commit();
-  } catch (err) {
-    if (handleSessionMemberSyncError(err, "ensureSessionPlayer:commit", scorePath, { playerId })) {
-      return false;
-    }
-    throw err;
-  }
+  await batch.commit();
   return true;
 }
 
@@ -4086,31 +3989,12 @@ export async function ensureSessionPlayer(
  * When someone joins the room mid-session, add them to every in-progress session
  * so they appear in the score table and record-hand checkboxes.
  */
-export async function syncSessionWithRoomMembers(roomId, sessionId, members, { actorUid = null } = {}) {
-  if (isSessionMemberSyncPaused()) return;
-  const authCtx = sessionMemberSyncAuthContext();
-  if (!authCtx.authenticated) return;
-
-  const sessionPath = sessionMemberSyncPath(roomId, sessionId);
-  let sessionSnap;
-  try {
-    sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  } catch (err) {
-    handleSessionMemberSyncError(err, "syncSessionWithRoomMembers:readSession", sessionPath, { actorUid });
-    return;
-  }
+export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
 
   const sessionData = sessionSnap.data();
-  let scoreSnap;
-  try {
-    scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  } catch (err) {
-    handleSessionMemberSyncError(err, "syncSessionWithRoomMembers:readScores", `${sessionPath}/scores`, {
-      actorUid,
-    });
-    return;
-  }
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
   const existingIds = new Set(scoreSnap.docs.map((d) => d.id));
 
   const missing = members.filter(
@@ -4119,30 +4003,12 @@ export async function syncSessionWithRoomMembers(roomId, sessionId, members, { a
       !existingIds.has(m.userId) &&
       !isPublicTableSpectator(sessionData, m.userId),
   );
-  for (const m of missing) {
-    try {
-      await ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName, { joinCurrentHand: false });
-    } catch (err) {
-      const scorePath = sessionMemberSyncPath(roomId, sessionId, m.userId);
-      if (handleSessionMemberSyncError(err, "syncSessionWithRoomMembers:ensurePlayer", scorePath, {
-        actorUid,
-        targetUid: m.userId,
-      })) {
-        return;
-      }
-      throw err;
-    }
-    if (isSessionMemberSyncPaused()) return;
-  }
-  try {
-    await ensureCurrentHandParticipants(roomId, sessionId);
-    noteSessionMemberSyncSuccess();
-  } catch (err) {
-    if (handleSessionMemberSyncError(err, "syncSessionWithRoomMembers:participants", sessionPath, { actorUid })) {
-      return;
-    }
-    throw err;
-  }
+  await Promise.all(
+    missing.map((m) =>
+      ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName, { joinCurrentHand: false }),
+    ),
+  );
+  await ensureCurrentHandParticipants(roomId, sessionId);
 }
 
 /** Ensure every seated player on the score sheet (guests, robots) has a Firestore score row. */

@@ -25,7 +25,6 @@ import {
   handleFindOrCreatePublicTable,
   handleJoinPublicTable,
   handleLeavePublicTable,
-  handlePublicTableMemberRemoved,
 } from "./publicTable.js";
 import { handleTouchPublicTableActivity } from "./publicTableIdle.js";
 
@@ -125,13 +124,6 @@ export const onRoomMemberDeletedSignal = onDocumentDeleted(
     const data = event.data?.data();
     if (!data?.roomId) return;
     try {
-      const seatOutcome = await handlePublicTableMemberRemoved(db, data);
-      if (seatOutcome.handled) {
-        console.info(
-          "[onRoomMemberDeletedSignal]",
-          JSON.stringify({ roomId: data.roomId, userId: data.userId, seatOutcome }),
-        );
-      }
       const outcome = await handleRoomMemberDeleted(db, data);
       if (outcome.marked) {
         console.info(

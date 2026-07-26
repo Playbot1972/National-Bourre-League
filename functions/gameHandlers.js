@@ -70,14 +70,9 @@ import { applyPendingReplacements } from "./publicTableReplacement.js";
 import {
   enforcePublicTableIdlePolicy,
   isIdleSitOutBlockingEnrollment,
-  recordPublicTablePlayerActivity,
-  resolveIdleSitOutMidHandAction,
-  shouldEnforcePublicTableIdle,
-  skipIdleEnrollmentTurn,
 } from "./publicTableIdle.js";
-import { HAND_ENROLLMENT_MS } from "./vendor/hand-enrollment-ms.js";
 
-export { HAND_ENROLLMENT_MS };
+export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
 
 // ---------------------------------------------------------------------------
@@ -170,11 +165,6 @@ function assertRecordHandChipConservation({
 }
 
 export { canActForPlayer } from "./vendor/session-startup.js";
-
-async function bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId) {
-  if (!playerId || isRobotPlayerId(playerId)) return;
-  await recordPublicTablePlayerActivity(db, { roomId, sessionId, playerId }).catch(() => {});
-}
 
 export function sessionRef(db, roomId, sessionId) {
   return db.collection("rooms").doc(roomId).collection("sessions").doc(sessionId);
@@ -1288,60 +1278,11 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
     const enrollment = getSessionEnrollment(freshSession);
     if (isIdleSitOutBlockingEnrollment(enrollment, scoreById)) {
-      await skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs: Date.now() });
+      await handleTimeoutEnrollment(db, { roomId, sessionId, actorId });
       continue;
     }
 
     const snapshot = buildHandFlowSnapshot({ session: freshSession });
-    if (shouldEnforcePublicTableIdle(roomSnap.data() ?? {}, freshSession)) {
-      const idleMidHand = resolveIdleSitOutMidHandAction(freshSession, scoreById);
-      if (idleMidHand) {
-        console.info(
-          "[idle-midhand]",
-          "auto-action",
-          JSON.stringify({
-            roomId,
-            sessionId,
-            requester: actorId,
-            action: idleMidHand.action,
-            playerId: idleMidHand.playerId,
-            phase: idleMidHand.phase,
-          }),
-        );
-        steps.push({
-          kind: `idle_${idleMidHand.action}`,
-          turnPlayerId: idleMidHand.playerId,
-          phase: idleMidHand.phase,
-        });
-        const seatActorId = idleMidHand.playerId;
-        switch (idleMidHand.action) {
-          case "draw_fold":
-            await handleFoldDraw(db, {
-              roomId,
-              sessionId,
-              playerId: idleMidHand.playerId,
-              actorId: seatActorId,
-            });
-            continue;
-          case "decision_pass":
-            await handleSetHandParticipation(db, {
-              roomId,
-              sessionId,
-              playerId: idleMidHand.playerId,
-              inHand: false,
-              actorId: seatActorId,
-              skipActivityBump: true,
-            });
-            continue;
-          case "play_bot":
-            await executeBotPlay(db, roomId, sessionId, idleMidHand.playerId, seatActorId);
-            continue;
-          default:
-            break;
-        }
-      }
-    }
-
     const hint = resolveBotAdvanceHint({
       snapshot,
       session: freshSession,
@@ -1609,19 +1550,6 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
   sessionSnap = await ref.get();
   if (!sessionSnap.exists) return { status: "noop" };
   data = sessionSnap.data();
-
-  await enforcePublicTableIdlePolicy(db, {
-    roomId,
-    sessionId,
-    roomData: roomSnap.data() ?? {},
-    sessionData: data,
-  }).catch((err) => {
-    console.warn("[ensure-hand-enrollment] idle policy after replacement skipped", err?.message ?? err);
-  });
-
-  sessionSnap = await ref.get();
-  if (!sessionSnap.exists) return { status: "noop" };
-  data = sessionSnap.data();
   if (sessionSnap.exists && sessionHandDealStarted(data)) {
     return { status: "noop" };
   }
@@ -1848,16 +1776,13 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId, 
 
 export async function handleSetHandParticipation(
   db,
-  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0, skipActivityBump = false },
+  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0 },
 ) {
   if (!playerId || !actorId) throw new HttpsError("invalid-argument", "Missing player");
   if (!canActForPlayer(playerId, actorId)) {
     throw new HttpsError("permission-denied", "You can only change your own hand participation");
   }
   await assertRoomMember(db, roomId, actorId);
-  if (!skipActivityBump) {
-    await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
-  }
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
@@ -2096,7 +2021,6 @@ export async function handleSubmitDraw(
     throw new HttpsError("permission-denied", "You can only draw for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
-  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
   let result;
   try {
     result = await runSubmitDrawTransaction(db, {
@@ -2320,7 +2244,6 @@ export async function handlePlayCard(db, { roomId, sessionId, playerId, cardInde
     throw new HttpsError("permission-denied", "You can only play for yourself (or drive a robot)");
   }
   await assertRoomMember(db, roomId, actorId);
-  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
 
   const { handComplete } = await runPlayCardTransaction(db, {
     roomId,

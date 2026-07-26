@@ -77,42 +77,6 @@ describe("turnCountdown", () => {
     );
   });
 
-  it("clears active actor for public-table watch-only spectators", () => {
-    assert.equal(
-      resolveTableActiveActorId({
-        session: {
-          phase: "play",
-          turnPlayerId: "bot_abc",
-          participantIds: ["host", "bot_abc"],
-          tricksByPlayer: {},
-          handNumber: 2,
-        },
-        suppressTurn: false,
-        handComplete: false,
-        watchOnly: true,
-      }),
-      null,
-    );
-  });
-
-  it("still resolves active actor for seated participants when not watch-only", () => {
-    assert.equal(
-      resolveTableActiveActorId({
-        session: {
-          phase: "play",
-          turnPlayerId: "p2",
-          participantIds: ["p1", "p2"],
-          tricksByPlayer: {},
-          handNumber: 1,
-        },
-        suppressTurn: false,
-        handComplete: false,
-        watchOnly: false,
-      }),
-      "p2",
-    );
-  });
-
   it("activity key changes when turn ownership changes", () => {
     const base = {
       session: {
@@ -153,25 +117,6 @@ describe("turnCountdown", () => {
       handComplete: false,
     });
     assert.equal(id, "p2");
-  });
-
-  it("clears active actor when turn owner is idle sit-out", () => {
-    const id = resolveTableActiveActorId({
-      session: {
-        phase: "draw",
-        turnPlayerId: "human_a",
-        drawCompletedIds: [],
-        participantIds: ["human_a", "bot_b"],
-        tricksByPlayer: {},
-        handNumber: 2,
-        handEnrollment: null,
-        pendingCoWinSettlement: null,
-      },
-      suppressTurn: false,
-      handComplete: false,
-      sitOutPlayerIds: ["human_a"],
-    });
-    assert.equal(id, null);
   });
 
   it("does not resolve actor outside actionable phases", () => {
