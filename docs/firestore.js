@@ -418,11 +418,15 @@ async function callSettlementOrClient(clientFn, serverFn) {
           throw settlementError(clientErr, "client-batch", serverErr);
         }
       }
-      if (isBenignTableActionError(serverErr)) {
-        logBenignTableActionRace("settlement", serverErr);
-        return undefined;
+      console.warn(
+        "Settlement Cloud Function failed, trying client batch.",
+        serverErr?.code || serverErr?.message || serverErr,
+      );
+      try {
+        return await clientFn();
+      } catch (clientErr) {
+        throw settlementError(clientErr, "client-batch", serverErr);
       }
-      throw settlementError(serverErr, "cloud-function");
     }
   }
   try {

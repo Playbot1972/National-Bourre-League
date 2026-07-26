@@ -35,7 +35,6 @@ import {
   totalTricksPlayed,
   isHandComplete,
   deriveWinnersFromTricks,
-  resolveCoWinPresentation,
 } from "./table-view-model.js";
 import { applyTableFeedbackDiff } from "./table-feedback.js";
 import { createTableIntentHandlers } from "./table-intents.js";
@@ -4277,7 +4276,7 @@ function buildTableSessionProps(s) {
     localHandActionCommit &&
     myUid &&
     localHandActionCommit.kind === LOCAL_HAND_ACTION.DRAW &&
-    Date.now() - (localHandActionCommit.atMs ?? 0) > HAND_LIFECYCLE_WATCHDOG_MS &&
+    Date.now() - (localHandActionCommit.atMs ?? 0) > 12_000 &&
     !(currentHand?.drawCompletedIds ?? []).includes(myUid)
   ) {
     clearLocalHandCommit();
@@ -4358,6 +4357,14 @@ function buildTableSessionProps(s) {
     tableActionFeedback = null;
     tableActionFeedbackContext = null;
   }
+  const pendingWinners = s.pendingCoWinSettlement?.winnerIds;
+  const activeWinnerIds =
+    handReady && derivedWinnerIds.length > 0
+      ? derivedWinnerIds
+      : pendingWinners?.length
+        ? pendingWinners
+        : [];
+
   const postedAntes = currentHand?.postedAntes ?? {};
   const seatedIds =
     currentHand?.seatedIds?.length > 0
@@ -4390,14 +4397,13 @@ function buildTableSessionProps(s) {
   });
   const scoreById = Object.fromEntries(displayScores.map((x) => [x.playerId, x]));
 
-  const { activeWinnerIds, showCoWinSettlement, splitSharePerWinner } =
-    resolveCoWinPresentation({
-      handComplete,
-      handReady,
-      derivedWinnerIds,
-      pendingCoWinSettlement: s.pendingCoWinSettlement,
-      maxWinThisHand: potMetrics.maxWinThisHand,
-    });
+  const showCoWinSettlement =
+    handComplete &&
+    ((handReady && derivedWinnerIds.length >= 2) ||
+      (s.pendingCoWinSettlement?.winnerIds?.length >= 2 && activeWinnerIds.length >= 2));
+  const coWinnerCount = showCoWinSettlement ? activeWinnerIds.length : 0;
+  const splitSharePerWinner =
+    coWinnerCount >= 2 ? potMetrics.maxWinThisHand / coWinnerCount : 0;
 
   const myHandContribution =
     myUid != null && handParticipantIds.includes(myUid)

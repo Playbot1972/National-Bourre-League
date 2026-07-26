@@ -75,9 +75,8 @@ import {
   shouldEnforcePublicTableIdle,
   skipIdleEnrollmentTurn,
 } from "./publicTableIdle.js";
-import { HAND_ENROLLMENT_MS } from "./vendor/hand-enrollment-ms.js";
 
-export { HAND_ENROLLMENT_MS };
+export const HAND_ENROLLMENT_MS = 12_000;
 export const MAX_TRICKS_PER_HAND = 5;
 
 // ---------------------------------------------------------------------------
