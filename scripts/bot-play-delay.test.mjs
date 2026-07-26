@@ -56,7 +56,7 @@ describe("bot play delay", () => {
     assert.equal(first.chosenDelayMs, retry.chosenDelayMs);
     assert.ok(first.chosenDelayMs >= BOT_PLAY_DELAY_MIN_MS);
     assert.ok(first.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
-    assert.equal(retry.delayMs, Math.max(0, first.chosenDelayMs - 500));
+    assert.equal(retry.delayMs, first.chosenDelayMs);
   });
 
   it("last-card delay is cached separately from normal delay for same turn key", () => {
@@ -81,9 +81,21 @@ describe("bot play delay", () => {
     assert.ok(lastCard.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
   });
 
-  it("credits elapsed wait time against the chosen delay", () => {
+  it("credits elapsed visible-ring time against the chosen delay", () => {
     const state = createBotPlayDelayState({ rng: () => 0 });
     const chosen = BOT_PLAY_DELAY_MIN_MS;
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 2,
+      turnPlayerId: "bot_x",
+      remainingHandCount: 3,
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:2:bot_x",
+      playerId: "bot_x",
+      nowMs: 0,
+    });
     const at = state.resolvePlayDelayMs({
       handNumber: 1,
       trickNumber: 2,
@@ -102,24 +114,6 @@ describe("bot play delay", () => {
       nowMs: chosen - 50,
     });
     assert.equal(laterRetry.delayMs, 50);
-  });
-
-  it("presentation wait can consume the full think delay", () => {
-    const state = createBotPlayDelayState({ rng: () => 0 });
-    state.markTurnEligible({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_1",
-      nowMs: 0,
-    });
-    const afterPresentation = state.resolvePlayDelayMs({
-      handNumber: 1,
-      trickNumber: 1,
-      turnPlayerId: "bot_1",
-      remainingHandCount: 3,
-      nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
-    });
-    assert.equal(afterPresentation.delayMs, 0);
   });
 
   it("play phase delay ignores trick interval floor", () => {
@@ -153,6 +147,89 @@ describe("bot play delay", () => {
       nowMs: 0,
     });
     assert.notEqual(a.chosenDelayMs, b.chosenDelayMs);
+  });
+
+  it("presentation wait can consume the full think delay", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    const afterPresentation = state.resolvePlayDelayMs({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: BOT_PLAY_DELAY_MIN_MS + 200,
+    });
+    assert.equal(afterPresentation.delayMs, 0);
+    assert.equal(afterPresentation.visibleMinimumMet, true);
+  });
+
+  it("preserves visible ring latch across trick-number flicker", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 0,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:0:bot_1",
+      playerId: "bot_1",
+      nowMs: 100,
+    });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 3,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: 150,
+    });
+    const status = state.getVisibleRingStatus({
+      turnKey: "1:3:bot_1",
+      nowMs: 250,
+      remainingHandCount: 3,
+    });
+    assert.equal(status.visibleRingStartAtMs, 100);
+    assert.equal(status.visibleRingElapsedMs, 150);
+  });
+
+  it("ignores transient ring hidden reasons", () => {
+    const state = createBotPlayDelayState({ rng: () => 0 });
+    state.prepareTurn({
+      handNumber: 1,
+      trickNumber: 1,
+      turnPlayerId: "bot_1",
+      remainingHandCount: 3,
+      nowMs: 0,
+    });
+    state.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 50,
+    });
+    const cleared = state.notifyVisibleRingHidden({
+      turnKey: "1:1:bot_1",
+      reason: "ring_cleanup",
+      nowMs: 100,
+    });
+    assert.equal(cleared, false);
+    const status = state.getVisibleRingStatus({
+      turnKey: "1:1:bot_1",
+      nowMs: 200,
+      remainingHandCount: 3,
+    });
+    assert.equal(status.visibleRingStartAtMs, 50);
   });
 
   it("non-play phases keep short debounce", () => {
@@ -270,6 +347,7 @@ describe("bot think schedule", () => {
     schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 1 },
       nowMs: 0,
+      getPresentationState: () => ({ blocked: false }),
       shouldFire: () => false,
       onFire: () => {
         fired = true;
@@ -280,7 +358,12 @@ describe("bot think schedule", () => {
         },
       },
     });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_LAST_CARD_MAX_MS + 50));
+    schedule.playDelayState.notifyVisibleRingShown({
+      turnKey: "1:1:bot_1",
+      playerId: "bot_1",
+      nowMs: 0,
+    });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_LAST_CARD_MAX_MS + 100));
     assert.equal(fired, false);
     assert.equal(rejected, true);
   });
@@ -291,12 +374,18 @@ describe("bot think schedule", () => {
     schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 2, turnPlayerId: "bot_2", remainingHandCount: 2 },
       nowMs: 0,
+      getPresentationState: () => ({ blocked: false, revealCatchUp: false }),
       shouldFire: () => true,
       onFire: () => {
         fired = true;
       },
     });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 50));
+    schedule.playDelayState.notifyVisibleRingShown({
+      turnKey: "1:2:bot_2",
+      playerId: "bot_2",
+      nowMs: 0,
+    });
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 100));
     assert.equal(fired, true);
   });
 

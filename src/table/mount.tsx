@@ -35,6 +35,8 @@ import {
   resetTrickAnimationBusyState,
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
+import { publishBotThinkWindow } from "./botThinkWindow";
+import { setVisibleBotRingReporter } from "./visibleBotRingBridge";
 import { resetPresentationMotionBusy } from "./presentationMotionBusy";
 import "./table.css";
 import "./mobile-table.css";
@@ -100,6 +102,8 @@ export {
   forceReleasePresentationForBots,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
+  publishBotThinkWindow,
+  setVisibleBotRingReporter,
   clearWonTrickCollectionArtifacts,
   clearDrawFlyGhosts,
 };
