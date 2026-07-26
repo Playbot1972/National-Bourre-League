@@ -16,6 +16,7 @@ import {
   PENDING_JOIN_STATUS,
   PUBLIC_TABLE_DEFAULT_TARGET_SEATS,
   PUBLIC_TABLE_INDEX_COLLECTION,
+  PUBLIC_TABLE_MATCHMAKING_POOL_COLLECTION,
   PUBLIC_TABLE_MAX_SEATS,
   PUBLIC_TABLE_MIN_SEATS,
   ROOM_VISIBILITY,
@@ -284,6 +285,23 @@ function publicTableIndexRef(db, roomId, sessionId) {
   return db.collection(PUBLIC_TABLE_INDEX_COLLECTION).doc(publicTableIndexKey(roomId, sessionId));
 }
 
+/** Write derived index inside a create transaction so concurrent matchmaking can see the table immediately. */
+function writePublicTableIndexInTransaction(
+  tx,
+  db,
+  { roomId, sessionId, roomData, sessionData, scoreRows, pendingJoins = {} },
+) {
+  const indexDoc = computePublicTableIndexDoc({
+    roomId,
+    sessionId,
+    roomData,
+    sessionData,
+    scoreRows,
+    pendingJoins,
+  });
+  tx.set(publicTableIndexRef(db, roomId, sessionId), indexDoc, { merge: true });
+}
+
 async function loadUserDisplayName(db, userId, fallback = "Player") {
   const userSnap = await db.collection("users").doc(userId).get();
   const name = userSnap.data()?.displayName?.trim();
@@ -511,6 +529,69 @@ export async function handlePublicTableMemberRemoved(db, deletedMemberData) {
 
 export { applyPendingReplacements } from "./publicTableReplacement.js";
 
+function matchmakingPoolRef(db, buyInAmount, anteAmount) {
+  return db
+    .collection(PUBLIC_TABLE_MATCHMAKING_POOL_COLLECTION)
+    .doc(stakesKey(buyInAmount, anteAmount));
+}
+
+function isMatchmakingPoolRaceError(err) {
+  const code = err?.code;
+  return code === 6 || code === "already-exists" || code === "ABORTED";
+}
+
+export async function clearPublicTableMatchmakingPool(db, buyInAmount, anteAmount) {
+  await matchmakingPoolRef(db, buyInAmount, anteAmount).delete().catch(() => {});
+}
+
+async function tryJoinFromMatchmakingPool(
+  db,
+  { actorId, displayName, joinId, buyInAmount, anteAmount },
+) {
+  const poolSnap = await matchmakingPoolRef(db, buyInAmount, anteAmount).get();
+  if (!poolSnap.exists) return null;
+  const { roomId, sessionId } = poolSnap.data() ?? {};
+  if (!roomId || !sessionId) return null;
+  try {
+    const ctx = await loadAuthoritativeTableContext(db, roomId, sessionId);
+    const reconcile = await reconcileMixedTableStaleMembers(db, {
+      roomId,
+      sessionId,
+      trigger: "matchmaking",
+      joiningActorId: actorId,
+      roomData: ctx.roomData,
+      sessionData: ctx.sessionData,
+    }).catch((err) => {
+      console.warn("[public-table] pool reconcile failed — clearing pool", {
+        roomId,
+        sessionId,
+        message: err?.message ?? String(err),
+      });
+      return { botsOnlyGraveyard: true };
+    });
+    if (reconcile.botsOnlyGraveyard) {
+      await poolSnap.ref.delete().catch(() => {});
+      return null;
+    }
+    return await joinPublicTableAsSpectator(db, {
+      actorId,
+      displayName,
+      joinId,
+      roomId,
+      sessionId,
+      mode: "joined-existing",
+    });
+  } catch (err) {
+    console.warn("[public-table] stale matchmaking pool — clearing", {
+      roomId,
+      sessionId,
+      message: err?.message ?? String(err),
+    });
+    await poolSnap.ref.delete().catch(() => {});
+    return null;
+  }
+}
+
 async function ensureRoomMembership(db, roomId, userId, displayName) {
   const ref = db.collection("roomMembers").doc(memberDocId(roomId, userId));
   const snap = await ref.get();
@@ -573,6 +654,13 @@ async function attemptJoinJoinableCandidates(
       joiningActorId: actorId,
       roomData: ctx.roomData,
       sessionData: ctx.sessionData,
+    }).catch((err) => {
+      console.warn("[public-table] stale reconcile failed for candidate — skipping", {
+        roomId: candidate.roomId,
+        sessionId: candidate.sessionId,
+        message: err?.message ?? String(err),
+      });
+      return { botsOnlyGraveyard: true };
     });
     await rebuildPublicTableIndexFromSource(db, candidate.roomId, candidate.sessionId).catch(
       () => {},
@@ -580,6 +668,14 @@ async function attemptJoinJoinableCandidates(
 
     if (reconcile.botsOnlyGraveyard) {
       sawBotGraveyardOnly = true;
+      const poolSnap = await matchmakingPoolRef(db, buyInAmount, anteAmount).get();
+      if (
+        poolSnap.exists &&
+        poolSnap.data()?.roomId === candidate.roomId &&
+        poolSnap.data()?.sessionId === candidate.sessionId
+      ) {
+        await poolSnap.ref.delete().catch(() => {});
+      }
       continue;
     }
 
@@ -689,6 +785,12 @@ async function joinPublicTableAsSpectator(
     joiningActorId: actorId,
     roomData: ctx.roomData,
     sessionData: ctx.sessionData,
+  }).catch((err) => {
+    console.warn("[public-table] join reconcile skipped", {
+      roomId,
+      sessionId,
+      message: err?.message ?? String(err),
+    });
   });
   await rebuildPublicTableIndexFromSource(db, roomId, sessionId).catch(() => {});
 
@@ -854,6 +956,33 @@ async function createPublicTable(
   ];
   const sortedIds = rosterPlayers.map((p) => p.playerId);
   const buyInMoney = buildSessionBuyInMoney(sessionId, [actorId], buyInAmount);
+  const roomDataForIndex = {
+    targetSeatCount: resolvedTargetSeatCount,
+    bourreSettings: { buyInAmount, anteAmount },
+    features: botsOnly ? { botsOnlyPublicTables: true } : { mixedPublicTables: true },
+  };
+  const sessionDataForIndex = {
+    status: "in_progress",
+    buyInAmount,
+    handStake: anteAmount,
+    currentHand: emptyPreDealHand(),
+    pendingJoins: {},
+    publicTable: true,
+  };
+  const scoreRowsForIndex = [
+    {
+      playerId: actorId,
+      bankroll: buyInAmount,
+      displayName,
+      lastActivityTimestamp: Date.now(),
+    },
+    ...botIds.map((id, i) => ({
+      playerId: id,
+      displayName: botNames[i],
+      botRole: BOT_ROLE.FILL,
+      isRobot: true,
+    })),
+  ];
 
   await db.runTransaction(async (tx) => {
     const queueSnap = await tx.get(matchQueueRef(db, actorId));
@@ -997,6 +1126,24 @@ async function createPublicTable(
       queueMode: normalizedQueueMode,
       requestedAt: FieldValue.serverTimestamp(),
     });
+
+    writePublicTableIndexInTransaction(tx, db, {
+      roomId,
+      sessionId,
+      roomData: roomDataForIndex,
+      sessionData: sessionDataForIndex,
+      scoreRows: scoreRowsForIndex,
+      pendingJoins: {},
+    });
+
+    if (!botsOnly) {
+      tx.create(matchmakingPoolRef(db, buyInAmount, anteAmount), {
+        roomId,
+        sessionId,
+        stakesKey: stakesKey(buyInAmount, anteAmount),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
   });
 
   const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
@@ -1018,6 +1165,37 @@ async function createPublicTable(
 // ---------------------------------------------------------------------------
 // Callable handlers
 // ---------------------------------------------------------------------------
+
+const MATCH_JOIN_RETRY_ATTEMPTS = 4;
+const MATCH_JOIN_RETRY_DELAY_MS = 150;
+
+function sleepMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function attemptJoinWithRetries(db, joinArgs) {
+  let sawBotGraveyardOnly = false;
+  for (let attempt = 0; attempt < MATCH_JOIN_RETRY_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) {
+      await sleepMs(MATCH_JOIN_RETRY_DELAY_MS);
+    }
+    const result = await attemptJoinJoinableCandidates(db, joinArgs);
+    if (result.joined) return result;
+    sawBotGraveyardOnly = sawBotGraveyardOnly || result.sawBotGraveyardOnly;
+  }
+  return { joined: null, sawBotGraveyardOnly };
+}
+
+async function createMixedPublicTableOrJoinPool(db, createArgs, joinArgs) {
+  try {
+    return await createPublicTable(db, createArgs);
+  } catch (err) {
+    if (!isMatchmakingPoolRaceError(err)) throw err;
+    const joined = await tryJoinFromMatchmakingPool(db, joinArgs);
+    if (joined) return joined;
+    throw err;
+  }
+}
 
 export async function handleFindOrCreatePublicTable(db, data) {
   assertServerPublicTablesEnabled();
@@ -1070,15 +1248,13 @@ export async function handleFindOrCreatePublicTable(db, data) {
   }
 
   const joinArgs = { actorId, displayName, joinId, buyInAmount, anteAmount };
-  const firstAttempt = await attemptJoinJoinableCandidates(db, joinArgs);
-  if (firstAttempt.joined) return firstAttempt.joined;
+  const joinAttempt = await attemptJoinWithRetries(db, joinArgs);
+  if (joinAttempt.joined) return joinAttempt.joined;
 
-  // Race: a concurrent Play Now may have created a table after our first index read.
-  const lateAttempt = await attemptJoinJoinableCandidates(db, joinArgs);
-  if (lateAttempt.joined) return lateAttempt.joined;
+  const pooled = await tryJoinFromMatchmakingPool(db, joinArgs);
+  if (pooled) return pooled;
 
-  const sawBotGraveyard =
-    firstAttempt.sawBotGraveyardOnly || lateAttempt.sawBotGraveyardOnly;
+  const sawBotGraveyard = joinAttempt.sawBotGraveyardOnly;
   if (sawBotGraveyard) {
     console.info("[mixed-stale-reconcile] bots-only fallback — no active humans on candidate tables", {
       actorId,
@@ -1095,15 +1271,19 @@ export async function handleFindOrCreatePublicTable(db, data) {
     });
   }
 
-  return createPublicTable(db, {
-    actorId,
-    displayName,
-    joinId,
-    targetSeatCount,
-    buyInAmount,
-    anteAmount,
-    queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
-  });
+  return createMixedPublicTableOrJoinPool(
+    db,
+    {
+      actorId,
+      displayName,
+      joinId,
+      targetSeatCount,
+      buyInAmount,
+      anteAmount,
+      queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
+    },
+    joinArgs,
+  );
 }
 
 export async function handleJoinPublicTable(db, data) {
