@@ -2903,33 +2903,12 @@ async function runPlayNowFlow() {
           currentMembers.some((m) => m.userId === session.uid),
         { label: "Public Play Now room load" },
       );
-      const spectating = result.status === "spectating";
-      if (spectating) {
-        await waitUntil(
-          () => {
-            const active = currentSessions.find((s) => s.id === result.sessionId);
-            return active && isPublicTableWatchOnly(active, uid, { scorePlayerIds: [] });
-          },
-          { label: "Public table spectator pendingJoin" },
-        );
-      }
       openSession(result.sessionId);
       await waitUntil(
-        () => {
-          if (openSessionId !== result.sessionId) return false;
-          const active = resolveActiveSession();
-          if (!active) return false;
-          if (spectating) {
-            const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-            return isPublicTableWatchOnly(active, uid, { scorePlayerIds });
-          }
-          return tableReadyPlayerCount(active) >= 2;
-        },
-        {
-          label: spectating
-            ? "Public Play Now spectator ready"
-            : "Public Play Now session ready",
-        },
+        () =>
+          openSessionId === result.sessionId &&
+          tableReadyPlayerCount(resolveActiveSession()) >= 2,
+        { label: "Public Play Now session ready" },
       );
       showRoomsError("");
       await triggerSessionPlay("play-now-public");
@@ -3436,16 +3415,10 @@ async function openTablePlay({ fromHistory = false } = {}) {
       return;
     }
     if (startupAnalysis.needsEnrollment) {
-      const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-      const watchOnly = isPublicTableWatchOnly(mergedSession, session?.uid ?? null, {
-        scorePlayerIds,
+      await ensureHandEnrollment(currentRoomId, openSessionId, {
+        members: currentMembers,
+        roster: tableReadyRoster(mergedSession),
       });
-      if (!watchOnly) {
-        await ensureHandEnrollment(currentRoomId, openSessionId, {
-          members: currentMembers,
-          roster: tableReadyRoster(mergedSession),
-        });
-      }
     }
   } catch (err) {
     console.error("openTablePlay prepare:", err);

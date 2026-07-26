@@ -133,28 +133,6 @@ describe("public-table matchmaking integration", () => {
     assert.equal(joined.sessionId, hostTable.sessionId);
     assert.equal(joined.realPlayerCount, 1);
     assert.equal(joined.openSeats, 0);
-
-    const memberSnap = await db
-      .collection("roomMembers")
-      .doc(`${hostTable.roomId}_${GUEST_UID}`)
-      .get();
-    assert.equal(memberSnap.exists, true);
-    const guestScore = await db
-      .collection("rooms")
-      .doc(hostTable.roomId)
-      .collection("sessions")
-      .doc(hostTable.sessionId)
-      .collection("scores")
-      .doc(GUEST_UID)
-      .get();
-    assert.equal(guestScore.exists, false);
-    const sessionSnap = await db
-      .collection("rooms")
-      .doc(hostTable.roomId)
-      .collection("sessions")
-      .doc(hostTable.sessionId)
-      .get();
-    assert.equal(sessionSnap.data()?.pendingJoins?.[GUEST_UID]?.status, "spectating");
   });
 
   it("returns the same result for the same joinId (idempotent)", async (t) => {

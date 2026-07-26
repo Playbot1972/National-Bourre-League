@@ -663,6 +663,8 @@ async function joinPublicTableAsSpectator(
     throw new HttpsError("already-exists", "You are already seated at this table.");
   }
 
+  await ensureRoomMembership(db, roomId, actorId, displayName);
+
   const handCount = ctx.sessionData.handCount ?? 0;
   const pendingEntry = {
     joinId,
@@ -719,10 +721,6 @@ async function joinPublicTableAsSpectator(
       updatedAt: FieldValue.serverTimestamp(),
     });
   });
-
-  // Room membership after pendingJoins so host clients running syncSessionWithRoomMembers
-  // see spectating status and do not create a premature score row.
-  await ensureRoomMembership(db, roomId, actorId, displayName);
 
   const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
   return buildPublicTableResult({
