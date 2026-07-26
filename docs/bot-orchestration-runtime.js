@@ -109,11 +109,11 @@ export function createServerBotAdvanceRuntime(deps) {
         requester: actorId,
         owner: "server",
         trigger: reason,
-        action: "deferred",
+        action: "blocked",
         handPhase,
         ...deps.snapshotContext(session, scores),
       });
-      // Fall through — debounced execute() sets pendingWake until presentation clears.
+      return;
     }
 
     if (inFlight) {

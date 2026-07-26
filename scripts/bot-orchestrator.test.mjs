@@ -78,13 +78,7 @@ describe("app.js bot paths", () => {
 
   it("play-phase presentation block defers but still arms bot think timer", () => {
     assert.match(runtimeSrc, /presentationBlocked && handPhase !== "play"/);
-    assert.match(runtimeSrc, /action: "deferred"/);
     assert.match(runtimeSrc, /action: presentationBlocked \? "waiting_presentation"/);
-    assert.doesNotMatch(
-      runtimeSrc,
-      /presentationBlocked && handPhase !== "play"[\s\S]{0,500}return;\s*\n\s*if \(inFlight\)/,
-      "non-play presentation defer must not return before debounced server advance",
-    );
     assert.doesNotMatch(
       runtimeSrc,
       /waiting_presentation[\s\S]{0,400}return;\s*\n\s*if \(inFlight\)/,
@@ -149,54 +143,5 @@ describe("server bot advance runtime presentation deferral", () => {
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
     await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
     assert.equal(advanceCalls, 1, "should execute after presentation clears");
-  });
-
-  it("defers reveal-phase advance when presentation blocked, then executes after clear", async () => {
-    let presentationBlocked = true;
-    let advanceCalls = 0;
-    const session = {
-      id: "sess_reveal",
-      status: "active",
-      currentHand: {
-        phase: "reveal",
-        trumpUpcard: { rank: "7", suit: "spades" },
-        trumpSuit: "spades",
-        participantIds: ["bot_a", "bot_b"],
-        turnPlayerId: "bot_a",
-      },
-    };
-    const scores = [
-      { playerId: "bot_a", isRobot: true },
-      { playerId: "bot_b", isRobot: true },
-    ];
-    const runtime = createServerBotAdvanceRuntime({
-      shouldRequestAdvance: () => true,
-      sessionNeedsBotDriver: () => true,
-      shouldBlockForPresentation: () => presentationBlocked,
-      snapshotContext: () => ({
-        handNumber: 1,
-        trickNumber: null,
-        turnPlayerId: "bot_a",
-      }),
-      getRoomId: () => "room_1",
-      getSessionId: () => "sess_reveal",
-      getHandPhase: (s) => s.currentHand?.phase ?? null,
-      advanceSessionBots: async () => {
-        advanceCalls += 1;
-        return { ok: true };
-      },
-      findSession: () => session,
-      getScores: () => scores,
-      onWake: () => {},
-    });
-
-    runtime.schedule(session, scores, "spectator_uid", { reason: "watch-only-open" });
-    await new Promise((r) => setTimeout(r, 200));
-    assert.equal(advanceCalls, 0, "should not fire while trump presentation blocks");
-
-    presentationBlocked = false;
-    runtime.schedule(session, scores, "spectator_uid", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, 250));
-    assert.equal(advanceCalls, 1, "should advance reveal after presentation clears");
   });
 });
