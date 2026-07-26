@@ -71,6 +71,14 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   );
 }
 
+/** Cards are visibly in flight or on the table — safe to unblock bot submit gates. */
+export function trickCardsVisiblyInProgress(s: TrickAnimationBusyState): boolean {
+  if (s.displayedPlayCount > 0) return true;
+  if (s.revealedCount > 0) return true;
+  if (s.revealTarget > 0 && s.revealedCount >= s.revealTarget) return true;
+  return false;
+}
+
 /** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
@@ -78,18 +86,15 @@ export function getTablePresentationBlockReason(
   if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
   if (s.handPresenting) return "handPresenting";
-  if (s.pipelineActive) return "pipelineActive";
-  if (s.revealCatchUp) {
-    if (s.revealTarget > 0 && s.revealedCount >= s.revealTarget) {
-      // Cards are on screen — do not block bots on stale revealCatchUp.
-    } else {
-      return "revealCatchUp";
-    }
+  const cardsVisible = trickCardsVisiblyInProgress(s);
+  if (s.pipelineActive && !cardsVisible) return "pipelineActive";
+  if (s.revealCatchUp && !cardsVisible) {
+    return "revealCatchUp";
   }
   if (s.peakPlayCount > 0 && s.displayedPlayCount < s.peakPlayCount) {
     const revealDebt = Math.max(0, s.peakPlayCount - s.revealedCount);
-    const displayDebt = Math.max(0, s.revealedCount - s.displayedPlayCount);
-    if (revealDebt > 0 || displayDebt > 0) {
+    // displayDebt (revealed but animating to seat) is visual-only once reveal started.
+    if (revealDebt > 0 && !cardsVisible) {
       return "peakPlayCatchUp";
     }
   }

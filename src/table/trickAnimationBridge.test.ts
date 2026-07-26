@@ -12,6 +12,7 @@ import {
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
+  trickCardsVisiblyInProgress,
 } from "./trickAnimationBridge";
 
 const idleTrickFields = {
@@ -45,15 +46,28 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusy(), true);
   });
 
-  it("blocks while peak plays exceed displayed count", () => {
+  it("blocks while peak plays exceed displayed count and no card is visible yet", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      peakPlayCount: 3,
+      displayedPlayCount: 0,
+      revealedCount: 0,
+    });
+    assert.equal(isTrickAnimationBusy(), true);
+    assert.equal(isTablePresentationBusy(), true);
+  });
+
+  it("does not block bots once displayed play count shows trick cards", () => {
     resetTrickAnimationBusyState();
     setTrickAnimationBusyState({
       ...idleTrickFields,
       peakPlayCount: 3,
       displayedPlayCount: 1,
+      revealedCount: 1,
     });
     assert.equal(isTrickAnimationBusy(), true);
-    assert.equal(isTablePresentationBusy(), true);
+    assert.equal(isTablePresentationBusy(), false);
   });
 
   it("does not block when peak matches display", () => {
@@ -91,12 +105,13 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
   });
 
-  it("reports peak play catch-up as block reason", () => {
+  it("reports peak play catch-up as block reason before any card is visible", () => {
     resetTrickAnimationBusyState();
     setTrickAnimationBusyState({
       ...idleTrickFields,
       peakPlayCount: 3,
-      displayedPlayCount: 1,
+      displayedPlayCount: 0,
+      revealedCount: 0,
     });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
@@ -123,7 +138,8 @@ describe("trickAnimationBridge", () => {
       peakPlayCount: 4,
       displayedPlayCount: 2,
     });
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+    assert.equal(trickCardsVisiblyInProgress(getTrickAnimationBusyState()), true);
     setTrickAnimationBusyState({
       ...idleTrickFields,
       revealCatchUp: true,
@@ -134,6 +150,44 @@ describe("trickAnimationBridge", () => {
     });
     assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
     assert.equal(isTrickAnimationBusy(), false);
+  });
+
+  it("does not block bots during revealCatchUp once any trick card is visible", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      revealedCount: 1,
+      revealTarget: 4,
+      peakPlayCount: 4,
+      displayedPlayCount: 0,
+    });
+    assert.equal(trickCardsVisiblyInProgress(getTrickAnimationBusyState()), true);
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+  });
+
+  it("does not block bots on pipelineActive when trick cards are already visible", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      pipelineActive: true,
+      revealedCount: 2,
+      revealTarget: 4,
+      peakPlayCount: 2,
+      displayedPlayCount: 2,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+  });
+
+  it("still blocks peakPlayCatchUp while no trick card is visible yet", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      peakPlayCount: 3,
+      revealedCount: 0,
+      displayedPlayCount: 0,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
   });
 
   it("does not block bots for drawPlayer during server draw phase", () => {
@@ -193,7 +247,8 @@ describe("trickAnimationBridge", () => {
       ...idleTrickFields,
       pipelineActive: true,
       peakPlayCount: 2,
-      displayedPlayCount: 1,
+      displayedPlayCount: 0,
+      revealedCount: 0,
     });
     const soft = evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS);
     assert.equal(soft.blocked, false);
