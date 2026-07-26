@@ -344,7 +344,10 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
   return { applied };
 }
 
-async function applyIdleRemovals(db, { roomId, sessionId, playerIds, sessionData, buyIn, nowMs }) {
+export async function applyIdleRemovals(
+  db,
+  { roomId, sessionId, playerIds, sessionData, buyIn, nowMs, forceAtJoin = false },
+) {
   if (!playerIds.length) return { removed: [] };
 
   const sessionRef = sessionDocRef(db, roomId, sessionId);
@@ -354,7 +357,7 @@ async function applyIdleRemovals(db, { roomId, sessionId, playerIds, sessionData
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists) return;
     const freshSession = sessionSnap.data();
-    if (!isHandoffWindow(freshSession)) return;
+    if (!isHandoffWindow(freshSession) && !forceAtJoin) return;
 
     const scoreSnap = await tx.get(scoresCollection(db, roomId, sessionId));
     const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
@@ -451,7 +454,7 @@ async function applyIdleRemovals(db, { roomId, sessionId, playerIds, sessionData
  */
 export async function enforcePublicTableIdlePolicy(
   db,
-  { roomId, sessionId, roomData, sessionData, nowMs = Date.now() },
+  { roomId, sessionId, roomData, sessionData, nowMs = Date.now(), skipGrace = false },
 ) {
   if (!shouldEnforcePublicTableIdle(roomData, sessionData)) {
     return { status: "skipped", reason: "not_enabled", sitOut: [], removed: [] };
@@ -497,11 +500,29 @@ export async function enforcePublicTableIdlePolicy(
     await skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs });
   }
 
+  let grace = null;
+  if (!skipGrace) {
+    try {
+      const { applyMixedZeroActiveGrace } = await import("./publicTableStaleReconcile.js");
+      grace = await applyMixedZeroActiveGrace(db, {
+        roomId,
+        sessionId,
+        roomData,
+        sessionData: postSession,
+        scoreById: postScoreById,
+        nowMs,
+      });
+    } catch (err) {
+      console.warn("[public-table-idle] zero-active grace skipped", err?.message ?? err);
+    }
+  }
+
   return {
     status: sitOutResult.applied.length || removeResult.removed.length ? "applied" : "noop",
     sitOut: sitOutResult.applied,
     removed: removeResult.removed,
     atHandoff,
+    grace,
   };
 }
 
