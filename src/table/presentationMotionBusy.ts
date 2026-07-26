@@ -38,3 +38,8 @@ export function resetPresentationMotionBusy(): void {
   trickCollectionActive = false;
   notify();
 }
+
+/** Drop all motion-busy subscribers — call when the table session unmounts. */
+export function disposePresentationMotionBusyListeners(): void {
+  listeners.clear();
+}

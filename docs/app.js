@@ -199,6 +199,7 @@ import {
   mountVersionFooter,
   startVersionUpdateWatcher,
 } from "./version-update.js";
+import { registerAppSessionLifecycle } from "./session-lifecycle.js";
 import { renderRulesView } from "./rules-view.js";
 import { initTheme, wireThemeToggle } from "./theme.js";
 import { renderFeedbackSettingsHtml, saveFeedbackPrefs } from "./feedback-prefs.js";
@@ -2277,14 +2278,13 @@ async function startRoomsSubscription() {
 }
 
 function stopRoomsSubscription() {
+  roomsSubscriptionGeneration += 1;
   if (myRoomsUnsub) {
     myRoomsUnsub();
     myRoomsUnsub = null;
   }
-  clearDetailSubs();
+  teardownRoomState();
   myRooms = [];
-  currentRoomId = null;
-  openSessionId = null;
 }
 
 function isRoomOwner(room, uid) {
@@ -2391,6 +2391,13 @@ function teardownTableOverlay({ restoreDetail = true } = {}) {
   if (restoreDetail) restoreRoomDetailAfterTable();
 }
 
+function cancelTableSessionSync() {
+  if (tableSyncFrame) {
+    cancelAnimationFrame(tableSyncFrame);
+    tableSyncFrame = 0;
+  }
+}
+
 function teardownRoomState() {
   const roomSnapshot = currentRoom;
   if (roomSnapshot) {
@@ -2399,6 +2406,7 @@ function teardownRoomState() {
   clearPendingSelfJoin();
   pendingOpenSessions.clear();
   clearDetailSubs();
+  cancelTableSessionSync();
   stopEnrollmentTimer();
   stopSessionCleanupTimers();
   clearSessionAutoPlayTimer();
@@ -5595,6 +5603,12 @@ if (isCapacitorNative()) {
 
 mountVersionFooter(VERSION_DISPLAY_LABEL, BUILD_STAMPED_AT);
 startVersionUpdateWatcher();
+registerAppSessionLifecycle({
+  onPageHide() {
+    teardownRoomState();
+    stopLeaderboardSubscription();
+  },
+});
 
 renderRoomsList();
 renderLeagues();
