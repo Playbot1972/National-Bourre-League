@@ -3,6 +3,7 @@ import {
   buildHandFlowSnapshot,
   canSubmitHandAction,
   HAND_FLOW_PHASE,
+  isRobotPlayerId,
 } from "../session/handPhaseMachine";
 import { isPlayerLockedInLiveHand } from "../session/liveHand";
 
@@ -17,6 +18,18 @@ export interface LocalActionInput {
   suppressTurn: boolean;
   handComplete: boolean;
   watchOnly?: boolean;
+}
+
+/** Bot play turns keep the visible ring even when hero local-action overlay suppresses humans. */
+export function resolveSuppressTurnForBot(input: {
+  suppressTurn: boolean;
+  session: Pick<TableSessionData, "phase" | "turnPlayerId">;
+}): boolean {
+  if (!input.suppressTurn) return false;
+  if (input.session.phase === "play" && isRobotPlayerId(input.session.turnPlayerId)) {
+    return false;
+  }
+  return true;
 }
 
 /**

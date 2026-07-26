@@ -17,6 +17,8 @@ import {
 const idleTrickFields = {
   pipelineActive: false,
   revealCatchUp: false,
+  revealedCount: 0,
+  revealTarget: 0,
   motionGateActive: false,
   peakPlayCount: 0,
   displayedPlayCount: 0,
@@ -109,6 +111,29 @@ describe("trickAnimationBridge", () => {
     });
     assert.equal(getTrickAnimationBusyState().revealCatchUp, true);
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
+  });
+
+  it("does not block bots when revealCatchUp flag is stale but cards are revealed", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      revealedCount: 4,
+      revealTarget: 4,
+      peakPlayCount: 4,
+      displayedPlayCount: 2,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "peakPlayCatchUp");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      revealedCount: 4,
+      revealTarget: 4,
+      peakPlayCount: 4,
+      displayedPlayCount: 4,
+    });
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), null);
+    assert.equal(isTrickAnimationBusy(), false);
   });
 
   it("does not block bots for drawPlayer during server draw phase", () => {
