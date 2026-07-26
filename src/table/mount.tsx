@@ -33,9 +33,14 @@ import {
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
+  disposeTrickAnimationBusyListeners,
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
-import { resetPresentationMotionBusy } from "./presentationMotionBusy";
+import {
+  resetPresentationMotionBusy,
+  disposePresentationMotionBusyListeners,
+} from "./presentationMotionBusy";
+import { resetStageFitMotionFreeze } from "./stageFitMotionFreeze";
 import "./table.css";
 import "./mobile-table.css";
 import "./theme/table-themes.css";
@@ -72,6 +77,9 @@ export function unmountTableSession() {
   rootEl = null;
   resetTrickAnimationBusyState();
   resetPresentationMotionBusy();
+  disposeTrickAnimationBusyListeners();
+  disposePresentationMotionBusyListeners();
+  resetStageFitMotionFreeze();
 }
 
 export {

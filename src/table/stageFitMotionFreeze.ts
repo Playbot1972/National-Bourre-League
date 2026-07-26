@@ -52,3 +52,9 @@ export function subscribeStageFitMotionFreeze(listener: () => void): () => void 
     unsubTrick();
   };
 }
+
+/** Reset freeze state and drop stage-fit subscribers on table unmount. */
+export function resetStageFitMotionFreeze(): void {
+  heroPlayMotionActive = false;
+  listeners.clear();
+}

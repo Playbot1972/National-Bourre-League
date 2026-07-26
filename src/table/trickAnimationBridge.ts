@@ -241,6 +241,11 @@ export function resetTrickAnimationBusyState(): void {
   setTrickAnimationBusyState(IDLE);
 }
 
+/** Drop all bridge subscribers — call when the table session unmounts. */
+export function disposeTrickAnimationBusyListeners(): void {
+  listeners.clear();
+}
+
 export function getTrickAnimationBusyState(): TrickAnimationBusyState {
   return state;
 }
