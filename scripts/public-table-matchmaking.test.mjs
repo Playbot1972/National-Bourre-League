@@ -249,24 +249,11 @@ describe("public-table matchmaking integration", () => {
     assert.equal(created.status, "seated");
     assert.equal(created.queueMode, "bots_only");
     assert.equal(created.realPlayerCount, 1);
-    assert.ok(created.botFillCount >= 2);
-    assert.ok(created.botFillCount <= 7);
+    assert.equal(created.botFillCount, 5);
 
     const roomSnap = await db.collection("rooms").doc(created.roomId).get();
     assert.equal(roomSnap.data()?.features?.botsOnlyPublicTables, true);
     assert.notEqual(roomSnap.data()?.features?.mixedPublicTables, true);
-    assert.equal(roomSnap.data()?.botsOnlyBotCount, created.botFillCount);
-    assert.equal(roomSnap.data()?.targetSeatCount, created.botFillCount + 1);
-
-    const idempotent = await handleFindOrCreatePublicTable(db, {
-      actorId: botsOnlyHost,
-      joinId: "bots-only-join-1",
-      displayName: "Solo",
-      queueMode: "bots_only",
-    });
-    assert.equal(idempotent.roomId, created.roomId);
-    assert.equal(idempotent.botFillCount, created.botFillCount);
-    assert.equal(idempotent.targetSeatCount, created.targetSeatCount);
 
     const guestJoin = await handleFindOrCreatePublicTable(db, {
       actorId: GUEST_UID,

@@ -35,7 +35,6 @@ import {
 import {
   PLAY_NOW_ANTE,
   PLAY_NOW_BUY_IN,
-  pickBotsOnlyBotCount,
   pickUniqueRobotNames,
   pickVacationRoomName,
 } from "./vendor/play-now.js";
@@ -784,15 +783,7 @@ async function createPublicTable(
   const sessionId = sessionRefDoc.id;
   const sessionKey = publicTableIndexKey(roomId, sessionId);
   const inviteCode = generateInviteCode();
-  let resolvedTargetSeatCount;
-  let botsOnlyBotCount = null;
-  if (botsOnly) {
-    botsOnlyBotCount = pickBotsOnlyBotCount();
-    resolvedTargetSeatCount = botsOnlyBotCount + 1;
-  } else {
-    resolvedTargetSeatCount = clampTargetSeatCount(targetSeatCount);
-  }
-  const botCount = botsOnly ? botsOnlyBotCount : Math.max(0, resolvedTargetSeatCount - 1);
+  const botCount = Math.max(0, targetSeatCount - 1);
   const botNames = pickUniqueRobotNames(botCount, [displayName]);
   const botIds = botNames.map(() => createBotPlayerId());
 
@@ -839,8 +830,7 @@ async function createPublicTable(
       status: "open",
       visibility: ROOM_VISIBILITY.PUBLIC,
       features: botsOnly ? { botsOnlyPublicTables: true } : { mixedPublicTables: true },
-      targetSeatCount: resolvedTargetSeatCount,
-      ...(botsOnlyBotCount != null ? { botsOnlyBotCount } : {}),
+      targetSeatCount,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
