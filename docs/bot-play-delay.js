@@ -191,7 +191,10 @@ export function createBotPlayDelayState(options = {}) {
             nextTurnKey: key,
           });
         }
-        if (pendingVisibleRingAck && pendingVisibleRingAck.turnKey !== key) {
+        if (
+          pendingVisibleRingAck &&
+          !isSameDurableBotPlayTurn(pendingVisibleRingAck.turnKey, key)
+        ) {
           logVisibleRing("visible-ring-ignored-stale", {
             turnKey: pendingVisibleRingAck.turnKey,
             pendingTurnKey: key,
@@ -235,11 +238,19 @@ export function createBotPlayDelayState(options = {}) {
    * @param {(extra: object) => void} [log]
    */
   function applyPendingVisibleRingAck(log) {
-    if (!pendingVisibleRingAck || pendingTurnKey !== pendingVisibleRingAck.turnKey) {
+    if (
+      !pendingVisibleRingAck ||
+      pendingTurnKey == null ||
+      !isSameDurableBotPlayTurn(pendingTurnKey, pendingVisibleRingAck.turnKey)
+    ) {
       return false;
     }
     const ack = pendingVisibleRingAck;
     pendingVisibleRingAck = null;
+    logVisibleRing("visible-ring-pending-applied", {
+      turnKey: ack.turnKey,
+      pendingTurnKey,
+    });
     return notifyVisibleRingShown({ ...ack, log });
   }
 
@@ -493,28 +504,32 @@ export function createBotThinkScheduleState(options = {}) {
     return true;
   }
 
-  function cardsRevealedForPresentation(pres) {
+  function cardsVisiblyReadyForBotSubmit(pres) {
     const target = pres.revealTarget ?? 0;
     const revealed = pres.revealedCount ?? 0;
-    return target > 0 && revealed >= target;
+    const displayed = pres.displayedPlayCount ?? 0;
+    if (displayed > 0) return true;
+    if (revealed > 0) return true;
+    if (target > 0 && revealed >= target) return true;
+    return false;
   }
 
   function presentationBlocksSubmit(pres, status) {
-    if (pres.suppressing) {
+    const cardsVisible = cardsVisiblyReadyForBotSubmit(pres);
+    const ringLatched = status.visibleRingStartAtMs != null;
+    if (pres.suppressing && !cardsVisible && !ringLatched) {
       return { block: true, reason: "turn_suppressed" };
     }
     if (pres.dealPresentationActive || pres.trickCollectionActive || pres.handPresenting) {
       return { block: true, reason: "presentation_busy" };
     }
-    if (pres.revealCatchUp && !cardsRevealedForPresentation(pres)) {
-      if (status.visibleRingStartAtMs == null) {
-        return { block: true, reason: "reveal_catch_up" };
-      }
+    if (pres.revealCatchUp && !cardsVisible) {
+      return { block: true, reason: "reveal_catch_up" };
     }
-    if (pres.pipelineActive && status.visibleRingStartAtMs == null) {
+    if (pres.pipelineActive && !cardsVisible) {
       return { block: true, reason: "pipeline_active" };
     }
-    if (pres.blocked && status.visibleRingStartAtMs == null) {
+    if (pres.blocked && !cardsVisible && !ringLatched) {
       return { block: true, reason: "presentation" };
     }
     return { block: false, reason: null };
