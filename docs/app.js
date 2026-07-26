@@ -146,6 +146,7 @@ import {
   isSessionMemberSyncPaused,
   resetSessionMemberSyncPause,
   getSessionMemberSyncBackoffMs,
+  logFirestoreError,
   sortScoresForDisplay,
   getPlayers,
   applyRankingResults,
