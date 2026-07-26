@@ -17,11 +17,6 @@ on:
         required: false
         default: "3"
         type: string
-  push:
-    branches:
-      - cursor/live-player-test-program-46fb
-    paths:
-      - .github/live-player-e2e-run
 
 concurrency:
   group: nightly-live-player-e2e
