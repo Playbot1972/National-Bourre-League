@@ -71,8 +71,6 @@ import {
   enforcePublicTableIdlePolicy,
   isIdleSitOutBlockingEnrollment,
   recordPublicTablePlayerActivity,
-  resolveIdleSitOutMidHandAction,
-  shouldEnforcePublicTableIdle,
 } from "./publicTableIdle.js";
 
 export const HAND_ENROLLMENT_MS = 12_000;
@@ -1291,55 +1289,6 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
     }
 
     const snapshot = buildHandFlowSnapshot({ session: freshSession });
-    if (shouldEnforcePublicTableIdle(roomSnap.data() ?? {}, freshSession)) {
-      const idleMidHand = resolveIdleSitOutMidHandAction(freshSession, scoreById);
-      if (idleMidHand) {
-        console.info(
-          "[idle-midhand]",
-          "auto-action",
-          JSON.stringify({
-            roomId,
-            sessionId,
-            requester: actorId,
-            action: idleMidHand.action,
-            playerId: idleMidHand.playerId,
-            phase: idleMidHand.phase,
-          }),
-        );
-        steps.push({
-          kind: `idle_${idleMidHand.action}`,
-          turnPlayerId: idleMidHand.playerId,
-          phase: idleMidHand.phase,
-        });
-        const seatActorId = idleMidHand.playerId;
-        switch (idleMidHand.action) {
-          case "draw_fold":
-            await handleFoldDraw(db, {
-              roomId,
-              sessionId,
-              playerId: idleMidHand.playerId,
-              actorId: seatActorId,
-            });
-            continue;
-          case "decision_pass":
-            await handleSetHandParticipation(db, {
-              roomId,
-              sessionId,
-              playerId: idleMidHand.playerId,
-              inHand: false,
-              actorId: seatActorId,
-              skipActivityBump: true,
-            });
-            continue;
-          case "play_bot":
-            await executeBotPlay(db, roomId, sessionId, idleMidHand.playerId, seatActorId);
-            continue;
-          default:
-            break;
-        }
-      }
-    }
-
     const hint = resolveBotAdvanceHint({
       snapshot,
       session: freshSession,
@@ -1833,16 +1782,14 @@ export async function handleAdvanceHandReveal(db, { roomId, sessionId, actorId, 
 
 export async function handleSetHandParticipation(
   db,
-  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0, skipActivityBump = false },
+  { roomId, sessionId, playerId, inHand, actorId, discardCount = 0 },
 ) {
   if (!playerId || !actorId) throw new HttpsError("invalid-argument", "Missing player");
   if (!canActForPlayer(playerId, actorId)) {
     throw new HttpsError("permission-denied", "You can only change your own hand participation");
   }
   await assertRoomMember(db, roomId, actorId);
-  if (!skipActivityBump) {
-    await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
-  }
+  await bumpPublicTableActivityBestEffort(db, roomId, sessionId, playerId);
 
   const ref = sessionRef(db, roomId, sessionId);
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
