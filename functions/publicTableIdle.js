@@ -296,9 +296,14 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
         : null;
 
     let enrollmentPatch = null;
+    const scoreSnapsById = {};
+    for (const pid of playerIds) {
+      scoreSnapsById[pid] = await tx.get(scoresCollection(db, roomId, sessionId).doc(pid));
+    }
+
     for (const pid of playerIds) {
       const scoreRef = scoresCollection(db, roomId, sessionId).doc(pid);
-      const scoreSnap = await tx.get(scoreRef);
+      const scoreSnap = scoreSnapsById[pid];
       if (!scoreSnap.exists) continue;
       const row = scoreSnap.data();
       if (row.sitOut === true) {
@@ -361,6 +366,11 @@ export async function applyIdleRemovals(
 
     const scoreSnap = await tx.get(scoresCollection(db, roomId, sessionId));
     const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const queueSnapsByHumanId = {};
+    for (const humanId of playerIds) {
+      queueSnapsByHumanId[humanId] = await tx.get(matchQueueDocRef(db, humanId));
+    }
+
     let players = [...(freshSession.players ?? [])];
     let tableOptInIds = [...(freshSession.tableOptInIds ?? [])];
     const takenNames = players.map((p) => p.displayName).filter(Boolean);
@@ -403,8 +413,8 @@ export async function applyIdleRemovals(
       tableOptInIds = tableOptInIds.map((id) => (id === humanId ? botId : id));
 
       const queueRef = matchQueueDocRef(db, humanId);
-      const queueSnap = await tx.get(queueRef);
-      if (queueSnap.exists) {
+      const queueSnap = queueSnapsByHumanId[humanId];
+      if (queueSnap?.exists) {
         tx.set(
           queueRef,
           {
