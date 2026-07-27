@@ -2640,6 +2640,19 @@ export async function handleRecordHand(
   } catch (err) {
     console.warn("handleRecordHand: bot auto-rebuy deferred", err);
   }
+  try {
+    const postSessionSnap = await sessionRef(db, roomId, sessionId).get();
+    if (postSessionSnap.exists) {
+      await applyPendingReplacements(db, {
+        roomId,
+        sessionId,
+        roomData: roomSnap.data() ?? {},
+        sessionData: postSessionSnap.data(),
+      });
+    }
+  } catch (err) {
+    console.warn("handleRecordHand: pending replacement deferred", err?.message ?? err);
+  }
   await recomputeSessionTotals(db, roomId, sessionId);
   return { status: "settled", settlement: mode, handNumber };
 }

@@ -145,4 +145,23 @@ describe("seat order", () => {
     assert.ok(layouts[1]!.x < layouts[0]!.x, "Bot 1 bottom-left of hero");
     assert.ok(layouts[7]!.x > layouts[0]!.x, "Bot 7 bottom-right of hero");
   });
+
+  it("anchors watch-only spectators on dealer instead of misplacing a bot at hero", () => {
+    const players: TablePlayer[] = [
+      { playerId: "host", displayName: "Host", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: true, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      { playerId: "bot_1", displayName: "Bot 1", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      { playerId: "bot_2", displayName: "Bot 2", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+    ];
+    const ordered = orderPlayersForTable(
+      players,
+      {
+        dealerId: "host",
+        participantIds: players.map((p) => p.playerId),
+        handEnrollment: null,
+      },
+      "spectator_uid",
+    );
+    assert.equal(ordered[0]?.playerId, "host");
+    assert.equal(ordered[1]?.playerId, "bot_1");
+  });
 });

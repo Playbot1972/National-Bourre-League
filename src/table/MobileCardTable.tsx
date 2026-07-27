@@ -131,8 +131,9 @@ export function MobileCardTable({
   const feltPlayers = players.map((player) => ({
     ...player,
     isSelf:
-      player.isSelf ||
-      (currentUserId != null && player.playerId === currentUserId),
+      !watchOnly &&
+      (player.isSelf ||
+        (currentUserId != null && player.playerId === currentUserId)),
   }));
 
   const rotated = orderPlayersForTable(feltPlayers, session, currentUserId);

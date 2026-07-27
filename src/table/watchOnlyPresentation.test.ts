@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   isPublicTableWatchOnly,
   isPublicTableSpectator,
+  spectatorCanJoinNextDeal,
 } from "../../docs/public-table-spectator.js";
 import { resolveTableActiveActorId } from "./turnCountdown";
 
@@ -66,6 +67,23 @@ describe("watch-only presentation gating", () => {
       }),
       "guest",
     );
+  });
+
+  it("spectator promotion eligibility requires a replaceable fill bot", () => {
+    const session = {
+      publicTable: true,
+      players: [
+        { playerId: "host", displayName: "Host" },
+        { playerId: "bot_fill", displayName: "Bot" },
+      ],
+    };
+    const scoresWithFill = [
+      { playerId: "host", bankroll: 1000 },
+      { playerId: "bot_fill", bankroll: 1000, botRole: "fill" },
+    ];
+    const scoresWithoutFill = [{ playerId: "host", bankroll: 1000 }];
+    assert.equal(spectatorCanJoinNextDeal(session, scoresWithFill), true);
+    assert.equal(spectatorCanJoinNextDeal(session, scoresWithoutFill), false);
   });
 });
 

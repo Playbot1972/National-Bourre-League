@@ -50,9 +50,15 @@ export function orderPlayersForTable(
     currentUserId ??
     players.find((p) => p.isSelf)?.playerId ??
     null;
-  const selfIdx = selfId ? ring.indexOf(selfId) : 0;
+  const selfInRing = Boolean(selfId && ring.includes(selfId));
+  const anchorId = selfInRing
+    ? selfId
+    : session.dealerId && ring.includes(session.dealerId)
+      ? session.dealerId
+      : null;
+  const anchorIdx = anchorId ? ring.indexOf(anchorId) : -1;
   const rotated =
-    selfIdx > 0 ? [...ring.slice(selfIdx), ...ring.slice(0, selfIdx)] : ring;
+    anchorIdx > 0 ? [...ring.slice(anchorIdx), ...ring.slice(0, anchorIdx)] : ring;
 
   return rotated
     .map((id) => byId.get(id))

@@ -1382,7 +1382,7 @@ function Oe(e) {
 		postedAntes: {},
 		scoreFlags: {},
 		sequence: 0
-	} } = e;
+	} } = e, o = Y(i, a), s = X(o);
 	if (q(i, t)) {
 		let e = Y(i, a);
 		return {
@@ -1391,29 +1391,29 @@ function Oe(e) {
 			newBankrolls: e.bankrolls,
 			carryOverPot: e.carryOverPot,
 			postedAntes: e.postedAntes,
-			invariants: Q(e, n.length * r),
+			invariants: Q(e, s),
 			version: "v1"
 		};
 	}
-	let o = Z(a, i), s = n.map((e) => ({
+	let c = Z(o, i), l = n.map((e) => ({
 		eventId: K(t, "BUY_IN_APPLIED", e),
 		actionId: t,
 		handId: null,
 		phase: "session_start",
-		sequence: o++,
+		sequence: c++,
 		type: "BUY_IN_APPLIED",
 		playerId: e,
 		amount: r,
 		metadata: {},
 		timestamp: Date.now()
-	})), c = Y([...i, ...s], a), l = n.length * r;
+	})), u = Y([...i, ...l], a), d = s + n.length * r;
 	return {
 		delta: Object.fromEntries(n.map((e) => [e, r])),
-		newEvents: s,
-		newBankrolls: c.bankrolls,
+		newEvents: l,
+		newBankrolls: u.bankrolls,
 		carryOverPot: 0,
 		postedAntes: {},
-		invariants: Q(c, l),
+		invariants: Q(u, d),
 		version: "v1"
 	};
 }

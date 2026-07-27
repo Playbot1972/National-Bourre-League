@@ -228,6 +228,7 @@ import {
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
+  spectatorCanJoinNextDeal,
 } from "./public-table-spectator.js";
 import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
@@ -4568,10 +4569,12 @@ function buildTableSessionProps(s) {
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
-    currentUserId: myUid,
+    currentUserId: watchOnly ? null : myUid,
     watchOnly,
     watchOnlyMessage: watchOnly
-      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed")
+      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed", {
+          canJoinNextDeal: spectatorCanJoinNextDeal(s, openScores),
+        })
       : undefined,
     playNowModeLabel: !watchOnly ? playNowModeLabel : undefined,
     idleStatusBanner: publicTableHeroIdleBanner(
