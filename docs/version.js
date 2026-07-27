@@ -1,7 +1,7 @@
 // Generated from package.json — run: npm run version:sync
-export const APP_VERSION = "1.04.43";
-export const BUILD_ID = "e7640f0a";
+export const APP_VERSION = "1.04.44";
+export const BUILD_ID = "c7cb1dc4";
 export const BUILD_CHANNEL = "production";
-export const BUILD_STAMPED_AT = "2026-07-27T01:43:11.749Z";
-export const VERSION_LABEL = "v1.04.43+e7640f0a";
-export const VERSION_DISPLAY_LABEL = "v1.04.43";
+export const BUILD_STAMPED_AT = "2026-07-27T02:46:07.674Z";
+export const VERSION_LABEL = "v1.04.44+c7cb1dc4";
+export const VERSION_DISPLAY_LABEL = "v1.04.44";
