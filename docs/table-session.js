@@ -15684,8 +15684,8 @@ function dp(e, t) {
 function fp(e, t, n) {
 	let r = new Map(e.map((e) => [e.playerId, e])), i = dp(e.map((e) => e.playerId), t);
 	if (!i.length) return e;
-	let a = n ?? e.find((e) => e.isSelf)?.playerId ?? null, o = a ? i.indexOf(a) : 0;
-	return (o > 0 ? [...i.slice(o), ...i.slice(0, o)] : i).map((e) => r.get(e)).filter((e) => e != null);
+	let a = n ?? e.find((e) => e.isSelf)?.playerId ?? null, o = a && i.includes(a) ? a : t.dealerId && i.includes(t.dealerId) ? t.dealerId : null, s = o ? i.indexOf(o) : -1;
+	return (s > 0 ? [...i.slice(s), ...i.slice(0, s)] : i).map((e) => r.get(e)).filter((e) => e != null);
 }
 //#endregion
 //#region src/table/layout/sevenPlayerMobileSeatMap.ts
@@ -17270,7 +17270,7 @@ function wh(e, t, n, r, i) {
 function Th({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: u = !1, showTrumpSuitReminder: d = !1, trumpHolderPresentation: f, privateHandReady: p = !1, currentUserId: m = null, legalPlayIndices: h, recommendedPlayIndex: _, recommendedDiscardIndices: v = [], handComplete: y = !1, actionFeedback: b, trickPresentation: x, handPresentation: S, microinteractions: C, instantTrickPlays: w = !1, turnCountdown: T = null, watchOnly: E = !1, bigPotEvent: D = null, onDismissTableEvent: O, onToggleInHand: k, onPassEnrollment: A, onTrickDelta: j, onSubmitDraw: M, onPassDraw: ee, onFoldDraw: te, onPlayCard: N, onReaction: P, onHeroUserActivity: F }) {
 	let I = t.map((e) => ({
 		...e,
-		isSelf: e.isSelf || m != null && e.playerId === m
+		isSelf: !E && (e.isSelf || m != null && e.playerId === m)
 	})), L = fp(I, e, m), R = L.length, z = `btable--p${Math.min(8, Math.max(2, R))}`, B = zf(R), V = Object.fromEntries(I.map((e) => [e.playerId, e.displayName])), H = Wp(), ne = e.sessionId, U = sm({
 		aspect: B,
 		sessionKey: ne
@@ -17655,7 +17655,7 @@ function Mh({ aspect: e, sessionKey: t }) {
 function Nh({ session: e, players: t, potMetrics: n, participantCount: r, enrollmentActive: i = !1, heroCards: a = [], revealedTrumpIndex: o = null, trumpMergeActive: s = !1, trumpDisabledIndex: c = null, hideCenterTrump: u = !1, showTrumpSuitReminder: d = !1, trumpHolderPresentation: f, privateHandReady: p = !1, currentUserId: m = null, legalPlayIndices: h, recommendedPlayIndex: _, recommendedDiscardIndices: v = [], handComplete: y = !1, actionFeedback: b, trickPresentation: x, handPresentation: S, microinteractions: C, instantTrickPlays: w = !1, turnCountdown: T = null, watchOnly: E = !1, bigPotEvent: D = null, onDismissTableEvent: O, onToggleInHand: k, onPassEnrollment: A, onTrickDelta: j, onSubmitDraw: M, onPassDraw: ee, onFoldDraw: te, onPlayCard: N, onHeroUserActivity: P }) {
 	let F = Oh() === "mobile-landscape" ? "landscape" : "portrait", I = t.map((e) => ({
 		...e,
-		isSelf: e.isSelf || m != null && e.playerId === m
+		isSelf: !E && (e.isSelf || m != null && e.playerId === m)
 	})), L = fp(I, e, m), R = L.filter((e) => !e.isSelf), z = L.find((e) => e.isSelf), B = z ? Rp(L.length, F) : null, V = L.length, H = `btable--p${Math.min(8, Math.max(2, V))}`, ne = Eh(R.length, F), U = Object.fromEntries(t.map((e) => [e.playerId, e.displayName])), re = Wp(), ie = e.sessionId, W = Mh({
 		aspect: ne,
 		sessionKey: ie

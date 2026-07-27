@@ -270,6 +270,25 @@ describe("money engine — event sourcing", () => {
     assert.equal(hasActionBeenApplied(r1.newEvents, actionId), true);
   });
 
+  it("processBuyIn with existing events uses cumulative chip total", () => {
+    const hostBuyIn = processBuyIn({
+      actionId: "session:create:host",
+      playerIds: ["host"],
+      buyInAmount: buyIn,
+    });
+    assert.equal(hostBuyIn.invariants.ok, true);
+
+    const guestBuyIn = processBuyIn({
+      actionId: "replacement:buyin:session-1:join-1",
+      playerIds: ["guest"],
+      buyInAmount: buyIn,
+      existingEvents: hostBuyIn.newEvents,
+    });
+    assert.equal(guestBuyIn.invariants.ok, true, guestBuyIn.invariants.errors.join("; "));
+    assert.equal(guestBuyIn.newBankrolls.host, buyIn);
+    assert.equal(guestBuyIn.newBankrolls.guest, buyIn);
+  });
+
   it("processHandSettlement replay matches settlement bankrolls", () => {
     const scoreById = freshScores();
     const deal = postedAnteHand(scoreById);

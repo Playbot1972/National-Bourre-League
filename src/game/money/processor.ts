@@ -83,6 +83,9 @@ export function processBuyIn(input: ProcessBuyInInput): MoneyEngineResult {
     },
   } = input;
 
+  const beforeState = replayEvents(existingEvents, ledger);
+  const beforeTotal = ledgerChipTotal(beforeState);
+
   if (hasActionBeenApplied(existingEvents, actionId)) {
     const replayed = replayEvents(existingEvents, ledger);
     return {
@@ -91,12 +94,12 @@ export function processBuyIn(input: ProcessBuyInInput): MoneyEngineResult {
       newBankrolls: replayed.bankrolls,
       carryOverPot: replayed.carryOverPot,
       postedAntes: replayed.postedAntes,
-      invariants: buildInvariantReport(replayed, playerIds.length * buyInAmount),
+      invariants: buildInvariantReport(replayed, beforeTotal),
       version: MONEY_ENGINE_VERSION,
     };
   }
 
-  let seq = nextSequence(ledger, existingEvents);
+  let seq = nextSequence(beforeState, existingEvents);
   const newEvents: MoneyEvent[] = playerIds.map((pid) => ({
     eventId: makeEventId(actionId, "BUY_IN_APPLIED", pid),
     actionId,
@@ -111,7 +114,7 @@ export function processBuyIn(input: ProcessBuyInInput): MoneyEngineResult {
   }));
 
   const replayed = replayEvents([...existingEvents, ...newEvents], ledger);
-  const expected = playerIds.length * buyInAmount;
+  const expected = beforeTotal + playerIds.length * buyInAmount;
   return {
     delta: Object.fromEntries(playerIds.map((pid) => [pid, buyInAmount])),
     newEvents,

@@ -35,10 +35,13 @@ export function playNowMatchmakingStatusMessage(mode) {
   return "Finding a mixed public table…";
 }
 
-/** Watch-only banner prefix for mixed public tables. */
-export function playNowWatchOnlyMessage(mode) {
+/** Watch-only banner for mixed public tables. */
+export function playNowWatchOnlyMessage(mode, { canJoinNextDeal = true } = {}) {
   const label = playNowQueueModeShortLabel(mode);
-  return `${label} table — watching this hand; you'll join the next deal.`;
+  if (canJoinNextDeal) {
+    return `${label} table — watching this hand; you'll join the next deal.`;
+  }
+  return `${label} table — watching this hand; waiting for an open seat at the next deal.`;
 }
 
 /** @returns {typeof PLAY_NOW_QUEUE_MODE[keyof typeof PLAY_NOW_QUEUE_MODE]} */
