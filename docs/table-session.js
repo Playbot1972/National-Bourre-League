@@ -15969,7 +15969,7 @@ function Up(e, t, n) {
 	};
 }
 function Wp(e, t, n, r = !1) {
-	return Up(e + 1, t, {
+	return Up(r ? e : e + 1, t, {
 		isMobile: !0,
 		isSelf: !1,
 		orientation: n,
@@ -17905,10 +17905,10 @@ function Bh({ session: e, players: t, potMetrics: n, participantCount: r, enroll
 								className: "btable__seats btable-mobile__seats",
 								"aria-label": "Players at the table",
 								children: [R.map((e, t) => {
-									let n = Wp(t, L.length, F, E), r = fe.find((t) => t.playerId === e.playerId) ?? e;
+									let n = Wp(t, L.length, F, E), r = fe.find((t) => t.playerId === e.playerId) ?? e, i = E ? t : t + 1;
 									return /* @__PURE__ */ (0, g.jsx)("div", {
-										className: `btable__seat-slot btable__seat-slot--${t}`,
-										"data-seat-index": t + 1,
+										className: `btable__seat-slot btable__seat-slot--${i}`,
+										"data-seat-index": i,
 										children: /* @__PURE__ */ (0, g.jsx)(up, {
 											player: r,
 											region: n.region,

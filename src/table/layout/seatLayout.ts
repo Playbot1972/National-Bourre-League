@@ -148,7 +148,8 @@ export function resolveMobileOpponentLayout(
   orientation: MobileOrientation,
   spectatorView = false,
 ): ResolvedSeatLayout {
-  const seatIndex = opponentIndex + 1;
+  // Watch-only: full ring indices (hero slot unused). Seated: skip index 0 for self.
+  const seatIndex = spectatorView ? opponentIndex : opponentIndex + 1;
   return resolveSeatLayout(seatIndex, totalPlayers, {
     isMobile: true,
     isSelf: false,

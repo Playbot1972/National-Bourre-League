@@ -405,11 +405,12 @@ export function MobileCardTable({
                 watchOnly,
               );
               const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
+              const seatIndex = watchOnly ? i : i + 1;
               return (
                 <div
                   key={player.playerId}
-                  className={`btable__seat-slot btable__seat-slot--${i}`}
-                  data-seat-index={i + 1}
+                  className={`btable__seat-slot btable__seat-slot--${seatIndex}`}
+                  data-seat-index={seatIndex}
                 >
                   <Seat
                     player={seatPlayer}

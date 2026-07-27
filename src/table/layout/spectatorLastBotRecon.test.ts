@@ -43,6 +43,11 @@ function isCenterAdjacent(x: number, y: number, region: string): boolean {
   return sideMidRail || bottomCenter;
 }
 
+/** Pre-fix mobile overflow slot — bottom-center hero-like space. */
+function isBottomCenterOverflow(x: number, y: number, region: string): boolean {
+  return region === "bottom" && Math.abs(x - 50) < 8 && y >= 36 && y <= 58;
+}
+
 describe("spectator last-bot overlap recon", () => {
   it("4p desktop: last bot maps to right mid-rail overlap slot (index 3)", () => {
     const { ordered, lastBot, total } = mixedTable(3);
@@ -60,19 +65,40 @@ describe("spectator last-bot overlap recon", () => {
     assert.ok(isCenterAdjacent(layout.x, layout.y, layout.region));
   });
 
-  it("mobile watch-only: last bot always lands bottom-center (seatIndex overflow)", () => {
+  it("mobile watch-only (pre-fix): last bot overflowed to bottom-center via seatIndex === total", () => {
+    const { ordered, lastBot, total } = mixedTable(3);
+    const lastOppIdx = ordered.indexOf(lastBot);
+    const legacy = resolveMobileOpponentLayout(lastOppIdx, total, "portrait", false);
+    assert.equal(legacy.seatIndex, total);
+    assert.ok(isBottomCenterOverflow(legacy.x, legacy.y, legacy.region));
+  });
+
+  it("mobile watch-only: last bot uses full ring index and avoids bottom-center overflow", () => {
     for (const nBots of [1, 2, 3, 4, 5, 6, 7]) {
       const { ordered, lastBot, total } = mixedTable(nBots);
       const lastOppIdx = ordered.indexOf(lastBot);
       assert.equal(lastOppIdx, total - 1);
 
-      const layout = resolveMobileOpponentLayout(lastOppIdx, total, "portrait", false);
-      assert.equal(layout.seatIndex, total, `n=${total}: last bot uses seatIndex ${total}`);
+      const layout = resolveMobileOpponentLayout(lastOppIdx, total, "portrait", true);
       assert.ok(
-        isCenterAdjacent(layout.x, layout.y, layout.region),
-        `n=${total}: last bot ${lastBot} at (${layout.x},${layout.y}) ${layout.region}`,
+        layout.seatIndex < total,
+        `n=${total}: seatIndex ${layout.seatIndex} must stay within ring`,
+      );
+      assert.equal(layout.seatIndex, lastOppIdx);
+      assert.equal(
+        isBottomCenterOverflow(layout.x, layout.y, layout.region),
+        false,
+        `n=${total}: last bot ${lastBot} must not land bottom-center (${layout.x},${layout.y})`,
       );
     }
+  });
+
+  it("seated mobile opponents still skip hero slot (opponentIndex + 1)", () => {
+    const layout = resolveMobileOpponentLayout(0, 4, "portrait", false);
+    assert.equal(layout.seatIndex, 1);
+    const lastOpp = resolveMobileOpponentLayout(2, 4, "portrait", false);
+    assert.equal(lastOpp.seatIndex, 3);
+    assert.equal(isBottomCenterOverflow(lastOpp.x, lastOpp.y, lastOpp.region), false);
   });
 
   it("seatedIds join order is preserved in ring and rotated array", () => {
