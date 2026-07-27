@@ -148,7 +148,7 @@ export function buildSetupRosterHtml(
         const chips = sc != null ? formatRiskStake(scoreBankroll(sc, buyIn)) : null;
         const canRemove =
           isOwner && sessionObj.status !== "final" && (robot || guest) && entry.playerId;
-        return `<li class="game-setup-roster__row" data-testid="setup-roster-entry">
+        return `<li class="game-setup-roster__row" data-testid="setup-roster-entry" data-player-id="${escape(entry.playerId)}">
           <span class="dot${robot ? " dot--robot" : guest ? " dot--guest" : ""}"></span>
           <span class="game-setup-roster__name">${escape(entry.displayName)}</span>
           <em class="game-setup-roster__role">${escape(roleLabel)}</em>

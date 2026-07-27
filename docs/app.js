@@ -71,6 +71,7 @@ import {
   readGameSetupBourreFromDom,
   mergeBourreSettingsWithPending,
 } from "./room-detail-view.js";
+import { rosterPlayerOrder } from "./table-roster-order.js";
 import {
   buildRoomDetailHash,
   buildRoomsListHash,
@@ -2012,18 +2013,32 @@ function tableReadyPlayerCount(sessionObj) {
 }
 
 function tableReadyRoster(sessionObj) {
-  return mergeScoresWithMembers(
+  const merged = mergeScoresWithMembers(
     openScores,
     currentMembers,
     sessionObj?.players || [],
     sessionObj,
-  ).map(
-    (sc) => ({
-      playerId: sc.playerId,
-      displayName: sc.displayName,
-      isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
-    }),
   );
+  const ordered = sortScoresForDisplay(
+    merged,
+    rosterPlayerOrder(currentMembers, sessionObj?.players || []),
+  );
+  return ordered.map((sc) => ({
+    playerId: sc.playerId,
+    displayName: sc.displayName,
+    isRobot: sc.isRobot === true || isRobotPlayerId(sc.playerId),
+  }));
+}
+
+function effectiveTablePlayerCount(sessionObj) {
+  const ready = tableReadyPlayerCount(sessionObj);
+  if (ready >= 2) return ready;
+  if (!sessionObj || sessionObj.status === "final") return ready;
+  if (tablePlayOpen || sessionPlayInFlight) {
+    const memberHumans = currentMembers.filter((m) => m.userId).length;
+    if (memberHumans >= 2) return memberHumans;
+  }
+  return ready;
 }
 
 function bumpTableMountGeneration() {
@@ -2446,7 +2461,12 @@ function applyRoomNavFromLocation() {
     return;
   }
 
-  if (tablePlayOpen) {
+  if (tablePlayOpen && !tableOpen) {
+    const targetRoomId = roomId && currentRoomId === roomId ? roomId : currentRoomId;
+    if (targetRoomId) {
+      navigateToRoomTable(targetRoomId, { replace: true });
+      return;
+    }
     teardownTableOverlay({ restoreDetail: false });
   }
   if (currentRoomId !== roomId) {
@@ -3410,6 +3430,10 @@ async function openTablePlay({ fromHistory = false } = {}) {
   document.body.classList.add("table-play-active");
   updateTablePlayTitle(openSessionObj);
 
+  if (!fromHistory && currentRoomId) {
+    navigateToRoomTable(currentRoomId, { replace: silentTableEntry });
+  }
+
   const needsDeal = startupAnalysis.needsEnrollment;
 
   try {
@@ -3463,10 +3487,6 @@ async function openTablePlay({ fromHistory = false } = {}) {
     await screen.orientation?.lock?.("landscape");
   } catch {
     /* orientation lock optional */
-  }
-
-  if (!fromHistory && currentRoomId) {
-    navigateToRoomTable(currentRoomId, { replace: silentTableEntry });
   }
 }
 
@@ -4260,9 +4280,7 @@ function buildTableSessionProps(s) {
     s.players || [],
     s,
   );
-  const memberOrder = currentMembers.map((m) => ({ playerId: m.userId }));
-  const sessionOrder = (s.players || []).map((p) => ({ playerId: p.playerId }));
-  const playerOrder = memberOrder.length ? memberOrder : sessionOrder;
+  const memberOrder = rosterPlayerOrder(currentMembers, s.players || []);
   const myUid = session?.uid ?? null;
   const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
   const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
@@ -4270,7 +4288,7 @@ function buildTableSessionProps(s) {
   const playNowModeLabel = publicQueueMode
     ? `${playNowQueueModeShortLabel(publicQueueMode)} table`
     : undefined;
-  let displayScores = sortScoresForDisplay(mergedScores, playerOrder);
+  let displayScores = sortScoresForDisplay(mergedScores, memberOrder);
   if (watchOnly) {
     displayScores = displayScores.filter((sc) => sc.playerId !== myUid);
   } else if (myUid && !displayScores.some((sc) => sc.playerId === myUid)) {
@@ -4605,12 +4623,12 @@ async function syncTableSession(openSessionObj, { attempt = 0 } = {}) {
   const sessionObj = resolveOpenSessionObj(openSessionObj);
   const mountGen = tableMountGeneration;
 
-  if (!sessionObj || sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2) {
+  if (!sessionObj || sessionObj.status === "final" || effectiveTablePlayerCount(sessionObj) < 2) {
     unmountTableSessionHost();
     if (
       tablePlayOpen &&
       sessionObj &&
-      (sessionObj.status === "final" || tableReadyPlayerCount(sessionObj) < 2)
+      (sessionObj.status === "final" || effectiveTablePlayerCount(sessionObj) < 2)
     ) {
       closeTablePlay();
     }
