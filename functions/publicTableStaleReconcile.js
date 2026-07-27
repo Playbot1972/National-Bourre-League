@@ -159,8 +159,23 @@ export async function convertMixedRoomToBotsOnly(db, { roomId, sessionId, nowMs 
   });
 
   try {
-    const { rebuildPublicTableIndex } = await import("./publicTable.js");
+    const { rebuildPublicTableIndex, clearPublicTableMatchmakingPool } = await import(
+      "./publicTable.js"
+    );
     await rebuildPublicTableIndex(db, roomId, sessionId);
+    const roomSnap = await db.collection("rooms").doc(roomId).get();
+    const sessionSnap = await sessionDocRef(db, roomId, sessionId).get();
+    const roomData = roomSnap.data() ?? {};
+    const sessionData = sessionSnap.data() ?? {};
+    const buyIn = Math.max(
+      1,
+      Number(sessionData.buyInAmount ?? roomData?.bourreSettings?.buyInAmount) || 1000,
+    );
+    const ante = Math.max(
+      1,
+      Number(sessionData.handStake ?? roomData?.bourreSettings?.anteAmount) || 50,
+    );
+    await clearPublicTableMatchmakingPool(db, buyIn, ante);
   } catch (err) {
     console.warn("[mixed-stale-reconcile] index rebuild after bots-only fallback deferred", err?.message ?? err);
   }
