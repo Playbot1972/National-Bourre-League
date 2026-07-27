@@ -13,6 +13,7 @@ import {
   publicTableIndexKey,
   isPublicVisibility,
   roomHasPublicTableFeatures,
+  PUBLIC_TABLE_DEFAULT_TARGET_SEATS,
 } from "./vendor/public-table-schema.js";
 import {
   isMixedPublicTablesServerEnabled,
@@ -66,6 +67,14 @@ function moneyEventsCollection(db, roomId, sessionId) {
 
 function matchQueueDocRef(db, userId) {
   return db.collection(MATCH_QUEUE_COLLECTION).doc(userId);
+}
+
+function isActiveQueueStatus(status) {
+  return (
+    status === MATCH_QUEUE_STATUS.QUEUED ||
+    status === MATCH_QUEUE_STATUS.SPECTATING ||
+    status === MATCH_QUEUE_STATUS.SEATED
+  );
 }
 
 /** True when session is between hands and safe for roster mutation. */
@@ -419,4 +428,186 @@ export async function applyPendingReplacements(db, { roomId, sessionId, roomData
     appliedJoinIds: txResult.appliedJoinIds ?? newlyAppliedJoinIds,
     skipped,
   };
+}
+
+function clampTargetSeatCountForJoin(roomData) {
+  const raw = roomData?.targetSeatCount ?? PUBLIC_TABLE_DEFAULT_TARGET_SEATS;
+  return Math.max(2, Math.min(8, Number(raw) || PUBLIC_TABLE_DEFAULT_TARGET_SEATS));
+}
+
+/**
+ * Seat a joiner immediately at a hand-boundary (no pendingJoins spectator hop).
+ * Uses open capacity when available; otherwise replaces the first eligible fill bot.
+ */
+export async function seatJoinerAtHandoff(
+  db,
+  { roomId, sessionId, roomData, sessionData, actorId, displayName, joinId },
+) {
+  if (!shouldRunPublicTableReplacement(roomData, sessionData)) {
+    return { status: "skipped", reason: "not_enabled" };
+  }
+  if (!isHandoffWindow(sessionData)) {
+    return { status: "skipped", reason: "not_handoff" };
+  }
+
+  const buyIn = resolveSessionBuyIn(sessionData, roomData?.bourreSettings ?? {});
+  const existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
+  const sessionKey = publicTableIndexKey(roomId, sessionId);
+  const targetSeatCount = clampTargetSeatCountForJoin(roomData);
+
+  const txResult = await db.runTransaction(async (tx) => {
+    const sessionRef = sessionDocRef(db, roomId, sessionId);
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists) return { status: "skipped", reason: "session_missing" };
+    const freshSession = sessionSnap.data();
+    if (freshSession.status === "final") return { status: "skipped", reason: "session_final" };
+    if (!isHandoffWindow(freshSession)) return { status: "skipped", reason: "not_handoff" };
+
+    const scoreCol = scoresCollection(db, roomId, sessionId);
+    const scoreSnap = await tx.get(scoreCol);
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    const humanScoreSnap = await tx.get(scoreCol.doc(actorId));
+    if (humanScoreSnap.exists && humanScoreSnap.data()?.spectator !== true) {
+      return { status: "already_seated" };
+    }
+
+    const queueSnap = await tx.get(matchQueueDocRef(db, actorId));
+    if (queueSnap.exists) {
+      const q = queueSnap.data();
+      if (isActiveQueueStatus(q.status) && q.activeJoinId && q.activeJoinId !== joinId) {
+        return { status: "skipped", reason: "queue_join_id_mismatch" };
+      }
+    }
+
+    let players = [...(freshSession.players ?? [])];
+    let tableOptInIds = [...(freshSession.tableOptInIds ?? [])];
+    const pendingJoins = { ...(freshSession.pendingJoins ?? {}) };
+    delete pendingJoins[actorId];
+
+    const seatedCount = scoreSnap.docs.filter((d) => {
+      const row = d.data();
+      return row?.spectator !== true;
+    }).length;
+    const openSeats = Math.max(0, targetSeatCount - seatedCount);
+    const fillBots = selectEligibleFillBots(players, scoreById);
+
+    let bankroll = buyIn;
+    const moneyEventsToWrite = [];
+    let moneyEventCount = 0;
+    const buyInResult = buildReplacementBuyIn(sessionId, joinId, actorId, buyIn, existingMoneyEvents);
+    if (isMoneyEngineV1(freshSession)) {
+      if (!buyInResult.invariants?.ok) {
+        return { status: "skipped", reason: "bankroll_init_unsafe" };
+      }
+      bankroll = buyInResult.newBankrolls[actorId] ?? buyIn;
+      if (buyInResult.newEvents.length) {
+        moneyEventsToWrite.push(...buyInResult.newEvents);
+        moneyEventCount += buyInResult.newEvents.length;
+      }
+    } else {
+      const legacy = buildSessionBuyInMoney(sessionId, [actorId], buyIn);
+      if (legacy.newEvents?.length) {
+        moneyEventsToWrite.push(...legacy.newEvents);
+        moneyEventCount += legacy.newEvents.length;
+      }
+    }
+    if (bankroll <= 0) {
+      return { status: "skipped", reason: "ante_eligibility_failure" };
+    }
+
+    const scorePatch = {
+      sessionId,
+      roomId,
+      playerId: actorId,
+      displayName,
+      bankroll,
+      net: deriveScoreNet(bankroll, buyIn),
+      tricksWon: 0,
+      handsWon: 0,
+      total: 0,
+      joinedAtHandCount: freshSession.handCount ?? 0,
+      lastActivityTimestamp: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    let seatPath = null;
+
+    if (openSeats > 0 && players.length < targetSeatCount) {
+      seatPath = "open";
+      players.push({ playerId: actorId, displayName });
+      if (!tableOptInIds.includes(actorId)) {
+        tableOptInIds.push(actorId);
+      }
+    } else if (fillBots.length > 0) {
+      seatPath = "fill_bot";
+      const bot = fillBots[0];
+      const { playerId: botId, seatIndex } = bot;
+      const botScoreSnap = await tx.get(scoreCol.doc(botId));
+      if (!botScoreSnap.exists || botScoreSnap.data()?.botRole !== BOT_ROLE.FILL) {
+        return { status: "skipped", reason: "fill_bot_missing" };
+      }
+      if (seatIndex < 0 || seatIndex >= players.length || players[seatIndex]?.playerId !== botId) {
+        return { status: "skipped", reason: "seat_mismatch" };
+      }
+      tx.delete(scoreCol.doc(botId));
+      tx.delete(privateHandDocRef(db, roomId, sessionId, botId));
+      players[seatIndex] = { playerId: actorId, displayName };
+      tableOptInIds = tableOptInIds.map((id) => (id === botId ? actorId : id));
+    } else {
+      return { status: "noop", reason: "no_seat_path" };
+    }
+
+    tx.set(scoreCol.doc(actorId), scorePatch, { merge: true });
+
+    tx.set(
+      matchQueueDocRef(db, actorId),
+      {
+        sessionKey,
+        roomId,
+        sessionId,
+        activeJoinId: joinId,
+        status: MATCH_QUEUE_STATUS.SEATED,
+        seatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    if (moneyEventsToWrite.length) {
+      const col = moneyEventsCollection(db, roomId, sessionId);
+      for (const event of moneyEventsToWrite) {
+        tx.set(col.doc(event.eventId), {
+          ...event,
+          metadata: event.metadata || {},
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
+    const sessionUpdate = {
+      players,
+      pendingJoins,
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (tableOptInIds.length) {
+      sessionUpdate.tableOptInIds = tableOptInIds;
+    }
+    if (moneyEventCount > 0) {
+      sessionUpdate.moneyEngineVersion = MONEY_ENGINE_VERSION;
+      sessionUpdate.moneySequence = nextMoneySequence(freshSession, moneyEventCount);
+    }
+    tx.update(sessionRef, sessionUpdate);
+
+    return { status: "seated", seatPath };
+  });
+
+  if (txResult.status === "seated" || txResult.status === "already_seated") {
+    try {
+      const { rebuildPublicTableIndex } = await import("./publicTable.js");
+      await rebuildPublicTableIndex(db, roomId, sessionId);
+    } catch (err) {
+      console.warn("[public-table-join] index rebuild deferred", err?.message ?? err);
+    }
+  }
+
+  return txResult;
 }
