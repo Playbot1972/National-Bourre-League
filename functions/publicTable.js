@@ -49,6 +49,12 @@ import {
 } from "./vendor/session-presets.js";
 import { isRobotPlayerId, privateHandRef, scoresCol, sessionRef } from "./gameHandlers.js";
 import { isActiveLiveHuman, reconcileMixedTableStaleMembers } from "./publicTableStaleReconcile.js";
+import {
+  canPromoteJoinerAtNextBoundary,
+  canSeatJoinerImmediately,
+  rankMixedJoinCandidates,
+} from "./publicTableJoinPolicy.js";
+import { seatJoinerAtHandoff } from "./publicTableReplacement.js";
 
 const ACTIVE_QUEUE_STATUSES = new Set([
   MATCH_QUEUE_STATUS.QUEUED,
@@ -227,6 +233,8 @@ export function buildPublicTableResult({
   openSeats,
   spectatorCount = 0,
   queueMode = PLAY_NOW_QUEUE_MODE.MIXED,
+  canPromoteAtNextBoundary = null,
+  joinDisposition = null,
 }) {
   return {
     ok: true,
@@ -241,6 +249,8 @@ export function buildPublicTableResult({
     openSeats,
     spectatorCount,
     queueMode: normalizePlayNowQueueMode(queueMode),
+    ...(canPromoteAtNextBoundary != null ? { canPromoteAtNextBoundary } : {}),
+    ...(joinDisposition ? { joinDisposition } : {}),
   };
 }
 
@@ -734,7 +744,22 @@ async function queryJoinableIndexCandidates(db, buyInAmount, anteAmount) {
     if (!isJoinableIndexDoc(data)) continue;
     candidates.push({ id: doc.id, ...data });
   }
-  return rankPublicTableCandidates(candidates);
+  const contextByKey = {};
+  await Promise.all(
+    candidates.map(async (candidate) => {
+      try {
+        const ctx = await loadAuthoritativeTableContext(db, candidate.roomId, candidate.sessionId);
+        contextByKey[candidate.id] = {
+          sessionData: ctx.sessionData,
+          roomData: ctx.roomData,
+          scoreRows: ctx.scoreRows,
+        };
+      } catch {
+        /* tier falls back to index-only fields */
+      }
+    }),
+  );
+  return rankMixedJoinCandidates(candidates, contextByKey);
 }
 
 async function verifyCandidateFromSource(db, candidate) {
@@ -758,7 +783,8 @@ async function verifyCandidateFromSource(db, candidate) {
 }
 
 /**
- * Phase 3: all non-creator joins are spectating/pending only — no score row, no session.players.
+ * Join an existing mixed public table — immediate seat at handoff when safe,
+ * otherwise watch-only / pending for next-boundary promotion.
  */
 async function joinPublicTableAsSpectator(
   db,
@@ -769,6 +795,7 @@ async function joinPublicTableAsSpectator(
     roomId,
     sessionId,
     mode = "joined-existing",
+    entryPath = "mixed-matchmaking",
   },
 ) {
   const sessionKey = publicTableIndexKey(roomId, sessionId);
@@ -795,9 +822,15 @@ async function joinPublicTableAsSpectator(
   await rebuildPublicTableIndexFromSource(db, roomId, sessionId).catch(() => {});
 
   const refreshedCtx = await loadAuthoritativeTableContext(db, roomId, sessionId);
+
   const existingPending = refreshedCtx.pendingJoins[actorId];
   if (existingPending?.joinId === joinId && existingPending?.status === PENDING_JOIN_STATUS.SPECTATING) {
     const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
+    const canPromote = canPromoteJoinerAtNextBoundary(
+      refreshedCtx.sessionData,
+      refreshedCtx.roomData,
+      refreshedCtx.scoreRows,
+    );
     return buildPublicTableResult({
       mode,
       status: "spectating",
@@ -810,6 +843,27 @@ async function joinPublicTableAsSpectator(
       openSeats: indexDoc.openSeats,
       spectatorCount: indexDoc.spectatorCount,
       queueMode: indexDoc.queueMode,
+      canPromoteAtNextBoundary: canPromote,
+      joinDisposition: "pending",
+    });
+  }
+
+  if (existingPending?.joinId === joinId && existingPending?.status === PENDING_JOIN_STATUS.SEATED) {
+    const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
+    return buildPublicTableResult({
+      mode,
+      status: "seated",
+      roomId,
+      sessionId,
+      joinId,
+      targetSeatCount: indexDoc.targetSeatCount,
+      realPlayerCount: indexDoc.realPlayerCount,
+      botFillCount: indexDoc.botFillCount,
+      openSeats: indexDoc.openSeats,
+      spectatorCount: indexDoc.spectatorCount,
+      queueMode: indexDoc.queueMode,
+      canPromoteAtNextBoundary: true,
+      joinDisposition: "seated",
     });
   }
 
@@ -819,6 +873,43 @@ async function joinPublicTableAsSpectator(
 
   await ensureRoomMembership(db, roomId, actorId, displayName);
 
+  if (canSeatJoinerImmediately(refreshedCtx.sessionData, refreshedCtx.roomData, refreshedCtx.scoreRows)) {
+    const seated = await seatJoinerAtHandoff(db, {
+      roomId,
+      sessionId,
+      roomData: refreshedCtx.roomData,
+      sessionData: refreshedCtx.sessionData,
+      actorId,
+      displayName,
+      joinId,
+    });
+    if (seated.status === "seated" || seated.status === "already_seated") {
+      const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
+      return buildPublicTableResult({
+        mode,
+        status: "seated",
+        roomId,
+        sessionId,
+        joinId,
+        targetSeatCount: indexDoc.targetSeatCount,
+        realPlayerCount: indexDoc.realPlayerCount,
+        botFillCount: indexDoc.botFillCount,
+        openSeats: indexDoc.openSeats,
+        spectatorCount: indexDoc.spectatorCount,
+        queueMode: indexDoc.queueMode,
+        canPromoteAtNextBoundary: true,
+        joinDisposition: seated.seatPath === "open" ? "immediate_open" : "immediate_fill_bot",
+      });
+    }
+    console.warn("[public-table] immediate seat skipped — falling back to pending", {
+      roomId,
+      sessionId,
+      actorId,
+      entryPath,
+      reason: seated.reason ?? seated.status,
+    });
+  }
+
   const handCount = refreshedCtx.sessionData.handCount ?? 0;
   const pendingEntry = {
     joinId,
@@ -826,6 +917,7 @@ async function joinPublicTableAsSpectator(
     queuedAtHandCount: handCount,
     displayName,
     queuedAt: FieldValue.serverTimestamp(),
+    entryPath,
   };
 
   await db.runTransaction(async (tx) => {
@@ -877,6 +969,12 @@ async function joinPublicTableAsSpectator(
   });
 
   const indexDoc = await rebuildPublicTableIndexFromSource(db, roomId, sessionId);
+  const postCtx = await loadAuthoritativeTableContext(db, roomId, sessionId);
+  const canPromote = canPromoteJoinerAtNextBoundary(
+    postCtx.sessionData,
+    postCtx.roomData,
+    postCtx.scoreRows,
+  );
   return buildPublicTableResult({
     mode,
     status: "spectating",
@@ -889,6 +987,8 @@ async function joinPublicTableAsSpectator(
     openSeats: indexDoc.openSeats,
     spectatorCount: indexDoc.spectatorCount,
     queueMode: indexDoc.queueMode,
+    canPromoteAtNextBoundary: canPromote,
+    joinDisposition: "pending",
   });
 }
 
@@ -1336,6 +1436,7 @@ export async function handleJoinPublicTable(db, data) {
     roomId,
     sessionId,
     mode: "joined-existing",
+    entryPath: "room-code",
   });
 }
 

@@ -212,7 +212,7 @@ import {
   pickUniqueRobotNames,
   playNowBourreSettings,
 } from "./play-now.js";
-import { resolvePlayNowEntryPath } from "./public-table-rollout.js";
+import { resolvePlayNowEntryPath, isPublicTableSession } from "./public-table-rollout.js";
 import {
   resolvePublicTableQueueMode,
   roomHasPublicTableFeatures,
@@ -221,18 +221,27 @@ import {
   loadPlayNowQueueMode,
   playNowMatchmakingStatusMessage,
   playNowQueueModeShortLabel,
-  playNowWatchOnlyMessage,
   readPlayNowQueueModeFromDom,
   savePlayNowQueueMode,
 } from "./play-now-queue-mode.js";
+import {
+  clearPublicTableJoinResult,
+  rememberPublicTableJoinResult,
+  publicTableJoinStatusMessage,
+  publicTableWatchOnlyBannerMessage,
+} from "./public-table-join.js";
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
   spectatorCanJoinNextDeal,
 } from "./public-table-spectator.js";
-import { gameFindOrCreatePublicTable, gameLeavePublicTable, gameTouchPublicTableActivity } from "./game-functions.js";
+import {
+  gameFindOrCreatePublicTable,
+  gameJoinPublicTable,
+  gameLeavePublicTable,
+  gameTouchPublicTableActivity,
+} from "./game-functions.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
-import { isPublicTableSession } from "./public-table-rollout.js";
 import {
   clearStoredPublicTableJoinId,
   forceNewPublicTableJoinId,
@@ -2525,9 +2534,62 @@ async function clearPublicTableQueueBestEffort(room) {
     const left = await gameLeavePublicTable();
     if (left?.cleared !== false) {
       clearStoredPublicTableJoinId(session.uid);
+      clearPublicTableJoinResult();
     }
   } catch (err) {
     console.warn("gameLeavePublicTable (best-effort):", err);
+  }
+}
+
+let publicTableInviteJoinInFlight = false;
+
+/**
+ * Room-code entry for public mixed tables: target this room/session only via gameJoinPublicTable.
+ * Private rooms keep legacy membership-only join.
+ */
+async function maybeAuthorizePublicTableJoinByInvite(roomId) {
+  if (!session?.uid || pendingSelfJoinRoomId !== roomId) return;
+  if (!roomHasPublicTableFeatures(currentRoom)) return;
+  if (resolvePlayNowEntryPath() !== "public-matchmaking") return;
+  if (publicTableInviteJoinInFlight) return;
+
+  const publicSession = currentSessions.find(
+    (s) => isPublicTableSession(s) && s.status !== "final",
+  );
+  if (!publicSession?.id) return;
+
+  publicTableInviteJoinInFlight = true;
+  try {
+    const { joinId } = resolvePublicTableJoinId(session.uid);
+    const result = await gameJoinPublicTable({
+      joinId,
+      roomId,
+      sessionId: publicSession.id,
+      displayName: session.displayName,
+    });
+    saveStoredPublicTableJoinId(session.uid, joinId);
+    rememberPublicTableJoinResult(result);
+    const joinMsg = publicTableJoinStatusMessage(result);
+    if (joinMsg) {
+      showRoomsError(joinMsg, result?.status === "seated" ? "success" : "info");
+    }
+    if (result?.status === "spectating" || result?.status === "seated") {
+      if (openSessionId !== publicSession.id) {
+        openSession(publicSession.id);
+      }
+      if (!tablePlayOpen) {
+        await triggerSessionPlay("invite-public-table");
+      }
+    }
+  } catch (err) {
+    console.warn("maybeAuthorizePublicTableJoinByInvite:", err);
+    if (!isPublicTableJoinIdMismatchError(err)) {
+      showRoomsError(
+        formatClientGameError(err, "Could not join the public table session."),
+      );
+    }
+  } finally {
+    publicTableInviteJoinInFlight = false;
   }
 }
 
@@ -2919,8 +2981,13 @@ async function runPlayNowFlow() {
         ({ joinId, result } = await recoverPublicTableQueueAndRetry());
       }
       saveStoredPublicTableJoinId(uid, joinId);
+      rememberPublicTableJoinResult(result);
       if (!result?.roomId || !result?.sessionId) {
         throw new Error("Public matchmaking did not return a table.");
+      }
+      const joinMsg = publicTableJoinStatusMessage(result);
+      if (joinMsg) {
+        showRoomsError(joinMsg, result.status === "seated" ? "success" : "info");
       }
       publicRoomId = result.roomId;
       openRoom(result.roomId, { silent: true });
@@ -3295,6 +3362,9 @@ function openRoom(roomId, options = {}) {
         openSession(sessions[0].id);
       } else {
         scheduleRenderRoomDetail();
+      }
+      if (pendingSelfJoinRoomId === roomId) {
+        void maybeAuthorizePublicTableJoinByInvite(roomId);
       }
     }),
   );
@@ -4572,8 +4642,9 @@ function buildTableSessionProps(s) {
     currentUserId: watchOnly ? null : myUid,
     watchOnly,
     watchOnlyMessage: watchOnly
-      ? playNowWatchOnlyMessage(publicQueueMode ?? "mixed", {
-          canJoinNextDeal: spectatorCanJoinNextDeal(s, openScores),
+      ? publicTableWatchOnlyBannerMessage({
+          mode: publicQueueMode ?? "mixed",
+          canPromoteAtNextBoundary: spectatorCanJoinNextDeal(s, openScores),
         })
       : undefined,
     playNowModeLabel: !watchOnly ? playNowModeLabel : undefined,
