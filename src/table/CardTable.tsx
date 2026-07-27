@@ -301,6 +301,7 @@ export function CardTable({
         countClass,
         hasActiveTurn ? "btable-wrap--has-active-turn" : "",
         clockwiseDealing ? "btable-wrap--clockwise-dealing" : "",
+        watchOnly ? "btable-wrap--spectator" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -379,6 +380,7 @@ export function CardTable({
             const layout = resolveSeatLayout(i, rotated.length, {
               isMobile: false,
               isSelf: player.isSelf,
+              spectatorView: watchOnly,
             });
             const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
             return (

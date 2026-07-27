@@ -17,6 +17,7 @@ import {
   isFivePlayerMobile,
   resolveFivePlayerMobileSeat,
 } from "./fivePlayerMobileSeatMap";
+import { applySpectatorSeatLayoutGuard } from "./spectatorSeatLayout";
 
 export type HandLane = "below" | "side";
 
@@ -63,11 +64,19 @@ function clampMobilePlacement(
   return { ...placement, x, y };
 }
 
+export type ResolveSeatLayoutOpts = {
+  isMobile: boolean;
+  isSelf: boolean;
+  orientation?: MobileOrientation;
+  /** Watch-only spectator — nudge side-rail seats away from center play. */
+  spectatorView?: boolean;
+};
+
 /** Desktop / full-ring seat slot (index 0 = bottom / hero). */
 export function resolveSeatLayout(
   seatIndex: number,
   total: number,
-  opts: { isMobile: boolean; isSelf: boolean; orientation?: MobileOrientation },
+  opts: ResolveSeatLayoutOpts,
 ): ResolvedSeatLayout {
   if (
     opts.isMobile &&
@@ -118,10 +127,13 @@ export function resolveSeatLayout(
     opts.isMobile && opts.orientation
       ? clampMobilePlacement(placement, opts.orientation)
       : placement;
+  const guarded = opts.spectatorView
+    ? applySpectatorSeatLayoutGuard(bounded)
+    : bounded;
   return {
-    ...bounded,
+    ...guarded,
     seatIndex,
-    handLane: resolveHandLane(bounded, {
+    handLane: resolveHandLane(guarded, {
       isMobile: opts.isMobile,
       isSelf: opts.isSelf,
       total,
@@ -134,12 +146,15 @@ export function resolveMobileOpponentLayout(
   opponentIndex: number,
   totalPlayers: number,
   orientation: MobileOrientation,
+  spectatorView = false,
 ): ResolvedSeatLayout {
-  const seatIndex = opponentIndex + 1;
+  // Watch-only: full ring indices (hero slot unused). Seated: skip index 0 for self.
+  const seatIndex = spectatorView ? opponentIndex : opponentIndex + 1;
   return resolveSeatLayout(seatIndex, totalPlayers, {
     isMobile: true,
     isSelf: false,
     orientation,
+    spectatorView,
   });
 }
 
@@ -184,7 +199,11 @@ export function resolveMobileSelfLayout(
 /** Deterministic seat map for regression tests (player count = total seats). */
 export function buildSeatLayoutMap(
   total: number,
-  opts: { isMobile: boolean; orientation?: MobileOrientation } = { isMobile: false },
+  opts: {
+    isMobile: boolean;
+    orientation?: MobileOrientation;
+    spectatorView?: boolean;
+  } = { isMobile: false },
 ): ResolvedSeatLayout[] {
   const n = Math.max(2, Math.min(8, total));
   return Array.from({ length: n }, (_, seatIndex) =>
@@ -192,6 +211,7 @@ export function buildSeatLayoutMap(
       isMobile: opts.isMobile,
       isSelf: seatIndex === 0,
       orientation: opts.orientation,
+      spectatorView: opts.spectatorView,
     }),
   );
 }

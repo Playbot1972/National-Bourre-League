@@ -100,4 +100,16 @@ describe("watch-only UI wiring", () => {
     assert.match(src, /suppressTurnUrgency = suppressTurn \|\| watchOnly/);
     assert.match(src, /isOnTurn: suppressTurnUrgency/);
   });
+
+  it("CardTable applies spectator layout class and passes watchOnly to seat layout", () => {
+    const cardTable = readFileSync(join(root, "src/table/CardTable.tsx"), "utf8");
+    const mobileTable = readFileSync(join(root, "src/table/MobileCardTable.tsx"), "utf8");
+    const seatLayout = readFileSync(join(root, "src/table/layout/seatLayout.ts"), "utf8");
+    assert.match(cardTable, /btable-wrap--spectator/);
+    assert.match(cardTable, /spectatorView: watchOnly/);
+    assert.match(mobileTable, /btable-wrap--spectator/);
+    assert.match(mobileTable, /watchOnly,\s*\)/);
+    assert.match(seatLayout, /applySpectatorSeatLayoutGuard/);
+    assert.doesNotMatch(cardTable, /table-center-cluster[\s\S]*Seat/);
+  });
 });
