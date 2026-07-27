@@ -9,6 +9,11 @@ import {
   resolveHandLane,
   resolveMobileOpponentLayout,
 } from "./seatLayout";
+import {
+  CENTER_PLAY_BBOX,
+  isTopTrumpRailExempt,
+  pointInCenterPlayBbox,
+} from "./spectatorSeatLayout";
 import type { TablePlayer } from "../types";
 
 function botPlayers(count: number, selfIndex = 0): TablePlayer[] {
@@ -357,5 +362,60 @@ describe("dealer-relative seating", () => {
     const next = map[1]!;
     assert.ok(next.x < hero.x, "next seat should be left of hero");
     assert.equal(next.region, "left");
+  });
+});
+
+function assertOutsideCenterPlayBbox(
+  layout: { x: number; y: number; region: string },
+  label: string,
+) {
+  if (isTopTrumpRailExempt(layout)) return;
+  assert.equal(
+    pointInCenterPlayBbox(layout.x, layout.y),
+    false,
+    `${label} anchor (${layout.x}, ${layout.y}) must stay outside center-play bbox`,
+  );
+}
+
+describe("spectator layout guard — center-play clearance", () => {
+  for (const total of [4, 7, 8] as const) {
+    it(`desktop watch-only ${total}p keeps seated anchors outside center-play bbox`, () => {
+      const map = buildSeatLayoutMap(total, { isMobile: false, spectatorView: true });
+      for (const seat of map) {
+        assertOutsideCenterPlayBbox(seat, `seat ${seat.seatIndex}`);
+        if (seat.region === "left" || seat.region === "right") {
+          assert.ok(
+            seat.y < CENTER_PLAY_BBOX.yMin || seat.y > CENTER_PLAY_BBOX.yMax,
+            `side-rail seat ${seat.seatIndex} y=${seat.y} should clear center band`,
+          );
+        }
+      }
+    });
+  }
+
+  it("nudges 7p left mid-rail away from y=46.5 center band", () => {
+    const normal = buildSeatLayoutMap(7, { isMobile: false });
+    const spectator = buildSeatLayoutMap(7, { isMobile: false, spectatorView: true });
+    assert.ok(Math.abs(normal[2]!.y - 46.5) < 0.1);
+    assert.equal(spectator[2]!.y, 33);
+    assert.ok(spectator[2]!.x <= 4);
+  });
+
+  it("mobile portrait opponents clear center band in spectator view", () => {
+    for (const total of [4, 6] as const) {
+      const opponents = total - 1;
+      const layouts = Array.from({ length: opponents }, (_, i) =>
+        resolveMobileOpponentLayout(i, total, "portrait", true),
+      );
+      for (const layout of layouts) {
+        assertOutsideCenterPlayBbox(layout, `mobile opponent ${layout.seatIndex}`);
+      }
+    }
+  });
+
+  it("does not alter seated-player layout when spectatorView is false", () => {
+    const normal = buildSeatLayoutMap(7, { isMobile: false });
+    const explicit = buildSeatLayoutMap(7, { isMobile: false, spectatorView: false });
+    assert.deepEqual(normal, explicit);
   });
 });

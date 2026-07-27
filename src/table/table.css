@@ -1604,6 +1604,11 @@
   transform-origin: 50% 100%;
 }
 
+/* Watch-only spectators — compact crowns so side-rail seats stay clear of center play */
+.btable-wrap--spectator .bseat:not(.bseat--self) .bseat__hole-cards--crown {
+  --hole-crown-scale: 0.52;
+}
+
 /* Seat crown keeps classic red backs — not four-color blue deck backs. */
 .btable-room[data-deck-mode="four-color"] .bseat__hole-cards--crown .pcard--back {
   background: none;

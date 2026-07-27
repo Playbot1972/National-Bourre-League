@@ -51,11 +51,13 @@ export function orderPlayersForTable(
     players.find((p) => p.isSelf)?.playerId ??
     null;
   const selfInRing = Boolean(selfId && ring.includes(selfId));
+  const firstHuman = ring.find((id) => !id.startsWith("bot_"));
   const anchorId = selfInRing
     ? selfId
-    : session.dealerId && ring.includes(session.dealerId)
-      ? session.dealerId
-      : null;
+    : firstHuman ??
+      (session.dealerId && ring.includes(session.dealerId)
+        ? session.dealerId
+        : null);
   const anchorIdx = anchorId ? ring.indexOf(anchorId) : -1;
   const rotated =
     anchorIdx > 0 ? [...ring.slice(anchorIdx), ...ring.slice(0, anchorIdx)] : ring;

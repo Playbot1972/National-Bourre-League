@@ -321,6 +321,7 @@ export function MobileCardTable({
         countClass,
         hasActiveTurn ? "btable-wrap--has-active-turn" : "",
         clockwiseDealing ? "btable-wrap--clockwise-dealing" : "",
+        watchOnly ? "btable-wrap--spectator" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -401,6 +402,7 @@ export function MobileCardTable({
                 i,
                 rotated.length,
                 orientation,
+                watchOnly,
               );
               const seatPlayer = displayPlayers.find((p) => p.playerId === player.playerId) ?? player;
               return (

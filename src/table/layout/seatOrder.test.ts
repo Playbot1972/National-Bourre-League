@@ -164,4 +164,25 @@ describe("seat order", () => {
     assert.equal(ordered[0]?.playerId, "host");
     assert.equal(ordered[1]?.playerId, "bot_1");
   });
+
+  it("watch-only with bot dealer anchors on first human (index 0) not fill bot", () => {
+    const players: TablePlayer[] = [
+      { playerId: "host", displayName: "Host", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      { playerId: "bot_fill", displayName: "Fill", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: true, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      { playerId: "bot_2", displayName: "Bot 2", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+      { playerId: "bot_3", displayName: "Bot 3", handsWon: 0, inHand: true, tricksThisHand: 0, isSelf: false, isDealer: false, isWinner: false, canToggleInHand: false, canEditTricks: false },
+    ];
+    const ordered = orderPlayersForTable(
+      players,
+      {
+        dealerId: "bot_fill",
+        participantIds: players.map((p) => p.playerId),
+        handEnrollment: null,
+      },
+      "spectator_uid",
+    );
+    assert.equal(ordered[0]?.playerId, "host");
+    assert.equal(ordered[1]?.playerId, "bot_fill");
+    assert.equal(ordered[2]?.playerId, "bot_2");
+  });
 });
