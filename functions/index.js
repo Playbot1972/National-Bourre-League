@@ -27,6 +27,7 @@ import {
   handleLeavePublicTable,
   handlePublicTableMemberRemoved,
 } from "./publicTable.js";
+import { handleTouchPublicTableActivity } from "./publicTableIdle.js";
 import {
   handleApplyFreeSessionRebuy,
   handleGrantChipPurchase,
