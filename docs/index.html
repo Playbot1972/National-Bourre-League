@@ -311,9 +311,9 @@
       <div class="modal__dialog modal__dialog--wide" role="dialog" aria-modal="true" aria-labelledby="create-room-title">
         <button class="modal__close" type="button" data-close-create-room aria-label="Close">&times;</button>
         <h2 class="modal__title" id="create-room-title">Create a room</h2>
-        <p class="muted small">Set house rules for your table. You can edit these anytime in the room.</p>
-        <form class="create-room-form" id="create-room-form">
-          <fieldset class="create-room-form__section">
+        <p class="muted small create-room-form__step-hint">Name your room and set house rules, then tap Create Room.</p>
+        <form class="create-room-form" id="create-room-form" data-step="basics">
+          <fieldset class="create-room-form__section" data-create-step="basics">
             <legend class="house-rules-form__legend">Room basics</legend>
           <label class="create-room-form__field">
             <span>Room name <span class="muted">(optional)</span></span>
@@ -340,7 +340,7 @@
           </fieldset>
           </fieldset>
 
-          <fieldset class="create-room-form__section">
+          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="settings">
             <legend class="house-rules-form__legend">Bourré settings</legend>
             <div class="bourre-settings-form">
               <label class="bourre-settings__row">
@@ -378,18 +378,18 @@
             </div>
           </fieldset>
 
-          <fieldset class="create-room-form__section">
+          <fieldset class="create-room-form__section create-room-form__section--hidden" data-create-step="settings">
             <legend class="house-rules-form__legend">Regional tables</legend>
-            <p class="muted small session-preset-note">Each room can open up to 4 regional tables. After creating the room, use <strong>Table setup</strong> to open a table and add players.</p>
+            <p class="muted small session-preset-note">Each room can open up to 4 regional tables. Your first table opens automatically after you tap <strong>Create Room</strong>.</p>
           </fieldset>
 
           <div class="create-room-form__actions">
             <button
               type="submit"
-              class="btn btn--primary create-room-form__submit"
+              class="btn btn--primary session-action-pill session-action-pill--play create-room-form__new-session create-room-form__submit"
               id="create-room-submit"
             >
-              Create room
+              Create Room
             </button>
             <button type="button" class="btn" data-close-create-room>Cancel</button>
           </div>

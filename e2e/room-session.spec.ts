@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { createRoom, emulatorReady, openNewSession, signUpHost } from "./helpers/roomFlow";
+import { createRoom, emulatorReady, signUpHost } from "./helpers/roomFlow";
 
 const useEmulators = process.env.PLAYWRIGHT_EMULATORS === "1";
 
@@ -56,10 +56,7 @@ test.describe("Room buy-in and session ante dropdowns", () => {
     await expect(page.locator("#room-buy-in-amount")).not.toHaveValue("10");
   });
 
-  test("Open table creates a regional tab after confirm", async ({ page }) => {
-    await page.waitForTimeout(300);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#new-session").click({ force: true });
+  test("create room auto-opens the first regional table", async ({ page }) => {
     await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
     await expect(page.locator(".session-tab").first()).toContainText(/hand/i);
     await expect(page.getByTestId("session-setup-window")).toBeVisible();
@@ -67,9 +64,6 @@ test.describe("Room buy-in and session ante dropdowns", () => {
   });
 
   test("add robot form is in session panel while waiting for players", async ({ page }) => {
-    await page.waitForTimeout(300);
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#new-session").click({ force: true });
     await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId("add-player-robot")).toBeVisible();
     await page.getByTestId("add-player-robot").check();

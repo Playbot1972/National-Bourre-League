@@ -22,6 +22,7 @@ async function createRoom(page) {
   await page.waitForSelector("#view-rooms", { state: "visible" });
   await page.locator("#create-room").click();
   await page.locator("#create-room-name").fill("Trace Room");
+  await page.locator("#create-room-form").evaluate((f) => f.requestSubmit());
   await page.locator("#create-room-ante").selectOption({ index: 1 });
   await page.locator("#create-room-form").evaluate((f) => f.requestSubmit());
   await page.waitForSelector(".room-detail__title", { timeout: 15_000 });
@@ -29,9 +30,12 @@ async function createRoom(page) {
 
 async function openSessionWithBot(page) {
   await page.waitForTimeout(300);
-  page.once("dialog", (d) => d.accept());
-  await page.locator("#new-session").click({ force: true });
-  await page.waitForSelector('[data-testid="session-setup-window"]', { timeout: 15_000 });
+  const setupWindow = page.locator('[data-testid="session-setup-window"]');
+  if (!(await setupWindow.isVisible().catch(() => false))) {
+    page.once("dialog", (d) => d.accept());
+    await page.locator("#new-session").click({ force: true });
+    await setupWindow.waitFor({ state: "visible", timeout: 15_000 });
+  }
   await page.getByTestId("add-player-robot").check();
   await page.getByTestId("session-add-player-pill").click();
   await page.waitForSelector('.game-setup-roster__role:has-text("robot")', { timeout: 15_000 });

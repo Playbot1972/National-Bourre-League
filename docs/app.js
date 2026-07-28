@@ -1023,6 +1023,10 @@ let currentSessions = [];
 let creatingSession = false;
 /** One-shot scroll/focus target after room create or new session. */
 let roomSetupFocus = null;
+/** Create-room modal wizard step: basics → settings. */
+let createRoomStep = "basics";
+/** Prevents duplicate page-2 create + auto-open while in flight. */
+let createRoomSubmitInFlight = false;
 /** Prevents duplicate Play Now fast-start while in flight. */
 let playNowInFlight = false;
 /** Suppress room-detail roster UI while Play Now assembles the table in the background. */
@@ -2781,6 +2785,67 @@ function readBourreSettingsFromCreateForm(form) {
   });
 }
 
+function setCreateRoomSubmitBusy(busy) {
+  const btn = $("#create-room-submit", createRoomForm);
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.setAttribute("aria-busy", busy ? "true" : "false");
+  btn.textContent = busy ? "Creating…" : "Create Room";
+}
+
+function setCreateRoomStep(step) {
+  createRoomStep = step;
+  if (!createRoomForm) return;
+  createRoomForm.dataset.step = step;
+  for (const section of createRoomForm.querySelectorAll("[data-create-step]")) {
+    const sectionStep = section.dataset.createStep;
+    section.classList.toggle("create-room-form__section--hidden", sectionStep !== step);
+  }
+  const title = $("#create-room-title");
+  const hint = createRoomForm.querySelector(".create-room-form__step-hint");
+  if (title) {
+    title.textContent = step === "basics" ? "Create a room" : "Bourré settings";
+  }
+  if (hint) {
+    hint.textContent =
+      step === "basics"
+        ? "Name your room and set house rules, then tap Create Room."
+        : "Set buy-in and ante, then tap Create Room to open your table.";
+  }
+  if (step === "settings") {
+    $("#create-room-buy-in", createRoomForm)?.focus();
+  }
+}
+
+async function openTableAfterRoomCreate(roomId) {
+  roomSetupFocus = "game-setup";
+  openRoom(roomId);
+  await waitUntil(
+    () =>
+      currentRoomId === roomId &&
+      currentRoom &&
+      session?.uid &&
+      currentMembers.some((m) => m.userId === session.uid) &&
+      roomDetailView.querySelector("[data-testid='game-setup-panel']"),
+    { label: "Create room detail load" },
+  );
+  if (
+    session?.uid === currentRoom?.ownerId &&
+    !openSessionId &&
+    !creatingSession &&
+    !currentSessions.some((s) => s.status !== "final")
+  ) {
+    try {
+      await onNewSession();
+    } catch (err) {
+      console.error("auto onNewSession after create:", err);
+      showRoomsError(
+        formatClientGameError(err, "Room created — tap Open table to begin."),
+      );
+    }
+  }
+}
+
 function openCreateRoomModal() {
   if (!createRoomModal || !createRoomForm) return;
   showRoomsError("");
@@ -2800,6 +2865,9 @@ function openCreateRoomModal() {
     const field = createRoomForm.querySelector(`#create-house-rule-${id}`);
     if (field) field.value = DEFAULT_HOUSE_RULES[id];
   }
+  setCreateRoomStep("basics");
+  setCreateRoomSubmitBusy(false);
+  createRoomSubmitInFlight = false;
   createRoomModal.hidden = false;
   document.body.classList.add("modal-open");
   if (nameEl) nameEl.focus();
@@ -2809,6 +2877,9 @@ function closeCreateRoomModal() {
   if (!createRoomModal) return;
   createRoomModal.hidden = true;
   document.body.classList.remove("modal-open");
+  setCreateRoomStep("basics");
+  setCreateRoomSubmitBusy(false);
+  createRoomSubmitInFlight = false;
 }
 
 const joinCodeInput = $("#join-code");
@@ -3131,21 +3202,48 @@ function goToPrivateRooms() {
 }
 
 if (createRoomForm) {
+  createRoomForm.addEventListener("keydown", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.id === "create-room-name" && createRoomStep === "basics" && e.key === "Enter") {
+      e.preventDefault();
+      setCreateRoomStep("settings");
+    }
+  });
+
   createRoomForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (!session) return;
+    if (!session || createRoomSubmitInFlight) return;
+    if (createRoomStep === "basics") {
+      setCreateRoomStep("settings");
+      return;
+    }
+    if (createRoomStep !== "settings") return;
+
     showRoomsError("");
     const name = $("#create-room-name")?.value.trim() || "";
     const houseRules = readHouseRulesFromForm(createRoomForm, "create-house-rule-");
     const bourreSettings = readBourreSettingsFromCreateForm(createRoomForm);
+
+    createRoomSubmitInFlight = true;
+    setCreateRoomSubmitBusy(true);
     try {
       const roomId = await createRoom({ owner: session, name, houseRules, bourreSettings });
       closeCreateRoomModal();
-      roomSetupFocus = "game-setup";
-      openRoom(roomId);
+      try {
+        await openTableAfterRoomCreate(roomId);
+      } catch (err) {
+        console.error("openTableAfterRoomCreate:", err);
+        showRoomsError(
+          formatClientGameError(err, "Room created — tap Open table to finish setup."),
+        );
+      }
     } catch (err) {
       console.error(err);
       showRoomsError("Could not create the room. Please try again.");
+    } finally {
+      createRoomSubmitInFlight = false;
+      setCreateRoomSubmitBusy(false);
     }
   });
 }

@@ -70,6 +70,7 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
     await page.locator("#create-room").click();
     await expect(modal).toBeVisible();
     await page.locator("#create-room-name").fill(name);
+    await page.locator("#create-room-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
     await page.locator("#create-room-ante").selectOption({ index: 1 });
     await page.locator("#create-room-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
 
@@ -93,10 +94,15 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
 export async function openNewSession(page: Page) {
   await ensureTableOverlayClosed(page);
   await page.waitForTimeout(300);
+  const setupWindow = page.getByTestId("session-setup-window");
+  if (await setupWindow.isVisible().catch(() => false)) {
+    await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
+    return;
+  }
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("#new-session").click({ force: true });
   await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
-  await expect(page.getByTestId("session-setup-window")).toBeVisible({ timeout: 15_000 });
+  await expect(setupWindow).toBeVisible({ timeout: 15_000 });
 }
 
 /** Host counts as one seat; add robots until `totalPlayers` are seated. */
