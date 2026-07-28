@@ -174,6 +174,23 @@ export type TableActionFeedback = {
   message?: string;
 };
 
+export interface RebuyPurchasePackView {
+  id: string;
+  name: string;
+  chips: number;
+  chipsLabel: string;
+  priceLabel: string;
+  badge?: "popular" | "best_value" | null;
+}
+
+export interface RebuyPurchaseConfig {
+  packs: RebuyPurchasePackView[];
+  freeRebuyEnabled: boolean;
+  freeRebuyAmountLabel?: string;
+  onPurchasePack: (packId: string) => Promise<void>;
+  onFreeRebuy?: () => Promise<void>;
+}
+
 export interface TableSessionViewProps {
   session: TableSessionData;
   players: TablePlayer[];
@@ -188,6 +205,8 @@ export interface TableSessionViewProps {
   splitPotEnabled?: boolean;
   /** When true, broke players may rebuy between hands. */
   rebuyEnabled?: boolean;
+  /** Chip pack purchase flow when the hero is out of chips. */
+  rebuyPurchase?: RebuyPurchaseConfig;
   splitSharePerWinner?: number;
   voteStatus: string;
   enrollmentActive?: boolean;

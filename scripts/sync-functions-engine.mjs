@@ -24,6 +24,7 @@ const copies = [
   ["docs/public-table-schema.js", "public-table-schema.js"],
   ["docs/public-table-rollout.js", "public-table-rollout.js"],
   ["docs/session-presets.js", "session-presets.js"],
+  ["docs/chip-packs.js", "chip-packs.js"],
 ];
 
 for (const [src, dest] of copies) {

@@ -241,6 +241,13 @@ import {
   gameLeavePublicTable,
   gameTouchPublicTableActivity,
 } from "./game-functions.js";
+import {
+  CHIP_PURCHASE_PACKS,
+  formatChipAmount,
+  formatPackPrice,
+  purchaseChipPackAndGrant,
+  applyFreeSessionRebuy,
+} from "./chip-purchase.js";
 import { publicTableHeroIdleBanner } from "./public-table-idle.js";
 import {
   clearStoredPublicTableJoinId,
@@ -4344,6 +4351,46 @@ function driveClientBotsForCurrentTurn(s, scores, actorId, { reason = "fallback"
   processRobotActionsInner(s, scores, { clientFallbackOnly: true });
 }
 
+function buildRebuyPurchaseConfig(sessionObj) {
+  const myUid = session?.uid ?? null;
+  if (!myUid || !currentRoomId || !openSessionId || !sessionObj) return undefined;
+
+  const bourre = normalizeBourreSettings(currentRoom?.bourreSettings);
+  const sessionBuyIn = sessionObj.buyInAmount ?? bourre.buyInAmount ?? 0;
+
+  return {
+    packs: CHIP_PURCHASE_PACKS.map((pack) => ({
+      id: pack.id,
+      name: pack.name,
+      chips: pack.chips,
+      chipsLabel: formatChipAmount(pack.chips),
+      priceLabel: formatPackPrice(pack.priceUsd),
+      badge: pack.badge,
+    })),
+    freeRebuyEnabled: bourre.rebuyEnabled === true,
+    freeRebuyAmountLabel: formatChipAmount(sessionBuyIn),
+    onPurchasePack: async (packId) => {
+      await purchaseChipPackAndGrant({
+        roomId: currentRoomId,
+        sessionId: openSessionId,
+        packId,
+      });
+      const refreshed = await refreshOpenSessionFromServer(currentRoomId, openSessionId);
+      if (refreshed) await syncTableSession(refreshed);
+    },
+    onFreeRebuy: bourre.rebuyEnabled
+      ? async () => {
+          await applyFreeSessionRebuy({
+            roomId: currentRoomId,
+            sessionId: openSessionId,
+          });
+          const refreshed = await refreshOpenSessionFromServer(currentRoomId, openSessionId);
+          if (refreshed) await syncTableSession(refreshed);
+        }
+      : undefined,
+  };
+}
+
 function buildTableSessionProps(s) {
   const mergedScores = mergeScoresWithMembers(
     openScores,
@@ -4636,6 +4683,7 @@ function buildTableSessionProps(s) {
     showCoWinSettlement,
     splitPotEnabled,
     rebuyEnabled,
+    rebuyPurchase: watchOnly ? undefined : buildRebuyPurchaseConfig(s),
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
@@ -5502,10 +5550,16 @@ async function onSettleCoWinCarryover() {
 
 async function onRebuySession() {
   if (!currentRoomId || !openSessionId || !session?.uid) return;
+  const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+  const config = buildRebuyPurchaseConfig(sessionObj);
+  if (config) {
+    showRoomsError("Use the Rebuy button on the table to purchase chips.", "info");
+    return;
+  }
   try {
-    await rebuySessionPlayer(currentRoomId, openSessionId, {
-      playerId: session.uid,
-      actorId: session.uid,
+    await applyFreeSessionRebuy({
+      roomId: currentRoomId,
+      sessionId: openSessionId,
     });
     const refreshed = await refreshOpenSessionFromServer(currentRoomId, openSessionId);
     if (refreshed) await syncTableSession(refreshed);

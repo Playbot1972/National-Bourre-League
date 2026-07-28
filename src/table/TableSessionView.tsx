@@ -5,7 +5,7 @@ import { CinematicSplash } from "./CinematicSplash";
 import { DesktopLayoutShell } from "./DesktopLayoutShell";
 import { MobileLayoutShell } from "./MobileLayoutShell";
 import { EventReactions } from "./EventReactions";
-import { FeedbackSettings } from "./FeedbackSettings";
+import { RebuyPurchaseModal } from "./RebuyPurchaseModal";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
@@ -64,6 +64,7 @@ export function TableSessionView({
   showCoWinSettlement,
   splitPotEnabled = false,
   rebuyEnabled = false,
+  rebuyPurchase,
   splitSharePerWinner = 0,
   enrollmentActive = false,
   currentUserId,
@@ -375,14 +376,14 @@ export function TableSessionView({
     currentUserId != null &&
     session.participantIds.includes(currentUserId) &&
     (session.phase === "draw" || session.phase === "play");
+  const [rebuyModalOpen, setRebuyModalOpen] = useState(false);
   const showRebuyOffer =
     !watchOnly &&
-    rebuyEnabled &&
     !session.isFinal &&
     !lockedInLiveHand &&
     !coWinResultVisible &&
     selfPlayer?.isOut === true &&
-    Boolean(actions.onRebuy);
+    Boolean(rebuyPurchase || actions.onRebuy);
   const isMyTurn = isHeroDrawOrPlayTurn({
     currentUserId,
     session,
@@ -764,17 +765,30 @@ export function TableSessionView({
         <FeedbackSettings compact />
         {showRebuyOffer && (
           <div className="btable-session__rebuy-offer">
-            <p className="btable-session__rebuy-copy">You&apos;re out — rebuy to join the next hand.</p>
+            <p className="btable-session__rebuy-copy">You&apos;re out — add chips to join the next hand.</p>
             <button
               type="button"
               className="btn btn--sm btn--primary"
               data-testid="rebuy-button"
-              onClick={() => void actions.onRebuy?.()}
+              onClick={() => {
+                if (rebuyPurchase) {
+                  setRebuyModalOpen(true);
+                  return;
+                }
+                void actions.onRebuy?.();
+              }}
             >
               Rebuy
             </button>
           </div>
         )}
+        {rebuyPurchase ? (
+          <RebuyPurchaseModal
+            open={rebuyModalOpen}
+            config={rebuyPurchase}
+            onClose={() => setRebuyModalOpen(false)}
+          />
+        ) : null}
         {mySessionNet != null ? (
           <>Your session profit/loss {formatNet(mySessionNet)}</>
         ) : (

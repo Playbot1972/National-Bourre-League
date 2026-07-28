@@ -313,5 +313,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if false;
     }
+
+    // Verified IAP chip grants — Cloud Functions only (idempotent purchase ledger).
+    match /chipPurchaseGrants/{grantId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
   }
 }
