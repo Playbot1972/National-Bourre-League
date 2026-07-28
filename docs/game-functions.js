@@ -144,3 +144,11 @@ export function gameLeavePublicTable() {
 export function gameTouchPublicTableActivity(roomId, sessionId) {
   return callGame("gameTouchPublicTableActivity", { roomId, sessionId });
 }
+
+export function gameGrantChipPurchase(payload) {
+  return callGame("gameGrantChipPurchase", payload);
+}
+
+export function gameApplyFreeSessionRebuy(payload) {
+  return callGame("gameApplyFreeSessionRebuy", payload);
+}

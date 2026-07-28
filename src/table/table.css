@@ -2550,6 +2550,171 @@
   font-size: 13px;
 }
 
+.rebuy-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.rebuy-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+}
+
+.rebuy-modal__sheet {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+  border-radius: 16px 16px 0 0;
+  background: var(--surface-elevated, #1a1f2e);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.rebuy-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.rebuy-modal__head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.rebuy-modal__close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rebuy-modal__lede {
+  margin: 0 0 12px;
+}
+
+.rebuy-modal__feedback {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.rebuy-modal__feedback--error {
+  background: rgba(220, 53, 69, 0.15);
+  color: #ffb4bc;
+}
+
+.rebuy-modal__feedback--success {
+  background: rgba(40, 167, 69, 0.15);
+  color: #b8f0c8;
+}
+
+.rebuy-pack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rebuy-pack {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rebuy-pack:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.rebuy-pack__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rebuy-pack__name {
+  font-weight: 600;
+}
+
+.rebuy-pack__chips {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.rebuy-pack__price {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rebuy-pack__badge {
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rebuy-pack__badge--popular {
+  background: #4f8cff;
+  color: #fff;
+}
+
+.rebuy-pack__badge--best_value {
+  background: #d4a437;
+  color: #1a1200;
+}
+
+.rebuy-pack__busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+}
+
+.rebuy-modal__free {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
 .btable-session__foot {
   text-align: center;
 }

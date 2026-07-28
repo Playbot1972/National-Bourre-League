@@ -27,7 +27,10 @@ import {
   handleLeavePublicTable,
   handlePublicTableMemberRemoved,
 } from "./publicTable.js";
-import { handleTouchPublicTableActivity } from "./publicTableIdle.js";
+import {
+  handleApplyFreeSessionRebuy,
+  handleGrantChipPurchase,
+} from "./chipPurchase.js";
 
 initializeApp();
 
@@ -116,6 +119,15 @@ export const gameLeavePublicTable = wrap(handleLeavePublicTable, "gameLeavePubli
 export const gameTouchPublicTableActivity = wrap(
   handleTouchPublicTableActivity,
   "gameTouchPublicTableActivity",
+);
+
+/** Verify IAP and grant consumable chips to session bankroll (idempotent). */
+export const gameGrantChipPurchase = wrap(handleGrantChipPurchase, "gameGrantChipPurchase");
+
+/** House-rule free rebuy to session buy-in (server-owned). */
+export const gameApplyFreeSessionRebuy = wrap(
+  handleApplyFreeSessionRebuy,
+  "gameApplyFreeSessionRebuy",
 );
 
 /** Stamp lastMemberLeftAt when the final roomMembers row is removed. */
