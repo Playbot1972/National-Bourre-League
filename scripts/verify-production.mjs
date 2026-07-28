@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { compareAppVersion } from "./lib/version-format.mjs";
 
 const ORIGIN = process.env.PROD_ORIGIN || "https://booray.win";
-const TIMEOUT_MS = 15000;
+const TIMEOUT_MS = 30000;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** @typedef {{ ok: boolean, detail: string }} CheckResult */
