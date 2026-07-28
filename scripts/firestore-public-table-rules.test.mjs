@@ -57,15 +57,17 @@ let testEnv;
 let emulatorAvailable = false;
 
 before(async () => {
-  const firestoreConfig = { rules: RULES };
-  if (process.env.FIRESTORE_EMULATOR_HOST) {
-    const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(":");
-    firestoreConfig.host = host;
-    firestoreConfig.port = Number(port);
-  } else {
-    firestoreConfig.host = "127.0.0.1";
-    firestoreConfig.port = 8088;
+  if (!process.env.FIRESTORE_EMULATOR_HOST) {
+    console.warn(
+      "Skipping firestore-public-table-rules tests — set FIRESTORE_EMULATOR_HOST or use npm run test:rules:firestore",
+    );
+    emulatorAvailable = false;
+    return;
   }
+  const firestoreConfig = { rules: RULES };
+  const [host, port] = process.env.FIRESTORE_EMULATOR_HOST.split(":");
+  firestoreConfig.host = host;
+  firestoreConfig.port = Number(port);
   try {
     testEnv = await initializeTestEnvironment({
       projectId: PROJECT_ID,
