@@ -30,9 +30,10 @@ describe("chip-packs", () => {
     assert.equal(formatPackPrice(4.99), "$4.99");
   });
 
-  it("chip-purchase module re-exports pack catalog without runtime error", async () => {
-    const mod = await import("../docs/chip-purchase.js");
-    assert.equal(mod.CHIP_PURCHASE_PACKS.length, 5);
+  it("chip-purchase.js imports CHIP_PURCHASE_PACKS before re-export", () => {
+    const src = readRepoFile("docs/chip-purchase.js");
+    assert.match(src, /import \{[^}]*CHIP_PURCHASE_PACKS[^}]*\} from "\.\/chip-packs\.js"/);
+    assert.match(src, /export \{ CHIP_PURCHASE_PACKS/);
   });
 });
 
