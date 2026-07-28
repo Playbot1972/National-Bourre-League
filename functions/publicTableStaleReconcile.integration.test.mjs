@@ -98,6 +98,8 @@ describe("mixed stale reconcile integration", () => {
       t.skip("Firestore emulator not running");
       return;
     }
+    await clearFixtures();
+
     const hostTable = await handleFindOrCreatePublicTable(db, {
       actorId: STALE_HOST,
       joinId: "stale-host-join",
@@ -167,7 +169,7 @@ describe("mixed stale reconcile integration", () => {
     assert.equal(roomSnap.data()?.features?.botsOnlyPublicTables, true);
   });
 
-  it("active host + joining guest keeps mixed flow (reconnect grace)", async (t) => {
+  it("active host + joining guest keeps mixed flow (handoff seats immediately)", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running");
       return;
@@ -178,6 +180,7 @@ describe("mixed stale reconcile integration", () => {
       actorId: ACTIVE_HOST,
       joinId: "active-host",
       displayName: "Active Host",
+      queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
     });
 
     const joined = await handleFindOrCreatePublicTable(db, {
@@ -188,9 +191,20 @@ describe("mixed stale reconcile integration", () => {
     });
 
     assert.equal(joined.mode, "joined-existing");
-    assert.equal(joined.status, "spectating");
+    assert.equal(joined.status, "seated");
+    assert.equal(joined.canPromoteAtNextBoundary, true);
     assert.equal(joined.roomId, hostTable.roomId);
     assert.equal(joined.sessionId, hostTable.sessionId);
+
+    const guestScore = await db
+      .collection("rooms")
+      .doc(hostTable.roomId)
+      .collection("sessions")
+      .doc(hostTable.sessionId)
+      .collection("scores")
+      .doc(ACTIVE_GUEST)
+      .get();
+    assert.ok(guestScore.exists, "guest should be seated between hands");
 
     const roomSnap = await db.collection("rooms").doc(hostTable.roomId).get();
     assert.equal(roomSnap.data()?.features?.mixedPublicTables, true);
@@ -261,17 +275,36 @@ describe("mixed stale reconcile integration", () => {
       actorId: ACTIVE_HOST,
       joinId: "replace-host",
       displayName: "Replace Host",
+      queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
     });
 
-    await handleFindOrCreatePublicTable(db, {
+    const roomRef = db.collection("rooms").doc(hostTable.roomId);
+    const sessionRef = roomRef.collection("sessions").doc(hostTable.sessionId);
+
+    await sessionRef.update({
+      currentHand: {
+        phase: "play",
+        tricksByPlayer: { [ACTIVE_HOST]: 1 },
+        participantIds: [ACTIVE_HOST, "bot_placeholder"],
+        turnPlayerId: ACTIVE_HOST,
+      },
+    });
+
+    const joined = await handleFindOrCreatePublicTable(db, {
       actorId: REPLACER,
       joinId: "replace-guest",
       displayName: "Replacer",
       queueMode: PLAY_NOW_QUEUE_MODE.MIXED,
     });
 
-    const roomRef = db.collection("rooms").doc(hostTable.roomId);
-    const sessionRef = roomRef.collection("sessions").doc(hostTable.sessionId);
+    assert.equal(joined.status, "spectating");
+    const midHandScore = await sessionRef.collection("scores").doc(REPLACER).get();
+    assert.equal(midHandScore.exists, false, "mid-hand join must stay watch-only");
+
+    await sessionRef.update({
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    });
+
     let sessionSnap = await sessionRef.get();
     let sessionData = sessionSnap.data();
     const roomSnap = await roomRef.get();
