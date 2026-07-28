@@ -2793,6 +2793,28 @@ function setCreateRoomSubmitBusy(busy) {
   btn.textContent = busy ? "Creating…" : "Create Room";
 }
 
+function showCreateRoomFormError(msg) {
+  const el = $("#create-room-error", createRoomForm);
+  if (!el) return;
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+/** Page-2 settings validation (replaces native constraint validation; form has novalidate). */
+function validateCreateRoomSettingsStep(form) {
+  const buyInEl = $("#create-room-buy-in", form);
+  const anteEl = $("#create-room-ante", form);
+  const buyInRaw = buyInEl?.value;
+  const buyIn = parseInt(String(buyInRaw), 10);
+  if (!Number.isFinite(buyIn) || buyIn < 1) {
+    return { message: "Enter a buy-in of at least 1.", focusId: "create-room-buy-in" };
+  }
+  if (!anteEl?.value || parseAnteAmount(anteEl.value) <= 0) {
+    return { message: "Choose a per-hand ante.", focusId: "create-room-ante" };
+  }
+  return null;
+}
+
 function setCreateRoomStep(step) {
   createRoomStep = step;
   if (!createRoomForm) return;
@@ -2811,9 +2833,6 @@ function setCreateRoomStep(step) {
       step === "basics"
         ? "Name your room and set house rules, then tap Create Room."
         : "Set buy-in and ante, then tap Create Room to open your table.";
-  }
-  if (step === "settings") {
-    $("#create-room-buy-in", createRoomForm)?.focus();
   }
 }
 
@@ -2849,6 +2868,7 @@ async function openTableAfterRoomCreate(roomId) {
 function openCreateRoomModal() {
   if (!createRoomModal || !createRoomForm) return;
   showRoomsError("");
+  showCreateRoomFormError("");
   const defaults = normalizeBourreSettings(DEFAULT_BOURRE_SETTINGS);
   const nameEl = $("#create-room-name");
   if (nameEl) nameEl.value = "";
@@ -3215,10 +3235,23 @@ if (createRoomForm) {
     e.preventDefault();
     if (!session || createRoomSubmitInFlight) return;
     if (createRoomStep === "basics") {
+      showCreateRoomFormError("");
       setCreateRoomStep("settings");
       return;
     }
     if (createRoomStep !== "settings") return;
+
+    createRoomForm.querySelector(":focus")?.blur?.();
+    const settingsIssue = validateCreateRoomSettingsStep(createRoomForm);
+    if (settingsIssue) {
+      showCreateRoomFormError(settingsIssue.message);
+      const focusEl = settingsIssue.focusId
+        ? createRoomForm.querySelector(`#${settingsIssue.focusId}`)
+        : null;
+      focusEl?.focus?.({ preventScroll: true });
+      return;
+    }
+    showCreateRoomFormError("");
 
     showRoomsError("");
     const name = $("#create-room-name")?.value.trim() || "";
