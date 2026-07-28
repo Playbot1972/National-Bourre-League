@@ -6,6 +6,7 @@ import { DesktopLayoutShell } from "./DesktopLayoutShell";
 import { MobileLayoutShell } from "./MobileLayoutShell";
 import { EventReactions } from "./EventReactions";
 import { RebuyPurchaseModal } from "./RebuyPurchaseModal";
+import { FeedbackSettings } from "./FeedbackSettings";
 import { playActionSuccessFeedback, playIllegalActionFeedback } from "./feedback";
 import { TableSettingsPanel } from "./TableSettingsPanel";
 import {
@@ -63,7 +64,7 @@ export function TableSessionView({
   leaderLabel: _leaderLabel,
   showCoWinSettlement,
   splitPotEnabled = false,
-  rebuyEnabled = false,
+  rebuyEnabled: _rebuyEnabled = false,
   rebuyPurchase,
   splitSharePerWinner = 0,
   enrollmentActive = false,
