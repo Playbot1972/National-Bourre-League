@@ -2,7 +2,7 @@
  * Client coordinator — store purchase + server grant.
  */
 
-import { getChipPackById, formatChipAmount, formatPackPrice } from "./chip-packs.js";
+import { CHIP_PURCHASE_PACKS, getChipPackById, formatChipAmount, formatPackPrice } from "./chip-packs.js";
 import { purchaseChipPackFromStore } from "./chip-purchase-store.js";
 import { gameGrantChipPurchase, gameApplyFreeSessionRebuy } from "./game-functions.js";
 

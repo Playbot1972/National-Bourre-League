@@ -29,6 +29,11 @@ describe("chip-packs", () => {
     assert.equal(formatChipAmount(10000), "10,000");
     assert.equal(formatPackPrice(4.99), "$4.99");
   });
+
+  it("chip-purchase module re-exports pack catalog without runtime error", async () => {
+    const mod = await import("../docs/chip-purchase.js");
+    assert.equal(mod.CHIP_PURCHASE_PACKS.length, 5);
+  });
 });
 
 describe("rebuy table UI wiring", () => {
