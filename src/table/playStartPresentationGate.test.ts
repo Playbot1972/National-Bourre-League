@@ -11,6 +11,7 @@ import {
   handPresentingBlocksBots,
   isTablePresentationBusy,
   resetTrickAnimationBusyState,
+  setBotPresentationSessionPhase,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
 
@@ -105,5 +106,24 @@ describe("play-start presentation gate", () => {
       handPresentationPhase: "drawPlayer",
     });
     assert.equal(isTablePresentationBusy(), false);
+  });
+
+  it("draw-phase ante/trumpReveal catch-up does not block bots when server is draw", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("draw");
+    for (const phase of ["ante", "trumpReveal", "trumpMerge"] as const) {
+      const handPresenting = handPresentingForBotGate(true, "draw", phase);
+      assert.equal(handPresenting, false, phase);
+      setTrickAnimationBusyState({
+        ...idleBusy,
+        handPresenting,
+        handPresentationPhase: phase,
+      });
+      assert.equal(
+        getTablePresentationBlockReason(getTrickAnimationBusyState(), { forBots: true }),
+        null,
+        phase,
+      );
+    }
   });
 });
