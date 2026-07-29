@@ -329,6 +329,45 @@ export function createServerBotAdvanceRuntime(deps) {
         action: "executed",
         ...ctx,
       });
+
+      const latest = deps.findSession(sessionId) ?? sessionObj;
+      const handPhase = deps.getHandPhase?.(latest) ?? null;
+      const stillNeedsDriver = deps.sessionNeedsBotDriver(latest, deps.getScores());
+      const steps = Array.isArray(result?.steps) ? result.steps : [];
+      const advancedBotStep = steps.some((step) =>
+        ["draw", "play", "draw_fold", "enrollment", "decision", "advance_reveal", "cowin"].includes(
+          step?.kind,
+        ),
+      );
+      if (
+        stillNeedsDriver &&
+        (handPhase === "draw" || handPhase === "play") &&
+        !advancedBotStep
+      ) {
+        const noopReason =
+          result?.reason ??
+          result?.emptyReason ??
+          (result?.skipped ? "advance-skipped" : "advance-noop");
+        logPlayDelay("error", latest, deps.getScores(), {
+          requester: actorId,
+          owner: "server",
+          roomId,
+          sessionId,
+          message: noopReason,
+          action: "noop-fallback",
+          ...ctx,
+        });
+        try {
+          deps.onAdvanceError?.(
+            latest,
+            deps.getScores(),
+            actorId,
+            new Error(String(noopReason)),
+          );
+        } catch (fallbackErr) {
+          console.warn("bot-advance noop fallback:", fallbackErr);
+        }
+      }
     } catch (err) {
       logPlayDelay("error", sessionObj, scores, {
         requester: actorId,

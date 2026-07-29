@@ -78,8 +78,8 @@ export function setBotPresentationSessionPhase(phase: string | null | undefined)
   botGateSessionPhase = phase ?? null;
 }
 
-function playTrickCatchUpBlocksBots(sessionPhase: string | null | undefined): boolean {
-  return sessionPhase !== "play";
+function visualOnlyCatchUpForBots(sessionPhase: string | null | undefined): boolean {
+  return sessionPhase === "play" || sessionPhase === "draw";
 }
 
 /** Draw-phase ante/trump animations are visual once server draw is live. */
@@ -119,18 +119,23 @@ export function getTablePresentationBlockReason(
 ): string | null {
   const forBots = options.forBots === true;
   const sessionPhase = options.sessionPhase ?? botGateSessionPhase;
-  if (s.dealPresentationActive) return "dealPresentationActive";
+  if (
+    s.dealPresentationActive &&
+    !(forBots && visualOnlyCatchUpForBots(sessionPhase))
+  ) {
+    return "dealPresentationActive";
+  }
   if (s.trickCollectionActive) return "trickCollectionActive";
   const handReason = handPresentingBlockReason(s, forBots, sessionPhase);
   if (handReason) return handReason;
   if (s.pipelineActive) return "pipelineActive";
-  if (s.revealCatchUp && !(forBots && !playTrickCatchUpBlocksBots(sessionPhase))) {
+  if (s.revealCatchUp && !(forBots && visualOnlyCatchUpForBots(sessionPhase))) {
     return "revealCatchUp";
   }
   if (
     s.peakPlayCount > s.displayedPlayCount &&
     s.peakPlayCount > 0 &&
-    !(forBots && !playTrickCatchUpBlocksBots(sessionPhase))
+    !(forBots && visualOnlyCatchUpForBots(sessionPhase))
   ) {
     return "peakPlayCatchUp";
   }
