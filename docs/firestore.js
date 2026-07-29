@@ -860,7 +860,13 @@ export async function deleteRoom(roomId, user) {
     roomSnap = await getDoc(doc(db, "rooms", roomId));
   } catch (err) {
     if (err?.code === "permission-denied") {
-      throw new Error("Only the room owner can delete this room. Try Leave instead.");
+      // Room/membership may already be gone — idempotent cleanup for duplicate deletes.
+      try {
+        await leaveRoom(roomId, user);
+      } catch {
+        // Member doc may already be deleted.
+      }
+      return;
     }
     throw err;
   }

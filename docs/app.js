@@ -1027,6 +1027,8 @@ let roomSetupFocus = null;
 let createRoomStep = "basics";
 /** Prevents duplicate page-2 create + auto-open while in flight. */
 let createRoomSubmitInFlight = false;
+/** Prevents overlapping owner delete requests for the same room. */
+let deleteRoomInFlight = null;
 /** Prevents duplicate Play Now fast-start while in flight. */
 let playNowInFlight = false;
 /** Suppress room-detail roster UI while Play Now assembles the table in the background. */
@@ -2688,6 +2690,7 @@ async function onKickMember(targetUserId, displayName) {
 
 async function onDeleteRoom(roomId) {
   if (!session) return;
+  if (deleteRoomInFlight === roomId) return;
   if (
     !window.confirm(
       "Delete this room for everyone? Sessions and scores will no longer be accessible.",
@@ -2696,21 +2699,31 @@ async function onDeleteRoom(roomId) {
     return;
   }
   showRoomsError("");
+  deleteRoomInFlight = roomId;
+  const roomGoneHandledBefore = roomGoneHandled;
+  roomGoneHandled = true;
   try {
     await deleteRoom(roomId, session);
     const feedbackApi = await ensureTableFeedbackApi();
     feedbackApi?.playDeleteRoomFeedback?.();
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
+    roomGoneHandled = roomGoneHandledBefore;
     console.error(err);
     const msg = err?.message || "";
     if (/only the room owner/i.test(msg)) {
       showRoomsError("You can’t delete this room — use Leave instead.");
     } else if (err?.code === "permission-denied") {
+      if (!myRooms.some((r) => r.id === roomId)) {
+        if (currentRoomId === roomId) closeRoom();
+        return;
+      }
       showRoomsError("You can’t delete this room — use Leave instead.");
     } else {
       showRoomsError(msg.slice(0, 120) || "Could not delete the room. Please try again.");
     }
+  } finally {
+    if (deleteRoomInFlight === roomId) deleteRoomInFlight = null;
   }
 }
 
