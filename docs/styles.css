@@ -1733,6 +1733,9 @@ body.table-entry-silent #room-detail {
 
 .modal__dialog--wide {
   max-width: 520px;
+  max-height: min(92dvh, calc(100vh - 32px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .create-room-form__section--hidden {
