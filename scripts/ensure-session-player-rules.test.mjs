@@ -16,3 +16,14 @@ describe("ensureSessionPlayer score create", () => {
     assert.match(fnBody, /isRobot \? \{ isRobot: true \}/);
   });
 });
+
+describe("ensureCurrentHandParticipants", () => {
+  it("skips client currentHand backfill when SERVER_HAND_AUTHORITY is on", () => {
+    const src = readFileSync(join(root, "docs/firestore.js"), "utf8");
+    const fnStart = src.indexOf("export async function ensureCurrentHandParticipants");
+    assert.ok(fnStart >= 0);
+    const fnBody = src.slice(fnStart, fnStart + 700);
+    assert.match(fnBody, /if \(SERVER_HAND_AUTHORITY\) return/);
+    assert.match(fnBody, /isPermissionDenied/);
+  });
+});

@@ -78,7 +78,14 @@ describe("app.js bot paths", () => {
     assert.match(bridgeSrc, /drawPhaseHandPresentationBlocksBots/);
     assert.match(bridgeSrc, /"ante"/);
     assert.match(bridgeSrc, /"trumpReveal"/);
-    assert.match(bridgeSrc, /sessionPhase === "draw"/);
+    assert.match(bridgeSrc, /isLiveHandPhaseForBotPresentation/);
+  });
+
+  it("server bot advance ignores presentation during reveal/decision/draw", () => {
+    assert.match(runtimeSrc, /function presentationBlocksBotAdvance/);
+    assert.match(runtimeSrc, /handPhase === "reveal"/);
+    assert.match(runtimeSrc, /handPhase === "decision"/);
+    assert.match(runtimeSrc, /handPhase === "draw"/);
   });
 
   it("guards duplicate in-flight server advancement", () => {
@@ -187,7 +194,7 @@ describe("server bot advance runtime presentation deferral", () => {
     assert.equal(advanceCalls, 1);
   });
 
-  it("defers reveal-phase advance when presentation blocked, then executes after clear", async () => {
+  it("executes reveal-phase advance even while trump presentation is blocked", async () => {
     let presentationBlocked = true;
     let advanceCalls = 0;
     const session = {
@@ -228,12 +235,7 @@ describe("server bot advance runtime presentation deferral", () => {
 
     runtime.schedule(session, scores, "spectator_uid", { reason: "watch-only-open" });
     await new Promise((r) => setTimeout(r, 200));
-    assert.equal(advanceCalls, 0, "should not fire while trump presentation blocks");
-
-    presentationBlocked = false;
-    runtime.schedule(session, scores, "spectator_uid", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, 250));
-    assert.equal(advanceCalls, 1, "should advance reveal after presentation clears");
+    assert.equal(advanceCalls, 1, "reveal advance ignores visual trump presentation");
   });
 
   it("falls back when server advance returns skipped but bot draw is still pending", async () => {

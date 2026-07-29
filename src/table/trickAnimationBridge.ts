@@ -1,6 +1,7 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
+import { isLiveHandPhaseForBotPresentation } from "./presentationMatchKey";
 import {
   isDealPresentationActive,
   isTrickCollectionActive,
@@ -79,20 +80,37 @@ export function setBotPresentationSessionPhase(phase: string | null | undefined)
 }
 
 function visualOnlyCatchUpForBots(sessionPhase: string | null | undefined): boolean {
-  return sessionPhase === "play" || sessionPhase === "draw";
+  return isLiveHandPhaseForBotPresentation(sessionPhase);
 }
 
-/** Draw-phase ante/trump animations are visual once server draw is live. */
-const DRAW_PHASE_VISUAL_HAND_PRESENTATION = new Set([
+/** Hand presentation phases that are cosmetic once the server hand is live. */
+const LIVE_HAND_VISUAL_PRESENTATION = new Set([
   "ante",
   "trumpReveal",
   "trumpMerge",
   "drawPlayer",
   "drawReady",
+  "enrollment",
+  "decision",
+  "play",
 ]);
 
+/** Settlement / reset animations still gate bots during an active hand. */
+const LIVE_HAND_HARD_PRESENTATION = new Set(["settle", "nextHandReset", "handReset"]);
+
 export function drawPhaseHandPresentationBlocksBots(handPresentationPhase: string): boolean {
-  return !DRAW_PHASE_VISUAL_HAND_PRESENTATION.has(handPresentationPhase);
+  return !LIVE_HAND_VISUAL_PRESENTATION.has(handPresentationPhase);
+}
+
+function handPresentationVisualOnlyForBots(
+  sessionPhase: string | null | undefined,
+  handPresentationPhase: string,
+): boolean {
+  if (!isLiveHandPhaseForBotPresentation(sessionPhase)) return false;
+  if (LIVE_HAND_HARD_PRESENTATION.has(handPresentationPhase)) return false;
+  return (
+    LIVE_HAND_VISUAL_PRESENTATION.has(handPresentationPhase) || handPresentationPhase === "idle"
+  );
 }
 
 function handPresentingBlockReason(
@@ -101,12 +119,7 @@ function handPresentingBlockReason(
   sessionPhase: string | null | undefined,
 ): string | null {
   if (!s.handPresenting) return null;
-  if (forBots && sessionPhase === "play") return null;
-  if (
-    forBots &&
-    sessionPhase === "draw" &&
-    !drawPhaseHandPresentationBlocksBots(s.handPresentationPhase)
-  ) {
+  if (forBots && handPresentationVisualOnlyForBots(sessionPhase, s.handPresentationPhase)) {
     return null;
   }
   return "handPresenting";
@@ -159,10 +172,7 @@ export function handPresentingBlocksBots(
   sessionPhase: string | null | undefined,
 ): boolean {
   if (!isPresenting) return false;
-  if (sessionPhase === "play") return false;
-  if (sessionPhase === "draw") {
-    return drawPhaseHandPresentationBlocksBots(handPresentationPhase);
-  }
+  if (handPresentationVisualOnlyForBots(sessionPhase, handPresentationPhase)) return false;
   return true;
 }
 
