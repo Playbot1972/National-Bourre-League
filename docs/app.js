@@ -4039,14 +4039,16 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
-      rejected: (extra) =>
+      rejected: (extra) => {
         logBotOrchestrator("bot-think-fire-rejected", {
           ...ctx,
           turnPlayerId: turnId,
           owner: "client",
           trigger: reason,
           ...extra,
-        }),
+        });
+        wakeRobotActions();
+      },
     },
   });
 
@@ -4114,6 +4116,9 @@ function robotTurnPresentationKey(s) {
 
 function isRawTablePresentationBusy() {
   try {
+    if (typeof tableMountApi?.evaluateBotPresentationGate === "function") {
+      return tableMountApi.evaluateBotPresentationGate().blocked === true;
+    }
     if (typeof tableMountApi?.isTablePresentationBusyForBots === "function") {
       return tableMountApi.isTablePresentationBusyForBots() === true;
     }
@@ -4381,11 +4386,14 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     }
 
     if (shouldBlockRobotForPresentation(s, scores)) {
+      logBotOrchestrator("bot-submit-blocked", {
+        ...snapshotGameFlowContext(s, scores),
+        phase: "draw",
+        reason: snapshotTablePresentationGate()?.blockReason ?? "presentation",
+        gate: snapshotTablePresentationGate(),
+      });
       return;
     }
-
-    const turnId = currentHand.turnPlayerId;
-    const drawDone = currentHand.drawCompletedIds || [];
     if (
       turnId &&
       isRobotPlayerId(turnId) &&
@@ -4416,6 +4424,12 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     }
 
     if (shouldBlockRobotForPresentation(s, scores)) {
+      logBotOrchestrator("bot-submit-blocked", {
+        ...snapshotGameFlowContext(s, scores),
+        phase: "play",
+        reason: snapshotTablePresentationGate()?.blockReason ?? "presentation",
+        gate: snapshotTablePresentationGate(),
+      });
       return;
     }
 

@@ -27,10 +27,16 @@ export interface UseTurnTimerWarningInput extends TurnCountdownInput {
 export function useTurnTimerWarning({
   currentUserId = null,
   localActionPending = false,
+  watchOnly = false,
   ...input
 }: UseTurnTimerWarningInput): void {
-  const activeActorId = resolveTableActiveActorId(input);
-  const activityKey = turnCountdownActivityKey({ ...input, activeActorId });
+  const activeActorId = resolveTableActiveActorId({ ...input, watchOnly });
+  const isLocalTurn =
+    !watchOnly &&
+    activeActorId != null &&
+    currentUserId != null &&
+    activeActorId === currentUserId;
+  const activityKey = turnCountdownActivityKey({ ...input, activeActorId, watchOnly });
   const ringStartedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef("");
   const warningStartedRef = useRef(false);
@@ -44,7 +50,7 @@ export function useTurnTimerWarning({
   };
 
   useEffect(() => {
-    if (!activeActorId) {
+    if (!isLocalTurn) {
       clearStartTimer();
       if (isTurnTimerWarningPlaying()) {
         stopTurnTimerWarning("turnChange");
@@ -100,7 +106,7 @@ export function useTurnTimerWarning({
     return () => {
       clearStartTimer();
     };
-  }, [activeActorId, activityKey]);
+  }, [isLocalTurn, activityKey, activeActorId]);
 
   useEffect(() => {
     return () => {

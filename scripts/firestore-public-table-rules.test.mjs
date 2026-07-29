@@ -277,6 +277,30 @@ describe("public-table Phase 2 Firestore rules", () => {
     );
   });
 
+  it("blocks score create with lastActivityTimestamp (public-table marker)", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running — use npm run test:rules:firestore");
+      return;
+    }
+    const hostDb = testEnv.authenticatedContext(HOST_UID).firestore();
+    const { setDoc, doc, serverTimestamp } = await import("firebase/firestore");
+    await assertFails(
+      setDoc(doc(hostDb, "rooms", ROOM_ID, "sessions", SESSION_ID, "scores", "guest_blocked"), {
+        sessionId: SESSION_ID,
+        roomId: ROOM_ID,
+        playerId: "guest_blocked",
+        displayName: "Guest",
+        bankroll: 1000,
+        tricksWon: 0,
+        handsWon: 0,
+        net: 0,
+        total: 0,
+        lastActivityTimestamp: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }),
+    );
+  });
+
   it("still allows legacy private room create without visibility field", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running — use npm run test:rules:firestore");

@@ -3986,7 +3986,7 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
-    ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
+    ...(isRobot ? { isRobot: true } : {}),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
