@@ -28,7 +28,7 @@ import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
+import { setTrickAnimationBusyState, handPresentingBlocksBots, setBotPresentationSessionPhase } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
   isDealPresentationActive,
@@ -203,6 +203,10 @@ export function TableSessionView({
 
   const [motionBusyTick, setMotionBusyTick] = useState(0);
   useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
+
+  useEffect(() => {
+    setBotPresentationSessionPhase(session.phase ?? null);
+  }, [session.phase]);
 
   useEffect(() => {
     setTrickAnimationBusyState({

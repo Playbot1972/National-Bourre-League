@@ -10,6 +10,7 @@ import {
   isTablePresentationBusy,
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
+  setBotPresentationSessionPhase,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
@@ -145,6 +146,23 @@ describe("trickAnimationBridge", () => {
     assert.equal(forced.forceReleased, true);
     assert.equal(isTablePresentationBusy(), false);
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
+  });
+
+  it("does not block bots for play-phase trick reveal catch-up", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      revealCatchUp: true,
+      peakPlayCount: 3,
+      displayedPlayCount: 1,
+    });
+    setBotPresentationSessionPhase("play");
+    assert.equal(
+      getTablePresentationBlockReason(getTrickAnimationBusyState(), { forBots: true }),
+      null,
+    );
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
+    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "revealCatchUp");
   });
 
   it("soft-unblocks when block reasons churn without resetting the episode clock", () => {

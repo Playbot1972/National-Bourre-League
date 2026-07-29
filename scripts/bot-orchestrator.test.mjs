@@ -57,6 +57,18 @@ describe("app.js bot paths", () => {
     assert.ok(earlyReturn < robotDraw);
   });
 
+  it("presentation gate prefers evaluateBotPresentationGate when table bundle exports it", () => {
+    assert.match(src, /evaluateBotPresentationGate/);
+    assert.match(src, /function isRawTablePresentationBusy/);
+    const fnStart = src.indexOf("function isRawTablePresentationBusy");
+    const fnBody = src.slice(fnStart, fnStart + 600);
+    assert.match(fnBody, /evaluateBotPresentationGate\(\)\.blocked/);
+  });
+
+  it("logs bot-submit-blocked when presentation defers draw/play", () => {
+    assert.match(src, /bot-submit-blocked/);
+  });
+
   it("guards duplicate in-flight server advancement", () => {
     assert.ok(src.includes("createServerBotAdvanceRuntime"));
     assert.ok(runtimeSrc.includes("coalesce-request"));
