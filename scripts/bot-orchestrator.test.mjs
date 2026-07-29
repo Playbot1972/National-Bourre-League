@@ -69,6 +69,17 @@ describe("app.js bot paths", () => {
     assert.match(src, /bot-submit-blocked/);
   });
 
+  it("draw-phase ante/trump hand presentation is visual-only for bots", () => {
+    const bridgeSrc = readFileSync(
+      fileURLToPath(new URL("../src/table/trickAnimationBridge.ts", import.meta.url)),
+      "utf8",
+    );
+    assert.match(bridgeSrc, /drawPhaseHandPresentationBlocksBots/);
+    assert.match(bridgeSrc, /"ante"/);
+    assert.match(bridgeSrc, /"trumpReveal"/);
+    assert.match(bridgeSrc, /sessionPhase === "draw"/);
+  });
+
   it("guards duplicate in-flight server advancement", () => {
     assert.ok(src.includes("createServerBotAdvanceRuntime"));
     assert.ok(runtimeSrc.includes("coalesce-request"));

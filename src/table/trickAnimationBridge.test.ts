@@ -11,6 +11,7 @@ import {
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   setBotPresentationSessionPhase,
+  setBotPresentationSessionPhase,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
@@ -112,10 +113,44 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
   });
 
-  it("does not block bots for drawPlayer during server draw phase", () => {
+  it("does not block bots for draw-phase ante/trump catch-up while server draw is live", () => {
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
+    assert.equal(handPresentingBlocksBots(true, "ante", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpMerge", "draw"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), true);
+    assert.equal(handPresentingBlocksBots(true, "ante", "reveal"), true);
+  });
+
+  it("evaluateBotPresentationGate allows draw while trumpReveal animation is in progress", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("draw");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+    });
+    const gate = evaluateBotPresentationGate(Date.now());
+    assert.equal(gate.blocked, false);
+    assert.equal(gate.reason, null);
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "ante",
+    });
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
+  });
+
+  it("still blocks bots for reveal-phase trump presentation before server draw", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("reveal");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+    });
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, true);
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {

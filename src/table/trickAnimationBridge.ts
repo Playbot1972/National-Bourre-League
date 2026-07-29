@@ -82,6 +82,36 @@ function playTrickCatchUpBlocksBots(sessionPhase: string | null | undefined): bo
   return sessionPhase !== "play";
 }
 
+/** Draw-phase ante/trump animations are visual once server draw is live. */
+const DRAW_PHASE_VISUAL_HAND_PRESENTATION = new Set([
+  "ante",
+  "trumpReveal",
+  "trumpMerge",
+  "drawPlayer",
+  "drawReady",
+]);
+
+export function drawPhaseHandPresentationBlocksBots(handPresentationPhase: string): boolean {
+  return !DRAW_PHASE_VISUAL_HAND_PRESENTATION.has(handPresentationPhase);
+}
+
+function handPresentingBlockReason(
+  s: TrickAnimationBusyState,
+  forBots: boolean,
+  sessionPhase: string | null | undefined,
+): string | null {
+  if (!s.handPresenting) return null;
+  if (forBots && sessionPhase === "play") return null;
+  if (
+    forBots &&
+    sessionPhase === "draw" &&
+    !drawPhaseHandPresentationBlocksBots(s.handPresentationPhase)
+  ) {
+    return null;
+  }
+  return "handPresenting";
+}
+
 /** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
@@ -91,7 +121,8 @@ export function getTablePresentationBlockReason(
   const sessionPhase = options.sessionPhase ?? botGateSessionPhase;
   if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
-  if (s.handPresenting) return "handPresenting";
+  const handReason = handPresentingBlockReason(s, forBots, sessionPhase);
+  if (handReason) return handReason;
   if (s.pipelineActive) return "pipelineActive";
   if (s.revealCatchUp && !(forBots && !playTrickCatchUpBlocksBots(sessionPhase))) {
     return "revealCatchUp";
@@ -125,9 +156,7 @@ export function handPresentingBlocksBots(
   if (!isPresenting) return false;
   if (sessionPhase === "play") return false;
   if (sessionPhase === "draw") {
-    if (handPresentationPhase === "drawPlayer" || handPresentationPhase === "drawReady") {
-      return false;
-    }
+    return drawPhaseHandPresentationBlocksBots(handPresentationPhase);
   }
   return true;
 }
