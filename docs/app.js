@@ -2800,12 +2800,24 @@ function showCreateRoomFormError(msg) {
   el.hidden = !msg;
 }
 
+/** Read buy-in from the page-2 field without an explicit blur (submit already commits focus). */
+function readCreateRoomBuyInAmount(form) {
+  const buyInEl = $("#create-room-buy-in", form);
+  if (!buyInEl) return NaN;
+  const raw = String(buyInEl.value ?? "").trim();
+  if (raw !== "") {
+    const parsed = parseInt(raw, 10);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  const asNumber = buyInEl.valueAsNumber;
+  if (Number.isFinite(asNumber) && asNumber >= 1) return Math.trunc(asNumber);
+  return NaN;
+}
+
 /** Page-2 settings validation (replaces native constraint validation; form has novalidate). */
 function validateCreateRoomSettingsStep(form) {
-  const buyInEl = $("#create-room-buy-in", form);
   const anteEl = $("#create-room-ante", form);
-  const buyInRaw = buyInEl?.value;
-  const buyIn = parseInt(String(buyInRaw), 10);
+  const buyIn = readCreateRoomBuyInAmount(form);
   if (!Number.isFinite(buyIn) || buyIn < 1) {
     return { message: "Enter a buy-in of at least 1.", focusId: "create-room-buy-in" };
   }
@@ -3234,14 +3246,15 @@ if (createRoomForm) {
   createRoomForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!session || createRoomSubmitInFlight) return;
-    if (createRoomStep === "basics") {
+    const wizardStep = createRoomForm.dataset.step || createRoomStep;
+    createRoomStep = wizardStep;
+    if (wizardStep === "basics") {
       showCreateRoomFormError("");
       setCreateRoomStep("settings");
       return;
     }
-    if (createRoomStep !== "settings") return;
+    if (wizardStep !== "settings") return;
 
-    createRoomForm.querySelector(":focus")?.blur?.();
     const settingsIssue = validateCreateRoomSettingsStep(createRoomForm);
     if (settingsIssue) {
       showCreateRoomFormError(settingsIssue.message);

@@ -38,6 +38,40 @@ test.describe("Create room page-2 single submit", () => {
     await expect(page.getByTestId("session-setup-window")).toBeVisible();
   });
 
+  test("buy-in 5 with rebuy submits on first click without refocusing buy-in", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#app-version")).toBeVisible({ timeout: 15_000 });
+    await signUpHost(page, "Page2 BuyIn5 Rebuy Host");
+    await goToPrivateRooms(page);
+
+    const modal = page.locator("#create-room-modal");
+    const roomName = "Page2 BuyIn5 Rebuy Room";
+
+    await page.locator("#create-room").click();
+    await expect(modal).toBeVisible();
+
+    await page.locator("#create-room-name").fill(roomName);
+    await page.locator("#create-room-submit").evaluate((el) => (el as HTMLButtonElement).click());
+    await expect(page.locator("#create-room-form")).toHaveAttribute("data-step", "settings");
+
+    await page.locator("#create-room-buy-in").fill("5");
+    await page.locator("#create-room-rebuy-enabled").evaluate((el) => {
+      (el as HTMLInputElement).checked = true;
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await page.locator("#create-room-buy-in").focus();
+
+    await page.locator("#create-room-form").evaluate((form: HTMLFormElement) => form.requestSubmit());
+
+    await expect(modal).toBeHidden({ timeout: 15_000 });
+    await expect(page.locator(".room-detail__title")).toContainText(roomName);
+    await expect(page.locator('button.session-tab[data-open-session]')).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId("session-setup-window")).toBeVisible();
+    await expect(page.locator("#create-room-error")).toBeHidden();
+  });
+
   test("invalid buy-in shows inline error without opening the room", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("#app-version")).toBeVisible({ timeout: 15_000 });
