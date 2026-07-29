@@ -29,7 +29,9 @@ export function heuristicDrawDiscardIndices(
 /** Lead high / cheapest winner / dump low (legacy opponent / fallback). */
 export function heuristicPlayCardIndex(hand: Card[], ctx: PlayContext): number {
   const legal = getLegalPlayIndices(ctx);
-  if (!legal.length) return 0;
+  if (!legal.length) {
+    throw new Error("No legal play for bot");
+  }
 
   if (ctx.isLeading || !ctx.trickPlays.length) {
     return legal.reduce((best, idx) =>
@@ -61,7 +63,9 @@ export function heuristicPlayCardIndex(hand: Card[], ctx: PlayContext): number {
 /** Random legal play — varied opponent baseline. */
 export function randomLegalPlayCardIndex(_hand: Card[], ctx: PlayContext, rng: () => number): number {
   const legal = getLegalPlayIndices(ctx);
-  if (!legal.length) return 0;
+  if (!legal.length) {
+    throw new Error("No legal play for bot");
+  }
   return legal[Math.floor(rng() * legal.length)]!;
 }
 

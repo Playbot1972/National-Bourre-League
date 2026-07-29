@@ -10,6 +10,7 @@ import {
   handleAdvanceBots,
   isBenignBotAdvanceRaceError,
   isBenignEnsureEnrollmentFollowUpError,
+  resolveBotPrivateHandCards,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -129,6 +130,43 @@ describe("isBenignEnsureEnrollmentFollowUpError", () => {
       isBenignEnsureEnrollmentFollowUpError({ code: "failed-precondition", message: "Not in reveal phase" }),
       true,
     );
+  });
+});
+
+describe("resolveBotPrivateHandCards", () => {
+  it("prefers embedded deal mirror over stale subcollection cards", () => {
+    const sessionData = {
+      liveEnrollment: {
+        deal: {
+          privateHandsByPlayer: {
+            bot_a: { cards: [{ rank: "A", suit: "spades" }] },
+          },
+        },
+      },
+    };
+    const staleSubcollection = {
+      cards: [
+        { rank: "2", suit: "clubs" },
+        { rank: "3", suit: "clubs" },
+        { rank: "4", suit: "clubs" },
+        { rank: "5", suit: "clubs" },
+        { rank: "6", suit: "clubs" },
+      ],
+    };
+    const hand = resolveBotPrivateHandCards(sessionData, "bot_a", staleSubcollection);
+    assert.equal(hand.length, 1);
+    assert.equal(hand[0].rank, "A");
+    assert.equal(hand[0].suit, "spades");
+  });
+
+  it("falls back to subcollection when embedded mirror is absent", () => {
+    const hand = resolveBotPrivateHandCards(
+      {},
+      "bot_a",
+      { cards: [{ rank: "K", suit: "hearts" }] },
+    );
+    assert.equal(hand.length, 1);
+    assert.equal(hand[0].rank, "K");
   });
 });
 
