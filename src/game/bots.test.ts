@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { botDrawDiscardIndices, botPlayCardIndex } from "./play";
+import {
+  heuristicDrawDiscardIndices,
+  heuristicPlayCardIndex,
+} from "./botHeuristic";
 import { getLegalPlayIndices } from "./legal";
 import {
   botDiscardFor,
@@ -15,20 +18,20 @@ const c = (rank: string, suit: string): Card =>
   ({ rank, suit }) as Card;
 
 describe("F — bot helpers", () => {
-  it("botDrawDiscardIndices prefers lowest non-trump cards", () => {
+  it("heuristicDrawDiscardIndices prefers lowest non-trump cards", () => {
     const hand = [c("A", "hearts"), c("2", "clubs"), c("3", "diamonds")];
-    const indices = botDrawDiscardIndices(hand, "hearts", 2);
+    const indices = heuristicDrawDiscardIndices(hand, "hearts", 2);
     assert.equal(indices.length, 2);
     assert.ok(indices.includes(1));
   });
 
-  it("botDrawDiscardIndices respects remaining deck replacements", () => {
+  it("heuristicDrawDiscardIndices respects remaining deck replacements", () => {
     const hand = [c("A", "hearts"), c("2", "clubs"), c("3", "diamonds")];
-    assert.deepEqual(botDrawDiscardIndices(hand, "hearts", 2, 0), []);
-    assert.equal(botDrawDiscardIndices(hand, "hearts", 2, 1).length, 1);
+    assert.deepEqual(heuristicDrawDiscardIndices(hand, "hearts", 2, 0), []);
+    assert.equal(heuristicDrawDiscardIndices(hand, "hearts", 2, 1).length, 1);
   });
 
-  it("botPlayCardIndex picks a legal card and leads high when opening a trick", () => {
+  it("heuristicPlayCardIndex picks a legal card and leads high when opening a trick", () => {
     const hand = [c("A", "clubs"), c("2", "clubs")];
     const leadCtx = {
       hand,
@@ -37,7 +40,7 @@ describe("F — bot helpers", () => {
       trickPlays: [] as Card[],
       isLeading: true,
     };
-    assert.equal(botPlayCardIndex(hand, leadCtx), 0);
+    assert.equal(heuristicPlayCardIndex(hand, leadCtx), 0);
 
     const followCtx = {
       hand,
@@ -46,7 +49,7 @@ describe("F — bot helpers", () => {
       trickPlays: [c("5", "clubs")],
       isLeading: false,
     };
-    const idx = botPlayCardIndex(hand, followCtx);
+    const idx = heuristicPlayCardIndex(hand, followCtx);
     const legal = getLegalPlayIndices(followCtx);
     assert.ok(legal.includes(idx));
   });
