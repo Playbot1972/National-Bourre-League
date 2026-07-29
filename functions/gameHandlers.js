@@ -23,6 +23,7 @@ import {
   botPlayCardIndex,
   botShouldFoldDraw,
   botShouldPassDecision,
+  buildBotMoveContext,
   buildPlayValidationState,
   effectivePlayerHand,
   maxDrawDiscards,
@@ -1148,7 +1149,10 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
   const effective = effectivePlayerHand(playerId, privateHand, ch);
   const maxDraw =
     ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
-  if (botShouldFoldDraw(effective, ch.trumpSuit)) {
+  const deckSeed = ch.deckSeed;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
+  const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
+  if (botShouldFoldDraw(effective, ch.trumpSuit, moveCtx)) {
     console.info(
       "[nbl-bot]",
       "decision-made",
@@ -1156,11 +1160,15 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
     );
     return handleFoldDraw(db, { roomId, sessionId, playerId, actorId });
   }
-  const deckSeed = ch.deckSeed;
-  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const pile = pileFromPublicHand(ch, deck);
   const deckRemaining = totalAvailableReplacements(pile);
-  const discardIndices = botDrawDiscardIndices(effective, ch.trumpSuit, maxDraw, deckRemaining);
+  const discardIndices = botDrawDiscardIndices(
+    effective,
+    ch.trumpSuit,
+    maxDraw,
+    deckRemaining,
+    moveCtx,
+  );
   console.info(
     "[nbl-bot]",
     "decision-made",
@@ -1217,8 +1225,11 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
   }
   const privateHand = deserializeCards(privateSnap.data().cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
+  const deckSeed = ch.deckSeed;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const ctx = buildPlayValidationState({ hand, publicHand: ch });
-  const cardIndex = botPlayCardIndex(hand, ctx);
+  const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
+  const cardIndex = botPlayCardIndex(hand, ctx, moveCtx);
   console.info(
     "[nbl-bot]",
     "decision-made",
@@ -1448,7 +1459,10 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
             privateHand = deserializeCards(privateSnap.data()?.cards || []);
           }
           const effective = effectivePlayerHand(hint.turnPlayerId, privateHand, ch);
-          if (ch.trumpSuit && botShouldPassDecision(effective, ch.trumpSuit)) {
+          const deckSeed = ch.deckSeed;
+          const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
+          const moveCtx = buildBotMoveContext(hint.turnPlayerId, privateHand, ch, deck);
+          if (ch.trumpSuit && botShouldPassDecision(effective, ch.trumpSuit, moveCtx)) {
             await handleSetHandParticipation(db, {
               roomId,
               sessionId,

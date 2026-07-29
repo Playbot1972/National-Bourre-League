@@ -161,6 +161,7 @@ import {
   botDrawDiscardIndices,
   botPlayCardIndex,
   botShouldFoldDraw,
+  buildBotMoveContext,
   botShouldPassDecision,
   getLegalPlayIndices,
   buildPlayValidationState,
@@ -2400,15 +2401,16 @@ export async function robotSubmitDraw(roomId, sessionId, { playerId, actorId, de
   const privateHand = deserializeCards(handData.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
-  if (botShouldFoldDraw(hand, trumpSuit)) {
+  const deckSeed = ch.deckSeed;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
+  const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
+  if (botShouldFoldDraw(hand, trumpSuit, moveCtx)) {
     await foldHandDraw(roomId, sessionId, { playerId, actorId });
     return;
   }
-  const deckSeed = ch.deckSeed;
-  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const pile = pileFromPublicHand(ch, deck);
   const deckRemaining = totalAvailableReplacements(pile);
-  const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw, deckRemaining);
+  const indices = botDrawDiscardIndices(hand, trumpSuit, maxDraw, deckRemaining, moveCtx);
   await submitHandDraw(roomId, sessionId, { playerId, discardIndices: indices, actorId });
 }
 
@@ -2422,8 +2424,11 @@ export async function robotPlayCard(roomId, sessionId, { playerId, actorId }) {
   const privateHand = deserializeCards(handData?.cards || []);
   const hand = effectivePlayerHand(playerId, privateHand, ch);
   if (!hand.length) return;
+  const deckSeed = ch.deckSeed;
+  const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
   const ctx = buildPlayValidationState({ hand, publicHand: ch });
-  const idx = botPlayCardIndex(hand, ctx);
+  const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
+  const idx = botPlayCardIndex(hand, ctx, moveCtx);
   await playHandCard(roomId, sessionId, { playerId, cardIndex: idx, actorId });
 }
 

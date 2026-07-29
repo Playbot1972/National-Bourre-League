@@ -1,4 +1,4 @@
-import { botDrawDiscardIndices, botPlayCardIndex } from "../game/play";
+import { botDrawDiscardIndices, botPlayCardIndex } from "../game/botSearch";
 import { isTrump } from "../game/cardUtils";
 import { buildPlayValidationState } from "../game/playContext";
 import type { PublicHandState } from "../game/types";

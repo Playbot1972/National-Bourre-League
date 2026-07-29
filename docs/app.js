@@ -189,6 +189,8 @@ import {
   deserializeCards,
   effectivePlayerHand,
   botShouldPassDecision,
+  buildBotMoveContext,
+  shuffledDeckFromSeed,
 } from "./game-engine.js";
 import {
   formatHandHistoryPublicLine,
@@ -4310,7 +4312,9 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
           if (handData && ch?.trumpSuit) {
             const privateHand = deserializeCards(handData.cards || []);
             const effective = effectivePlayerHand(currentId, privateHand, ch);
-            if (botShouldPassDecision(effective, ch.trumpSuit)) {
+            const deck = ch.deckSeed != null ? shuffledDeckFromSeed(ch.deckSeed) : undefined;
+            const moveCtx = buildBotMoveContext(currentId, privateHand, ch, deck);
+            if (botShouldPassDecision(effective, ch.trumpSuit, moveCtx)) {
               await setHandParticipation(currentRoomId, openSessionId, {
                 playerId: currentId,
                 inHand: false,
