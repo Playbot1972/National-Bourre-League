@@ -58,12 +58,6 @@ export function publicHandFromDeal(
   return bundle.publicHand;
 }
 
-export interface SimulatedHandState {
-  publicHand: PublicHandState;
-  privateHands: Record<string, Card[]>;
-  deck: Card[];
-}
-
 export function initSimulatedHand(
   overrides: Partial<DealInitialHandInput> & { seed?: number } = {},
 ): SimulatedHandState {

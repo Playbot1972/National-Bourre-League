@@ -59,7 +59,7 @@ export function heuristicPlayCardIndex(hand: Card[], ctx: PlayContext): number {
 }
 
 /** Random legal play — varied opponent baseline. */
-export function randomLegalPlayCardIndex(hand: Card[], ctx: PlayContext, rng: () => number): number {
+export function randomLegalPlayCardIndex(_hand: Card[], ctx: PlayContext, rng: () => number): number {
   const legal = getLegalPlayIndices(ctx);
   if (!legal.length) return 0;
   return legal[Math.floor(rng() * legal.length)]!;
