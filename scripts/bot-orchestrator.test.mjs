@@ -10,7 +10,7 @@ import {
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
-import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
+import { BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
@@ -129,6 +129,17 @@ describe("app.js bot paths", () => {
 });
 
 describe("server bot advance runtime presentation deferral", () => {
+  const playThinkWaitMs = () => BOT_PLAY_DELAY_MAX_MS + 150;
+
+  async function waitUntil(ms, predicate) {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      if (predicate()) return true;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    return predicate();
+  }
+
   it("arms think during play even when presentation is blocked, then executes after clear", async () => {
     let presentationBlocked = true;
     let advanceCalls = 0;
@@ -166,13 +177,14 @@ describe("server bot advance runtime presentation deferral", () => {
     });
 
     runtime.schedule(session, scores, "human", { reason: "test" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    await waitUntil(playThinkWaitMs(), () => advanceCalls === 0);
     assert.equal(advanceCalls, 0, "should not fire while presentation blocked");
 
     presentationBlocked = false;
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
-    assert.equal(advanceCalls, 1, "should execute after presentation clears");
+    const executed = await waitUntil(playThinkWaitMs(), () => advanceCalls >= 1);
+    assert.equal(executed, true, "should execute after presentation clears");
+    assert.equal(advanceCalls, 1);
   });
 
   it("defers reveal-phase advance when presentation blocked, then executes after clear", async () => {
