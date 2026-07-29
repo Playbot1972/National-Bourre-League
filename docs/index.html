@@ -312,7 +312,7 @@
         <button class="modal__close" type="button" data-close-create-room aria-label="Close">&times;</button>
         <h2 class="modal__title" id="create-room-title">Create a room</h2>
         <p class="muted small create-room-form__step-hint">Name your room and set house rules, then tap Create Room.</p>
-        <form class="create-room-form" id="create-room-form" data-step="basics">
+        <form class="create-room-form" id="create-room-form" data-step="basics" novalidate>
           <fieldset class="create-room-form__section" data-create-step="basics">
             <legend class="house-rules-form__legend">Room basics</legend>
           <label class="create-room-form__field">
@@ -384,6 +384,12 @@
           </fieldset>
 
           <div class="create-room-form__actions">
+            <p
+              class="form-feedback form-feedback--error create-room-form__error"
+              id="create-room-error"
+              role="alert"
+              hidden
+            ></p>
             <button
               type="submit"
               class="btn btn--primary session-action-pill session-action-pill--play create-room-form__new-session create-room-form__submit"

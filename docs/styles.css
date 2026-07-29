@@ -1739,6 +1739,11 @@ body.table-entry-silent #room-detail {
   display: none;
 }
 
+.create-room-form__error {
+  margin: 0;
+  width: 100%;
+}
+
 .game-setup-panel {
   margin-top: 12px;
 }
