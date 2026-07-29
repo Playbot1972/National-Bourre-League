@@ -14569,7 +14569,7 @@ function dp(e) {
 		to: r
 	}), mp(r);
 }
-function fp(e = Date.now()) {
+function fp(e = Date.now(), t) {
 	if (e < ep) return {
 		blocked: !1,
 		reason: null,
@@ -14577,55 +14577,58 @@ function fp(e = Date.now()) {
 		softUnblock: !1,
 		forceReleased: !1
 	};
-	let t = cp(Zf, { forBots: !0 });
-	if (t == null) return tp = null, {
+	let n = cp(Zf, {
+		forBots: !0,
+		sessionPhase: t ?? $f
+	});
+	if (n == null) return tp = null, {
 		blocked: !1,
 		reason: null,
 		blockedMs: 0,
 		softUnblock: !1,
 		forceReleased: !1
 	};
-	tp ? tp.reason !== t && (tp = {
-		reason: t,
+	tp ? tp.reason !== n && (tp = {
+		reason: n,
 		since: tp.since,
 		blockedLogged: tp.blockedLogged
 	}) : tp = {
-		reason: t,
+		reason: n,
 		since: e,
 		blockedLogged: !1
 	};
-	let n = e - tp.since;
-	return n >= 7e3 ? (Jf() && !tp.blockedLogged && Yf("trickAnimationBridge", "gate-force-release", {
-		reason: t,
-		blockedMs: n
+	let r = e - tp.since;
+	return r >= 7e3 ? (Jf() && !tp.blockedLogged && Yf("trickAnimationBridge", "gate-force-release", {
+		reason: n,
+		blockedMs: r
 	}), dp("gate-timeout"), {
 		blocked: !1,
-		reason: t,
-		blockedMs: n,
+		reason: n,
+		blockedMs: r,
 		softUnblock: !0,
 		forceReleased: !0
-	}) : n >= 5500 ? (Jf() && !tp.blockedLogged && (Yf("trickAnimationBridge", "gate-soft-unblock", {
-		reason: t,
-		blockedMs: n
+	}) : r >= 5500 ? (Jf() && !tp.blockedLogged && (Yf("trickAnimationBridge", "gate-soft-unblock", {
+		reason: n,
+		blockedMs: r
 	}), tp.blockedLogged = !0), {
 		blocked: !1,
-		reason: t,
-		blockedMs: n,
+		reason: n,
+		blockedMs: r,
 		softUnblock: !0,
 		forceReleased: !1
 	}) : (Jf() && !tp.blockedLogged && (Yf("trickAnimationBridge", "gate-blocked", {
-		reason: t,
-		blockedMs: n
+		reason: n,
+		blockedMs: r
 	}), tp.blockedLogged = !0), {
 		blocked: !0,
-		reason: t,
-		blockedMs: n,
+		reason: n,
+		blockedMs: r,
 		softUnblock: !1,
 		forceReleased: !1
 	});
 }
-function pp(e = Date.now()) {
-	return fp(e).blocked;
+function pp(e = Date.now(), t) {
+	return fp(e, t).blocked;
 }
 function mp(e) {
 	if (!np(Zf, e)) {
@@ -14636,7 +14639,7 @@ function mp(e) {
 			blockReason: cp(e),
 			motionGateActive: e.motionGateActive,
 			handPresentationPhase: e.handPresentationPhase
-		}), Zf = e, cp(e) ?? (tp = null);
+		}), Zf = e, cp(e, { forBots: !0 }) ?? (tp = null);
 		for (let e of Qf) e();
 	}
 }
@@ -21744,4 +21747,4 @@ function by() {
 	vy && (gg(vy), Vh(vy)), _y?.unmount(), _y = null, vy = null, hp(), Uf(), gp(), Wf(), Dp();
 }
 //#endregion
-export { Vh as clearDrawFlyGhosts, gg as clearWonTrickCollectionArtifacts, fp as evaluateBotPresentationGate, dp as forceReleasePresentationForBots, Mu as getFeedbackPrefs, cp as getTablePresentationBlockReason, _p as getTrickAnimationBusyState, up as handPresentingBlocksBots, tf as initGameFeedback, yp as isTablePresentationBusy, pp as isTablePresentationBusyForBots, vp as isTrickAnimationBusy, yy as mountTableSession, sf as playBigWinFeedback, cf as playBourreFeedback, lf as playBourrePrivatePunishmentFeedback, mf as playCardSelectFeedback, pf as playDeleteRoomFeedback, af as playDrawFeedback, gf as playFoldFeedback, uf as playGameStartFeedback, ff as playOpenRoomFeedback, nf as playShuffleFeedback, of as playTrickWinFeedback, hf as playUiButtonFeedback, Nu as saveFeedbackPrefs, Iu as subscribeFeedbackPrefs, bp as subscribeTrickAnimationBusy, by as unmountTableSession };
+export { Vh as clearDrawFlyGhosts, gg as clearWonTrickCollectionArtifacts, fp as evaluateBotPresentationGate, dp as forceReleasePresentationForBots, Mu as getFeedbackPrefs, cp as getTablePresentationBlockReason, _p as getTrickAnimationBusyState, up as handPresentingBlocksBots, tf as initGameFeedback, yp as isTablePresentationBusy, pp as isTablePresentationBusyForBots, vp as isTrickAnimationBusy, yy as mountTableSession, sf as playBigWinFeedback, cf as playBourreFeedback, lf as playBourrePrivatePunishmentFeedback, mf as playCardSelectFeedback, pf as playDeleteRoomFeedback, af as playDrawFeedback, gf as playFoldFeedback, uf as playGameStartFeedback, ff as playOpenRoomFeedback, nf as playShuffleFeedback, of as playTrickWinFeedback, hf as playUiButtonFeedback, Nu as saveFeedbackPrefs, rp as setBotPresentationSessionPhase, Iu as subscribeFeedbackPrefs, bp as subscribeTrickAnimationBusy, by as unmountTableSession };
