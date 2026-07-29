@@ -61,8 +61,9 @@ describe("app.js bot paths", () => {
     assert.match(src, /evaluateBotPresentationGate/);
     assert.match(src, /function isRawTablePresentationBusy/);
     const fnStart = src.indexOf("function isRawTablePresentationBusy");
-    const fnBody = src.slice(fnStart, fnStart + 600);
-    assert.match(fnBody, /evaluateBotPresentationGate\(\)\.blocked/);
+    const fnBody = src.slice(fnStart, fnStart + 800);
+    assert.match(fnBody, /evaluateBotPresentationGate\(Date\.now\(\), sessionPhase\)/);
+    assert.match(src, /function syncBotPresentationSessionPhase/);
   });
 
   it("logs bot-submit-blocked when presentation defers draw/play", () => {

@@ -142,6 +142,18 @@ describe("trickAnimationBridge", () => {
     assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
   });
 
+  it("evaluateBotPresentationGate allows draw when session phase override is draw but bridge phase is stale reveal", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("reveal");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+    });
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, true);
+    assert.equal(evaluateBotPresentationGate(Date.now(), "draw").blocked, false);
+  });
+
   it("still blocks bots for reveal-phase trump presentation before server draw", () => {
     resetTrickAnimationBusyState();
     setBotPresentationSessionPhase("reveal");

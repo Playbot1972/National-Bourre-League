@@ -4114,13 +4114,24 @@ function robotTurnPresentationKey(s) {
   ].join(":");
 }
 
-function isRawTablePresentationBusy() {
+function syncBotPresentationSessionPhase(sessionObj) {
+  const phase = sessionObj ? (getSessionCurrentHand(sessionObj)?.phase ?? null) : null;
+  try {
+    tableMountApi?.setBotPresentationSessionPhase?.(phase);
+  } catch {
+    /* table bundle may not be mounted */
+  }
+  return phase;
+}
+
+function isRawTablePresentationBusy(sessionObj) {
+  const sessionPhase = syncBotPresentationSessionPhase(sessionObj);
   try {
     if (typeof tableMountApi?.evaluateBotPresentationGate === "function") {
-      return tableMountApi.evaluateBotPresentationGate().blocked === true;
+      return tableMountApi.evaluateBotPresentationGate(Date.now(), sessionPhase).blocked === true;
     }
     if (typeof tableMountApi?.isTablePresentationBusyForBots === "function") {
-      return tableMountApi.isTablePresentationBusyForBots() === true;
+      return tableMountApi.isTablePresentationBusyForBots(Date.now(), sessionPhase) === true;
     }
     return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
@@ -4133,7 +4144,7 @@ function isRawTablePresentationBusy() {
  * Works with legacy table-session.js (no evaluateBotPresentationGate export).
  */
 function shouldBlockRobotForPresentation(s, scores) {
-  const busy = isRawTablePresentationBusy();
+  const busy = isRawTablePresentationBusy(s);
   if (!busy) {
     robotPresentationBlockEpisode = null;
     return false;
@@ -4157,7 +4168,7 @@ function shouldBlockRobotForPresentation(s, scores) {
   const ep = robotPresentationBlockEpisode;
   const blockedMs = now - ep.since;
   const ctx = snapshotGameFlowContext(s, scores);
-  const gate = snapshotTablePresentationGate();
+  const gate = snapshotTablePresentationGate(s);
 
   if (blockedMs >= ROBOT_PRESENTATION_FORCE_MS) {
     if (!ep.forceLogged) {
@@ -4208,12 +4219,20 @@ function shouldBlockRobotForPresentation(s, scores) {
   return true;
 }
 
-function snapshotTablePresentationGate() {
+function snapshotTablePresentationGate(sessionObj) {
   try {
     const busy = tableMountApi?.getTrickAnimationBusyState?.();
     if (!busy) return null;
+    const sessionPhase = sessionObj
+      ? (getSessionCurrentHand(sessionObj)?.phase ?? null)
+      : null;
     return {
-      blockReason: tableMountApi?.getTablePresentationBlockReason?.(busy) ?? null,
+      blockReason:
+        tableMountApi?.getTablePresentationBlockReason?.(busy, {
+          forBots: true,
+          sessionPhase,
+        }) ?? null,
+      sessionPhase,
       handPresentationPhase: busy.handPresentationPhase,
       handPresenting: busy.handPresenting,
       pipelineActive: busy.pipelineActive,
@@ -4251,8 +4270,8 @@ function snapshotGameFlowContext(s, scores) {
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
-    trickAnimBusy: isRawTablePresentationBusy(),
-    presentationGate: snapshotTablePresentationGate(),
+    trickAnimBusy: isRawTablePresentationBusy(s),
+    presentationGate: snapshotTablePresentationGate(s),
     robotActionInFlight,
     msSinceLastRobot: Date.now() - lastRobotTrickAt,
   };
@@ -4389,11 +4408,14 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
       logBotOrchestrator("bot-submit-blocked", {
         ...snapshotGameFlowContext(s, scores),
         phase: "draw",
-        reason: snapshotTablePresentationGate()?.blockReason ?? "presentation",
-        gate: snapshotTablePresentationGate(),
+        reason: snapshotTablePresentationGate(s)?.blockReason ?? "presentation",
+        gate: snapshotTablePresentationGate(s),
       });
       return;
     }
+
+    const turnId = currentHand.turnPlayerId;
+    const drawDone = currentHand.drawCompletedIds || [];
     if (
       turnId &&
       isRobotPlayerId(turnId) &&
@@ -4427,8 +4449,8 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
       logBotOrchestrator("bot-submit-blocked", {
         ...snapshotGameFlowContext(s, scores),
         phase: "play",
-        reason: snapshotTablePresentationGate()?.blockReason ?? "presentation",
-        gate: snapshotTablePresentationGate(),
+        reason: snapshotTablePresentationGate(s)?.blockReason ?? "presentation",
+        gate: snapshotTablePresentationGate(s),
       });
       return;
     }

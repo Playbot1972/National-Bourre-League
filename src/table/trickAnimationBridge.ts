@@ -196,7 +196,10 @@ export function forceReleasePresentationForBots(source: string): void {
   setTrickAnimationBusyState(cleared);
 }
 
-export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGateResult {
+export function evaluateBotPresentationGate(
+  now = Date.now(),
+  sessionPhaseOverride?: string | null,
+): BotPresentationGateResult {
   if (now < botGateBypassUntil) {
     return {
       blocked: false,
@@ -207,7 +210,8 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
     };
   }
 
-  const reason = getTablePresentationBlockReason(state, { forBots: true });
+  const sessionPhase = sessionPhaseOverride ?? botGateSessionPhase;
+  const reason = getTablePresentationBlockReason(state, { forBots: true, sessionPhase });
   if (reason == null) {
     blockEpisode = null;
     return {
@@ -271,8 +275,11 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
 }
 
 /** Bot driver gate — includes soft/force timeout overrides. */
-export function isTablePresentationBusyForBots(now = Date.now()): boolean {
-  return evaluateBotPresentationGate(now).blocked;
+export function isTablePresentationBusyForBots(
+  now = Date.now(),
+  sessionPhaseOverride?: string | null,
+): boolean {
+  return evaluateBotPresentationGate(now, sessionPhaseOverride).blocked;
 }
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
@@ -288,7 +295,7 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
     });
   }
   state = next;
-  if (getTablePresentationBlockReason(next) == null) {
+  if (getTablePresentationBlockReason(next, { forBots: true }) == null) {
     blockEpisode = null;
   }
   for (const listener of listeners) listener();
