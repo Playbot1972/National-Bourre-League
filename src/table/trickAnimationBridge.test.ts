@@ -11,7 +11,6 @@ import {
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   setBotPresentationSessionPhase,
-  setBotPresentationSessionPhase,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
@@ -121,6 +120,22 @@ describe("trickAnimationBridge", () => {
     assert.equal(handPresentingBlocksBots(true, "trumpMerge", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), true);
     assert.equal(handPresentingBlocksBots(true, "ante", "reveal"), true);
+  });
+
+  it("does not block bots for deal presentation once server draw is live", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("draw");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      dealPresentationActive: true,
+    });
+    assert.equal(
+      getTablePresentationBlockReason(getTrickAnimationBusyState(), {
+        forBots: true,
+        sessionPhase: "draw",
+      }),
+      null,
+    );
   });
 
   it("evaluateBotPresentationGate allows draw while trumpReveal animation is in progress", () => {

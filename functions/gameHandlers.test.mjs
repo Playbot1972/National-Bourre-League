@@ -171,9 +171,21 @@ describe("resolveBotPrivateHandCards", () => {
 });
 
 describe("isBenignBotAdvanceRaceError", () => {
-  it("treats failed-precondition and not-found as benign races", () => {
-    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition" }), true);
+  it("treats stale turn races as benign", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Not your turn to draw" }), true);
     assert.equal(isBenignBotAdvanceRaceError({ code: "not-found" }), true);
+    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Draw already completed" }), true);
+  });
+
+  it("does not treat bot logic failures as benign", () => {
+    assert.equal(
+      isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Invalid discard selection" }),
+      false,
+    );
+    assert.equal(
+      isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Invalid card selection" }),
+      false,
+    );
   });
 
   it("does not treat auth, permission, or validation errors as benign", () => {

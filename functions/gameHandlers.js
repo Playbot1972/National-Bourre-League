@@ -2746,7 +2746,35 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
 
 export function isBenignBotAdvanceRaceError(err) {
   const code = err?.code;
-  return code === "failed-precondition" || code === "not-found";
+  if (code === "not-found") return true;
+  if (code !== "failed-precondition") return false;
+
+  const msg = String(err?.message ?? err ?? "").toLowerCase();
+  if (
+    msg.includes("invalid discard") ||
+    msg.includes("invalid card selection") ||
+    msg.includes("no legal play") ||
+    msg.includes("not enough cards left")
+  ) {
+    return false;
+  }
+
+  const benignFragments = [
+    "not your turn",
+    "draw already completed",
+    "draw already complete",
+    "not in draw phase",
+    "not in trick-play phase",
+    "not in reveal phase",
+    "not in play",
+    "action blocked",
+    "session is final",
+    "illegal phase transition",
+    "no active trick",
+    "private hand not found",
+    "bot private hand missing",
+  ];
+  return benignFragments.some((frag) => msg.includes(frag));
 }
 
 /** Post-deal bot nudge failures that should not fail enrollment/deal callables. */

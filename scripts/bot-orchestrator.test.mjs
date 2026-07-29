@@ -235,4 +235,46 @@ describe("server bot advance runtime presentation deferral", () => {
     await new Promise((r) => setTimeout(r, 250));
     assert.equal(advanceCalls, 1, "should advance reveal after presentation clears");
   });
+
+  it("falls back when server advance returns skipped but bot draw is still pending", async () => {
+    let fallbackCalls = 0;
+    const session = {
+      id: "sess_draw",
+      status: "active",
+      currentHand: {
+        phase: "draw",
+        turnPlayerId: "bot_a",
+        participantIds: ["human", "bot_a"],
+        drawCompletedIds: [],
+      },
+    };
+    const scores = [{ playerId: "bot_a", isRobot: true }];
+    const runtime = createServerBotAdvanceRuntime({
+      shouldRequestAdvance: () => true,
+      sessionNeedsBotDriver: () => true,
+      shouldBlockForPresentation: () => false,
+      snapshotContext: () => ({
+        handNumber: 1,
+        turnPlayerId: "bot_a",
+      }),
+      getRoomId: () => "room_1",
+      getSessionId: () => "sess_draw",
+      getHandPhase: (s) => s.currentHand?.phase ?? null,
+      advanceSessionBots: async () => ({
+        status: "ok",
+        skipped: true,
+        reason: "Invalid discard selection",
+        steps: [],
+      }),
+      findSession: () => session,
+      getScores: () => scores,
+      onWake: () => {},
+      onAdvanceError: () => {
+        fallbackCalls += 1;
+      },
+    });
+
+    await runtime.execute(session, scores, "human", { reason: "test-draw-noop" });
+    assert.equal(fallbackCalls, 1);
+  });
 });
