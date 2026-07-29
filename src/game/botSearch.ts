@@ -224,7 +224,10 @@ export function botDrawDiscardIndices(
   if (cap <= 0 || !hand.length) return [];
 
   if (!ctx) {
-    return heuristicDrawDiscardIndices(hand, trumpSuit, maxDiscards, deckReplacementsAvailable);
+    return sanitizeDiscardIndices(
+      heuristicDrawDiscardIndices(hand, trumpSuit, maxDiscards, deckReplacementsAvailable),
+      hand.length,
+    );
   }
 
   const state = stateForDecision(ctx);
@@ -246,7 +249,13 @@ export function botDrawDiscardIndices(
       bestScore = score;
     }
   }
-  return [...best].sort((a, b) => a - b);
+  return sanitizeDiscardIndices(best, hand.length);
+}
+
+function sanitizeDiscardIndices(indices: number[], handLen: number): number[] {
+  return [...new Set(indices)]
+    .filter((i) => i >= 0 && i < handLen)
+    .sort((a, b) => a - b);
 }
 
 function playEv(state: SimulatedHandState, heroId: string, cardIndex: number): number {
@@ -270,7 +279,9 @@ export function botPlayCardIndex(
   ctx?: BotMoveContext,
 ): number {
   const legal = getLegalPlayIndices(playCtx);
-  if (!legal.length) return 0;
+  if (!legal.length) {
+    throw new Error("No legal play for bot");
+  }
 
   if (!ctx) {
     return heuristicPlayCardIndex(hand, playCtx);

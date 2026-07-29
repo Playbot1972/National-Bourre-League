@@ -988,7 +988,7 @@ function Y(e, t, n, r = Infinity) {
 }
 function Xe(e, t) {
 	let n = J(t);
-	if (!n.length) return 0;
+	if (!n.length) throw Error("No legal play for bot");
 	if (t.isLeading || !t.trickPlays.length) return n.reduce((t, n) => C(e[n]) > C(e[t]) ? n : t);
 	let r = t.leadSuit ?? t.trickPlays[0]?.suit;
 	if (!r) return n.reduce((t, n) => C(e[n]) < C(e[t]) ? n : t);
@@ -1003,7 +1003,8 @@ function Xe(e, t) {
 }
 function Ze(e, t, n) {
 	let r = J(t);
-	return r.length ? r[Math.floor(n() * r.length)] : 0;
+	if (!r.length) throw Error("No legal play for bot");
+	return r[Math.floor(n() * r.length)];
 }
 function Qe(e, t, n, r) {
 	let i = Math.min(t, Math.max(0, n)), a = [[]];
@@ -1271,7 +1272,7 @@ function vt(e, t) {
 }
 //#endregion
 //#region src/game/botSearch.ts
-var yt = .12, bt = .15, xt = .05, St = 16, Z = 10, Ct = 10, Q = /* @__PURE__ */ new Map();
+var yt = .12, bt = .15, xt = .05, St = 12, Z = 6, Ct = 6, Q = /* @__PURE__ */ new Map();
 function wt(e, t, n = "") {
 	let r = j(t.playerId, t.privateHands?.[t.playerId] ?? [], t.publicHand).map((e) => `${e.rank}${e.suit[0]}`).join(",");
 	return [
@@ -1344,20 +1345,30 @@ function At(e, t, n = !1) {
 	}
 	return r < (n ? 2 : 2.25);
 }
-function jt(e, t, n, r = Infinity, i) {
+function jt(e, t, n) {
+	let r = /* @__PURE__ */ new Map(), i = (e) => r.set(_t(e), [...e]);
+	i([]);
+	for (let t = 0; t < e; t += 1) i([t]);
+	i(n);
+	for (let n of vt(e, Math.min(t, 2))) i(n);
+	if (t > 2) for (let n of vt(e, t)) n.length === t && i(n);
+	return [...r.values()];
+}
+function Mt(e, t, n, r = Infinity, i) {
 	let a = Math.min(n, Math.max(0, r));
 	if (a <= 0 || !e.length) return [];
-	if (!i) return Y(e, t, n, r);
-	let o = mt($(i), i.playerId), s = vt(e.length, a), c = Y(e, t, n, r), l = _t(c);
-	s.some((e) => _t(e) === l) || s.push(c);
-	let u = s[0] ?? [], d = Et(o, i.playerId, u);
-	for (let e of s) {
+	if (!i) return Nt(Y(e, t, n, r), e.length);
+	let o = mt($(i), i.playerId), s = Y(e, t, n, r), c = jt(e.length, a, s), l = c[0] ?? [], u = Et(o, i.playerId, l);
+	for (let e of c) {
 		let t = Et(o, i.playerId, e);
-		Dt(t, d) > 0 && (u = e, d = t);
+		Dt(t, u) > 0 && (l = e, u = t);
 	}
-	return [...u].sort((e, t) => e - t);
+	return Nt(l, e.length);
 }
-function Mt(e, t, n) {
+function Nt(e, t) {
+	return [...new Set(e)].filter((e) => e >= 0 && e < t).sort((e, t) => e - t);
+}
+function Pt(e, t, n) {
 	let r = 0;
 	for (let i = 0; i < Ct; i += 1) {
 		let a = ft(gt(X(e), t, n), {
@@ -1369,21 +1380,21 @@ function Mt(e, t, n) {
 	}
 	return r / Ct;
 }
-function Nt(e, t, n) {
+function Ft(e, t, n) {
 	let r = J(t);
-	if (!r.length) return 0;
+	if (!r.length) throw Error("No legal play for bot");
 	if (!n) return Xe(e, t);
 	let i = $(n), a = r[0], o = -1;
 	for (let s of r) {
-		let r = Mt(i, n.playerId, s);
-		r > o + .05 ? (o = r, a = s) : Math.abs(r - o) <= .05 && (a = Pt(e, t, a, s));
+		let r = Pt(i, n.playerId, s);
+		r > o + .05 ? (o = r, a = s) : Math.abs(r - o) <= .05 && (a = It(e, t, a, s));
 	}
 	return a;
 }
-function Pt(e, t, n, r) {
+function It(e, t, n, r) {
 	return Xe(e, t) === r ? r : n;
 }
-function Ft(e, t) {
+function Lt(e, t) {
 	let n = 0;
 	for (let r of e) {
 		let e = C(r);
@@ -1391,7 +1402,7 @@ function Ft(e, t) {
 	}
 	return n;
 }
-function It(e, t, n, r) {
+function Rt(e, t, n, r) {
 	return {
 		playCtx: K({
 			hand: j(e, t, n),
@@ -1401,4 +1412,4 @@ function It(e, t, n, r) {
 	};
 }
 //#endregion
-export { yt as BOT_FOLD_P_THRESHOLD, bt as BOT_PASS_P_THRESHOLD, xt as BOT_PLAY_EV_TIE, v as CARDS_PER_PLAYER, ue as CardUniquenessError, z as HAND_DECISION_MS, Te as HAND_DECISION_SECONDS, N as HAND_PHASE, Oe as activateHandDecision, f as activePlayerOrder, R as advanceAfterDraw, I as allDrawsComplete, Ae as applyDecisionPass, ke as applyDecisionPlay, je as applyDecisionTimeout, Se as applyDraw, we as applyDrawFold, ce as applyDrawPile, Ye as applyPlayCard, L as applyPlayerDraw, Je as applyPlayerPlayCard, fe as assertCardUniqueness, te as assignTrumpUpcard, jt as botDrawDiscardIndices, Nt as botPlayCardIndex, It as botPlayContextFromState, Ot as botShouldFoldDraw, kt as botShouldPassDecision, et as buildBotMoveContext, B as buildHandDecision, K as buildPlayValidationState, Be as canPlayCard, x as cardKey, S as cardsEqual, ve as cardsRemainingInHand, M as clearTrumpUpcardIfFirstAction, i as createDeck, ae as createDrawPileFromStock, V as currentDecisionPlayer, y as dealInitialHand, Ee as dealerMustPlayTrumpAce, Me as decisionAsEnrollmentView, H as decisionPatchAfterStep, G as deserializeCards, ye as displayHoleCardCount, l as drawCardsFromDeck, se as drawFromPile, he as effectiveIndexDiscardsTrump, j as effectivePlayerHand, ie as emptyDrawPile, Ft as estimateHandStrength, h as firstLeaderFromDealerLeft, F as firstUnresolvedDrawTurn, J as getLegalPlayIndices, xe as isBeforeFirstHandAction, w as isTrump, q as logPlayValidation, b as maxDrawDiscards, p as nextActivePlayerClockwise, P as nextPlayerInOrder, ze as normalizeTrickForPlay, m as openingLeaderId, O as pileFromPublicHand, ge as playedTrumpUpcard, d as playerOrderFromDealer, me as privateHandFromEffective, le as publicHandWithPile, C as rankValue, u as remainingDeckCount, _ as resolveActionOrder, g as resolveSeatRing, Ke as resolveTrickWinner, Ce as revealToDraw, U as serializeCard, W as serializeCards, Ne as serializeHandState, Pe as serializePagatRevealHand, s as shuffleDeck, c as shuffledDeckFromSeed, E as totalAvailableReplacements, pe as trumpOnTable, A as trumpOwnerId, be as trumpRevealMirroredInHolderHand, Ge as validatePlayIndex };
+export { yt as BOT_FOLD_P_THRESHOLD, bt as BOT_PASS_P_THRESHOLD, xt as BOT_PLAY_EV_TIE, v as CARDS_PER_PLAYER, ue as CardUniquenessError, z as HAND_DECISION_MS, Te as HAND_DECISION_SECONDS, N as HAND_PHASE, Oe as activateHandDecision, f as activePlayerOrder, R as advanceAfterDraw, I as allDrawsComplete, Ae as applyDecisionPass, ke as applyDecisionPlay, je as applyDecisionTimeout, Se as applyDraw, we as applyDrawFold, ce as applyDrawPile, Ye as applyPlayCard, L as applyPlayerDraw, Je as applyPlayerPlayCard, fe as assertCardUniqueness, te as assignTrumpUpcard, Mt as botDrawDiscardIndices, Ft as botPlayCardIndex, Rt as botPlayContextFromState, Ot as botShouldFoldDraw, kt as botShouldPassDecision, et as buildBotMoveContext, B as buildHandDecision, K as buildPlayValidationState, Be as canPlayCard, x as cardKey, S as cardsEqual, ve as cardsRemainingInHand, M as clearTrumpUpcardIfFirstAction, i as createDeck, ae as createDrawPileFromStock, V as currentDecisionPlayer, y as dealInitialHand, Ee as dealerMustPlayTrumpAce, Me as decisionAsEnrollmentView, H as decisionPatchAfterStep, G as deserializeCards, ye as displayHoleCardCount, l as drawCardsFromDeck, se as drawFromPile, he as effectiveIndexDiscardsTrump, j as effectivePlayerHand, ie as emptyDrawPile, Lt as estimateHandStrength, h as firstLeaderFromDealerLeft, F as firstUnresolvedDrawTurn, J as getLegalPlayIndices, xe as isBeforeFirstHandAction, w as isTrump, q as logPlayValidation, b as maxDrawDiscards, p as nextActivePlayerClockwise, P as nextPlayerInOrder, ze as normalizeTrickForPlay, m as openingLeaderId, O as pileFromPublicHand, ge as playedTrumpUpcard, d as playerOrderFromDealer, me as privateHandFromEffective, le as publicHandWithPile, C as rankValue, u as remainingDeckCount, _ as resolveActionOrder, g as resolveSeatRing, Ke as resolveTrickWinner, Ce as revealToDraw, U as serializeCard, W as serializeCards, Ne as serializeHandState, Pe as serializePagatRevealHand, s as shuffleDeck, c as shuffledDeckFromSeed, E as totalAvailableReplacements, pe as trumpOnTable, A as trumpOwnerId, be as trumpRevealMirroredInHolderHand, Ge as validatePlayIndex };

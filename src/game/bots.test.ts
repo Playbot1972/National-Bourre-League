@@ -12,6 +12,7 @@ import {
   runDrawPhase,
   simulateFullHand,
 } from "./testHelpers";
+import { effectivePlayerHand } from "./invariants";
 import type { Card } from "../types";
 
 const c = (rank: string, suit: string): Card =>
@@ -58,7 +59,11 @@ describe("F — bot helpers", () => {
     const state = initSimulatedHand({ seed: 44 });
     const pid = state.publicHand.turnPlayerId!;
     const indices = botDiscardFor(state, pid);
+    const handLen = effectivePlayerHand(pid, state.privateHands[pid]!, state.publicHand).length;
     assert.ok(indices.length <= (state.publicHand.maxDrawDiscards ?? 5));
+    for (const idx of indices) {
+      assert.ok(idx >= 0 && idx < handLen, `discard index ${idx} out of range for hand len ${handLen}`);
+    }
   });
 
   it("bot play choices are legal during simulated play", () => {
