@@ -2846,6 +2846,11 @@ function setCreateRoomStep(step) {
         ? "Name your room and set house rules, then tap Create Room."
         : "Set buy-in and ante, then tap Create Room to open your table.";
   }
+  if (step === "settings") {
+    requestAnimationFrame(() => {
+      $("#create-room-submit", createRoomForm)?.scrollIntoView({ block: "end", behavior: "instant" });
+    });
+  }
 }
 
 async function openTableAfterRoomCreate(roomId) {
