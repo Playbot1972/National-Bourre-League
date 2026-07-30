@@ -1,11 +1,11 @@
-import { removeCardAt } from "./cardUtils";
+import { isTrump, rankValue, removeCardAt } from "./cardUtils";
 import {
   effectivePlayerHand,
   playedTrumpUpcard,
   privateHandFromEffective,
   clearTrumpUpcardIfFirstAction,
 } from "./invariants";
-import { validatePlayIndex } from "./legal";
+import { getLegalPlayIndices, validatePlayIndex, type PlayContext } from "./legal";
 import { buildPlayValidationState, normalizeTrickForPlay } from "./playContext";
 import { resolveTrickWinner } from "./trick";
 import { HAND_PHASE } from "./types";
@@ -198,4 +198,59 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
     trickResolved: true,
     handComplete: false,
   };
+}
+
+/** Simple bot: discard lowest non-trump cards up to max (and deck remainder). */
+export function botDrawDiscardIndices(
+  hand: Card[],
+  trumpSuit: Suit,
+  maxDiscards: number,
+  deckReplacementsAvailable = Number.POSITIVE_INFINITY,
+): number[] {
+  const cap = Math.min(maxDiscards, Math.max(0, deckReplacementsAvailable));
+  if (cap <= 0) return [];
+  const ranked = hand
+    .map((card, index) => ({
+      card,
+      index,
+      value: rankValue(card),
+      trump: isTrump(card, trumpSuit),
+    }))
+    .sort((a, b) => {
+      if (a.trump !== b.trump) return a.trump ? 1 : -1;
+      return a.value - b.value;
+    });
+  return ranked.slice(0, cap).map((x) => x.index);
+}
+
+/** Prefer winning the trick when possible; lead with strength, dump lows when losing. */
+export function botPlayCardIndex(hand: Card[], ctx: PlayContext): number {
+  const legal = getLegalPlayIndices(ctx);
+  if (!legal.length) return 0;
+
+  if (ctx.isLeading || !ctx.trickPlays.length) {
+    return legal.reduce((best, idx) =>
+      rankValue(hand[idx]) > rankValue(hand[best]) ? idx : best,
+    );
+  }
+
+  const leadSuit = ctx.leadSuit ?? ctx.trickPlays[0]?.suit;
+  if (!leadSuit) {
+    return legal.reduce((best, idx) =>
+      rankValue(hand[idx]) < rankValue(hand[best]) ? idx : best,
+    );
+  }
+
+  const winners = legal.filter((idx) => {
+    const plays = [
+      ...ctx.trickPlays.map((card, i) => ({ playerId: `_${i}`, card })),
+      { playerId: "_bot", card: hand[idx] },
+    ];
+    return resolveTrickWinner(plays, leadSuit, ctx.trumpSuit) === "_bot";
+  });
+
+  const pool = winners.length ? winners : legal;
+  return pool.reduce((best, idx) =>
+    rankValue(hand[idx]) < rankValue(hand[best]) ? idx : best,
+  );
 }

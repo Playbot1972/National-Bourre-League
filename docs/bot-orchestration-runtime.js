@@ -74,18 +74,8 @@ export function createServerBotAdvanceRuntime(deps) {
   function canExecuteForTurn(session, scores, expectedTurnKey) {
     if (!deps.shouldRequestAdvance()) return false;
     if (!deps.sessionNeedsBotDriver(session, scores)) return false;
-    if (presentationBlocksBotAdvance(session, scores)) return false;
+    if (deps.shouldBlockForPresentation(session, scores)) return false;
     return botPlayTurnKey(playDelayContext(session, scores)) === expectedTurnKey;
-  }
-
-  /** Server-owned phases treat table presentation as cosmetic for bot advance. */
-  function presentationBlocksBotAdvance(session, scores) {
-    if (!deps.shouldBlockForPresentation(session, scores)) return false;
-    const handPhase = deps.getHandPhase?.(session) ?? null;
-    if (handPhase === "reveal" || handPhase === "decision" || handPhase === "draw") {
-      return false;
-    }
-    return true;
   }
 
   function schedule(session, scores, actorId, { reason = "snapshot" } = {}) {
@@ -110,7 +100,7 @@ export function createServerBotAdvanceRuntime(deps) {
       return;
     }
     const handPhase = deps.getHandPhase?.(session) ?? null;
-    const presentationBlocked = presentationBlocksBotAdvance(session, scores);
+    const presentationBlocked = deps.shouldBlockForPresentation(session, scores);
 
     if (presentationBlocked && handPhase !== "play") {
       cancelPlayThink(session, scores, "presentation_blocked");
@@ -295,7 +285,7 @@ export function createServerBotAdvanceRuntime(deps) {
     if (!sessionObj || sessionObj.status === "final") return;
     if (!deps.shouldRequestAdvance()) return;
     if (!deps.sessionNeedsBotDriver(sessionObj, scores)) return;
-    if (presentationBlocksBotAdvance(sessionObj, scores)) {
+    if (deps.shouldBlockForPresentation(sessionObj, scores)) {
       pendingWake = true;
       logPlayDelay("skip-request", sessionObj, scores, {
         reason: "presentation_blocked",
@@ -339,45 +329,6 @@ export function createServerBotAdvanceRuntime(deps) {
         action: "executed",
         ...ctx,
       });
-
-      const latest = deps.findSession(sessionId) ?? sessionObj;
-      const handPhase = deps.getHandPhase?.(latest) ?? null;
-      const stillNeedsDriver = deps.sessionNeedsBotDriver(latest, deps.getScores());
-      const steps = Array.isArray(result?.steps) ? result.steps : [];
-      const advancedBotStep = steps.some((step) =>
-        ["draw", "play", "draw_fold", "enrollment", "decision", "advance_reveal", "cowin"].includes(
-          step?.kind,
-        ),
-      );
-      if (
-        stillNeedsDriver &&
-        (handPhase === "draw" || handPhase === "play") &&
-        !advancedBotStep
-      ) {
-        const noopReason =
-          result?.reason ??
-          result?.emptyReason ??
-          (result?.skipped ? "advance-skipped" : "advance-noop");
-        logPlayDelay("error", latest, deps.getScores(), {
-          requester: actorId,
-          owner: "server",
-          roomId,
-          sessionId,
-          message: noopReason,
-          action: "noop-fallback",
-          ...ctx,
-        });
-        try {
-          deps.onAdvanceError?.(
-            latest,
-            deps.getScores(),
-            actorId,
-            new Error(String(noopReason)),
-          );
-        } catch (fallbackErr) {
-          console.warn("bot-advance noop fallback:", fallbackErr);
-        }
-      }
     } catch (err) {
       logPlayDelay("error", sessionObj, scores, {
         requester: actorId,

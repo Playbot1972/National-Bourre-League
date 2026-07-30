@@ -28,18 +28,11 @@ import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
-import {
-  setTrickAnimationBusyState,
-  handPresentingBlocksBots,
-  setBotPresentationSessionPhase,
-  resetTrickAnimationBusyState,
-} from "./trickAnimationBridge";
-import { buildMatchKeyFromSession } from "./presentationMatchKey";
+import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
   isDealPresentationActive,
   isTrickCollectionActive,
-  resetPresentationMotionBusy,
 } from "./presentationMotionBusy";
 import { formatNet } from "./logic";
 import { SettlementCoWinPanel } from "./SettlementCoWinPanel";
@@ -210,34 +203,6 @@ export function TableSessionView({
 
   const [motionBusyTick, setMotionBusyTick] = useState(0);
   useEffect(() => subscribePresentationMotionBusy(() => setMotionBusyTick((n) => n + 1)), []);
-
-  const currentMatchKey = useMemo(() => buildMatchKeyFromSession(session), [
-    session.sessionId,
-    session.handNumber,
-    session.phase,
-    session.turnPlayerId,
-    session.drawCompletedIds,
-    session.currentTrick?.trickNumber,
-    session.currentTrick?.plays?.length,
-    session.playedCards?.length,
-    session.actionOrder,
-    session.participantIds,
-  ]);
-  const prevMatchKeyRef = useRef(currentMatchKey);
-
-  useEffect(() => {
-    const prev = prevMatchKeyRef.current;
-    const now = currentMatchKey;
-    if (prev !== now) {
-      resetTrickAnimationBusyState();
-      resetPresentationMotionBusy();
-    }
-    prevMatchKeyRef.current = now;
-  }, [currentMatchKey]);
-
-  useEffect(() => {
-    setBotPresentationSessionPhase(session.phase ?? null);
-  }, [session.phase]);
 
   useEffect(() => {
     setTrickAnimationBusyState({

@@ -72,21 +72,8 @@ export {
 } from "./legal";
 export type { PlayContext, LegalityResult, LegalityCode, PlayValidationMeta } from "./legal";
 export { resolveTrickWinner } from "./trick";
-export { applyPlayCard, applyPlayerPlayCard } from "./play";
-export {
-  botDrawDiscardIndices,
-  botPlayCardIndex,
-  buildBotMoveContext,
-  botPlayContextFromState,
-  BOT_PLAY_EV_TIE,
-} from "./botSearch";
-export {
-  botShouldFoldDraw,
-  botShouldPassDecision,
-  estimateHandStrength,
-  BOT_FOLD_P_THRESHOLD,
-  BOT_PASS_P_THRESHOLD,
-} from "./botDecisions";
+export { applyPlayCard, applyPlayerPlayCard, botDrawDiscardIndices, botPlayCardIndex } from "./play";
+export { botShouldFoldDraw, botShouldPassDecision, estimateHandStrength } from "./botDecisions";
 export type { ApplyPlayInput, ApplyPlayResult, ApplyPlayerPlayInput, ApplyPlayerPlayResult } from "./play";
 export {
   assertCardUniqueness,

@@ -10,7 +10,6 @@ import {
   isTablePresentationBusy,
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
-  setBotPresentationSessionPhase,
   resetTrickAnimationBusyState,
   setTrickAnimationBusyState,
 } from "./trickAnimationBridge";
@@ -112,88 +111,10 @@ describe("trickAnimationBridge", () => {
     assert.equal(getTrickAnimationBusyState().handPresentationPhase, "idle");
   });
 
-  it("does not block bots for draw-phase ante/trump catch-up while server draw is live", () => {
+  it("does not block bots for drawPlayer during server draw phase", () => {
     assert.equal(handPresentingBlocksBots(true, "drawPlayer", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "drawReady", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "ante", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpMerge", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), false);
-    assert.equal(handPresentingBlocksBots(true, "ante", "reveal"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "decision"), false);
-  });
-
-  it("does not block bots for deal presentation once server draw is live", () => {
-    resetTrickAnimationBusyState();
-    setBotPresentationSessionPhase("draw");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      dealPresentationActive: true,
-    });
-    assert.equal(
-      getTablePresentationBlockReason(getTrickAnimationBusyState(), {
-        forBots: true,
-        sessionPhase: "draw",
-      }),
-      null,
-    );
-  });
-
-  it("evaluateBotPresentationGate allows draw while trumpReveal animation is in progress", () => {
-    resetTrickAnimationBusyState();
-    setBotPresentationSessionPhase("draw");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      handPresenting: true,
-      handPresentationPhase: "trumpReveal",
-    });
-    const gate = evaluateBotPresentationGate(Date.now());
-    assert.equal(gate.blocked, false);
-    assert.equal(gate.reason, null);
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      handPresenting: true,
-      handPresentationPhase: "ante",
-    });
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
-  });
-
-  it("evaluateBotPresentationGate allows draw when session phase override is draw but bridge phase is stale reveal", () => {
-    resetTrickAnimationBusyState();
-    setBotPresentationSessionPhase("reveal");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      handPresenting: true,
-      handPresentationPhase: "trumpReveal",
-    });
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
-    assert.equal(evaluateBotPresentationGate(Date.now(), "draw").blocked, false);
-  });
-
-  it("still blocks bots for reveal-phase trump presentation before server draw", () => {
-    resetTrickAnimationBusyState();
-    setBotPresentationSessionPhase("reveal");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      handPresenting: true,
-      handPresentationPhase: "trumpReveal",
-    });
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
-  });
-
-  it("allows bot advance during reveal while trump animation is in progress", () => {
-    resetTrickAnimationBusyState();
-    setBotPresentationSessionPhase("reveal");
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      handPresenting: true,
-      handPresentationPhase: "trumpReveal",
-      revealCatchUp: true,
-      dealPresentationActive: true,
-    });
-    const gate = evaluateBotPresentationGate(Date.now());
-    assert.equal(gate.blocked, false);
-    assert.equal(gate.reason, null);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), true);
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {
@@ -224,23 +145,6 @@ describe("trickAnimationBridge", () => {
     assert.equal(forced.forceReleased, true);
     assert.equal(isTablePresentationBusy(), false);
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
-  });
-
-  it("does not block bots for play-phase trick reveal catch-up", () => {
-    resetTrickAnimationBusyState();
-    setTrickAnimationBusyState({
-      ...idleTrickFields,
-      revealCatchUp: true,
-      peakPlayCount: 3,
-      displayedPlayCount: 1,
-    });
-    setBotPresentationSessionPhase("play");
-    assert.equal(
-      getTablePresentationBlockReason(getTrickAnimationBusyState(), { forBots: true }),
-      null,
-    );
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
-    assert.equal(getTablePresentationBlockReason(getTrickAnimationBusyState()), "revealCatchUp");
   });
 
   it("soft-unblocks when block reasons churn without resetting the episode clock", () => {

@@ -1,7 +1,6 @@
 /** Published table presentation state for the social app bot driver (docs/app.js). */
 
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
-import { isLiveHandPhaseForBotPresentation } from "./presentationMatchKey";
 import {
   isDealPresentationActive,
   isTrickCollectionActive,
@@ -44,9 +43,6 @@ const IDLE: TrickAnimationBusyState = {
 let state: TrickAnimationBusyState = IDLE;
 const listeners = new Set<() => void>();
 
-/** Latest hand phase from TableSessionView — gates visual-only play catch-up for bots. */
-let botGateSessionPhase: string | null = null;
-
 let botGateBypassUntil = 0;
 let blockEpisode: {
   reason: string;
@@ -68,98 +64,23 @@ function statesEqual(a: TrickAnimationBusyState, b: TrickAnimationBusyState): bo
   );
 }
 
-export interface TablePresentationBlockOptions {
-  /** When true, visual-only play-phase catch-up does not block bot submit. */
-  forBots?: boolean;
-  sessionPhase?: string | null;
-}
-
-/** Sync hand phase for bot presentation gating (play-phase trick reveal is visual-only). */
-export function setBotPresentationSessionPhase(phase: string | null | undefined): void {
-  botGateSessionPhase = phase ?? null;
-}
-
-function visualOnlyCatchUpForBots(sessionPhase: string | null | undefined): boolean {
-  return isLiveHandPhaseForBotPresentation(sessionPhase);
-}
-
-/** Hand presentation phases that are cosmetic once the server hand is live. */
-const LIVE_HAND_VISUAL_PRESENTATION = new Set([
-  "ante",
-  "trumpReveal",
-  "trumpMerge",
-  "drawPlayer",
-  "drawReady",
-  "enrollment",
-  "decision",
-  "play",
-]);
-
-/** Settlement / reset animations still gate bots during an active hand. */
-const LIVE_HAND_HARD_PRESENTATION = new Set(["settle", "nextHandReset", "handReset"]);
-
-export function drawPhaseHandPresentationBlocksBots(handPresentationPhase: string): boolean {
-  return !LIVE_HAND_VISUAL_PRESENTATION.has(handPresentationPhase);
-}
-
-function handPresentationVisualOnlyForBots(
-  sessionPhase: string | null | undefined,
-  handPresentationPhase: string,
-): boolean {
-  if (!isLiveHandPhaseForBotPresentation(sessionPhase)) return false;
-  if (LIVE_HAND_HARD_PRESENTATION.has(handPresentationPhase)) return false;
-  return (
-    LIVE_HAND_VISUAL_PRESENTATION.has(handPresentationPhase) || handPresentationPhase === "idle"
-  );
-}
-
-function handPresentingBlockReason(
-  s: TrickAnimationBusyState,
-  forBots: boolean,
-  sessionPhase: string | null | undefined,
-): string | null {
-  if (!s.handPresenting) return null;
-  if (forBots && handPresentationVisualOnlyForBots(sessionPhase, s.handPresentationPhase)) {
-    return null;
-  }
-  return "handPresenting";
-}
-
 /** Why bot draw/play is blocked — motionGate is visual-only and excluded. */
 export function getTablePresentationBlockReason(
   s: TrickAnimationBusyState,
-  options: TablePresentationBlockOptions = {},
 ): string | null {
-  const forBots = options.forBots === true;
-  const sessionPhase = options.sessionPhase ?? botGateSessionPhase;
-  if (
-    s.dealPresentationActive &&
-    !(forBots && visualOnlyCatchUpForBots(sessionPhase))
-  ) {
-    return "dealPresentationActive";
-  }
+  if (s.dealPresentationActive) return "dealPresentationActive";
   if (s.trickCollectionActive) return "trickCollectionActive";
-  const handReason = handPresentingBlockReason(s, forBots, sessionPhase);
-  if (handReason) return handReason;
+  if (s.handPresenting) return "handPresenting";
   if (s.pipelineActive) return "pipelineActive";
-  if (s.revealCatchUp && !(forBots && visualOnlyCatchUpForBots(sessionPhase))) {
-    return "revealCatchUp";
-  }
-  if (
-    s.peakPlayCount > s.displayedPlayCount &&
-    s.peakPlayCount > 0 &&
-    !(forBots && visualOnlyCatchUpForBots(sessionPhase))
-  ) {
+  if (s.revealCatchUp) return "revealCatchUp";
+  if (s.peakPlayCount > s.displayedPlayCount && s.peakPlayCount > 0) {
     return "peakPlayCatchUp";
   }
   return null;
 }
 
-function isTablePresentationBusyFrom(
-  s: TrickAnimationBusyState,
-  options?: TablePresentationBlockOptions,
-): boolean {
-  return getTablePresentationBlockReason(s, options) != null;
+function isTablePresentationBusyFrom(s: TrickAnimationBusyState): boolean {
+  return getTablePresentationBlockReason(s) != null;
 }
 
 /**
@@ -172,7 +93,12 @@ export function handPresentingBlocksBots(
   sessionPhase: string | null | undefined,
 ): boolean {
   if (!isPresenting) return false;
-  if (handPresentationVisualOnlyForBots(sessionPhase, handPresentationPhase)) return false;
+  if (sessionPhase === "play") return false;
+  if (sessionPhase === "draw") {
+    if (handPresentationPhase === "drawPlayer" || handPresentationPhase === "drawReady") {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -211,10 +137,7 @@ export function forceReleasePresentationForBots(source: string): void {
   setTrickAnimationBusyState(cleared);
 }
 
-export function evaluateBotPresentationGate(
-  now = Date.now(),
-  sessionPhaseOverride?: string | null,
-): BotPresentationGateResult {
+export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGateResult {
   if (now < botGateBypassUntil) {
     return {
       blocked: false,
@@ -225,8 +148,7 @@ export function evaluateBotPresentationGate(
     };
   }
 
-  const sessionPhase = sessionPhaseOverride ?? botGateSessionPhase;
-  const reason = getTablePresentationBlockReason(state, { forBots: true, sessionPhase });
+  const reason = getTablePresentationBlockReason(state);
   if (reason == null) {
     blockEpisode = null;
     return {
@@ -290,11 +212,8 @@ export function evaluateBotPresentationGate(
 }
 
 /** Bot driver gate — includes soft/force timeout overrides. */
-export function isTablePresentationBusyForBots(
-  now = Date.now(),
-  sessionPhaseOverride?: string | null,
-): boolean {
-  return evaluateBotPresentationGate(now, sessionPhaseOverride).blocked;
+export function isTablePresentationBusyForBots(now = Date.now()): boolean {
+  return evaluateBotPresentationGate(now).blocked;
 }
 
 export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void {
@@ -310,7 +229,7 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
     });
   }
   state = next;
-  if (getTablePresentationBlockReason(next, { forBots: true }) == null) {
+  if (getTablePresentationBlockReason(next) == null) {
     blockEpisode = null;
   }
   for (const listener of listeners) listener();
@@ -319,7 +238,6 @@ export function setTrickAnimationBusyState(next: TrickAnimationBusyState): void 
 export function resetTrickAnimationBusyState(): void {
   botGateBypassUntil = 0;
   blockEpisode = null;
-  botGateSessionPhase = null;
   setTrickAnimationBusyState(IDLE);
 }
 

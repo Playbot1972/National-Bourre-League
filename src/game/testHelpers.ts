@@ -12,12 +12,9 @@ import {
 } from "./invariants";
 import {
   applyPlayerPlayCard,
-} from "./play";
-import {
   botDrawDiscardIndices,
   botPlayCardIndex,
-  buildBotMoveContext,
-} from "./botSearch";
+} from "./play";
 import { getLegalPlayIndices, type PlayContext } from "./legal";
 import { buildPlayValidationState } from "./playContext";
 import { shuffledDeckFromSeed } from "./deckState";
@@ -27,9 +24,6 @@ import type { Card } from "../types";
 import type { PublicHandState } from "./types";
 import { deserializeCards } from "./serialize";
 import { runEnrollmentPhase, type DealCompletionContext } from "./enrollment";
-import type { SimulatedHandState } from "./botRollout";
-
-export type { SimulatedHandState } from "./botRollout";
 
 export const DEFAULT_PLAYERS = ["p1", "p2", "p3", "p4"] as const;
 
@@ -56,6 +50,12 @@ export function publicHandFromDeal(
     maxDrawDiscards: maxDrawDiscards(deal.participantIds.length),
   });
   return bundle.publicHand;
+}
+
+export interface SimulatedHandState {
+  publicHand: PublicHandState;
+  privateHands: Record<string, Card[]>;
+  deck: Card[];
 }
 
 export function initSimulatedHand(
@@ -108,32 +108,17 @@ export function botDiscardFor(state: SimulatedHandState, playerId: string): numb
   );
   const pile = pileFromPublicHand(state.publicHand, state.deck);
   const available = totalAvailableReplacements(pile);
-  const ctx = buildBotMoveContext(
-    playerId,
-    state.privateHands[playerId]!,
-    state.publicHand,
-    state.deck,
-    state.privateHands,
-  );
   return botDrawDiscardIndices(
     hand,
     state.publicHand.trumpSuit,
     state.publicHand.maxDrawDiscards ?? 5,
     available,
-    ctx,
   );
 }
 
 export function botPlayFor(state: SimulatedHandState, playerId: string): number {
   const ctx = playContextForTurn(state, playerId);
-  const moveCtx = buildBotMoveContext(
-    playerId,
-    state.privateHands[playerId]!,
-    state.publicHand,
-    state.deck,
-    state.privateHands,
-  );
-  return botPlayCardIndex(ctx.hand, ctx, moveCtx);
+  return botPlayCardIndex(ctx.hand, ctx);
 }
 
 export function applyBotDraw(state: SimulatedHandState, playerId: string): SimulatedHandState {
