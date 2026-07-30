@@ -1239,7 +1239,7 @@ function getServerBotAdvance() {
 }
 let pendingRobotWake = false;
 let robotPresentationUnsub = null;
-/** Client legacy bot play think delay (1–3s per turn). */
+/** Client legacy bot play think delay (1–3 s per turn via bot-play-delay.js). */
 const clientBotThinkSchedule = createBotThinkScheduleState();
 /** Min gap between robot card plays — must exceed post-trick hold + sweep (premium pace). */
 /** Must exceed full trick presentation pipeline (see src/table/trickTiming.ts). */
