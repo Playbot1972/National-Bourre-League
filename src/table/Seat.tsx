@@ -80,6 +80,7 @@ export function Seat({
         player.winnerFlash ? "bseat--winner-flash" : "",
         player.enrollmentPulse === "join" ? "bseat--enroll-join" : "",
         player.enrollmentPulse === "pass" ? "bseat--enroll-pass" : "",
+        player.enrollmentPulse === "pass" && !player.isSelf ? "bseat--bot-fold-visual" : "",
         player.drawAnimSubPhase === "discard" ? "bseat--draw-discard" : "",
         player.drawAnimSubPhase === "receive" ? "bseat--draw-receive" : "",
         bourrePulse ? "bseat--bourre-pulse" : "",
@@ -269,6 +270,15 @@ export function Seat({
                   progress={player.turnCountdown.progress}
                   segment={player.turnCountdown.segment}
                 />
+              )}
+              {player.enrollmentPulse === "pass" && !player.isSelf && (
+                <span
+                  className="bseat__fold-badge"
+                  data-testid="seat-bot-fold-badge"
+                  aria-hidden="true"
+                >
+                  I&apos;m Out
+                </span>
               )}
             </div>
           </div>

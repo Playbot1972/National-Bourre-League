@@ -23,14 +23,21 @@ export interface UseTurnTimerWarningInput extends TurnCountdownInput {
 
 /**
  * Starts timer.mp3 once elapsed ring time crosses 15s; stops on turn change or action.
+ * Audio arms only for the local hero's turn (never bots or other players).
  */
 export function useTurnTimerWarning({
   currentUserId = null,
   localActionPending = false,
+  watchOnly = false,
   ...input
 }: UseTurnTimerWarningInput): void {
-  const activeActorId = resolveTableActiveActorId(input);
-  const activityKey = turnCountdownActivityKey({ ...input, activeActorId });
+  const activeActorId = resolveTableActiveActorId({ ...input, watchOnly });
+  const isLocalTurn =
+    !watchOnly &&
+    !!activeActorId &&
+    currentUserId != null &&
+    activeActorId === currentUserId;
+  const activityKey = turnCountdownActivityKey({ ...input, activeActorId, watchOnly });
   const ringStartedAtRef = useRef<number | null>(null);
   const lastKeyRef = useRef("");
   const warningStartedRef = useRef(false);
@@ -44,7 +51,7 @@ export function useTurnTimerWarning({
   };
 
   useEffect(() => {
-    if (!activeActorId) {
+    if (!isLocalTurn) {
       clearStartTimer();
       if (isTurnTimerWarningPlaying()) {
         stopTurnTimerWarning("turnChange");
@@ -68,6 +75,8 @@ export function useTurnTimerWarning({
       const armedKey = activityKey;
       const delayMs = turnTimerWarningDelayMs(ringStart, Date.now());
 
+      console.log("[timer] arming for hero turn", { activeActorId, currentUserId });
+
       if (import.meta.env.DEV) {
         console.log("[nbl-timer-audio] ring-start", {
           turnKey: activityKey,
@@ -84,7 +93,7 @@ export function useTurnTimerWarning({
         warningStartedRef.current = true;
         startTurnTimerWarning({
           turnKey: armedKey,
-          actorId: activeActorId,
+          actorId: activeActorId!,
           ringStartedAtMs: ringStart,
           elapsedMs,
         });
@@ -100,7 +109,7 @@ export function useTurnTimerWarning({
     return () => {
       clearStartTimer();
     };
-  }, [activeActorId, activityKey]);
+  }, [isLocalTurn, activityKey, activeActorId, currentUserId]);
 
   useEffect(() => {
     return () => {

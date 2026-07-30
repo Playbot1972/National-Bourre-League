@@ -261,8 +261,7 @@ export function CardTable({
             : player.isLeading,
       isTrickCapture: capturingTrick,
       enrollmentPulse,
-      drawAnimSubPhase:
-        drawingNow && player.isSelf ? handPresentation.drawAnimSubPhase : null,
+      drawAnimSubPhase: drawingNow ? handPresentation.drawAnimSubPhase : null,
       drawDiscardCount: drawingNow ? handPresentation.drawDiscardCount : 0,
       drawReplaceCount: drawingNow ? handPresentation.drawReplaceCount : 0,
       turnHandoff: false,

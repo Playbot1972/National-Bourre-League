@@ -4396,6 +4396,41 @@
   animation: benroll-pass 480ms ease;
 }
 
+.bseat--bot-fold-visual .bseat__hole-cards {
+  opacity: 0.35;
+  transition: opacity 320ms ease;
+}
+
+.bseat__fold-badge {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--felt-ink, #f5f0e6);
+  background: rgba(12, 18, 28, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  pointer-events: none;
+  z-index: 3;
+  animation: bseat-fold-badge-in 420ms ease;
+}
+
+@keyframes bseat-fold-badge-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
 @keyframes benroll-join {
   0%,
   100% {

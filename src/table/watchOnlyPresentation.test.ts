@@ -88,6 +88,14 @@ describe("watch-only presentation gating", () => {
 });
 
 describe("watch-only UI wiring", () => {
+  it("useTurnTimerWarning arms audio only for the local player's turn", () => {
+    const src = readFileSync(join(root, "src/table/hooks/useTurnTimerWarning.ts"), "utf8");
+    assert.match(src, /isLocalTurn/);
+    assert.match(src, /activeActorId === currentUserId/);
+    assert.match(src, /if \(!isLocalTurn\)/);
+    assert.match(src, /\[timer\] arming for hero turn/);
+  });
+
   it("TableSessionView passes watchOnly into turn countdown and timer warning hooks", () => {
     const src = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
     assert.match(src, /useTurnCountdown\(\{[\s\S]*watchOnly/);
@@ -99,6 +107,20 @@ describe("watch-only UI wiring", () => {
     const src = readFileSync(join(root, "src/table/CardTable.tsx"), "utf8");
     assert.match(src, /suppressTurnUrgency = suppressTurn \|\| watchOnly/);
     assert.match(src, /isOnTurn: suppressTurnUrgency/);
+  });
+
+  it("CardTable enables bot draw presentation classes during drawPlayer", () => {
+    const cardTable = readFileSync(join(root, "src/table/CardTable.tsx"), "utf8");
+    const mobileTable = readFileSync(join(root, "src/table/MobileCardTable.tsx"), "utf8");
+    assert.match(cardTable, /drawAnimSubPhase: drawingNow \? handPresentation\.drawAnimSubPhase/);
+    assert.match(mobileTable, /drawAnimSubPhase: drawingNow \? handPresentation\.drawAnimSubPhase/);
+    assert.doesNotMatch(cardTable, /drawingNow && player\.isSelf \? handPresentation\.drawAnimSubPhase/);
+  });
+
+  it("Seat shows bot fold badge on enrollment pass pulse", () => {
+    const seat = readFileSync(join(root, "src/table/Seat.tsx"), "utf8");
+    assert.match(seat, /bseat--bot-fold-visual/);
+    assert.match(seat, /seat-bot-fold-badge/);
   });
 
   it("CardTable applies spectator layout class and passes watchOnly to seat layout", () => {

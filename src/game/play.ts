@@ -200,28 +200,8 @@ export function applyPlayCard(input: ApplyPlayInput): ApplyPlayResult {
   };
 }
 
-/** Simple bot: discard lowest non-trump cards up to max (and deck remainder). */
-export function botDrawDiscardIndices(
-  hand: Card[],
-  trumpSuit: Suit,
-  maxDiscards: number,
-  deckReplacementsAvailable = Number.POSITIVE_INFINITY,
-): number[] {
-  const cap = Math.min(maxDiscards, Math.max(0, deckReplacementsAvailable));
-  if (cap <= 0) return [];
-  const ranked = hand
-    .map((card, index) => ({
-      card,
-      index,
-      value: rankValue(card),
-      trump: isTrump(card, trumpSuit),
-    }))
-    .sort((a, b) => {
-      if (a.trump !== b.trump) return a.trump ? 1 : -1;
-      return a.value - b.value;
-    });
-  return ranked.slice(0, cap).map((x) => x.index);
-}
+/** Simple bot play — discard logic lives in botSearch.ts. */
+export { botDrawDiscardIndices } from "./botSearch";
 
 /** Prefer winning the trick when possible; lead with strength, dump lows when losing. */
 export function botPlayCardIndex(hand: Card[], ctx: PlayContext): number {
