@@ -23,7 +23,6 @@ import {
   botPlayCardIndex,
   botShouldFoldDraw,
   botShouldPassDecision,
-  buildBotMoveContext,
   buildPlayValidationState,
   effectivePlayerHand,
   maxDrawDiscards,
@@ -1173,8 +1172,7 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
       ch.maxDrawDiscards ?? maxDrawDiscards(ch.participantIds?.length ?? 2, dealingRule);
     const deckSeed = ch.deckSeed;
     const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
-    const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
-    if (botShouldFoldDraw(effective, ch.trumpSuit, moveCtx)) {
+    if (botShouldFoldDraw(effective, ch.trumpSuit)) {
       console.info(
         "[nbl-bot]",
         "decision-made",
@@ -1189,7 +1187,6 @@ async function executeBotDraw(db, roomId, sessionId, playerId, actorId, dealingR
       ch.trumpSuit,
       maxDraw,
       deckRemaining,
-      moveCtx,
     );
     console.info(
       "[nbl-bot]",
@@ -1251,11 +1248,8 @@ async function executeBotPlay(db, roomId, sessionId, playerId, actorId) {
       throw new HttpsError("failed-precondition", `Bot private hand missing (${playerId})`);
     }
     const hand = effectivePlayerHand(playerId, privateHand, ch);
-    const deckSeed = ch.deckSeed;
-    const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
     const ctx = buildPlayValidationState({ hand, publicHand: ch });
-    const moveCtx = buildBotMoveContext(playerId, privateHand, ch, deck);
-    const cardIndex = botPlayCardIndex(hand, ctx, moveCtx);
+    const cardIndex = botPlayCardIndex(hand, ctx);
     console.info(
       "[nbl-bot]",
       "decision-made",
@@ -1488,10 +1482,7 @@ export async function advanceBotsAfterAction(db, roomId, sessionId, actorId) {
             privateHand = deserializeCards(privateSnap.data()?.cards || []);
           }
           const effective = effectivePlayerHand(hint.turnPlayerId, privateHand, ch);
-          const deckSeed = ch.deckSeed;
-          const deck = deckSeed != null ? shuffledDeckFromSeed(deckSeed) : undefined;
-          const moveCtx = buildBotMoveContext(hint.turnPlayerId, privateHand, ch, deck);
-          if (ch.trumpSuit && botShouldPassDecision(effective, ch.trumpSuit, moveCtx)) {
+          if (ch.trumpSuit && botShouldPassDecision(effective, ch.trumpSuit)) {
             await handleSetHandParticipation(db, {
               roomId,
               sessionId,
