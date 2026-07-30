@@ -10,7 +10,7 @@ import {
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
-import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
+import { BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
