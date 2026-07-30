@@ -860,13 +860,7 @@ export async function deleteRoom(roomId, user) {
     roomSnap = await getDoc(doc(db, "rooms", roomId));
   } catch (err) {
     if (err?.code === "permission-denied") {
-      // Room/membership may already be gone — idempotent cleanup for duplicate deletes.
-      try {
-        await leaveRoom(roomId, user);
-      } catch {
-        // Member doc may already be deleted.
-      }
-      return;
+      throw new Error("Only the room owner can delete this room. Try Leave instead.");
     }
     throw err;
   }
@@ -3981,7 +3975,7 @@ export async function ensureSessionPlayer(
     net: 0,
     total: 0,
     joinedAtHandCount: handCount,
-    ...(isRobot ? { isRobot: true } : {}),
+    ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
     updatedAt: serverTimestamp(),
   });
   await batch.commit();
@@ -4142,23 +4136,19 @@ async function waitForSessionHandDeal(roomId, sessionId, maxMs = 15000) {
 
 /** Backfill participantIds for sessions created before v1.00.08. */
 export async function ensureCurrentHandParticipants(roomId, sessionId) {
-  if (SERVER_HAND_AUTHORITY) return;
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
   const currentHand = sessionSnap.data().currentHand || {};
   if (Array.isArray(currentHand.participantIds)) return;
 
-  try {
-    await updateDoc(sessionDoc(roomId, sessionId), {
-      currentHand: {
-        tricksByPlayer: currentHand.tricksByPlayer || {},
-        participantIds: [],
-      },
-      updatedAt: serverTimestamp(),
-    });
-  } catch (err) {
-    if (!isPermissionDenied(err)) throw err;
-  }
+  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
+  await updateDoc(sessionDoc(roomId, sessionId), {
+    currentHand: {
+      tricksByPlayer: currentHand.tricksByPlayer || {},
+      participantIds: [],
+    },
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /** Reset stale participantIds / enrollment that block auto-deal on Go to Table. */

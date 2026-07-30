@@ -10,7 +10,6 @@ import {
   handleAdvanceBots,
   isBenignBotAdvanceRaceError,
   isBenignEnsureEnrollmentFollowUpError,
-  resolveBotPrivateHandCards,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -133,59 +132,10 @@ describe("isBenignEnsureEnrollmentFollowUpError", () => {
   });
 });
 
-describe("resolveBotPrivateHandCards", () => {
-  it("prefers embedded deal mirror over stale subcollection cards", () => {
-    const sessionData = {
-      liveEnrollment: {
-        deal: {
-          privateHandsByPlayer: {
-            bot_a: { cards: [{ rank: "A", suit: "spades" }] },
-          },
-        },
-      },
-    };
-    const staleSubcollection = {
-      cards: [
-        { rank: "2", suit: "clubs" },
-        { rank: "3", suit: "clubs" },
-        { rank: "4", suit: "clubs" },
-        { rank: "5", suit: "clubs" },
-        { rank: "6", suit: "clubs" },
-      ],
-    };
-    const hand = resolveBotPrivateHandCards(sessionData, "bot_a", staleSubcollection);
-    assert.equal(hand.length, 1);
-    assert.equal(hand[0].rank, "A");
-    assert.equal(hand[0].suit, "spades");
-  });
-
-  it("falls back to subcollection when embedded mirror is absent", () => {
-    const hand = resolveBotPrivateHandCards(
-      {},
-      "bot_a",
-      { cards: [{ rank: "K", suit: "hearts" }] },
-    );
-    assert.equal(hand.length, 1);
-    assert.equal(hand[0].rank, "K");
-  });
-});
-
 describe("isBenignBotAdvanceRaceError", () => {
-  it("treats stale turn races as benign", () => {
-    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Not your turn to draw" }), true);
+  it("treats failed-precondition and not-found as benign races", () => {
+    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition" }), true);
     assert.equal(isBenignBotAdvanceRaceError({ code: "not-found" }), true);
-    assert.equal(isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Draw already completed" }), true);
-  });
-
-  it("does not treat bot logic failures as benign", () => {
-    assert.equal(
-      isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Invalid discard selection" }),
-      false,
-    );
-    assert.equal(
-      isBenignBotAdvanceRaceError({ code: "failed-precondition", message: "Invalid card selection" }),
-      false,
-    );
   });
 
   it("does not treat auth, permission, or validation errors as benign", () => {

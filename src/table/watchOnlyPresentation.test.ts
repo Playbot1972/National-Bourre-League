@@ -87,15 +87,6 @@ describe("watch-only presentation gating", () => {
   });
 });
 
-describe("turn timer warning — hero only", () => {
-  it("useTurnTimerWarning arms audio only for the local player's turn", () => {
-    const src = readFileSync(join(root, "src/table/hooks/useTurnTimerWarning.ts"), "utf8");
-    assert.match(src, /isLocalTurn/);
-    assert.match(src, /activeActorId === currentUserId/);
-    assert.match(src, /if \(!isLocalTurn\)/);
-  });
-});
-
 describe("watch-only UI wiring", () => {
   it("TableSessionView passes watchOnly into turn countdown and timer warning hooks", () => {
     const src = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");

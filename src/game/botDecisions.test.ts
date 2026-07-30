@@ -7,7 +7,7 @@ const c = (rank: Card["rank"], suit: Card["suit"]): Card => ({ rank, suit });
 
 describe("botDecisions", () => {
   it("flags very weak non-trump hands for fold", () => {
-    const weak = [c("2", "hearts"), c("3", "diamonds"), c("5", "spades"), c("6", "hearts"), c("8", "diamonds")];
+    const weak = [c("2", "hearts"), c("3", "diamonds"), c("4", "clubs"), c("5", "spades"), c("6", "hearts")];
     assert.equal(botShouldFoldDraw(weak, "clubs"), true);
     assert.equal(botShouldPassDecision(weak, "clubs"), true);
   });

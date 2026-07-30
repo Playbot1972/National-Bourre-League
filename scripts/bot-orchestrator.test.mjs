@@ -10,7 +10,7 @@ import {
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
-import { BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS } from "../docs/bot-play-delay.js";
+import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
@@ -147,7 +147,7 @@ describe("server bot advance runtime presentation deferral", () => {
 
     presentationBlocked = false;
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MAX_MS + 200));
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
     assert.equal(advanceCalls, 1, "should execute after presentation clears");
   });
 

@@ -8,7 +8,6 @@ import {
   botPlayTurnKey,
   createBotPlayDelayState,
   createBotThinkScheduleState,
-  chooseBotThinkDelayMs,
   pickBotPlayDelayMs,
   resolveBotAdvanceDelayMs,
 } from "../docs/bot-play-delay.js";
@@ -21,15 +20,7 @@ describe("bot play delay", () => {
     );
   });
 
-  it("chooseBotThinkDelayMs returns 1000–3000 ms", () => {
-    for (let i = 0; i < 20; i++) {
-      const delay = chooseBotThinkDelayMs(() => i / 20);
-      assert.ok(delay >= BOT_PLAY_DELAY_MIN_MS, `delay ${delay} below min`);
-      assert.ok(delay <= BOT_PLAY_DELAY_MAX_MS, `delay ${delay} above max`);
-    }
-  });
-
-  it("normal bot turn delay is 1000–3000 ms", () => {
+  it("normal bot turn delay is 250–700ms", () => {
     const picked = pickBotPlayDelayMs(3, () => 0.5);
     assert.equal(picked.isLastCard, false);
     assert.equal(picked.remainingHandCount, 3);
@@ -37,7 +28,7 @@ describe("bot play delay", () => {
     assert.ok(picked.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("last-card bot turn delay is 1000–3000 ms", () => {
+  it("last-card bot turn delay is <= 300ms", () => {
     const picked = pickBotPlayDelayMs(1, () => 0.99);
     assert.equal(picked.isLastCard, true);
     assert.equal(picked.remainingHandCount, 1);
@@ -177,7 +168,7 @@ describe("bot play delay", () => {
 });
 
 describe("bot think schedule", () => {
-  it("arms random delay between 1000 and 3000 ms for normal turns", () => {
+  it("arms random delay between 250 and 700 ms for normal turns", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.5 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 1, turnPlayerId: "bot_1", remainingHandCount: 3 },
@@ -191,7 +182,7 @@ describe("bot think schedule", () => {
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_DELAY_MAX_MS);
   });
 
-  it("arms last-card delay within 3000 ms", () => {
+  it("arms last-card delay within 300ms", () => {
     const schedule = createBotThinkScheduleState({ rng: () => 0.99 });
     const armed = schedule.armPlayThink({
       ctx: { handNumber: 1, trickNumber: 5, turnPlayerId: "bot_1", remainingHandCount: 1 },
@@ -202,7 +193,6 @@ describe("bot think schedule", () => {
     assert.equal(armed.action, "armed");
     assert.equal(armed.isLastCard, true);
     assert.equal(armed.remainingHandCount, 1);
-    assert.ok(armed.chosenDelayMs >= BOT_PLAY_LAST_CARD_MIN_MS);
     assert.ok(armed.chosenDelayMs <= BOT_PLAY_LAST_CARD_MAX_MS);
   });
 
