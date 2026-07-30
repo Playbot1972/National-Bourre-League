@@ -1,12 +1,17 @@
 /**
- * Bot play-phase think delay — brief pause so plays do not feel instant; much faster than humans.
+ * Bot play-phase think delay — random pause so bot plays feel human-paced.
  */
 
-export const BOT_PLAY_DELAY_MIN_MS = 250;
-export const BOT_PLAY_DELAY_MAX_MS = 700;
-export const BOT_PLAY_LAST_CARD_MIN_MS = 100;
-export const BOT_PLAY_LAST_CARD_MAX_MS = 300;
+export const BOT_PLAY_DELAY_MIN_MS = 1_000;
+export const BOT_PLAY_DELAY_MAX_MS = 3_000;
+export const BOT_PLAY_LAST_CARD_MIN_MS = 1_000;
+export const BOT_PLAY_LAST_CARD_MAX_MS = 3_000;
 export const BOT_ADVANCE_DEBOUNCE_MS = 150;
+
+/** Random think delay for a normal bot play turn (1–3 s inclusive). */
+export function chooseBotThinkDelayMs(rng = Math.random) {
+  return randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
+}
 
 export function botPlayTurnKey({ handNumber, trickNumber, turnPlayerId }) {
   return `${handNumber ?? 0}:${trickNumber ?? 0}:${turnPlayerId ?? ""}`;
@@ -30,7 +35,7 @@ export function pickBotPlayDelayMs(remainingHandCount, rng = Math.random) {
   const isLastCard = remainingHandCount === 1;
   const chosenDelayMs = isLastCard
     ? randomIntInclusive(BOT_PLAY_LAST_CARD_MIN_MS, BOT_PLAY_LAST_CARD_MAX_MS, rng)
-    : randomIntInclusive(BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS, rng);
+    : chooseBotThinkDelayMs(rng);
   return {
     chosenDelayMs,
     isLastCard,
@@ -79,6 +84,17 @@ export function createBotPlayDelayState(options = {}) {
       meta = pickBotPlayDelayMs(remainingHandCount, rng);
       chosen = meta.chosenDelayMs;
       delayByTurnKey.set(cacheKey, chosen);
+      const parts = turnKey.split(":");
+      const handNumber = Number(parts[0]) || 0;
+      const trickNumber = parts[1] ?? "?";
+      const botId = parts[2] ?? "?";
+      console.info(
+        "[bot-think] Bot %s | hand=%s trick=%s | chosenDelayMs=%d",
+        botId,
+        handNumber,
+        trickNumber,
+        chosen,
+      );
     }
     if (!meta) {
       meta = {
