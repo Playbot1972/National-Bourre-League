@@ -1,4 +1,4 @@
-import { isTrump, rankValue, removeCardAt } from "./cardUtils";
+import { rankValue, removeCardAt } from "./cardUtils";
 import {
   effectivePlayerHand,
   playedTrumpUpcard,
