@@ -10,6 +10,7 @@ import {
   classifyIdleStage,
   evaluateIdlePolicyForSeatedHumans,
   isIdleSitOutBlockingEnrollment,
+  mergeEnrollmentPatchesForIdleSitOuts,
   resolveLastActivityMs,
 } from "./publicTableIdle.js";
 
@@ -128,5 +129,42 @@ describe("public-table idle policy (unit)", () => {
     assert.ok(patch.lastActivityTimestamp);
     assert.ok("sitOut" in patch);
     assert.ok("idleSitOutAt" in patch);
+  });
+
+  it("mergeEnrollmentPatchesForIdleSitOuts advances current turn when non-current is processed first", () => {
+    const enrollment = {
+      active: true,
+      orderedPlayerIds: ["human_a", "human_b"],
+      currentIndex: 0,
+      enrolledIds: [],
+      declinedIds: [],
+      turnDeadlineMs: NOW + 12_000,
+    };
+    const merged = mergeEnrollmentPatchesForIdleSitOuts(
+      enrollment,
+      ["human_b", "human_a"],
+      NOW,
+    );
+    assert.ok(merged);
+    assert.ok(merged.declinedIds.includes("human_b"));
+    assert.ok(merged.declinedIds.includes("human_a"));
+    assert.equal(merged.currentIndex, 1);
+    assert.equal(isIdleSitOutBlockingEnrollment(merged, { human_a: { sitOut: true } }, NOW), false);
+  });
+
+  it("mergeEnrollmentPatchesForIdleSitOuts leaves non-current sit-out without advancing index", () => {
+    const enrollment = {
+      active: true,
+      orderedPlayerIds: ["human_a", "human_b"],
+      currentIndex: 0,
+      enrolledIds: [],
+      declinedIds: [],
+      turnDeadlineMs: NOW + 12_000,
+    };
+    const merged = mergeEnrollmentPatchesForIdleSitOuts(enrollment, ["human_b"], NOW);
+    assert.ok(merged);
+    assert.equal(merged.currentIndex, 0);
+    assert.ok(merged.declinedIds.includes("human_b"));
+    assert.equal(merged.declinedIds.includes("human_a"), false);
   });
 });
