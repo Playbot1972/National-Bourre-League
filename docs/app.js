@@ -189,8 +189,6 @@ import {
   deserializeCards,
   effectivePlayerHand,
   botShouldPassDecision,
-  buildBotMoveContext,
-  shuffledDeckFromSeed,
 } from "./game-engine.js";
 import {
   formatHandHistoryPublicLine,
@@ -4039,16 +4037,14 @@ function scheduleClientBotPlayCard(s, scores, turnId, actorId, { reason = "clien
           trigger: reason,
           ...extra,
         }),
-      rejected: (extra) => {
+      rejected: (extra) =>
         logBotOrchestrator("bot-think-fire-rejected", {
           ...ctx,
           turnPlayerId: turnId,
           owner: "client",
           trigger: reason,
           ...extra,
-        });
-        wakeRobotActions();
-      },
+        }),
     },
   });
 
@@ -4114,24 +4110,10 @@ function robotTurnPresentationKey(s) {
   ].join(":");
 }
 
-function syncBotPresentationSessionPhase(sessionObj) {
-  const phase = sessionObj ? (getSessionCurrentHand(sessionObj)?.phase ?? null) : null;
+function isRawTablePresentationBusy() {
   try {
-    tableMountApi?.setBotPresentationSessionPhase?.(phase);
-  } catch {
-    /* table bundle may not be mounted */
-  }
-  return phase;
-}
-
-function isRawTablePresentationBusy(sessionObj) {
-  const sessionPhase = syncBotPresentationSessionPhase(sessionObj);
-  try {
-    if (typeof tableMountApi?.evaluateBotPresentationGate === "function") {
-      return tableMountApi.evaluateBotPresentationGate(Date.now(), sessionPhase).blocked === true;
-    }
     if (typeof tableMountApi?.isTablePresentationBusyForBots === "function") {
-      return tableMountApi.isTablePresentationBusyForBots(Date.now(), sessionPhase) === true;
+      return tableMountApi.isTablePresentationBusyForBots() === true;
     }
     return tableMountApi?.isTablePresentationBusy?.() === true;
   } catch {
@@ -4144,7 +4126,7 @@ function isRawTablePresentationBusy(sessionObj) {
  * Works with legacy table-session.js (no evaluateBotPresentationGate export).
  */
 function shouldBlockRobotForPresentation(s, scores) {
-  const busy = isRawTablePresentationBusy(s);
+  const busy = isRawTablePresentationBusy();
   if (!busy) {
     robotPresentationBlockEpisode = null;
     return false;
@@ -4168,7 +4150,7 @@ function shouldBlockRobotForPresentation(s, scores) {
   const ep = robotPresentationBlockEpisode;
   const blockedMs = now - ep.since;
   const ctx = snapshotGameFlowContext(s, scores);
-  const gate = snapshotTablePresentationGate(s);
+  const gate = snapshotTablePresentationGate();
 
   if (blockedMs >= ROBOT_PRESENTATION_FORCE_MS) {
     if (!ep.forceLogged) {
@@ -4219,20 +4201,12 @@ function shouldBlockRobotForPresentation(s, scores) {
   return true;
 }
 
-function snapshotTablePresentationGate(sessionObj) {
+function snapshotTablePresentationGate() {
   try {
     const busy = tableMountApi?.getTrickAnimationBusyState?.();
     if (!busy) return null;
-    const sessionPhase = sessionObj
-      ? (getSessionCurrentHand(sessionObj)?.phase ?? null)
-      : null;
     return {
-      blockReason:
-        tableMountApi?.getTablePresentationBlockReason?.(busy, {
-          forBots: true,
-          sessionPhase,
-        }) ?? null,
-      sessionPhase,
+      blockReason: tableMountApi?.getTablePresentationBlockReason?.(busy) ?? null,
       handPresentationPhase: busy.handPresentationPhase,
       handPresenting: busy.handPresenting,
       pipelineActive: busy.pipelineActive,
@@ -4270,8 +4244,8 @@ function snapshotGameFlowContext(s, scores) {
     trumpUpcard: Boolean(ch?.trumpUpcard),
     trumpSuit: ch?.trumpSuit ?? null,
     botCount: scores.filter((sc) => sc.isRobot === true || isRobotPlayerId(sc.playerId)).length,
-    trickAnimBusy: isRawTablePresentationBusy(s),
-    presentationGate: snapshotTablePresentationGate(s),
+    trickAnimBusy: isRawTablePresentationBusy(),
+    presentationGate: snapshotTablePresentationGate(),
     robotActionInFlight,
     msSinceLastRobot: Date.now() - lastRobotTrickAt,
   };
@@ -4336,9 +4310,7 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
           if (handData && ch?.trumpSuit) {
             const privateHand = deserializeCards(handData.cards || []);
             const effective = effectivePlayerHand(currentId, privateHand, ch);
-            const deck = ch.deckSeed != null ? shuffledDeckFromSeed(ch.deckSeed) : undefined;
-            const moveCtx = buildBotMoveContext(currentId, privateHand, ch, deck);
-            if (botShouldPassDecision(effective, ch.trumpSuit, moveCtx)) {
+            if (botShouldPassDecision(effective, ch.trumpSuit)) {
               await setHandParticipation(currentRoomId, openSessionId, {
                 playerId: currentId,
                 inHand: false,
@@ -4405,12 +4377,6 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     }
 
     if (shouldBlockRobotForPresentation(s, scores)) {
-      logBotOrchestrator("bot-submit-blocked", {
-        ...snapshotGameFlowContext(s, scores),
-        phase: "draw",
-        reason: snapshotTablePresentationGate(s)?.blockReason ?? "presentation",
-        gate: snapshotTablePresentationGate(s),
-      });
       return;
     }
 
@@ -4446,12 +4412,6 @@ function processRobotActionsInner(s, scores, { clientFallbackOnly = false } = {}
     }
 
     if (shouldBlockRobotForPresentation(s, scores)) {
-      logBotOrchestrator("bot-submit-blocked", {
-        ...snapshotGameFlowContext(s, scores),
-        phase: "play",
-        reason: snapshotTablePresentationGate(s)?.blockReason ?? "presentation",
-        gate: snapshotTablePresentationGate(s),
-      });
       return;
     }
 

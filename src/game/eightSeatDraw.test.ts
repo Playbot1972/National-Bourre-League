@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dealInitialHand } from "./deal";
 import { revealToDraw } from "./draw";
-import { botDrawDiscardIndices } from "./botSearch";
+import { botDrawDiscardIndices } from "./play";
 import { maxDrawDiscards } from "./drawLimit";
 import { effectivePlayerHand } from "./invariants";
 import { serializePagatRevealHand } from "./serialize";

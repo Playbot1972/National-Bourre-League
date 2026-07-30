@@ -33,7 +33,6 @@ import {
   isTablePresentationBusyForBots,
   isTrickAnimationBusy,
   resetTrickAnimationBusyState,
-  setBotPresentationSessionPhase,
   disposeTrickAnimationBusyListeners,
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
@@ -108,7 +107,6 @@ export {
   evaluateBotPresentationGate,
   forceReleasePresentationForBots,
   isTrickAnimationBusy,
-  setBotPresentationSessionPhase,
   subscribeTrickAnimationBusy,
   clearWonTrickCollectionArtifacts,
   clearDrawFlyGhosts,

@@ -10,7 +10,7 @@ import {
   shouldRequestServerBotAdvance,
 } from "../docs/bot-orchestrator.js";
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
-import { BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS } from "../docs/bot-play-delay.js";
+import { BOT_PLAY_DELAY_MIN_MS } from "../docs/bot-play-delay.js";
 
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
@@ -55,37 +55,6 @@ describe("app.js bot paths", () => {
     const robotDraw = src.indexOf("robotSubmitDraw", idx);
     assert.ok(earlyReturn >= 0 && robotDraw >= 0);
     assert.ok(earlyReturn < robotDraw);
-  });
-
-  it("presentation gate prefers evaluateBotPresentationGate when table bundle exports it", () => {
-    assert.match(src, /evaluateBotPresentationGate/);
-    assert.match(src, /function isRawTablePresentationBusy/);
-    const fnStart = src.indexOf("function isRawTablePresentationBusy");
-    const fnBody = src.slice(fnStart, fnStart + 800);
-    assert.match(fnBody, /evaluateBotPresentationGate\(Date\.now\(\), sessionPhase\)/);
-    assert.match(src, /function syncBotPresentationSessionPhase/);
-  });
-
-  it("logs bot-submit-blocked when presentation defers draw/play", () => {
-    assert.match(src, /bot-submit-blocked/);
-  });
-
-  it("draw-phase ante/trump hand presentation is visual-only for bots", () => {
-    const bridgeSrc = readFileSync(
-      fileURLToPath(new URL("../src/table/trickAnimationBridge.ts", import.meta.url)),
-      "utf8",
-    );
-    assert.match(bridgeSrc, /drawPhaseHandPresentationBlocksBots/);
-    assert.match(bridgeSrc, /"ante"/);
-    assert.match(bridgeSrc, /"trumpReveal"/);
-    assert.match(bridgeSrc, /isLiveHandPhaseForBotPresentation/);
-  });
-
-  it("server bot advance ignores presentation during reveal/decision/draw", () => {
-    assert.match(runtimeSrc, /function presentationBlocksBotAdvance/);
-    assert.match(runtimeSrc, /handPhase === "reveal"/);
-    assert.match(runtimeSrc, /handPhase === "decision"/);
-    assert.match(runtimeSrc, /handPhase === "draw"/);
   });
 
   it("guards duplicate in-flight server advancement", () => {
@@ -136,17 +105,6 @@ describe("app.js bot paths", () => {
 });
 
 describe("server bot advance runtime presentation deferral", () => {
-  const playThinkWaitMs = () => BOT_PLAY_DELAY_MAX_MS + 150;
-
-  async function waitUntil(ms, predicate) {
-    const deadline = Date.now() + ms;
-    while (Date.now() < deadline) {
-      if (predicate()) return true;
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    return predicate();
-  }
-
   it("arms think during play even when presentation is blocked, then executes after clear", async () => {
     let presentationBlocked = true;
     let advanceCalls = 0;
@@ -184,17 +142,16 @@ describe("server bot advance runtime presentation deferral", () => {
     });
 
     runtime.schedule(session, scores, "human", { reason: "test" });
-    await waitUntil(playThinkWaitMs(), () => advanceCalls === 0);
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
     assert.equal(advanceCalls, 0, "should not fire while presentation blocked");
 
     presentationBlocked = false;
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
-    const executed = await waitUntil(playThinkWaitMs(), () => advanceCalls >= 1);
-    assert.equal(executed, true, "should execute after presentation clears");
-    assert.equal(advanceCalls, 1);
+    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    assert.equal(advanceCalls, 1, "should execute after presentation clears");
   });
 
-  it("executes reveal-phase advance even while trump presentation is blocked", async () => {
+  it("defers reveal-phase advance when presentation blocked, then executes after clear", async () => {
     let presentationBlocked = true;
     let advanceCalls = 0;
     const session = {
@@ -235,48 +192,11 @@ describe("server bot advance runtime presentation deferral", () => {
 
     runtime.schedule(session, scores, "spectator_uid", { reason: "watch-only-open" });
     await new Promise((r) => setTimeout(r, 200));
-    assert.equal(advanceCalls, 1, "reveal advance ignores visual trump presentation");
-  });
+    assert.equal(advanceCalls, 0, "should not fire while trump presentation blocks");
 
-  it("falls back when server advance returns skipped but bot draw is still pending", async () => {
-    let fallbackCalls = 0;
-    const session = {
-      id: "sess_draw",
-      status: "active",
-      currentHand: {
-        phase: "draw",
-        turnPlayerId: "bot_a",
-        participantIds: ["human", "bot_a"],
-        drawCompletedIds: [],
-      },
-    };
-    const scores = [{ playerId: "bot_a", isRobot: true }];
-    const runtime = createServerBotAdvanceRuntime({
-      shouldRequestAdvance: () => true,
-      sessionNeedsBotDriver: () => true,
-      shouldBlockForPresentation: () => false,
-      snapshotContext: () => ({
-        handNumber: 1,
-        turnPlayerId: "bot_a",
-      }),
-      getRoomId: () => "room_1",
-      getSessionId: () => "sess_draw",
-      getHandPhase: (s) => s.currentHand?.phase ?? null,
-      advanceSessionBots: async () => ({
-        status: "ok",
-        skipped: true,
-        reason: "Invalid discard selection",
-        steps: [],
-      }),
-      findSession: () => session,
-      getScores: () => scores,
-      onWake: () => {},
-      onAdvanceError: () => {
-        fallbackCalls += 1;
-      },
-    });
-
-    await runtime.execute(session, scores, "human", { reason: "test-draw-noop" });
-    assert.equal(fallbackCalls, 1);
+    presentationBlocked = false;
+    runtime.schedule(session, scores, "spectator_uid", { reason: "presentation-clear" });
+    await new Promise((r) => setTimeout(r, 250));
+    assert.equal(advanceCalls, 1, "should advance reveal after presentation clears");
   });
 });

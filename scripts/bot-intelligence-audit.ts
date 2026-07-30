@@ -8,11 +8,8 @@ import {
   botShouldFoldDraw,
   botShouldPassDecision,
   estimateHandStrength,
-  botDrawDiscardIndices,
-  botPlayCardIndex,
-  buildBotMoveContext,
-  BOT_PASS_P_THRESHOLD,
-} from "../src/game/botSearch.ts";
+} from "../src/game/botDecisions.ts";
+import { botDrawDiscardIndices, botPlayCardIndex } from "../src/game/play.ts";
 import { effectivePlayerHand } from "../src/game/invariants.ts";
 import { getLegalPlayIndices, type PlayContext } from "../src/game/legal.ts";
 import { applyPlayerPlayCard } from "../src/game/play.ts";
@@ -308,9 +305,8 @@ function runFoldAudit(): {
     for (const pid of ids) {
       const hand = effectivePlayerHand(pid, state.privateHands[pid], state.publicHand);
       const strength = estimateHandStrength(hand, trump);
-      const moveCtx = buildBotMoveContext(pid, state.privateHands[pid]!, state.publicHand, state.deck, state.privateHands);
-      const botFolds = botShouldFoldDraw(hand, trump, moveCtx);
-      const botPasses = botShouldPassDecision(hand, trump, moveCtx);
+      const botFolds = botShouldFoldDraw(hand, trump);
+      const botPasses = botShouldPassDecision(hand, trump);
       if (botFolds !== botPasses) passMismatch += 1;
       const pAtLeastOne = estimateAtLeastOneTrick(state, pid, FOLD_ROLLOUTS, rng);
       const row: FoldCase = { seed, playerId: pid, n, strength, botFolds, pAtLeastOne, trump };
@@ -355,14 +351,7 @@ function runDrawAudit(): {
     const max = atHeroTurn.publicHand.maxDrawDiscards ?? 5;
     const cap = Math.min(max, available);
     const trump = atHeroTurn.publicHand.trumpSuit;
-    const moveCtx = buildBotMoveContext(
-      heroId,
-      atHeroTurn.privateHands[heroId]!,
-      atHeroTurn.publicHand,
-      atHeroTurn.deck,
-      atHeroTurn.privateHands,
-    );
-    const botIndices = botDrawDiscardIndices(hand, trump, max, available, moveCtx);
+    const botIndices = botDrawDiscardIndices(hand, trump, max, available);
     const combos = allDiscardCombos(hand.length, cap);
     let bestIndices = botIndices;
     let bestP = -1;
@@ -433,14 +422,7 @@ function runPlayAudit(): {
       if (!turnId) break;
       const ctx = playContext(state, turnId);
       const legal = getLegalPlayIndices(ctx);
-      const moveCtx = buildBotMoveContext(
-        turnId,
-        state.privateHands[turnId]!,
-        state.publicHand,
-        state.deck,
-        state.privateHands,
-      );
-      const botIdx = botPlayCardIndex(ctx.hand, ctx, moveCtx);
+      const botIdx = botPlayCardIndex(ctx.hand, ctx);
       const isIllegal = !legal.includes(botIdx);
       let bestIdx = botIdx;
       let bestEv = -1;
@@ -519,7 +501,7 @@ function main() {
 
   console.log("## Fold Audit");
   console.log(
-    `- Heuristic: fold if MC P(≥1 trick) < ${FOLD_STAY_IN_THRESHOLD}; pass if < ${BOT_PASS_P_THRESHOLD}; enrollment uses same pass model.`,
+    `- Heuristic: fold if strength < 2.25; pass if < 2.0; enrollment uses same pass model.`,
   );
   console.log(`- Stay-in rate: ${pct(foldCases.filter((c) => !c.botFolds).length, foldCases.length)} (${foldStayRate.toFixed(3)})`);
   console.log(`- Avg P(≥1 trick) when bot stays in: ${avgPWhenStay.toFixed(3)}`);
