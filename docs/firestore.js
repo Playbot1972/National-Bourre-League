@@ -4147,19 +4147,23 @@ async function waitForSessionHandDeal(roomId, sessionId, maxMs = 15000) {
 
 /** Backfill participantIds for sessions created before v1.00.08. */
 export async function ensureCurrentHandParticipants(roomId, sessionId) {
+  if (SERVER_HAND_AUTHORITY) return;
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
   const currentHand = sessionSnap.data().currentHand || {};
   if (Array.isArray(currentHand.participantIds)) return;
 
-  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  await updateDoc(sessionDoc(roomId, sessionId), {
-    currentHand: {
-      tricksByPlayer: currentHand.tricksByPlayer || {},
-      participantIds: [],
-    },
-    updatedAt: serverTimestamp(),
-  });
+  try {
+    await updateDoc(sessionDoc(roomId, sessionId), {
+      currentHand: {
+        tricksByPlayer: currentHand.tricksByPlayer || {},
+        participantIds: [],
+      },
+      updatedAt: serverTimestamp(),
+    });
+  } catch (err) {
+    if (!isPermissionDenied(err)) throw err;
+  }
 }
 
 /** Reset stale participantIds / enrollment that block auto-deal on Go to Table. */

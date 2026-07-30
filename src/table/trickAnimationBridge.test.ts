@@ -118,8 +118,9 @@ describe("trickAnimationBridge", () => {
     assert.equal(handPresentingBlocksBots(true, "ante", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "trumpReveal", "draw"), false);
     assert.equal(handPresentingBlocksBots(true, "trumpMerge", "draw"), false);
-    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), true);
-    assert.equal(handPresentingBlocksBots(true, "ante", "reveal"), true);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "reveal"), false);
+    assert.equal(handPresentingBlocksBots(true, "ante", "reveal"), false);
+    assert.equal(handPresentingBlocksBots(true, "trumpReveal", "decision"), false);
   });
 
   it("does not block bots for deal presentation once server draw is live", () => {
@@ -165,7 +166,7 @@ describe("trickAnimationBridge", () => {
       handPresenting: true,
       handPresentationPhase: "trumpReveal",
     });
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, true);
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
     assert.equal(evaluateBotPresentationGate(Date.now(), "draw").blocked, false);
   });
 
@@ -177,7 +178,22 @@ describe("trickAnimationBridge", () => {
       handPresenting: true,
       handPresentationPhase: "trumpReveal",
     });
-    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, true);
+    assert.equal(evaluateBotPresentationGate(Date.now()).blocked, false);
+  });
+
+  it("allows bot advance during reveal while trump animation is in progress", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("reveal");
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+      revealCatchUp: true,
+      dealPresentationActive: true,
+    });
+    const gate = evaluateBotPresentationGate(Date.now());
+    assert.equal(gate.blocked, false);
+    assert.equal(gate.reason, null);
   });
 
   it("soft-unblocks bots after presentation wait threshold", () => {

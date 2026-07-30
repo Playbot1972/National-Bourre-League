@@ -69,11 +69,45 @@ describe("bot draw presentation integration", () => {
 
     runtime.schedule(session, scores, "human", { reason: "draw-bot-turn" });
     await new Promise((r) => setTimeout(r, 220));
-    assert.equal(advanceCalls, 0, "blocked while ante/trump presentation catch-up");
+    assert.equal(advanceCalls, 1, "draw-phase bot advance ignores visual presentation catch-up");
+  });
 
-    presentationBlocked = false;
-    runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
+  it("server bot advance executes reveal while trump presentation is busy", async () => {
+    let advanceCalls = 0;
+    const session = {
+      id: "sess_reveal",
+      status: "active",
+      currentHand: {
+        phase: "reveal",
+        turnPlayerId: "bot_h9zxag4r",
+        participantIds: ["human", "bot_h9zxag4r"],
+        trumpUpcard: { rank: "A", suit: "hearts" },
+      },
+    };
+    const scores = [{ playerId: "bot_h9zxag4r", isRobot: true }];
+    const runtime = createServerBotAdvanceRuntime({
+      shouldRequestAdvance: () => true,
+      sessionNeedsBotDriver: () => true,
+      shouldBlockForPresentation: () => true,
+      snapshotContext: () => ({
+        handNumber: 1,
+        trickNumber: null,
+        turnPlayerId: "bot_h9zxag4r",
+      }),
+      getRoomId: () => "room_1",
+      getSessionId: () => "sess_reveal",
+      getHandPhase: (s) => s.currentHand?.phase ?? null,
+      advanceSessionBots: async () => {
+        advanceCalls += 1;
+        return { ok: true, steps: [{ kind: "advance_reveal" }] };
+      },
+      findSession: () => session,
+      getScores: () => scores,
+      onWake: () => {},
+    });
+
+    runtime.schedule(session, scores, "human", { reason: "play-now-reveal" });
     await new Promise((r) => setTimeout(r, 220));
-    assert.equal(advanceCalls, 1, "bot advance fires once presentation gate opens");
+    assert.equal(advanceCalls, 1);
   });
 });

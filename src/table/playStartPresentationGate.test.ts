@@ -126,4 +126,23 @@ describe("play-start presentation gate", () => {
       );
     }
   });
+
+  it("reveal-phase trumpReveal catch-up does not block bots when server is reveal", () => {
+    resetTrickAnimationBusyState();
+    setBotPresentationSessionPhase("reveal");
+    for (const phase of ["ante", "trumpReveal", "trumpMerge"] as const) {
+      const handPresenting = handPresentingForBotGate(true, "reveal", phase);
+      assert.equal(handPresenting, false, phase);
+      setTrickAnimationBusyState({
+        ...idleBusy,
+        handPresenting,
+        handPresentationPhase: phase,
+      });
+      assert.equal(
+        getTablePresentationBlockReason(getTrickAnimationBusyState(), { forBots: true }),
+        null,
+        phase,
+      );
+    }
+  });
 });
