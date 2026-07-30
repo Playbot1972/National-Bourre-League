@@ -295,8 +295,8 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
         ? sessionData.liveEnrollment
         : null;
 
-    let enrollmentPatch = null;
     const scoreSnapsById = {};
+    const enrollmentMergeIds = [];
     for (const pid of playerIds) {
       scoreSnapsById[pid] = await tx.get(scoresCollection(db, roomId, sessionId).doc(pid));
     }
@@ -307,12 +307,7 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
       if (!scoreSnap.exists) continue;
       const row = scoreSnap.data();
       if (row.sitOut === true) {
-        if (enrollment && !enrollmentPatch) {
-          const currentId = enrollment.orderedPlayerIds?.[enrollment.currentIndex ?? 0];
-          if (currentId === pid) {
-            enrollmentPatch = buildEnrollmentPatchForIdleSitOut(enrollment, pid, null, nowMs);
-          }
-        }
+        enrollmentMergeIds.push(pid);
         continue;
       }
 
@@ -327,20 +322,21 @@ async function applyIdleSitOuts(db, { roomId, sessionId, playerIds, nowMs }) {
         { merge: true },
       );
       applied.push(pid);
-
-      if (enrollment && !enrollmentPatch) {
-        enrollmentPatch = buildEnrollmentPatchForIdleSitOut(enrollment, pid, null, nowMs);
-      }
+      enrollmentMergeIds.push(pid);
     }
 
-    if (enrollmentPatch?.handEnrollment) {
+    const mergedEnrollment = enrollment
+      ? mergeEnrollmentPatchesForIdleSitOuts(enrollment, enrollmentMergeIds, nowMs)
+      : null;
+
+    if (mergedEnrollment) {
       const sessionUpdate = {
         updatedAt: FieldValue.serverTimestamp(),
       };
       if (sessionData.handEnrollment?.active) {
-        sessionUpdate.handEnrollment = enrollmentPatch.handEnrollment;
+        sessionUpdate.handEnrollment = mergedEnrollment;
       } else if (sessionData.liveEnrollment?.active) {
-        sessionUpdate.liveEnrollment = enrollmentPatch.handEnrollment;
+        sessionUpdate.liveEnrollment = mergedEnrollment;
       }
       tx.update(sessionRef, sessionUpdate);
     }
@@ -547,6 +543,7 @@ export function resolveIdleSitOutMidHandAction(sessionData, scoreById) {
   const turnPlayerId = snapshot.turnPlayerId;
   if (!turnPlayerId || isRobotPlayerId(turnPlayerId)) return null;
 
+  // Mid-hand auto-actions apply only to the authoritative turn owner, never other seats.
   const row = scoreById[turnPlayerId];
   if (row?.sitOut !== true) return null;
 
@@ -624,6 +621,25 @@ export async function skipIdleEnrollmentTurn(db, { roomId, sessionId, nowMs = Da
     advanced = true;
   });
   return advanced;
+}
+
+/**
+ * Apply idle sit-out enrollment bookkeeping for one or more seated players.
+ * Processes each player in order so a non-current sit-out cannot block advancing
+ * past the current turn holder when both are sat out in the same batch.
+ */
+export function mergeEnrollmentPatchesForIdleSitOuts(enrollment, playerIds, nowMs = Date.now()) {
+  if (!enrollment?.active || !playerIds?.length) return null;
+  let working = enrollment;
+  let changed = false;
+  for (const pid of playerIds) {
+    if (!pid || !enrollment.orderedPlayerIds?.includes(pid)) continue;
+    const patch = buildEnrollmentPatchForIdleSitOut(working, pid, null, nowMs);
+    if (!patch?.handEnrollment) continue;
+    working = patch.handEnrollment;
+    changed = true;
+  }
+  return changed ? working : null;
 }
 
 /** True when a seated human blocks enrollment progression on their turn. */

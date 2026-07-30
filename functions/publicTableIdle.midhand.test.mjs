@@ -8,6 +8,10 @@ import {
   isIdleSitOutBlockingEnrollment,
   resolveIdleSitOutMidHandAction,
 } from "./publicTableIdle.js";
+import {
+  buildHandFlowSnapshot,
+  resolveBotAdvanceHint,
+} from "./vendor/session-startup.js";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const NOW = Date.now();
@@ -108,6 +112,16 @@ describe("resolveIdleSitOutMidHandAction", () => {
     assert.equal(resolveIdleSitOutMidHandAction(session, scoreById), null);
   });
 
+  it("returns null when sitOut human is not the current turn owner", () => {
+    const session = drawSession("human_a");
+    const scoreById = {
+      human_a: { bankroll: 100 },
+      human_b: { sitOut: true },
+      bot_b: {},
+    };
+    assert.equal(resolveIdleSitOutMidHandAction(session, scoreById), null);
+  });
+
   it("returns null for sitOut bot turn holder", () => {
     const session = drawSession("bot_b");
     const scoreById = { human_a: { sitOut: true }, bot_b: { sitOut: true } };
@@ -131,6 +145,58 @@ describe("resolveIdleSitOutMidHandAction", () => {
     const scoreById = { human_a: { sitOut: true }, bot_b: {} };
     assert.equal(resolveIdleSitOutMidHandAction(session, scoreById), null);
     assert.equal(isIdleSitOutBlockingEnrollment(session.handEnrollment, scoreById), true);
+  });
+});
+
+describe("turn-timeout ownership (enrollment / bot advance)", () => {
+  function enrollmentSession(currentIndex = 0, deadlineOffsetMs = -1) {
+    return {
+      status: "in_progress",
+      publicTable: true,
+      handEnrollment: {
+        active: true,
+        orderedPlayerIds: ["human_a", "human_b"],
+        currentIndex,
+        enrolledIds: [],
+        declinedIds: [],
+        turnDeadlineMs: NOW + deadlineOffsetMs,
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+  }
+
+  it("scenario 1: player A enrollment timeout targets only player A", () => {
+    const session = enrollmentSession(0);
+    const snapshot = buildHandFlowSnapshot({ session });
+    const hint = resolveBotAdvanceHint({ snapshot, session, nowMs: NOW });
+    assert.deepEqual(hint, { kind: "enrollment_timeout", turnPlayerId: "human_a" });
+  });
+
+  it("scenario 2: player B enrollment timeout targets only player B", () => {
+    const session = enrollmentSession(1);
+    const snapshot = buildHandFlowSnapshot({ session });
+    const hint = resolveBotAdvanceHint({ snapshot, session, nowMs: NOW });
+    assert.deepEqual(hint, { kind: "enrollment_timeout", turnPlayerId: "human_b" });
+  });
+
+  it("scenario 3: bot enrollment timeout targets bot, not seated humans", () => {
+    const session = {
+      status: "in_progress",
+      publicTable: true,
+      handEnrollment: {
+        active: true,
+        orderedPlayerIds: ["human_a", "bot_b"],
+        currentIndex: 1,
+        enrolledIds: ["human_a"],
+        declinedIds: [],
+        turnDeadlineMs: NOW - 1,
+      },
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    };
+    const snapshot = buildHandFlowSnapshot({ session });
+    const hint = resolveBotAdvanceHint({ snapshot, session, nowMs: NOW });
+    assert.deepEqual(hint, { kind: "enrollment_timeout", turnPlayerId: "bot_b" });
+    assert.notEqual(hint.turnPlayerId, "human_a");
   });
 });
 
