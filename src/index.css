@@ -18,8 +18,17 @@ body,
 
 body {
   background: var(--body-bg-gradient);
-  background-attachment: fixed;
+  background-attachment: scroll;
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+@supports (background-attachment: fixed) {
+  @media (hover: hover) and (pointer: fine) {
+    body {
+      background-attachment: fixed;
+    }
+  }
 }
 
 h1,
