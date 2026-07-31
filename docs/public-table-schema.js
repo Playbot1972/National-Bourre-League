@@ -41,6 +41,7 @@ export const ROOM_VISIBILITY = Object.freeze({
 export const PLAY_NOW_QUEUE_MODE = Object.freeze({
   MIXED: "mixed",
   BOTS_ONLY: "bots_only",
+  LIVE_ONLY: "live_only",
 });
 
 /** Score-row bot role for replaceable fill bots (Phase 5+). Absent/null === legacy/private bot. */
@@ -174,6 +175,7 @@ export function roomHasPublicTableFeatures(roomData) {
  */
 export function normalizePlayNowQueueMode(value) {
   if (value === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) return PLAY_NOW_QUEUE_MODE.BOTS_ONLY;
+  if (value === PLAY_NOW_QUEUE_MODE.LIVE_ONLY) return PLAY_NOW_QUEUE_MODE.LIVE_ONLY;
   return PLAY_NOW_QUEUE_MODE.MIXED;
 }
 

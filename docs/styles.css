@@ -956,6 +956,16 @@ body.room-detail-open .room-actions {
   gap: 8px;
 }
 
+.play-now-mode__options--with-live-only {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 520px) {
+  .play-now-mode__options--with-live-only {
+    grid-template-columns: 1fr;
+  }
+}
+
 .play-now-mode__option {
   display: flex;
   flex-direction: column;
