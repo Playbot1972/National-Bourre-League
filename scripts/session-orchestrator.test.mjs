@@ -15,7 +15,7 @@ describe("session orchestrator", () => {
   });
 
   it("renderRoomDetail does not call processRobotActions or startEnrollmentTimer", () => {
-    const idx = src.indexOf("function renderRoomDetail()");
+    const idx = src.indexOf("function renderRoomDetail(");
     assert.ok(idx >= 0);
     const nextFn = src.indexOf("function buildAddPlayerFormHtml", idx);
     const body = src.slice(idx, nextFn);
@@ -33,8 +33,10 @@ describe("session orchestrator", () => {
   });
 
   it("scheduleRenderRoomDetail routes snapshots to orchestration not lifecycle directly", () => {
-    const idx = src.indexOf("function scheduleRenderRoomDetail()");
-    const body = src.slice(idx, idx + 400);
+    const idx = src.indexOf("function scheduleRenderRoomDetail(");
+    assert.ok(idx >= 0);
+    const nextFn = src.indexOf("function renderRoomDetail(", idx);
+    const body = src.slice(idx, nextFn);
     assert.ok(body.includes("scheduleSessionOrchestration"));
     assert.equal(body.includes("maybeRecoverHandLifecycle"), false);
   });
