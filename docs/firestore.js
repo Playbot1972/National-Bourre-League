@@ -582,7 +582,7 @@ if (FIRESTORE_EMULATOR) {
 export { formatInviteCodeDisplay, isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
 import { isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
 import { isPublicTableSpectator } from "./public-table-spectator.js";
-import { resolveRosterDisplayName, upsertSessionPlayerEntry } from "./table-roster-merge.js";
+import { resolveRosterDisplayName, upsertSessionPlayerEntry, isGenericRosterDisplayName } from "./table-roster-merge.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -598,6 +598,16 @@ export function generateInviteCode() {
 }
 
 const memberId = (roomId, uid) => `${roomId}_${uid}`;
+
+function normalizeSessionPlayersForCompare(players) {
+  return [...(players || [])]
+    .map((p) => ({
+      playerId: typeof p === "string" ? p : p?.playerId,
+      displayName: typeof p === "string" ? "" : p?.displayName ?? "",
+    }))
+    .filter((p) => p.playerId)
+    .sort((a, b) => a.playerId.localeCompare(b.playerId));
+}
 
 function withId(snap) {
   return { id: snap.id, ...snap.data() };
@@ -3939,10 +3949,15 @@ export async function ensureSessionPlayer(
     const currentName = scoreSnap.data().displayName;
     const players = upsertSessionPlayerEntry(sessionData.players || [], playerId, resolvedName);
     const playersChanged =
-      JSON.stringify(players) !== JSON.stringify(sessionData.players || []);
-    if ((resolvedName && currentName !== resolvedName) || playersChanged) {
+      JSON.stringify(normalizeSessionPlayersForCompare(players)) !==
+      JSON.stringify(normalizeSessionPlayersForCompare(sessionData.players || []));
+    const needsScoreUpdate =
+      resolvedName &&
+      currentName !== resolvedName &&
+      !(isGenericRosterDisplayName(resolvedName) && !isGenericRosterDisplayName(currentName));
+    if (needsScoreUpdate || playersChanged) {
       const batch = writeBatch(db);
-      if (resolvedName && currentName !== resolvedName) {
+      if (needsScoreUpdate) {
         batch.update(scoreRef, { displayName: resolvedName, updatedAt: serverTimestamp() });
       }
       if (playersChanged) {
@@ -4021,17 +4036,11 @@ export async function syncSessionWithRoomMembers(roomId, sessionId, members) {
   if (!sessionSnap.exists() || sessionSnap.data().status === "final") return;
 
   const sessionData = sessionSnap.data();
-  const scoreSnap = await getDocs(scoresCol(roomId, sessionId));
-  const existingIds = new Set(scoreSnap.docs.map((d) => d.id));
-
-  const missing = members.filter(
-    (m) =>
-      m.userId &&
-      !existingIds.has(m.userId) &&
-      !isPublicTableSpectator(sessionData, m.userId),
+  const seated = members.filter(
+    (m) => m.userId && !isPublicTableSpectator(sessionData, m.userId),
   );
   await Promise.all(
-    missing.map((m) =>
+    seated.map((m) =>
       ensureSessionPlayer(roomId, sessionId, m.userId, m.displayName, { joinCurrentHand: false }),
     ),
   );

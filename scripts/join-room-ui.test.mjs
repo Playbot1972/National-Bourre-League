@@ -37,8 +37,14 @@ describe("Play Now client wiring", () => {
     assert.match(src, /assertPublicMatchmakingQueueMode/);
   });
 
-  it("skips session orchestration on setup-only renders", () => {
+  it("skips score-driven member sync and merges scores on snapshot", () => {
     const src = readFileSync(new URL("../docs/app.js", import.meta.url), "utf8");
-    assert.match(src, /if \(open && tablePlayOpen\)/);
+    assert.match(src, /mergeOpenScoresFromSnapshot/);
+    assert.doesNotMatch(
+      src,
+      /openScores = scores;\s*\n\s*const sessionObj = currentSessions\.find/,
+    );
+    assert.match(src, /scheduleRenderRoomDetail\(\{ scoresOnly: true \}\)/);
+    assert.match(src, /patchGameSetupRoster/);
   });
 });
