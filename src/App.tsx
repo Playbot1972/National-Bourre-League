@@ -12,10 +12,10 @@ export type Screen = "home" | "rules" | "tutorial" | "room";
 const SOCIAL_BASE = "/social/";
 const VALID_SCREENS = new Set<Screen>(["home", "rules", "tutorial", "room"]);
 
-const MAIN_NAV: { label: string; href: string; active?: boolean }[] = [
-  { label: "Tutorial", href: "/", active: true },
-  { label: "Home", href: `${SOCIAL_BASE}#home` },
-  { label: "Rules", href: `${SOCIAL_BASE}#rules` },
+const MAIN_NAV: { label: string; href: string; screen?: Screen | null }[] = [
+  { label: "Home", href: `${SOCIAL_BASE}#home`, screen: "home" },
+  { label: "Tutorial", href: "/?view=tutorial", screen: "tutorial" },
+  { label: "Rules", href: `${SOCIAL_BASE}#rules`, screen: "rules" },
   { label: "Rooms", href: `${SOCIAL_BASE}#rooms` },
   { label: "Leaderboard", href: `${SOCIAL_BASE}#leaderboard` },
   { label: "Leagues", href: `${SOCIAL_BASE}#leagues` },
@@ -119,16 +119,19 @@ export default function App() {
           </span>
         </button>
         <nav className="app__nav app__nav--primary" aria-label="Primary">
-          {MAIN_NAV.map((item) => (
+          {MAIN_NAV.map((item) => {
+            const isActive = item.screen != null && screen === item.screen;
+            return (
             <a
               key={item.label}
-              className={`app__nav-link${item.active ? " is-active" : ""}`}
+              className={`app__nav-link${isActive ? " is-active" : ""}`}
               href={item.href}
-              aria-current={item.active ? "page" : undefined}
+              aria-current={isActive ? "page" : undefined}
             >
               {item.label}
             </a>
-          ))}
+            );
+          })}
         </nav>
         <button
           type="button"
