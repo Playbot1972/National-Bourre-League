@@ -76,14 +76,78 @@
   outline-offset: 2px;
 }
 .app__nav-link.is-active {
+  position: relative;
   color: var(--ink-900);
   background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
   border-color: transparent;
   font-weight: 600;
+  overflow: visible;
+  isolation: isolate;
 }
 .app__nav-link.is-active:hover {
   color: var(--ink-900);
   border-color: transparent;
+}
+
+@keyframes nbl-pill-orb-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes nbl-pill-orb-travel-fallback {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) translateY(calc(-1 * var(--nbl-pill-orbit-r)));
+  }
+}
+
+.app__nav-link.is-active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at 32% 28%, #a8d4ff 0%, #4da3ff 55%, #2b7fd4 100%);
+  box-shadow:
+    0 0 4px rgba(77, 163, 255, 0.5),
+    inset 0 0 1px rgba(255, 255, 255, 0.35);
+  offset-path: rect(-3px calc(100% + 3px) calc(100% + 3px) -3px round 999px);
+  offset-anchor: center;
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  animation: nbl-pill-orb-travel 2.8s linear infinite;
+  will-change: offset-distance;
+}
+
+@supports not (offset-path: rect(0 100% 100% 0 round 999px)) {
+  .app__nav-link.is-active::after {
+    top: 50%;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    offset-path: none;
+    transform-origin: center center;
+    animation: nbl-pill-orb-travel-fallback 2.8s linear infinite;
+    will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app__nav-link.is-active::after {
+    animation: none;
+    offset-path: none;
+    top: 0;
+    left: 50%;
+    --nbl-pill-orbit-r: calc(50% + 3px);
+    transform: translate(-50%, calc(-1 * var(--nbl-pill-orbit-r)));
+    opacity: 0.85;
+  }
 }
 
 [data-theme="light"] .app__nav-link.is-active,

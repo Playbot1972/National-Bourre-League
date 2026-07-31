@@ -105,10 +105,13 @@ button {
   border-color: var(--border-mid);
 }
 .nav__link.is-active {
+  position: relative;
   color: var(--ink-900);
   background: linear-gradient(160deg, var(--gold-300), var(--gold-400));
   font-weight: 600;
   border-color: transparent;
+  overflow: visible;
+  isolation: isolate;
 }
 .nav__link.is-active:hover {
   color: var(--ink-900);
@@ -966,8 +969,11 @@ body.room-detail-open .room-actions {
 }
 
 .play-now-mode__option:has(input:checked) {
+  position: relative;
   border-color: var(--gold-400, #c9a227);
   background: rgba(201, 162, 39, 0.08);
+  overflow: visible;
+  isolation: isolate;
 }
 
 .play-now-mode__option input {
@@ -1318,6 +1324,8 @@ body.room-detail-open .room-actions {
   font-weight: 600;
   border-color: transparent;
   overflow: visible;
+  position: relative;
+  isolation: isolate;
 }
 
 /* Premium perimeter orbit — small orb travels the pill outline; pill stays fixed */
@@ -1337,11 +1345,15 @@ body.room-detail-open .room-actions {
 }
 
 .session-tab.is-active,
+.nav__link.is-active,
+.play-now-mode__option:has(input:checked),
 .btn--cta-orb {
   isolation: isolate;
 }
 
 .session-tab.is-active::after,
+.nav__link.is-active::after,
+.play-now-mode__option:has(input:checked)::after,
 .btn--cta-orb::after {
   content: "";
   position: absolute;
@@ -1366,6 +1378,8 @@ body.room-detail-open .room-actions {
 
 @supports not (offset-path: rect(0 100% 100% 0 round 999px)) {
   .session-tab.is-active::after,
+  .nav__link.is-active::after,
+  .play-now-mode__option:has(input:checked)::after,
   .btn--cta-orb::after {
     top: 50%;
     left: 50%;
@@ -1384,6 +1398,8 @@ body.room-detail-open .room-actions {
 
 @media (prefers-reduced-motion: reduce) {
   .session-tab.is-active::after,
+  .nav__link.is-active::after,
+  .play-now-mode__option:has(input:checked)::after,
   .btn--cta-orb::after {
     animation: none;
     offset-path: none;
