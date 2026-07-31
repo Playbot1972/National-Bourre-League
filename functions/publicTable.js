@@ -1356,18 +1356,9 @@ export async function handleFindOrCreatePublicTable(db, data) {
 
   const sawBotGraveyard = joinAttempt.sawBotGraveyardOnly;
   if (sawBotGraveyard) {
-    console.info("[mixed-stale-reconcile] bots-only fallback — no active humans on candidate tables", {
+    console.info("[mixed-stale-reconcile] stale bot graveyards only — creating fresh mixed table", {
       actorId,
       joinId,
-    });
-    return createPublicTable(db, {
-      actorId,
-      displayName,
-      joinId,
-      targetSeatCount,
-      buyInAmount,
-      anteAmount,
-      queueMode: PLAY_NOW_QUEUE_MODE.BOTS_ONLY,
     });
   }
 

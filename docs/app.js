@@ -214,6 +214,8 @@ import {
 } from "./play-now.js";
 import { resolvePlayNowEntryPath, isPublicTableSession } from "./public-table-rollout.js";
 import {
+  normalizePlayNowQueueMode,
+  PLAY_NOW_QUEUE_MODE,
   resolvePublicTableQueueMode,
   roomHasPublicTableFeatures,
 } from "./public-table-schema.js";
@@ -260,6 +262,13 @@ import {
   saveStoredPublicTableJoinId,
 } from "./public-table-queue.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
+import { mergeScoresWithMembers } from "./table-roster-merge.js";
+import {
+  canTriggerSessionPlay,
+  SESSION_PLAY_RETRY_ATTEMPTS,
+  SESSION_PLAY_RETRY_DELAY_MS,
+  waitUntilStable,
+} from "./play-now-flow.js";
 import {
   blurActiveTextEntry,
   describeActiveElement,
@@ -1061,21 +1070,48 @@ function scheduleSessionAutoPlay({ afterRobotAdd = false, projectedRobotCount = 
 }
 
 async function triggerSessionPlay(_source = "manual") {
-  if (sessionPlayInFlight || tablePlayOpen) return;
-  const s = resolveOpenSessionObj();
-  if (!s || s.status === "final") return;
-  if (tableReadyPlayerCount(s) < 2) return;
-  sessionPlayInFlight = true;
-  clearSessionAutoPlayTimer();
-  try {
-    await openTablePlay();
-  } catch (err) {
-    console.error("triggerSessionPlay:", err);
-    const analysis = analyzeTableStartup(s, tableReadyPlayerCount(s));
-    showTableStartupFailure(analysis, err);
-  } finally {
-    sessionPlayInFlight = false;
+  if (sessionPlayInFlight || tablePlayOpen) return false;
+
+  let lastSession = null;
+  for (let attempt = 0; attempt < SESSION_PLAY_RETRY_ATTEMPTS; attempt += 1) {
+    const s = resolveOpenSessionObj();
+    lastSession = s;
+    const ready = tableReadyPlayerCount(s);
+    if (
+      !canTriggerSessionPlay({
+        sessionPlayInFlight,
+        tablePlayOpen,
+        sessionObj: s,
+        readyCount: ready,
+      })
+    ) {
+      if (attempt < SESSION_PLAY_RETRY_ATTEMPTS - 1) {
+        await new Promise((resolve) => setTimeout(resolve, SESSION_PLAY_RETRY_DELAY_MS));
+        continue;
+      }
+      showRoomsError("Table not ready yet — try Play Now again.");
+      return false;
+    }
+
+    sessionPlayInFlight = true;
+    clearSessionAutoPlayTimer();
+    try {
+      await openTablePlay();
+      return true;
+    } catch (err) {
+      console.error("triggerSessionPlay:", err);
+      const analysis = analyzeTableStartup(s, tableReadyPlayerCount(s));
+      showTableStartupFailure(analysis, err);
+      return false;
+    } finally {
+      sessionPlayInFlight = false;
+    }
   }
+
+  if (lastSession) {
+    showRoomsError("Table not ready yet — try Play Now again.");
+  }
+  return false;
 }
 
 /** Room list Play pill — same table entry path as game-setup Play (#open-table-play). */
@@ -1824,7 +1860,9 @@ let pendingRoomBuyInOverride = null;
 /** Local LmT / Rebuy / Split pot overrides while save or snapshot re-render is in flight. */
 let pendingRoomBourreOverrides = null;
 let renderRoomDetailTimer = 0;
+let syncMembersTimer = 0;
 let syncMembersPromise = null;
+const SYNC_MEMBERS_DEBOUNCE_MS = 300;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
 let tableSyncFrame = 0;
@@ -1958,33 +1996,12 @@ function restoreSessionCleanupTimers(roomId) {
   }
 }
 
-function mergeScoresWithMembers(scores, members, sessionPlayers = [], sessionData = null) {
-  const map = new Map(scores.map((s) => [s.playerId, s]));
+function mergeScoresWithMembersForSession(scores, members, sessionPlayers = [], sessionData = null) {
   const scoreIds = new Set(scores.map((s) => s.playerId).filter(Boolean));
-  for (const m of members) {
-    if (!m.userId || map.has(m.userId)) continue;
-    if (isPublicTableWatchOnly(sessionData, m.userId, { scorePlayerIds: scoreIds })) continue;
-    map.set(m.userId, {
-      playerId: m.userId,
-      displayName: m.displayName,
-      tricksWon: 0,
-      handsWon: 0,
-      net: 0,
-      total: 0,
-    });
-  }
-  for (const p of sessionPlayers) {
-    if (!p?.playerId || map.has(p.playerId)) continue;
-    map.set(p.playerId, {
-      playerId: p.playerId,
-      displayName: p.displayName || "Player",
-      tricksWon: 0,
-      handsWon: 0,
-      net: 0,
-      total: 0,
-    });
-  }
-  return [...map.values()];
+  return mergeScoresWithMembers(scores, members, sessionPlayers, sessionData, {
+    isWatchOnly: (userId) =>
+      isPublicTableWatchOnly(sessionData, userId, { scorePlayerIds: scoreIds }),
+  });
 }
 
 /** Room members plus guests/robots on the open session score sheet (for Members panel). */
@@ -2027,7 +2044,7 @@ async function refreshOpenSessionFromServer(roomId, sessionId) {
 
 function tableReadyPlayerCount(sessionObj) {
   if (!sessionObj) return 0;
-  return mergeScoresWithMembers(
+  return mergeScoresWithMembersForSession(
     openScores,
     currentMembers,
     sessionObj.players || [],
@@ -2036,7 +2053,7 @@ function tableReadyPlayerCount(sessionObj) {
 }
 
 function tableReadyRoster(sessionObj) {
-  const merged = mergeScoresWithMembers(
+  const merged = mergeScoresWithMembersForSession(
     openScores,
     currentMembers,
     sessionObj?.players || [],
@@ -2115,17 +2132,21 @@ function scheduleSyncSessionMembers() {
   if (!currentRoomId || !openSessionId || currentMembers.length === 0) return;
   const sObj = currentSessions.find((s) => s.id === openSessionId);
   if (!sObj || sObj.status === "final") return;
-  if (syncMembersPromise) return;
-  syncMembersPromise = syncSessionWithRoomMembers(
-    currentRoomId,
-    openSessionId,
-    currentMembers,
-  )
-    .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
-    .catch((e) => console.error("syncSessionWithRoomMembers:", e))
-    .finally(() => {
-      syncMembersPromise = null;
-    });
+  if (syncMembersTimer) clearTimeout(syncMembersTimer);
+  syncMembersTimer = window.setTimeout(() => {
+    syncMembersTimer = 0;
+    if (syncMembersPromise) return;
+    syncMembersPromise = syncSessionWithRoomMembers(
+      currentRoomId,
+      openSessionId,
+      currentMembers,
+    )
+      .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
+      .catch((e) => console.error("syncSessionWithRoomMembers:", e))
+      .finally(() => {
+        syncMembersPromise = null;
+      });
+  }, SYNC_MEMBERS_DEBOUNCE_MS);
 }
 
 function stopSessionCleanupTimers() {
@@ -2606,6 +2627,30 @@ async function maybeAuthorizePublicTableJoinByInvite(roomId) {
   }
 }
 
+async function assertPublicMatchmakingQueueMode(result, requestedMode) {
+  const normalizedRequested = normalizePlayNowQueueMode(requestedMode);
+  const normalizedResult = normalizePlayNowQueueMode(result?.queueMode);
+  if (!result?.queueMode || normalizedResult === normalizedRequested) return result;
+  console.warn("Public matchmaking queueMode mismatch", {
+    requested: normalizedRequested,
+    got: normalizedResult,
+  });
+  showRoomsError(
+    `Expected a ${normalizedRequested === PLAY_NOW_QUEUE_MODE.BOTS_ONLY ? "bots-only" : "mixed"} table but matchmaking returned ${normalizedResult}. Retrying…`,
+    "info",
+  );
+  await gameLeavePublicTable();
+  const joinId = forceNewPublicTableJoinId(session.uid);
+  const retried = await callPublicPlayNowMatchmaking(joinId);
+  const retriedMode = normalizePlayNowQueueMode(retried?.queueMode);
+  if (retried?.queueMode && retriedMode !== normalizedRequested) {
+    throw new Error(
+      `Matchmaking returned ${retriedMode} instead of ${normalizedRequested}. Try again.`,
+    );
+  }
+  return retried;
+}
+
 async function callPublicPlayNowMatchmaking(joinId) {
   const queueMode = readPlayNowQueueModeFromDom();
   return gameFindOrCreatePublicTable({
@@ -3034,10 +3079,15 @@ async function bootstrapNewSession({
   if (!currentRoomId) throw new Error("Open a room first.");
   const players = currentMembers.map((m) => ({
     playerId: m.userId,
-    displayName: m.displayName,
+    displayName: m.displayName || session?.displayName,
   }));
   if (players.length === 0 && session) {
     players.push({ playerId: session.uid, displayName: session.displayName });
+  } else if (session?.uid) {
+    const host = players.find((p) => p.playerId === session.uid);
+    if (host && !host.displayName?.trim()) {
+      host.displayName = session.displayName;
+    }
   }
   const created = await createSession(currentRoomId, players, buyInAmount, {
     handStake,
@@ -3108,6 +3158,7 @@ async function runPlayNowFlow() {
         showRoomsError(PUBLIC_TABLE_QUEUE_RECOVERY_MESSAGE, "info");
         ({ joinId, result } = await recoverPublicTableQueueAndRetry());
       }
+      result = await assertPublicMatchmakingQueueMode(result, queueMode);
       saveStoredPublicTableJoinId(uid, joinId);
       rememberPublicTableJoinResult(result);
       if (!result?.roomId || !result?.sessionId) {
@@ -3128,7 +3179,7 @@ async function runPlayNowFlow() {
         { label: "Public Play Now room load" },
       );
       openSession(result.sessionId);
-      await waitUntil(
+      await waitUntilStable(
         () =>
           openSessionId === result.sessionId &&
           tableReadyPlayerCount(resolveActiveSession()) >= 2,
@@ -3213,8 +3264,10 @@ async function runPlayNowFlow() {
       }
     }
 
-    await waitUntil(
-      () => tableReadyPlayerCount(resolveActiveSession()) >= 1 + robotCount,
+    await waitUntilStable(
+      () =>
+        openSessionId === created.id &&
+        tableReadyPlayerCount(resolveActiveSession()) >= 1 + robotCount,
       { label: "Play Now robot roster" },
     );
 
@@ -5007,6 +5060,18 @@ function startPrivateHandSubscription() {
   );
 }
 
+function seedOpenScoresFromSession(sessionId) {
+  const sessionObj =
+    currentSessions.find((s) => s.id === sessionId) ?? pendingOpenSessions.get(sessionId);
+  if (!sessionObj) return;
+  openScores = mergeScoresWithMembersForSession(
+    [],
+    currentMembers,
+    sessionObj.players || [],
+    sessionObj,
+  );
+}
+
 function openSession(sessionId) {
   if (scoresUnsub) scoresUnsub();
   if (handsUnsub) handsUnsub();
@@ -5016,10 +5081,10 @@ function openSession(sessionId) {
     clearSessionSetupSheetSnap();
   }
   openSessionId = sessionId;
-  openScores = [];
   openHands = [];
   tableFeedbackSnapshot = null;
   pendingDrawShuffle = false;
+  seedOpenScoresFromSession(sessionId);
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
     openScores = scores;
     const sessionObj = currentSessions.find((x) => x.id === sessionId);
@@ -5056,7 +5121,9 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
 
 function scheduleRenderRoomDetail() {
   const open = currentSessions.find((s) => s.id === openSessionId);
-  if (open) scheduleSessionOrchestration(open, openScores, { reason: "snapshot" });
+  if (open && tablePlayOpen) {
+    scheduleSessionOrchestration(open, openScores, { reason: "snapshot" });
+  }
   if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
   renderRoomDetailTimer = window.setTimeout(() => {
     renderRoomDetailTimer = 0;
