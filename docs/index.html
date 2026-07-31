@@ -27,8 +27,8 @@
   <body>
     <header class="topbar">
       <a class="brand" href="#home">
-        <span class="brand__mark">&spades;</span>
-        <span class="brand__text">National <em>Bourré</em> League</span>
+        <span class="brand__mark" data-brand-spade>&spades;</span>
+        <span class="brand__text">National <em data-brand-bourre>Bourré</em> League</span>
       </a>
 
       <nav class="nav" aria-label="Primary">
@@ -174,6 +174,11 @@
                       <input type="radio" name="play-now-mode" value="bots_only" />
                       <span class="play-now-mode__label">Bots only</span>
                       <span class="play-now-mode__hint">Instant seat vs bots</span>
+                    </label>
+                    <label class="play-now-mode__option" data-play-now-mode-option="live_only" hidden>
+                      <input type="radio" name="play-now-mode" value="live_only" />
+                      <span class="play-now-mode__label">Live only</span>
+                      <span class="play-now-mode__hint">Humans only — no bots</span>
                     </label>
                   </div>
                 </fieldset>

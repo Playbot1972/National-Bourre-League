@@ -227,6 +227,12 @@ import {
   savePlayNowQueueMode,
 } from "./play-now-queue-mode.js";
 import {
+  canShowLiveOnly,
+  createLiveOnlyDebugGesture,
+  getPlayNowPopulationMetrics,
+  isProductionBuild,
+} from "./play-now-live-only.js";
+import {
   clearPublicTableJoinResult,
   rememberPublicTableJoinResult,
   publicTableJoinStatusMessage,
@@ -735,6 +741,7 @@ function showView() {
   if (effectiveView === "rooms") {
     applyRoomsScope(roomsScope);
     scheduleApplyRoomNavFromLocation();
+    syncPlayNowLiveOnlyVisibility();
   }
   if (effectiveView === "rules") {
     renderRulesView($("#rules-root"));
@@ -2666,7 +2673,7 @@ async function assertPublicMatchmakingQueueMode(result, requestedMode) {
     got: normalizedResult,
   });
   showRoomsError(
-    `Expected a ${normalizedRequested === PLAY_NOW_QUEUE_MODE.BOTS_ONLY ? "bots-only" : "mixed"} table but matchmaking returned ${normalizedResult}. Retrying…`,
+    `Expected a ${normalizedRequested === PLAY_NOW_QUEUE_MODE.BOTS_ONLY ? "bots-only" : normalizedRequested === PLAY_NOW_QUEUE_MODE.LIVE_ONLY ? "live-only" : "mixed"} table but matchmaking returned ${normalizedResult}. Retrying…`,
     "info",
   );
   await gameLeavePublicTable();
@@ -3049,6 +3056,44 @@ if (playNowBtn) {
   });
 }
 
+function syncPlayNowLiveOnlyVisibility(metrics = getPlayNowPopulationMetrics()) {
+  const option = document.querySelector('[data-play-now-mode-option="live_only"]');
+  const optionsRoot = document.querySelector(".play-now-mode__options");
+  if (!option || !optionsRoot) return;
+  const show = canShowLiveOnly(metrics);
+  option.hidden = !show;
+  optionsRoot.classList.toggle("play-now-mode__options--with-live-only", show);
+  if (!show) {
+    const liveInput = option.querySelector('input[name="play-now-mode"]');
+    if (liveInput?.checked) {
+      const mixed = document.querySelector('input[name="play-now-mode"][value="mixed"]');
+      if (mixed) mixed.checked = true;
+      savePlayNowQueueMode(PLAY_NOW_QUEUE_MODE.MIXED);
+    }
+  }
+}
+
+function initLiveOnlyDebugGesture() {
+  if (isProductionBuild()) return;
+  const bourreEl = document.querySelector("[data-brand-bourre]");
+  const spadeEl = document.querySelector("[data-brand-spade]");
+  if (!bourreEl || !spadeEl) return;
+  const gesture = createLiveOnlyDebugGesture({
+    isProduction: isProductionBuild(),
+    onEnabled: () => {
+      syncPlayNowLiveOnlyVisibility();
+    },
+  });
+  bourreEl.addEventListener("click", (event) => {
+    gesture.onBourreTap(event, { navigateHome: () => {
+      location.hash = "#home";
+    } });
+  });
+  spadeEl.addEventListener("click", (event) => {
+    gesture.onSpadeTap(event);
+  });
+}
+
 function initPlayNowModeSelector() {
   const fieldset = document.querySelector('[data-testid="play-now-mode"]');
   if (!fieldset) return;
@@ -3067,6 +3112,8 @@ function initPlayNowModeSelector() {
 }
 
 initPlayNowModeSelector();
+syncPlayNowLiveOnlyVisibility();
+initLiveOnlyDebugGesture();
 
 function setPlayNowBusy(busy) {
   const btn = $("#play-now");

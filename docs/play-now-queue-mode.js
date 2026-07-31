@@ -14,7 +14,9 @@ const STORAGE_KEY = "nbl-play-now-queue-mode";
 /** Short label for table banners and compact UI. */
 export function playNowQueueModeShortLabel(mode) {
   const normalized = normalizePlayNowQueueMode(mode);
-  return normalized === PLAY_NOW_QUEUE_MODE.BOTS_ONLY ? "Bots only" : "Mixed";
+  if (normalized === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) return "Bots only";
+  if (normalized === PLAY_NOW_QUEUE_MODE.LIVE_ONLY) return "Live only";
+  return "Mixed";
 }
 
 /** Descriptive copy for the mode selector. */
@@ -22,6 +24,9 @@ export function playNowQueueModeDescription(mode) {
   const normalized = normalizePlayNowQueueMode(mode);
   if (normalized === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
     return "Instant seat vs bots — no live-player matchmaking.";
+  }
+  if (normalized === PLAY_NOW_QUEUE_MODE.LIVE_ONLY) {
+    return "Humans only — no bots fill empty seats.";
   }
   return "Join live players when available; bots fill empty seats.";
 }
@@ -31,6 +36,9 @@ export function playNowMatchmakingStatusMessage(mode) {
   const normalized = normalizePlayNowQueueMode(mode);
   if (normalized === PLAY_NOW_QUEUE_MODE.BOTS_ONLY) {
     return "Starting a bots-only table…";
+  }
+  if (normalized === PLAY_NOW_QUEUE_MODE.LIVE_ONLY) {
+    return "Finding a live-only table…";
   }
   return "Finding a mixed public table…";
 }
