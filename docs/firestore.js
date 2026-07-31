@@ -582,6 +582,7 @@ if (FIRESTORE_EMULATOR) {
 export { formatInviteCodeDisplay, isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
 import { isValidInviteCodeFormat, normalizeInviteCode } from "./invite-code.js";
 import { isPublicTableSpectator } from "./public-table-spectator.js";
+import { resolveRosterDisplayName, upsertSessionPlayerEntry } from "./table-roster-merge.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -2861,7 +2862,12 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
     Number(bourreOpts.handStake ?? bourreOpts.anteAmount) || 1,
   );
   const limEnabled = bourreOpts.limEnabled === true;
-  const rosterPlayers = players.filter((p) => p?.playerId);
+  const rosterPlayers = players
+    .filter((p) => p?.playerId)
+    .map((p) => ({
+      playerId: p.playerId,
+      displayName: resolveRosterDisplayName(null, p.displayName, p.displayName),
+    }));
   const sortedIds = rosterPlayers.map((p) => p.playerId);
   const initialDealer = sortedIds[0] ?? null;
   const sessionRef = doc(sessionsCol(roomId));
@@ -2918,7 +2924,7 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
       rounds: 0,
       players: rosterPlayers.map((p) => ({
         playerId: p.playerId,
-        displayName: p.displayName || "Player",
+        displayName: p.displayName,
       })),
       notes: "",
       totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
@@ -2931,7 +2937,7 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
         sessionId: sessionRef.id,
         roomId,
         playerId: p.playerId,
-        displayName: p.displayName || "Player",
+        displayName: p.displayName,
         bankroll: buyIn,
         tricksWon: 0,
         handsWon: 0,
@@ -3925,9 +3931,27 @@ export async function ensureSessionPlayer(
 
   const scoreRef = scoreDoc(roomId, sessionId, playerId);
   const scoreSnap = await getDoc(scoreRef);
+  const resolvedName = resolveRosterDisplayName(
+    scoreSnap.exists() ? scoreSnap.data().displayName : null,
+    displayName,
+  );
   if (scoreSnap.exists()) {
-    if (displayName && scoreSnap.data().displayName !== displayName) {
-      await updateDoc(scoreRef, { displayName, updatedAt: serverTimestamp() });
+    const currentName = scoreSnap.data().displayName;
+    const players = upsertSessionPlayerEntry(sessionData.players || [], playerId, resolvedName);
+    const playersChanged =
+      JSON.stringify(players) !== JSON.stringify(sessionData.players || []);
+    if ((resolvedName && currentName !== resolvedName) || playersChanged) {
+      const batch = writeBatch(db);
+      if (resolvedName && currentName !== resolvedName) {
+        batch.update(scoreRef, { displayName: resolvedName, updatedAt: serverTimestamp() });
+      }
+      if (playersChanged) {
+        batch.update(sessionDoc(roomId, sessionId), {
+          players,
+          updatedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
     return false;
   }
@@ -3944,7 +3968,7 @@ export async function ensureSessionPlayer(
   const sortedIds = rosterIds.includes(playerId) ? rosterIds : [...rosterIds, playerId];
 
   const sessionPatch = {
-    players: arrayUnion({ playerId, displayName }),
+    players: upsertSessionPlayerEntry(sessionData.players || [], playerId, resolvedName),
     updatedAt: serverTimestamp(),
   };
   if (activeEnrollment?.active) {
@@ -3962,7 +3986,7 @@ export async function ensureSessionPlayer(
   }
 
   if (!isRobot) {
-    await ensurePlayerDoc(playerId, displayName);
+    await ensurePlayerDoc(playerId, resolvedName);
   }
   const buyIn = Math.max(
     1,
@@ -3974,7 +3998,7 @@ export async function ensureSessionPlayer(
     sessionId,
     roomId,
     playerId,
-    displayName,
+    displayName: resolvedName,
     bankroll: buyIn,
     tricksWon: 0,
     handsWon: 0,
