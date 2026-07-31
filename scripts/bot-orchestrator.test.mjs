@@ -12,6 +12,9 @@ import {
 import { createServerBotAdvanceRuntime } from "../docs/bot-orchestration-runtime.js";
 import { BOT_PLAY_DELAY_MIN_MS, BOT_PLAY_DELAY_MAX_MS } from "../docs/bot-play-delay.js";
 
+/** Play-phase think delay is random up to BOT_PLAY_DELAY_MAX_MS — wait past worst case. */
+const PLAY_THINK_WAIT_MS = BOT_PLAY_DELAY_MAX_MS + 120;
+
 describe("bot orchestrator authority", () => {
   it("server authority ON + table open → request server only", () => {
     assert.equal(shouldRequestServerBotAdvance(true, true), true);
@@ -142,12 +145,12 @@ describe("server bot advance runtime presentation deferral", () => {
     });
 
     runtime.schedule(session, scores, "human", { reason: "test" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    await new Promise((r) => setTimeout(r, PLAY_THINK_WAIT_MS));
     assert.equal(advanceCalls, 0, "should not fire while presentation blocked");
 
     presentationBlocked = false;
     runtime.schedule(session, scores, "human", { reason: "presentation-clear" });
-    await new Promise((r) => setTimeout(r, BOT_PLAY_DELAY_MIN_MS + 80));
+    await new Promise((r) => setTimeout(r, PLAY_THINK_WAIT_MS));
     assert.equal(advanceCalls, 1, "should execute after presentation clears");
   });
 
