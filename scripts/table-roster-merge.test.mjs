@@ -4,6 +4,7 @@ import {
   isGenericRosterDisplayName,
   mergeScoresWithMembers,
   resolveRosterDisplayName,
+  rosterDisplaySignature,
   upsertSessionPlayerEntry,
 } from "../docs/table-roster-merge.js";
 
@@ -39,13 +40,22 @@ describe("table-roster-merge", () => {
     assert.equal(merged[0].displayName, "player1000");
   });
 
-  it("upsertSessionPlayerEntry replaces existing playerId", () => {
-    const next = upsertSessionPlayerEntry(
+  it("mergeScoresWithMembers uses auth displayName when member/score are generic", () => {
+    const merged = mergeScoresWithMembers(
+      [{ playerId: "u1", displayName: "Player", tricksWon: 0 }],
+      [],
       [{ playerId: "u1", displayName: "Player" }],
-      "u1",
-      "player1000",
+      null,
+      { authDisplayNameByPlayerId: { u1: "player1000" } },
     );
-    assert.equal(next.length, 1);
-    assert.equal(next[0].displayName, "player1000");
+    assert.equal(merged[0].displayName, "player1000");
+  });
+
+  it("rosterDisplaySignature is stable for identical roster", () => {
+    const roster = [
+      { playerId: "u1", displayName: "player1000", isRobot: false },
+      { playerId: "bot_1", displayName: "Robot", isRobot: true },
+    ];
+    assert.equal(rosterDisplaySignature(roster), rosterDisplaySignature([...roster]));
   });
 });

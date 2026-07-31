@@ -262,7 +262,7 @@ import {
   saveStoredPublicTableJoinId,
 } from "./public-table-queue.js";
 import { isJoinModeActive, JOIN_MODE_CLASS } from "./join-room-ui.js";
-import { mergeScoresWithMembers } from "./table-roster-merge.js";
+import { mergeScoresWithMembers, rosterDisplaySignature, resolveRosterDisplayName } from "./table-roster-merge.js";
 import {
   canTriggerSessionPlay,
   SESSION_PLAY_RETRY_ATTEMPTS,
@@ -1862,6 +1862,8 @@ let pendingRoomBourreOverrides = null;
 let renderRoomDetailTimer = 0;
 let syncMembersTimer = 0;
 let syncMembersPromise = null;
+let lastRoomDetailRenderKey = "";
+let lastSetupRosterSignature = "";
 const SYNC_MEMBERS_DEBOUNCE_MS = 300;
 /** Bumped when the inline table mount node is replaced so stale async mounts are ignored. */
 let tableMountGeneration = 0;
@@ -1996,12 +1998,39 @@ function restoreSessionCleanupTimers(roomId) {
   }
 }
 
+function authDisplayNameByPlayerId() {
+  if (!session?.uid || !session.displayName) return {};
+  return { [session.uid]: session.displayName };
+}
+
 function mergeScoresWithMembersForSession(scores, members, sessionPlayers = [], sessionData = null) {
   const scoreIds = new Set(scores.map((s) => s.playerId).filter(Boolean));
   return mergeScoresWithMembers(scores, members, sessionPlayers, sessionData, {
     isWatchOnly: (userId) =>
       isPublicTableWatchOnly(sessionData, userId, { scorePlayerIds: scoreIds }),
+    authDisplayNameByPlayerId: authDisplayNameByPlayerId(),
   });
+}
+
+function membersForSessionSync(members = currentMembers) {
+  if (!session?.uid || !session.displayName) return members;
+  return members.map((m) => {
+    if (m.userId !== session.uid) return m;
+    const displayName = resolveRosterDisplayName(null, m.displayName, session.displayName);
+    if (displayName === m.displayName) return m;
+    return { ...m, displayName };
+  });
+}
+
+function mergeOpenScoresFromSnapshot(scores, sessionId = openSessionId) {
+  const sessionObj =
+    currentSessions.find((s) => s.id === sessionId) ?? pendingOpenSessions.get(sessionId);
+  return mergeScoresWithMembersForSession(
+    scores,
+    currentMembers,
+    sessionObj?.players || [],
+    sessionObj,
+  );
 }
 
 /** Room members plus guests/robots on the open session score sheet (for Members panel). */
@@ -2136,10 +2165,11 @@ function scheduleSyncSessionMembers() {
   syncMembersTimer = window.setTimeout(() => {
     syncMembersTimer = 0;
     if (syncMembersPromise) return;
+    const members = membersForSessionSync();
     syncMembersPromise = syncSessionWithRoomMembers(
       currentRoomId,
       openSessionId,
-      currentMembers,
+      members,
     )
       .then(() => ensureCurrentHandParticipants(currentRoomId, openSessionId))
       .catch((e) => console.error("syncSessionWithRoomMembers:", e))
@@ -3473,6 +3503,8 @@ function openRoom(roomId, options = {}) {
   const fromHistory = options.fromHistory === true;
   clearDetailSubs();
   roomGoneHandled = false;
+  lastRoomDetailRenderKey = "";
+  lastSetupRosterSignature = "";
   currentRoomId = roomId;
   currentRoom = null;
   currentMembers = [];
@@ -4607,7 +4639,7 @@ function buildRebuyPurchaseConfig(sessionObj) {
 }
 
 function buildTableSessionProps(s) {
-  const mergedScores = mergeScoresWithMembers(
+  const mergedScores = mergeScoresWithMembersForSession(
     openScores,
     currentMembers,
     s.players || [],
@@ -5064,12 +5096,35 @@ function seedOpenScoresFromSession(sessionId) {
   const sessionObj =
     currentSessions.find((s) => s.id === sessionId) ?? pendingOpenSessions.get(sessionId);
   if (!sessionObj) return;
-  openScores = mergeScoresWithMembersForSession(
-    [],
-    currentMembers,
-    sessionObj.players || [],
-    sessionObj,
-  );
+  openScores = mergeOpenScoresFromSnapshot([], sessionId);
+}
+
+function patchGameSetupRoster(sessionObj, isOwner) {
+  const rosterRoot = roomDetailView?.querySelector(".game-setup-panel__roster");
+  if (!rosterRoot || !sessionObj) return false;
+  const roster = tableReadyRoster(sessionObj);
+  const signature = rosterDisplaySignature(roster);
+  if (signature === lastSetupRosterSignature) return true;
+  lastSetupRosterSignature = signature;
+  rosterRoot.innerHTML = `<h5>Roster</h5>${rosterPanelHtml(sessionObj, isOwner)}`;
+  return true;
+}
+
+function buildRoomDetailRenderKey(openSessionObj, isOwner) {
+  const roster = openSessionObj ? tableReadyRoster(openSessionObj) : [];
+  return [
+    currentRoomId,
+    currentRoom?.updatedAt?.seconds ?? "",
+    currentRoom?.status ?? "",
+    openSessionId ?? "",
+    openSessionObj?.status ?? "",
+    openSessionObj?.handCount ?? "",
+    currentMembers.map((m) => `${m.userId}:${m.displayName ?? ""}`).join(","),
+    rosterDisplaySignature(roster),
+    isOwner ? "1" : "0",
+    tablePlayOpen ? "1" : "0",
+    currentSessions.length,
+  ].join(";");
 }
 
 function openSession(sessionId) {
@@ -5086,21 +5141,20 @@ function openSession(sessionId) {
   pendingDrawShuffle = false;
   seedOpenScoresFromSession(sessionId);
   scoresUnsub = subscribeScores(currentRoomId, sessionId, (scores) => {
-    openScores = scores;
+    openScores = mergeOpenScoresFromSnapshot(scores, sessionId);
     const sessionObj = currentSessions.find((x) => x.id === sessionId);
-    notePublicTableHeroScorePresence(scores, session?.uid ?? null, sessionObj);
-    refreshTablePlayerRatings(scores).catch((e) => console.warn("player ratings:", e));
-    scheduleSyncSessionMembers();
-    scheduleRenderRoomDetail();
+    notePublicTableHeroScorePresence(openScores, session?.uid ?? null, sessionObj);
+    refreshTablePlayerRatings(openScores).catch((e) => console.warn("player ratings:", e));
+    scheduleRenderRoomDetail({ scoresOnly: true });
   });
   handsUnsub = subscribeHands(currentRoomId, sessionId, (hands) => {
     openHands = hands;
-    scheduleRenderRoomDetail();
+    scheduleRenderRoomDetail({ scoresOnly: true });
   });
   startPrivateHandSubscription();
-  renderRoomDetail();
+  renderRoomDetail({ force: true });
   if (currentMembers.length > 0) {
-    syncSessionWithRoomMembers(currentRoomId, sessionId, currentMembers)
+    syncSessionWithRoomMembers(currentRoomId, sessionId, membersForSessionSync())
       .then(() => ensureCurrentHandParticipants(currentRoomId, sessionId))
       .catch((e) => console.error("openSession sync:", e));
   }
@@ -5119,7 +5173,7 @@ function renderCreatedSessionTabs(pool, sessions, activeSessionId) {
     .join("");
 }
 
-function scheduleRenderRoomDetail() {
+function scheduleRenderRoomDetail({ force = false, scoresOnly = false } = {}) {
   const open = currentSessions.find((s) => s.id === openSessionId);
   if (open && tablePlayOpen) {
     scheduleSessionOrchestration(open, openScores, { reason: "snapshot" });
@@ -5127,11 +5181,11 @@ function scheduleRenderRoomDetail() {
   if (renderRoomDetailTimer) clearTimeout(renderRoomDetailTimer);
   renderRoomDetailTimer = window.setTimeout(() => {
     renderRoomDetailTimer = 0;
-    renderRoomDetail();
-  }, 80);
+    renderRoomDetail({ force, scoresOnly });
+  }, scoresOnly && !tablePlayOpen ? 120 : 80);
 }
 
-function renderRoomDetail() {
+function renderRoomDetail({ force = false, scoresOnly = false } = {}) {
   if (!currentRoomId || roomDetailView.hidden) return;
   if (silentTableEntry && !tablePlayOpen) return;
   if (!currentRoom) {
@@ -5139,7 +5193,39 @@ function renderRoomDetail() {
     return;
   }
 
-  // Preserve in-progress form state across snapshot re-renders.
+  const openSessionObj = resolveActiveSession();
+  const isOwner = session?.uid === currentRoom.ownerId;
+  const renderKey = buildRoomDetailRenderKey(openSessionObj, isOwner);
+
+  if (
+    !force &&
+    scoresOnly &&
+    !tablePlayOpen &&
+    lastRoomDetailRenderKey &&
+    renderKey === lastRoomDetailRenderKey
+  ) {
+    return;
+  }
+
+  if (
+    !force &&
+    scoresOnly &&
+    !tablePlayOpen &&
+    openSessionObj &&
+    patchGameSetupRoster(openSessionObj, isOwner)
+  ) {
+    lastRoomDetailRenderKey = renderKey;
+    const mount = $("#session-panel-mount", roomDetailView);
+    if (mount && openSessionObj.status !== "final") {
+      scheduleTableSessionSync(openSessionObj);
+    }
+    return;
+  }
+
+  lastRoomDetailRenderKey = renderKey;
+  if (openSessionObj) {
+    lastSetupRosterSignature = rosterDisplaySignature(tableReadyRoster(openSessionObj));
+  }
   captureGameSetupBourreFromDom();
   const activeEl = document.activeElement;
   const editingNotes =
@@ -5170,8 +5256,6 @@ function renderRoomDetail() {
   const bourreSettings = resolveRoomBourreSettings(
     currentRoom.bourreSettings || DEFAULT_BOURRE_SETTINGS,
   );
-  const openSessionObj = resolveActiveSession();
-  const isOwner = session?.uid === currentRoom.ownerId;
   const visibleMembers = currentMembers;
   const roomBuyInAmount = pendingRoomBuyInOverride ?? bourreSettings.buyInAmount;
   const roomAnteAmount = resolveRoomAnteAmount(pendingRoomAnteOverride, bourreSettings.anteAmount);

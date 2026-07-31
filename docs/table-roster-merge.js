@@ -59,12 +59,28 @@ export function upsertSessionPlayerEntry(players, playerId, displayName) {
  * @param {object|null} [_sessionData]
  * @param {{ isWatchOnly?: (userId: string) => boolean }} [opts]
  */
+function preferredMemberDisplayName(member, authDisplayNameByPlayerId, playerId) {
+  const authName = authDisplayNameByPlayerId?.[playerId];
+  return resolveRosterDisplayName(null, member?.displayName, authName);
+}
+
+/**
+ * Stable signature for roster display — used to skip redundant full-page re-renders.
+ * @param {Array<{ playerId?: string, displayName?: string, isRobot?: boolean }>} roster
+ */
+export function rosterDisplaySignature(roster) {
+  return roster
+    .map((entry) => `${entry.playerId ?? ""}:${entry.displayName ?? ""}:${entry.isRobot ? "1" : "0"}`)
+    .sort()
+    .join("|");
+}
+
 export function mergeScoresWithMembers(
   scores,
   members,
   sessionPlayers = [],
   _sessionData = null,
-  { isWatchOnly = () => false } = {},
+  { isWatchOnly = () => false, authDisplayNameByPlayerId = {} } = {},
 ) {
   const memberById = new Map(
     members.filter((m) => m.userId).map((m) => [m.userId, m]),
@@ -74,12 +90,13 @@ export function mergeScoresWithMembers(
   for (const s of scores) {
     if (!s?.playerId) continue;
     const member = memberById.get(s.playerId);
+    const sessionPlayer = sessionPlayers.find((p) => p?.playerId === s.playerId);
     map.set(s.playerId, {
       ...s,
       displayName: resolveRosterDisplayName(
         s.displayName,
-        member?.displayName,
-        sessionPlayers.find((p) => p?.playerId === s.playerId)?.displayName,
+        preferredMemberDisplayName(member, authDisplayNameByPlayerId, s.playerId),
+        sessionPlayer?.displayName,
       ),
     });
   }
@@ -89,7 +106,7 @@ export function mergeScoresWithMembers(
     if (isWatchOnly(m.userId)) continue;
     map.set(m.userId, {
       playerId: m.userId,
-      displayName: resolveRosterDisplayName(null, m.displayName),
+      displayName: preferredMemberDisplayName(m, authDisplayNameByPlayerId, m.userId),
       tricksWon: 0,
       handsWon: 0,
       net: 0,
@@ -102,7 +119,10 @@ export function mergeScoresWithMembers(
     const member = memberById.get(p.playerId);
     map.set(p.playerId, {
       playerId: p.playerId,
-      displayName: resolveRosterDisplayName(p.displayName, member?.displayName),
+      displayName: resolveRosterDisplayName(
+        p.displayName,
+        preferredMemberDisplayName(member, authDisplayNameByPlayerId, p.playerId),
+      ),
       tricksWon: 0,
       handsWon: 0,
       net: 0,
@@ -112,8 +132,9 @@ export function mergeScoresWithMembers(
 
   for (const [playerId, entry] of map) {
     const member = memberById.get(playerId);
-    if (member?.displayName && isGenericRosterDisplayName(entry.displayName)) {
-      entry.displayName = member.displayName;
+    const preferred = preferredMemberDisplayName(member, authDisplayNameByPlayerId, playerId);
+    if (preferred && isGenericRosterDisplayName(entry.displayName)) {
+      entry.displayName = preferred;
     }
   }
 
