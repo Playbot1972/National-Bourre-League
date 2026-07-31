@@ -18,7 +18,7 @@ describe("main nav tab order", () => {
     assert.ok(navIdx >= 0);
     const navBlock = indexHtml.slice(navIdx, navIdx + 600);
     const homeIdx = navBlock.indexOf('href="#home">Home');
-    const tutorialIdx = navBlock.indexOf('href="/">Tutorial');
+    const tutorialIdx = navBlock.indexOf('href="/?view=tutorial">Tutorial');
     assert.ok(homeIdx >= 0 && tutorialIdx >= 0);
     assert.ok(homeIdx < tutorialIdx, "Home should appear before Tutorial");
   });

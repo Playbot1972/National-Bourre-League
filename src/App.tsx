@@ -5,12 +5,17 @@ import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
+import {
+  resolveActiveNavScreen,
+  screenFromLocation,
+  writeScreenToLocation,
+  type Screen,
+} from "./tutorial-route";
 import "./App.css";
 
-export type Screen = "home" | "rules" | "tutorial" | "room";
+export type { Screen };
 
 const SOCIAL_BASE = "/social/";
-const VALID_SCREENS = new Set<Screen>(["home", "rules", "tutorial", "room"]);
 
 const MAIN_NAV: { label: string; href: string; screen?: Screen | null }[] = [
   { label: "Home", href: `${SOCIAL_BASE}#home`, screen: "home" },
@@ -21,14 +26,6 @@ const MAIN_NAV: { label: string; href: string; screen?: Screen | null }[] = [
   { label: "Leagues", href: `${SOCIAL_BASE}#leagues` },
 ];
 
-function screenFromLocation(): Screen {
-  const view = new URLSearchParams(window.location.search).get("view");
-  if (view && VALID_SCREENS.has(view as Screen)) {
-    return view as Screen;
-  }
-  return "home";
-}
-
 function shouldCheckForUpdates() {
   const host = window.location.hostname;
   return host !== "localhost" && host !== "127.0.0.1";
@@ -38,24 +35,41 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>(screenFromLocation);
   const [theme, setTheme] = useState<ThemeMode>(() => getStoredTheme());
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const activeNavScreen = resolveActiveNavScreen(screen);
 
   useEffect(() => {
     initTheme();
   }, []);
 
   useEffect(() => {
+    const syncFromLocation = () => {
+      const next = screenFromLocation();
+      setScreen((current) => (current === next ? current : next));
+    };
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
+    window.addEventListener("pageshow", syncFromLocation);
+    return () => {
+      window.removeEventListener("popstate", syncFromLocation);
+      window.removeEventListener("pageshow", syncFromLocation);
+    };
+  }, []);
+
+  useEffect(() => {
+    const urlScreen = screenFromLocation();
+    if (urlScreen !== screen && urlScreen !== "home") {
+      setScreen(urlScreen);
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     if (screen === "home") {
       if (!params.has("view")) return;
-      params.delete("view");
-      const qs = params.toString();
-      const next = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
-      window.history.replaceState(null, "", next);
+      writeScreenToLocation("home", { replace: true });
       return;
     }
     if (params.get("view") === screen) return;
-    params.set("view", screen);
-    window.history.replaceState(null, "", `?${params.toString()}`);
+    writeScreenToLocation(screen, { replace: true });
   }, [screen]);
 
   useEffect(() => {
@@ -97,6 +111,11 @@ export default function App() {
     setTheme(next);
   };
 
+  const navigateScreen = (next: Screen) => {
+    writeScreenToLocation(next);
+    setScreen(next);
+  };
+
   return (
     <div className="app">
       {updateAvailable ? (
@@ -110,7 +129,7 @@ export default function App() {
       <header className="app__header">
         <button
           className="app__brand"
-          onClick={() => setScreen("home")}
+          onClick={() => navigateScreen("home")}
           aria-label="National Bourré League home"
         >
           <span className="app__brand-mark">♠</span>
@@ -120,16 +139,21 @@ export default function App() {
         </button>
         <nav className="app__nav app__nav--primary" aria-label="Primary">
           {MAIN_NAV.map((item) => {
-            const isActive = item.screen != null && screen === item.screen;
+            const isActive = item.screen != null && activeNavScreen === item.screen;
             return (
-            <a
-              key={item.label}
-              className={`app__nav-link${isActive ? " is-active" : ""}`}
-              href={item.href}
-              aria-current={isActive ? "page" : undefined}
-            >
-              {item.label}
-            </a>
+              <a
+                key={item.label}
+                className={`app__nav-link${isActive ? " is-active" : ""}`}
+                href={item.href}
+                aria-current={isActive ? "page" : undefined}
+                onClick={(event) => {
+                  if (!item.screen) return;
+                  event.preventDefault();
+                  navigateScreen(item.screen);
+                }}
+              >
+                {item.label}
+              </a>
             );
           })}
         </nav>
@@ -152,7 +176,7 @@ export default function App() {
       </header>
 
       <main className="app__main">
-        {screen === "home" && <HomeScreen onNavigate={setScreen} />}
+        {screen === "home" && <HomeScreen onNavigate={navigateScreen} />}
         {screen === "rules" && <RulesScreen />}
         {screen === "tutorial" && <TutorialScreen />}
         {screen === "room" && <PrivateRoomScreen />}
