@@ -178,41 +178,59 @@ function p(e, t) {
 	return d(t) ? d(e) ? f(t) >= f(e) ? t : e : t : e;
 }
 function m(e) {
+	if (!e || typeof e != "object") return null;
+	let t = e;
+	return typeof t.rank != "string" || typeof t.suit != "string" || !t.rank.trim() || !t.suit.trim() ? null : {
+		rank: t.rank,
+		suit: t.suit
+	};
+}
+function h(e, ...t) {
+	let n = m(e.trumpUpcard), r = e.trumpSuit ?? null, i = e.trumpHolderId ?? null;
+	for (let e of t) e && (n ||= m(e.trumpUpcard), !r && e.trumpSuit && (r = e.trumpSuit), !i && e.trumpHolderId && (i = e.trumpHolderId));
+	return !r && n?.suit && (r = n.suit), n === m(e.trumpUpcard) && r === (e.trumpSuit ?? null) && i === (e.trumpHolderId ?? null) ? e : {
+		...e,
+		...n ? { trumpUpcard: n } : {},
+		...r ? { trumpSuit: r } : {},
+		...i ? { trumpHolderId: i } : {}
+	};
+}
+function g(e, t) {
+	return u(t) ? t : h(t, e?.currentHand, e?.liveEnrollment?.deal?.publicHand);
+}
+function _(e) {
 	let t = e?.phase ?? null;
 	return t === "reveal" || t === "decision" || t === "draw" || t === "play";
 }
-function h(e) {
+function v(e) {
 	if (!e) return !1;
-	let t = _(e), n = t.participantIds ?? [];
+	let t = y(e), n = t.participantIds ?? [];
 	if (n.length < 2) return !1;
 	let r = t.phase ?? null;
 	return r !== "play" && r !== "draw" ? !1 : c(t.tricksByPlayer ?? {}, n);
 }
-function g(e) {
-	return !e || h(e) ? !1 : m(e.currentHand) || m(e.liveEnrollment?.deal?.publicHand) ? !0 : m(_(e));
-}
-function _(e) {
-	let t = e?.currentHand ?? l(), n = e?.liveEnrollment?.deal?.publicHand, r = n?.phase ?? null;
-	if (u(t) && n && !d(n)) return l();
-	if (d(t) && d(n)) {
-		let e = t.phase === "reveal" || t.phase === "decision", r = n?.drawCompletedIds?.length ?? 0, i = t.drawCompletedIds?.length ?? 0, a = s(n?.tricksByPlayer ?? {}, n?.participantIds ?? []), o = s(t.tricksByPlayer ?? {}, t.participantIds ?? []);
-		return e && n?.phase === "draw" && o === 0 && a === 0 && r > 0 && i === 0 ? t : p(t, n);
-	}
-	if (d(t)) return t;
-	if (r === "draw" || r === "play" || r === "reveal" || r === "decision") {
-		if (d(n)) {
-			let i = s(n?.tricksByPlayer ?? {}, n?.participantIds ?? []);
-			return u(t) && i === 0 && r === "draw" && !e?.liveEnrollment?.active ? l() : n;
-		}
-		return n?.phase ? n : m(t) ? t : u(t) ? l() : t;
-	}
-	return r && n ? n : t;
-}
-function v(e) {
-	return typeof e == "object" && !!e && ("orderedPlayerIds" in e || "enrolledIds" in e || "currentIndex" in e);
+function ee(e) {
+	return !e || v(e) ? !1 : _(e.currentHand) || _(e.liveEnrollment?.deal?.publicHand) ? !0 : _(y(e));
 }
 function y(e) {
-	let t = _(e), r = t?.phase ?? null;
+	let t = e?.currentHand ?? l(), n = e?.liveEnrollment?.deal?.publicHand, r = n?.phase ?? null, i;
+	if (u(t) && n && !d(n)) i = l();
+	else if (d(t) && d(n)) {
+		let e = t.phase === "reveal" || t.phase === "decision", r = n?.drawCompletedIds?.length ?? 0, a = t.drawCompletedIds?.length ?? 0, o = s(n?.tricksByPlayer ?? {}, n?.participantIds ?? []), c = s(t.tricksByPlayer ?? {}, t.participantIds ?? []);
+		i = e && n?.phase === "draw" && c === 0 && o === 0 && r > 0 && a === 0 ? t : p(t, n);
+	} else if (d(t)) i = t;
+	else if (r === "draw" || r === "play" || r === "reveal" || r === "decision") if (d(n)) {
+		let a = s(n?.tricksByPlayer ?? {}, n?.participantIds ?? []);
+		i = u(t) && a === 0 && r === "draw" && !e?.liveEnrollment?.active ? l() : n;
+	} else i = n?.phase ? n : _(t) ? t : u(t) ? l() : t;
+	else i = r && n ? n : t;
+	return g(e, i);
+}
+function b(e) {
+	return typeof e == "object" && !!e && ("orderedPlayerIds" in e || "enrolledIds" in e || "currentIndex" in e);
+}
+function x(e) {
+	let t = y(e), r = t?.phase ?? null;
 	if (r === "reveal" || r === "draw" || r === "play") return null;
 	if (r === "decision") {
 		let e = n(t.handDecision ?? null);
@@ -221,24 +239,24 @@ function y(e) {
 	let i = e?.liveEnrollment, a = i?.deal?.publicHand?.phase ?? null;
 	return i?.active ? i : a === "draw" || a === "play" || a === "reveal" || a === "decision" ? null : e?.handEnrollment?.active ? e.handEnrollment : e?.handEnrollment ?? null;
 }
-function b(e) {
+function S(e) {
 	return !e.cardsDealt && e.handParticipantCount === 0 && e.enrollmentActive;
 }
-function x(e, t) {
+function C(e, t) {
 	return e === "decision" && t?.active === !0;
 }
-function ee(e) {
+function te(e) {
 	return e.legacyEnrollmentActive || e.pagatDecisionActive;
 }
-function S(e) {
+function w(e) {
 	return e.pagatDecisionActive && e.handDecision ? (e.handDecision.orderedPlayerIds ?? [])[e.handDecision.currentIndex ?? 0] ?? null : e.legacyEnrollmentActive && e.enrollment?.active ? (e.enrollment.orderedPlayerIds ?? [])[e.enrollment.currentIndex ?? 0] ?? null : null;
 }
-function te(e) {
+function ne(e) {
 	return e.enrollmentGateActive && e.isSelf && !e.isFinal && e.playerId === e.currentChoicePlayerId && e.bankroll > 0 && !e.isOut;
 }
 //#endregion
 //#region src/session/handPhaseMachine.ts
-var C = {
+var T = {
 	WAITING: "waiting",
 	ENROLLMENT: "enrollment",
 	DEAL: "deal",
@@ -246,115 +264,115 @@ var C = {
 	PLAY: "play",
 	SETTLE: "settle",
 	NEXT_HAND_PREP: "next-hand-prep"
-}, w = [
+}, E = [
 	{
-		from: C.WAITING,
+		from: T.WAITING,
 		event: "open_enrollment",
-		to: C.ENROLLMENT
+		to: T.ENROLLMENT
 	},
 	{
-		from: C.WAITING,
+		from: T.WAITING,
 		event: "deal_cards",
-		to: C.DEAL
+		to: T.DEAL
 	},
 	{
-		from: C.NEXT_HAND_PREP,
+		from: T.NEXT_HAND_PREP,
 		event: "open_enrollment",
-		to: C.ENROLLMENT
+		to: T.ENROLLMENT
 	},
 	{
-		from: C.NEXT_HAND_PREP,
+		from: T.NEXT_HAND_PREP,
 		event: "deal_cards",
-		to: C.DEAL
+		to: T.DEAL
 	},
 	{
-		from: C.NEXT_HAND_PREP,
+		from: T.NEXT_HAND_PREP,
 		event: "prep_complete",
-		to: C.WAITING
+		to: T.WAITING
 	},
 	{
-		from: C.ENROLLMENT,
+		from: T.ENROLLMENT,
 		event: "enrollment_step",
-		to: C.ENROLLMENT
+		to: T.ENROLLMENT
 	},
 	{
-		from: C.ENROLLMENT,
+		from: T.ENROLLMENT,
 		event: "enrollment_complete",
-		to: C.DEAL
+		to: T.DEAL
 	},
 	{
-		from: C.ENROLLMENT,
+		from: T.ENROLLMENT,
 		event: "solo_win",
-		to: C.SETTLE
+		to: T.SETTLE
 	},
 	{
-		from: C.ENROLLMENT,
+		from: T.ENROLLMENT,
 		event: "decision_complete",
-		to: C.DRAW
+		to: T.DRAW
 	},
 	{
-		from: C.DEAL,
+		from: T.DEAL,
 		event: "advance_reveal",
-		to: C.DRAW
+		to: T.DRAW
 	},
 	{
-		from: C.DEAL,
+		from: T.DEAL,
 		event: "decision_step",
-		to: C.ENROLLMENT
+		to: T.ENROLLMENT
 	},
 	{
-		from: C.DRAW,
+		from: T.DRAW,
 		event: "submit_draw",
-		to: C.DRAW
+		to: T.DRAW
 	},
 	{
-		from: C.DRAW,
+		from: T.DRAW,
 		event: "draw_fold",
-		to: C.DRAW
+		to: T.DRAW
 	},
 	{
-		from: C.DRAW,
+		from: T.DRAW,
 		event: "draw_complete",
-		to: C.PLAY
+		to: T.PLAY
 	},
 	{
-		from: C.DRAW,
+		from: T.DRAW,
 		event: "solo_win",
-		to: C.SETTLE
+		to: T.SETTLE
 	},
 	{
-		from: C.PLAY,
+		from: T.PLAY,
 		event: "play_card",
-		to: C.PLAY
+		to: T.PLAY
 	},
 	{
-		from: C.PLAY,
+		from: T.PLAY,
 		event: "hand_complete",
-		to: C.SETTLE
+		to: T.SETTLE
 	},
 	{
-		from: C.SETTLE,
+		from: T.SETTLE,
 		event: "cowin_pending",
-		to: C.SETTLE
+		to: T.SETTLE
 	},
 	{
-		from: C.SETTLE,
+		from: T.SETTLE,
 		event: "record_hand",
-		to: C.NEXT_HAND_PREP
+		to: T.NEXT_HAND_PREP
 	},
 	{
-		from: C.NEXT_HAND_PREP,
+		from: T.NEXT_HAND_PREP,
 		event: "session_final",
-		to: C.WAITING
+		to: T.WAITING
 	}
-], T = (e, t) => `${e}:${t}`, E = new Map(w.map((e) => [T(e.from, e.event), e.to]));
-function D(e, t) {
-	return E.has(T(e, t));
+], D = (e, t) => `${e}:${t}`, O = new Map(E.map((e) => [D(e.from, e.event), e.to]));
+function k(e, t) {
+	return O.has(D(e, t));
 }
-function ne(e, t) {
-	return E.get(T(e, t)) ?? null;
+function re(e, t) {
+	return O.get(D(e, t)) ?? null;
 }
-function O(e) {
+function A(e) {
 	let t = e?.turnDeadlineMs;
 	if (t == null) return 0;
 	if (typeof t == "number" && Number.isFinite(t)) return t;
@@ -369,24 +387,24 @@ function O(e) {
 	let n = Number(t);
 	return Number.isFinite(n) ? n : 0;
 }
-function k(e) {
+function j(e) {
 	return typeof e == "string" && e.startsWith("bot_");
 }
-function A(e, t) {
-	return !e || !t ? !1 : e === t ? !0 : k(e);
+function M(e, t) {
+	return !e || !t ? !1 : e === t ? !0 : j(e);
 }
-function j() {
+function N() {
 	return {
 		tricksByPlayer: {},
 		participantIds: []
 	};
 }
-function M(t) {
-	let n = t.session, r = n ? _(n) : j(), i = r.phase ?? null, a = r.participantIds ?? [], o = r.tricksByPlayer ?? {}, l = s(o, a), d = a.length > 0 && c(o, a), f = !!n?.pendingCoWinSettlement?.winnerIds?.length, p = n ? y(n) : null, m = x(i, r.handDecision ?? null), h = b({
+function P(t) {
+	let n = t.session, r = n ? y(n) : N(), i = r.phase ?? null, a = r.participantIds ?? [], o = r.tricksByPlayer ?? {}, l = s(o, a), d = a.length > 0 && c(o, a), f = !!n?.pendingCoWinSettlement?.winnerIds?.length, p = n ? x(n) : null, m = C(i, r.handDecision ?? null), h = S({
 		cardsDealt: i === e.REVEAL || i === e.DECISION || i === e.DRAW || i === e.PLAY,
 		handParticipantCount: a.length,
 		enrollmentActive: !!p?.active
-	}), g = h || m, v = N({
+	}), g = h || m, _ = F({
 		sessionStatus: n?.status ?? null,
 		handPhase: i,
 		participantIds: a,
@@ -398,13 +416,13 @@ function M(t) {
 		clearedHand: u(r)
 	});
 	return {
-		phase: v,
+		phase: _,
 		handPhase: i,
 		enrollmentActive: g,
 		pagatDecisionActive: m,
 		participantIds: a,
-		turnPlayerId: P({
-			phase: v,
+		turnPlayerId: I({
+			phase: _,
 			handPhase: i,
 			hand: r,
 			enrollment: p,
@@ -416,37 +434,37 @@ function M(t) {
 		trickCount: l
 	};
 }
-function N(t) {
-	if (t.sessionStatus === "final") return C.WAITING;
-	if (t.pendingCoWin) return C.SETTLE;
+function F(t) {
+	if (t.sessionStatus === "final") return T.WAITING;
+	if (t.pendingCoWin) return T.SETTLE;
 	let n = t.handPhase ?? null, r = t.participantIds ?? [];
-	return n === e.PLAY ? t.handComplete || (t.trickCount ?? 0) >= 5 ? C.SETTLE : C.PLAY : n === e.DRAW ? C.DRAW : n === e.REVEAL ? C.DEAL : n === e.DECISION || t.enrollmentActive ? C.ENROLLMENT : t.clearedHand !== !1 && r.length === 0 && (t.handCount ?? 0) > 0 && !t.enrollmentActive ? C.NEXT_HAND_PREP : C.WAITING;
+	return n === e.PLAY ? t.handComplete || (t.trickCount ?? 0) >= 5 ? T.SETTLE : T.PLAY : n === e.DRAW ? T.DRAW : n === e.REVEAL ? T.DEAL : n === e.DECISION || t.enrollmentActive ? T.ENROLLMENT : t.clearedHand !== !1 && r.length === 0 && (t.handCount ?? 0) > 0 && !t.enrollmentActive ? T.NEXT_HAND_PREP : T.WAITING;
 }
-function P(e) {
+function I(e) {
 	let { phase: t, hand: n, enrollment: r, pagatDecisionActive: i, legacyEnrollmentActive: a } = e;
-	return t === C.ENROLLMENT ? S({
+	return t === T.ENROLLMENT ? w({
 		pagatDecisionActive: i,
 		handDecision: n.handDecision ?? null,
 		legacyEnrollmentActive: a,
 		enrollment: r
-	}) : t === C.DRAW || t === C.PLAY ? n.turnPlayerId ?? null : null;
+	}) : t === T.DRAW || t === T.PLAY ? n.turnPlayerId ?? null : null;
 }
-function F(e) {
+function L(e) {
 	let { snapshot: t, action: n, playerId: r, actorId: i, suppressTurn: a = !1 } = e, o = e.drawCompletedIds ?? [];
-	if (!A(r, i)) return {
+	if (!M(r, i)) return {
 		ok: !1,
 		reason: "actor_mismatch"
 	};
 	switch (n) {
 		case "enrollment_in":
-		case "enrollment_pass": return t.phase === C.ENROLLMENT ? t.turnPlayerId === r ? { ok: !0 } : {
+		case "enrollment_pass": return t.phase === T.ENROLLMENT ? t.turnPlayerId === r ? { ok: !0 } : {
 			ok: !1,
 			reason: "not_your_turn"
 		} : {
 			ok: !1,
 			reason: "not_enrollment"
 		};
-		case "enrollment_timeout": return t.phase === C.ENROLLMENT ? { ok: !0 } : {
+		case "enrollment_timeout": return t.phase === T.ENROLLMENT ? { ok: !0 } : {
 			ok: !1,
 			reason: "not_enrollment"
 		};
@@ -458,12 +476,12 @@ function F(e) {
 			ok: !1,
 			reason: "not_decision"
 		};
-		case "advance_reveal": return t.phase === C.DEAL ? { ok: !0 } : {
+		case "advance_reveal": return t.phase === T.DEAL ? { ok: !0 } : {
 			ok: !1,
 			reason: "not_deal"
 		};
 		case "submit_draw":
-		case "draw_fold": return t.phase === C.DRAW ? t.turnPlayerId === r ? o.includes(r) ? {
+		case "draw_fold": return t.phase === T.DRAW ? t.turnPlayerId === r ? o.includes(r) ? {
 			ok: !1,
 			reason: "draw_already_complete"
 		} : a ? {
@@ -476,7 +494,7 @@ function F(e) {
 			ok: !1,
 			reason: "not_draw"
 		};
-		case "play_card": return t.phase === C.PLAY ? t.handComplete ? {
+		case "play_card": return t.phase === T.PLAY ? t.handComplete ? {
 			ok: !1,
 			reason: "hand_complete"
 		} : t.turnPlayerId === r ? a ? {
@@ -493,7 +511,7 @@ function F(e) {
 			ok: !1,
 			reason: "no_cowin_vote"
 		};
-		case "record_hand": return t.phase !== C.SETTLE && !t.handComplete ? {
+		case "record_hand": return t.phase !== T.SETTLE && !t.handComplete ? {
 			ok: !1,
 			reason: "hand_not_ready_to_settle"
 		} : { ok: !0 };
@@ -503,155 +521,155 @@ function F(e) {
 		};
 	}
 }
-function I(e) {
+function R(e) {
 	let { snapshot: n, session: r, nowMs: i } = e;
 	if (n.pendingCoWin) {
-		let e = r?.pendingCoWinSettlement?.winnerIds ?? [], t = r?.pendingCoWinSettlement?.votes ?? {}, n = e.find((e) => k(e) && t[e] !== "split" && t[e] !== "push");
+		let e = r?.pendingCoWinSettlement?.winnerIds ?? [], t = r?.pendingCoWinSettlement?.votes ?? {}, n = e.find((e) => j(e) && t[e] !== "split" && t[e] !== "push");
 		return n ? {
 			kind: "cowin",
 			turnPlayerId: n
 		} : null;
 	}
-	if (n.phase === C.ENROLLMENT) {
-		let e = r ? y(r) : null;
+	if (n.phase === T.ENROLLMENT) {
+		let e = r ? x(r) : null;
 		if (!e?.active && !n.pagatDecisionActive) return null;
 		if (n.pagatDecisionActive && r) {
-			let e = _(r).handDecision;
+			let e = y(r).handDecision;
 			if (e?.active) {
 				let n = t(e);
 				if (!n) return null;
-				if (i >= O(e)) return {
+				if (i >= A(e)) return {
 					kind: "decision_timeout",
 					turnPlayerId: n
 				};
 				let r = e.playingIds ?? [], a = e.passedIds ?? [];
-				if (k(n) && !r.includes(n) && !a.includes(n)) return {
+				if (j(n) && !r.includes(n) && !a.includes(n)) return {
 					kind: "decision",
 					turnPlayerId: n
 				};
 			}
 			return null;
 		}
-		if (!v(e)) return null;
+		if (!b(e)) return null;
 		let a = (e.orderedPlayerIds ?? [])[e.currentIndex ?? 0] ?? null;
 		if (!a) return null;
-		if (i >= O(e)) return {
+		if (i >= A(e)) return {
 			kind: "enrollment_timeout",
 			turnPlayerId: a
 		};
 		let o = e.enrolledIds ?? [], s = e.declinedIds ?? [];
-		return k(a) && !o.includes(a) && !s.includes(a) ? {
+		return j(a) && !o.includes(a) && !s.includes(a) ? {
 			kind: "enrollment",
 			turnPlayerId: a
 		} : null;
 	}
-	if (n.phase === C.DEAL) {
-		let e = (r ? _(r) : j()).turnPlayerId ?? n.participantIds.find((e) => k(e)) ?? n.participantIds[0] ?? null;
+	if (n.phase === T.DEAL) {
+		let e = (r ? y(r) : N()).turnPlayerId ?? n.participantIds.find((e) => j(e)) ?? n.participantIds[0] ?? null;
 		return e ? {
 			kind: "advance_reveal",
 			turnPlayerId: e
 		} : null;
 	}
-	if (n.phase === C.DRAW) {
-		let e = n.turnPlayerId, t = r ? _(r).drawCompletedIds ?? [] : [];
-		return e && k(e) && n.participantIds.includes(e) && !t.includes(e) ? {
+	if (n.phase === T.DRAW) {
+		let e = n.turnPlayerId, t = r ? y(r).drawCompletedIds ?? [] : [];
+		return e && j(e) && n.participantIds.includes(e) && !t.includes(e) ? {
 			kind: "draw",
 			turnPlayerId: e
 		} : null;
 	}
-	if (n.phase === C.PLAY) {
+	if (n.phase === T.PLAY) {
 		let e = n.turnPlayerId;
-		return n.handComplete || n.trickCount >= 5 ? null : e && k(e) && n.participantIds.includes(e) ? {
+		return n.handComplete || n.trickCount >= 5 ? null : e && j(e) && n.participantIds.includes(e) ? {
 			kind: "play",
 			turnPlayerId: e
 		} : null;
 	}
 	return null;
 }
-function re(e) {
-	return I(e) != null;
-}
 function ie(e) {
-	if (I(e)) return "has_hint";
+	return R(e) != null;
+}
+function ae(e) {
+	if (R(e)) return "has_hint";
 	let { snapshot: n, session: r, nowMs: i } = e;
 	if (n.pendingCoWin) return "pending_cowin_human_vote";
-	if (n.phase === C.SETTLE) return "settling";
-	if (n.phase === C.WAITING) return "waiting";
-	if (n.phase === C.NEXT_HAND_PREP) return "next_hand_prep";
-	if (n.phase === C.ENROLLMENT) {
-		let e = r ? y(r) : null;
+	if (n.phase === T.SETTLE) return "settling";
+	if (n.phase === T.WAITING) return "waiting";
+	if (n.phase === T.NEXT_HAND_PREP) return "next_hand_prep";
+	if (n.phase === T.ENROLLMENT) {
+		let e = r ? x(r) : null;
 		if (!e?.active && !n.pagatDecisionActive) return "enrollment_inactive";
 		if (n.pagatDecisionActive && r) {
-			let e = _(r).handDecision;
+			let e = y(r).handDecision;
 			if (e?.active) {
 				let n = t(e);
-				return n ? i >= O(e) ? "decision_timeout_pending" : k(n) ? "decision_bot_waiting" : "decision_human_turn" : "decision_no_turn";
+				return n ? i >= A(e) ? "decision_timeout_pending" : j(n) ? "decision_bot_waiting" : "decision_human_turn" : "decision_no_turn";
 			}
 		}
-		let a = (v(e) ? e.orderedPlayerIds ?? [] : [])[v(e) ? e.currentIndex ?? 0 : 0] ?? null;
-		return a ? i >= O(e) ? "enrollment_timeout_pending" : k(a) ? "enrollment_bot_waiting" : "enrollment_human_turn" : "enrollment_no_turn";
+		let a = (b(e) ? e.orderedPlayerIds ?? [] : [])[b(e) ? e.currentIndex ?? 0 : 0] ?? null;
+		return a ? i >= A(e) ? "enrollment_timeout_pending" : j(a) ? "enrollment_bot_waiting" : "enrollment_human_turn" : "enrollment_no_turn";
 	}
-	if (n.phase === C.DEAL) return "reveal_missing_leader";
-	if (n.phase === C.DRAW) {
+	if (n.phase === T.DEAL) return "reveal_missing_leader";
+	if (n.phase === T.DRAW) {
 		let e = n.turnPlayerId;
-		return e ? k(e) ? (r ? _(r).drawCompletedIds ?? [] : []).includes(e) ? "draw_turn_already_complete" : n.participantIds.includes(e) ? "draw_blocked" : "draw_turn_not_in_hand" : "draw_human_turn" : "draw_no_turn";
+		return e ? j(e) ? (r ? y(r).drawCompletedIds ?? [] : []).includes(e) ? "draw_turn_already_complete" : n.participantIds.includes(e) ? "draw_blocked" : "draw_turn_not_in_hand" : "draw_human_turn" : "draw_no_turn";
 	}
-	if (n.phase === C.PLAY) {
+	if (n.phase === T.PLAY) {
 		if (n.handComplete || n.trickCount >= 5) return "play_hand_complete";
 		let e = n.turnPlayerId;
-		return e ? k(e) ? n.participantIds.includes(e) ? "play_blocked" : "play_turn_not_in_hand" : "play_human_turn" : "play_no_turn";
+		return e ? j(e) ? n.participantIds.includes(e) ? "play_blocked" : "play_turn_not_in_hand" : "play_human_turn" : "play_no_turn";
 	}
 	return "no_bot_hint";
 }
-function L(e) {
+function z(e) {
 	let t = e.session;
 	if (!t || t.status === "final") return !1;
-	let n = M(e);
-	return (n.phase === C.NEXT_HAND_PREP || n.phase === C.WAITING && (t.handCount ?? 0) > 0) && !n.pendingCoWin && !n.enrollmentActive;
+	let n = P(e);
+	return (n.phase === T.NEXT_HAND_PREP || n.phase === T.WAITING && (t.handCount ?? 0) > 0) && !n.pendingCoWin && !n.enrollmentActive;
 }
-function ae(e) {
-	return e.tablePlayOpen === !0 && L(e);
+function oe(e) {
+	return e.tablePlayOpen === !0 && z(e);
 }
 //#endregion
 //#region src/session/invariantDebug.ts
-var oe = "nbl-invariants", R = !1;
-function se(e = !0) {
-	let t = R;
-	return R = e, () => {
-		R = t;
+var se = "nbl-invariants", B = !1;
+function ce(e = !0) {
+	let t = B;
+	return B = e, () => {
+		B = t;
 	};
 }
-function z(e) {
+function V(e) {
 	return globalThis.process?.env?.[e];
 }
-function B() {
-	if (R || z("NBL_INVARIANTS") === "1" || z("NODE_ENV") === "test") return !0;
+function H() {
+	if (B || V("NBL_INVARIANTS") === "1" || V("NODE_ENV") === "test") return !0;
 	if (typeof window > "u") return !1;
 	try {
-		return window.localStorage?.getItem(oe) === "1" ? !0 : new URLSearchParams(window.location.search).has("invariants");
+		return window.localStorage?.getItem(se) === "1" ? !0 : new URLSearchParams(window.location.search).has("invariants");
 	} catch {
 		return !1;
 	}
 }
-function V(e, t, n) {
+function U(e, t, n) {
 	console.warn("[nbl-invariant]", e, t, n ?? {});
 }
 //#endregion
 //#region src/session/handInvariants.ts
-var H = class extends Error {
+var W = class extends Error {
 	code;
 	context;
 	constructor(e, t, n = {}) {
 		super(t), this.name = "HandInvariantError", this.code = e, this.context = n;
 	}
 };
-function U(e, t, n = {}) {
-	throw new H(e, t, n);
+function G(e, t, n = {}) {
+	throw new W(e, t, n);
 }
-function W(e, t, n, r = {}) {
-	e || (B() && U(t, n, r), V(t, n, r));
+function K(e, t, n, r = {}) {
+	e || (H() && G(t, n, r), U(t, n, r));
 }
-var G = {
+var le = {
 	enrollment_in: "enrollment_step",
 	enrollment_pass: "enrollment_step",
 	enrollment_timeout: "enrollment_step",
@@ -664,75 +682,75 @@ var G = {
 	vote_cowin: "cowin_pending",
 	record_hand: "record_hand"
 };
-function K(t) {
+function q(t) {
 	let { handPhase: n, phase: r, handComplete: i, trickCount: a } = t;
 	if (n === e.PLAY) {
-		let e = i || a >= 5 ? C.SETTLE : C.PLAY;
-		r !== e && r !== C.SETTLE && U("inconsistent_hand_phase", `card phase play maps to ${e}, got flow phase ${r}`, {
+		let e = i || a >= 5 ? T.SETTLE : T.PLAY;
+		r !== e && r !== T.SETTLE && G("inconsistent_hand_phase", `card phase play maps to ${e}, got flow phase ${r}`, {
 			handPhase: n,
 			phase: r,
 			handComplete: i,
 			trickCount: a
 		});
-	} else n === e.DRAW && r !== C.DRAW ? U("inconsistent_hand_phase", `card phase draw requires flow phase draw, got ${r}`, {
+	} else n === e.DRAW && r !== T.DRAW ? G("inconsistent_hand_phase", `card phase draw requires flow phase draw, got ${r}`, {
 		handPhase: n,
 		phase: r
-	}) : n === e.REVEAL && r !== C.DEAL ? U("inconsistent_hand_phase", `card phase reveal requires flow phase deal, got ${r}`, {
+	}) : n === e.REVEAL && r !== T.DEAL ? G("inconsistent_hand_phase", `card phase reveal requires flow phase deal, got ${r}`, {
 		handPhase: n,
 		phase: r
-	}) : n === e.DECISION && r !== C.ENROLLMENT && U("inconsistent_hand_phase", `card phase decision requires flow phase enrollment, got ${r}`, {
+	}) : n === e.DECISION && r !== T.ENROLLMENT && G("inconsistent_hand_phase", `card phase decision requires flow phase enrollment, got ${r}`, {
 		handPhase: n,
 		phase: r
 	});
 }
-function q(e, t) {
-	let n = _(t), r = e.phase === C.DRAW || e.phase === C.PLAY || e.phase === C.ENROLLMENT;
+function J(e, t) {
+	let n = y(t), r = e.phase === T.DRAW || e.phase === T.PLAY || e.phase === T.ENROLLMENT;
 	if (!r) return;
 	let i = n.turnPlayerId ?? null, a = e.turnPlayerId;
-	(e.phase === C.DRAW || e.phase === C.PLAY) && (a !== i && U("turn_owner_mismatch", "Flow turn owner disagrees with currentHand.turnPlayerId", {
+	(e.phase === T.DRAW || e.phase === T.PLAY) && (a !== i && G("turn_owner_mismatch", "Flow turn owner disagrees with currentHand.turnPlayerId", {
 		flowTurn: a,
 		handTurn: i,
 		phase: e.phase
-	}), i && e.participantIds.length && !e.participantIds.includes(i) && U("turn_owner_not_participant", "Turn player is not in participantIds", {
+	}), i && e.participantIds.length && !e.participantIds.includes(i) && G("turn_owner_not_participant", "Turn player is not in participantIds", {
 		handTurn: i,
 		participantIds: e.participantIds
-	})), e.phase === C.ENROLLMENT && !e.enrollmentActive && !e.pagatDecisionActive && a && U("orphan_enrollment_turn", "Turn owner set while enrollment gate is inactive", {
+	})), e.phase === T.ENROLLMENT && !e.enrollmentActive && !e.pagatDecisionActive && a && G("orphan_enrollment_turn", "Turn owner set while enrollment gate is inactive", {
 		flowTurn: a,
 		phase: e.phase
-	}), r && !a && e.participantIds.length > 0 && W(!1, "missing_turn_owner", "Active hand phase has no turn owner", {
+	}), r && !a && e.participantIds.length > 0 && K(!1, "missing_turn_owner", "Active hand phase has no turn owner", {
 		phase: e.phase,
 		participantIds: e.participantIds
 	});
 }
-function J(e, t, n = {}) {
-	D(e, t) || U("illegal_transition", `Transition not allowed: ${e} + ${t}`, {
+function Y(e, t, n = {}) {
+	k(e, t) || G("illegal_transition", `Transition not allowed: ${e} + ${t}`, {
 		from: e,
 		event: t,
 		...n
 	});
 }
-function Y(e) {
-	return G[e] ?? null;
+function X(e) {
+	return le[e] ?? null;
 }
-function ce(e) {
+function ue(e) {
 	if (!e) return;
-	let t = M({ session: e });
-	K(t), q(t, e);
+	let t = P({ session: e });
+	q(t), J(t, e);
 }
-function X(e, { settlement: t, allowIncomplete: n = !1 } = {}) {
-	let r = M({ session: e });
-	K(r);
+function Z(e, { settlement: t, allowIncomplete: n = !1 } = {}) {
+	let r = P({ session: e });
+	q(r);
 	let i = new Set([
 		"push",
 		"co_win_carry",
 		"non_winner_ante_up"
 	]), a = t ?? null;
-	n || a && i.has(a) || (r.phase === C.PLAY && !r.handComplete && U("settlement_before_play_complete", "Cannot settle a win/split while play is incomplete", {
+	n || a && i.has(a) || (r.phase === T.PLAY && !r.handComplete && G("settlement_before_play_complete", "Cannot settle a win/split while play is incomplete", {
 		phase: r.phase,
 		trickCount: r.trickCount,
 		handComplete: r.handComplete,
 		settlement: a
-	}), r.phase !== C.SETTLE && !r.handComplete && !r.pendingCoWin && U("settlement_before_play_complete", "Hand is not ready to settle", {
+	}), r.phase !== T.SETTLE && !r.handComplete && !r.pendingCoWin && G("settlement_before_play_complete", "Hand is not ready to settle", {
 		phase: r.phase,
 		trickCount: r.trickCount,
 		handComplete: r.handComplete,
@@ -740,43 +758,43 @@ function X(e, { settlement: t, allowIncomplete: n = !1 } = {}) {
 		settlement: a
 	}));
 }
-function le(e, t, n, r, i = []) {
-	let a = M({ session: e });
-	K(a);
-	let o = F({
+function de(e, t, n, r, i = []) {
+	let a = P({ session: e });
+	q(a);
+	let o = L({
 		snapshot: a,
 		action: t,
 		playerId: n,
 		actorId: r,
 		drawCompletedIds: i
 	});
-	o.ok || U("action_blocked", `Action ${t} blocked: ${o.reason ?? "unknown"}`, {
+	o.ok || G("action_blocked", `Action ${t} blocked: ${o.reason ?? "unknown"}`, {
 		action: t,
 		playerId: n,
 		actorId: r,
 		reason: o.reason,
 		phase: a.phase
 	});
-	let s = Y(t);
-	s && (t === "draw_fold" ? D(a.phase, "draw_fold") || D(a.phase, "solo_win") || U("illegal_transition", `Draw fold not allowed from phase ${a.phase}`, {
+	let s = X(t);
+	s && (t === "draw_fold" ? k(a.phase, "draw_fold") || k(a.phase, "solo_win") || G("illegal_transition", `Draw fold not allowed from phase ${a.phase}`, {
 		action: t,
 		phase: a.phase
-	}) : J(a.phase, s, {
+	}) : Y(a.phase, s, {
 		action: t,
 		playerId: n
-	})), t === "record_hand" && X(e, {});
+	})), t === "record_hand" && Z(e, {});
 }
-function ue(e, t = {}) {
-	e && W(!1, "duplicate_bot_advance", "Bot advance already in flight — duplicate execute blocked", t);
+function fe(e, t = {}) {
+	e && K(!1, "duplicate_bot_advance", "Bot advance already in flight — duplicate execute blocked", t);
 }
-function de(e, t, n = {}, r = 0) {
+function pe(e, t, n = {}, r = 0) {
 	if (Math.abs(e - t) <= r) return;
 	let i = `Session chip total drifted: ${e} → ${t} (Δ ${t - e})`;
-	B() && U("chip_total_drift", i, {
+	H() && G("chip_total_drift", i, {
 		beforeTotal: e,
 		afterTotal: t,
 		...n
-	}), V("chip_total_drift", i, {
+	}), U("chip_total_drift", i, {
 		beforeTotal: e,
 		afterTotal: t,
 		...n
@@ -784,36 +802,36 @@ function de(e, t, n = {}, r = 0) {
 }
 //#endregion
 //#region src/session/sessionSolvency.ts
-function Z(e, t = 0) {
+function Q(e, t = 0) {
 	if (e?.bankroll != null && Number.isFinite(Number(e.bankroll))) return Math.max(0, Number(e.bankroll));
 	let n = Math.max(0, Number(t) || 0), r = Number(e?.net) || 0;
 	return n > 0 ? Math.max(0, n + r) : Math.max(0, r);
 }
-function fe(e, t = 0) {
+function me(e, t = 0) {
 	let n = Math.max(0, Number(t) || 0);
 	return Math.max(0, Number(e) || 0) - n;
 }
-function pe(e, t, n = 0) {
+function he(e, t, n = 0) {
 	return (e || []).filter((e) => {
 		let r = t?.[e];
-		return r?.out === !0 ? !1 : Z(r, n) > 0;
+		return r?.out === !0 || r?.sitOut === !0 ? !1 : Q(r, n) > 0;
 	});
 }
-function me(e, t, n = 0) {
-	return pe(e, t, n).length;
-}
-function he(e) {
-	return e >= 2;
-}
-function ge(e) {
-	return e === 1;
+function ge(e, t, n = 0) {
+	return he(e, t, n).length;
 }
 function _e(e) {
+	return e >= 2;
+}
+function ve(e) {
+	return e === 1;
+}
+function ye(e) {
 	let { winnerId: t, carryIn: n = 0, postedAntes: r = {}, scoreById: i, buyInFallback: a = 0, sortedPlayerIds: o } = e, s = Math.max(0, Number(n) || 0) + Object.values(r).reduce((e, t) => e + Math.max(0, Number(t) || 0), 0), c = {};
 	for (let e of o) {
-		let n = Z(i[e], a), r = e === t ? n + s : n, o = {
+		let n = Q(i[e], a), r = e === t ? n + s : n, o = {
 			bankroll: r,
-			net: fe(r, a)
+			net: me(r, a)
 		};
 		e === t && s > 0 && (o.handsWon = (i[e]?.handsWon ?? 0) + 1), c[e] = o;
 	}
@@ -825,17 +843,17 @@ function _e(e) {
 }
 //#endregion
 //#region src/session/tableStartup.ts
-function Q(e) {
+function be(e) {
 	let t = e?.liveEnrollment?.deal?.publicHand;
-	return !t?.phase || y(e)?.active || e?.pendingCoWinSettlement || !u(e?.currentHand) ? !1 : c(t.tricksByPlayer ?? {}, t.participantIds ?? []);
+	return !t?.phase || x(e)?.active || e?.pendingCoWinSettlement || !u(e?.currentHand) ? !1 : c(t.tricksByPlayer ?? {}, t.participantIds ?? []);
 }
 function $(e) {
 	if (!e?.liveEnrollment?.deal) return !1;
-	if (Q(e)) return !0;
+	if (be(e)) return !0;
 	let t = e.liveEnrollment.deal.publicHand?.phase ?? null, n = !!(e.liveEnrollment?.active || e.handEnrollment?.active);
 	return (t === "draw" || t === "play") && !n ? u(e.currentHand) : t === "draw" || t === "play" ? !1 : u(e?.currentHand);
 }
-function ve(e, t) {
+function xe(e, t) {
 	if (!e) return {
 		kind: "session_missing",
 		canOpenTable: !1,
@@ -860,7 +878,7 @@ function ve(e, t) {
 		reason: "fewer_than_two_players",
 		recovery: "return_to_room"
 	};
-	let n = _(e).phase ?? null;
+	let n = y(e).phase ?? null;
 	return n === "reveal" || n === "decision" || n === "draw" || n === "play" ? {
 		kind: "ready_mid_hand",
 		canOpenTable: !0,
@@ -884,10 +902,10 @@ function ve(e, t) {
 		recovery: "refresh"
 	};
 }
-function ye(e) {
+function Se(e) {
 	return e.needsEnrollment;
 }
-function be(e, t) {
+function Ce(e, t) {
 	let n = String(t?.message ?? "").toLowerCase();
 	if (t?.code === "permission-denied" || t?.code === "PERMISSION_DENIED" || t?.code === "functions/permission-denied" || n.includes("missing or insufficient permissions") || n.includes("insufficient permissions")) return "This table could not be opened because of a permissions problem. Refresh the page and try Go to Table again.";
 	switch (e.kind) {
@@ -902,4 +920,4 @@ function be(e, t) {
 	}
 }
 //#endregion
-export { C as HAND_FLOW_PHASE, w as HAND_FLOW_TRANSITIONS, H as HandInvariantError, ve as analyzeTableStartup, ue as assertBotAdvanceNotInFlight, K as assertConsistentHandFlowPhase, le as assertHandActionAllowed, ce as assertHandFlowConsistent, J as assertHandFlowTransition, de as assertSessionChipConserved, X as assertSettlementEntryAllowed, q as assertSingleTurnOwner, _ as authoritativeCurrentHand, M as buildHandFlowSnapshot, _e as buildSoleSurvivorSessionEnd, A as canActForPlayer, re as canAdvanceBots, te as canPlayerShowHandChoice, F as canSubmitHandAction, W as checkInvariant, me as countEligibleForNextHand, N as deriveHandFlowPhase, O as enrollmentDeadlineMs, U as failInvariant, Y as flowEventForAction, se as forceInvariantsForTests, m as handPhaseStarted, u as isClearedPreDealHand, h as isHandAwaitingSettlement, D as isHandFlowTransitionAllowed, B as isInvariantsStrict, b as isLegacyEnrollmentActive, x as isPagatDecisionActive, k as isRobotPlayerId, Q as isStaleLiveDealSnapshot, V as logInvariantViolation, ne as nextHandFlowPhase, ie as resolveBotAdvanceEmptyReason, I as resolveBotAdvanceHint, S as resolveCurrentHandChoicePlayerId, P as resolveHandFlowTurnPlayerId, ee as resolveTableEnrollmentActive, g as sessionHandDealStarted, ae as shouldAutoOpenNextHand, $ as shouldClearOrphanLiveEnrollment, ge as shouldFinalizeForSoleSurvivor, L as shouldOpenEnrollmentAfterSettle, he as shouldOpenNextHandEnrollment, ye as tableStartupNeedsEnrollment, be as tableStartupUserMessage };
+export { T as HAND_FLOW_PHASE, E as HAND_FLOW_TRANSITIONS, W as HandInvariantError, xe as analyzeTableStartup, fe as assertBotAdvanceNotInFlight, q as assertConsistentHandFlowPhase, de as assertHandActionAllowed, ue as assertHandFlowConsistent, Y as assertHandFlowTransition, pe as assertSessionChipConserved, Z as assertSettlementEntryAllowed, J as assertSingleTurnOwner, y as authoritativeCurrentHand, P as buildHandFlowSnapshot, ye as buildSoleSurvivorSessionEnd, M as canActForPlayer, ie as canAdvanceBots, ne as canPlayerShowHandChoice, L as canSubmitHandAction, K as checkInvariant, ge as countEligibleForNextHand, F as deriveHandFlowPhase, A as enrollmentDeadlineMs, G as failInvariant, X as flowEventForAction, ce as forceInvariantsForTests, _ as handPhaseStarted, u as isClearedPreDealHand, v as isHandAwaitingSettlement, k as isHandFlowTransitionAllowed, H as isInvariantsStrict, S as isLegacyEnrollmentActive, C as isPagatDecisionActive, j as isRobotPlayerId, be as isStaleLiveDealSnapshot, U as logInvariantViolation, re as nextHandFlowPhase, ae as resolveBotAdvanceEmptyReason, R as resolveBotAdvanceHint, w as resolveCurrentHandChoicePlayerId, I as resolveHandFlowTurnPlayerId, te as resolveTableEnrollmentActive, ee as sessionHandDealStarted, oe as shouldAutoOpenNextHand, $ as shouldClearOrphanLiveEnrollment, ve as shouldFinalizeForSoleSurvivor, z as shouldOpenEnrollmentAfterSettle, _e as shouldOpenNextHandEnrollment, Se as tableStartupNeedsEnrollment, Ce as tableStartupUserMessage };
