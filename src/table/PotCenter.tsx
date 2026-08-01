@@ -129,7 +129,12 @@ export function PotCenter({
   const hasTrumpCard = Boolean(displayTrumpUpcard) && !hideCenterTrump;
   const showTrumpSuitReminder =
     showTrumpSuitReminderProp ||
-    (!hasTrumpCard && Boolean(trumpSuit) && phase === "play");
+    (!hasTrumpCard &&
+      Boolean(trumpSuit) &&
+      (phase === "reveal" ||
+        phase === "decision" ||
+        phase === "draw" ||
+        phase === "play"));
   const trumpKey = hasTrumpCard ? `${displayTrumpUpcard!.rank}-${displayTrumpUpcard!.suit}` : "trump-slot";
   const finalTrickEcho =
     showFinalTrickEcho || (settleAnimActive && trickEchoPlays.length > 0 && liveTrickCardCount === 0);

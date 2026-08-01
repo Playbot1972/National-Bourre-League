@@ -20,6 +20,10 @@ export interface PublicHandView {
   drawCompletedIds?: string[];
   turnPlayerId?: string | null;
   handDecision?: HandDecision | null;
+  trumpUpcard?: { rank: string; suit: string } | null;
+  trumpSuit?: string | null;
+  trumpHolderId?: string | null;
+  dealerId?: string | null;
 }
 
 export interface SessionHandView {
@@ -98,6 +102,63 @@ function preferInProgressHand(
   return handProgressScore(livePublic) >= handProgressScore(current) ? livePublic! : current;
 }
 
+/** Coerce Firestore trump upcard to { rank, suit } or null (guards boolean/truthy junk). */
+export function normalizeTrumpUpcard(
+  raw: unknown,
+): { rank: string; suit: string } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const card = raw as { rank?: unknown; suit?: unknown };
+  if (typeof card.rank !== "string" || typeof card.suit !== "string") return null;
+  if (!card.rank.trim() || !card.suit.trim()) return null;
+  return { rank: card.rank, suit: card.suit };
+}
+
+/** Fill trump fields on the chosen mirror from any in-flight session hand copy. */
+export function mergePublicHandTrumpFields(
+  base: PublicHandView,
+  ...mirrors: Array<PublicHandView | null | undefined>
+): PublicHandView {
+  let trumpUpcard = normalizeTrumpUpcard(base.trumpUpcard);
+  let trumpSuit = base.trumpSuit ?? null;
+  let trumpHolderId = base.trumpHolderId ?? null;
+
+  for (const mirror of mirrors) {
+    if (!mirror) continue;
+    if (!trumpUpcard) trumpUpcard = normalizeTrumpUpcard(mirror.trumpUpcard);
+    if (!trumpSuit && mirror.trumpSuit) trumpSuit = mirror.trumpSuit;
+    if (!trumpHolderId && mirror.trumpHolderId) trumpHolderId = mirror.trumpHolderId;
+  }
+
+  if (!trumpSuit && trumpUpcard?.suit) trumpSuit = trumpUpcard.suit;
+
+  if (
+    trumpUpcard === normalizeTrumpUpcard(base.trumpUpcard) &&
+    trumpSuit === (base.trumpSuit ?? null) &&
+    trumpHolderId === (base.trumpHolderId ?? null)
+  ) {
+    return base;
+  }
+
+  return {
+    ...base,
+    ...(trumpUpcard ? { trumpUpcard } : {}),
+    ...(trumpSuit ? { trumpSuit } : {}),
+    ...(trumpHolderId ? { trumpHolderId } : {}),
+  };
+}
+
+function withMergedTrumpFields(
+  sessionData: SessionHandView | null | undefined,
+  chosen: PublicHandView,
+): PublicHandView {
+  if (isClearedPreDealHand(chosen)) return chosen;
+  return mergePublicHandTrumpFields(
+    chosen,
+    sessionData?.currentHand,
+    sessionData?.liveEnrollment?.deal?.publicHand,
+  );
+}
+
 /** True when any session mirror shows deal / draw / play has begun. */
 export function handPhaseStarted(hand: PublicHandView | null | undefined): boolean {
   const phase = hand?.phase ?? null;
@@ -135,12 +196,12 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
   const livePublic = sessionData?.liveEnrollment?.deal?.publicHand;
   const livePhase = livePublic?.phase ?? null;
 
+  let chosen: PublicHandView;
+
   // recordHand clears currentHand but a completed live mirror can linger — never block handoff.
   if (isClearedPreDealHand(current) && livePublic && !handInProgress(livePublic)) {
-    return emptyPreDealHand();
-  }
-
-  if (handInProgress(current) && handInProgress(livePublic)) {
+    chosen = emptyPreDealHand();
+  } else if (handInProgress(current) && handInProgress(livePublic)) {
     const currentEarly = current.phase === "reveal" || current.phase === "decision";
     const liveDrawDone = livePublic?.drawCompletedIds?.length ?? 0;
     const currentDrawDone = current.drawCompletedIds?.length ?? 0;
@@ -161,14 +222,13 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
       liveDrawDone > 0 &&
       currentDrawDone === 0
     ) {
-      return current;
+      chosen = current;
+    } else {
+      chosen = preferInProgressHand(current, livePublic);
     }
-    return preferInProgressHand(current, livePublic);
-  }
-
-  if (handInProgress(current)) return current;
-
-  if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
+  } else if (handInProgress(current)) {
+    chosen = current;
+  } else if (livePhase === "draw" || livePhase === "play" || livePhase === "reveal" || livePhase === "decision") {
     if (handInProgress(livePublic)) {
       const liveTricks = totalTricksPlayed(
         livePublic?.tricksByPlayer ?? {},
@@ -180,18 +240,26 @@ export function authoritativeCurrentHand(sessionData: SessionHandView | null | u
         livePhase === "draw" &&
         !sessionData?.liveEnrollment?.active
       ) {
-        return emptyPreDealHand();
+        chosen = emptyPreDealHand();
+      } else {
+        chosen = livePublic!;
       }
-      return livePublic!;
+    } else if (livePublic?.phase) {
+      chosen = livePublic;
+    } else if (handPhaseStarted(current)) {
+      chosen = current;
+    } else if (isClearedPreDealHand(current)) {
+      chosen = emptyPreDealHand();
+    } else {
+      chosen = current;
     }
-    if (livePublic?.phase) return livePublic;
-    if (handPhaseStarted(current)) return current;
-    if (isClearedPreDealHand(current)) return emptyPreDealHand();
-    return current;
+  } else if (livePhase && livePublic) {
+    chosen = livePublic;
+  } else {
+    chosen = current;
   }
 
-  if (livePhase && livePublic) return livePublic;
-  return current;
+  return withMergedTrumpFields(sessionData, chosen);
 }
 
 /** True when enrollment has roster fields (handEnrollment / decision view), not liveEnrollment-only. */

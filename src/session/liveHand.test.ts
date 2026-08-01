@@ -8,6 +8,8 @@ import {
   isClearedPreDealHand,
   isHandAwaitingSettlement,
   isPlayerLockedInLiveHand,
+  mergePublicHandTrumpFields,
+  normalizeTrumpUpcard,
 } from "./liveHand";
 
 describe("live enrollment hand view", () => {
@@ -127,6 +129,61 @@ describe("live enrollment hand view", () => {
       },
     };
     assert.equal(getSessionCurrentHand(session).phase, "play");
+  });
+
+  it("keeps trump upcard from deal mirror when progress mirror omits it", () => {
+    const trumpUpcard = { rank: "7", suit: "hearts" };
+    const session = {
+      liveEnrollment: {
+        active: false,
+        deal: {
+          publicHand: {
+            phase: "reveal",
+            participantIds: ["dealer", "guest"],
+            tricksByPlayer: {},
+            trumpUpcard,
+            trumpSuit: "hearts",
+            trumpHolderId: "dealer",
+          },
+        },
+      },
+      currentHand: {
+        phase: "decision",
+        participantIds: ["dealer", "guest"],
+        tricksByPlayer: {},
+        handDecision: {
+          active: true,
+          currentIndex: 0,
+          orderedPlayerIds: ["guest", "dealer"],
+          playingIds: [],
+          passedIds: [],
+        },
+      },
+    };
+    const hand = getSessionCurrentHand(session);
+    assert.equal(hand.phase, "decision");
+    assert.deepEqual(hand.trumpUpcard, trumpUpcard);
+    assert.equal(hand.trumpSuit, "hearts");
+    assert.equal(hand.trumpHolderId, "dealer");
+  });
+
+  it("normalizes invalid trump upcard values", () => {
+    assert.equal(normalizeTrumpUpcard(true), null);
+    assert.equal(normalizeTrumpUpcard({ rank: "A" }), null);
+    assert.deepEqual(normalizeTrumpUpcard({ rank: "A", suit: "spades" }), {
+      rank: "A",
+      suit: "spades",
+    });
+  });
+
+  it("mergePublicHandTrumpFields fills missing trump from mirrors", () => {
+    const merged = mergePublicHandTrumpFields(
+      { phase: "play", participantIds: ["a", "b"], tricksByPlayer: {} },
+      { trumpUpcard: { rank: "K", suit: "clubs" }, trumpSuit: "clubs", trumpHolderId: "a" },
+    );
+    assert.deepEqual(merged.trumpUpcard, { rank: "K", suit: "clubs" });
+    assert.equal(merged.trumpSuit, "clubs");
+    assert.equal(merged.trumpHolderId, "a");
   });
 
   it("prefers live draw progress when currentHand stalled mid-draw", () => {
