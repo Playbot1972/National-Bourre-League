@@ -1013,6 +1013,39 @@ body.room-detail-open .room-actions {
   color: var(--gold-200, #e8d48b);
   background: rgba(201, 162, 39, 0.12);
   border: 1px solid rgba(201, 162, 39, 0.25);
+  transition: opacity 0.4s ease, max-height 0.4s ease, margin 0.4s ease, padding 0.4s ease;
+  opacity: 1;
+}
+
+.btable-session__mode-banner--intro {
+  animation: btable-mode-banner-flash 0.6s ease-in-out 3;
+}
+
+.btable-session__mode-banner--faded {
+  opacity: 0;
+  pointer-events: none;
+  max-height: 0;
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  overflow: hidden;
+}
+
+@keyframes btable-mode-banner-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btable-session__mode-banner--intro {
+    animation: none;
+  }
 }
 
 .rooms-scope-tabs {

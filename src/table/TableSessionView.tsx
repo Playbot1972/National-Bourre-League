@@ -28,6 +28,7 @@ import { TableSceneOverlay } from "./TableSceneOverlay";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
+import { usePlayNowModeBannerIntro } from "./hooks/usePlayNowModeBannerIntro";
 import { setTrickAnimationBusyState, handPresentingBlocksBots } from "./trickAnimationBridge";
 import {
   subscribePresentationMotionBusy,
@@ -85,6 +86,13 @@ export function TableSessionView({
   const { settings } = useTableTheme();
   const nativeMobile = useMobileTable();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const playNowModeBanner = usePlayNowModeBannerIntro({
+    sessionId: session.sessionId,
+    handNumber: session.handNumber,
+    phase: session.phase,
+    playNowModeLabel,
+    watchOnly,
+  });
   const participantCount = session.participantIds.length;
   const { events, dismissEvent, pushReaction } = useTableEvents({
     session,
@@ -670,9 +678,9 @@ export function TableSessionView({
         </div>
       ) : null}
 
-      {!watchOnly && playNowModeLabel ? (
+      {!watchOnly && playNowModeLabel && playNowModeBanner.visible ? (
         <div
-          className="btable-session__mode-banner"
+          className={playNowModeBanner.className}
           role="status"
           data-testid="play-now-mode-banner"
         >

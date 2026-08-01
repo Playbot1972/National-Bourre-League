@@ -245,6 +245,29 @@ describe("app.js UI wiring", () => {
   });
 });
 
+describe("play now mode banner intro", () => {
+  const tableViewSrc = readFileSync(
+    fileURLToPath(new URL("../src/table/TableSessionView.tsx", import.meta.url)),
+    "utf8",
+  );
+  const tableCss = readFileSync(
+    fileURLToPath(new URL("../src/table/table.css", import.meta.url)),
+    "utf8",
+  );
+
+  it("TableSessionView uses one-shot play now mode banner hook", () => {
+    assert.match(tableViewSrc, /usePlayNowModeBannerIntro/);
+    assert.match(tableViewSrc, /playNowModeBanner\.visible/);
+    assert.match(tableViewSrc, /data-testid="play-now-mode-banner"/);
+  });
+
+  it("table CSS defines flash and fade classes for mode banner", () => {
+    assert.match(tableCss, /\.btable-session__mode-banner--intro/);
+    assert.match(tableCss, /\.btable-session__mode-banner--faded/);
+    assert.match(tableCss, /btable-mode-banner-flash/);
+  });
+});
+
 describe("table seat layout CSS", () => {
   const css = readFileSync(fileURLToPath(new URL("../src/table/table.css", import.meta.url)), "utf8");
 
