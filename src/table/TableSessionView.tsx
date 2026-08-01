@@ -25,6 +25,7 @@ import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { TableSceneOverlay } from "./TableSceneOverlay";
+import { ENABLE_TURN_TOASTS } from "./tableUiConfig";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
@@ -579,12 +580,14 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      <div className="btable-session__attention-layer" aria-live="polite">
-        <YourTurnAttention
-          actionRequired={localActionRequired}
-          activityKey={turnReminderActivityKey}
-        />
-      </div>
+      {ENABLE_TURN_TOASTS && (
+        <div className="btable-session__attention-layer" aria-live="polite">
+          <YourTurnAttention
+            actionRequired={localActionRequired}
+            activityKey={turnReminderActivityKey}
+          />
+        </div>
+      )}
       <BourreResultSting active={selfBourreSting} displayName={selfPlayer?.displayName} />
       <EventReactions events={events} onDismiss={dismissEvent} />
       <CinematicSplash events={events} onDismiss={dismissEvent} />
@@ -714,6 +717,7 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={
+                ENABLE_TURN_TOASTS &&
                 !watchOnly &&
                 Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
               }
@@ -731,6 +735,7 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={
+                ENABLE_TURN_TOASTS &&
                 !watchOnly &&
                 Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
               }

@@ -121,22 +121,21 @@ test.describe("5 — Dealer trump presentation", () => {
 });
 
 test.describe("6 — Turn reminder cadence", () => {
-  test("Your Turn appears only for local player on 15s + repeat cadence", async ({ page }) => {
+  test("Your Turn attention graphic stays hidden (timer is the turn cue)", async ({ page }) => {
     await page.clock.install({ time: new Date("2026-06-19T12:00:00Z") });
     await openTableFlowsFixture(page, { scenario: "your-turn", phase: "play" });
 
     await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
     await page.clock.runFor(YOUR_TURN_FIRST_MS);
-    await expect(page.getByTestId("your-turn-attention")).toBeVisible();
-    await expect(page.getByTestId("your-turn-attention")).toContainText("Your Turn");
+    await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
     const cueMs = YOUR_TURN_POP_MS + YOUR_TURN_HOLD_MS + YOUR_TURN_EXIT_MS;
     await page.clock.runFor(cueMs);
     await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
     await page.clock.runFor(YOUR_TURN_REPEAT_MS[0]!);
-    await expect(page.getByTestId("your-turn-attention")).toBeVisible();
+    await expect(page.getByTestId("your-turn-attention")).toHaveCount(0);
 
     await page.getByTestId("play-button").first().evaluate((el) => (el as HTMLButtonElement).click());
     await page.clock.runFor(500);
