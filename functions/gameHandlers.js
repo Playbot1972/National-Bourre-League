@@ -45,6 +45,13 @@ import {
   runV1Rebuy,
   runV1AnteCollection,
   collectFundingForHandStart,
+  assertTableChipInvariant,
+  computeCarryForAnte,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
 } from "./vendor/money-persistence.js";
 import {
   buildHandFlowSnapshot,
@@ -857,10 +864,12 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
   }
   const handNumber = (sessionData.handCount || 0) + 1;
   const participantIds = Object.keys(patch.scorePatches);
+  const pendingPosted = sessionData.currentHand?.postedAntes ?? {};
+  const carryForAnte = computeCarryForAnte(sessionData.carryOverPot || 0, pendingPosted);
   const anteResult = runV1AnteCollection({
     sessionId,
     handNumber,
-    carryOverPot: sessionData.carryOverPot || 0,
+    carryOverPot: carryForAnte,
     participantIds,
     scoreById,
     sessionStake,

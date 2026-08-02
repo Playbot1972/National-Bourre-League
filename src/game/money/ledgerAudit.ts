@@ -13,7 +13,7 @@
  * - net_cash_out = cash removed from table (OPEN RULE: not implemented — always 0)
  */
 import type { MoneyEvent, MoneyLedgerState, ScoreById, SettlementMode } from "./types";
-import { scoreBankroll, deriveScoreNet } from "./core";
+import { scoreBankroll, deriveScoreNet, collectHandAntes } from "./core";
 import {
   emptyLedgerState,
   ledgerChipTotal,
@@ -28,6 +28,14 @@ import {
 import { bourrePotMintByPlayer } from "./canonical";
 import { startNextHandFunding } from "./pipeline";
 import { tableChipTotal, type TableChipSnapshot } from "./conservation";
+import {
+  computeCarryForAnte,
+  ledgerBankrollSum,
+  ledgerPostedPotSum,
+  OPEN_RULE_CASH_OUT,
+  OPEN_RULE_BOURRE_MINT,
+  type TableLedgerBaseline,
+} from "./tableInvariant";
 
 export type LedgerSnapshotStage =
   | "session_start"
@@ -38,20 +46,7 @@ export type LedgerSnapshotStage =
   | "after_rebuy"
   | "after_cash_out";
 
-/** OPEN RULE: cash-out is not implemented in the money engine. */
-export const OPEN_RULE_CASH_OUT =
-  "No cash-out API exists — net_cash_out is always 0; elimination sets out:true only.";
-
-export interface LedgerSessionContext {
-  /** Sum of initial buy-ins at table creation (before rebuys). */
-  tableStartingTotal: number;
-  /** Total chips minted via rebuy / top-up after session start. */
-  netCashIn: number;
-  /** Total chips removed via cash-out. OPEN RULE: always 0 until implemented. */
-  netCashOut: number;
-  /** Chips minted when bourré penalty exceeds available bankroll (engine rule). */
-  netBourreMint: number;
-}
+export interface LedgerSessionContext extends TableLedgerBaseline {}
 
 export interface LedgerSnapshot {
   stage: LedgerSnapshotStage;
@@ -70,20 +65,6 @@ export interface LedgerInvariantResult {
   potSum: number;
   carryPot: number;
   errors: string[];
-}
-
-export function ledgerBankrollSum(bankrolls: Record<string, number>): number {
-  return Object.values(bankrolls).reduce(
-    (sum, raw) => sum + Math.max(0, Number(raw) || 0),
-    0,
-  );
-}
-
-export function ledgerPostedPotSum(postedAntes: Record<string, number> = {}): number {
-  return Object.values(postedAntes).reduce(
-    (sum, raw) => sum + Math.max(0, Number(raw) || 0),
-    0,
-  );
 }
 
 /** Active table pot = posted antes + carry (matches tableChipTotal decomposition). */
@@ -422,8 +403,10 @@ export class LedgerAuditSession {
       }),
     );
 
-    const pendingPosted = ledgerPostedPotSum(this.ledger.postedAntes);
-    const carryForAnte = (input.carryIn ?? this.carryOverPot) + pendingPosted;
+    const carryForAnte = computeCarryForAnte(
+      input.carryIn ?? this.carryOverPot,
+      this.ledger.postedAntes,
+    );
 
     const anteResult = processAnte({
       actionId: `ante:${handId}`,
@@ -752,4 +735,11 @@ export function tricksTie(participants: string[], leaderCount = 2): Record<strin
 }
 
 /** Re-export for audit tests that compare against tableChipTotal. */
-export { tableChipTotal, collectHandAntes, ledgerChipTotal, replayEvents };
+export {
+  tableChipTotal,
+  collectHandAntes,
+  ledgerChipTotal,
+  replayEvents,
+  OPEN_RULE_CASH_OUT,
+  OPEN_RULE_BOURRE_MINT,
+};

@@ -13,3 +13,29 @@ export * from "./explain";
 export * from "./settlementRules";
 export * from "./settlementAudit";
 export * from "./ledgerAudit";
+export * from "./tableInvariant";
+export * from "./sessionLedger";
+
+/** Force production runtime symbols into the money-engine bundle (Vite lib treeshake). */
+export {
+  assertTableChipInvariant,
+  logTableChipInvariant,
+  checkTableChipInvariant,
+  computeCarryForAnte,
+  buildTableChipSnapshot,
+  computeLedgerBaselineFromEvents,
+  emptyLedgerBaseline,
+  OPEN_RULE_CASH_OUT,
+  OPEN_RULE_BOURRE_MINT,
+} from "./tableInvariant";
+export {
+  baselineFromSessionDoc,
+  baselineDocFromBaseline,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  applyBourreMintToBaseline,
+  applyCashOutToBaseline,
+  detectBourreMintDelta,
+  compareUiToLedgerSnapshot,
+  initialSessionBaseline,
+} from "./sessionLedger";

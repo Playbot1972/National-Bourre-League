@@ -113,6 +113,16 @@ import {
   nextMoneySequence,
   MONEY_EVENTS_COLLECTION,
   collectFundingForHandStart,
+  assertTableChipInvariant,
+  computeCarryForAnte,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  applyBourreMintToBaseline,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+  detectBourreMintDelta,
+  compareUiToLedgerSnapshot,
 } from "./money-persistence.js";
 import {
   buildBotRebuySettlementPlan,
@@ -954,17 +964,36 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
   if (isMoneyEngineV1(sessionSnap.data())) {
     const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
     const handNumber = sessionSnap.data().handCount || 0;
+    const sessionData = sessionSnap.data();
+    const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
+    const bankrolls = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [d.id, Number(d.data().bankroll) || 0]),
+    );
     const rebuy = runV1Rebuy({
       sessionId,
       playerId,
       buyInAmount: buyIn,
       handNumber,
       existingEvents,
+      ledger: {
+        version: MONEY_ENGINE_VERSION,
+        buyInFallback: buyIn,
+        bankrolls,
+        nets: {},
+        carryOverPot: sessionData.carryOverPot || 0,
+        postedAntes: getSessionCurrentHand(sessionData)?.postedAntes ?? {},
+        scoreFlags: {},
+        sequence: sessionData.moneySequence || 0,
+      },
     });
+    const minted = rebuy.newEvents[0]?.amount ?? buyIn;
+    const newBankroll = rebuy.newBankrolls[playerId] ?? minted;
+    const newBaseline = applyRebuyToBaseline(baseline, minted);
     const batch = writeBatch(db);
     batch.update(scoreRef, {
-      bankroll: buyIn,
-      net: 0,
+      bankroll: newBankroll,
+      net: deriveScoreNet(newBankroll, buyIn),
       out: deleteField(),
       updatedAt: serverTimestamp(),
     });
@@ -972,9 +1001,31 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
       roomId,
       sessionId,
       events: rebuy.newEvents,
-      nextSequence: nextMoneySequence(sessionSnap.data(), rebuy.newEvents.length),
+      nextSequence: nextMoneySequence(sessionData, rebuy.newEvents.length),
+    });
+    batch.update(sessionDoc(roomId, sessionId), {
+      moneyLedgerBaseline: baselineDocFromBaseline(newBaseline),
+      updatedAt: serverTimestamp(),
     });
     await batch.commit();
+    const scoreById = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [
+        d.id,
+        d.id === playerId
+          ? { ...d.data(), bankroll: newBankroll, net: deriveScoreNet(newBankroll, buyIn) }
+          : d.data(),
+      ]),
+    );
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: { ...sessionData, moneyLedgerBaseline: newBaseline },
+      scoreById,
+      label: `after-rebuy:${playerId}`,
+      handId: handNumber,
+      existingEvents: [...existingEvents, ...rebuy.newEvents],
+      buyIn,
+    });
     return;
   }
 
@@ -1361,6 +1412,32 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
   });
 }
 
+/** Production table chip invariant — logs structured ok:true/false; strict mode throws. */
+function logSessionTableInvariant({
+  roomId,
+  sessionId,
+  sessionData,
+  scoreById,
+  label,
+  handId = null,
+  existingEvents = [],
+  buyIn = 100,
+  playerIds = null,
+}) {
+  if (!isMoneyEngineV1(sessionData)) return { ok: true };
+  const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+  const snapshot = buildSessionChipSnapshot(scoreById, sessionData, {
+    buyInFallback: buyIn,
+    playerIds,
+  });
+  return assertTableChipInvariant(snapshot, baseline, {
+    roomId,
+    sessionId,
+    handId,
+    label,
+  });
+}
+
 /** Attach v1 ANTE_DEDUCTED events when a deal patch collected antes without money log entries. */
 function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existingEvents, buyIn, sessionStake) {
   if (!isMoneyEngineV1(sessionData) || patch?.soloWin || !patch?.scorePatches) {
@@ -1368,10 +1445,12 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
   }
   const handNumber = (sessionData.handCount || 0) + 1;
   const participantIds = Object.keys(patch.scorePatches);
+  const pendingPosted = getSessionCurrentHand(sessionData)?.postedAntes ?? {};
+  const carryForAnte = computeCarryForAnte(sessionData.carryOverPot || 0, pendingPosted);
   const anteResult = runV1AnteCollection({
     sessionId,
     handNumber,
-    carryOverPot: sessionData.carryOverPot || 0,
+    carryOverPot: carryForAnte,
     participantIds,
     scoreById,
     sessionStake,
@@ -1395,6 +1474,21 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     patch.currentHand && anteResult.postedAntes
       ? { ...patch.currentHand, postedAntes: anteResult.postedAntes }
       : patch.currentHand;
+
+  const mergedScores = { ...scoreById };
+  for (const [pid, row] of Object.entries(scorePatches)) {
+    mergedScores[pid] = { ...mergedScores[pid], ...row };
+  }
+  logSessionTableInvariant({
+    sessionId,
+    sessionData: { ...sessionData, currentHand },
+    scoreById: mergedScores,
+    label: `after-ante:deal:${handNumber}`,
+    handId: handNumber,
+    existingEvents: [...existingEvents, ...(anteResult.newEvents || [])],
+    buyIn,
+    playerIds: Object.keys(mergedScores),
+  });
 
   return {
     ...patch,
@@ -2906,6 +3000,9 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
     }
 
     const buyInMoney = buildSessionBuyInMoney(sessionRef.id, sortedIds, buyIn);
+    const moneyLedgerBaseline = baselineDocFromBaseline(
+      initialSessionBaseline(sortedIds.length, buyIn),
+    );
 
     const roomPatch = {
       claimedSessionNames: [...new Set([...liveClaimed, sessionName])],
@@ -2928,6 +3025,7 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
       carryOverPot: 0,
       moneyEngineVersion: MONEY_ENGINE_VERSION,
       moneySequence: buyInMoney.newEvents.length,
+      moneyLedgerBaseline,
       dealerId: initialDealer,
       ...enrollmentFieldsForCreate(sortedIds, initialDealer),
       currentHand: emptyPreDealHand(),
@@ -3311,6 +3409,21 @@ async function recordHandClient(
     fundedScoreById,
     buyIn,
   );
+
+  if (isMoneyEngineV1(sessionData)) {
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: { ...sessionData, carryOverPot, currentHand: emptyPreDealHand() },
+      scoreById: projectedScoreById,
+      label: `after-settlement:${handNumber}`,
+      handId: handNumber,
+      existingEvents: [...existingMoneyEvents, ...newMoneyEvents],
+      buyIn,
+      playerIds: seatIds,
+    });
+  }
+
   const newDealerId = nextDealerId(
     scoreSnap,
     sessionData.dealerId,
