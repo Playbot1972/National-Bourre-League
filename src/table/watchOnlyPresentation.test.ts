@@ -100,7 +100,8 @@ describe("watch-only UI wiring", () => {
     const src = readFileSync(join(root, "src/table/TableSessionView.tsx"), "utf8");
     assert.match(src, /useTurnCountdown\(\{[\s\S]*watchOnly/);
     assert.match(src, /useTurnTimerWarning\(\{[\s\S]*watchOnly/);
-    assert.match(src, /ENABLE_TURN_TOASTS &&[\s\S]*!watchOnly &&[\s\S]*showTurn/);
+    assert.match(src, /ENABLE_TURN_LABEL_BANNERS &&[\s\S]*!watchOnly &&[\s\S]*showTurn/);
+    assert.match(src, /ENABLE_HERO_TURN_REMINDER &&[\s\S]*YourTurnAttention/);
   });
 
   it("CardTable suppresses seat turn urgency when watchOnly", () => {
