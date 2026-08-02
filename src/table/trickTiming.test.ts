@@ -9,6 +9,7 @@ import {
   detectTrickResolution,
   FINAL_HAND_TRICK_PRESENTATION_MS,
   lastCardPlayWinsTrick,
+  shouldPlayKungfuCardPlace,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
   suppressesTurnIndicator,
@@ -117,6 +118,73 @@ describe("trickTiming", () => {
     assert.ok(frozen);
     assert.equal(frozen!.winnerId, "p2");
     assert.equal(frozen!.trickNumber, 5);
+  });
+
+  it("shouldPlayKungfuCardPlace when trick 5 completes and landing play wins", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "7", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "8", suit: "hearts" } },
+      { playerId: "p3", card: { rank: "A", suit: "spades" } },
+    ];
+    assert.equal(
+      shouldPlayKungfuCardPlace({
+        trickNumber: 5,
+        playerId: "p3",
+        playsInTrick: plays,
+        leadSuit: "hearts",
+        trumpSuit: "spades",
+        participantCount: 3,
+      }),
+      true,
+    );
+  });
+
+  it("shouldPlayKungfuCardPlace is false when landing play does not win trick 5", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+      { playerId: "p3", card: { rank: "Q", suit: "hearts" } },
+    ];
+    assert.equal(
+      shouldPlayKungfuCardPlace({
+        trickNumber: 5,
+        playerId: "p3",
+        playsInTrick: plays,
+        leadSuit: "hearts",
+        trumpSuit: "spades",
+        participantCount: 3,
+      }),
+      false,
+    );
+  });
+
+  it("shouldPlayKungfuCardPlace is false before trick 5 or when trick incomplete", () => {
+    const plays = [
+      { playerId: "p1", card: { rank: "A", suit: "hearts" } },
+      { playerId: "p2", card: { rank: "K", suit: "hearts" } },
+    ];
+    assert.equal(
+      shouldPlayKungfuCardPlace({
+        trickNumber: 4,
+        playerId: "p2",
+        playsInTrick: plays,
+        leadSuit: "hearts",
+        trumpSuit: "spades",
+        participantCount: 3,
+      }),
+      false,
+    );
+    assert.equal(
+      shouldPlayKungfuCardPlace({
+        trickNumber: 5,
+        playerId: "p2",
+        playsInTrick: plays,
+        leadSuit: "hearts",
+        trumpSuit: "spades",
+        participantCount: 3,
+      }),
+      false,
+    );
   });
 
   it("lastCardPlayWinsTrick is true only when final trick last play wins", () => {

@@ -346,6 +346,7 @@ export function CardTable({
             remainingDeckCount={session.remainingDeckCount}
             trickDisplayPlays={trickPresentation.displayPlays}
             trickLeadSuit={session.currentTrick?.leadSuit ?? session.leadSuit ?? null}
+            trickNumber={session.currentTrick?.trickNumber ?? trickPresentation.frozenTrick?.trickNumber ?? null}
             trickWinnerPlayerId={trickPresentation.winnerPlayerId}
             trickShowWinnerTag={trickPresentation.showWinnerTag}
             trickPresentationPhase={trickPresentation.phase}
