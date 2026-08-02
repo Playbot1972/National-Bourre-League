@@ -1,8 +1,14 @@
 /**
  * Session-level ledger helpers — baseline tracking and production snapshot assembly.
  */
-import type { MoneyEvent, ScoreById } from "./types";
+import type { MoneyEvent, MoneyLedgerState, ScoreById } from "./types";
+import { deriveScoreNet } from "./core";
+import { processRebuy } from "./processor";
+import { scoreBankroll } from "./core";
 import { bourrePotMintByPlayer, type FundingReason } from "./canonical";
+import type { NextDealFundingSnapshot } from "./types";
+import { collectFundingForHandStart } from "./pipeline";
+import { MONEY_ENGINE_VERSION } from "./types";
 import {
   buildTableChipSnapshot,
   computeLedgerBaselineFromEvents,
@@ -125,4 +131,152 @@ export function compareUiToLedgerSnapshot(
     Math.abs(uiBankrollSum - ledgerBankrollSum) <= tolerance &&
     Math.abs(uiPot - ledgerPot) <= tolerance
   );
+}
+
+/** Build money ledger state from session + score rows (preserves carry/posted). */
+export function buildLedgerStateFromSession(
+  sessionData: {
+    carryOverPot?: number;
+    currentHand?: { postedAntes?: Record<string, number> } | null;
+    moneySequence?: number;
+  },
+  scoreById: ScoreById,
+  buyInFallback = 100,
+): MoneyLedgerState {
+  const bankrolls: Record<string, number> = {};
+  for (const [pid, row] of Object.entries(scoreById || {})) {
+    bankrolls[pid] = scoreBankroll(row, buyInFallback);
+  }
+  return {
+    version: MONEY_ENGINE_VERSION,
+    buyInFallback,
+    bankrolls,
+    nets: {},
+    carryOverPot: Math.max(0, Number(sessionData.carryOverPot) || 0),
+    postedAntes: { ...(sessionData.currentHand?.postedAntes ?? {}) },
+    scoreFlags: {},
+    sequence: Number(sessionData.moneySequence) || 0,
+  };
+}
+
+/** Simulate next-hand funding and return bourré bust mint delta (chip creation). */
+export function computeNextHandFundingMintDelta(input: {
+  scoreById: ScoreById;
+  nextDealFunding: NextDealFundingSnapshot | null;
+  carryOverPot: number;
+  participantIds: string[];
+  sessionStake: number;
+  buyInFallback: number;
+}): number {
+  const {
+    scoreById,
+    nextDealFunding,
+    carryOverPot,
+    participantIds,
+    sessionStake,
+    buyInFallback,
+  } = input;
+  const beforeBankrolls: Record<string, number> = {};
+  for (const pid of participantIds) {
+    beforeBankrolls[pid] = scoreBankroll(scoreById[pid], buyInFallback);
+  }
+  const collected = collectFundingForHandStart({
+    scoreById,
+    nextDealFunding,
+    carryOverPot,
+    participantIds,
+    sessionStake,
+    buyInFallback,
+  });
+  const fundingReasons = Object.fromEntries(
+    participantIds.map((pid) => [
+      pid,
+      (nextDealFunding?.byPlayer?.[pid]?.fundingReason as FundingReason) ?? "normal_ante",
+    ]),
+  ) as Record<string, FundingReason>;
+  return detectBourreMintDelta(
+    beforeBankrolls,
+    collected.bankrolls,
+    fundingReasons,
+    collected.postedAntes ?? {},
+  );
+}
+
+/** Bump session baseline when next-hand funding mints bourré bust chips. */
+export function bumpBaselineForNextHandFunding(
+  baseline: TableLedgerBaseline,
+  input: {
+    scoreById: ScoreById;
+    nextDealFunding: NextDealFundingSnapshot | null;
+    carryOverPot: number;
+    participantIds: string[];
+    sessionStake: number;
+    buyInFallback: number;
+  },
+): TableLedgerBaseline {
+  const mint = computeNextHandFundingMintDelta(input);
+  return mint > 0 ? applyBourreMintToBaseline(baseline, mint) : baseline;
+}
+
+export interface BotRebuyPlanItem {
+  playerId: string;
+  displayName?: string;
+}
+
+/** Ledger-aware bot auto-rebuy — same path as manual rebuySessionPlayer. */
+export function executeBotRebuyPlanLedgerAware(input: {
+  plan: BotRebuyPlanItem[];
+  sessionId: string;
+  handNumber: number;
+  buyInAmount: number;
+  ledger: MoneyLedgerState;
+  baseline: TableLedgerBaseline;
+  existingEvents: MoneyEvent[];
+}): {
+  rebuyEvents: MoneyEvent[];
+  scorePatches: Record<string, { bankroll: number; net: number; displayName?: string }>;
+  ledger: MoneyLedgerState;
+  baseline: TableLedgerBaseline;
+} {
+  const {
+    plan,
+    sessionId,
+    handNumber,
+    buyInAmount,
+    ledger: startLedger,
+    baseline: startBaseline,
+    existingEvents,
+  } = input;
+  const rebuyEvents: MoneyEvent[] = [];
+  const scorePatches: Record<string, { bankroll: number; net: number; displayName?: string }> =
+    {};
+  let ledger: MoneyLedgerState = {
+    ...startLedger,
+    bankrolls: { ...startLedger.bankrolls },
+    postedAntes: { ...startLedger.postedAntes },
+  };
+  let baseline = startBaseline;
+
+  for (const item of plan) {
+    const rebuy = processRebuy({
+      actionId: `rebuy:${sessionId}:${item.playerId}:${handNumber}`,
+      playerId: item.playerId,
+      buyInAmount,
+      handId: String(handNumber),
+      existingEvents: [...existingEvents, ...rebuyEvents],
+      ledger: { ...ledger },
+    });
+    rebuyEvents.push(...rebuy.newEvents);
+    const bankroll = rebuy.newBankrolls[item.playerId] ?? buyInAmount;
+    ledger.bankrolls[item.playerId] = bankroll;
+    const minted = rebuy.newEvents[0]?.amount ?? buyInAmount;
+    baseline = applyRebuyToBaseline(baseline, minted);
+    scorePatches[item.playerId] = {
+      bankroll,
+      net: deriveScoreNet(bankroll, buyInAmount),
+      displayName: item.displayName,
+    };
+  }
+
+  return { rebuyEvents, scorePatches, ledger, baseline };
 }

@@ -123,6 +123,9 @@ import {
   baselineDocFromBaseline,
   detectBourreMintDelta,
   compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 } from "./money-persistence.js";
 import {
   buildBotRebuySettlementPlan,
@@ -1057,6 +1060,76 @@ async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, reb
   if (plan.length === 0) return { applied: [] };
 
   const optInIds = new Set(sessionData.tableOptInIds || []);
+  const handNumber = sessionData.handCount || 0;
+
+  if (isMoneyEngineV1(sessionData)) {
+    const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    let baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const ledger = buildLedgerStateFromSession(sessionData, scoreById, buyIn);
+    const rebuyResult = executeBotRebuyPlanLedgerAware({
+      plan,
+      sessionId,
+      handNumber,
+      buyInAmount: buyIn,
+      ledger,
+      baseline,
+      existingEvents,
+    });
+    const batch = writeBatch(db);
+    for (const item of plan) {
+      optInIds.add(item.playerId);
+      const patch = rebuyResult.scorePatches[item.playerId];
+      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+        bankroll: patch.bankroll,
+        net: patch.net,
+        out: deleteField(),
+        displayName: item.displayName,
+        updatedAt: serverTimestamp(),
+      });
+      scoreById[item.playerId] = {
+        ...scoreById[item.playerId],
+        bankroll: patch.bankroll,
+        net: patch.net,
+      };
+    }
+    appendMoneyEventsBatch(batch, {
+      roomId,
+      sessionId,
+      events: rebuyResult.rebuyEvents,
+      nextSequence: nextMoneySequence(sessionData, rebuyResult.rebuyEvents.length),
+    });
+    batch.update(sessionDoc(roomId, sessionId), {
+      players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+      tableOptInIds: [...optInIds],
+      moneyLedgerBaseline: baselineDocFromBaseline(rebuyResult.baseline),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: {
+        ...sessionData,
+        moneyLedgerBaseline: rebuyResult.baseline,
+      },
+      scoreById,
+      label: `after-deferred-bot-rebuy`,
+      handId: handNumber,
+      existingEvents: [...existingEvents, ...rebuyResult.rebuyEvents],
+      buyIn,
+    });
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: plan.map((p) => p.playerId),
+      names: plan.map((p) => p.displayName),
+      buyIn,
+      phase: "deferred",
+    });
+    return { applied: plan.map((p) => p.playerId) };
+  }
+
   const batch = writeBatch(db);
   for (const item of plan) {
     optInIds.add(item.playerId);
@@ -3410,11 +3483,43 @@ async function recordHandClient(
     buyIn,
   );
 
+  let settlementBaseline = null;
+  let settlementLedger = null;
+  let botRebuyEvents = [];
   if (isMoneyEngineV1(sessionData)) {
+    settlementBaseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, [
+      ...existingMoneyEvents,
+      ...newMoneyEvents,
+    ]);
+    const fundingParticipantIds = nextDealFunding?.byPlayer
+      ? Object.keys(nextDealFunding.byPlayer)
+      : seatIds;
+    settlementBaseline = bumpBaselineForNextHandFunding(settlementBaseline, {
+      scoreById: projectedScoreById,
+      nextDealFunding,
+      carryOverPot,
+      participantIds: fundingParticipantIds,
+      sessionStake: stake,
+      buyInFallback: buyIn,
+    });
+    settlementLedger = buildLedgerStateFromSession(
+      {
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneySequence: sessionData.moneySequence,
+      },
+      projectedScoreById,
+      buyIn,
+    );
     logSessionTableInvariant({
       roomId,
       sessionId,
-      sessionData: { ...sessionData, carryOverPot, currentHand: emptyPreDealHand() },
+      sessionData: {
+        ...sessionData,
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneyLedgerBaseline: settlementBaseline,
+      },
       scoreById: projectedScoreById,
       label: `after-settlement:${handNumber}`,
       handId: handNumber,
@@ -3442,13 +3547,43 @@ async function recordHandClient(
     tableOptInIds: sessionData.tableOptInIds || [],
   });
   if (botRebuyPlan) {
-    for (const item of botRebuyPlan.plan) {
-      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
-        bankroll: buyIn,
-        out: deleteField(),
-        displayName: item.displayName,
-        updatedAt: serverTimestamp(),
+    if (isMoneyEngineV1(sessionData) && settlementLedger && settlementBaseline) {
+      const rebuyResult = executeBotRebuyPlanLedgerAware({
+        plan: botRebuyPlan.plan,
+        sessionId,
+        handNumber,
+        buyInAmount: buyIn,
+        ledger: settlementLedger,
+        baseline: settlementBaseline,
+        existingEvents: [...existingMoneyEvents, ...newMoneyEvents],
       });
+      botRebuyEvents = rebuyResult.rebuyEvents;
+      settlementBaseline = rebuyResult.baseline;
+      settlementLedger = rebuyResult.ledger;
+      for (const item of botRebuyPlan.plan) {
+        const patch = rebuyResult.scorePatches[item.playerId];
+        batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+          bankroll: patch.bankroll,
+          net: patch.net,
+          out: deleteField(),
+          displayName: item.displayName,
+          updatedAt: serverTimestamp(),
+        });
+        projectedScoreById[item.playerId] = {
+          ...projectedScoreById[item.playerId],
+          bankroll: patch.bankroll,
+          net: patch.net,
+        };
+      }
+    } else {
+      for (const item of botRebuyPlan.plan) {
+        batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+          bankroll: buyIn,
+          out: deleteField(),
+          displayName: item.displayName,
+          updatedAt: serverTimestamp(),
+        });
+      }
     }
     logBourreAccounting("bot-auto-rebuy", {
       roomId,
@@ -3475,27 +3610,17 @@ async function recordHandClient(
     sessionUpdate.players = botRebuyPlan.players;
     sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
   }
+  if (isMoneyEngineV1(sessionData) && settlementBaseline) {
+    sessionUpdate.moneyLedgerBaseline = baselineDocFromBaseline(settlementBaseline);
+  }
   batch.update(sessionDoc(roomId, sessionId), sessionUpdate);
 
   if (isMoneyEngineV1(sessionData)) {
-    const rebuyEvents = [];
-    if (botRebuyPlan) {
-      for (const item of botRebuyPlan.plan) {
-        const rebuy = runV1Rebuy({
-          sessionId,
-          playerId: item.playerId,
-          buyInAmount: buyIn,
-          handNumber,
-          existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...rebuyEvents],
-        });
-        rebuyEvents.push(...rebuy.newEvents);
-      }
-    }
     appendMoneyEventsBatch(batch, {
       roomId,
       sessionId,
-      events: [...newMoneyEvents, ...rebuyEvents],
-      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + rebuyEvents.length),
+      events: [...newMoneyEvents, ...botRebuyEvents],
+      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + botRebuyEvents.length),
     });
   }
 
@@ -3503,6 +3628,26 @@ async function recordHandClient(
     await batch.commit();
   } catch (err) {
     throw settlementError(err, "client-batch");
+  }
+
+  if (isMoneyEngineV1(sessionData) && botRebuyPlan && settlementBaseline) {
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: {
+        ...sessionData,
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneyLedgerBaseline: settlementBaseline,
+        handCount: handNumber,
+      },
+      scoreById: projectedScoreById,
+      label: `after-bot-auto-rebuy:${handNumber}`,
+      handId: handNumber,
+      existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...botRebuyEvents],
+      buyIn,
+      playerIds: seatIds,
+    });
   }
 
   try {

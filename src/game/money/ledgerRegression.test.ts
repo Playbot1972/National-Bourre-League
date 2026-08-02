@@ -12,6 +12,11 @@ import {
   expectedChipTotalFromBaseline,
 } from "./tableInvariant";
 import { initialSessionBaseline } from "./sessionLedger";
+import {
+  bumpBaselineForNextHandFunding,
+  buildLedgerStateFromSession,
+  executeBotRebuyPlanLedgerAware,
+} from "./sessionLedger";
 import { processAnte, processRebuy } from "./processor";
 import { emptyLedgerState } from "./replay";
 import type { ScoreById } from "./types";
@@ -160,6 +165,75 @@ describe("ledger regression — rebuy with carry/posted preserved", () => {
     });
     assert.equal(rebuy.newBankrolls.p2, BUY_IN);
     assert.equal(rebuy.newEvents[0]?.amount, BUY_IN);
+  });
+});
+
+describe("ledger regression — bot auto-rebuy at settlement", () => {
+  it("executeBotRebuyPlanLedgerAware preserves invariant with carry/posted", () => {
+    const scoreById: ScoreById = {
+      p0: { bankroll: 150, net: 50 },
+      bot_1: { bankroll: 0, net: -100, out: true },
+      p2: { bankroll: 150, net: 50 },
+    };
+    const ledger = buildLedgerStateFromSession(
+      { carryOverPot: 0, currentHand: { postedAntes: {} } },
+      scoreById,
+      BUY_IN,
+    );
+    const baseline = initialSessionBaseline(3, BUY_IN);
+    const result = executeBotRebuyPlanLedgerAware({
+      plan: [{ playerId: "bot_1", displayName: "Bot Rex" }],
+      sessionId: "sess",
+      handNumber: 2,
+      buyInAmount: BUY_IN,
+      ledger,
+      baseline,
+      existingEvents: [],
+    });
+    assert.equal(result.scorePatches.bot_1.bankroll, BUY_IN);
+    assert.ok(result.rebuyEvents.length === 1);
+    const snapshot = buildTableChipSnapshot(
+      {
+        ...scoreById,
+        bot_1: { bankroll: result.scorePatches.bot_1.bankroll, net: result.scorePatches.bot_1.net },
+      },
+      { carryOverPot: ledger.carryOverPot, postedAntes: ledger.postedAntes },
+    );
+    const invariant = checkTableChipInvariant(snapshot, result.baseline);
+    assert.equal(invariant.ok, true);
+  });
+});
+
+describe("ledger regression — netBourreMint baseline bump", () => {
+  it("bumpBaselineForNextHandFunding increments baseline when bourré bust mint pending", () => {
+    const players = ids(3);
+    const baseline = initialSessionBaseline(3, BUY_IN);
+    const session = new LedgerAuditSession({
+      playerIds: players,
+      buyInAmount: BUY_IN,
+      sessionStake: ANTE,
+    });
+    session.startSession();
+    session.setSeatedBankrolls({ p0: 200, p1: 95, p2: 5 });
+    session.reconcileChipDrift("bourre preset");
+    session.playHand({
+      handId: "h1",
+      winners: ["p0"],
+      participants: players,
+      tricksByPlayer: tricksWithWinner(players, "p0", ["p2"]),
+    });
+    const bumped = bumpBaselineForNextHandFunding(baseline, {
+      scoreById: Object.fromEntries(
+        players.map((pid) => [pid, { bankroll: session.seatedBankroll(pid) }]),
+      ),
+      nextDealFunding: session.nextDealFunding,
+      carryOverPot: session.carryOverPot,
+      participantIds: players,
+      sessionStake: ANTE,
+      buyInFallback: BUY_IN,
+    });
+    assert.ok(bumped.netBourreMint >= baseline.netBourreMint);
+    assert.equal(bumped.netBourreMint, session.context.netBourreMint ?? 0);
   });
 });
 

@@ -223,6 +223,13 @@ function run5pIdleScripted() {
     nextDealFunding: null,
   };
   state.scoreById.p4 = { bankroll: 0, net: -BUY_IN, out: true };
+  const redistribute = Math.floor(BUY_IN / 4);
+  for (const pid of ["p0", "p1", "p2", "p3"]) {
+    state.scoreById[pid] = {
+      bankroll: BUY_IN + redistribute,
+      net: redistribute,
+    };
+  }
   checkInvariant(state, "session-start-5p", 0);
 
   const active = ["p0", "p1", "p2", "p3"];

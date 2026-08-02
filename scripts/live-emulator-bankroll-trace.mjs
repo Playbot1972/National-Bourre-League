@@ -21,7 +21,12 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import {
   mergeNextDealFundingIntoScoreById,
   collectFundingForHandStart,
-} from "../docs/bourre-rules.js";
+  assertTableChipInvariant,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+} from "../docs/money-persistence.js";
 
 const PROJECT = "demo-national-bourre-league";
 const FUNCTIONS_BASE = `http://127.0.0.1:5001/${PROJECT}/us-central1`;
@@ -34,6 +39,44 @@ const SESSION = "session_bankroll_e2e";
 
 function potFromPosted(postedAntes = {}) {
   return Object.values(postedAntes).reduce((sum, raw) => sum + Math.max(0, Number(raw) || 0), 0);
+}
+
+function assertFullBaselineInvariant(label, session, scoreById, hostId, botId) {
+  const carryOverPot = session?.carryOverPot ?? 0;
+  const postedAntes = session?.currentHand?.postedAntes ?? {};
+  const baseline = baselineFromSessionDoc(
+    session?.moneyLedgerBaseline,
+    [],
+  );
+  if (!session?.moneyLedgerBaseline) {
+    baseline.tableStartingTotal = BUY_IN * 2;
+  }
+  const snapshot = buildSessionChipSnapshot(scoreById, {
+    carryOverPot,
+    postedAntes,
+    buyInFallback: BUY_IN,
+    playerIds: [hostId, botId],
+  });
+  const result = assertTableChipInvariant(snapshot, baseline, {
+    roomId: ROOM,
+    sessionId: SESSION,
+    label,
+    handId: session?.handCount ?? 0,
+  });
+  const row = {
+    label,
+    ok: result.ok,
+    actual: result.actual,
+    expected: result.expected,
+    bankrollSum: result.bankrollSum,
+    potSum: result.potSum,
+    carryPot: result.carryPot,
+    netBourreMint: baseline.netBourreMint,
+    netCashOut: baseline.netCashOut,
+  };
+  console.info(`[bankroll-invariant] ${label}`, JSON.stringify(row));
+  assert.equal(result.ok, true, `${label}: full baseline invariant`);
+  return result;
 }
 
 function emulatorHostPort() {
@@ -104,12 +147,16 @@ function assertPostFunding(label, scoreById, hostId, botId, session, expected) {
   assert.equal(scoreById[hostId]?.bankroll, expected.human, `${label}: human`);
   assert.equal(scoreById[botId]?.bankroll, expected.bot, `${label}: bot`);
   assert.equal(pot, expected.pot, `${label}: pot`);
+  assertFullBaselineInvariant(label, session, scoreById, hostId, botId);
 }
 
-function assertSettled(label, scoreById, hostId, botId, expected) {
-  traceBankrolls(label, scoreById, hostId, botId);
+function assertSettled(label, scoreById, hostId, botId, expected, session = null) {
+  traceBankrolls(label, scoreById, hostId, botId, session);
   assert.equal(scoreById[hostId]?.bankroll, expected.human, `${label}: human settled`);
   assert.equal(scoreById[botId]?.bankroll, expected.bot, `${label}: bot settled`);
+  if (session) {
+    assertFullBaselineInvariant(label, session, scoreById, hostId, botId);
+  }
 }
 
 async function seedFreshSession(testEnv, hostId, botId) {
@@ -160,6 +207,7 @@ async function seedFreshSession(testEnv, hostId, botId) {
       carryOverPot: 0,
       moneyEngineVersion: "v1",
       moneySequence: 0,
+      moneyLedgerBaseline: baselineDocFromBaseline(initialSessionBaseline(2, BUY_IN)),
       dealerId: hostId,
       players: ids.map((id) => ({ playerId: id, displayName: id })),
       currentHand: { phase: null, participantIds: [], seatedIds: [], tricksByPlayer: {} },
@@ -325,7 +373,7 @@ async function runScenarioB(token, hostId, botId) {
 
   await recordHumanWin(token, hostId, botId);
   state = await readState(globalThis.__testEnv);
-  assertSettled("B hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 });
+  assertSettled("B hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 }, state.session);
   assert.ok(state.session.nextDealFunding, "B: nextDealFunding after settlement");
 
   state = await dealNextHand(token, hostId);
@@ -340,7 +388,7 @@ async function runScenarioC(token, hostId, botId) {
   await runScenarioB(token, hostId, botId);
   await recordHumanWin(token, hostId, botId, null, { fromCurrent: true });
   let state = await readState(globalThis.__testEnv);
-  assertSettled("C hand 2 settled", state.scoreById, hostId, botId, { human: 140, bot: 60 });
+  assertSettled("C hand 2 settled", state.scoreById, hostId, botId, { human: 140, bot: 60 }, state.session);
 
   state = await dealNextHand(token, hostId);
   assertPostFunding("C hand 3 start", state.scoreById, hostId, botId, state.session, {
@@ -377,7 +425,7 @@ async function runScenarioD(token, hostId, botId) {
   assertSettled("D hand 1 settled (I'm out)", state.scoreById, hostId, botId, {
     human: 80,
     bot: 120,
-  });
+  }, state.session);
 
   state = await dealNextHand(token, hostId);
   assertPostFunding("D hand 2 start", state.scoreById, hostId, botId, state.session, {
@@ -424,7 +472,7 @@ async function runScenarioF(token, hostId, botId) {
   await runScenarioA(token, hostId, botId);
   await recordHumanWin(token, hostId, botId, null, { fromCurrent: true });
   let state = await readState(globalThis.__testEnv);
-  assertSettled("F hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 });
+  assertSettled("F hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 }, state.session);
   assert.ok(state.session.nextDealFunding, "F: nextDealFunding written");
 
   state = await dealNextHand(token, hostId);

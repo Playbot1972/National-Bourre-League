@@ -25,6 +25,10 @@ import {
   baselineDocFromBaseline,
   detectBourreMintDelta,
   compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  computeNextHandFundingMintDelta,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 } from "./money-engine.js";
 
 export {
@@ -50,6 +54,10 @@ export {
   baselineDocFromBaseline,
   detectBourreMintDelta,
   compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  computeNextHandFundingMintDelta,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 };
 
 /** Subcollection path segment for immutable money events. */

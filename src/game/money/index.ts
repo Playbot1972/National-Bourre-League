@@ -38,4 +38,8 @@ export {
   detectBourreMintDelta,
   compareUiToLedgerSnapshot,
   initialSessionBaseline,
+  buildLedgerStateFromSession,
+  computeNextHandFundingMintDelta,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 } from "./sessionLedger";
