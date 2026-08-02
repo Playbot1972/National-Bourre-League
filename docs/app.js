@@ -7,6 +7,7 @@
 import {
   onAuthChange,
   whenAuthReady,
+  currentUser,
   signUpWithEmail,
   signInWithEmail,
   signInWithGoogle,
@@ -325,9 +326,30 @@ function parseBuyInAmount(raw) {
 // Session state
 // ---------------------------------------------------------------------------
 let session = null; // NormalizedUser | null
+let authInitialized = false;
+let authInitPromise = null;
+
+function syncSessionFromAuth() {
+  if (session) return session;
+  if (!authInitialized) return null;
+  const live = currentUser();
+  if (live) session = live;
+  return session;
+}
 
 function isAuthed() {
-  return session !== null;
+  return syncSessionFromAuth() !== null;
+}
+
+function waitForAuthInitialized() {
+  if (authInitialized) return Promise.resolve();
+  if (!authInitPromise) {
+    authInitPromise = whenAuthReady().then(() => {
+      authInitialized = true;
+      syncSessionFromAuth();
+    });
+  }
+  return authInitPromise;
 }
 
 // Apply a session and re-render. Used both by the auth-state listener and
@@ -335,6 +357,8 @@ function isAuthed() {
 // not re-trigger onAuthStateChanged).
 function setSession(user) {
   session = user;
+  authInitialized = true;
+  if (user) closeAuth();
   renderSession();
   showView();
 }
@@ -723,10 +747,16 @@ function showView() {
   const { view, roomsScope } = parseRoute();
   let effectiveView = view;
   const practiceRoomsPublic = view === "rooms" && roomsScope === "practice";
-  if (PROTECTED.has(view) && !practiceRoomsPublic && !isAuthed()) {
-    openAuth("signin");
-    effectiveView = "home";
-    location.hash = "#home";
+  if (PROTECTED.has(view) && !practiceRoomsPublic) {
+    if (!authInitialized) {
+      void waitForAuthInitialized().then(() => showView());
+      return;
+    }
+    if (!isAuthed()) {
+      openAuth("signin");
+      effectiveView = "home";
+      location.hash = "#home";
+    }
   }
   $$(".view").forEach((sec) => {
     sec.hidden = sec.id !== `view-${effectiveView}`;
@@ -6122,7 +6152,6 @@ bindRoomDetailDelegatedControls();
 bindTablePlayControls();
 initTheme();
 wireThemeToggle($("#theme-toggle"));
-showView();
 logHandTransitionBoot();
 hideNativeSplashWhenReady();
 
@@ -6149,6 +6178,12 @@ onAuthChange((user) => {
     renderRoomsList();
     renderLeaderboard();
   }
+});
+
+void waitForAuthInitialized().then(() => {
+  if (!session) syncSessionFromAuth();
+  if (session) renderSession();
+  showView();
 });
 
 /** Local emulator E2E: explicit bot-advance nudge when draw stalls (no-op in production). */
