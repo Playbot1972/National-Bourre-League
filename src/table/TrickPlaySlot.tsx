@@ -20,6 +20,12 @@ export interface CardLandedAudioCallbackInput {
   cardsInTrick: number;
   takesLead: boolean;
   isLocalPlayer: boolean;
+  /** Set by TrickRow when routing card-place audio. */
+  trickNumber?: number;
+  leadSuit?: string | null;
+  trumpSuit?: string | null;
+  playsInTrick?: TrickPlay[];
+  participantCount?: number;
 }
 
 type FlyMode = "pending" | "travel" | "settle" | "land" | "static";

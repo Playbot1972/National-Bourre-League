@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { dispatchCardAudio, clearCardAudioDedupe } from "../../audio/AudioManager";
 import { playLastCardTrickWinFeedback } from "../feedback";
-import { lastCardPlayWinsTrick } from "../trickTiming";
+import { shouldPlayKungfuCardPlace } from "../trickTiming";
 import {
   buildCardPlayedPayload,
   buildLeadChangePayload,
@@ -11,6 +11,7 @@ import {
   type CardLandedAudioInput,
   type TrickCollectedAudioInput,
 } from "../../audio/audioEvents";
+import type { CardLandedAudioCallbackInput } from "../TrickPlaySlot";
 import type { TrickPresentation } from "./useTrickPresentation";
 
 export interface UseCardAudioInput {
@@ -22,7 +23,7 @@ export interface UseCardAudioInput {
 }
 
 export interface CardAudioHandlers {
-  onCardLanded: (input: Omit<CardLandedAudioInput, "trickId" | "playerCount">) => void;
+  onCardLanded: (input: CardLandedAudioCallbackInput) => void;
   onTrickCollectionStart: (input: Omit<TrickCollectedAudioInput, "playerCount">) => void;
 }
 
@@ -38,13 +39,11 @@ export function useCardAudio({
 }: UseCardAudioInput): CardAudioHandlers {
   const prevPhaseRef = useRef(trickPresentation.phase);
   const lastWonKeyRef = useRef<string | null>(null);
-  const lastKungfuKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (sessionPhase !== "play") {
       clearCardAudioDedupe();
       lastWonKeyRef.current = null;
-      lastKungfuKeyRef.current = null;
     }
   }, [sessionPhase, trickNumber]);
 
@@ -72,20 +71,6 @@ export function useCardAudio({
         isLocalPlayer: currentUserId === winnerId,
       }),
     );
-
-    if (
-      lastCardPlayWinsTrick({
-        trickNumber: frozen.trickNumber,
-        plays: frozen.plays,
-        winnerId,
-      })
-    ) {
-      const kungfuKey = `${frozen.trickNumber}:${winnerId}:kungfu`;
-      if (lastKungfuKeyRef.current !== kungfuKey) {
-        lastKungfuKeyRef.current = kungfuKey;
-        playLastCardTrickWinFeedback();
-      }
-    }
   }, [
     trickPresentation.phase,
     trickPresentation.frozenTrick,
@@ -95,16 +80,37 @@ export function useCardAudio({
   ]);
 
   const onCardLanded = useCallback(
-    (input: Omit<CardLandedAudioInput, "trickId" | "playerCount">) => {
+    (input: CardLandedAudioCallbackInput) => {
       if (trickPresentation.phase !== "live") return;
 
       const landed: CardLandedAudioInput = {
-        ...input,
+        cardId: input.cardId,
+        playerId: input.playerId,
+        cardIndex: input.cardIndex,
+        cardsInTrick: input.cardsInTrick,
+        takesLead: input.takesLead,
+        isLocalPlayer: input.isLocalPlayer,
         trickId: trickNumber,
         playerCount: participantCount,
       };
 
-      dispatchCardAudio(buildCardPlayedPayload(landed));
+      const kungfuPlace =
+        input.playsInTrick != null &&
+        input.participantCount != null &&
+        shouldPlayKungfuCardPlace({
+          trickNumber: input.trickNumber ?? trickNumber,
+          playerId: input.playerId,
+          playsInTrick: input.playsInTrick,
+          leadSuit: input.leadSuit,
+          trumpSuit: input.trumpSuit,
+          participantCount: input.participantCount,
+        });
+
+      if (kungfuPlace) {
+        playLastCardTrickWinFeedback();
+      } else {
+        dispatchCardAudio(buildCardPlayedPayload(landed));
+      }
 
       if (landed.takesLead && landed.cardIndex > 0) {
         dispatchCardAudio(buildLeadChangePayload(landed));

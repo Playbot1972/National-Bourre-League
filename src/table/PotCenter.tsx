@@ -23,6 +23,7 @@ interface PotCenterProps {
   remainingDeckCount?: number | null;
   trickDisplayPlays?: TrickPlay[];
   trickLeadSuit?: string | null;
+  trickNumber?: number | null;
   trickLeaderPlayerId?: string | null;
   trickWinnerPlayerId?: string | null;
   trickShowWinnerTag?: boolean;
@@ -65,6 +66,7 @@ export function PotCenter({
   remainingDeckCount,
   trickDisplayPlays = [],
   trickLeadSuit = null,
+  trickNumber = null,
   trickLeaderPlayerId: trickLeaderPlayerIdProp = null,
   trickWinnerPlayerId = null,
   trickShowWinnerTag = false,
@@ -270,6 +272,9 @@ export function PotCenter({
               peakCardCount={peakTrickPlayCount}
               participantCount={participantCount}
               currentUserId={currentUserId}
+              trickNumber={trickNumber ?? 1}
+              trickLeadSuit={trickLeadSuit}
+              trumpSuit={trumpSuit}
               onCardLanded={onCardLanded}
             />
           </div>

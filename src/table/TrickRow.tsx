@@ -19,6 +19,9 @@ interface TrickRowProps {
   /** Seated players in the hand — reserves full trick width from trick start. */
   participantCount?: number;
   currentUserId?: string | null;
+  trickNumber?: number;
+  trickLeadSuit?: string | null;
+  trumpSuit?: string | null;
   onCardLanded?: (input: CardLandedAudioCallbackInput) => void;
 }
 
@@ -35,6 +38,9 @@ export function TrickRow({
   peakCardCount = 0,
   participantCount = 0,
   currentUserId = null,
+  trickNumber = 1,
+  trickLeadSuit = null,
+  trumpSuit = null,
   onCardLanded,
 }: TrickRowProps) {
   useEffect(() => {
@@ -91,6 +97,19 @@ export function TrickRow({
 
   const winnerName = winnerPlayerId ? (playerNames[winnerPlayerId] ?? "Player") : null;
 
+  const handleCardLanded = (input: CardLandedAudioCallbackInput) => {
+    if (!onCardLanded) return;
+    const playsInTrick = displayPlays.slice(0, input.cardIndex + 1);
+    onCardLanded({
+      ...input,
+      trickNumber,
+      leadSuit: trickLeadSuit ?? displayPlays[0]?.card.suit ?? null,
+      trumpSuit,
+      playsInTrick,
+      participantCount,
+    });
+  };
+
   const isHold =
     presentationPhase === "trickComplete" ||
     presentationPhase === "winnerReveal";
@@ -142,7 +161,7 @@ export function TrickRow({
               winnerPlayerId={winnerPlayerId}
               instantPlace={instantTrickPlays}
               currentUserId={currentUserId}
-              onCardLanded={onCardLanded}
+              onCardLanded={handleCardLanded}
             />
           ))}
         </div>

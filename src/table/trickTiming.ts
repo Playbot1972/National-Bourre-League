@@ -191,6 +191,34 @@ export function lastCardPlayWinsTrick(input: {
   return lastPlay.playerId === input.winnerId;
 }
 
+/** Card-place kungfu: final trick, hand-emptying play completes the trick and wins it. */
+export function shouldPlayKungfuCardPlace(input: {
+  trickNumber: number;
+  playerId: string;
+  playsInTrick: ReadonlyArray<{ playerId: string; card: { rank: string; suit: string } }>;
+  leadSuit?: string | null;
+  trumpSuit?: string | null;
+  participantCount: number;
+  maxTricksPerHand?: number;
+}): boolean {
+  const maxTricks = input.maxTricksPerHand ?? MAX_TRICKS_PER_HAND;
+  if (input.trickNumber !== maxTricks) return false;
+  if (input.participantCount <= 0) return false;
+  if (input.playsInTrick.length !== input.participantCount) return false;
+  if (!input.trumpSuit) return false;
+  const leadSuit = input.leadSuit ?? input.playsInTrick[0]?.card.suit;
+  if (!leadSuit) return false;
+  const winnerId = resolveTrickWinner(
+    input.playsInTrick.map((p) => ({
+      playerId: p.playerId,
+      card: { rank: p.card.rank as Rank, suit: p.card.suit as Suit },
+    })),
+    leadSuit as Suit,
+    input.trumpSuit as Suit,
+  );
+  return winnerId === input.playerId;
+}
+
 /** Participant roster for trick resolution when the server clears seats mid-snapshot. */
 export function trickResolutionParticipantIds(
   participantIds: string[],
