@@ -1,7 +1,7 @@
 import { isTrump } from "../game/cardUtils";
 import { resolveTrickWinner } from "../game/trick";
 import type { Rank, Suit } from "../types";
-import { totalTricksPlayed } from "./logic";
+import { MAX_TRICKS_PER_HAND, totalTricksPlayed } from "./logic";
 import type { CurrentTrickState, PlayedCardEntry, SerializedCard } from "./types";
 
 /** Card travel from seat to table center. */
@@ -175,6 +175,20 @@ export function trickWinnerDelta(
     if ((next[pid] ?? 0) > (prev[pid] ?? 0)) return pid;
   }
   return null;
+}
+
+/** True when the final trick's last card played also wins the trick (hand-ending slam). */
+export function lastCardPlayWinsTrick(input: {
+  trickNumber: number;
+  plays: ReadonlyArray<{ playerId: string }>;
+  winnerId: string;
+  maxTricksPerHand?: number;
+}): boolean {
+  const maxTricks = input.maxTricksPerHand ?? MAX_TRICKS_PER_HAND;
+  if (input.trickNumber !== maxTricks) return false;
+  if (input.plays.length === 0) return false;
+  const lastPlay = input.plays[input.plays.length - 1]!;
+  return lastPlay.playerId === input.winnerId;
 }
 
 /** Participant roster for trick resolution when the server clears seats mid-snapshot. */

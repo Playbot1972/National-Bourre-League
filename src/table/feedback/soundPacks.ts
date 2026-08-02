@@ -32,7 +32,8 @@ export type SoundAssetId =
   | "Fahhh"
   | "fahhh"
   | "fahhhh"
-  | "timer";
+  | "timer"
+  | "kungfu";
 
 /** Event-driven keys used by feedback service and prefs. */
 export type SoundEventKey =
@@ -55,7 +56,8 @@ export type SoundEventKey =
   | "cardSelect"
   | "cardIllegal"
   | "uiButton"
-  | "turnTimer";
+  | "turnTimer"
+  | "lastCardTrickWin";
 
 export const SOUND_PACK_LABELS: Record<SoundPackId, string> = {
   classic: "Classic",
@@ -125,6 +127,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "fahhh",
   "fahhhh",
   "timer",
+  "kungfu",
 ] as const;
 
 /** On-disk filenames for each asset ID (classic pack). */
@@ -155,6 +158,7 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   fahhh: "fahhh.mp3",
   fahhhh: "fahhhh.mp3",
   timer: "timer.mp3",
+  kungfu: "kungfu.mp3",
 };
 
 /** Count-based draw confirm cues — 1–5 cards map to draw1.mp3 … draw5.mp3. */
@@ -202,6 +206,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   cardIllegal: "card-illegal",
   uiButton: "ui-button-press",
   turnTimer: "timer",
+  lastCardTrickWin: "kungfu",
 };
 
 const PACK_SUBDIRS: Record<SoundPackId, string> = {
@@ -285,6 +290,8 @@ export function resolveSoundAsset(
       return "card-place-heavy";
     case "turnTimer":
       return "timer";
+    case "lastCardTrickWin":
+      return "kungfu";
   }
 }
 
@@ -317,4 +324,5 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   cardIllegal: "action",
   uiButton: "action",
   turnTimer: "outcome",
+  lastCardTrickWin: "animation",
 };

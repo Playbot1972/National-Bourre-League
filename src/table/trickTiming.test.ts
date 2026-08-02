@@ -8,6 +8,7 @@ import {
   currentTrickLeaderId,
   detectTrickResolution,
   FINAL_HAND_TRICK_PRESENTATION_MS,
+  lastCardPlayWinsTrick,
   MIN_TRICK_PIPELINE_MS,
   postTrickReadMs,
   suppressesTurnIndicator,
@@ -116,6 +117,43 @@ describe("trickTiming", () => {
     assert.ok(frozen);
     assert.equal(frozen!.winnerId, "p2");
     assert.equal(frozen!.trickNumber, 5);
+  });
+
+  it("lastCardPlayWinsTrick is true only when final trick last play wins", () => {
+    assert.equal(
+      lastCardPlayWinsTrick({
+        trickNumber: 5,
+        plays: [
+          { playerId: "p1" },
+          { playerId: "p2" },
+          { playerId: "p3" },
+          { playerId: "p4" },
+        ],
+        winnerId: "p4",
+      }),
+      true,
+    );
+    assert.equal(
+      lastCardPlayWinsTrick({
+        trickNumber: 5,
+        plays: [
+          { playerId: "p1" },
+          { playerId: "p2" },
+          { playerId: "p3" },
+          { playerId: "p4" },
+        ],
+        winnerId: "p1",
+      }),
+      false,
+    );
+    assert.equal(
+      lastCardPlayWinsTrick({
+        trickNumber: 4,
+        plays: [{ playerId: "p1" }, { playerId: "p2" }],
+        winnerId: "p2",
+      }),
+      false,
+    );
   });
 
   it("returns null when trick count unchanged", () => {

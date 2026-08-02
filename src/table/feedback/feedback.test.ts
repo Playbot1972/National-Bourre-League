@@ -31,6 +31,7 @@ describe("feedback prefs", () => {
     assert.equal(shouldPlaySoundEvent("minimal", "draw"), false);
     assert.equal(shouldPlaySoundEvent("minimal", "gameStart"), false);
     assert.equal(shouldPlaySoundEvent("minimal", "trickWin"), true);
+    assert.equal(shouldPlaySoundEvent("minimal", "lastCardTrickWin"), true);
     assert.equal(shouldPlaySoundEvent("minimal", "bigWin"), true);
     assert.equal(shouldPlaySoundEvent("minimal", "bourre"), true);
   });
@@ -70,6 +71,11 @@ describe("sound pack registry", () => {
     assert.equal(soundAssetUrl("classic", "draw"), "/sounds/draw.mp3");
     assert.equal(soundAssetUrl("classic", "ui-button-press"), "/sounds/ui-button-press.mp3");
     assert.equal(soundAssetUrl("classic", "card-shuffle-normal"), "/sounds/card-shuffle-normal.mp3");
+  });
+
+  it("last card trick win resolves to kungfu.mp3", () => {
+    assert.equal(resolveSoundAsset("classic", "lastCardTrickWin"), "kungfu");
+    assert.equal(soundAssetUrl("classic", "kungfu"), "/sounds/kungfu.mp3");
   });
 
   it("batch-1 trickWin always resolves to trick-win-normal (trick-win-big deferred)", () => {

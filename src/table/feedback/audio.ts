@@ -97,6 +97,7 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   cardIllegal: { current: false },
   uiButton: { current: false },
   turnTimer: { current: false },
+  lastCardTrickWin: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
@@ -120,6 +121,7 @@ const RESET_MS: Record<SoundEventKey, number> = {
   cardIllegal: 280,
   uiButton: 200,
   turnTimer: 0,
+  lastCardTrickWin: 900,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
@@ -143,6 +145,7 @@ const VOLUME: Record<SoundEventKey, number> = {
   cardIllegal: 0.5,
   uiButton: 0.4,
   turnTimer: 0.48,
+  lastCardTrickWin: 0.62,
 };
 
 function playResolvedAsset(
@@ -376,7 +379,12 @@ export function playOpenRoomSound(): void {
 }
 
 export function playDeleteRoomSound(): void {
+  ensureAudioUnlockedSync("delete-room");
   void playSoundEvent("deleteRoom");
+}
+
+export function playLastCardTrickWinSound(): void {
+  void playSoundEvent("lastCardTrickWin");
 }
 
 export function playCardSelectSound(): void {

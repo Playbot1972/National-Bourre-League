@@ -11,6 +11,7 @@ export {
   playIllegalActionFeedback,
   playOpenRoomFeedback,
   playDeleteRoomFeedback,
+  playLastCardTrickWinFeedback,
   playCardSelectFeedback,
   playUiButtonFeedback,
   playFoldFeedback,
