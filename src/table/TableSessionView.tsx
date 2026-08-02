@@ -25,7 +25,7 @@ import { useTableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { TableSceneOverlay } from "./TableSceneOverlay";
-import { ENABLE_TURN_TOASTS } from "./tableUiConfig";
+import { ENABLE_HERO_TURN_REMINDER, ENABLE_TURN_LABEL_BANNERS } from "./tableUiConfig";
 import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
@@ -580,7 +580,7 @@ export function TableSessionView({
 
   const gameplayStage = (
     <>
-      {ENABLE_TURN_TOASTS && (
+      {ENABLE_HERO_TURN_REMINDER && (
         <div className="btable-session__attention-layer" aria-live="polite">
           <YourTurnAttention
             actionRequired={localActionRequired}
@@ -717,7 +717,7 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={
-                ENABLE_TURN_TOASTS &&
+                ENABLE_TURN_LABEL_BANNERS &&
                 !watchOnly &&
                 Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
               }
@@ -735,7 +735,7 @@ export function TableSessionView({
               turnLabel={turnLabel}
               isMyTurn={isMyTurn}
               showTurn={
-                ENABLE_TURN_TOASTS &&
+                ENABLE_TURN_LABEL_BANNERS &&
                 !watchOnly &&
                 Boolean(turnLabel && cardsDealt && trickPresentation.phase === "live")
               }

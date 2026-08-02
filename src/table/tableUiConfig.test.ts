@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ENABLE_TURN_TOASTS } from "./tableUiConfig";
+import {
+  ENABLE_HERO_TURN_REMINDER,
+  ENABLE_TURN_LABEL_BANNERS,
+} from "./tableUiConfig";
 
 describe("table UI config", () => {
-  it("turn toasts are disabled (timer is the turn cue)", () => {
-    assert.equal(ENABLE_TURN_TOASTS, false);
+  it("per-player turn label banners stay disabled", () => {
+    assert.equal(ENABLE_TURN_LABEL_BANNERS, false);
+  });
+
+  it("hero late turn reminder stays enabled", () => {
+    assert.equal(ENABLE_HERO_TURN_REMINDER, true);
   });
 });
