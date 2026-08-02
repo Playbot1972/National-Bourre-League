@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { dispatchCardAudio, clearCardAudioDedupe } from "../../audio/AudioManager";
+import { playLastCardTrickWinFeedback } from "../feedback";
+import { lastCardPlayWinsTrick } from "../trickTiming";
 import {
   buildCardPlayedPayload,
   buildLeadChangePayload,
@@ -36,11 +38,13 @@ export function useCardAudio({
 }: UseCardAudioInput): CardAudioHandlers {
   const prevPhaseRef = useRef(trickPresentation.phase);
   const lastWonKeyRef = useRef<string | null>(null);
+  const lastKungfuKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (sessionPhase !== "play") {
       clearCardAudioDedupe();
       lastWonKeyRef.current = null;
+      lastKungfuKeyRef.current = null;
     }
   }, [sessionPhase, trickNumber]);
 
@@ -68,6 +72,20 @@ export function useCardAudio({
         isLocalPlayer: currentUserId === winnerId,
       }),
     );
+
+    if (
+      lastCardPlayWinsTrick({
+        trickNumber: frozen.trickNumber,
+        plays: frozen.plays,
+        winnerId,
+      })
+    ) {
+      const kungfuKey = `${frozen.trickNumber}:${winnerId}:kungfu`;
+      if (lastKungfuKeyRef.current !== kungfuKey) {
+        lastKungfuKeyRef.current = kungfuKey;
+        playLastCardTrickWinFeedback();
+      }
+    }
   }, [
     trickPresentation.phase,
     trickPresentation.frozenTrick,

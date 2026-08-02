@@ -8,6 +8,7 @@ import {
   playDrawCountSound,
   playFoldSound,
   playGameStartSound,
+  playLastCardTrickWinSound,
   playOpenRoomSound,
   playShuffleSound,
   playTrickWinSound,
@@ -32,6 +33,7 @@ export const DEAL_ANIM_DURATION_MS = 500;
 const SHUFFLE_COOLDOWN_MS = 700;
 const DRAW_COOLDOWN_MS = 500;
 const TRICK_WIN_COOLDOWN_MS = 450;
+const LAST_CARD_TRICK_WIN_COOLDOWN_MS = 1200;
 const BIG_WIN_COOLDOWN_MS = 1200;
 const BOURRE_COOLDOWN_MS = 2000;
 const GAME_START_COOLDOWN_MS = 1500;
@@ -40,6 +42,7 @@ const ILLEGAL_ACTION_COOLDOWN_MS = 280;
 let lastShuffleAt = 0;
 let lastDrawAt = 0;
 let lastTrickWinAt = 0;
+let lastLastCardTrickWinAt = 0;
 let lastBigWinAt = 0;
 let lastBourreAt = 0;
 let lastGameStartAt = 0;
@@ -172,7 +175,16 @@ export function playOpenRoomFeedback(): void {
 }
 
 export function playDeleteRoomFeedback(): void {
+  ensureAudioUnlockedSync("delete-room");
   maybePlaySound("deleteRoom", playDeleteRoomSound);
+}
+
+export function playLastCardTrickWinFeedback(): void {
+  const now = Date.now();
+  if (now - lastLastCardTrickWinAt < LAST_CARD_TRICK_WIN_COOLDOWN_MS) return;
+  lastLastCardTrickWinAt = now;
+  maybePlaySound("lastCardTrickWin", playLastCardTrickWinSound);
+  fireHaptic("strong");
 }
 
 export function playCardSelectFeedback(): void {

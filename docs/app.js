@@ -2316,6 +2316,7 @@ function describeFirestoreSubscriptionError(err, context) {
 }
 
 async function startRoomsSubscription() {
+  void ensureTableFeedbackApi();
   stopRoomsSubscription();
   const uid = session?.uid;
   if (!uid) return;
@@ -2770,24 +2771,24 @@ async function onKickMember(targetUserId, displayName) {
   }
 }
 
+function playDeleteRoomSoundNow() {
+  if (tableFeedbackApi?.playDeleteRoomFeedback) {
+    tableFeedbackApi.playDeleteRoomFeedback();
+    return;
+  }
+  void ensureTableFeedbackApi().then((api) => api?.playDeleteRoomFeedback?.());
+}
+
 async function onDeleteRoom(roomId) {
   if (!session) return;
   if (deleteRoomInFlight === roomId) return;
-  if (
-    !window.confirm(
-      "Delete this room for everyone? Sessions and scores will no longer be accessible.",
-    )
-  ) {
-    return;
-  }
+  playDeleteRoomSoundNow();
   showRoomsError("");
   deleteRoomInFlight = roomId;
   const roomGoneHandledBefore = roomGoneHandled;
   roomGoneHandled = true;
   try {
     await deleteRoom(roomId, session);
-    const feedbackApi = await ensureTableFeedbackApi();
-    feedbackApi?.playDeleteRoomFeedback?.();
     if (currentRoomId === roomId) closeRoom();
   } catch (err) {
     roomGoneHandled = roomGoneHandledBefore;

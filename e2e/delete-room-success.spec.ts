@@ -30,7 +30,6 @@ test.describe("Delete room success feedback", () => {
     const roomCard = page.locator(".mini-card__title", { hasText: roomName });
     await expect(roomCard).toBeVisible({ timeout: 15_000 });
 
-    page.once("dialog", (dialog) => dialog.accept());
     await page.locator(`[data-delete-room]`).first().click();
 
     await expect(roomCard).toBeHidden({ timeout: 15_000 });

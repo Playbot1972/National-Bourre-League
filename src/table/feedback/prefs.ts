@@ -79,6 +79,7 @@ export function shouldPlaySoundEvent(mode: SoundMode, event: SoundEventKey): boo
   // Minimal — only meaningful gameplay moments, skip ambient cues
   return (
     event === "trickWin" ||
+    event === "lastCardTrickWin" ||
     event === "bigWin" ||
     event === "bourre" ||
     event === "turnTimer"

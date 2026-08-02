@@ -16,6 +16,12 @@ describe("delete room false-error guards", () => {
     "utf8",
   );
 
+  it("onDeleteRoom does not show a confirmation dialog", () => {
+    const block = appSrc.slice(appSrc.indexOf("async function onDeleteRoom"), appSrc.indexOf("const createRoomModal"));
+    assert.equal(block.includes("window.confirm"), false);
+    assert.ok(block.includes("playDeleteRoomSoundNow"));
+  });
+
   it("onDeleteRoom guards duplicate in-flight deletes", () => {
     assert.ok(appSrc.includes("let deleteRoomInFlight = null"));
     assert.ok(appSrc.includes("if (deleteRoomInFlight === roomId) return"));
