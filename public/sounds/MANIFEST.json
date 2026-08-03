@@ -23,6 +23,6 @@
     { "id": "fahhhh", "file": "fahhhh.mp3", "events": ["bourre:private"] },
     { "id": "moneygone", "file": "moneygone.mp3", "events": ["trickCollectOther"] },
     { "id": "timer", "file": "timer.mp3", "events": ["turnTimer"] },
-    { "id": "kungfu", "file": "kungfu.mp3", "events": ["lastCardTrickWin"] }
+    { "id": "shotgun", "file": "shotgun.mp3", "events": ["lastCardTrickWin"] }
   ]
 }

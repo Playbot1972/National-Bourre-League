@@ -94,7 +94,7 @@ export function useCardAudio({
         playerCount: participantCount,
       };
 
-      const kungfuPlace =
+      const lastCardTrickWinPlace =
         input.playsInTrick != null &&
         input.participantCount != null &&
         shouldPlayKungfuCardPlace({
@@ -106,7 +106,7 @@ export function useCardAudio({
           participantCount: input.participantCount,
         });
 
-      if (kungfuPlace) {
+      if (lastCardTrickWinPlace) {
         playLastCardTrickWinFeedback();
       } else {
         dispatchCardAudio(buildCardPlayedPayload(landed));
