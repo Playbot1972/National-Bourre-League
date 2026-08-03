@@ -82,6 +82,23 @@
   --table-felt-inset: rgba(0, 0, 0, 0.45);
   --table-shadow: rgba(0, 0, 0, 0.55);
 
+  /* Table seat chrome — dark pills on felt (not page text tokens) */
+  --table-chrome-text: rgba(244, 240, 232, 0.9);
+  --seat-plate-text: #f3efe6;
+  --seat-plate-bg: rgba(8, 12, 20, 0.92);
+  --seat-plate-border: rgba(244, 213, 141, 0.22);
+  --seat-stack-text: #f4d58d;
+  --seat-stack-bg: rgba(0, 0, 0, 0.58);
+  --seat-stack-border: rgba(212, 175, 55, 0.38);
+
+  /* Play / Play Now pills — green in every theme */
+  --pill-play-text: #f4fff8;
+  --pill-play-border: #145c32;
+  --pill-play-bg-top: #2d9f62;
+  --pill-play-bg-bottom: #1a7a45;
+  --pill-play-bg-top-hover: #35b36e;
+  --pill-play-bg-bottom-hover: #228f52;
+
   --theme-toggle-icon: "☀";
 }
 
@@ -167,6 +184,15 @@
   --table-felt-inset: rgba(0, 0, 0, 0.22);
   --table-shadow: rgba(28, 20, 15, 0.22);
 
+  /* Seat labels stay on dark pills over felt — do not use --text-light here */
+  --table-chrome-text: #1a1208;
+  --seat-plate-text: #f8f4ea;
+  --seat-plate-bg: rgba(8, 12, 20, 0.9);
+  --seat-plate-border: rgba(244, 213, 141, 0.28);
+  --seat-stack-text: #f4d58d;
+  --seat-stack-bg: rgba(8, 12, 20, 0.78);
+  --seat-stack-border: rgba(212, 175, 55, 0.42);
+
   --theme-toggle-icon: "☾";
 }
 
@@ -186,6 +212,20 @@
 
 [data-theme="light"] .btn--primary {
   border-color: transparent;
+}
+
+[data-theme="light"] .btn--play,
+[data-theme="light"] #play-now,
+[data-theme="light"] #open-table-play,
+[data-theme="light"] #open-table-play-inline,
+[data-theme="light"] .game-setup-panel__play {
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top, #2d9f62),
+    var(--pill-play-bg-bottom, #1a7a45)
+  );
+  border-color: var(--pill-play-border, #145c32);
+  color: var(--pill-play-text, #f4fff8);
 }
 
 [data-theme="light"] .rules__tab.is-active,
