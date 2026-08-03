@@ -242,8 +242,9 @@
   color: #f4fff8;
 }
 
-[data-theme="light"] .btn--action-pat {
-  background: linear-gradient(160deg, #c9a227, #a68952);
+[data-theme="light"] .btn--action-pat,
+[data-theme="light"] .btable-hero__actions .btn--action-pat {
+  background: linear-gradient(160deg, #f4d058, #e6b020);
   color: #1a1208;
 }
 
