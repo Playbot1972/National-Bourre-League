@@ -15,6 +15,20 @@ import {
   deriveScoreNet,
   startNextHandFunding,
   collectFundingForHandStart,
+  assertTableChipInvariant,
+  computeCarryForAnte,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  applyBourreMintToBaseline,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+  detectBourreMintDelta,
+  compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  computeNextHandFundingMintDelta,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 } from "./money-engine.js";
 
 export {
@@ -30,6 +44,20 @@ export {
   mergeNextDealFundingIntoScoreById,
   startNextHandFunding,
   collectFundingForHandStart,
+  assertTableChipInvariant,
+  computeCarryForAnte,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  applyBourreMintToBaseline,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+  detectBourreMintDelta,
+  compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  computeNextHandFundingMintDelta,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 };
 
 /** Subcollection path segment for immutable money events. */
@@ -182,13 +210,21 @@ export function buildV1DealScorePatches(collected, dealIds, buyIn = 100) {
  * Run v1 rebuy through money engine.
  */
 export function runV1Rebuy(input) {
-  const { sessionId, playerId, buyInAmount, handNumber = null, existingEvents = [] } = input;
+  const {
+    sessionId,
+    playerId,
+    buyInAmount,
+    handNumber = null,
+    existingEvents = [],
+    ledger = null,
+  } = input;
   return processRebuy({
     actionId: `rebuy:${sessionId}:${playerId}:${handNumber ?? "session"}`,
     playerId,
     buyInAmount,
     handId: handNumber != null ? String(handNumber) : null,
     existingEvents,
+    ledger,
   });
 }
 

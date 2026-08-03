@@ -113,6 +113,19 @@ import {
   nextMoneySequence,
   MONEY_EVENTS_COLLECTION,
   collectFundingForHandStart,
+  assertTableChipInvariant,
+  computeCarryForAnte,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  applyRebuyToBaseline,
+  applyBourreMintToBaseline,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+  detectBourreMintDelta,
+  compareUiToLedgerSnapshot,
+  buildLedgerStateFromSession,
+  bumpBaselineForNextHandFunding,
+  executeBotRebuyPlanLedgerAware,
 } from "./money-persistence.js";
 import {
   buildBotRebuySettlementPlan,
@@ -954,17 +967,36 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
   if (isMoneyEngineV1(sessionSnap.data())) {
     const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
     const handNumber = sessionSnap.data().handCount || 0;
+    const sessionData = sessionSnap.data();
+    const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
+    const bankrolls = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [d.id, Number(d.data().bankroll) || 0]),
+    );
     const rebuy = runV1Rebuy({
       sessionId,
       playerId,
       buyInAmount: buyIn,
       handNumber,
       existingEvents,
+      ledger: {
+        version: MONEY_ENGINE_VERSION,
+        buyInFallback: buyIn,
+        bankrolls,
+        nets: {},
+        carryOverPot: sessionData.carryOverPot || 0,
+        postedAntes: getSessionCurrentHand(sessionData)?.postedAntes ?? {},
+        scoreFlags: {},
+        sequence: sessionData.moneySequence || 0,
+      },
     });
+    const minted = rebuy.newEvents[0]?.amount ?? buyIn;
+    const newBankroll = rebuy.newBankrolls[playerId] ?? minted;
+    const newBaseline = applyRebuyToBaseline(baseline, minted);
     const batch = writeBatch(db);
     batch.update(scoreRef, {
-      bankroll: buyIn,
-      net: 0,
+      bankroll: newBankroll,
+      net: deriveScoreNet(newBankroll, buyIn),
       out: deleteField(),
       updatedAt: serverTimestamp(),
     });
@@ -972,9 +1004,31 @@ export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId 
       roomId,
       sessionId,
       events: rebuy.newEvents,
-      nextSequence: nextMoneySequence(sessionSnap.data(), rebuy.newEvents.length),
+      nextSequence: nextMoneySequence(sessionData, rebuy.newEvents.length),
+    });
+    batch.update(sessionDoc(roomId, sessionId), {
+      moneyLedgerBaseline: baselineDocFromBaseline(newBaseline),
+      updatedAt: serverTimestamp(),
     });
     await batch.commit();
+    const scoreById = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [
+        d.id,
+        d.id === playerId
+          ? { ...d.data(), bankroll: newBankroll, net: deriveScoreNet(newBankroll, buyIn) }
+          : d.data(),
+      ]),
+    );
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: { ...sessionData, moneyLedgerBaseline: newBaseline },
+      scoreById,
+      label: `after-rebuy:${playerId}`,
+      handId: handNumber,
+      existingEvents: [...existingEvents, ...rebuy.newEvents],
+      buyIn,
+    });
     return;
   }
 
@@ -1006,6 +1060,76 @@ async function applyBotAutoRebuysAfterSettlement(roomId, sessionId, { buyIn, reb
   if (plan.length === 0) return { applied: [] };
 
   const optInIds = new Set(sessionData.tableOptInIds || []);
+  const handNumber = sessionData.handCount || 0;
+
+  if (isMoneyEngineV1(sessionData)) {
+    const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
+    const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
+    let baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const ledger = buildLedgerStateFromSession(sessionData, scoreById, buyIn);
+    const rebuyResult = executeBotRebuyPlanLedgerAware({
+      plan,
+      sessionId,
+      handNumber,
+      buyInAmount: buyIn,
+      ledger,
+      baseline,
+      existingEvents,
+    });
+    const batch = writeBatch(db);
+    for (const item of plan) {
+      optInIds.add(item.playerId);
+      const patch = rebuyResult.scorePatches[item.playerId];
+      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+        bankroll: patch.bankroll,
+        net: patch.net,
+        out: deleteField(),
+        displayName: item.displayName,
+        updatedAt: serverTimestamp(),
+      });
+      scoreById[item.playerId] = {
+        ...scoreById[item.playerId],
+        bankroll: patch.bankroll,
+        net: patch.net,
+      };
+    }
+    appendMoneyEventsBatch(batch, {
+      roomId,
+      sessionId,
+      events: rebuyResult.rebuyEvents,
+      nextSequence: nextMoneySequence(sessionData, rebuyResult.rebuyEvents.length),
+    });
+    batch.update(sessionDoc(roomId, sessionId), {
+      players: patchSessionPlayersWithRebuyNames(sessionData.players, plan),
+      tableOptInIds: [...optInIds],
+      moneyLedgerBaseline: baselineDocFromBaseline(rebuyResult.baseline),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: {
+        ...sessionData,
+        moneyLedgerBaseline: rebuyResult.baseline,
+      },
+      scoreById,
+      label: `after-deferred-bot-rebuy`,
+      handId: handNumber,
+      existingEvents: [...existingEvents, ...rebuyResult.rebuyEvents],
+      buyIn,
+    });
+    logBourreAccounting("bot-auto-rebuy", {
+      roomId,
+      sessionId,
+      playerIds: plan.map((p) => p.playerId),
+      names: plan.map((p) => p.displayName),
+      buyIn,
+      phase: "deferred",
+    });
+    return { applied: plan.map((p) => p.playerId) };
+  }
+
   const batch = writeBatch(db);
   for (const item of plan) {
     optInIds.add(item.playerId);
@@ -1361,6 +1485,32 @@ function applyEnrollmentDealInTransaction(tx, ref, patch, roomId, sessionId) {
   });
 }
 
+/** Production table chip invariant — logs structured ok:true/false; strict mode throws. */
+function logSessionTableInvariant({
+  roomId,
+  sessionId,
+  sessionData,
+  scoreById,
+  label,
+  handId = null,
+  existingEvents = [],
+  buyIn = 100,
+  playerIds = null,
+}) {
+  if (!isMoneyEngineV1(sessionData)) return { ok: true };
+  const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+  const snapshot = buildSessionChipSnapshot(scoreById, sessionData, {
+    buyInFallback: buyIn,
+    playerIds,
+  });
+  return assertTableChipInvariant(snapshot, baseline, {
+    roomId,
+    sessionId,
+    handId,
+    label,
+  });
+}
+
 /** Attach v1 ANTE_DEDUCTED events when a deal patch collected antes without money log entries. */
 function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existingEvents, buyIn, sessionStake) {
   if (!isMoneyEngineV1(sessionData) || patch?.soloWin || !patch?.scorePatches) {
@@ -1368,10 +1518,12 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
   }
   const handNumber = (sessionData.handCount || 0) + 1;
   const participantIds = Object.keys(patch.scorePatches);
+  const pendingPosted = getSessionCurrentHand(sessionData)?.postedAntes ?? {};
+  const carryForAnte = computeCarryForAnte(sessionData.carryOverPot || 0, pendingPosted);
   const anteResult = runV1AnteCollection({
     sessionId,
     handNumber,
-    carryOverPot: sessionData.carryOverPot || 0,
+    carryOverPot: carryForAnte,
     participantIds,
     scoreById,
     sessionStake,
@@ -1395,6 +1547,21 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
     patch.currentHand && anteResult.postedAntes
       ? { ...patch.currentHand, postedAntes: anteResult.postedAntes }
       : patch.currentHand;
+
+  const mergedScores = { ...scoreById };
+  for (const [pid, row] of Object.entries(scorePatches)) {
+    mergedScores[pid] = { ...mergedScores[pid], ...row };
+  }
+  logSessionTableInvariant({
+    sessionId,
+    sessionData: { ...sessionData, currentHand },
+    scoreById: mergedScores,
+    label: `after-ante:deal:${handNumber}`,
+    handId: handNumber,
+    existingEvents: [...existingEvents, ...(anteResult.newEvents || [])],
+    buyIn,
+    playerIds: Object.keys(mergedScores),
+  });
 
   return {
     ...patch,
@@ -2906,6 +3073,9 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
     }
 
     const buyInMoney = buildSessionBuyInMoney(sessionRef.id, sortedIds, buyIn);
+    const moneyLedgerBaseline = baselineDocFromBaseline(
+      initialSessionBaseline(sortedIds.length, buyIn),
+    );
 
     const roomPatch = {
       claimedSessionNames: [...new Set([...liveClaimed, sessionName])],
@@ -2928,6 +3098,7 @@ export async function createSession(roomId, players, buyInAmount = 1, bourreOpts
       carryOverPot: 0,
       moneyEngineVersion: MONEY_ENGINE_VERSION,
       moneySequence: buyInMoney.newEvents.length,
+      moneyLedgerBaseline,
       dealerId: initialDealer,
       ...enrollmentFieldsForCreate(sortedIds, initialDealer),
       currentHand: emptyPreDealHand(),
@@ -3311,6 +3482,53 @@ async function recordHandClient(
     fundedScoreById,
     buyIn,
   );
+
+  let settlementBaseline = null;
+  let settlementLedger = null;
+  let botRebuyEvents = [];
+  if (isMoneyEngineV1(sessionData)) {
+    settlementBaseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, [
+      ...existingMoneyEvents,
+      ...newMoneyEvents,
+    ]);
+    const fundingParticipantIds = nextDealFunding?.byPlayer
+      ? Object.keys(nextDealFunding.byPlayer)
+      : seatIds;
+    settlementBaseline = bumpBaselineForNextHandFunding(settlementBaseline, {
+      scoreById: projectedScoreById,
+      nextDealFunding,
+      carryOverPot,
+      participantIds: fundingParticipantIds,
+      sessionStake: stake,
+      buyInFallback: buyIn,
+    });
+    settlementLedger = buildLedgerStateFromSession(
+      {
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneySequence: sessionData.moneySequence,
+      },
+      projectedScoreById,
+      buyIn,
+    );
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: {
+        ...sessionData,
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneyLedgerBaseline: settlementBaseline,
+      },
+      scoreById: projectedScoreById,
+      label: `after-settlement:${handNumber}`,
+      handId: handNumber,
+      existingEvents: [...existingMoneyEvents, ...newMoneyEvents],
+      buyIn,
+      playerIds: seatIds,
+    });
+  }
+
   const newDealerId = nextDealerId(
     scoreSnap,
     sessionData.dealerId,
@@ -3329,13 +3547,43 @@ async function recordHandClient(
     tableOptInIds: sessionData.tableOptInIds || [],
   });
   if (botRebuyPlan) {
-    for (const item of botRebuyPlan.plan) {
-      batch.update(scoreDoc(roomId, sessionId, item.playerId), {
-        bankroll: buyIn,
-        out: deleteField(),
-        displayName: item.displayName,
-        updatedAt: serverTimestamp(),
+    if (isMoneyEngineV1(sessionData) && settlementLedger && settlementBaseline) {
+      const rebuyResult = executeBotRebuyPlanLedgerAware({
+        plan: botRebuyPlan.plan,
+        sessionId,
+        handNumber,
+        buyInAmount: buyIn,
+        ledger: settlementLedger,
+        baseline: settlementBaseline,
+        existingEvents: [...existingMoneyEvents, ...newMoneyEvents],
       });
+      botRebuyEvents = rebuyResult.rebuyEvents;
+      settlementBaseline = rebuyResult.baseline;
+      settlementLedger = rebuyResult.ledger;
+      for (const item of botRebuyPlan.plan) {
+        const patch = rebuyResult.scorePatches[item.playerId];
+        batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+          bankroll: patch.bankroll,
+          net: patch.net,
+          out: deleteField(),
+          displayName: item.displayName,
+          updatedAt: serverTimestamp(),
+        });
+        projectedScoreById[item.playerId] = {
+          ...projectedScoreById[item.playerId],
+          bankroll: patch.bankroll,
+          net: patch.net,
+        };
+      }
+    } else {
+      for (const item of botRebuyPlan.plan) {
+        batch.update(scoreDoc(roomId, sessionId, item.playerId), {
+          bankroll: buyIn,
+          out: deleteField(),
+          displayName: item.displayName,
+          updatedAt: serverTimestamp(),
+        });
+      }
     }
     logBourreAccounting("bot-auto-rebuy", {
       roomId,
@@ -3362,27 +3610,17 @@ async function recordHandClient(
     sessionUpdate.players = botRebuyPlan.players;
     sessionUpdate.tableOptInIds = botRebuyPlan.tableOptInIds;
   }
+  if (isMoneyEngineV1(sessionData) && settlementBaseline) {
+    sessionUpdate.moneyLedgerBaseline = baselineDocFromBaseline(settlementBaseline);
+  }
   batch.update(sessionDoc(roomId, sessionId), sessionUpdate);
 
   if (isMoneyEngineV1(sessionData)) {
-    const rebuyEvents = [];
-    if (botRebuyPlan) {
-      for (const item of botRebuyPlan.plan) {
-        const rebuy = runV1Rebuy({
-          sessionId,
-          playerId: item.playerId,
-          buyInAmount: buyIn,
-          handNumber,
-          existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...rebuyEvents],
-        });
-        rebuyEvents.push(...rebuy.newEvents);
-      }
-    }
     appendMoneyEventsBatch(batch, {
       roomId,
       sessionId,
-      events: [...newMoneyEvents, ...rebuyEvents],
-      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + rebuyEvents.length),
+      events: [...newMoneyEvents, ...botRebuyEvents],
+      nextSequence: nextMoneySequence(sessionData, newMoneyEvents.length + botRebuyEvents.length),
     });
   }
 
@@ -3390,6 +3628,26 @@ async function recordHandClient(
     await batch.commit();
   } catch (err) {
     throw settlementError(err, "client-batch");
+  }
+
+  if (isMoneyEngineV1(sessionData) && botRebuyPlan && settlementBaseline) {
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: {
+        ...sessionData,
+        carryOverPot,
+        currentHand: emptyPreDealHand(),
+        moneyLedgerBaseline: settlementBaseline,
+        handCount: handNumber,
+      },
+      scoreById: projectedScoreById,
+      label: `after-bot-auto-rebuy:${handNumber}`,
+      handId: handNumber,
+      existingEvents: [...existingMoneyEvents, ...newMoneyEvents, ...botRebuyEvents],
+      buyIn,
+      playerIds: seatIds,
+    });
   }
 
   try {

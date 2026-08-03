@@ -9,10 +9,12 @@
  *   D — decision "I'm out" (80/120 → 60/100/40)
  *   E — idempotent funding merge replay
  *   F — 4/5 trick handoff to next hand
+ *   G — bourré bust mint (netBourreMint) + bot auto-rebuy (netCashIn) via bot_1
  *
  * Run:
  *   npm run proof:live-bankroll
  *   npm run proof:live-bankroll -- scenario-d
+ *   npm run proof:live-bankroll -- scenario-g
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -21,7 +23,14 @@ import { initializeTestEnvironment } from "@firebase/rules-unit-testing";
 import {
   mergeNextDealFundingIntoScoreById,
   collectFundingForHandStart,
-} from "../docs/bourre-rules.js";
+  assertTableChipInvariant,
+  baselineFromSessionDoc,
+  buildSessionChipSnapshot,
+  initialSessionBaseline,
+  baselineDocFromBaseline,
+  compareUiToLedgerSnapshot,
+  computeNextHandFundingMintDelta,
+} from "../docs/money-persistence.js";
 
 const PROJECT = "demo-national-bourre-league";
 const FUNCTIONS_BASE = `http://127.0.0.1:5001/${PROJECT}/us-central1`;
@@ -29,11 +38,86 @@ const RULES = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8
 
 const BUY_IN = 100;
 const ANTE = 20;
-const ROOM = "room_bankroll_e2e";
-const SESSION = "session_bankroll_e2e";
+/** Set per run in main() so emulator replays do not reuse stale session docs. */
+let ROOM = "room_bankroll_e2e";
+let SESSION = "session_bankroll_e2e";
+/** Scenario G uses a larger stake so bourré full-pot penalty exceeds a broke bot bankroll. */
+const SCENARIO_G_STAKE = 30;
+/** Internal bot id for scenario G (triggers ledger-aware auto-rebuy). */
+const SCENARIO_G_BOT = "bot_1";
+const SCENARIO_G_LOW_BOT_BANKROLL = 10;
 
 function potFromPosted(postedAntes = {}) {
   return Object.values(postedAntes).reduce((sum, raw) => sum + Math.max(0, Number(raw) || 0), 0);
+}
+
+function sessionPostedAntes(session) {
+  const current = session?.currentHand ?? {};
+  const live = session?.liveEnrollment?.deal?.publicHand ?? {};
+  const hand =
+    current?.phase && current.phase !== null ? current : live?.phase ? live : current;
+  return hand?.postedAntes ?? {};
+}
+
+function assertFullBaselineInvariant(label, session, scoreById, playerIds) {
+  const ids = playerIds;
+  const carryOverPot = session?.carryOverPot ?? 0;
+  const postedAntes = sessionPostedAntes(session);
+  const baseline = baselineFromSessionDoc(session?.moneyLedgerBaseline, []);
+  if (!session?.moneyLedgerBaseline) {
+    baseline.tableStartingTotal = BUY_IN * ids.length;
+  }
+  const snapshot = buildSessionChipSnapshot(
+    scoreById,
+    {
+      carryOverPot,
+      currentHand: { postedAntes },
+    },
+    { buyInFallback: BUY_IN, playerIds: ids },
+  );
+  const result = assertTableChipInvariant(snapshot, baseline, {
+    roomId: ROOM,
+    sessionId: SESSION,
+    label,
+    handId: session?.handCount ?? 0,
+  });
+  const potSum = Object.values(postedAntes).reduce(
+    (sum, raw) => sum + Math.max(0, Number(raw) || 0),
+    0,
+  );
+  const ui = {
+    bankrolls: Object.fromEntries(ids.map((pid) => [pid, scoreById[pid]?.bankroll ?? 0])),
+    pot: potSum,
+    carryPot: carryOverPot,
+  };
+  const uiMatchesLedger = compareUiToLedgerSnapshot(ui, snapshot);
+  const row = {
+    label,
+    ok: result.ok,
+    actual: result.actual,
+    expected: result.expected,
+    bankrollSum: result.bankrollSum,
+    potSum: result.potSum,
+    carryPot: result.carryPot,
+    netBourreMint: baseline.netBourreMint,
+    netCashIn: baseline.netCashIn,
+    netCashOut: baseline.netCashOut,
+    uiMatchesLedger,
+  };
+  console.info(`[bankroll-invariant] ${label}`, JSON.stringify(row));
+  console.info(
+    JSON.stringify({
+      tableId: ROOM,
+      sessionId: SESSION,
+      handId: session?.handCount ?? 0,
+      label,
+      ok: result.ok,
+      uiMatchesLedger,
+    }),
+  );
+  assert.equal(result.ok, true, `${label}: full baseline invariant`);
+  assert.equal(uiMatchesLedger, true, `${label}: uiMatchesLedger`);
+  return result;
 }
 
 function emulatorHostPort() {
@@ -104,12 +188,16 @@ function assertPostFunding(label, scoreById, hostId, botId, session, expected) {
   assert.equal(scoreById[hostId]?.bankroll, expected.human, `${label}: human`);
   assert.equal(scoreById[botId]?.bankroll, expected.bot, `${label}: bot`);
   assert.equal(pot, expected.pot, `${label}: pot`);
+  assertFullBaselineInvariant(label, session, scoreById, [hostId, botId]);
 }
 
-function assertSettled(label, scoreById, hostId, botId, expected) {
-  traceBankrolls(label, scoreById, hostId, botId);
+function assertSettled(label, scoreById, hostId, botId, expected, session = null) {
+  traceBankrolls(label, scoreById, hostId, botId, session);
   assert.equal(scoreById[hostId]?.bankroll, expected.human, `${label}: human settled`);
   assert.equal(scoreById[botId]?.bankroll, expected.bot, `${label}: bot settled`);
+  if (session) {
+    assertFullBaselineInvariant(label, session, scoreById, [hostId, botId]);
+  }
 }
 
 async function seedFreshSession(testEnv, hostId, botId) {
@@ -160,6 +248,7 @@ async function seedFreshSession(testEnv, hostId, botId) {
       carryOverPot: 0,
       moneyEngineVersion: "v1",
       moneySequence: 0,
+      moneyLedgerBaseline: baselineDocFromBaseline(initialSessionBaseline(2, BUY_IN)),
       dealerId: hostId,
       players: ids.map((id) => ({ playerId: id, displayName: id })),
       currentHand: { phase: null, participantIds: [], seatedIds: [], tricksByPlayer: {} },
@@ -169,6 +258,153 @@ async function seedFreshSession(testEnv, hostId, botId) {
       updatedAt: serverTimestamp(),
     });
   });
+}
+
+/** Scenario G: host + internal bot_1 with rebuyEnabled for bourré mint + auto-rebuy. */
+async function seedScenarioGSession(testEnv, hostId, botPlayerId) {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    const { doc, setDoc, serverTimestamp } = await import("firebase/firestore");
+
+    await setDoc(doc(db, "rooms", ROOM), {
+      inviteCode: "BNKR-G",
+      ownerId: hostId,
+      name: "Bankroll E2E G",
+      status: "active",
+      bourreSettings: {
+        buyInAmount: BUY_IN,
+        anteAmount: SCENARIO_G_STAKE,
+        rebuyEnabled: true,
+      },
+      createdAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, "roomMembers", `${ROOM}_${hostId}`), {
+      roomId: ROOM,
+      userId: hostId,
+      displayName: "host",
+      role: "owner",
+      joinedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, "rooms", ROOM, "sessions", SESSION, "scores", hostId), {
+      sessionId: SESSION,
+      roomId: ROOM,
+      playerId: hostId,
+      displayName: "host",
+      bankroll: BUY_IN,
+      tricksWon: 0,
+      handsWon: 0,
+      net: 0,
+      total: 0,
+      updatedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, "rooms", ROOM, "sessions", SESSION, "scores", botPlayerId), {
+      sessionId: SESSION,
+      roomId: ROOM,
+      playerId: botPlayerId,
+      displayName: "Bot Alpha",
+      bankroll: BUY_IN,
+      tricksWon: 0,
+      handsWon: 0,
+      net: 0,
+      total: 0,
+      isRobot: true,
+      updatedAt: serverTimestamp(),
+    });
+
+    await setDoc(doc(db, "rooms", ROOM, "sessions", SESSION), {
+      roomId: ROOM,
+      sessionName: "Bankroll Proof G",
+      status: "in_progress",
+      handCount: 0,
+      handStake: SCENARIO_G_STAKE,
+      handStakeLocked: false,
+      limEnabled: false,
+      carryOverPot: 0,
+      moneyEngineVersion: "v1",
+      moneySequence: 0,
+      moneyLedgerBaseline: baselineDocFromBaseline(initialSessionBaseline(2, BUY_IN)),
+      dealerId: hostId,
+      players: [
+        { playerId: hostId, displayName: "host" },
+        { playerId: botPlayerId, displayName: "Bot Alpha" },
+      ],
+      tableOptInIds: [hostId, botPlayerId],
+      currentHand: { phase: null, participantIds: [], seatedIds: [], tricksByPlayer: {} },
+      totals: { byPlayer: {}, netByPlayer: {}, tricks: 0 },
+      rounds: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+}
+
+async function patchLowBotBankrolls(hostId, botPlayerId, hostBankroll, botBankroll) {
+  const db = await getAdminDb();
+  await db.doc(`rooms/${ROOM}/sessions/${SESSION}/scores/${hostId}`).update({
+    bankroll: hostBankroll,
+    net: hostBankroll - BUY_IN,
+  });
+  await db.doc(`rooms/${ROOM}/sessions/${SESSION}/scores/${botPlayerId}`).update({
+    bankroll: botBankroll,
+    net: botBankroll - BUY_IN,
+  });
+}
+
+/** Post-ante play state with bourré setup: bot posts all remaining chips as ante. */
+async function seedBourrePlayState(hostId, botPlayerId, hostBeforeAnte, botBeforeAnte) {
+  const state = await readStateUnified(globalThis.__testEnv);
+  const stake = state.session?.handStake ?? SCENARIO_G_STAKE;
+  const hostPosted = stake;
+  const botPosted = Math.min(stake, botBeforeAnte);
+  const hostBankroll = hostBeforeAnte - hostPosted;
+  const botBankrollAfterAnte = Math.max(0, botBeforeAnte - botPosted);
+  const db = await getAdminDb();
+  const require = createRequire(import.meta.url);
+  const admin = require("../functions/node_modules/firebase-admin");
+  const handCount = (state.session?.handCount ?? 0) + 1;
+  await db.doc(`rooms/${ROOM}/sessions/${SESSION}/scores/${hostId}`).update({
+    bankroll: hostBankroll,
+    net: hostBankroll - BUY_IN,
+  });
+  await db.doc(`rooms/${ROOM}/sessions/${SESSION}/scores/${botPlayerId}`).update({
+    bankroll: botBankrollAfterAnte,
+    net: botBankrollAfterAnte - BUY_IN,
+    out: botBankrollAfterAnte <= 0,
+  });
+  await db.doc(`rooms/${ROOM}/sessions/${SESSION}`).update({
+    handCount,
+    handStakeLocked: true,
+    currentHand: {
+      phase: "play",
+      participantIds: [hostId, botPlayerId],
+      seatedIds: [hostId, botPlayerId],
+      dealerId: state.session?.dealerId ?? hostId,
+      tricksByPlayer: { [hostId]: 5, [botPlayerId]: 0 },
+      postedAntes: { [hostId]: hostPosted, [botPlayerId]: botPosted },
+      turnPlayerId: null,
+    },
+    liveEnrollment: admin.firestore.FieldValue.delete(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function readStateFromAdmin() {
+  const db = await getAdminDb();
+  const sessionRef = db.doc(`rooms/${ROOM}/sessions/${SESSION}`);
+  const sessionSnap = await sessionRef.get();
+  const scoresSnap = await sessionRef.collection("scores").get();
+  return {
+    session: sessionSnap.exists ? sessionSnap.data() : null,
+    scoreById: Object.fromEntries(scoresSnap.docs.map((d) => [d.id, d.data()])),
+  };
+}
+
+/** Prefer admin reads after Cloud Function writes (shared emulator). */
+async function readStateUnified(testEnv) {
+  return readStateFromAdmin();
 }
 
 async function readState(testEnv) {
@@ -192,26 +428,28 @@ async function dealNextHand(token, hostId) {
     roomId: ROOM,
     sessionId: SESSION,
   });
-  let state = await readState(globalThis.__testEnv);
+  let state = await readStateUnified(globalThis.__testEnv);
   const phase = state.session?.currentHand?.phase;
   if (phase === "reveal") {
     await callFunction("gameAdvanceHandReveal", token, {
       roomId: ROOM,
       sessionId: SESSION,
     });
-    state = await readState(globalThis.__testEnv);
+    state = await readStateUnified(globalThis.__testEnv);
   }
   return state;
 }
 
 async function seedPostAntePlayState(hostId, botId) {
+  const pre = await readStateUnified(globalThis.__testEnv);
+  const stake = pre.session?.handStake ?? ANTE;
   await globalThis.__testEnv.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     const { doc, setDoc, updateDoc, serverTimestamp } = await import("firebase/firestore");
     for (const pid of [hostId, botId]) {
       await updateDoc(doc(db, "rooms", ROOM, "sessions", SESSION, "scores", pid), {
-        bankroll: BUY_IN - ANTE,
-        net: -ANTE,
+        bankroll: BUY_IN - stake,
+        net: BUY_IN - stake - BUY_IN,
         updatedAt: serverTimestamp(),
       });
     }
@@ -225,7 +463,7 @@ async function seedPostAntePlayState(hostId, botId) {
           seatedIds: [hostId, botId],
           dealerId: hostId,
           tricksByPlayer: { [hostId]: 4, [botId]: 1 },
-          postedAntes: { [hostId]: ANTE, [botId]: ANTE },
+          postedAntes: { [hostId]: stake, [botId]: stake },
           turnPlayerId: null,
         },
         updatedAt: serverTimestamp(),
@@ -252,7 +490,7 @@ async function getAdminDb() {
 /** Writes visible to Cloud Functions (not rules-unit-testing isolated context). */
 async function patchSessionForSettlement(hostId, botId, tricks = null) {
   const trickMap = tricks ?? { [hostId]: 4, [botId]: 1 };
-  const state = await readState(globalThis.__testEnv);
+  const state = await readStateUnified(globalThis.__testEnv);
   const postedAntes =
     state.session?.currentHand?.postedAntes ?? { [hostId]: ANTE, [botId]: ANTE };
   const db = await getAdminDb();
@@ -287,6 +525,18 @@ async function patchSessionForSettlement(hostId, botId, tricks = null) {
   assert.ok(tricksTotal >= 5, `admin patch: expected 5 tricks, got ${tricksTotal}`);
 }
 
+async function recordHandWin(token, hostId, opponentId, tricksByPlayer) {
+  await callFunction("gameRecordHand", token, {
+    roomId: ROOM,
+    sessionId: SESSION,
+    winnerIds: [hostId],
+    participantIds: [hostId, opponentId],
+    settlement: "win",
+    recordedBy: hostId,
+    tricksByPlayer,
+  });
+}
+
 async function recordHumanWin(token, hostId, botId, tricks = null, { fromCurrent = false } = {}) {
   if (fromCurrent) {
     await patchSessionForSettlement(hostId, botId, tricks);
@@ -302,6 +552,131 @@ async function recordHumanWin(token, hostId, botId, tricks = null, { fromCurrent
     recordedBy: hostId,
     tricksByPlayer: tricks ?? { [hostId]: 4, [botId]: 1 },
   });
+}
+
+async function runScenarioG(token, hostId, botPlayerId) {
+  console.info(
+    "\n=== Scenario G — bourré bust mint + bot auto-rebuy ===\n" +
+      JSON.stringify({
+        scenario: "G",
+        roomId: ROOM,
+        sessionId: SESSION,
+        description: "bourré bust mint (netBourreMint) + ledger-aware bot auto-rebuy (netCashIn)",
+        buyIn: BUY_IN,
+        ante: SCENARIO_G_STAKE,
+        botPlayerId,
+        lowBotBankroll: SCENARIO_G_LOW_BOT_BANKROLL,
+        rebuyEnabled: true,
+      }),
+  );
+
+  await seedScenarioGSession(globalThis.__testEnv, hostId, botPlayerId);
+
+  await seedPostAntePlayState(hostId, botPlayerId);
+  let state = await readStateUnified(globalThis.__testEnv);
+  traceBankrolls("G hand 1 ante", state.scoreById, hostId, botPlayerId, state.session);
+  assertFullBaselineInvariant(
+    "G hand 1 ante",
+    state.session,
+    state.scoreById,
+    [hostId, botPlayerId],
+  );
+
+  await recordHandWin(token, hostId, botPlayerId, { [hostId]: 4, [botPlayerId]: 1 });
+  state = await readStateUnified(globalThis.__testEnv);
+  traceBankrolls("G hand 1 settled", state.scoreById, hostId, botPlayerId, state.session);
+  assertFullBaselineInvariant(
+    "G hand 1 settled",
+    state.session,
+    state.scoreById,
+    [hostId, botPlayerId],
+  );
+
+  await patchLowBotBankrolls(hostId, botPlayerId, 190, SCENARIO_G_LOW_BOT_BANKROLL);
+  traceBankrolls(
+    "G after low-stack patch",
+    (await readStateUnified(globalThis.__testEnv)).scoreById,
+    hostId,
+    botPlayerId,
+  );
+
+  await seedBourrePlayState(hostId, botPlayerId, 190, SCENARIO_G_LOW_BOT_BANKROLL);
+  state = await readStateUnified(globalThis.__testEnv);
+  assertFullBaselineInvariant(
+    "G bourré hand post-ante",
+    state.session,
+    state.scoreById,
+    [hostId, botPlayerId],
+  );
+
+  await recordHandWin(token, hostId, botPlayerId, { [hostId]: 5, [botPlayerId]: 0 });
+  state = await readStateUnified(globalThis.__testEnv);
+
+  const db = await getAdminDb();
+  const handSnap = await db
+    .collection(`rooms/${ROOM}/sessions/${SESSION}/hands`)
+    .doc(String(state.session?.handCount ?? 0))
+    .get();
+  const handLedger = handSnap.data() ?? {};
+  console.info("[bankroll-trace] G bourré hand ledger", JSON.stringify(handLedger.bourreIds ?? []));
+  assert.ok(
+    (handLedger.bourreIds ?? []).includes(botPlayerId),
+    "G: bourré bust recorded on hand ledger",
+  );
+  console.info(
+    "[bankroll-trace] G nextDealFunding",
+    JSON.stringify(state.session?.nextDealFunding ?? null),
+  );
+
+  const stake = state.session?.handStake ?? SCENARIO_G_STAKE;
+  const hostSettled = state.scoreById[hostId]?.bankroll ?? 0;
+  const expectedMint = computeNextHandFundingMintDelta({
+    scoreById: {
+      [hostId]: { bankroll: hostSettled },
+      [botPlayerId]: { bankroll: 0, out: true },
+    },
+    nextDealFunding: state.session?.nextDealFunding ?? null,
+    carryOverPot: state.session?.carryOverPot ?? 0,
+    participantIds: [hostId, botPlayerId],
+    sessionStake: stake,
+    buyInFallback: BUY_IN,
+  });
+  console.info("[bankroll-trace] G computeNextHandFundingMintDelta", expectedMint);
+
+  const baseline = state.session?.moneyLedgerBaseline ?? {};
+  console.info("[bankroll-trace] G moneyLedgerBaseline", JSON.stringify(baseline));
+  if (expectedMint > 0) {
+    assert.ok(
+      Number(baseline.netBourreMint) > 0,
+      `G: netBourreMint must increase after bourré bust mint (expected ~${expectedMint})`,
+    );
+  } else {
+    console.info(
+      "G: bourré bust covered via ledger-aware bot auto-rebuy (netCashIn) — netBourreMint unchanged",
+    );
+    assert.ok(
+      Number(baseline.netCashIn) >= BUY_IN,
+      "G: netCashIn must reflect bot auto-rebuy when mint delta is 0",
+    );
+  }
+  assert.equal(Number(baseline.netCashOut) || 0, 0, "G: netCashOut remains 0 (cash-out not implemented)");
+  assert.equal(
+    state.scoreById[botPlayerId]?.bankroll,
+    BUY_IN,
+    "G: bot auto-rebuy restores buyIn bankroll",
+  );
+  assert.ok(!state.scoreById[botPlayerId]?.out, "G: bot out flag cleared after rebuy");
+
+  assertSettled(
+    "G bourré settled + auto-rebuy",
+    state.scoreById,
+    hostId,
+    botPlayerId,
+    { human: state.scoreById[hostId]?.bankroll, bot: BUY_IN },
+    state.session,
+  );
+
+  console.info("Scenario G: bourré bust mint + bot auto-rebuy — all invariant checks ok:true");
 }
 
 async function runScenarioA(token, hostId, botId) {
@@ -325,7 +700,7 @@ async function runScenarioB(token, hostId, botId) {
 
   await recordHumanWin(token, hostId, botId);
   state = await readState(globalThis.__testEnv);
-  assertSettled("B hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 });
+  assertSettled("B hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 }, state.session);
   assert.ok(state.session.nextDealFunding, "B: nextDealFunding after settlement");
 
   state = await dealNextHand(token, hostId);
@@ -340,7 +715,7 @@ async function runScenarioC(token, hostId, botId) {
   await runScenarioB(token, hostId, botId);
   await recordHumanWin(token, hostId, botId, null, { fromCurrent: true });
   let state = await readState(globalThis.__testEnv);
-  assertSettled("C hand 2 settled", state.scoreById, hostId, botId, { human: 140, bot: 60 });
+  assertSettled("C hand 2 settled", state.scoreById, hostId, botId, { human: 140, bot: 60 }, state.session);
 
   state = await dealNextHand(token, hostId);
   assertPostFunding("C hand 3 start", state.scoreById, hostId, botId, state.session, {
@@ -377,7 +752,7 @@ async function runScenarioD(token, hostId, botId) {
   assertSettled("D hand 1 settled (I'm out)", state.scoreById, hostId, botId, {
     human: 80,
     bot: 120,
-  });
+  }, state.session);
 
   state = await dealNextHand(token, hostId);
   assertPostFunding("D hand 2 start", state.scoreById, hostId, botId, state.session, {
@@ -424,7 +799,7 @@ async function runScenarioF(token, hostId, botId) {
   await runScenarioA(token, hostId, botId);
   await recordHumanWin(token, hostId, botId, null, { fromCurrent: true });
   let state = await readState(globalThis.__testEnv);
-  assertSettled("F hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 });
+  assertSettled("F hand 1 settled", state.scoreById, hostId, botId, { human: 120, bot: 80 }, state.session);
   assert.ok(state.session.nextDealFunding, "F: nextDealFunding written");
 
   state = await dealNextHand(token, hostId);
@@ -447,6 +822,7 @@ const SCENARIOS = {
   d: runScenarioD,
   e: runScenarioE,
   f: runScenarioF,
+  g: runScenarioG,
 };
 
 async function main() {
@@ -457,10 +833,13 @@ async function main() {
     firestore: { rules: RULES, host, port },
   });
   globalThis.__testEnv = testEnv;
+  const runId = Date.now();
+  ROOM = `room_bankroll_${runId}`;
+  SESSION = `session_bankroll_${runId}`;
 
   try {
-    const hostAuth = await authSignUp("bankroll-host@test.local");
-    const botAuth = await authSignUp("bankroll-bot@test.local");
+    const hostAuth = await authSignUp(`bankroll-host-${runId}@test.local`);
+    const botAuth = await authSignUp(`bankroll-bot-${runId}@test.local`);
     const hostId = hostAuth.uid;
     const botId = botAuth.uid;
     const token = hostAuth.idToken;
@@ -476,9 +855,13 @@ async function main() {
       if (!fn) {
         throw new Error(`Unknown scenario "${key}". Use: ${Object.keys(SCENARIOS).join(", ")}`);
       }
-      await seedFreshSession(testEnv, hostId, botId);
       console.info(`\n=== Scenario ${key.toUpperCase()} ===`);
-      await fn(token, hostId, botId);
+      if (key === "g") {
+        await runScenarioG(token, hostId, SCENARIO_G_BOT);
+      } else {
+        await seedFreshSession(testEnv, hostId, botId);
+        await fn(token, hostId, botId);
+      }
       results.push({ scenario: key.toUpperCase(), ok: true });
     }
 
@@ -489,7 +872,8 @@ async function main() {
           scenarios: results,
           productionPath: [
             "gameEnsureHandEnrollment → mergeNextDealFundingIntoScoreById → collectFundingForHandStart",
-            "gameRecordHand → nextDealFunding",
+            "gameRecordHand → nextDealFunding → bumpBaselineForNextHandFunding (netBourreMint)",
+            "gameRecordHand → executeBotRebuyPlanLedgerAware (netCashIn, bot_*)",
             "gameSetHandParticipation (I'm out) → buildSoloWinSettlement (prefunded pot)",
           ],
         },
