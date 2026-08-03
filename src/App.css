@@ -182,12 +182,13 @@
 }
 
 .app__main {
-  flex: 1;
+  flex: 1 1 auto;
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
   padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 48px) 64px;
   min-width: 0;
+  min-height: 0;
 }
 
 .app__footer {
@@ -464,5 +465,7 @@
 
   .app__main {
     padding-inline: clamp(12px, 3vw, 20px);
+    min-height: 40vh;
+    min-height: 40dvh;
   }
 }

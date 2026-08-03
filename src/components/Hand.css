@@ -11,7 +11,12 @@
 }
 
 .hand__fan-stage {
-  display: contents;
+  display: flex;
+  flex-wrap: wrap;
+  gap: inherit;
+  justify-content: inherit;
+  align-items: flex-end;
+  width: 100%;
 }
 
 .hand__slot {
@@ -43,7 +48,7 @@
   --fan-offset: calc(var(--card-i, 0) - var(--fan-mid));
   transform:
     rotateZ(calc(var(--fan-offset) * 5deg))
-    translateY(calc(abs(var(--fan-offset)) * -1px));
+    translateY(calc(max(var(--fan-offset), calc(var(--fan-offset) * -1)) * -1px));
   transform-origin: center bottom;
   transition:
     margin-left 260ms cubic-bezier(0.22, 1, 0.36, 1),
