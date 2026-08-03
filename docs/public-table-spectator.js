@@ -79,6 +79,23 @@ export function isPublicTableWatchOnly(sessionData, userId, { scorePlayerIds = [
 }
 
 /**
+ * Client watch-only mode — spectator queue without a score row, unless the user
+ * is an active participant in the current hand (scores may lag on mixed bot tables).
+ */
+export function resolveTableWatchOnly(
+  sessionData,
+  userId,
+  { scorePlayerIds = [], handParticipantIds = [] } = {},
+) {
+  if (!userId) return false;
+  let watchOnly = isPublicTableWatchOnly(sessionData, userId, { scorePlayerIds });
+  if (handParticipantIds.includes(userId)) {
+    watchOnly = false;
+  }
+  return watchOnly;
+}
+
+/**
  * No-op table intents — blocks client play actions while spectating.
  */
 export function createWatchOnlyTableIntentHandlers() {

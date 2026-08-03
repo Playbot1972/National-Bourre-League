@@ -53,6 +53,8 @@ interface CardTableProps {
   trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
+  authSignedIn?: boolean;
+  authReady?: boolean;
   legalPlayIndices?: number[] | null;
   /** Bot-heuristic best play index for the viewing player (display hand space). */
   recommendedPlayIndex?: number | null;
@@ -95,6 +97,8 @@ export function CardTable({
   trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
+  authSignedIn,
+  authReady = true,
   legalPlayIndices,
   recommendedPlayIndex,
   recommendedDiscardIndices = [],
@@ -431,7 +435,9 @@ export function CardTable({
         enrollmentActive={enrollmentActive}
         isInHand={Boolean(selfPlayer?.inHand)}
         isDealer={Boolean(selfPlayer?.isDealer)}
-        signedIn={Boolean(currentUserId)}
+        signedIn={authSignedIn ?? Boolean(currentUserId)}
+        authReady={authReady}
+        watchOnly={watchOnly}
         isMyTurn={isHeroDrawOrPlayTurn({
           currentUserId,
           session,
