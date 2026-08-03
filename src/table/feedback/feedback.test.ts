@@ -73,9 +73,9 @@ describe("sound pack registry", () => {
     assert.equal(soundAssetUrl("classic", "card-shuffle-normal"), "/sounds/card-shuffle-normal.mp3");
   });
 
-  it("last card trick win resolves to kungfu.mp3", () => {
-    assert.equal(resolveSoundAsset("classic", "lastCardTrickWin"), "kungfu");
-    assert.equal(soundAssetUrl("classic", "kungfu"), "/sounds/kungfu.mp3");
+  it("last card trick win resolves to shotgun.mp3", () => {
+    assert.equal(resolveSoundAsset("classic", "lastCardTrickWin"), "shotgun");
+    assert.equal(soundAssetUrl("classic", "shotgun"), "/sounds/shotgun.mp3");
   });
 
   it("batch-1 trickWin always resolves to trick-win-normal (trick-win-big deferred)", () => {

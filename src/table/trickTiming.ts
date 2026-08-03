@@ -191,7 +191,7 @@ export function lastCardPlayWinsTrick(input: {
   return lastPlay.playerId === input.winnerId;
 }
 
-/** Card-place kungfu: final trick, hand-emptying play completes the trick and wins it. */
+/** Card-place shotgun: final trick, hand-emptying play completes the trick and wins it. */
 export function shouldPlayKungfuCardPlace(input: {
   trickNumber: number;
   playerId: string;

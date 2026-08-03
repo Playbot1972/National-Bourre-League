@@ -12709,7 +12709,7 @@ var $c = (/* @__PURE__ */ e(((e) => {
 function rl(e) {
 	return nl.includes(e);
 }
-var il = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lead-sweetener-light.lead-sweetener-strong.trick-win-normal.trick-win-big.hand-win-stinger.card-shuffle-normal.card-shuffle-final.card-select.card-illegal.close.ui-button-press.coin-chime-light.moneygone.draw.draw1.draw2.draw3.draw4.draw5.Fahhh.fahhh.fahhhh.timer.kungfu".split("."), al = {
+var il = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lead-sweetener-light.lead-sweetener-strong.trick-win-normal.trick-win-big.hand-win-stinger.card-shuffle-normal.card-shuffle-final.card-select.card-illegal.close.ui-button-press.coin-chime-light.moneygone.draw.draw1.draw2.draw3.draw4.draw5.Fahhh.fahhh.fahhhh.timer.shotgun".split("."), al = {
 	"card-place-normal": "card-place-normal.mp3",
 	"card-place-heavy": "card-place-heavy.mp3",
 	"card-place-soft": "card-place-soft.mp3",
@@ -12736,7 +12736,7 @@ var il = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lea
 	fahhh: "fahhh.mp3",
 	fahhhh: "fahhhh.mp3",
 	timer: "timer.mp3",
-	kungfu: "kungfu.mp3"
+	shotgun: "shotgun.mp3"
 }, ol = {
 	1: "draw1",
 	2: "draw2",
@@ -12778,7 +12778,7 @@ function dl(e, t, n = {}) {
 		case "deleteRoom": return "close";
 		case "fold": return "card-place-heavy";
 		case "turnTimer": return "timer";
-		case "lastCardTrickWin": return "kungfu";
+		case "lastCardTrickWin": return "shotgun";
 	}
 }
 function fl(e) {
