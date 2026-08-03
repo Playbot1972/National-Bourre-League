@@ -78,7 +78,7 @@ describe("legacy sync guard wiring", () => {
 
   it("buildTableSessionProps avoids pseudo seated row for spectators", () => {
     const src = readFileSync(join(root, "docs/app.js"), "utf8");
-    assert.match(src, /isPublicTableWatchOnly\(s, myUid/);
+    assert.match(src, /resolveTableWatchOnly\(s, myUid/);
     assert.match(src, /watchOnly \? createWatchOnlyTableIntentHandlers\(\)/);
     assert.match(src, /publicTableWatchOnlyBannerMessage/);
   });

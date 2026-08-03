@@ -211,6 +211,10 @@ export interface TableSessionViewProps {
   voteStatus: string;
   enrollmentActive?: boolean;
   currentUserId: string | null;
+  /** Auth session resolved — distinct from watch-only spectator mode. */
+  authSignedIn?: boolean;
+  /** Firebase Auth initial check finished (avoids false sign-in during refresh). */
+  authReady?: boolean;
   /** Indices of legal plays for the viewing player (computed from private hand). */
   legalPlayIndices?: number[] | null;
   /** Bourré players from the most recently settled hand (drives avatar alert). */

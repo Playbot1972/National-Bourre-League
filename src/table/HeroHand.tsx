@@ -41,6 +41,10 @@ interface HeroHandProps {
   isInHand?: boolean;
   isDealer?: boolean;
   signedIn?: boolean;
+  /** Firebase Auth initial check finished — defer sign-in prompt until known. */
+  authReady?: boolean;
+  /** Public-table spectator — hero cards hidden but user may still be signed in. */
+  watchOnly?: boolean;
   isMyTurn?: boolean;
   drawCompleted?: boolean;
   maxDrawDiscards?: number;
@@ -107,6 +111,8 @@ export function HeroHand({
   isInHand = false,
   isDealer = false,
   signedIn = false,
+  authReady = true,
+  watchOnly = false,
   isMyTurn = false,
   drawCompleted = false,
   maxDrawDiscards = 4,
@@ -862,10 +868,26 @@ export function HeroHand({
     ],
   );
 
+  if (!authReady) {
+    return (
+      <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
+        <p className="btable-hero__fallback muted small">Loading your hand…</p>
+      </div>
+    );
+  }
+
   if (!signedIn) {
     return (
       <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
         <p className="btable-hero__fallback muted small">Sign in to see your dealt cards.</p>
+      </div>
+    );
+  }
+
+  if (watchOnly && dealtPhase) {
+    return (
+      <div className={heroShellClass(settings, className)} aria-live="polite" data-testid="hero-hand">
+        <p className="btable-hero__fallback muted small">Watching this hand — your cards are hidden.</p>
       </div>
     );
   }

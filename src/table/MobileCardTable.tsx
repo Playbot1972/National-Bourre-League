@@ -64,6 +64,8 @@ interface MobileCardTableProps {
   trumpHolderPresentation: TrumpHolderPresentation;
   privateHandReady?: boolean;
   currentUserId?: string | null;
+  authSignedIn?: boolean;
+  authReady?: boolean;
   legalPlayIndices?: number[] | null;
   recommendedPlayIndex?: number | null;
   recommendedDiscardIndices?: number[];
@@ -102,6 +104,8 @@ export function MobileCardTable({
   trumpHolderPresentation,
   privateHandReady = false,
   currentUserId = null,
+  authSignedIn,
+  authReady = true,
   legalPlayIndices,
   recommendedPlayIndex,
   recommendedDiscardIndices = [],
@@ -490,7 +494,9 @@ export function MobileCardTable({
           enrollmentActive={enrollmentActive}
           isInHand={Boolean(selfPlayer?.inHand)}
           isDealer={Boolean(selfPlayer?.isDealer)}
-          signedIn={Boolean(currentUserId)}
+          signedIn={authSignedIn ?? Boolean(currentUserId)}
+          authReady={authReady}
+          watchOnly={watchOnly}
           isMyTurn={isHeroDrawOrPlayTurn({
             currentUserId,
             session,

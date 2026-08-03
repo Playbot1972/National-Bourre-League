@@ -241,6 +241,7 @@ import {
 import {
   createWatchOnlyTableIntentHandlers,
   isPublicTableWatchOnly,
+  resolveTableWatchOnly,
   spectatorCanJoinNextDeal,
 } from "./public-table-spectator.js";
 import {
@@ -325,9 +326,19 @@ function parseBuyInAmount(raw) {
 // Session state
 // ---------------------------------------------------------------------------
 let session = null; // NormalizedUser | null
+/** True after Firebase Auth finishes its initial persisted-session check. */
+let authReady = false;
 
 function isAuthed() {
   return session !== null;
+}
+
+function markAuthReadyAndResyncTable() {
+  authReady = true;
+  if (tablePlayOpen && openSessionId) {
+    const sessionObj = currentSessions.find((x) => x.id === openSessionId);
+    if (sessionObj) scheduleTableSessionSync(sessionObj);
+  }
 }
 
 // Apply a session and re-render. Used both by the auth-state listener and
@@ -4695,8 +4706,13 @@ function buildTableSessionProps(s) {
   );
   const memberOrder = rosterPlayerOrder(currentMembers, s.players || []);
   const myUid = session?.uid ?? null;
-  const scorePlayerIds = openScores.map((sc) => sc.playerId).filter(Boolean);
-  const watchOnly = isPublicTableWatchOnly(s, myUid, { scorePlayerIds });
+  const currentHand = getSessionCurrentHand(s);
+  const handParticipantIds = currentHand?.participantIds || [];
+  const scorePlayerIds = mergedScores.map((sc) => sc.playerId).filter(Boolean);
+  const watchOnly = resolveTableWatchOnly(s, myUid, {
+    scorePlayerIds,
+    handParticipantIds,
+  });
   const publicQueueMode = resolvePublicTableQueueMode(currentRoom);
   const playNowModeLabel = publicQueueMode
     ? `${playNowQueueModeShortLabel(publicQueueMode)} table`
@@ -4717,8 +4733,6 @@ function buildTableSessionProps(s) {
       },
     ];
   }
-  const currentHand = getSessionCurrentHand(s);
-  const handParticipantIds = currentHand?.participantIds || [];
   const handPhase = currentHand?.phase ?? null;
   const trumpSuit = currentHand?.trumpSuit ?? null;
   const trumpUpcard = currentHand?.trumpUpcard ?? null;
@@ -4982,7 +4996,9 @@ function buildTableSessionProps(s) {
     splitSharePerWinner,
     recentBourreIds,
     voteStatus: renderSettlementVoteStatus(s, displayScores, activeWinnerIds),
-    currentUserId: watchOnly ? null : myUid,
+    currentUserId: myUid,
+    authSignedIn: Boolean(myUid),
+    authReady,
     watchOnly,
     watchOnlyMessage: watchOnly
       ? publicTableWatchOnlyBannerMessage({
@@ -6136,6 +6152,13 @@ completeGoogleRedirectSignIn().catch((err) => {
   openAuth("signin");
   showError(describeAuthError(err));
 });
+
+void whenAuthReady()
+  .then(() => markAuthReadyAndResyncTable())
+  .catch((err) => {
+    console.warn("auth ready:", err?.message ?? err);
+    markAuthReadyAndResyncTable();
+  });
 
 onAuthChange((user) => {
   const wasAuthed = isAuthed();
