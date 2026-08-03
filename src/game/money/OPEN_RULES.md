@@ -35,8 +35,7 @@
 - `bumpBaselineForNextHandFunding()` / `computeNextHandFundingMintDelta()` simulate next-hand funding at settlement and increment baseline.
 - `reconcileChipDrift()` in audit harness attributes unexplained positive chip growth to bourré mint.
 - **Intended design, not a bug.**
-
----
+- When `rebuyEnabled` and bot auto-rebuy runs in the same settlement batch, recovery may appear as `netCashIn` instead of `netBourreMint` if `computeNextHandFundingMintDelta` is 0 (e.g. `skipNextAnte` / `bourreReplacementDue` path). See `proof:live-bankroll` scenario G.
 
 ## Hard invariant (canonical)
 
