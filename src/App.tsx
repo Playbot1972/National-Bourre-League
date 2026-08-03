@@ -5,7 +5,9 @@ import { TutorialScreen } from "./screens/TutorialScreen";
 import { PrivateRoomScreen } from "./screens/PrivateRoomScreen";
 import { BUILD_ID, BUILD_STAMPED_AT, VERSION_DISPLAY_LABEL, VERSION_LABEL } from "./version";
 import { getStoredTheme, initTheme, saveTheme, type ThemeMode } from "./theme";
+import { TutorialErrorBoundary } from "./TutorialErrorBoundary";
 import {
+  logTutorialRoute,
   resolveActiveNavScreen,
   screenFromLocation,
   writeScreenToLocation,
@@ -42,8 +44,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    logTutorialRoute("screen-change", { screen });
+  }, [screen]);
+
+  useEffect(() => {
     const syncFromLocation = () => {
       const next = screenFromLocation();
+      logTutorialRoute("location-sync", { next });
       setScreen((current) => (current === next ? current : next));
     };
     syncFromLocation();
@@ -112,6 +119,7 @@ export default function App() {
   };
 
   const navigateScreen = (next: Screen) => {
+    logTutorialRoute("navigate", { next });
     writeScreenToLocation(next);
     setScreen(next);
   };
@@ -178,7 +186,11 @@ export default function App() {
       <main className="app__main">
         {screen === "home" && <HomeScreen onNavigate={navigateScreen} />}
         {screen === "rules" && <RulesScreen />}
-        {screen === "tutorial" && <TutorialScreen />}
+        {screen === "tutorial" && (
+          <TutorialErrorBoundary>
+            <TutorialScreen />
+          </TutorialErrorBoundary>
+        )}
         {screen === "room" && <PrivateRoomScreen />}
       </main>
 

@@ -1,11 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Hand } from "../components/Hand";
 import { PlayingCard, type CardState } from "../components/PlayingCard";
 import { TUTORIAL_STEPS, type StepVisual } from "../data/tutorial";
+import { logTutorialRender } from "../tutorial-route";
 import { type Card } from "../types";
 import "./TutorialScreen.css";
 
 export function TutorialScreen() {
+  useEffect(() => {
+    logTutorialRender("mount", {
+      container: Boolean(document.querySelector(".tut")),
+    });
+    return () => logTutorialRender("unmount");
+  }, []);
+
+  return <TutorialScreenInner />;
+}
+
+function TutorialScreenInner() {
   const [index, setIndex] = useState(0);
   const step = TUTORIAL_STEPS[index];
   const total = TUTORIAL_STEPS.length;
@@ -16,7 +28,7 @@ export function TutorialScreen() {
   const goPrev = () => setIndex((i) => Math.max(i - 1, 0));
 
   return (
-    <div className="tut">
+    <div className="tut" data-testid="tutorial-screen">
       <header className="tut__head screen-header">
         <p className="eyebrow">Interactive tutorial</p>
         <h1>Play a hand of Bourré</h1>
