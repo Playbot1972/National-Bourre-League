@@ -1157,15 +1157,51 @@ body.room-detail-open .room-actions {
 }
 
 .btn--play {
-  background: linear-gradient(160deg, #ffd84d, #f5c518);
-  border: 1px solid #d4a80a;
-  color: #1a1208;
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top, #2d9f62),
+    var(--pill-play-bg-bottom, #1a7a45)
+  );
+  border: 1px solid var(--pill-play-border, #145c32);
+  color: var(--pill-play-text, #f4fff8);
   font-weight: 600;
 }
 
-.btn--play:hover {
-  background: linear-gradient(160deg, #ffe566, #ffcf33);
-  border-color: #e6b80f;
+.btn--play:hover:not(:disabled) {
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top-hover, #35b36e),
+    var(--pill-play-bg-bottom-hover, #228f52)
+  );
+  border-color: var(--pill-play-border, #145c32);
+  color: var(--pill-play-text, #f4fff8);
+}
+
+/* Play / Play Now entry pills — always green (all themes) */
+#play-now,
+#open-table-play,
+#open-table-play-inline,
+.game-setup-panel__play {
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top, #2d9f62),
+    var(--pill-play-bg-bottom, #1a7a45)
+  );
+  border-color: var(--pill-play-border, #145c32);
+  color: var(--pill-play-text, #f4fff8);
+}
+
+#play-now:hover:not(:disabled),
+#open-table-play:hover:not(:disabled),
+#open-table-play-inline:hover:not(:disabled),
+.game-setup-panel__play:hover:not(:disabled) {
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top-hover, #35b36e),
+    var(--pill-play-bg-bottom-hover, #228f52)
+  );
+  border-color: var(--pill-play-border, #145c32);
+  color: var(--pill-play-text, #f4fff8);
 }
 
 .mini-card__action-pill.btn--danger {

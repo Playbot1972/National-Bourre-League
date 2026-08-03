@@ -1491,7 +1491,7 @@
   padding: 0 2px;
   font-size: 11px;
   line-height: 1.2;
-  color: rgba(244, 240, 232, 0.78);
+  color: var(--table-chrome-text, rgba(244, 240, 232, 0.9));
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -2238,9 +2238,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--text-light, #f3efe6);
-  background: rgba(8, 12, 20, 0.92);
-  border: 1px solid rgba(244, 213, 141, 0.22);
+  color: var(--seat-plate-text, #f3efe6);
+  background: var(--seat-plate-bg, rgba(8, 12, 20, 0.92));
+  border: 1px solid var(--seat-plate-border, rgba(244, 213, 141, 0.22));
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
@@ -2341,7 +2341,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-light, #f3efe6);
+  color: var(--seat-plate-text, #f3efe6);
 }
 
 .bseat__net {
@@ -2366,9 +2366,9 @@
   font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--gold-300, #d4af37);
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: var(--seat-stack-text, #f4d58d);
+  background: var(--seat-stack-bg, rgba(0, 0, 0, 0.58));
+  border: 1px solid var(--seat-stack-border, rgba(212, 175, 55, 0.38));
   line-height: 1.2;
 }
 
