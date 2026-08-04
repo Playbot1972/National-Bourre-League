@@ -197,6 +197,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   shuffleFinal: "card-shuffle-final",
   draw: "draw",
   cardPlace: ["card-place-soft", "card-place-normal", "card-place-heavy"],
+  winningCardSweetener: ["bling", "lead-sweetener-light", "lead-sweetener-strong", "arcadecentipede"],
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
@@ -270,6 +271,8 @@ export function resolveSoundAsset(
       if (tier >= 2) return "card-place-heavy";
       // Batch 1: tier 1 (soft) deferred — alias to normal.
       return "card-place-normal";
+    case "winningCardSweetener":
+      return "bling";
     case "leadChange":
       return tier >= 2 ? "lead-sweetener-strong" : "lead-sweetener-light";
     case "trickWin":
