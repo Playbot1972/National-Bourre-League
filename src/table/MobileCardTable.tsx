@@ -224,6 +224,7 @@ export function MobileCardTable({
     currentUserId,
     participantCount,
     trickNumber: session.currentTrick?.trickNumber ?? trickPresentation.frozenTrick?.trickNumber ?? 1,
+    handNumber: session.handNumber,
     sessionPhase: session.phase,
   });
   useWonTrickCollection({

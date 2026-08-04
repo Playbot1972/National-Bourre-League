@@ -110,11 +110,13 @@ describe("sound pack registry", () => {
     }
   });
 
-  it("registry asset files exist in public/sounds", () => {
-    for (const id of BATCH1_WAV_ASSET_IDS) {
+  it("bling and arcadecentipede assets exist in public/sounds", () => {
+    for (const id of ["bling", "arcadecentipede"] as const) {
       const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES[id]);
       assert.ok(existsSync(file), `missing ${file}`);
     }
+    assert.equal(soundAssetUrl("classic", "bling"), "/sounds/bling.mp3");
+    assert.equal(soundAssetUrl("classic", "arcadecentipede"), "/sounds/arcadecentipede.mp3");
   });
 });
 

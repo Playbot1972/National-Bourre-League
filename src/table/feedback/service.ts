@@ -9,12 +9,14 @@ import {
   playFoldSound,
   playGameStartSound,
   playLastCardTrickWinSound,
+  playWinningCardSweetenerSound,
   playOpenRoomSound,
   playShuffleSound,
   playTrickWinSound,
   playUiButtonSound,
   ensureAudioUnlockedSync,
 } from "./audio";
+import { WINNING_CARD_SWEETENER_OFFSET_MS } from "../../audio/audioTiming";
 import { triggerHaptic } from "./haptics";
 import {
   getFeedbackPrefs,
@@ -23,7 +25,8 @@ import {
   shouldUseHaptics,
   type FeedbackPrefs,
 } from "./prefs";
-import type { SoundEventKey } from "./soundPacks";
+import type { SoundEventKey, SoundAssetId } from "./soundPacks";
+import { resolveWinningCardSweetenerAsset } from "../../audio/winningCardSweetener";
 import { bourrePrivateDedupeKey } from "./bourrePrivateAudio";
 
 /** Align with `.bpot__card` deal-in stagger in table.css */
@@ -185,6 +188,30 @@ export function playLastCardTrickWinFeedback(): void {
   lastLastCardTrickWinAt = now;
   maybePlaySound("lastCardTrickWin", playLastCardTrickWinSound);
   fireHaptic("strong");
+}
+
+export function playWinningCardSweetenerFeedback(
+  assetId: SoundAssetId,
+  isLocalPlayer = false,
+): void {
+  maybePlaySound("winningCardSweetener", () => playWinningCardSweetenerSound(assetId));
+  if (isLocalPlayer) fireHaptic("light");
+}
+
+/** After card-place thock: cycle sweetener or shotgun when last card wins trick. */
+export function scheduleWinningCardSweetenerAfterCardPlace(input: {
+  sequenceCount: number;
+  lastCardTrickWin: boolean;
+  isLocalPlayer: boolean;
+}): void {
+  window.setTimeout(() => {
+    if (input.lastCardTrickWin) {
+      playLastCardTrickWinFeedback();
+      return;
+    }
+    const assetId = resolveWinningCardSweetenerAsset(input.sequenceCount);
+    playWinningCardSweetenerFeedback(assetId, input.isLocalPlayer);
+  }, WINNING_CARD_SWEETENER_OFFSET_MS);
 }
 
 export function playCardSelectFeedback(): void {
