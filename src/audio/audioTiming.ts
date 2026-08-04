@@ -6,8 +6,11 @@
 /** Base card-place thock — card visually lands in trick area. */
 export const CARD_PLAYED_OFFSET_MS = 0;
 
-/** Lead-change sweetener — same land moment as card:played. */
+/** Lead-change sweetener — legacy dispatch path (superseded by winning-card cycle). */
 export const LEAD_CHANGE_OFFSET_MS = 0;
+
+/** Delay after card-place thock before winning-card sweetener layer. */
+export const WINNING_CARD_SWEETENER_OFFSET_MS = 220;
 
 /** Trick-win stinger — winnerReveal phase entry (after read pause). */
 export const TRICK_WON_OFFSET_MS = 0;

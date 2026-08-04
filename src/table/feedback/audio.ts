@@ -98,6 +98,7 @@ const playingFlags: Record<SoundEventKey, { current: boolean }> = {
   uiButton: { current: false },
   turnTimer: { current: false },
   lastCardTrickWin: { current: false },
+  winningCardSweetener: { current: false },
 };
 
 const RESET_MS: Record<SoundEventKey, number> = {
@@ -122,6 +123,7 @@ const RESET_MS: Record<SoundEventKey, number> = {
   uiButton: 200,
   turnTimer: 0,
   lastCardTrickWin: 900,
+  winningCardSweetener: 400,
 };
 
 const VOLUME: Record<SoundEventKey, number> = {
@@ -146,6 +148,7 @@ const VOLUME: Record<SoundEventKey, number> = {
   uiButton: 0.4,
   turnTimer: 0.48,
   lastCardTrickWin: 0.62,
+  winningCardSweetener: 0.42,
 };
 
 function playResolvedAsset(
@@ -385,6 +388,27 @@ export function playDeleteRoomSound(): void {
 
 export function playLastCardTrickWinSound(): void {
   void playSoundEvent("lastCardTrickWin");
+}
+
+export function playWinningCardSweetenerSound(assetId: SoundAssetId): void {
+  void playWinningCardSweetenerEvent(assetId);
+}
+
+async function playWinningCardSweetenerEvent(assetId: SoundAssetId): Promise<void> {
+  const event: SoundEventKey = "winningCardSweetener";
+  const flag = playingFlags[event];
+  if (flag.current) return;
+  flag.current = true;
+  const packId = getActivePackId();
+  try {
+    playResolvedAsset(event, assetId, VOLUME[event], packId);
+  } catch (err) {
+    audioFail(event, "play-threw", { error: String(err), assetId });
+  } finally {
+    window.setTimeout(() => {
+      flag.current = false;
+    }, RESET_MS[event]);
+  }
 }
 
 export function playCardSelectSound(): void {

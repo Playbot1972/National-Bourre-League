@@ -206,6 +206,7 @@ export function CardTable({
     currentUserId,
     participantCount,
     trickNumber: session.currentTrick?.trickNumber ?? trickPresentation.frozenTrick?.trickNumber ?? 1,
+    handNumber: session.handNumber,
     sessionPhase: session.phase,
   });
   useWonTrickCollection({

@@ -33,7 +33,9 @@ export type SoundAssetId =
   | "fahhh"
   | "fahhhh"
   | "timer"
-  | "shotgun";
+  | "shotgun"
+  | "bling"
+  | "arcadecentipede";
 
 /** Event-driven keys used by feedback service and prefs. */
 export type SoundEventKey =
@@ -41,6 +43,7 @@ export type SoundEventKey =
   | "shuffleFinal"
   | "draw"
   | "cardPlace"
+  | "winningCardSweetener"
   | "leadChange"
   | "trickWin"
   | "trickCollect"
@@ -128,6 +131,8 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "fahhhh",
   "timer",
   "shotgun",
+  "bling",
+  "arcadecentipede",
 ] as const;
 
 /** On-disk filenames for each asset ID (classic pack). */
@@ -159,6 +164,8 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   fahhhh: "fahhhh.mp3",
   timer: "timer.mp3",
   shotgun: "shotgun.mp3",
+  bling: "bling.mp3",
+  arcadecentipede: "arcadecentipede.mp3",
 };
 
 /** Count-based draw confirm cues — 1–5 cards map to draw1.mp3 … draw5.mp3. */
@@ -308,6 +315,7 @@ export const SOUND_EVENT_TRIGGER_TYPE: Record<SoundEventKey, SoundTriggerType> =
   shuffleFinal: "animation",
   draw: "action",
   cardPlace: "animation",
+  winningCardSweetener: "animation",
   leadChange: "animation",
   trickWin: "animation",
   trickCollect: "animation",

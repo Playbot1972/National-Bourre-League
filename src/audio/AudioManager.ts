@@ -61,6 +61,9 @@ const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
   fahhh: 0.5,
   fahhhh: 0.5,
   timer: 0.48,
+  shotgun: 0.62,
+  bling: 0.44,
+  arcadecentipede: 0.44,
 };
 
 function debugLog(...args: unknown[]): void {
@@ -303,6 +306,7 @@ export function clearCardAudioDedupe(): void {
 
 const EVENT_VOLUME: Partial<Record<SoundEventKey, number>> = {
   cardPlace: 0.38,
+  winningCardSweetener: 0.42,
   leadChange: 0.42,
   trickWin: 0.55,
   trickCollect: 0.4,

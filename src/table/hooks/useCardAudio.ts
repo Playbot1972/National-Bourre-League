@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import { dispatchCardAudio, clearCardAudioDedupe } from "../../audio/AudioManager";
-import { playLastCardTrickWinFeedback } from "../feedback";
+import { resetWinningCardSequenceCount, incrementWinningCardSequenceCount } from "../../audio/winningCardSweetener";
+import { scheduleWinningCardSweetenerAfterCardPlace } from "../feedback/service";
 import { shouldPlayKungfuCardPlace } from "../trickTiming";
 import {
   buildCardPlayedPayload,
-  buildLeadChangePayload,
   buildTrickCollectedPayload,
   buildTrickWonPayload,
   cardIdFromPlay,
@@ -19,6 +19,7 @@ export interface UseCardAudioInput {
   currentUserId?: string | null;
   participantCount: number;
   trickNumber: number;
+  handNumber?: number;
   sessionPhase?: string | null;
 }
 
@@ -35,17 +36,23 @@ export function useCardAudio({
   currentUserId = null,
   participantCount,
   trickNumber,
+  handNumber = 0,
   sessionPhase = null,
 }: UseCardAudioInput): CardAudioHandlers {
   const prevPhaseRef = useRef(trickPresentation.phase);
   const lastWonKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    resetWinningCardSequenceCount();
+  }, [handNumber]);
+
+  useEffect(() => {
     if (sessionPhase !== "play") {
       clearCardAudioDedupe();
       lastWonKeyRef.current = null;
+      resetWinningCardSequenceCount();
     }
-  }, [sessionPhase, trickNumber]);
+  }, [sessionPhase]);
 
   useEffect(() => {
     const prev = prevPhaseRef.current;
@@ -94,7 +101,13 @@ export function useCardAudio({
         playerCount: participantCount,
       };
 
-      const lastCardTrickWinPlace =
+      // Always play card-hit-table thock first (unchanged).
+      dispatchCardAudio(buildCardPlayedPayload(landed));
+
+      const isNewWinningCard = landed.takesLead && landed.cardIndex > 0;
+      if (!isNewWinningCard) return;
+
+      const lastCardTrickWin =
         input.playsInTrick != null &&
         input.participantCount != null &&
         shouldPlayKungfuCardPlace({
@@ -106,15 +119,13 @@ export function useCardAudio({
           participantCount: input.participantCount,
         });
 
-      if (lastCardTrickWinPlace) {
-        playLastCardTrickWinFeedback();
-      } else {
-        dispatchCardAudio(buildCardPlayedPayload(landed));
-      }
+      const sequenceCount = incrementWinningCardSequenceCount();
 
-      if (landed.takesLead && landed.cardIndex > 0) {
-        dispatchCardAudio(buildLeadChangePayload(landed));
-      }
+      scheduleWinningCardSweetenerAfterCardPlace({
+        sequenceCount,
+        lastCardTrickWin,
+        isLocalPlayer: input.isLocalPlayer,
+      });
     },
     [trickPresentation.phase, trickNumber, participantCount],
   );
