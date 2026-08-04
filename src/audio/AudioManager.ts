@@ -40,6 +40,7 @@ const DEFAULT_VOLUME: Partial<Record<SoundAssetId, number>> = {
   "card-place-heavy": 0.42,
   "lead-sweetener-light": 0.42,
   "lead-sweetener-strong": 0.46,
+  "card-sweetener-strong": 0.46,
   "trick-win-normal": 0.55,
   "trick-win-big": 0.6,
   "coin-chime-light": 0.4,

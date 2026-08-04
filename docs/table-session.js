@@ -12701,6 +12701,7 @@ var el = (/* @__PURE__ */ e(((e) => {
 	"card-place-heavy",
 	"lead-sweetener-light",
 	"lead-sweetener-strong",
+	"card-sweetener-strong",
 	"trick-win-normal",
 	"card-shuffle-normal",
 	"card-select",
@@ -12709,12 +12710,13 @@ var el = (/* @__PURE__ */ e(((e) => {
 function il(e) {
 	return rl.includes(e);
 }
-var al = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lead-sweetener-light.lead-sweetener-strong.trick-win-normal.trick-win-big.hand-win-stinger.card-shuffle-normal.card-shuffle-final.card-select.card-illegal.close.ui-button-press.coin-chime-light.moneygone.draw.draw1.draw2.draw3.draw4.draw5.Fahhh.fahhh.fahhhh.timer.shotgun.bling.arcadecentipede".split("."), ol = {
+var al = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lead-sweetener-light.lead-sweetener-strong.card-sweetener-strong.trick-win-normal.trick-win-big.hand-win-stinger.card-shuffle-normal.card-shuffle-final.card-select.card-illegal.close.ui-button-press.coin-chime-light.moneygone.draw.draw1.draw2.draw3.draw4.draw5.Fahhh.fahhh.fahhhh.timer.shotgun.bling.arcadecentipede".split("."), ol = {
 	"card-place-normal": "card-place-normal.mp3",
 	"card-place-heavy": "card-place-heavy.mp3",
 	"card-place-soft": "card-place-soft.mp3",
 	"lead-sweetener-light": "lead-sweetener-light.mp3",
 	"lead-sweetener-strong": "lead-sweetener-strong.mp3",
+	"card-sweetener-strong": "card-sweetener-strong.mp3",
 	"trick-win-normal": "trick-win-normal.mp3",
 	"trick-win-big": "trick-win-big.mp3",
 	"hand-win-stinger": "hand-win-stinger.mp3",
@@ -12766,6 +12768,7 @@ function fl(e, t, n = {}) {
 		case "openRoom": return "card-shuffle-final";
 		case "draw": return "draw";
 		case "cardPlace": return r >= 2 ? "card-place-heavy" : "card-place-normal";
+		case "winningCardSweetener": return "bling";
 		case "leadChange": return r >= 2 ? "lead-sweetener-strong" : "lead-sweetener-light";
 		case "trickWin": return "trick-win-normal";
 		case "trickCollect":
@@ -12935,6 +12938,7 @@ var X = {
 	"card-place-heavy": .42,
 	"lead-sweetener-light": .42,
 	"lead-sweetener-strong": .46,
+	"card-sweetener-strong": .46,
 	"trick-win-normal": .55,
 	"trick-win-big": .6,
 	"coin-chime-light": .4,
@@ -13564,7 +13568,7 @@ function ku() {
 var Au = [
 	"bling",
 	"lead-sweetener-light",
-	"lead-sweetener-strong",
+	"card-sweetener-strong",
 	"arcadecentipede"
 ], ju = 0;
 function Mu() {
@@ -13574,7 +13578,7 @@ function Nu() {
 	return ju += 1, ju;
 }
 function Pu(e) {
-	return Au[((e - 1) % 4 + 4) % 4];
+	return Au[(e - 1) % Au.length];
 }
 var Fu = 700, Iu = 500, Lu = 450, Ru = 1200, zu = 1200, Bu = 2e3, Vu = 1500, Hu = 280, Uu = 0, Wu = 0, Gu = 0, Ku = 0, qu = 0, Ju = 0, Yu = 0, Xu = 0, Zu = null, Qu = !1;
 function $u() {

@@ -110,12 +110,13 @@ describe("sound pack registry", () => {
     }
   });
 
-  it("bling and arcadecentipede assets exist in public/sounds", () => {
-    for (const id of ["bling", "arcadecentipede"] as const) {
+  it("bling, card-sweetener-strong, and arcadecentipede assets exist in public/sounds", () => {
+    for (const id of ["bling", "card-sweetener-strong", "arcadecentipede"] as const) {
       const file = join(process.cwd(), "public/sounds", SOUND_ASSET_FILES[id]);
       assert.ok(existsSync(file), `missing ${file}`);
     }
     assert.equal(soundAssetUrl("classic", "bling"), "/sounds/bling.mp3");
+    assert.equal(soundAssetUrl("classic", "card-sweetener-strong"), "/sounds/card-sweetener-strong.mp3");
     assert.equal(soundAssetUrl("classic", "arcadecentipede"), "/sounds/arcadecentipede.mp3");
   });
 });

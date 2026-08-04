@@ -25,6 +25,7 @@
     { "id": "timer", "file": "timer.mp3", "events": ["turnTimer"] },
     { "id": "shotgun", "file": "shotgun.mp3", "events": ["lastCardTrickWin"] },
     { "id": "bling", "file": "bling.mp3", "events": ["winningCardSweetener:cycle1"] },
+    { "id": "card-sweetener-strong", "file": "card-sweetener-strong.mp3", "events": ["winningCardSweetener:cycle3"] },
     { "id": "arcadecentipede", "file": "arcadecentipede.mp3", "events": ["winningCardSweetener:cycle4"] }
   ]
 }

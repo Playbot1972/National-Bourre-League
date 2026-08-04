@@ -9,7 +9,7 @@ import type { SoundAssetId } from "../table/feedback/soundPacks";
 export const WINNING_CARD_SWEETENER_CYCLE: readonly SoundAssetId[] = [
   "bling",
   "lead-sweetener-light",
-  "lead-sweetener-strong",
+  "card-sweetener-strong",
   "arcadecentipede",
 ];
 
@@ -35,9 +35,10 @@ export function incrementWinningCardSequenceCount(): number {
 }
 
 /**
- * Map sequence count to cycle asset (1 → bling, 2 → light, 3 → strong, 4 → arcade…).
+ * Map 1-based winning-card count to cycle asset (modulo 4, repeats forever).
+ * 1→bling, 2→light, 3→card-sweetener-strong, 4→arcade, 5→bling, …
  */
 export function resolveWinningCardSweetenerAsset(sequenceCount: number): SoundAssetId {
-  const index = ((sequenceCount - 1) % 4 + 4) % 4;
+  const index = (sequenceCount - 1) % WINNING_CARD_SWEETENER_CYCLE.length;
   return WINNING_CARD_SWEETENER_CYCLE[index]!;
 }
