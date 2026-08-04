@@ -4,18 +4,37 @@ import {
   incrementWinningCardSequenceCount,
   resetWinningCardSequenceCount,
   resolveWinningCardSweetenerAsset,
-  _setWinningCardSequenceCountForTests,
+  WINNING_CARD_SWEETENER_CYCLE,
 } from "./winningCardSweetener";
 
 describe("winningCardSweetener", () => {
-  it("cycles 1→bling, 2→light, 3→strong, 4→arcade, then repeats", () => {
+  it("cycles indefinitely: bling → light → card-strong → arcade", () => {
     resetWinningCardSequenceCount();
-    assert.equal(resolveWinningCardSweetenerAsset(1), "bling");
-    assert.equal(resolveWinningCardSweetenerAsset(2), "lead-sweetener-light");
-    assert.equal(resolveWinningCardSweetenerAsset(3), "lead-sweetener-strong");
-    assert.equal(resolveWinningCardSweetenerAsset(4), "arcadecentipede");
-    assert.equal(resolveWinningCardSweetenerAsset(5), "bling");
-    assert.equal(resolveWinningCardSweetenerAsset(6), "lead-sweetener-light");
+    const expected = [
+      "bling",
+      "lead-sweetener-light",
+      "card-sweetener-strong",
+      "arcadecentipede",
+      "bling",
+      "lead-sweetener-light",
+      "card-sweetener-strong",
+      "arcadecentipede",
+      "bling",
+    ];
+    for (let count = 1; count <= expected.length; count += 1) {
+      assert.equal(
+        resolveWinningCardSweetenerAsset(count),
+        expected[count - 1],
+        `count ${count}`,
+      );
+    }
+  });
+
+  it("uses modulo-4 index from 1-based count", () => {
+    for (let count = 1; count <= 12; count += 1) {
+      const index = (count - 1) % 4;
+      assert.equal(resolveWinningCardSweetenerAsset(count), WINNING_CARD_SWEETENER_CYCLE[index]);
+    }
   });
 
   it("increments per winning card and resets on new hand", () => {
@@ -24,10 +43,5 @@ describe("winningCardSweetener", () => {
     assert.equal(incrementWinningCardSequenceCount(), 2);
     resetWinningCardSequenceCount();
     assert.equal(incrementWinningCardSequenceCount(), 1);
-  });
-
-  it("handles modulo edge for count 0 via formula", () => {
-    _setWinningCardSequenceCountForTests(0);
-    assert.equal(resolveWinningCardSweetenerAsset(0), "arcadecentipede");
   });
 });

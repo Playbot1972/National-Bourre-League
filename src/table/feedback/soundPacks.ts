@@ -12,6 +12,7 @@ export type SoundAssetId =
   | "card-place-soft"
   | "lead-sweetener-light"
   | "lead-sweetener-strong"
+  | "card-sweetener-strong"
   | "trick-win-normal"
   | "trick-win-big"
   | "hand-win-stinger"
@@ -78,6 +79,7 @@ export const BATCH1_WAV_ASSET_IDS = [
   "card-place-heavy",
   "lead-sweetener-light",
   "lead-sweetener-strong",
+  "card-sweetener-strong",
   "trick-win-normal",
   "card-shuffle-normal",
   "card-select",
@@ -96,6 +98,7 @@ export const BATCH1_WAV_URLS: Record<Batch1WavAssetId, string> = {
   "card-place-heavy": "/sounds/card-place-heavy.mp3",
   "lead-sweetener-light": "/sounds/lead-sweetener-light.mp3",
   "lead-sweetener-strong": "/sounds/lead-sweetener-strong.mp3",
+  "card-sweetener-strong": "/sounds/card-sweetener-strong.mp3",
   "trick-win-normal": "/sounds/trick-win-normal.mp3",
   "card-shuffle-normal": "/sounds/card-shuffle-normal.mp3",
   "card-select": "/sounds/card-select.mp3",
@@ -109,6 +112,7 @@ export const ALL_SOUND_ASSET_IDS: readonly SoundAssetId[] = [
   "card-place-soft",
   "lead-sweetener-light",
   "lead-sweetener-strong",
+  "card-sweetener-strong",
   "trick-win-normal",
   "trick-win-big",
   "hand-win-stinger",
@@ -142,6 +146,7 @@ export const SOUND_ASSET_FILES: Record<SoundAssetId, string> = {
   "card-place-soft": "card-place-soft.mp3",
   "lead-sweetener-light": "lead-sweetener-light.mp3",
   "lead-sweetener-strong": "lead-sweetener-strong.mp3",
+  "card-sweetener-strong": "card-sweetener-strong.mp3",
   "trick-win-normal": "trick-win-normal.mp3",
   "trick-win-big": "trick-win-big.mp3",
   "hand-win-stinger": "hand-win-stinger.mp3",
@@ -197,7 +202,7 @@ export const SOUND_EVENT_TO_ASSET: Record<SoundEventKey, SoundAssetId | SoundAss
   shuffleFinal: "card-shuffle-final",
   draw: "draw",
   cardPlace: ["card-place-soft", "card-place-normal", "card-place-heavy"],
-  winningCardSweetener: ["bling", "lead-sweetener-light", "lead-sweetener-strong", "arcadecentipede"],
+  winningCardSweetener: ["bling", "lead-sweetener-light", "card-sweetener-strong", "arcadecentipede"],
   leadChange: ["lead-sweetener-light", "lead-sweetener-strong"],
   trickWin: ["trick-win-normal", "trick-win-big"],
   trickCollect: "coin-chime-light",
