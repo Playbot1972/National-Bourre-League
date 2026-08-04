@@ -3102,10 +3102,10 @@ body.table-play-active .footer {
   gap: 12px;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-raised, rgba(20, 24, 32, 0.96));
-  color: var(--text);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border-default);
+  background: var(--surface-panel-strong);
+  color: var(--text-light);
+  box-shadow: var(--shadow-dialog);
   font-size: 14px;
 }
 
