@@ -978,7 +978,27 @@ body.room-detail-open .room-actions {
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.play-now-mode__option:has(input:checked) {
+.play-now-mode__option:has(input[value="mixed"]:checked),
+.play-now-mode__option:has(input[value="bots_only"]:checked) {
+  position: relative;
+  border-color: var(--pill-play-border, #145c32);
+  background: linear-gradient(
+    160deg,
+    var(--pill-play-bg-top, #2d9f62),
+    var(--pill-play-bg-bottom, #1a7a45)
+  );
+  overflow: visible;
+  isolation: isolate;
+}
+
+.play-now-mode__option:has(input[value="mixed"]:checked) .play-now-mode__label,
+.play-now-mode__option:has(input[value="bots_only"]:checked) .play-now-mode__label,
+.play-now-mode__option:has(input[value="mixed"]:checked) .play-now-mode__hint,
+.play-now-mode__option:has(input[value="bots_only"]:checked) .play-now-mode__hint {
+  color: var(--pill-play-text, #f4fff8);
+}
+
+.play-now-mode__option:has(input[value="live_only"]:checked) {
   position: relative;
   border-color: var(--gold-400, #c9a227);
   background: rgba(201, 162, 39, 0.08);
