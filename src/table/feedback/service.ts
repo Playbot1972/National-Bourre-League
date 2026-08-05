@@ -190,6 +190,13 @@ export function playLastCardTrickWinFeedback(): void {
   fireHaptic("strong");
 }
 
+/** Last-card trick win: shotgun then normal trick-win (local winner only for trick-win). */
+export function playLastCardTrickWinSequenceFeedback(isLocalPlayer: boolean): void {
+  playLastCardTrickWinFeedback();
+  if (!isLocalPlayer) return;
+  playTrickWinFeedback();
+}
+
 export function playWinningCardSweetenerFeedback(
   assetId: SoundAssetId,
   isLocalPlayer = false,
@@ -198,17 +205,14 @@ export function playWinningCardSweetenerFeedback(
   if (isLocalPlayer) fireHaptic("light");
 }
 
-/** After card-place thock: cycle sweetener or shotgun when last card wins trick. */
+/** After card-place thock: cycle sweetener (last-card shotgun+trick-win plays at winnerReveal). */
 export function scheduleWinningCardSweetenerAfterCardPlace(input: {
   sequenceCount: number;
   lastCardTrickWin: boolean;
   isLocalPlayer: boolean;
 }): void {
   window.setTimeout(() => {
-    if (input.lastCardTrickWin) {
-      playLastCardTrickWinFeedback();
-      return;
-    }
+    if (input.lastCardTrickWin) return;
     const assetId = resolveWinningCardSweetenerAsset(input.sequenceCount);
     playWinningCardSweetenerFeedback(assetId, input.isLocalPlayer);
   }, WINNING_CARD_SWEETENER_OFFSET_MS);
