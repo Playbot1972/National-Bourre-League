@@ -37,6 +37,13 @@ export function applyTableFeedbackDiff(prev, next, { api, myUid, pendingDrawShuf
     api.playBigWinFeedback?.();
   }
 
+  const prevBourreIds = prev.bourrePlayerIds ?? [];
+  const nextBourreIds = next.bourrePlayerIds ?? [];
+  const newBourreIds = nextBourreIds.filter((id) => !prevBourreIds.includes(id));
+  if (newBourreIds.length > 0) {
+    api.playBourreFeedback?.();
+  }
+
   if (myUid && next.myBourre && !prev.myBourre) {
     api.playBourrePrivatePunishmentFeedback?.({
       sessionId: next.sessionId,

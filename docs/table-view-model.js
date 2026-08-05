@@ -46,16 +46,22 @@ export function buildTableFeedbackSnapshot(sessionObj, { myUid, privateHandCards
   const tricks = currentHand.tricksByPlayer ?? {};
   const { ready, winnerIds } = deriveWinnersFromTricks(tricks, participantIds);
   const handComplete = isHandComplete(tricks, participantIds);
-  const bourreIds = recentBourreIds.length > 0 ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
+  const settledBourre = recentBourreIds.length > 0;
+  const bourreIds = settledBourre ? recentBourreIds : bourrePlayerIds(tricks, participantIds);
+  const completedHandNumber = sessionObj?.handCount ?? 0;
+  const handNumber = settledBourre ? completedHandNumber : completedHandNumber + 1;
   return {
     sessionId: sessionObj?.id ?? null,
+    handNumber,
     phase: currentHand.phase ?? null,
     trumpKey: cardKeyFromSerialized(currentHand.trumpUpcard),
     drawCompletedIds: [...(currentHand.drawCompletedIds ?? [])],
     myTricks: myUid ? tricksForPlayer(tricks, myUid) : 0,
     handComplete,
+    bourrePlayerIds: [...bourreIds],
     myIsWinner: myUid != null && handComplete && ready && winnerIds.includes(myUid),
-    myBourre: myUid != null && handComplete && bourreIds.includes(myUid),
+    // Settled bourré ids arrive after the next hand starts (handComplete false) — do not gate on handComplete.
+    myBourre: myUid != null && bourreIds.includes(myUid),
     heroCardKeys: (privateHandCards ?? [])
       .map(cardKeyFromSerialized)
       .filter(Boolean)
