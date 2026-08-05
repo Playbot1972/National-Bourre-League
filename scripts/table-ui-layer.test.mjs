@@ -18,6 +18,8 @@ describe("table UI layer modules", () => {
     };
     const prev = {
       sessionId: "s1",
+      handNumber: 1,
+      bourrePlayerIds: [],
       phase: "play",
       trumpKey: null,
       drawCompletedIds: [],
@@ -41,6 +43,8 @@ describe("table UI layer modules", () => {
     };
     const prev = {
       sessionId: "s1",
+      handNumber: 1,
+      bourrePlayerIds: [],
       phase: "draw",
       trumpKey: "7-spades",
       drawCompletedIds: [],
@@ -62,12 +66,14 @@ describe("table UI layer modules", () => {
   it("applyTableFeedbackDiff fires bourre private punishment when local player goes bourré", () => {
     const calls = [];
     const api = {
+      playBourreFeedback: () => calls.push("bourre-table"),
       playBourrePrivatePunishmentFeedback: (input) =>
         calls.push(`bourre-private:${input.sessionId}:${input.handNumber}`),
     };
     const prev = {
       sessionId: "s1",
       handNumber: 2,
+      bourrePlayerIds: [],
       phase: "play",
       trumpKey: "7-spades",
       drawCompletedIds: [],
@@ -77,9 +83,72 @@ describe("table UI layer modules", () => {
       myBourre: false,
       heroCardKeys: "",
     };
-    const next = { ...prev, handComplete: true, myBourre: true };
+    const next = {
+      ...prev,
+      bourrePlayerIds: ["a"],
+      handComplete: true,
+      myBourre: true,
+    };
     applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
-    assert.deepEqual(calls, ["bourre-private:s1:2"]);
+    assert.deepEqual(calls, ["bourre-table", "bourre-private:s1:2"]);
+  });
+
+  it("applyTableFeedbackDiff fires table bourré sound for bot bourré without private punishment", () => {
+    const calls = [];
+    const api = {
+      playBourreFeedback: () => calls.push("bourre-table"),
+      playBourrePrivatePunishmentFeedback: () => calls.push("bourre-private"),
+    };
+    const prev = {
+      sessionId: "s1",
+      handNumber: 1,
+      bourrePlayerIds: [],
+      phase: "enrollment",
+      trumpKey: null,
+      drawCompletedIds: [],
+      myTricks: 5,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = {
+      ...prev,
+      bourrePlayerIds: ["bot_1"],
+      myBourre: false,
+    };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["bourre-table"]);
+  });
+
+  it("applyTableFeedbackDiff fires bourré audio after settlement when handComplete is already false", () => {
+    const calls = [];
+    const api = {
+      playBourreFeedback: () => calls.push("bourre-table"),
+      playBourrePrivatePunishmentFeedback: (input) =>
+        calls.push(`bourre-private:${input.handNumber}`),
+    };
+    const prev = {
+      sessionId: "s1",
+      handNumber: 1,
+      bourrePlayerIds: [],
+      phase: "enrollment",
+      trumpKey: null,
+      drawCompletedIds: [],
+      myTricks: 0,
+      handComplete: false,
+      myIsWinner: false,
+      myBourre: false,
+      heroCardKeys: "",
+    };
+    const next = {
+      ...prev,
+      handNumber: 1,
+      bourrePlayerIds: ["a"],
+      myBourre: true,
+    };
+    applyTableFeedbackDiff(prev, next, { api, myUid: "a", pendingDrawShuffle: false });
+    assert.deepEqual(calls, ["bourre-table", "bourre-private:1"]);
   });
 
   it("createTableIntentHandlers requires auth before submit", () => {
