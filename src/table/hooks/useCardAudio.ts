@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { dispatchCardAudio, clearCardAudioDedupe } from "../../audio/AudioManager";
 import { resetWinningCardSequenceCount, incrementWinningCardSequenceCount } from "../../audio/winningCardSweetener";
-import { scheduleWinningCardSweetenerAfterCardPlace } from "../feedback/service";
-import { shouldPlayKungfuCardPlace } from "../trickTiming";
+import {
+  playLastCardTrickWinSequenceFeedback,
+  scheduleWinningCardSweetenerAfterCardPlace,
+} from "../feedback/service";
+import { lastCardPlayWinsTrick, shouldPlayKungfuCardPlace } from "../trickTiming";
 import {
   buildCardPlayedPayload,
   buildTrickCollectedPayload,
@@ -70,12 +73,24 @@ export function useCardAudio({
     if (lastWonKeyRef.current === wonKey) return;
     lastWonKeyRef.current = wonKey;
 
+    const isLocalPlayer = currentUserId === winnerId;
+    const isLastCardWin = lastCardPlayWinsTrick({
+      trickNumber: frozen.trickNumber,
+      plays: frozen.plays,
+      winnerId,
+    });
+
+    if (isLastCardWin) {
+      playLastCardTrickWinSequenceFeedback(isLocalPlayer);
+      return;
+    }
+
     dispatchCardAudio(
       buildTrickWonPayload({
         trickId: frozen.trickNumber,
         winningSeat: winnerId,
         playerCount: participantCount,
-        isLocalPlayer: currentUserId === winnerId,
+        isLocalPlayer,
       }),
     );
   }, [
