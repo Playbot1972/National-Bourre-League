@@ -206,6 +206,7 @@ npm run verify:cap:social -- --deep --fresh   # after build:cap:web
 
 ```bash
 npm ci
+cp .env.firebase.example .env.firebase   # fill web app keys (gitignored)
 node scripts/ensure-firebase-config.js   # production keys for device builds
 npm run build:cap:release                # CAPACITOR_WEB_DEBUG=0, runs npx cap sync
 ```
@@ -236,7 +237,7 @@ npm run cap:open:android                 # debug run from Android Studio
 npm run build:cap:android:release        # requires android/keystore.properties (local)
 ```
 
-One-time: `android/app/google-services.json` from Firebase + Play SHA fingerprints + release keystore (`keystore.properties.example`).
+One-time: `android/app/google-services.json` from Firebase + Play SHA fingerprints + release keystore (`keystore.properties.example`). App Links require deploying `public/.well-known/assetlinks.json` with Play App Signing SHA-256 (see `assetlinks.json.example`).
 
 ### When to rebuild native
 

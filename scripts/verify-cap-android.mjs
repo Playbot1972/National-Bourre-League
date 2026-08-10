@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { nativeVersionsFromPackage } from "./lib/native-version.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -88,6 +89,75 @@ requireRegex(
   /signingConfigs\s*\{[\s\S]*release/,
   "release signingConfigs block present",
 );
+
+const manifest = read("android/app/src/main/AndroidManifest.xml");
+if (!/android:autoVerify="true"/.test(manifest)) {
+  errors.push("AndroidManifest.xml: missing App Links autoVerify intent filter");
+} else {
+  ok.push("AndroidManifest.xml: App Links autoVerify intent filter present");
+}
+if (!/android:host="www\.booray\.win"/.test(manifest)) {
+  errors.push("AndroidManifest.xml: App Links host must be www.booray.win");
+} else {
+  ok.push("AndroidManifest.xml: App Links host www.booray.win");
+}
+if (!/android:pathPrefix="\/social"/.test(manifest)) {
+  errors.push("AndroidManifest.xml: App Links pathPrefix must include /social");
+} else {
+  ok.push("AndroidManifest.xml: App Links pathPrefix /social");
+}
+
+const assetlinksExample = join(root, "public", ".well-known", "assetlinks.json.example");
+if (!existsSync(assetlinksExample)) {
+  errors.push("missing public/.well-known/assetlinks.json.example");
+} else {
+  ok.push("assetlinks.json.example template present");
+  try {
+    const parsed = JSON.parse(readFileSync(assetlinksExample, "utf8"));
+    const pkgName = parsed?.[0]?.target?.package_name;
+    if (pkgName !== appId) {
+      errors.push(`assetlinks.json.example package_name must be ${appId}`);
+    } else {
+      ok.push("assetlinks.json.example package_name matches appId");
+    }
+  } catch {
+    errors.push("assetlinks.json.example is not valid JSON");
+  }
+}
+
+const androidGitignore = read("android/.gitignore");
+for (const pattern of ["google-services.json", "keystore.properties", "*.jks", "*.keystore"]) {
+  const escaped = pattern.replace(/\./g, "\\.").replace(/\*/g, ".*");
+  if (!new RegExp(`^${escaped}$`, "m").test(androidGitignore)) {
+    errors.push(`android/.gitignore must ignore ${pattern}`);
+  } else {
+    ok.push(`android/.gitignore ignores ${pattern}`);
+  }
+}
+
+const trackedGoogleServices = spawnSync(
+  "git",
+  ["ls-files", "--error-unmatch", "android/app/google-services.json"],
+  { cwd: root, encoding: "utf8" },
+);
+if (trackedGoogleServices.status === 0) {
+  errors.push(
+    "android/app/google-services.json is tracked by git — remove it and keep the file local only",
+  );
+} else {
+  ok.push("android/app/google-services.json is not tracked by git");
+}
+
+const ignoredGoogleServices = spawnSync(
+  "git",
+  ["check-ignore", "-q", "android/app/google-services.json"],
+  { cwd: root },
+);
+if (ignoredGoogleServices.status !== 0) {
+  errors.push("android/app/google-services.json is not gitignored — update android/.gitignore");
+} else {
+  ok.push("android/app/google-services.json is gitignored");
+}
 
 for (const file of ["docs/auth-google-native.js", "docs/capacitor-native-bridge.js"]) {
   if (!existsSync(join(root, file))) {

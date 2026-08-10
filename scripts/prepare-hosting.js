@@ -2,6 +2,7 @@
 // Appends a build id to module URLs so phones pick up new JS after deploy.
 import { cpSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertProductionFirebaseConfig } from "./lib/firebase-config-check.mjs";
 
 const dist = "dist";
 const socialDest = join(dist, "social");
@@ -39,19 +40,10 @@ function assertFirebaseConfigComplete(src) {
 
 const firebaseConfigPath = join("docs", "firebase-config.js");
 const firebaseConfig = readFileSync(firebaseConfigPath, "utf8");
-const hasPlaceholderKeys =
-  firebaseConfig.includes("REPLACE_WITH_YOUR_API_KEY") ||
-  firebaseConfig.includes("REPLACE_WITH_YOUR_APP_ID");
-const hasStaticDemoProjectOnly =
-  /export const firebaseConfig\s*=\s*\{[\s\S]*?projectId:\s*["']demo-national-bourre-league["']/.test(
-    firebaseConfig,
-  );
-if (hasPlaceholderKeys || hasStaticDemoProjectOnly) {
-  console.error(
-    "docs/firebase-config.js still has placeholder values — auth will fail in production.",
-  );
-  console.error("Run: node scripts/ensure-firebase-config.js (or npm run deploy, which runs it first).");
-  console.error("Or: npm run setup:webapp -- national-bourre-league booray.win");
+try {
+  assertProductionFirebaseConfig(firebaseConfig);
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
 assertFirebaseConfigComplete(firebaseConfig);

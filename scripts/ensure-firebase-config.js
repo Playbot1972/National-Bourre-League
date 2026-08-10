@@ -5,6 +5,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  analyzeFirebaseConfig,
+  assertProductionFirebaseConfig,
+} from "./lib/firebase-config-check.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const configPath = join(root, "docs", "firebase-config.js");
@@ -30,14 +34,9 @@ function loadEnvFile(path) {
   }
 }
 
-function hasPlaceholderConfig() {
-  if (!existsSync(configPath)) return true;
-  const src = readFileSync(configPath, "utf8");
-  return (
-    src.includes("REPLACE_WITH_YOUR_API_KEY") ||
-    src.includes("REPLACE_WITH_YOUR_APP_ID") ||
-    src.includes("demo-national-bourre-league")
-  );
+function readConfig() {
+  if (!existsSync(configPath)) return "";
+  return readFileSync(configPath, "utf8");
 }
 
 loadEnvFile(envFile);
@@ -54,30 +53,31 @@ if (hasEnv) {
     env: process.env,
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
-} else if (hasPlaceholderConfig()) {
+} else if (!analyzeFirebaseConfig(readConfig()).isProductionReady) {
   console.error("docs/firebase-config.js still has placeholder Firebase config.");
   console.error("");
-  console.error("Option A — service account deploy (no firebase login):");
+  console.error("Option A — local config file (recommended for native release builds):");
   console.error("  cp .env.firebase.example .env.firebase   # fill in web app keys");
-  console.error("  npm run setup:service-account -- national-bourre-league");
-  console.error("  npm run deploy:hosting:sa:patch");
+  console.error("  node scripts/ensure-firebase-config.js");
   console.error("");
   console.error("Option B — fetch from Firebase CLI:");
   console.error("  npx firebase login");
   console.error("  npm run setup:webapp -- national-bourre-league booray.win");
   console.error("");
-  console.error("Option C — copy .env.firebase.example → .env.firebase, fill in values, then:");
-  console.error("  npm run deploy");
-  console.error("");
-  console.error("Option D — export env vars, then deploy:");
+  console.error("Option C — export env vars, then run this script:");
   console.error("  export FIREBASE_API_KEY=... FIREBASE_PROJECT_ID=national-bourre-league \\");
   console.error("         FIREBASE_APP_ID=... FIREBASE_AUTH_DOMAIN=booray.win");
-  console.error("  npm run deploy");
+  console.error("  node scripts/ensure-firebase-config.js");
+  console.error("");
+  console.error("Required env vars: FIREBASE_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_APP_ID");
+  console.error("Optional: FIREBASE_AUTH_DOMAIN (defaults to booray.win / {projectId}.firebaseapp.com)");
   process.exit(1);
 }
 
-if (hasPlaceholderConfig()) {
-  console.error("Firebase config is still placeholder after write — check your values.");
+try {
+  assertProductionFirebaseConfig(readConfig());
+} catch (err) {
+  console.error(err.message);
   process.exit(1);
 }
 

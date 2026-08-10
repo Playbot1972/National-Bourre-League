@@ -13,6 +13,7 @@ dist
 .firebase-sa-key.json
 .env.firebase
 .env.soak
+public/.well-known/assetlinks.json
 public/build-meta.json
 
 *.local
