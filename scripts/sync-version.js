@@ -81,3 +81,11 @@ mkdirSync(join(root, "public"), { recursive: true });
 writeFileSync(join(root, "public", "build-meta.json"), `${JSON.stringify(meta, null, 2)}\n`);
 
 console.log(`Version stamped: ${label} (${stampedAt})`);
+
+const nativeSync = spawnSync(process.execPath, ["scripts/sync-native-version.js"], {
+  cwd: root,
+  stdio: "inherit",
+});
+if (nativeSync.status !== 0) {
+  process.exit(nativeSync.status ?? 1);
+}

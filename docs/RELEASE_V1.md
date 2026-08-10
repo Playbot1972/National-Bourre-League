@@ -51,6 +51,8 @@ npm run verify:cap:ios-google
 npx cap open ios
 ```
 
+`build:cap:release` runs `version:sync`, which stamps iOS `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` and Android `versionName` / `versionCode` from `package.json`.
+
 **One-time Xcode (per Mac):** add `GoogleService-Info.plist` + `REVERSED_CLIENT_ID` URL scheme — see [`NATIVE_IOS_GOOGLE_AUTH.md`](./NATIVE_IOS_GOOGLE_AUTH.md).
 
 Archive: Clean Build Folder → scheme **App** → **Archive** → TestFlight/internal.

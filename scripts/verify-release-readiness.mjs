@@ -84,6 +84,17 @@ if (capGoogle.status === 0) {
   fail("ios google wiring", "verify:cap:ios-google failed — run npm run verify:cap:ios-google");
 }
 
+const capAndroid = spawnSync("npm", ["run", "verify:cap:android"], {
+  cwd: root,
+  encoding: "utf8",
+  stdio: ["ignore", "pipe", "pipe"],
+});
+if (capAndroid.status === 0) {
+  pass("android cap wiring", "verify:cap:android passed");
+} else {
+  fail("android cap wiring", "verify:cap:android failed — run npm run verify:cap:android");
+}
+
 if (checkProd) {
   const prod = spawnSync("npm", ["run", "verify:prod"], {
     cwd: root,

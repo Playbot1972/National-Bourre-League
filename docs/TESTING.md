@@ -183,8 +183,67 @@ Themes, Smart HUD, reactions, desktop shell — validate separately; not blockin
 | Tool | Purpose |
 |------|---------|
 | Node 18+ | npm scripts |
-| Java | Firebase emulators (`npm run emulators`) |
+| Java 21 | Firebase emulators (`npm run emulators`), Android Gradle builds |
 | Chrome (+ phone Safari if possible) | Table, PWA, landscape |
 | `docs/firebase-config.js` | Placeholder config; emulators on localhost need no production keys |
+| **Capacitor native (optional)** | `android/` + `ios/` projects — see [Native app testing](#native-app-testing-capacitor) |
 
-No Capacitor / native wrapper in this repo yet — store builds are future; test as **PWA in browser** for now.
+---
+
+## Native app testing (Capacitor)
+
+The repo ships **Capacitor 8** wrappers for the social app (`webDir: dist/social`, `appId: win.booray.app`). Both `android/` and `ios/` are committed.
+
+### Repo checks (no secrets required)
+
+```bash
+npm run verify:cap:android
+npm run verify:cap:ios-google
+npm run verify:cap:social -- --deep --fresh   # after build:cap:web
+```
+
+### Build web bundle + sync native projects
+
+```bash
+npm ci
+node scripts/ensure-firebase-config.js   # production keys for device builds
+npm run build:cap:release                # CAPACITOR_WEB_DEBUG=0, runs npx cap sync
+```
+
+`npm run version:sync` (inside `build:cap:web`) stamps Android/iOS store versions from `package.json`.
+
+### iOS (device / TestFlight)
+
+See [`docs/NATIVE_IOS_GOOGLE_AUTH.md`](./NATIVE_IOS_GOOGLE_AUTH.md) and [`docs/RELEASE_V1.md`](./RELEASE_V1.md).
+
+```bash
+npm run build:cap:release
+npm run cap:open:ios
+```
+
+Xcode → scheme **App** → run on device or **Product → Archive** for TestFlight.
+
+One-time per Mac: add `GoogleService-Info.plist` + `REVERSED_CLIENT_ID` URL scheme (not in git).
+
+### Android (device / internal testing)
+
+See [`docs/NATIVE_ANDROID_RELEASE.md`](./NATIVE_ANDROID_RELEASE.md).
+
+```bash
+npm run build:cap:release
+npm run cap:open:android                 # debug run from Android Studio
+# or signed Play bundle:
+npm run build:cap:android:release        # requires android/keystore.properties (local)
+```
+
+One-time: `android/app/google-services.json` from Firebase + Play SHA fingerprints + release keystore (`keystore.properties.example`).
+
+### When to rebuild native
+
+| Changed | Action |
+|---------|--------|
+| `docs/`, `src/table/`, game bundles | `npm run build:cap:release` |
+| Capacitor plugins / `capacitor.config.ts` | `npm run build:cap:release` (runs `cap sync`) |
+| Native-only (plist, Gradle, icons) | `npx cap sync` or Android Studio / Xcode rebuild |
+
+PWA/browser testing (`npm run social` + emulators) remains valid for most gameplay QA without a native build.
