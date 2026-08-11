@@ -1,0 +1,42 @@
+{
+  "project_info": {
+    "project_number": "693332013350",
+    "project_id": "national-bourre-league",
+    "storage_bucket": "national-bourre-league.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:693332013350:android:REPLACE_WITH_ANDROID_APP_ID",
+        "android_client_info": {
+          "package_name": "win.booray.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "REPLACE_WITH_ANDROID_CLIENT_ID.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "win.booray.app",
+            "certificate_hash": "REPLACE_WITH_SHA1_COLON_SEPARATED"
+          }
+        },
+        {
+          "client_id": "REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
