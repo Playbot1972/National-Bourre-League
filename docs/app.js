@@ -1505,7 +1505,7 @@ function maybeRecoverHandLifecycle(sessionObj) {
     cancelNextHandOpenTimer();
     return;
   }
-  if (sessionObj.pendingCoWinSettlement) {
+  if (sessionObj.pendingCoWinSettlement || tableMountApi?.isCoWinResultLatched?.()) {
     cancelNextHandOpenTimer();
     return;
   }
