@@ -49,6 +49,26 @@ Always bump `package.json` (or `npm run version:bump:patch`) before store upload
 
 Gradle applies the Google Services plugin automatically when `google-services.json` exists.
 
+### Production Firebase web keys (bundled into Capacitor)
+
+The native shell loads `dist/social`, which includes `firebase-config.js`. Release builds **fail** if placeholder web keys would be bundled.
+
+**Local setup (recommended):**
+
+```bash
+cp .env.firebase.example .env.firebase
+# Fill FIREBASE_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_APP_ID, FIREBASE_AUTH_DOMAIN=booray.win
+node scripts/ensure-firebase-config.js
+```
+
+Values: Firebase Console → Project settings → Your apps → **Web app** → SDK setup.
+
+**Alternative:** export the same `FIREBASE_*` env vars, or run `npm run setup:webapp -- national-bourre-league booray.win` after `firebase login`.
+
+`npm run build:cap:android:release` runs `ensure-firebase-config` before Gradle and rejects placeholder `dist/social/firebase-config.js`.
+
+Emulator/local dev on `localhost:8080` is unchanged — `docs/firebase-config.js` still switches to emulators on loopback; Capacitor native builds use production keys only.
+
 ---
 
 ## 2. Google Sign-In — SHA-1 / SHA-256 fingerprints
@@ -73,6 +93,43 @@ keytool -list -v -keystore /path/to/release.keystore -alias booray
 ```
 
 Also add **Play App Signing** certificates from Google Play Console → **Setup** → **App signing** (Google may re-sign your upload key).
+
+---
+
+## 2b. Android App Links (deep links)
+
+The app declares verified App Links for **`https://www.booray.win/social/*`** (`AndroidManifest.xml`, `android:autoVerify="true"`).
+
+App Links are **not production-ready** until hosting serves a valid Digital Asset Links file:
+
+```
+https://www.booray.win/.well-known/assetlinks.json
+```
+
+Template (do not deploy with placeholder fingerprint):
+
+```
+public/.well-known/assetlinks.json.example
+```
+
+After the **first Play upload** is processed:
+
+1. Play Console → **Setup** → **App signing** → copy **App signing key certificate** SHA-256
+2. Generate the live file locally (gitignored):
+
+```bash
+export ANDROID_APP_LINKS_SHA256=AA:BB:CC:...   # Play App Signing SHA-256
+node scripts/write-assetlinks-json.js
+```
+
+3. Deploy hosting (`npm run deploy:hosting` or CI) so `dist/.well-known/assetlinks.json` is live
+4. Verify:
+
+```bash
+curl -sS https://www.booray.win/.well-known/assetlinks.json
+```
+
+The file must list package **`win.booray.app`** and the **Play App Signing** SHA-256 (not your upload-key SHA-256). Until this file is live and verified, `https://www.booray.win/social/...` links open in the browser instead of the app.
 
 ---
 
@@ -112,7 +169,8 @@ Prerequisites: Node 18+, JDK 21+, Android SDK (Android Studio recommended).
 
 ```bash
 npm ci
-node scripts/ensure-firebase-config.js   # production Firebase web keys in docs/
+cp .env.firebase.example .env.firebase   # fill web app keys (gitignored)
+node scripts/ensure-firebase-config.js
 npm run build:cap:android:release
 ```
 
@@ -171,6 +229,7 @@ On a physical Android device (internal track or sideload debug build):
 - [ ] **Continue with Google** — native account picker (not browser redirect)
 - [ ] Email sign-in / sign-up works
 - [ ] Join or create room → **Go to Table** → full hand (draw → play → settlement)
+- [ ] `https://www.booray.win/social/...` opens the app (only after live `assetlinks.json` with Play App Signing SHA-256)
 - [ ] Sound + haptics on table (see `AGENTS.md` § Table feedback)
 - [ ] Footer shows expected version (`package.json` / `version.js`)
 - [ ] Force-quit and relaunch — session persists
