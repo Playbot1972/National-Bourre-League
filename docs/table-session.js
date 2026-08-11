@@ -12734,7 +12734,7 @@ var ol = /* @__PURE__ */ "card-place-normal.card-place-heavy.card-place-soft.lea
 	draw3: "draw3.mp3",
 	draw4: "draw4.mp3",
 	draw5: "draw5.mp3",
-	Fahhh: "Fahhh.mp3",
+	Fahhh: "fahhh.mp3",
 	fahhh: "fahhh.mp3",
 	fahhhh: "fahhhh.mp3",
 	timer: "timer.mp3",

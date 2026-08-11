@@ -3,6 +3,10 @@
 Drop final MP3 files here for production audio. The table feedback service loads
 these at runtime and falls back to procedural Web Audio when a file is missing.
 
+**Filename rule:** use lowercase paths only (e.g. `draw2.mp3`, not `Draw2.mp3`).
+macOS case-insensitive volumes treat those as one file; mixed-case duplicates break
+Linux CI and Android/iOS builds. `npm run test:version` includes a git path case-collision check.
+
 ## Classic pack (default)
 
 | File | Event |
