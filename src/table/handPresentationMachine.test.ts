@@ -159,8 +159,10 @@ describe("handPresentationMachine", () => {
 
     function finishDrawAnim(store: ReturnType<typeof createHandPresentationStore>, playerId: string) {
       let s = store;
-      while (s.animatingDrawPlayerId === playerId && s.drawAnimSubPhase !== "done") {
+      let guard = 0;
+      while (s.animatingDrawPlayerId === playerId && guard < 8) {
         s = reduceHandPresentation(s, { type: "advancePhase" });
+        guard += 1;
       }
       return s;
     }
@@ -207,7 +209,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phaseStartedAt, settledPhaseAt);
   });
 
-  it("reserves consumed on discard start so alternating advancePhase cannot reopen bots", () => {
+  it("marks draw seats consumed only after presentation settles", () => {
     const botA = "bot_ova3dpwd";
     const botB = "bot_jii2or4c";
     const snap = snapshotFromSession({
@@ -227,18 +229,18 @@ describe("handPresentationMachine", () => {
       snapshot: { ...snap, drawCompletedIds: [botA] },
     });
     assert.equal(store.animatingDrawPlayerId, botA);
-    assert.ok(store.drawPresentationConsumedIds.includes(botA));
+    assert.equal(store.drawPresentationConsumedIds.includes(botA), false);
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
-    assert.ok(store.displayDrawCompletedIds.includes(botA));
+    assert.ok(store.drawPresentationConsumedIds.includes(botA));
 
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
       snapshot: { ...snap, drawCompletedIds: [botA, botB] },
     });
     assert.equal(store.animatingDrawPlayerId, botB);
-    assert.ok(store.drawPresentationConsumedIds.includes(botB));
+    assert.equal(store.drawPresentationConsumedIds.includes(botB), false);
 
     store = reduceHandPresentation(store, { type: "advancePhase" });
     store = reduceHandPresentation(store, { type: "advancePhase" });
@@ -369,6 +371,7 @@ describe("handPresentationMachine", () => {
       snapshot: { ...baseSnap, drawCompletedIds: ["p2"], turnPlayerId: "p2" },
       heroDrawDiscardCount: 0,
       heroDrawReplaceCount: 0,
+      playerDrawCounts: { p2: 0 },
     });
     assert.equal(store.animatingDrawPlayerId, "p2");
     assert.equal(store.drawAnimSubPhase, "done");
@@ -389,7 +392,7 @@ describe("handPresentationMachine", () => {
     assert.equal(store.phase, "play");
   });
 
-  it("forces play phase when server enters play during draw animation", () => {
+  it("defers visible play until draw sequence completes when server enters play early", () => {
     let store = createHandPresentationStore(baseSnap);
     store = reduceHandPresentation(store, {
       type: "serverUpdate",
@@ -400,8 +403,18 @@ describe("handPresentationMachine", () => {
       type: "serverUpdate",
       snapshot: { ...baseSnap, phase: "play", drawCompletedIds: ["p1", "p2", "p3"] },
     });
+    assert.notEqual(store.phase, "play");
+    assert.equal(buildHandPresentationModel(store).drawSequenceComplete, false);
+    assert.equal(buildHandPresentationModel(store).suppressTurnIndicator, true);
+
+    while (store.phase === "drawPlayer" && store.animatingDrawPlayerId) {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
+    if (store.phase === "drawReady") {
+      store = reduceHandPresentation(store, { type: "advancePhase" });
+    }
     assert.equal(store.phase, "play");
-    assert.equal(store.drawAnimSubPhase, "done");
+    assert.equal(buildHandPresentationModel(store).drawSequenceComplete, true);
     assert.equal(buildHandPresentationModel(store).suppressTurnIndicator, false);
   });
 

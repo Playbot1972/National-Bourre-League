@@ -253,11 +253,11 @@ export function useHandPresentation({
       }
       dispatch({ type: "advancePhase" });
     }, delay);
-    const watchdogMs =
+    const scopedWatchdogMs =
       store.phase === "drawPlayer" || store.phase === "drawReady"
-        ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
+        ? Math.max(delay + 600, BOT_DRAW_PRESENTATION_WATCHDOG_MS)
         : PRESENTATION_WATCHDOG_MS;
-    schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
+    schedule(() => dispatch({ type: "watchdog" }), scopedWatchdogMs);
   }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
   useEffect(() => {
