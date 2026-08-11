@@ -4298,10 +4298,32 @@ function isRawTablePresentationBusy() {
 }
 
 /**
- * Draw/play robot gate with per-turn deadline.
- * Works with legacy table-session.js (no evaluateBotPresentationGate export).
+ * Draw/play robot gate — delegates to table-session evaluateBotPresentationGate when available.
+ * Legacy fallback only when the bridge export is missing (older table-session.js).
  */
 function shouldBlockRobotForPresentation(s, scores) {
+  const gateFn = tableMountApi?.evaluateBotPresentationGate;
+  if (typeof gateFn === "function") {
+    const ctx = snapshotGameFlowContext(s, scores);
+    const gate = snapshotTablePresentationGate();
+    const result = gateFn(Date.now(), {
+      sessionId: openSessionId ?? null,
+      handNumber: ctx.handNumber,
+      trickNumber: ctx.trickNumber,
+      presentationSubstate: gate?.handPresentationPhase ?? null,
+      blockReason: gate?.blockReason ?? null,
+      gateReason: gate?.blockReason ?? null,
+      ...ctx,
+      gate,
+    });
+    return result.blocked;
+  }
+
+  return legacyShouldBlockRobotForPresentation(s, scores);
+}
+
+/** Narrow legacy fallback when table-session.js lacks evaluateBotPresentationGate. */
+function legacyShouldBlockRobotForPresentation(s, scores) {
   const busy = isRawTablePresentationBusy();
   if (!busy) {
     robotPresentationBlockEpisode = null;
@@ -4331,18 +4353,17 @@ function shouldBlockRobotForPresentation(s, scores) {
   if (blockedMs >= ROBOT_PRESENTATION_FORCE_MS) {
     if (!ep.forceLogged) {
       ep.forceLogged = true;
-      tableMountApi?.forceReleasePresentationForBots?.("robot-turn-timeout");
+      tableMountApi?.forceReleasePresentationForBots?.("robot-turn-timeout-legacy");
       if (isGameFlowDebugEnabled()) {
-        logGameFlow("processRobotActions", "robot-force-unblock", {
+        logGameFlow("processRobotActions", "robot-force-unblock-legacy", {
           ...ctx,
+          sessionId: openSessionId ?? null,
           turnKey,
           blockedMs,
-          gate,
-        });
-        logGameFlow("trickAnimationBridge", "table-presentation-force-release", {
-          ...ctx,
-          turnKey,
-          blockedMs,
+          elapsedMs: blockedMs,
+          presentationSubstate: gate?.handPresentationPhase ?? null,
+          blockReason: gate?.blockReason ?? "legacy-busy",
+          gateReason: gate?.blockReason ?? null,
           gate,
         });
       }
@@ -4354,10 +4375,15 @@ function shouldBlockRobotForPresentation(s, scores) {
   if (blockedMs >= ROBOT_PRESENTATION_SOFT_MS) {
     if (!ep.softLogged && isGameFlowDebugEnabled()) {
       ep.softLogged = true;
-      logGameFlow("processRobotActions", "robot-block-soft-timeout", {
+      logGameFlow("processRobotActions", "robot-block-soft-timeout-legacy", {
         ...ctx,
+        sessionId: openSessionId ?? null,
         turnKey,
         blockedMs,
+        elapsedMs: blockedMs,
+        presentationSubstate: gate?.handPresentationPhase ?? null,
+        blockReason: gate?.blockReason ?? "legacy-busy",
+        gateReason: gate?.blockReason ?? null,
         gate,
       });
     }
@@ -4366,10 +4392,15 @@ function shouldBlockRobotForPresentation(s, scores) {
 
   if (!ep.firstSeenLogged && isGameFlowDebugEnabled()) {
     ep.firstSeenLogged = true;
-    logGameFlow("processRobotActions", "robot-block-first-seen", {
+    logGameFlow("processRobotActions", "robot-block-first-seen-legacy", {
       ...ctx,
+      sessionId: openSessionId ?? null,
       turnKey,
       blockedMs,
+      elapsedMs: blockedMs,
+      presentationSubstate: gate?.handPresentationPhase ?? null,
+      blockReason: gate?.blockReason ?? "legacy-busy",
+      gateReason: gate?.blockReason ?? null,
       gate,
     });
   }
