@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   findCaseCollisions,
   scanGitPathCaseCollisions,
+  assertNoGitPathCaseCollisions,
 } from "./lib/git-path-case-collisions.mjs";
 
 assert.deepEqual(
@@ -31,8 +32,20 @@ assert.deepEqual(drawPaths, [
   "public/sounds/draw5.mp3",
 ]);
 
-const { collisions } = scanGitPathCaseCollisions({ prefix: "public/sounds", cwd: root });
-const drawCollisions = collisions.filter((c) => /draw[2-5]\.mp3$/.test(c.lower));
-assert.equal(drawCollisions.length, 0, `draw2-5 collisions remain: ${JSON.stringify(drawCollisions)}`);
+for (const base of ["draw", "fahhh", "shotgun"]) {
+  const paths = spawnSync("git", ["ls-files", "public/sounds"], {
+    cwd: root,
+    encoding: "utf8",
+  })
+    .stdout.split("\n")
+    .filter((p) => new RegExp(`^public/sounds/${base}\\.mp3$`, "i").test(p))
+    .sort();
+  assert.deepEqual(paths, [`public/sounds/${base}.mp3`], `${base}.mp3 must be tracked once (lowercase)`);
+}
+
+assert.doesNotThrow(
+  () => assertNoGitPathCaseCollisions({ prefix: "public/sounds", cwd: root }),
+  /Git path case collisions/,
+);
 
 console.log("check-git-path-case-collisions.test.mjs: ok");

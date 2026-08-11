@@ -38,7 +38,7 @@ Source: `SOUND_EVENT_TO_ASSET` and `resolveSoundAsset()` in `soundPacks.ts`.
 | `handWin` | `coin-chime-light` | `/sounds/coin-chime-light.wav` |
 | `potWin` | `hand-win-stinger` | `/sounds/hand-win-stinger.wav` |
 | `bigWin` | `hand-win-stinger` | `/sounds/hand-win-stinger.wav` |
-| `bourre` | `Fahhh` | `/sounds/Fahhh.wav` |
+| `bourre` | `Fahhh` | `/sounds/fahhh.mp3` |
 | `cardSelect` | `card-select` | `/sounds/card-select.wav` |
 | `cardIllegal` | `card-illegal` | `/sounds/card-illegal.wav` |
 | `deleteRoom` | `card-illegal` | `/sounds/card-illegal.wav` |
@@ -63,7 +63,7 @@ Manifest mirror: `public/sounds/MANIFEST.json`.
 | 8 | Trick winner reveal | `useCardAudio.ts` | `winnerReveal` effect → `dispatchCardAudio` | `trickWin` | `/sounds/trick-win-*.wav` | animation | No |
 | 9 | Trick pile collection | `useCardAudio.ts` | `onTrickCollectionStart` → `dispatchCardAudio` | `trickCollect` | `/sounds/coin-chime-light.wav` | animation | No |
 | 10 | Local player wins hand | `docs/table-feedback.js` | `handComplete && myIsWinner` → `playBigWinFeedback` | `bigWin` | `/sounds/hand-win-stinger.wav` | outcome | No |
-| 11 | Player bourré’d | `docs/table-feedback.js` | `myBourre` edge → `playBourreFeedback` | `bourre` | `/sounds/Fahhh.wav` | outcome | No |
+| 11 | Player bourré’d | `docs/table-feedback.js` | `myBourre` edge → `playBourreFeedback` | `bourre` | `/sounds/fahhh.mp3` | outcome | No |
 | 12 | Open room (non-silent) | `docs/app.js` | `openRoom` → `playOpenRoomFeedback` | `openRoom` | `/sounds/card-shuffle-final.wav` | action | No |
 | 13 | Delete room (confirmed) | `docs/app.js` | `onDeleteRoom` → `playDeleteRoomFeedback` | `deleteRoom` | `/sounds/card-illegal.wav` | action | No |
 | 14 | Hero tap-select card (play) | `src/table/HeroHand.tsx` | `handleTapPlay` → `playCardSelectFeedback` | `cardSelect` | `/sounds/card-select.wav` | action | No |
