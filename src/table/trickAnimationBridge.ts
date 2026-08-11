@@ -137,7 +137,10 @@ export function forceReleasePresentationForBots(source: string): void {
   setTrickAnimationBusyState(cleared);
 }
 
-export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGateResult {
+export function evaluateBotPresentationGate(
+  now = Date.now(),
+  debugContext: Record<string, unknown> | null = null,
+): BotPresentationGateResult {
   if (now < botGateBypassUntil) {
     return {
       blocked: false,
@@ -170,8 +173,17 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
   const blockedMs = now - blockEpisode.since;
 
   if (blockedMs >= BOT_PRESENTATION_FORCE_RELEASE_MS) {
-    if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
-      logGameFlow("trickAnimationBridge", "gate-force-release", { reason, blockedMs });
+    if (isGameFlowDebugEnabled()) {
+      logGameFlow("trickAnimationBridge", "gate-force-release", {
+        reason,
+        blockedMs,
+        elapsedMs: blockedMs,
+        blockReason: reason,
+        gateReason: reason,
+        presentationSubstate: state.handPresentationPhase,
+        handPresentationPhase: state.handPresentationPhase,
+        ...debugContext,
+      });
     }
     forceReleasePresentationForBots("gate-timeout");
     return {
@@ -185,7 +197,16 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
 
   if (blockedMs >= BOT_PRESENTATION_SOFT_UNBLOCK_MS) {
     if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
-      logGameFlow("trickAnimationBridge", "gate-soft-unblock", { reason, blockedMs });
+      logGameFlow("trickAnimationBridge", "gate-soft-unblock", {
+        reason,
+        blockedMs,
+        elapsedMs: blockedMs,
+        blockReason: reason,
+        gateReason: reason,
+        presentationSubstate: state.handPresentationPhase,
+        handPresentationPhase: state.handPresentationPhase,
+        ...debugContext,
+      });
       blockEpisode.blockedLogged = true;
     }
     return {
@@ -198,7 +219,16 @@ export function evaluateBotPresentationGate(now = Date.now()): BotPresentationGa
   }
 
   if (isGameFlowDebugEnabled() && !blockEpisode.blockedLogged) {
-    logGameFlow("trickAnimationBridge", "gate-blocked", { reason, blockedMs });
+    logGameFlow("trickAnimationBridge", "gate-blocked", {
+      reason,
+      blockedMs,
+      elapsedMs: blockedMs,
+      blockReason: reason,
+      gateReason: reason,
+      presentationSubstate: state.handPresentationPhase,
+      handPresentationPhase: state.handPresentationPhase,
+      ...debugContext,
+    });
     blockEpisode.blockedLogged = true;
   }
 
