@@ -154,6 +154,22 @@ describe("draw completion tracking", () => {
 });
 
 describe("advanceAfterDraw turn advance", () => {
+  it("records authoritative discard count per completing player", () => {
+    const pub = {
+      phase: HAND_PHASE.DRAW,
+      participantIds: ["p1", "p2"],
+      dealerId: "p1",
+      drawCompletedIds: [],
+      drawDiscardCountsByPlayer: {},
+      tricksByPlayer: { p1: 0, p2: 0 },
+      actionOrder: ["p1", "p2"],
+      turnPlayerId: "p1",
+    } as import("./types").PublicHandState;
+    const next = advanceAfterDraw(pub, pub.actionOrder!, "p1", 3);
+    assert.equal(next.drawDiscardCountsByPlayer?.p1, 3);
+    assert.deepEqual(next.drawCompletedIds, ["p1"]);
+  });
+
   it("skips players who already completed draw", () => {
     const pub = {
       phase: HAND_PHASE.DRAW,

@@ -189,6 +189,7 @@ export function revealToDraw(
     actionOrder,
     handDecision: null,
     drawCompletedIds: [],
+    drawDiscardCountsByPlayer: {},
     tricksByPlayer,
     turnPlayerId: firstTurn,
     maxDrawDiscards: maxDrawDiscards(playingIds.length, dealingRule),
@@ -218,6 +219,10 @@ export function applyDrawFold(
     actionOrder: newActionOrder,
     drawCompletedIds,
     foldedIds,
+    drawDiscardCountsByPlayer: {
+      ...(trumpClearedHand.drawDiscardCountsByPlayer ?? {}),
+      [foldingPlayerId]: 0,
+    },
     tricksByPlayer: Object.fromEntries(
       participantIds.map((id) => [id, trumpClearedHand.tricksByPlayer[id] ?? 0]),
     ),
@@ -235,7 +240,7 @@ export function applyDrawFold(
   }
 
   if (allDrawsComplete(participantIds, drawCompletedIds)) {
-    const next = advanceAfterDraw(baseHand, newActionOrder, foldingPlayerId);
+    const next = advanceAfterDraw(baseHand, newActionOrder, foldingPlayerId, 0);
     return { kind: "continue", publicHand: next };
   }
 
@@ -257,34 +262,43 @@ export function advanceAfterDraw(
   publicHand: PublicHandState,
   actionOrder: string[],
   completingPlayerId: string,
+  discardedCount = 0,
 ): PublicHandState {
+  const discardCount = Math.max(0, Math.floor(discardedCount));
+  const drawDiscardCountsByPlayer = {
+    ...(publicHand.drawDiscardCountsByPlayer ?? {}),
+    [completingPlayerId]: discardCount,
+  };
   const drawCompletedIds = [...new Set([...(publicHand.drawCompletedIds ?? []), completingPlayerId])];
   const participantIds = publicHand.participantIds;
+  const countedHand: PublicHandState = {
+    ...publicHand,
+    drawDiscardCountsByPlayer,
+    drawCompletedIds,
+  };
 
   if (!allDrawsComplete(participantIds, drawCompletedIds)) {
     const nextTurn =
       firstUnresolvedDrawTurn(
-        { ...publicHand, drawCompletedIds },
+        countedHand,
         participantIds,
         drawCompletedIds,
       ) ?? nextPlayerInOrder(actionOrder, completingPlayerId);
     return {
-      ...publicHand,
-      drawCompletedIds,
+      ...countedHand,
       turnPlayerId: nextTurn,
       pendingDrawDiscards: [],
     };
   }
 
-  const seatRing = resolveSeatRing(publicHand);
+  const seatRing = resolveSeatRing(countedHand);
   const leadPlayerId =
-    openingLeaderId(publicHand.dealerId, participantIds, seatRing) ??
-    resolveActionOrder(publicHand)[0] ??
+    openingLeaderId(countedHand.dealerId, participantIds, seatRing) ??
+    resolveActionOrder(countedHand)[0] ??
     completingPlayerId;
   return {
-    ...publicHand,
+    ...countedHand,
     phase: HAND_PHASE.PLAY,
-    drawCompletedIds,
     pendingDrawDiscards: [],
     // First active seat left of dealer leads trick 1; trump flip is not auto-led.
     turnPlayerId: leadPlayerId,

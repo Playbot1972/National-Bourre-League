@@ -16,6 +16,7 @@ export interface HandServerSnapshot {
   participantIds: string[];
   actionOrder: string[];
   drawCompletedIds: string[];
+  drawDiscardCountsByPlayer?: Record<string, number>;
   turnPlayerId: string | null;
   trumpUpcard: SerializedCard | null;
   dealerId: string | null;
@@ -118,6 +119,7 @@ export function snapshotFromSession(input: {
   participantIds: string[];
   actionOrder?: string[];
   drawCompletedIds?: string[];
+  drawDiscardCountsByPlayer?: Record<string, number>;
   turnPlayerId?: string | null;
   trumpUpcard?: SerializedCard | null;
   dealerId?: string | null;
@@ -135,6 +137,7 @@ export function snapshotFromSession(input: {
     participantIds: [...input.participantIds],
     actionOrder: [...(input.actionOrder ?? input.participantIds)],
     drawCompletedIds: [...(input.drawCompletedIds ?? [])],
+    drawDiscardCountsByPlayer: { ...(input.drawDiscardCountsByPlayer ?? {}) },
     turnPlayerId: input.turnPlayerId ?? null,
     trumpUpcard: input.trumpUpcard ?? null,
     dealerId: input.dealerId ?? null,
@@ -248,32 +251,50 @@ function isDrawPresentationInFlight(store: HandPresentationStore): boolean {
 
 function mergeDrawCountsByPlayer(
   store: HandPresentationStore,
-  playerDrawCounts?: Record<string, number>,
+  snapshot: HandServerSnapshot,
 ): Record<string, number> {
-  if (!playerDrawCounts || !Object.keys(playerDrawCounts).length) {
-    return store.drawCountsByPlayer;
-  }
-  return { ...store.drawCountsByPlayer, ...playerDrawCounts };
+  return {
+    ...store.drawCountsByPlayer,
+    ...(snapshot.drawDiscardCountsByPlayer ?? {}),
+  };
 }
 
 function resolveDrawPresentationCounts(
   store: HandPresentationStore,
+  snapshot: HandServerSnapshot,
   playerId: string,
   heroDrawDiscardCount: number,
   heroDrawReplaceCount: number,
-): { discardCount: number; replaceCount: number } {
-  const stored = store.drawCountsByPlayer[playerId];
-  if (stored != null) {
-    return { discardCount: stored, replaceCount: stored };
+): { discardCount: number; replaceCount: number; countKnown: boolean } {
+  const fromSnapshot = snapshot.drawDiscardCountsByPlayer?.[playerId];
+  if (fromSnapshot != null && Number.isFinite(fromSnapshot)) {
+    return { discardCount: fromSnapshot, replaceCount: fromSnapshot, countKnown: true };
+  }
+  const fromStore = store.drawCountsByPlayer[playerId];
+  if (fromStore != null && Number.isFinite(fromStore)) {
+    return { discardCount: fromStore, replaceCount: fromStore, countKnown: true };
   }
   if (heroDrawDiscardCount > 0 || heroDrawReplaceCount > 0) {
     return {
       discardCount: heroDrawDiscardCount,
       replaceCount: heroDrawReplaceCount,
+      countKnown: true,
     };
   }
-  // Peer bot draw with unknown count — single-card presentation default.
-  return { discardCount: 1, replaceCount: 1 };
+  return { discardCount: 0, replaceCount: 0, countKnown: false };
+}
+
+function logMissingDrawPresentationCount(
+  snapshot: HandServerSnapshot,
+  playerId: string,
+): void {
+  if (!isGameFlowDebugEnabled()) return;
+  logGameFlow("handPresentation", "draw-count-missing", {
+    sessionId: snapshot.sessionKey,
+    handNumber: snapshot.handNumber,
+    playerId,
+    drawCompletedIds: [...snapshot.drawCompletedIds],
+  });
 }
 
 /** Derived client gate: all confirmed draw seats consumed and drawReady beat finished. */
@@ -547,7 +568,6 @@ export type HandPresentationEvent =
       snapshot: HandServerSnapshot;
       heroDrawDiscardCount?: number;
       heroDrawReplaceCount?: number;
-      playerDrawCounts?: Record<string, number>;
     }
   | { type: "advancePhase" }
   | { type: "completeTrumpMerge" }
@@ -633,12 +653,11 @@ function reduceHandPresentationCore(
         snapshot,
         heroDrawDiscardCount = 0,
         heroDrawReplaceCount = 0,
-        playerDrawCounts,
       } = event;
       const prev = store.prevSnapshot ?? snapshot;
       store = {
         ...store,
-        drawCountsByPlayer: mergeDrawCountsByPlayer(store, playerDrawCounts),
+        drawCountsByPlayer: mergeDrawCountsByPlayer(store, snapshot),
       };
 
       if (store.sessionKey !== snapshot.sessionKey) {
@@ -801,10 +820,14 @@ function reduceHandPresentationCore(
           if (!animatingNow && !isDrawPresentationInFlight(store)) {
             const counts = resolveDrawPresentationCounts(
               store,
+              snapshot,
               completed,
               heroDrawDiscardCount,
               heroDrawReplaceCount,
             );
+            if (!counts.countKnown) {
+              logMissingDrawPresentationCount(snapshot, completed);
+            }
             return beginDrawPlayerAnim(
               store,
               snapshot,
@@ -950,7 +973,10 @@ function advanceHandPhase(store: HandPresentationStore): HandPresentationStore {
         });
         if (nextPlayer) {
           logDrawCandidateResolution(committed, ref, nextPlayer, "advancePhase:nextPlayer");
-          const counts = resolveDrawPresentationCounts(committed, nextPlayer, 0, 0);
+          const counts = resolveDrawPresentationCounts(committed, ref, nextPlayer, 0, 0);
+          if (!counts.countKnown) {
+            logMissingDrawPresentationCount(ref, nextPlayer);
+          }
           return beginDrawPlayerAnim(
             committed,
             syncedPrev,
