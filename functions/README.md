@@ -48,18 +48,21 @@ npm run build:functions
 npm run deploy:functions   # firebase deploy --only functions,firestore:rules
 ```
 
-**GitHub Actions (`main`):** `.github/workflows/deploy.yml` builds Functions, deploys
-Functions + Firestore rules, verifies draw callables, then builds and deploys Hosting.
+**GitHub Actions (`main`):** `.github/workflows/deploy.yml` builds Functions, optionally runs a
+**targeted** `functions:gcOrphanRooms` recovery when the scheduler job is missing, then **always**
+deploys `functions,firestore:rules`, verifies draw callables, then builds and deploys Hosting.
 **Functions-only:** `.github/workflows/deploy-functions.yml` (`workflow_dispatch`).
 
-Manual split (matches CI):
+Manual coordinated rollout (approved):
 
 ```bash
-npm run build:functions && npm run deploy:functions
-npm run build:hosting && npm run deploy:hosting
+npm run deploy:functions && npm run deploy:hosting
 ```
 
-Do not use `npm run deploy` when Functions must land before Hosting.
+Or use `npm run deploy` (sequential `deploy:functions` then `deploy:hosting`).
+
+**Not approved** for coordinated rollout: `npm run deploy:combined-unsafe` (single combined Firebase
+deploy without ordering guarantees).
 
 ## Firestore rules
 

@@ -141,6 +141,17 @@ jobs:
           chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
           bash scripts/ensure-gc-orphan-scheduler-deploy.sh
 
+      - name: Recover gcOrphanRooms scheduler (targeted)
+        if: steps.cfg.outputs.ready == 'true' && steps.gc_orphan.outputs.force_gc_orphan_deploy == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          chmod +x scripts/ci-firebase-hosting-deploy.sh
+          echo "Scheduler job missing — interim deploy of functions:gcOrphanRooms before full Functions deploy"
+          bash scripts/ci-firebase-hosting-deploy.sh functions:gcOrphanRooms --force
+
       - name: Deploy Cloud Functions and Firestore rules
         if: steps.cfg.outputs.ready == 'true'
         env:
@@ -149,12 +160,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
           chmod +x scripts/ci-firebase-hosting-deploy.sh
-          ONLY="functions,firestore:rules"
-          if [[ "${{ steps.gc_orphan.outputs.force_gc_orphan_deploy }}" == "true" ]]; then
-            ONLY="functions:gcOrphanRooms"
-            echo "Deploying only ${ONLY} after scheduler recovery (rules unchanged)"
-          fi
-          bash scripts/ci-firebase-hosting-deploy.sh "${ONLY}" --force || {
+          bash scripts/ci-firebase-hosting-deploy.sh functions,firestore:rules --force || {
             echo "::error::Cloud Functions / Firestore rules deploy failed."
             echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
             echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
