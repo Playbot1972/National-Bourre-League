@@ -78,6 +78,7 @@ export function serializeHandState(
     recycleShuffleCount: 0,
     actionOrder: [...actionOrder],
     drawCompletedIds: [],
+    drawDiscardCountsByPlayer: {},
     maxDrawDiscards: maxDraw,
     cinchEnabled,
     handDecision,

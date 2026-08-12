@@ -69,6 +69,8 @@ export interface PublicHandState {
   recycleShuffleCount?: number;
   actionOrder?: string[];
   drawCompletedIds?: string[];
+  /** Authoritative discard count per seat after each completed draw (replacement count matches). */
+  drawDiscardCountsByPlayer?: Record<string, number>;
   maxDrawDiscards?: number;
   cinchEnabled?: boolean;
   /** All seats dealt this hand (includes players who later pass). */

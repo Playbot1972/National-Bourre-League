@@ -10,7 +10,10 @@ pure engine as the client (`src/game/` → `functions/vendor/game-engine.js`).
 | `gameEnsureHandEnrollment` | Start in/out enrollment between hands |
 | `gameTimeoutEnrollment` | Auto sit-out on enrollment timer |
 | `gameSetHandParticipation` | "I'm in" during enrollment (may deal) |
-| `gameSubmitDraw` | Draw / stand pat |
+| `gameAdvanceHandReveal` | Pagat reveal → play/pass decision |
+| `gameSubmitDraw` | Draw / stand pat (`drawDiscardCountsByPlayer` on `currentHand`) |
+| `gameFoldDraw` | Fold during draw (`drawDiscardCountsByPlayer[playerId] = 0`) |
+| `gameAdvanceBots` | Server bot enrollment / draw / play chain |
 | `gamePlayCard` | Play one card (auto-settles when hand completes) |
 | `gameRecordHand` | Pot / bourré settlement + next-hand reset |
 | `gameVoteCoWinSettlement` | Co-winner split / decline vote |
@@ -45,8 +48,27 @@ The client connects to the Functions emulator on `127.0.0.1:5001` when served fr
 
 ```bash
 npm run build:functions
-firebase deploy --only functions,firestore:rules
+npm run deploy:functions
+# or: firebase deploy --only functions,firestore:rules
 ```
+
+From repo root, `npm run deploy:functions` runs `build:functions` then deploys Functions + Firestore rules.
+
+### Coordinated rollout (client + Functions engine fields)
+
+When a release adds optional `currentHand` fields written only by Cloud Functions (for example
+`drawDiscardCountsByPlayer` for sequential draw presentation — PR #731), deploy **Functions
+before Hosting** so production clients read authoritative counts on reconnect:
+
+1. **Functions first** — `npm run deploy:functions` or GitHub Actions **Deploy Functions Only**
+   (`workflow_dispatch` on `.github/workflows/deploy-functions.yml`).
+2. **Hosting second** — merge to `main` ( **Deploy to Firebase** ) or `npm run deploy:hosting`.
+
+The default **Deploy to Firebase** workflow on `main` builds both bundles but deploys **Hosting
+before Functions**. That order is safe (new clients fall back to stand-pat presentation when counts
+are missing), but **Functions-first** avoids degraded draw animations during the rollout window.
+
+Full stack local/emergency: `npm run deploy` (hosting + rules + functions in one command).
 
 ## Firestore rules
 
