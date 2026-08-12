@@ -252,7 +252,12 @@ The site ships as **one Firebase Hosting site** with two apps:
 **Preferred deploy path (no local `firebase login`):**
 
 - Push to `main` — GitHub Actions runs **Deploy to Firebase** (`.github/workflows/deploy.yml`).
+  The workflow deploys **Cloud Functions + Firestore rules before Hosting** (optional targeted
+  `gcOrphanRooms` recovery never replaces the full Functions deploy).
 - Or trigger **Deploy to Firebase** manually from the Actions tab.
+- **Functions-only:** Actions → **Deploy Functions Only** (`deploy-functions.yml`).
+- **Local coordinated rollout:** `npm run deploy:functions` then `npm run deploy:hosting`, or
+  `npm run deploy` (same order). Do **not** use `npm run deploy:combined-unsafe` for presentation releases.
 
 CI uses the `FIREBASE_SERVICE_ACCOUNT` secret (`GOOGLE_APPLICATION_CREDENTIALS`). When ADC
 auth fails intermittently, `scripts/ci-firebase-hosting-deploy.sh` mints a short-lived access
@@ -283,10 +288,11 @@ npm run deploy:patch
 ```bash
 npm install
 # Put real Firebase web config in docs/firebase-config.js (or .env.firebase)
-npm run deploy          # build:hosting + deploy hosting + firestore rules + functions
+npm run deploy          # deploy:functions then deploy:hosting (sequential, approved)
 # or step-by-step:
-npm run build:hosting   # vite build + copy docs/ → dist/social/
-firebase deploy --only hosting,firestore:rules
+npm run deploy:functions
+npm run deploy:hosting
+# Not for coordinated rollout: npm run deploy:combined-unsafe
 ```
 
 **App version:** `package.json` `version` is the single source of truth (`N.NN.NN`). Every
@@ -305,8 +311,8 @@ comes from these generated artifacts, not hand-edited strings.
 | `npm run verify:prod` | Confirm production `/social/version.js` and `/build-meta.json` match or exceed repo version |
 
 GitHub Actions deploys on `main` auto-bump patch with `BUILD_CHANNEL=production` before deploy
-and commit `chore: release v… [skip ci]` back to `main`. Plain `npm run deploy` does **not**
-auto-bump (use `deploy:patch` when you need a new label). `index.html`, `version.js`, and
+and commit `chore: release v… [skip ci]` back to `main`. `npm run deploy` runs Functions then
+Hosting sequentially; use `npm run deploy:patch` for a version-bumped local production deploy. `index.html`, `version.js`, and
 `build-meta.json` are served with `no-cache` headers; module URLs get `?v=` cache-bust query
 strings in hosting builds. Deployed apps poll for newer `BUILD_ID` and show a reload banner.
 

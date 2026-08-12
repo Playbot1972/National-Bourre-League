@@ -45,8 +45,24 @@ The client connects to the Functions emulator on `127.0.0.1:5001` when served fr
 
 ```bash
 npm run build:functions
-firebase deploy --only functions,firestore:rules
+npm run deploy:functions   # firebase deploy --only functions,firestore:rules
 ```
+
+**GitHub Actions (`main`):** `.github/workflows/deploy.yml` builds Functions, optionally runs a
+**targeted** `functions:gcOrphanRooms` recovery when the scheduler job is missing, then **always**
+deploys `functions,firestore:rules`, verifies draw callables, then builds and deploys Hosting.
+**Functions-only:** `.github/workflows/deploy-functions.yml` (`workflow_dispatch`).
+
+Manual coordinated rollout (approved):
+
+```bash
+npm run deploy:functions && npm run deploy:hosting
+```
+
+Or use `npm run deploy` (sequential `deploy:functions` then `deploy:hosting`).
+
+**Not approved** for coordinated rollout: `npm run deploy:combined-unsafe` (single combined Firebase
+deploy without ordering guarantees).
 
 ## Firestore rules
 

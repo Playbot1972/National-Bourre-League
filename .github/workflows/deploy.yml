@@ -89,12 +89,6 @@ jobs:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
         run: node scripts/write-firebase-config.js
 
-      - name: Build hosting bundle
-        if: steps.cfg.outputs.ready == 'true'
-        env:
-          BUILD_CHANNEL: production
-        run: npm run build:hosting
-
       - name: Build Cloud Functions bundle
         if: steps.cfg.outputs.ready == 'true'
         run: npm run build:functions
@@ -112,6 +106,100 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.FIREBASE_PROJECT_ID }}
+
+      - name: Enable Cloud Scheduler API
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          chmod +x scripts/enable-cloud-scheduler-api.sh
+          SA_EMAIL="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,'utf8')).client_email")"
+          echo "Deploy service account: ${SA_EMAIL}"
+          if bash scripts/enable-cloud-scheduler-api.sh; then
+            echo "Cloud Scheduler API ready"
+            exit 0
+          fi
+          echo "::warning::Deploy SA could not enable cloudscheduler.googleapis.com — trying IAM grant + retry"
+          gcloud projects add-iam-policy-binding "${FIREBASE_PROJECT_ID}" \
+            --member="serviceAccount:${SA_EMAIL}" \
+            --role="roles/serviceusage.serviceUsageAdmin" \
+            --quiet 2>/dev/null || true
+          if bash scripts/enable-cloud-scheduler-api.sh; then
+            echo "Cloud Scheduler API ready after IAM grant"
+            exit 0
+          fi
+          echo "::error::Cloud Scheduler API still disabled — Functions deploy blocked until a project Owner enables it:"
+          echo "https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com?project=${FIREBASE_PROJECT_ID}"
+          exit 1
+
+      - name: Prepare gcOrphanRooms scheduler deploy
+        if: steps.cfg.outputs.ready == 'true'
+        id: gc_orphan
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
+          bash scripts/ensure-gc-orphan-scheduler-deploy.sh
+
+      - name: Recover gcOrphanRooms scheduler (targeted)
+        if: steps.cfg.outputs.ready == 'true' && steps.gc_orphan.outputs.force_gc_orphan_deploy == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          chmod +x scripts/ci-firebase-hosting-deploy.sh
+          echo "Scheduler job missing — interim deploy of functions:gcOrphanRooms before full Functions deploy"
+          bash scripts/ci-firebase-hosting-deploy.sh functions:gcOrphanRooms --force
+
+      - name: Deploy Cloud Functions and Firestore rules
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          chmod +x scripts/ci-firebase-hosting-deploy.sh
+          bash scripts/ci-firebase-hosting-deploy.sh functions,firestore:rules --force || {
+            echo "::error::Cloud Functions / Firestore rules deploy failed."
+            echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
+            echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
+            echo "Then: gh workflow run deploy.yml --ref main"
+            echo "Billing API: npm run enable:functions-apis"
+            echo "Bad secret JSON: npm run sync:github-sa-secret"
+            exit 1
+          }
+
+      - name: Verify draw-mutating Cloud Functions
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          REGION=us-central1
+          for fn in gameSubmitDraw gameFoldDraw gameAdvanceBots; do
+            echo "==> Checking function: $fn"
+            state="$(gcloud functions describe "$fn" \
+              --gen2 \
+              --region="$REGION" \
+              --project="$FIREBASE_PROJECT_ID" \
+              --format="value(state)" 2>/dev/null || true)"
+            if [[ -z "$state" ]]; then
+              echo "::error::Function $fn not found after deploy"
+              exit 1
+            fi
+            if [[ "$state" != "ACTIVE" ]]; then
+              echo "::error::Function $fn state is $state (expected ACTIVE)"
+              exit 1
+            fi
+            echo "    $fn: $state"
+          done
+
+      - name: Build hosting bundle
+        if: steps.cfg.outputs.ready == 'true'
+        env:
+          BUILD_CHANNEL: production
+        run: npm run build:hosting
 
       - name: Deploy Hosting
         if: steps.cfg.outputs.ready == 'true'
@@ -136,69 +224,3 @@ jobs:
           git diff --staged --quiet && exit 0
           git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
           git push
-
-      - name: Deploy Firestore rules
-        if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-        run: bash scripts/ci-firebase-hosting-deploy.sh firestore:rules
-
-      - name: Enable Cloud Scheduler API
-        if: steps.cfg.outputs.ready == 'true'
-        continue-on-error: true
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: |
-          chmod +x scripts/enable-cloud-scheduler-api.sh
-          SA_EMAIL="$(node -p "JSON.parse(require('fs').readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,'utf8')).client_email")"
-          echo "Deploy service account: ${SA_EMAIL}"
-          if bash scripts/enable-cloud-scheduler-api.sh; then
-            echo "Cloud Scheduler API ready"
-            exit 0
-          fi
-          echo "::warning::Deploy SA could not enable cloudscheduler.googleapis.com — trying IAM grant + retry"
-          gcloud projects add-iam-policy-binding "${FIREBASE_PROJECT_ID}" \
-            --member="serviceAccount:${SA_EMAIL}" \
-            --role="roles/serviceusage.serviceUsageAdmin" \
-            --quiet 2>/dev/null || true
-          if bash scripts/enable-cloud-scheduler-api.sh; then
-            echo "Cloud Scheduler API ready after IAM grant"
-            exit 0
-          fi
-          echo "::warning::Cloud Scheduler API still disabled — Functions deploy will fail until a project Owner enables it:"
-          echo "https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com?project=${FIREBASE_PROJECT_ID}"
-          exit 1
-
-      - name: Prepare gcOrphanRooms scheduler deploy
-        if: steps.cfg.outputs.ready == 'true'
-        id: gc_orphan
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-        run: |
-          chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
-          bash scripts/ensure-gc-orphan-scheduler-deploy.sh
-
-      - name: Deploy Cloud Functions
-        if: steps.cfg.outputs.ready == 'true'
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
-        run: |
-          ONLY="functions"
-          if [[ "${{ steps.gc_orphan.outputs.force_gc_orphan_deploy }}" == "true" ]]; then
-            ONLY="functions:gcOrphanRooms"
-            echo "Deploying only ${ONLY} after scheduler recovery"
-          fi
-          bash scripts/ci-firebase-hosting-deploy.sh "${ONLY}" --force || {
-            echo "::error::Cloud Functions deploy failed."
-            echo "Gen2 deploy needs Service Account User on App Engine + Compute default SAs."
-            echo "On a Mac as project Owner: git pull && npm run fix:deploy-iam"
-            echo "Then: gh workflow run deploy.yml --ref main"
-            echo "Billing API: npm run enable:functions-apis"
-            echo "Bad secret JSON: npm run sync:github-sa-secret"
-            exit 1
-          }
