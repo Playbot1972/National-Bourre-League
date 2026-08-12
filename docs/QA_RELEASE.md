@@ -10,6 +10,25 @@ npm run test:e2e         # Playwright smoke + 2–8 player matrix (2 viewports)
 
 See also `docs/TESTING.md` for emulator setup and manual checklists.
 
+### PR #731 — sequential draw presentation (`drawDiscardCountsByPlayer`)
+
+Server writes per-player discard counts on `currentHand.drawDiscardCountsByPlayer`. Client table
+bundle reads them for exact N-card draw animations.
+
+**Rollout order (production):**
+
+1. Deploy Cloud Functions — `npm run deploy:functions` or Actions **Deploy Functions Only**.
+2. Deploy Hosting — merge to `main` / **Deploy to Firebase** / `npm run deploy:hosting`.
+
+**Validation:**
+
+```bash
+npm run build:functions
+npm test --prefix functions   # includes drawDiscardCountsPersistence.test.mjs
+npm run build:table
+npx tsx --test src/table/drawSequencePresentation.test.ts
+```
+
 ## Automated coverage map
 
 | Area | Tests | Command |

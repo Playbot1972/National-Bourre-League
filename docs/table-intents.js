@@ -352,7 +352,9 @@ export function createTableIntentHandlers(deps) {
             deps.setTableActionFeedback({ status: "error", message: err.message });
             return Promise.reject(err);
           }
-          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW, {
+            discardCount: discardIndices.length,
+          });
           captureActionStart("draw");
           deps.setTableActionFeedback(null);
           return deps
@@ -391,7 +393,9 @@ export function createTableIntentHandlers(deps) {
             deps.setTableActionFeedback({ status: "error", message: blockErr.message });
             return Promise.reject(blockErr);
           }
-          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW);
+          deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW, {
+            discardCount: discardIndices.length,
+          });
           captureActionStart("draw");
           deps.setTableActionFeedback(null);
           return deps

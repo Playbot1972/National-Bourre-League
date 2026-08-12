@@ -309,6 +309,7 @@ import {
 import {
   LOCAL_HAND_ACTION,
   applyLocalCommitDrawCompleted,
+  applyLocalCommitDrawDiscardCounts,
   applyLocalCommitPlannedDiscards,
   applyLocalCommitToEnrollment,
   applyLocalCommitToPlayerFlags,
@@ -4881,6 +4882,14 @@ function buildTableSessionProps(s) {
       myUid,
     );
   }
+  let drawDiscardCountsByPlayer = { ...(currentHand?.drawDiscardCountsByPlayer ?? {}) };
+  if (localHandActionCommit && myUid) {
+    drawDiscardCountsByPlayer = applyLocalCommitDrawDiscardCounts(
+      localHandActionCommit,
+      drawDiscardCountsByPlayer,
+      myUid,
+    );
+  }
   const currentEnrollmentPlayerId = resolveCurrentHandChoicePlayerId({
     pagatDecisionActive,
     handDecision: pagatHandDecision,
@@ -5018,6 +5027,7 @@ function buildTableSessionProps(s) {
       currentTrick: currentHand?.currentTrick ?? null,
       playedCards: currentHand?.playedCards ?? [],
       drawCompletedIds,
+      drawDiscardCountsByPlayer,
       maxDrawDiscards: currentHand?.maxDrawDiscards ?? null,
       cinchEnabled: currentHand?.cinchEnabled === true,
       postedAntes: currentHand?.postedAntes ?? {},
