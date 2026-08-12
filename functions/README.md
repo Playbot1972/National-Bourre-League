@@ -45,8 +45,21 @@ The client connects to the Functions emulator on `127.0.0.1:5001` when served fr
 
 ```bash
 npm run build:functions
-firebase deploy --only functions,firestore:rules
+npm run deploy:functions   # firebase deploy --only functions,firestore:rules
 ```
+
+**GitHub Actions (`main`):** `.github/workflows/deploy.yml` builds Functions, deploys
+Functions + Firestore rules, verifies draw callables, then builds and deploys Hosting.
+**Functions-only:** `.github/workflows/deploy-functions.yml` (`workflow_dispatch`).
+
+Manual split (matches CI):
+
+```bash
+npm run build:functions && npm run deploy:functions
+npm run build:hosting && npm run deploy:hosting
+```
+
+Do not use `npm run deploy` when Functions must land before Hosting.
 
 ## Firestore rules
 

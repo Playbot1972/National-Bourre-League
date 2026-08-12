@@ -97,16 +97,16 @@ jobs:
           chmod +x scripts/ensure-gc-orphan-scheduler-deploy.sh
           bash scripts/ensure-gc-orphan-scheduler-deploy.sh
 
-      - name: Deploy Cloud Functions
+      - name: Deploy Cloud Functions and Firestore rules
         if: steps.cfg.outputs.ready == 'true'
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          ONLY="functions"
+          ONLY="functions,firestore:rules"
           if [[ "${{ steps.gc_orphan.outputs.force_gc_orphan_deploy }}" == "true" ]]; then
             ONLY="functions:gcOrphanRooms"
-            echo "Deploying only ${ONLY} after scheduler recovery"
+            echo "Deploying only ${ONLY} after scheduler recovery (rules unchanged)"
           fi
           chmod +x scripts/ci-firebase-hosting-deploy.sh
           bash scripts/ci-firebase-hosting-deploy.sh "${ONLY}" --force

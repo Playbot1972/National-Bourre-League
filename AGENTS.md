@@ -252,7 +252,10 @@ The site ships as **one Firebase Hosting site** with two apps:
 **Preferred deploy path (no local `firebase login`):**
 
 - Push to `main` — GitHub Actions runs **Deploy to Firebase** (`.github/workflows/deploy.yml`).
+  The workflow deploys **Cloud Functions + Firestore rules before Hosting** so server fields
+  (e.g. `drawDiscardCountsByPlayer`) exist before clients ship.
 - Or trigger **Deploy to Firebase** manually from the Actions tab.
+- **Functions-only:** Actions → **Deploy Functions Only** (`deploy-functions.yml`).
 
 CI uses the `FIREBASE_SERVICE_ACCOUNT` secret (`GOOGLE_APPLICATION_CREDENTIALS`). When ADC
 auth fails intermittently, `scripts/ci-firebase-hosting-deploy.sh` mints a short-lived access
