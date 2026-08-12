@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { setCoWinResultLatched } from "./coWinResultLatchBridge";
 import { isGameFlowDebugEnabled, logGameFlow } from "./gameFlowDebug";
-import { getTieResultDurationMs } from "./tieResultTiming";
+import {
+  getTieResultDurationMs,
+  isTieContinueGuardComplete,
+  tieResultAutoHideRemainingMs,
+  TIE_RESULT_CONTINUE_GUARD_MS,
+} from "./tieResultTiming";
 
 /**
  * Keeps tie/co-win result UI visible for a readable minimum even when the server
  * clears pendingCoWinSettlement quickly (e.g. bot votes).
+ * Independent of hand/trick presentation state machines.
  */
 export function useCoWinResultVisibility(
   active: boolean,
@@ -14,25 +21,60 @@ export function useCoWinResultVisibility(
   const [latched, setLatched] = useState(false);
   const [manualContinueAllowed, setManualContinueAllowed] = useState(false);
   const shownAtRef = useRef<number | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const continueTimerRef = useRef<number | null>(null);
+  const autoHideTimerRef = useRef<number | null>(null);
   const proposalRef = useRef<string | null>(null);
   const durationMsRef = useRef(getTieResultDurationMs(message));
 
-  const clearTimer = () => {
-    if (timerRef.current != null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
+  const clearContinueTimer = () => {
+    if (continueTimerRef.current != null) {
+      window.clearTimeout(continueTimerRef.current);
+      continueTimerRef.current = null;
     }
   };
 
-  useEffect(() => {
-    clearTimer();
+  const clearAutoHideTimer = () => {
+    if (autoHideTimerRef.current != null) {
+      window.clearTimeout(autoHideTimerRef.current);
+      autoHideTimerRef.current = null;
+    }
+  };
 
+  const releaseLatch = (reason: string) => {
+    if (isGameFlowDebugEnabled() && shownAtRef.current != null) {
+      logGameFlow("tieResult", reason, {
+        proposalKey: proposalRef.current,
+        elapsedMs: Date.now() - shownAtRef.current,
+        durationMs: durationMsRef.current,
+      });
+    }
+    shownAtRef.current = null;
+    setLatched(false);
+    setManualContinueAllowed(false);
+    setCoWinResultLatched(false);
+  };
+
+  const scheduleAutoHide = (remainingMs: number) => {
+    clearAutoHideTimer();
+    if (remainingMs <= 0) {
+      releaseLatch("auto-hide");
+      return;
+    }
+    autoHideTimerRef.current = window.setTimeout(() => {
+      autoHideTimerRef.current = null;
+      releaseLatch("auto-hide");
+    }, remainingMs);
+  };
+
+  useEffect(() => {
     if (proposalRef.current !== proposalKey) {
       proposalRef.current = proposalKey;
       shownAtRef.current = null;
+      clearContinueTimer();
+      clearAutoHideTimer();
       setLatched(false);
       setManualContinueAllowed(false);
+      setCoWinResultLatched(false);
       durationMsRef.current = getTieResultDurationMs(message);
     }
 
@@ -43,6 +85,7 @@ export function useCoWinResultVisibility(
         durationMsRef.current = getTieResultDurationMs(message);
         setLatched(true);
         setManualContinueAllowed(false);
+        setCoWinResultLatched(true);
         if (isGameFlowDebugEnabled()) {
           logGameFlow("tieResult", "shown", {
             proposalKey,
@@ -50,60 +93,59 @@ export function useCoWinResultVisibility(
             shownAt,
           });
         }
-        timerRef.current = window.setTimeout(() => {
+      }
+      clearAutoHideTimer();
+    }
+
+    if ((active || latched) && shownAtRef.current != null) {
+      if (isTieContinueGuardComplete(shownAtRef.current)) {
+        setManualContinueAllowed(true);
+      } else if (continueTimerRef.current == null) {
+        const guardRemaining =
+          TIE_RESULT_CONTINUE_GUARD_MS - (Date.now() - shownAtRef.current);
+        continueTimerRef.current = window.setTimeout(() => {
+          continueTimerRef.current = null;
           setManualContinueAllowed(true);
           if (isGameFlowDebugEnabled()) {
             logGameFlow("tieResult", "manual-continue-allowed", {
               proposalKey,
-              elapsedMs: Date.now() - shownAt,
+              elapsedMs: Date.now() - (shownAtRef.current ?? Date.now()),
+              guardMs: TIE_RESULT_CONTINUE_GUARD_MS,
             });
           }
-        }, durationMsRef.current);
+        }, Math.max(0, guardRemaining));
       }
-      return clearTimer;
     }
 
-    if (!latched || shownAtRef.current == null) {
-      return clearTimer;
+    if (!active && latched && shownAtRef.current != null) {
+      const remaining = tieResultAutoHideRemainingMs(
+        shownAtRef.current,
+        durationMsRef.current,
+      );
+      scheduleAutoHide(remaining);
+    } else if (active) {
+      clearAutoHideTimer();
     }
 
-    const elapsed = Date.now() - shownAtRef.current;
-    const remaining = durationMsRef.current - elapsed;
-    if (remaining <= 0) {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("tieResult", "auto-hide", {
-          proposalKey,
-          elapsedMs: elapsed,
-          durationMs: durationMsRef.current,
-        });
+    return () => {
+      if (!active && !latched) {
+        clearContinueTimer();
+        clearAutoHideTimer();
       }
-      shownAtRef.current = null;
-      setLatched(false);
-      setManualContinueAllowed(false);
-      return clearTimer;
-    }
-
-    timerRef.current = window.setTimeout(() => {
-      if (isGameFlowDebugEnabled()) {
-        logGameFlow("tieResult", "auto-hide", {
-          proposalKey,
-          elapsedMs: Date.now() - (shownAtRef.current ?? Date.now()),
-          durationMs: durationMsRef.current,
-        });
-      }
-      shownAtRef.current = null;
-      setLatched(false);
-      setManualContinueAllowed(false);
-      timerRef.current = null;
-    }, remaining);
-
-    return clearTimer;
+    };
   }, [active, latched, proposalKey, message]);
 
-  useEffect(() => () => clearTimer(), []);
+  useEffect(
+    () => () => {
+      clearContinueTimer();
+      clearAutoHideTimer();
+      setCoWinResultLatched(false);
+    },
+    [],
+  );
 
   return {
     visible: active || latched,
-    manualContinueAllowed: !active || manualContinueAllowed,
+    manualContinueAllowed: (active || latched) && manualContinueAllowed,
   };
 }

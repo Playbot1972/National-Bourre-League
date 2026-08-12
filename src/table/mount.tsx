@@ -39,6 +39,10 @@ import {
   subscribeTrickAnimationBusy,
 } from "./trickAnimationBridge";
 import {
+  isCoWinResultLatched,
+  resetCoWinResultLatchBridge,
+} from "./coWinResultLatchBridge";
+import {
   resetPresentationMotionBusy,
   disposePresentationMotionBusyListeners,
 } from "./presentationMotionBusy";
@@ -78,6 +82,7 @@ export function unmountTableSession() {
   root = null;
   rootEl = null;
   resetTrickAnimationBusyState();
+  resetCoWinResultLatchBridge();
   resetPresentationMotionBusy();
   disposeTrickAnimationBusyListeners();
   disposePresentationMotionBusyListeners();
@@ -110,6 +115,7 @@ export {
   isTablePresentationBusyForBots,
   evaluateBotPresentationGate,
   forceReleasePresentationForBots,
+  isCoWinResultLatched,
   isTrickAnimationBusy,
   subscribeTrickAnimationBusy,
   clearWonTrickCollectionArtifacts,
