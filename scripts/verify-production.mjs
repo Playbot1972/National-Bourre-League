@@ -7,12 +7,16 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compareAppVersion } from "./lib/version-format.mjs";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  FetchPathError,
+  fetchWithRetry,
+} from "./lib/fetch-with-retry.mjs";
 
 const ORIGIN = process.env.PROD_ORIGIN || "https://booray.win";
-const TIMEOUT_MS = 30000;
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** @typedef {{ ok: boolean, detail: string }} CheckResult */
+/** @typedef {{ ok: boolean; detail: string }} CheckResult */
 
 function expectedRepoVersion() {
   try {
@@ -24,22 +28,53 @@ function expectedRepoVersion() {
 }
 
 /**
+ * @typedef {{ ok: boolean; status: number; body: string; detail?: string }} FetchPathResult
+ */
+
+/**
  * @param {string} path
- * @returns {Promise<{ ok: boolean, status: number, body: string }>}
+ * @returns {Promise<FetchPathResult>}
  */
 async function fetchPath(path) {
-  const res = await fetch(`${ORIGIN}${path}`, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-    redirect: "follow",
-    cache: "no-store",
-  });
-  return { ok: res.ok, status: res.status, body: await res.text() };
+  try {
+    const result = await fetchWithRetry(`${ORIGIN}${path}`, {
+      timeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+    });
+    return { ok: result.ok, status: result.status, body: result.body };
+  } catch (error) {
+    if (error instanceof FetchPathError) {
+      return {
+        ok: false,
+        status: error.status ?? 0,
+        body: "",
+        detail: error.message,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * @param {string} path
+ * @param {FetchPathResult} fetchResult
+ * @param {string} [fallback]
+ */
+function fetchFailureDetail(path, fetchResult, fallback) {
+  if (fetchResult.detail) return fetchResult.detail;
+  if (fetchResult.status > 0) {
+    return `${path}: HTTP ${fetchResult.status}`;
+  }
+  return fallback ?? `Could not fetch ${path}`;
 }
 
 /** @returns {Promise<CheckResult>} */
 async function checkVersion() {
-  const { ok, body } = await fetchPath("/social/version.js");
-  if (!ok) return { ok: false, detail: "Could not fetch /social/version.js" };
+  const path = "/social/version.js";
+  const fetched = await fetchPath(path);
+  if (!fetched.ok) {
+    return { ok: false, detail: fetchFailureDetail(path, fetched, `Could not fetch ${path}`) };
+  }
+  const { body } = fetched;
 
   const prodVersion = body.match(/APP_VERSION\s*=\s*"([^"]+)"/)?.[1];
   if (!prodVersion) return { ok: false, detail: "APP_VERSION not found in version.js" };
@@ -66,8 +101,12 @@ async function checkVersion() {
 
 /** @returns {Promise<CheckResult>} */
 async function checkBuildMeta() {
-  const { ok, body } = await fetchPath("/build-meta.json");
-  if (!ok) return { ok: false, detail: "Could not fetch /build-meta.json" };
+  const path = "/build-meta.json";
+  const fetched = await fetchPath(path);
+  if (!fetched.ok) {
+    return { ok: false, detail: fetchFailureDetail(path, fetched, `Could not fetch ${path}`) };
+  }
+  const { body } = fetched;
   try {
     const meta = JSON.parse(body);
     if (!meta.version || !meta.buildId || !meta.label) {
@@ -81,8 +120,15 @@ async function checkBuildMeta() {
 
 /** @returns {Promise<CheckResult>} */
 async function checkFirebaseConfig() {
-  const { ok, body } = await fetchPath("/social/firebase-config.js");
-  if (!ok) return { ok: false, detail: "Could not fetch /social/firebase-config.js" };
+  const path = "/social/firebase-config.js";
+  const fetched = await fetchPath(path);
+  if (!fetched.ok) {
+    return {
+      ok: false,
+      detail: fetchFailureDetail(path, fetched, `Could not fetch ${path}`),
+    };
+  }
+  const { body } = fetched;
   if (body.includes("REPLACE_WITH_YOUR_API_KEY")) {
     return { ok: false, detail: "apiKey is still REPLACE_WITH_YOUR_API_KEY" };
   }
@@ -102,7 +148,9 @@ async function checkFirebaseConfig() {
 
 /** @returns {Promise<CheckResult>} */
 async function checkSocialApp() {
-  const { ok, status } = await fetchPath("/social/");
+  const path = "/social/";
+  const fetched = await fetchPath(path);
+  const { ok, status } = fetched;
   if (status === 404) {
     return {
       ok: false,
@@ -110,18 +158,22 @@ async function checkSocialApp() {
     };
   }
   if (!ok && status >= 500) {
-    return { ok: false, detail: `HTTP ${status} from /social/` };
+    return { ok: false, detail: `HTTP ${status} from ${path}` };
   }
   if (status < 200 || status >= 400) {
-    return { ok: false, detail: `HTTP ${status} from /social/` };
+    return { ok: false, detail: `HTTP ${status} from ${path}` };
   }
-  return { ok: true, detail: `HTTP ${status} from /social/` };
+  return { ok: true, detail: `HTTP ${status} from ${path}` };
 }
 
 /** @returns {Promise<CheckResult>} */
 async function checkTableSessionBundle() {
-  const { ok, body } = await fetchPath("/social/table-session.js");
-  if (!ok) return { ok: false, detail: "Could not fetch /social/table-session.js" };
+  const path = "/social/table-session.js";
+  const fetched = await fetchPath(path);
+  if (!fetched.ok) {
+    return { ok: false, detail: fetchFailureDetail(path, fetched, `Could not fetch ${path}`) };
+  }
+  const { body } = fetched;
 
   const markers = [
     "getTablePresentationBlockReason",
@@ -140,11 +192,13 @@ async function checkTableSessionBundle() {
 
 /** @returns {Promise<CheckResult>} */
 async function checkAppStoreLegalPages() {
-  const privacy = await fetchPath("/social/privacy.html");
+  const privacyPath = "/social/privacy.html";
+  const privacy = await fetchPath(privacyPath);
   if (!privacy.ok || !privacy.body.includes("Privacy Policy")) {
     return { ok: false, detail: "Missing or invalid /social/privacy.html" };
   }
-  const support = await fetchPath("/social/support.html");
+  const supportPath = "/social/support.html";
+  const support = await fetchPath(supportPath);
   if (!support.ok || !support.body.includes("Support")) {
     return { ok: false, detail: "Missing or invalid /social/support.html" };
   }
@@ -160,32 +214,46 @@ function print(label, result) {
   console.log(`       ${result.detail}`);
 }
 
-console.log(`Production verify — ${ORIGIN}\n`);
+const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url);
 
-const version = await checkVersion();
-print("Social version", version);
+if (isDirectRun) {
+  console.log(`Production verify — ${ORIGIN}\n`);
 
-const buildMeta = await checkBuildMeta();
-print("React build meta", buildMeta);
+  const version = await checkVersion();
+  print("Social version", version);
 
-const firebase = await checkFirebaseConfig();
-print("Firebase config", firebase);
+  const buildMeta = await checkBuildMeta();
+  print("React build meta", buildMeta);
 
-const social = await checkSocialApp();
-print("Social app", social);
+  const firebase = await checkFirebaseConfig();
+  print("Firebase config", firebase);
 
-const tableBundle = await checkTableSessionBundle();
-print("Table session bundle", tableBundle);
+  const social = await checkSocialApp();
+  print("Social app", social);
 
-const legalPages = await checkAppStoreLegalPages();
-print("App Store legal pages", legalPages);
+  const tableBundle = await checkTableSessionBundle();
+  print("Table session bundle", tableBundle);
 
-const passed =
-  version.ok &&
-  buildMeta.ok &&
-  firebase.ok &&
-  social.ok &&
-  tableBundle.ok &&
-  legalPages.ok;
-console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
-process.exit(passed ? 0 : 1);
+  const legalPages = await checkAppStoreLegalPages();
+  print("App Store legal pages", legalPages);
+
+  const passed =
+    version.ok &&
+    buildMeta.ok &&
+    firebase.ok &&
+    social.ok &&
+    tableBundle.ok &&
+    legalPages.ok;
+  console.log(passed ? "\nProduction checks passed." : "\nProduction checks failed.");
+  process.exit(passed ? 0 : 1);
+}
+
+export {
+  checkAppStoreLegalPages,
+  checkBuildMeta,
+  checkFirebaseConfig,
+  checkSocialApp,
+  checkTableSessionBundle,
+  checkVersion,
+  fetchPath,
+};
