@@ -40,6 +40,11 @@ export function useCoWinResultVisibility(
     }
   };
 
+  const clearTimers = () => {
+    clearContinueTimer();
+    clearAutoHideTimer();
+  };
+
   const releaseLatch = (reason: string) => {
     if (isGameFlowDebugEnabled() && shownAtRef.current != null) {
       logGameFlow("tieResult", reason, {
@@ -70,8 +75,7 @@ export function useCoWinResultVisibility(
     if (proposalRef.current !== proposalKey) {
       proposalRef.current = proposalKey;
       shownAtRef.current = null;
-      clearContinueTimer();
-      clearAutoHideTimer();
+      clearTimers();
       setLatched(false);
       setManualContinueAllowed(false);
       setCoWinResultLatched(false);
@@ -137,8 +141,7 @@ export function useCoWinResultVisibility(
 
   useEffect(
     () => () => {
-      clearContinueTimer();
-      clearAutoHideTimer();
+      clearTimers();
       setCoWinResultLatched(false);
     },
     [],
