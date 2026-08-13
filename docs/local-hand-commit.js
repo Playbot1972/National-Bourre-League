@@ -119,6 +119,16 @@ export function applyLocalCommitDrawCompleted(commit, drawCompletedIds, myUid) {
   return ids;
 }
 
+export function applyLocalCommitDrawDiscardCounts(commit, countsByPlayer, myUid) {
+  if (!commit || commit.playerId !== myUid || commit.kind !== LOCAL_HAND_ACTION.DRAW) {
+    return countsByPlayer;
+  }
+  return {
+    ...(countsByPlayer ?? {}),
+    [myUid]: Math.max(0, Math.floor(commit.discardCount ?? 0)),
+  };
+}
+
 export function applyLocalCommitToPlayerFlags(commit, flags, myUid) {
   if (!commit || commit.playerId !== myUid) return flags;
 

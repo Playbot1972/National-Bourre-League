@@ -2422,6 +2422,7 @@ async function submitHandDrawClient(roomId, sessionId, { playerId, discardIndice
       drawResult.publicHand,
       actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
+      drawResult.discarded,
     );
 
     writePrivateHandInTransaction(

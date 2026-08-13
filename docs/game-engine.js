@@ -442,6 +442,7 @@ function Te(e, t) {
 		actionOrder: r,
 		handDecision: null,
 		drawCompletedIds: [],
+		drawDiscardCountsByPlayer: {},
 		tricksByPlayer: i,
 		turnPlayerId: a,
 		maxDrawDiscards: b(n.length, t),
@@ -455,6 +456,10 @@ function Ee(e, t, n) {
 		actionOrder: o,
 		drawCompletedIds: s,
 		foldedIds: a,
+		drawDiscardCountsByPlayer: {
+			...r.drawDiscardCountsByPlayer ?? {},
+			[n]: 0
+		},
 		tricksByPlayer: Object.fromEntries(i.map((e) => [e, r.tricksByPlayer[e] ?? 0]))
 	};
 	if (i.length === 1) return {
@@ -468,7 +473,7 @@ function Ee(e, t, n) {
 	if (i.length === 0) throw Error("No players remain in hand");
 	if (I(i, s)) return {
 		kind: "continue",
-		publicHand: De(c, o, n)
+		publicHand: De(c, o, n, 0)
 	};
 	let l = P(o, n), u = new Set(s), d = 0;
 	for (; l && u.has(l) && d < o.length + 1;) l = P(o, l), d += 1;
@@ -480,30 +485,32 @@ function Ee(e, t, n) {
 		}
 	};
 }
-function De(e, t, n) {
-	let r = [...new Set([...e.drawCompletedIds ?? [], n])], i = e.participantIds;
-	if (!I(i, r)) {
-		let a = F({
-			...e,
-			drawCompletedIds: r
-		}, i, r) ?? P(t, n);
+function De(e, t, n, r = 0) {
+	let i = Math.max(0, Math.floor(r)), a = {
+		...e.drawDiscardCountsByPlayer ?? {},
+		[n]: i
+	}, o = [...new Set([...e.drawCompletedIds ?? [], n])], s = e.participantIds, c = {
+		...e,
+		drawDiscardCountsByPlayer: a,
+		drawCompletedIds: o
+	};
+	if (!I(s, o)) {
+		let e = F(c, s, o) ?? P(t, n);
 		return {
-			...e,
-			drawCompletedIds: r,
-			turnPlayerId: a,
+			...c,
+			turnPlayerId: e,
 			pendingDrawDiscards: []
 		};
 	}
-	let a = g(e), o = h(e.dealerId, i, a) ?? _(e)[0] ?? n;
+	let l = g(c), u = h(c.dealerId, s, l) ?? _(c)[0] ?? n;
 	return {
-		...e,
+		...c,
 		phase: N.PLAY,
-		drawCompletedIds: r,
 		pendingDrawDiscards: [],
-		turnPlayerId: o,
+		turnPlayerId: u,
 		currentTrick: {
 			trickNumber: 1,
-			leadPlayerId: o,
+			leadPlayerId: u,
 			leadSuit: null,
 			plays: []
 		},
@@ -676,6 +683,7 @@ function Fe(e, t) {
 		recycleShuffleCount: 0,
 		actionOrder: [...r],
 		drawCompletedIds: [],
+		drawDiscardCountsByPlayer: {},
 		maxDrawDiscards: i,
 		cinchEnabled: a,
 		handDecision: s

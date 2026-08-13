@@ -2112,6 +2112,7 @@ async function runSubmitDrawTransaction(db, { roomId, sessionId, playerId, disca
       drawResult.publicHand,
       actionOrderFromHand(currentHand, sortedPlayerIdsFromSession(sessionData)),
       playerId,
+      drawResult.discarded,
     );
 
     writePrivateHandInTransaction(

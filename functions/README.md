@@ -10,7 +10,10 @@ pure engine as the client (`src/game/` → `functions/vendor/game-engine.js`).
 | `gameEnsureHandEnrollment` | Start in/out enrollment between hands |
 | `gameTimeoutEnrollment` | Auto sit-out on enrollment timer |
 | `gameSetHandParticipation` | "I'm in" during enrollment (may deal) |
-| `gameSubmitDraw` | Draw / stand pat |
+| `gameAdvanceHandReveal` | Pagat reveal → play/pass decision |
+| `gameSubmitDraw` | Draw / stand pat (`drawDiscardCountsByPlayer` on `currentHand`) |
+| `gameFoldDraw` | Fold during draw (`drawDiscardCountsByPlayer[playerId] = 0`) |
+| `gameAdvanceBots` | Server bot enrollment / draw / play chain |
 | `gamePlayCard` | Play one card (auto-settles when hand completes) |
 | `gameRecordHand` | Pot / bourré settlement + next-hand reset |
 | `gameVoteCoWinSettlement` | Co-winner split / decline vote |
@@ -63,6 +66,20 @@ Or use `npm run deploy` (sequential `deploy:functions` then `deploy:hosting`).
 
 **Not approved** for coordinated rollout: `npm run deploy:combined-unsafe` (single combined Firebase
 deploy without ordering guarantees).
+
+### Coordinated rollout (client + Functions engine fields)
+
+When a release adds optional `currentHand` fields written only by Cloud Functions (for example
+`drawDiscardCountsByPlayer` for sequential draw presentation — PR #731), deploy **Functions
+before Hosting** so production clients read authoritative counts on reconnect:
+
+1. **Functions first** — `npm run deploy:functions` or GitHub Actions **Deploy Functions Only**
+   (`workflow_dispatch` on `.github/workflows/deploy-functions.yml`).
+2. **Hosting second** — merge to `main` ( **Deploy to Firebase** ) or `npm run deploy:hosting`.
+
+The default **Deploy to Firebase** workflow on `main` already deploys Functions before Hosting (see
+above). That order avoids degraded draw animations during rollout when counts are missing on older
+Hosting builds.
 
 ## Firestore rules
 
