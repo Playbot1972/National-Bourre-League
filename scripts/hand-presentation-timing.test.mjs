@@ -5,14 +5,42 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const TIE_RESULT_MIN_MS = 3_000;
-const TIE_RESULT_DEFAULT_MS = 4_000;
-const TIE_RESULT_MAX_MS = 6_000;
+const TIE_RESULT_MIN_MS = 5_000;
+const TIE_RESULT_DEFAULT_MS = 5_500;
+const TIE_RESULT_MAX_MS = 7_000;
 
 function getTieResultDurationMs(message = "") {
   const len = String(message).trim().length;
   const estimated = TIE_RESULT_MIN_MS + Math.min(len * 35, TIE_RESULT_MAX_MS - TIE_RESULT_MIN_MS);
   return Math.max(TIE_RESULT_MIN_MS, Math.min(estimated, TIE_RESULT_MAX_MS));
+}
+
+/** Mirrors scheduleAutoHide in useCoWinResultVisibility — must clear before re-arming. */
+function scheduleAutoHideMock(
+  autoHideTimerRef,
+  clearAutoHideTimer,
+  remainingMs,
+  onRelease,
+  setTimeoutImpl = (fn, ms) => setTimeout(fn, ms),
+  clearTimeoutImpl = (id) => clearTimeout(id),
+) {
+  clearAutoHideTimer();
+  if (remainingMs <= 0) {
+    onRelease();
+    return;
+  }
+  autoHideTimerRef.current = setTimeoutImpl(() => {
+    autoHideTimerRef.current = null;
+    onRelease();
+  }, remainingMs);
+}
+
+function clearAutoHideTimerMock(autoHideTimerRef, clearLog, clearTimeoutImpl = (id) => clearTimeout(id)) {
+  clearLog.push("clear");
+  if (autoHideTimerRef.current != null) {
+    clearTimeoutImpl(autoHideTimerRef.current);
+    autoHideTimerRef.current = null;
+  }
 }
 
 describe("hand presentation timing regressions", () => {
@@ -59,8 +87,36 @@ describe("hand presentation timing regressions", () => {
 
   it("co-win visibility hook clears timers before re-arming", () => {
     const hook = readFileSync(join(root, "src/table/useCoWinResultVisibility.ts"), "utf8");
-    assert.match(hook, /clearTimer\(\)/);
-    assert.match(hook, /proposalRef\.current !== proposalKey/);
-    assert.match(hook, /useEffect\(\(\) => \(\) => clearTimer\(\), \[\]\)/);
+    assert.match(hook, /const clearTimers = \(\) =>/);
+    assert.match(hook, /clearContinueTimer\(\)/);
+    assert.match(hook, /clearAutoHideTimer\(\)/);
+    assert.match(hook, /proposalRef\.current !== proposalKey[\s\S]*clearTimers\(\)/);
+    assert.match(hook, /scheduleAutoHide[\s\S]{0,120}clearAutoHideTimer\(\)/);
+    assert.match(hook, /useEffect\([\s\S]*clearTimers\(\)[\s\S]*setCoWinResultLatched\(false\)/);
+  });
+
+  it("scheduleAutoHide pattern clears an existing timeout before arming another", () => {
+    const autoHideTimerRef = { current: null };
+    const clearLog = [];
+    const clearAutoHideTimer = () =>
+      clearAutoHideTimerMock(autoHideTimerRef, clearLog);
+    const releases = [];
+    let nextTimerId = 1;
+    scheduleAutoHideMock(
+      autoHideTimerRef,
+      clearAutoHideTimer,
+      1_000,
+      () => releases.push("release"),
+      () => nextTimerId++,
+    );
+    scheduleAutoHideMock(
+      autoHideTimerRef,
+      clearAutoHideTimer,
+      500,
+      () => releases.push("release"),
+      () => nextTimerId++,
+    );
+    assert.deepEqual(clearLog, ["clear", "clear"]);
+    assert.equal(autoHideTimerRef.current, 2);
   });
 });

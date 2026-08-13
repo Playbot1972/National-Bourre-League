@@ -20668,23 +20668,25 @@ function bv(e, t, n) {
 		c.current != null && (window.clearTimeout(c.current), c.current = null);
 	}, m = () => {
 		u.current != null && (window.clearTimeout(u.current), u.current = null);
-	}, h = (e) => {
+	}, h = () => {
+		p(), m();
+	}, g = (e) => {
 		Qd() && s.current != null && Q("tieResult", e, {
 			proposalKey: d.current,
 			elapsedMs: Date.now() - s.current,
 			durationMs: f.current
 		}), s.current = null, i(!1), o(!1), _v(!1);
-	}, g = (e) => {
+	}, _ = (e) => {
 		if (m(), e <= 0) {
-			h("auto-hide");
+			g("auto-hide");
 			return;
 		}
 		u.current = window.setTimeout(() => {
-			u.current = null, h("auto-hide");
+			u.current = null, g("auto-hide");
 		}, e);
 	};
 	return (0, l.useEffect)(() => {
-		if (d.current !== t && (d.current = t, s.current = null, p(), m(), i(!1), o(!1), _v(!1), f.current = dv(n)), e) {
+		if (d.current !== t && (d.current = t, s.current = null, h(), i(!1), o(!1), _v(!1), f.current = dv(n)), e) {
 			if (s.current == null) {
 				let e = Date.now();
 				s.current = e, f.current = dv(n), i(!0), o(!1), _v(!0), Qd() && Q("tieResult", "shown", {
@@ -20708,7 +20710,7 @@ function bv(e, t, n) {
 				}, Math.max(0, e));
 			}
 		}
-		return !e && r && s.current != null ? g(pv(s.current, f.current)) : e && m(), () => {
+		return !e && r && s.current != null ? _(pv(s.current, f.current)) : e && m(), () => {
 			!e && !r && (p(), m());
 		};
 	}, [
@@ -20717,7 +20719,7 @@ function bv(e, t, n) {
 		t,
 		n
 	]), (0, l.useEffect)(() => () => {
-		p(), m(), _v(!1);
+		h(), _v(!1);
 	}, []), {
 		visible: e || r,
 		manualContinueAllowed: (e || r) && a
