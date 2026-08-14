@@ -147,6 +147,39 @@ describe("trickAnimationBridge", () => {
     assert.equal(isTablePresentationBusyForBots(start + BOT_PRESENTATION_FORCE_RELEASE_MS + 100), false);
   });
 
+  it("accepts optional debug context for structured gate logs", () => {
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      handPresenting: true,
+      handPresentationPhase: "trumpReveal",
+    });
+    const start = 9_000_000;
+    const ctx = {
+      sessionId: "sess-a",
+      handNumber: 4,
+      trickNumber: 1,
+      presentationSubstate: "trumpReveal",
+    };
+    const blocked = evaluateBotPresentationGate(start, ctx);
+    assert.equal(blocked.blocked, true);
+    const soft = evaluateBotPresentationGate(start + BOT_PRESENTATION_SOFT_UNBLOCK_MS, ctx);
+    assert.equal(soft.blocked, false);
+    assert.equal(soft.softUnblock, true);
+    assert.equal(soft.reason, "handPresenting");
+
+    resetTrickAnimationBusyState();
+    setTrickAnimationBusyState({
+      ...idleTrickFields,
+      pipelineActive: true,
+      handPresentationPhase: "play",
+    });
+    evaluateBotPresentationGate(start, ctx);
+    const forced = evaluateBotPresentationGate(start + BOT_PRESENTATION_FORCE_RELEASE_MS, ctx);
+    assert.equal(forced.forceReleased, true);
+    assert.equal(isTablePresentationBusy(), false);
+  });
+
   it("soft-unblocks when block reasons churn without resetting the episode clock", () => {
     resetTrickAnimationBusyState();
     const start = 5_000_000;

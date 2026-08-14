@@ -55,7 +55,7 @@ export const MATCH_QUEUE_COLLECTION = "matchQueue";
 /** Derived matchmaking index (rebuildable from session + scores). */
 export const PUBLIC_TABLE_INDEX_COLLECTION = "publicTableIndex";
 
-/** One open mixed-table pointer per stakes key — serializes concurrent Play Now creates. */
+/** Per-stakes mixed Play Now pool doc (serializes concurrent table creation). */
 export const PUBLIC_TABLE_MATCHMAKING_POOL_COLLECTION = "publicTableMatchmaking";
 
 /** matchQueue/{userId} terminal and active statuses. */

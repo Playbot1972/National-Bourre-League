@@ -130,6 +130,8 @@ export interface TableSessionData {
   currentTrick?: CurrentTrickState | null;
   playedCards?: PlayedCardEntry[];
   drawCompletedIds?: string[];
+  /** Authoritative discard count per completed draw seat (N replacements = N discards). */
+  drawDiscardCountsByPlayer?: Record<string, number>;
   maxDrawDiscards?: number | null;
   cinchEnabled?: boolean;
   postedAntes?: Record<string, number>;

@@ -60,6 +60,7 @@ export function useHandPresentation({
 }: UseHandPresentationInput): HandPresentation {
   const participantIdsKey = session.participantIds.join(",");
   const drawCompletedKey = (session.drawCompletedIds ?? []).join(",");
+  const drawDiscardCountsKey = JSON.stringify(session.drawDiscardCountsByPlayer ?? {});
   const enrolledIdsKey = enrolledIds.join(",");
   const declinedIdsKey = declinedIds.join(",");
   const actionOrderKey = (actionOrder ?? session.participantIds).join(",");
@@ -77,6 +78,7 @@ export function useHandPresentation({
         participantIds: session.participantIds,
         actionOrder: actionOrder ?? session.participantIds,
         drawCompletedIds: session.drawCompletedIds,
+        drawDiscardCountsByPlayer: session.drawDiscardCountsByPlayer,
         turnPlayerId: session.turnPlayerId,
         trumpUpcard: session.trumpUpcard,
         dealerId: session.dealerId,
@@ -96,6 +98,7 @@ export function useHandPresentation({
       trumpUpcardKey,
       participantIdsKey,
       drawCompletedKey,
+      drawDiscardCountsKey,
       enrollmentActive,
       potAmount,
       handComplete,
@@ -253,11 +256,11 @@ export function useHandPresentation({
       }
       dispatch({ type: "advancePhase" });
     }, delay);
-    const watchdogMs =
+    const scopedWatchdogMs =
       store.phase === "drawPlayer" || store.phase === "drawReady"
-        ? BOT_DRAW_PRESENTATION_WATCHDOG_MS
+        ? Math.max(delay + 600, BOT_DRAW_PRESENTATION_WATCHDOG_MS)
         : PRESENTATION_WATCHDOG_MS;
-    schedule(() => dispatch({ type: "watchdog" }), watchdogMs);
+    schedule(() => dispatch({ type: "watchdog" }), scopedWatchdogMs);
   }, [store.handNumber, store.phase, store.animatingDrawPlayerId, store.drawAnimSubPhase, store.phaseStartedAt]);
 
   useEffect(() => {
