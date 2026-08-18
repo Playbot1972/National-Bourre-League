@@ -125,6 +125,25 @@ describe("isLocalActionRequiredNow", () => {
     );
   });
 
+  it("isHeroDrawOrPlayTurn allows local draw during presentation catch-up suppress", () => {
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "draw",
+          turnPlayerId: "me",
+          drawCompletedIds: [],
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: true,
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
   it("requires action during play on local trick turn", () => {
     assert.equal(
       isLocalActionRequiredNow({

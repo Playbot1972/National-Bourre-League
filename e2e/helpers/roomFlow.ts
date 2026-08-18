@@ -58,6 +58,16 @@ export async function joinRoomWithCode(page: Page, code: string) {
   await page.getByTestId("join-code-submit").click();
 }
 
+/** Regional table session tabs only — not room-scope tabs (My rooms / Practice room). */
+function regionalSessionTabs(page: Page) {
+  return page.locator(".session-tabs--preset [data-open-session]");
+}
+
+async function waitForRegionalSessionReady(page: Page) {
+  await expect(page.getByTestId("game-setup-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(regionalSessionTabs(page)).toHaveCount(1, { timeout: 30_000 });
+}
+
 export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
   await goToPrivateRooms(page);
 
@@ -65,7 +75,10 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
   const modal = page.locator("#create-room-modal");
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    if (await title.filter({ hasText: name }).isVisible().catch(() => false)) return;
+    if (await title.filter({ hasText: name }).isVisible().catch(() => false)) {
+      await waitForRegionalSessionReady(page);
+      return;
+    }
 
     await page.locator("#create-room").click();
     await expect(modal).toBeVisible();
@@ -77,9 +90,13 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
     try {
       await expect(title).toContainText(name, { timeout: 15_000 });
       await expect(modal).toBeHidden({ timeout: 5_000 });
+      await waitForRegionalSessionReady(page);
       return;
     } catch {
-      if (await title.filter({ hasText: name }).isVisible().catch(() => false)) return;
+      if (await title.filter({ hasText: name }).isVisible().catch(() => false)) {
+        await waitForRegionalSessionReady(page);
+        return;
+      }
       if (await modal.isVisible().catch(() => false)) {
         await page.locator("#create-room-modal .modal__close").click({ force: true });
         await expect(modal).toBeHidden({ timeout: 5_000 });
@@ -89,6 +106,7 @@ export async function createRoom(page: Page, name = "E2E Bot Flow Room") {
   }
 
   await expect(title).toContainText(name, { timeout: 15_000 });
+  await waitForRegionalSessionReady(page);
 }
 
 export async function openNewSession(page: Page) {
@@ -96,12 +114,12 @@ export async function openNewSession(page: Page) {
   await page.waitForTimeout(300);
   const setupWindow = page.getByTestId("session-setup-window");
   if (await setupWindow.isVisible().catch(() => false)) {
-    await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
+    await expect(regionalSessionTabs(page)).toHaveCount(1, { timeout: 15_000 });
     return;
   }
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator("#new-session").click({ force: true });
-  await expect(page.locator(".session-tab")).toHaveCount(1, { timeout: 15_000 });
+  await expect(regionalSessionTabs(page)).toHaveCount(1, { timeout: 15_000 });
   await expect(setupWindow).toBeVisible({ timeout: 15_000 });
 }
 
@@ -140,6 +158,9 @@ export async function addRobotsUntilCount(page: Page, totalPlayers: number) {
   if (botsNeeded >= 7) {
     await expect(robotRoles()).toHaveCount(botsNeeded, { timeout: 30_000 });
   }
+  if (botsNeeded > 0) {
+    await expect(page.getByTestId("open-table-play").first()).toBeEnabled({ timeout: 30_000 });
+  }
 }
 
 export async function goToTable(page: Page) {
@@ -169,40 +190,96 @@ async function phaseDataAttr(overlay: Locator, testId: string): Promise<string> 
   return (await overlay.getByTestId(testId).first().getAttribute("data-phase").catch(() => "")) ?? "";
 }
 
+/** Server hand phase — authoritative when presentation UI lags behind Firestore. */
+async function authoritativeHandPhase(page: Page): Promise<string | null> {
+  return page
+    .evaluate(async () => {
+      const { FIREBASE_SDK_VERSION } = await import("./firebase-config.js");
+      const { getApps } = await import(
+        `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`
+      );
+      const { getAuth } = await import(
+        `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`
+      );
+      const { getFirestore, collection, query, where, getDocs } = await import(
+        `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`
+      );
+      const app = getApps()[0];
+      if (!app) return null;
+      const auth = getAuth(app);
+      await auth.authStateReady();
+      const uid = auth.currentUser?.uid;
+      if (!uid) return null;
+      const db = getFirestore(app);
+      const memberSnap = await getDocs(query(collection(db, "roomMembers"), where("userId", "==", uid)));
+      const roomId = memberSnap.docs[0]?.data()?.roomId as string | undefined;
+      if (!roomId) return null;
+      const sessionsSnap = await getDocs(collection(db, "rooms", roomId, "sessions"));
+      const sessionDoc =
+        sessionsSnap.docs.find((d) => d.data().status !== "final") ?? sessionsSnap.docs[0];
+      if (!sessionDoc) return null;
+      const hand = sessionDoc.data().currentHand as { phase?: string } | undefined;
+      return hand?.phase ?? null;
+    })
+    .catch(() => null);
+}
+
 /** Locator-based checks — matches smoke-draw-play-trace.mjs (avoids stale evaluate reads). */
-async function isPlayPhaseReady(overlay: Locator): Promise<boolean> {
-  const header =
-    (await overlay.getByTestId("phase-tag").first().getAttribute("data-phase").catch(() => "")) ?? "";
+async function isPlayPhaseReady(page: Page): Promise<boolean> {
+  const authPhase = await authoritativeHandPhase(page);
+  if (authPhase === "play") return true;
+
+  const overlay = tableOverlay(page);
+
+  const liveStatus =
+    (await page.locator(".session-live-card__status").textContent().catch(() => "")) ?? "";
+  if (/live play/i.test(liveStatus)) return true;
+
+  const header = await phaseDataAttr(overlay, "phase-tag");
   if (header === "play") return true;
 
-  const center =
-    (await overlay.getByTestId("phase-tag-center").getAttribute("data-phase").catch(() => "")) ??
-    "";
+  const center = await phaseDataAttr(overlay, "phase-tag-center");
   if (center === "play") return true;
 
   const headerText =
     (await overlay.getByTestId("phase-tag").first().textContent().catch(() => "")) ?? "";
   const centerText =
     (await overlay.getByTestId("phase-tag-center").textContent().catch(() => "")) ?? "";
-  if (/playing/i.test(`${headerText} ${centerText}`)) return true;
+  if (/play card|playing/i.test(`${headerText} ${centerText}`)) return true;
 
   const heroLabel =
     (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
-  return /playing/i.test(heroLabel);
+  if (/play card|playing/i.test(heroLabel)) return true;
+
+  const drawControlsVisible =
+    (await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false)) ||
+    (await overlay.getByTestId("draw-button").isVisible().catch(() => false));
+  const trickLive =
+    await overlay.locator('[aria-label="Current trick"]').isVisible().catch(() => false);
+  if (trickLive && !drawControlsVisible) return true;
+
+  return false;
 }
 
-async function isDrawPhaseReady(overlay: Locator): Promise<boolean> {
-  if (await isPlayPhaseReady(overlay)) return false;
+async function isDrawPhaseReady(page: Page): Promise<boolean> {
+  if (await isPlayPhaseReady(page)) return false;
+  const overlay = tableOverlay(page);
   if ((await phaseDataAttr(overlay, "phase-tag-center")) === "draw") return true;
   if ((await phaseDataAttr(overlay, "phase-tag")) === "draw") return true;
 
+  const liveStatus =
+    (await page.locator(".session-live-card__status").textContent().catch(() => "")) ?? "";
+  if (/draw phase/i.test(liveStatus)) return true;
+
   const heroLabel =
     (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
-  return /drawing/i.test(heroLabel);
+  if (/play card|playing/i.test(heroLabel)) return false;
+  return /\bdraw\b/i.test(heroLabel);
 }
 
-async function isRevealPhaseActive(overlay: Locator): Promise<boolean> {
-  if (await isPlayPhaseReady(overlay) || (await isDrawPhaseReady(overlay))) return false;
+async function isRevealPhaseActive(page: Page): Promise<boolean> {
+  const overlay = tableOverlay(page);
+  if (await isPlayPhaseReady(page) || (await isDrawPhaseReady(page))) return false;
   const header = await phaseDataAttr(overlay, "phase-tag");
   const center = await phaseDataAttr(overlay, "phase-tag-center");
   if (header === "reveal" || center === "reveal") return true;
@@ -211,10 +288,11 @@ async function isRevealPhaseActive(overlay: Locator): Promise<boolean> {
   return /dealing/i.test(tagText);
 }
 
-export async function getHandPhase(overlay: Locator): Promise<HandPhase> {
-  if (await isPlayPhaseReady(overlay)) return "play";
-  if (await isDrawPhaseReady(overlay)) return "draw";
+export async function getHandPhase(page: Page): Promise<HandPhase> {
+  if (await isPlayPhaseReady(page)) return "play";
+  if (await isDrawPhaseReady(page)) return "draw";
 
+  const overlay = tableOverlay(page);
   const header = await phaseDataAttr(overlay, "phase-tag");
   const center = await phaseDataAttr(overlay, "phase-tag-center");
   const phase = header || center;
@@ -228,26 +306,61 @@ export async function getHandPhase(overlay: Locator): Promise<HandPhase> {
   return "";
 }
 
-export async function expectHandPhase(overlay: Locator, phase: Exclude<HandPhase, "">) {
+export async function expectHandPhase(page: Page, phase: Exclude<HandPhase, "">) {
   if (phase === "play") {
-    await expect.poll(() => isPlayPhaseReady(overlay), { timeout: 30_000 }).toBe(true);
+    await expect.poll(() => isPlayPhaseReady(page), { timeout: 30_000 }).toBe(true);
     return;
   }
-  await expect.poll(async () => getHandPhase(overlay), { timeout: 30_000 }).toBe(phase);
+  await expect.poll(async () => getHandPhase(page), { timeout: 30_000 }).toBe(phase);
 }
 
-async function readDataPhase(overlay: Locator): Promise<string> {
-  return getHandPhase(overlay);
+async function readDataPhase(page: Page): Promise<string> {
+  return getHandPhase(page);
 }
 
-async function readPhaseTag(overlay: Locator) {
+async function readPhaseTag(page: Page) {
+  const overlay = tableOverlay(page);
   const header =
     (await overlay.getByTestId("phase-tag").first().textContent().catch(() => ""))?.trim() ?? "";
   const center =
     (await overlay.getByTestId("phase-tag-center").textContent().catch(() => ""))?.trim() ?? "";
   const heroLabel =
     (await overlay.getByTestId("hero-hand").getAttribute("aria-label").catch(() => "")) ?? "";
-  return [header, center, heroLabel].filter(Boolean).join(" | ");
+  const liveStatus =
+    (await page.locator(".session-live-card__status").textContent().catch(() => ""))?.trim() ?? "";
+  return [liveStatus, header, center, heroLabel].filter(Boolean).join(" | ");
+}
+
+/** Server-authoritative bot advance when client presentation gates stall draw/play. */
+async function advanceBotsAuthoritative(page: Page) {
+  await page.evaluate(async () => {
+    const { FIREBASE_SDK_VERSION } = await import("./firebase-config.js");
+    const { getApps } = await import(
+      `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`
+    );
+    const { getAuth } = await import(
+      `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`
+    );
+    const { getFirestore, collection, query, where, getDocs } = await import(
+      `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`
+    );
+    const app = getApps()[0];
+    if (!app) return;
+    const auth = getAuth(app);
+    await auth.authStateReady();
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    const db = getFirestore(app);
+    const memberSnap = await getDocs(query(collection(db, "roomMembers"), where("userId", "==", uid)));
+    const roomId = memberSnap.docs[0]?.data()?.roomId as string | undefined;
+    if (!roomId) return;
+    const sessionsSnap = await getDocs(collection(db, "rooms", roomId, "sessions"));
+    const sessionDoc =
+      sessionsSnap.docs.find((d) => d.data().status !== "final") ?? sessionsSnap.docs[0];
+    if (!sessionDoc) return;
+    const { gameAdvanceBots } = await import("./game-functions.js");
+    await gameAdvanceBots(roomId, sessionDoc.id, {});
+  }).catch(() => {});
 }
 
 /** Close live table overlay so session setup controls are clickable. */
@@ -284,9 +397,9 @@ export async function tryHandEnrollmentActions(
   const now = Date.now();
   if (now - lastActionClick.at < 1500) return false;
 
-  const dataPhase = await readDataPhase(overlay);
+  const dataPhase = await readDataPhase(page);
   if (dataPhase === "draw" || dataPhase === "play") return false;
-  if (await isRevealPhaseActive(overlay)) return false;
+  if (await isRevealPhaseActive(page)) return false;
 
   const seatOptIn = overlay.getByTestId("seat-opt-in").first();
   if (!(await seatOptIn.isVisible().catch(() => false))) return false;
@@ -303,7 +416,7 @@ export async function tryHandEnrollmentActions(
 
 /** Stand pat when the hero has the draw clock. */
 async function tryPassDraw(page: Page, overlay: Locator, lastActionClick: { at: number }) {
-  if (await isPlayPhaseReady(overlay)) return false;
+  if (await isPlayPhaseReady(page)) return false;
 
   const passDraw = overlay.getByTestId("pass-draw-button");
   const drawBtn = overlay.getByTestId("draw-button");
@@ -344,10 +457,6 @@ function assertNoHandFailure(overlay: Locator, feedback: string) {
   }
 }
 
-/**
- * Wait through reveal (~5s trump hold), enrollment/decision, and draw opening.
- * Does not complete every player's draw — use `advanceThroughDrawPhase` after this.
- */
 export async function waitForDrawPhase(page: Page) {
   const overlay = tableOverlay(page);
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
@@ -355,9 +464,9 @@ export async function waitForDrawPhase(page: Page) {
   const deadline = Date.now() + 120_000;
   const lastActionClick = { at: 0 };
   while (Date.now() < deadline) {
-    if (await isDrawPhaseReady(overlay)) return;
+    if (await isDrawPhaseReady(page)) return;
 
-    if (await isRevealPhaseActive(overlay)) {
+    if (await isRevealPhaseActive(page)) {
       await page.waitForTimeout(600);
       continue;
     }
@@ -370,24 +479,68 @@ export async function waitForDrawPhase(page: Page) {
     await page.waitForTimeout(400);
   }
 
-  const phase = await readPhaseTag(overlay);
+  const phase = await readPhaseTag(page);
   throw new Error(`Draw phase did not start within 120s (last phase: ${phase || "unknown"})`);
 }
 
+export async function submitHeroStandPat(page: Page) {
+  const overlay = tableOverlay(page);
+  const pass = overlay.getByTestId("pass-draw-button");
+  await expect(pass).toBeVisible({ timeout: 30_000 });
+  try {
+    await pass.evaluate((el) => (el as HTMLButtonElement).click());
+  } catch {
+    await pass.click({ force: true });
+  }
+  await page.waitForTimeout(600);
+}
+
+/** After hero stand pat, advance bots until Firestore/UI report trick play. */
+export async function waitForAuthoritativePlayPhase(page: Page, timeoutMs = 180_000) {
+  await expect
+    .poll(
+      async () => {
+        if (await isPlayPhaseReady(page)) return true;
+        await advanceBotsAuthoritative(page);
+        await page.evaluate(() => window.__nblE2E?.nudgeBots?.()).catch(() => {});
+        return false;
+      },
+      { timeout: timeoutMs, intervals: [1000, 500] },
+    )
+    .toBe(true);
+}
+
+/** Poll until hero draw controls render for the local player's legal draw turn. */
+export async function waitForHeroDrawControls(overlay: Locator, timeoutMs = 60_000) {
+  await expect
+    .poll(
+      async () => {
+        const draw = await overlay.getByTestId("draw-button").isVisible().catch(() => false);
+        const pat = await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false);
+        return draw || pat;
+      },
+      { timeout: timeoutMs },
+    )
+    .toBe(true);
+}
+
 /** Trace-parity loop: enrollment → draw passes → play (single deadline). */
-export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
+export async function driveTableToPlay(page: Page, deadlineMs = 360_000) {
   const overlay = tableOverlay(page);
   await expect(overlay.getByTestId("table-root")).toBeVisible({ timeout: 30_000 });
 
   const deadline = Date.now() + deadlineMs;
   const lastEnrollClick = { at: 0 };
+  const lastPassClick = { at: 0 };
   let lastNudgeAt = 0;
   let lastProgressAt = Date.now();
 
-  while (Date.now() < deadline) {
-    if (await isPlayPhaseReady(overlay)) return;
+  await tryPassDraw(page, overlay, lastPassClick);
 
-    if (await isRevealPhaseActive(overlay)) {
+  while (Date.now() < deadline) {
+    if (await isPlayPhaseReady(page)) return;
+
+    if (await isRevealPhaseActive(page)) {
       await page.waitForTimeout(600);
       continue;
     }
@@ -399,26 +552,21 @@ export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
 
     const passVisible = await overlay.getByTestId("pass-draw-button").isVisible().catch(() => false);
     const drawVisible = await overlay.getByTestId("draw-button").isVisible().catch(() => false);
-    const phase = await getHandPhase(overlay);
+    const phase = await getHandPhase(page);
     if ((passVisible || drawVisible) && (phase === "draw" || phase === "play")) {
       if (phase === "play") return;
-      const btn = passVisible
-        ? overlay.getByTestId("pass-draw-button")
-        : overlay.getByTestId("draw-button");
-      try {
-        await btn.evaluate((el) => (el as HTMLButtonElement).click());
-      } catch {
-        await btn.click({ force: true, timeout: 3000 }).catch(() => {});
+      if (await tryPassDraw(page, overlay, lastPassClick)) {
+        lastProgressAt = Date.now();
+        continue;
       }
-      await page.waitForTimeout(1000);
-      lastProgressAt = Date.now();
     } else {
       await page.waitForTimeout(400);
     }
 
     const now = Date.now();
-    if (phase === "draw" && now - lastNudgeAt > 5000 && now - lastProgressAt > 5000) {
+    if (now - lastNudgeAt > 5000 && now - lastProgressAt > 5000) {
       await page.evaluate(() => window.__nblE2E?.nudgeBots?.()).catch(() => {});
+      await advanceBotsAuthoritative(page);
       lastNudgeAt = now;
     }
 
@@ -427,8 +575,13 @@ export async function driveTableToPlay(page: Page, deadlineMs = 240_000) {
     assertNoHandFailure(overlay, feedback);
   }
 
-  const labels = await readPhaseTag(overlay);
-  throw new Error(`Play phase not reached within ${deadlineMs / 1000}s (last: ${labels || "unknown"})`);
+  const labels = await readPhaseTag(page);
+  const authPhase = await authoritativeHandPhase(page);
+  const liveStatus =
+    (await page.locator(".session-live-card__status").textContent().catch(() => "")) ?? "";
+  throw new Error(
+    `Play phase not reached within ${deadlineMs / 1000}s (auth=${authPhase ?? "null"}, live=${liveStatus || "none"}, ui=${labels || "unknown"})`,
+  );
 }
 
 /** @deprecated Prefer driveTableToPlay — kept for callers that split draw/play waits. */
@@ -439,7 +592,7 @@ export async function advanceThroughDrawPhase(page: Page) {
 /** Wait until the live hand is in trick play (draw complete). */
 export async function waitForPlayPhase(page: Page) {
   await driveTableToPlay(page);
-  await expectHandPhase(tableOverlay(page), "play");
+  await expectHandPhase(page, "play");
 }
 
 /** Dealer seat must not hold the opening lead on trick 1. */

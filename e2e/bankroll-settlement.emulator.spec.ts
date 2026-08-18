@@ -110,11 +110,9 @@ async function advanceBotsUntilSettled(
   roomId: string,
   sessionId: string,
   hostUid: string,
-  options: { allowHeroPlay?: boolean; initialHeroPlayed?: boolean } = {},
+  options: { allowHeroPlay?: boolean } = {},
 ) {
   const deadline = Date.now() + 120_000;
-  let heroPlayed =
-    options.initialHeroPlayed ?? (options.allowHeroPlay ? false : true);
 
   while (Date.now() < deadline) {
     const state = await readAuthoritativeState(page, roomId, sessionId, hostUid);
@@ -130,8 +128,8 @@ async function advanceBotsUntilSettled(
       if (isHandSettled(after.session)) return after;
     }
 
-    if (!heroPlayed && options.allowHeroPlay && (await tryHeroPlayCard(page))) {
-      heroPlayed = true;
+    // Human turns: drive via browser UI (production path), not one-shot.
+    if (options.allowHeroPlay && turn === hostUid && (await tryHeroPlayCard(page))) {
       await page.waitForTimeout(600);
       continue;
     }
@@ -147,6 +145,14 @@ async function advanceBotsUntilSettled(
     const turnAfter = afterBots.session?.currentHand?.turnPlayerId ?? null;
 
     if (phaseAfter === "play" && tricksAfter < 5 && turnAfter) {
+      if (
+        options.allowHeroPlay &&
+        turnAfter === hostUid &&
+        (await tryHeroPlayCard(page))
+      ) {
+        await page.waitForTimeout(600);
+        continue;
+      }
       await advancePlayTurnViaCallable(page, roomId, sessionId, turnAfter);
       await page.waitForTimeout(300);
     }
@@ -283,11 +289,9 @@ test.describe("Bankroll settlement — emulator E2E", () => {
     });
 
     await resyncTableAfterCallableDraw(page, "Bankroll Win E2E");
-    const heroBrowserPlayed = await tryHeroPlayCard(page);
 
     const settledState = await advanceBotsUntilSettled(page, roomId, sessionId, hostUid, {
       allowHeroPlay: true,
-      initialHeroPlayed: heroBrowserPlayed,
     });
 
     await expectWithDiagnostics(page, settledState, testInfo, async () => {

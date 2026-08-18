@@ -17462,7 +17462,7 @@ function $h(e) {
 		action: "submit_draw",
 		playerId: t,
 		actorId: t,
-		suppressTurn: e.suppressTurn,
+		suppressTurn: !1,
 		drawCompletedIds: e.session.drawCompletedIds
 	});
 	if (i.phase === $.DRAW && a.ok) return !0;
@@ -17477,7 +17477,7 @@ function $h(e) {
 }
 function eg(e) {
 	let t = e.currentUserId;
-	if (!t || e.handComplete || e.suppressTurn || e.watchOnly) return !1;
+	if (!t || e.handComplete || e.watchOnly) return !1;
 	let n = Yh({
 		session: {
 			currentHand: {
@@ -17496,9 +17496,9 @@ function eg(e) {
 		action: "submit_draw",
 		playerId: t,
 		actorId: t,
-		suppressTurn: e.suppressTurn,
+		suppressTurn: !1,
 		drawCompletedIds: e.session.drawCompletedIds
-	}).ok : n.phase === $.PLAY ? Qh({
+	}).ok : e.suppressTurn ? !1 : n.phase === $.PLAY ? Qh({
 		snapshot: n,
 		action: "play_card",
 		playerId: t,
