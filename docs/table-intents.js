@@ -394,7 +394,7 @@ export function createTableIntentHandlers(deps) {
             return Promise.reject(blockErr);
           }
           deps.commitLocalHandAction(LOCAL_HAND_ACTION.DRAW, {
-            discardCount: discardIndices.length,
+            discardCount: 0,
           });
           captureActionStart("draw");
           deps.setTableActionFeedback(null);

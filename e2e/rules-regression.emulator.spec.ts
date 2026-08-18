@@ -14,7 +14,6 @@
  */
 import { test, expect } from "@playwright/test";
 import {
-  driveTableToPlay,
   emulatorReady,
   expectHandPhase,
   getHandPhase,
@@ -22,6 +21,9 @@ import {
   setupRoomWithBots,
   tryHandEnrollmentActions,
   waitForDrawPhase,
+  waitForHeroDrawControls,
+  submitHeroStandPat,
+  waitForAuthoritativePlayPhase,
 } from "./helpers/roomFlow";
 import { expectNoBourreMarkers, expectPhaseTag } from "./helpers/rulesRegression";
 
@@ -63,7 +65,7 @@ test.describe("Rules regression — emulator (partial integration)", () => {
       await expectNoBourreMarkers(page);
       await expect(overlay.getByTestId("bourre-result-sting")).toHaveCount(0);
 
-      if ((await getHandPhase(overlay)) === "draw") break;
+      if ((await getHandPhase(page)) === "draw") break;
 
       await tryHandEnrollmentActions(page, overlay, lastActionClick);
       await page.waitForTimeout(500);
@@ -82,10 +84,11 @@ test.describe("Rules regression — emulator (partial integration)", () => {
 
     const overlay = tableOverlay(page);
     await expectPhaseTag(page, /draw/i);
-    await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button")).first()).toBeVisible();
+    await waitForHeroDrawControls(overlay);
 
-    await driveTableToPlay(page);
-    await expectHandPhase(overlay, "play");
+    await submitHeroStandPat(page);
+    await waitForAuthoritativePlayPhase(page);
+    await expectHandPhase(page, "play");
     await expectNoBourreMarkers(page);
   });
 
@@ -95,9 +98,10 @@ test.describe("Rules regression — emulator (partial integration)", () => {
     await waitForDrawPhase(page);
 
     const overlay = tableOverlay(page);
-    await expect(overlay.getByTestId("draw-button").or(overlay.getByTestId("pass-draw-button")).first()).toBeVisible();
-    await driveTableToPlay(page);
-    await expectHandPhase(overlay, "play");
+    await waitForHeroDrawControls(overlay);
+    await submitHeroStandPat(page);
+    await waitForAuthoritativePlayPhase(page);
+    await expectHandPhase(page, "play");
     await expect(overlay.getByTestId("hero-hand")).toBeVisible();
     await expect(overlay.locator(".btable-hero__error")).toHaveCount(0);
     await expectNoBourreMarkers(page);

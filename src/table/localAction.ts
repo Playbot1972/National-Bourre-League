@@ -66,7 +66,7 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
     action: "submit_draw",
     playerId: uid,
     actorId: uid,
-    suppressTurn: input.suppressTurn,
+    suppressTurn: false,
     drawCompletedIds: input.session.drawCompletedIds,
   });
   if (snapshot.phase === HAND_FLOW_PHASE.DRAW && drawAction.ok) {
@@ -87,10 +87,10 @@ export function isLocalActionRequiredNow(input: LocalActionInput): boolean {
   return false;
 }
 
-/** Hero draw/play controls — same gate as server `canSubmitHandAction`. */
+/** Hero draw/play controls — server turn gate; draw ignores presentation catch-up suppress. */
 export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
   const uid = input.currentUserId;
-  if (!uid || input.handComplete || input.suppressTurn || input.watchOnly) return false;
+  if (!uid || input.handComplete || input.watchOnly) return false;
 
   const snapshot = buildHandFlowSnapshot({
     session: {
@@ -112,10 +112,12 @@ export function isHeroDrawOrPlayTurn(input: LocalActionInput): boolean {
       action: "submit_draw",
       playerId: uid,
       actorId: uid,
-      suppressTurn: input.suppressTurn,
+      suppressTurn: false,
       drawCompletedIds: input.session.drawCompletedIds,
     }).ok;
   }
+
+  if (input.suppressTurn) return false;
 
   if (snapshot.phase === HAND_FLOW_PHASE.PLAY) {
     return canSubmitHandAction({

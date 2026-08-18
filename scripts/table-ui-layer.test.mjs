@@ -151,6 +151,50 @@ describe("table UI layer modules", () => {
     assert.deepEqual(calls, ["bourre-table", "bourre-private:1"]);
   });
 
+  it("onPassDraw commits stand pat with discardCount 0", async () => {
+    let committed = null;
+    const handlers = createTableIntentHandlers({
+      getAuth: () => ({ uid: "human" }),
+      getRoomId: () => "r1",
+      getSessionId: () => "s1",
+      getCurrentSessions: () => [{ id: "s1" }],
+      getHandPhase: () => "draw",
+      getCurrentHand: () => ({
+        phase: "draw",
+        turnPlayerId: "human",
+        drawCompletedIds: [],
+        participantIds: ["human", "bot_1"],
+      }),
+      fetchCurrentHand: async () => ({
+        phase: "draw",
+        turnPlayerId: "human",
+        drawCompletedIds: [],
+        participantIds: ["human", "bot_1"],
+      }),
+      setTableActionFeedback: () => {},
+      showRoomsError: () => {},
+      commitLocalHandAction: (kind, opts) => {
+        committed = { kind, opts };
+      },
+      clearLocalHandCommit: () => {},
+      hasLocalHandActionCommit: () => false,
+      markPendingDrawShuffle: () => {},
+      scheduleTableSessionSync: () => {},
+      wakeBotsAfterHandAction: () => {},
+      setHandParticipation: async () => {},
+      submitHandDraw: async () => {},
+      foldHandDraw: async () => {},
+      playHandCard: async () => {},
+      advanceHandReveal: async () => {},
+      updateHandTrick: async () => {},
+      onSettleHand: async () => {},
+      formatClientGameError: (_e, f) => f,
+      getSessionCurrentHand: () => ({}),
+    });
+    await handlers.onPassDraw();
+    assert.deepEqual(committed, { kind: "draw", opts: { discardCount: 0 } });
+  });
+
   it("createTableIntentHandlers requires auth before submit", () => {
     const handlers = createTableIntentHandlers({
       getAuth: () => null,

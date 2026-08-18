@@ -5247,6 +5247,18 @@ function patchGameSetupRoster(sessionObj, isOwner) {
   return true;
 }
 
+/** Keep Play enabled state in sync when roster-only snapshot patches skip full setup re-render. */
+function patchGameSetupPlayButton(sessionObj) {
+  const playBtn = $("#open-table-play", roomDetailView);
+  if (!playBtn || !sessionObj || sessionObj.status === "final") return;
+  const ready = tableReadyPlayerCount(sessionObj) >= 2;
+  playBtn.disabled = !ready;
+  playBtn.setAttribute("aria-disabled", ready ? "false" : "true");
+  playBtn.title = ready
+    ? "Open the live card table"
+    : "Add at least one more player (you count as player 1), then tap Play";
+}
+
 function buildRoomDetailRenderKey(openSessionObj, isOwner) {
   const roster = openSessionObj ? tableReadyRoster(openSessionObj) : [];
   return [
@@ -5352,6 +5364,7 @@ function renderRoomDetail({ force = false, scoresOnly = false } = {}) {
     patchGameSetupRoster(openSessionObj, isOwner)
   ) {
     lastRoomDetailRenderKey = renderKey;
+    patchGameSetupPlayButton(openSessionObj);
     const mount = $("#session-panel-mount", roomDetailView);
     if (mount && openSessionObj.status !== "final") {
       scheduleTableSessionSync(openSessionObj);
