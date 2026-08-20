@@ -106,6 +106,7 @@ import {
   buildSessionBuyInMoney,
   runV1HandSettlement,
   runV1Rebuy,
+  runV1JoinBuyIn,
   runV1AnteCollection,
   appendMoneyEventsToWriter,
   finalizeSessionBankrolls,
@@ -118,6 +119,7 @@ import {
   baselineFromSessionDoc,
   buildSessionChipSnapshot,
   applyRebuyToBaseline,
+  applyBuyInToBaseline,
   applyBourreMintToBaseline,
   initialSessionBaseline,
   baselineDocFromBaseline,
@@ -4262,10 +4264,94 @@ export async function ensureSessionPlayer(
   if (!isRobot) {
     await ensurePlayerDoc(playerId, resolvedName);
   }
-  const buyIn = Math.max(
-    1,
-    Number(sessionData.buyInAmount ?? sessionData.handStake) || 1,
-  );
+
+  const roomSnap = await getDoc(doc(db, "rooms", roomId));
+  const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
+  const buyIn = resolveSessionBuyIn(sessionData, bourre);
+
+  if (isMoneyEngineV1(sessionData)) {
+    const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
+    const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const allScoresSnap = await getDocs(scoresCol(roomId, sessionId));
+    const bankrolls = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [d.id, Number(d.data().bankroll) || 0]),
+    );
+    const joinBuyIn = runV1JoinBuyIn({
+      sessionId,
+      playerId,
+      buyInAmount: buyIn,
+      existingEvents,
+      ledger: {
+        version: MONEY_ENGINE_VERSION,
+        buyInFallback: buyIn,
+        bankrolls,
+        nets: {},
+        carryOverPot: sessionData.carryOverPot || 0,
+        postedAntes: getSessionCurrentHand(sessionData)?.postedAntes ?? {},
+        scoreFlags: {},
+        sequence: sessionData.moneySequence || 0,
+      },
+    });
+    if (joinBuyIn.newEvents.length === 0) {
+      return false;
+    }
+    const minted = joinBuyIn.newEvents[0]?.amount ?? buyIn;
+    const newBankroll = joinBuyIn.newBankrolls[playerId] ?? minted;
+    const newBaseline = applyBuyInToBaseline(baseline, minted);
+    const batch = writeBatch(db);
+    batch.update(sessionDoc(roomId, sessionId), sessionPatch);
+    batch.set(scoreRef, {
+      sessionId,
+      roomId,
+      playerId,
+      displayName: resolvedName,
+      bankroll: newBankroll,
+      net: deriveScoreNet(newBankroll, buyIn),
+      tricksWon: 0,
+      handsWon: 0,
+      total: 0,
+      joinedAtHandCount: handCount,
+      ...(isRobot ? { isRobot: true } : { lastActivityTimestamp: serverTimestamp() }),
+      updatedAt: serverTimestamp(),
+    });
+    appendMoneyEventsBatch(batch, {
+      roomId,
+      sessionId,
+      events: joinBuyIn.newEvents,
+      nextSequence: nextMoneySequence(sessionData, joinBuyIn.newEvents.length),
+    });
+    batch.update(sessionDoc(roomId, sessionId), {
+      moneyLedgerBaseline: baselineDocFromBaseline(newBaseline),
+      updatedAt: serverTimestamp(),
+    });
+    await batch.commit();
+    const scoreById = Object.fromEntries(
+      allScoresSnap.docs.map((d) => [
+        d.id,
+        d.id === playerId
+          ? {
+              ...d.data(),
+              bankroll: newBankroll,
+              net: deriveScoreNet(newBankroll, buyIn),
+              displayName: resolvedName,
+            }
+          : d.data(),
+      ]),
+    );
+    logSessionTableInvariant({
+      roomId,
+      sessionId,
+      sessionData: { ...sessionData, moneyLedgerBaseline: newBaseline },
+      scoreById,
+      label: `after-join:${playerId}`,
+      handId: handCount,
+      existingEvents: [...existingEvents, ...joinBuyIn.newEvents],
+      buyIn,
+      playerIds: [...sortedIds],
+    });
+    return true;
+  }
+
   const batch = writeBatch(db);
   batch.update(sessionDoc(roomId, sessionId), sessionPatch);
   batch.set(scoreRef, {

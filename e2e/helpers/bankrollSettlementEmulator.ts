@@ -217,9 +217,13 @@ export async function readAuthoritativeState(
         handLedgerCount,
         handLedger,
         moneyEvents: moneyEvents.map((e) => ({
+          eventId: e.eventId as string | undefined,
           actionId: e.actionId as string | undefined,
           type: e.type as string | undefined,
+          playerId: e.playerId as string | undefined,
+          amount: Number(e.amount) || 0,
           handId: e.handId as string | number | undefined,
+          metadata: (e.metadata as Record<string, unknown>) ?? {},
         })),
       };
     },
@@ -345,6 +349,178 @@ export async function addSessionRobotFromPage(
     { rid: roomId, sid: sessionId, name: displayName },
   );
   await page.waitForTimeout(500);
+}
+
+/** Re-run ensureSessionPlayer for idempotency checks (existing score row must not re-credit). */
+export async function ensureSessionPlayerFromPage(
+  page: Page,
+  roomId: string,
+  sessionId: string,
+  playerId: string,
+  displayName: string,
+  isRobot = false,
+): Promise<boolean> {
+  return page.evaluate(
+    async ({ rid, sid, pid, name, robot }) => {
+      const { ensureSessionPlayer } = await import("./firestore.js");
+      return ensureSessionPlayer(rid, sid, pid, name, { joinCurrentHand: false, isRobot: robot });
+    },
+    { rid: roomId, sid: sessionId, pid: playerId, name: displayName, robot: isRobot },
+  );
+}
+
+export function buyInEventsForPlayer(
+  events: MoneyEventRow[],
+  playerId: string,
+): MoneyEventRow[] {
+  return events.filter((e) => e.type === "BUY_IN_APPLIED" && e.playerId === playerId);
+}
+
+export function expectedTotalFromBaselineDoc(
+  session: SessionSnapshot | null,
+  buyIn = BUY_IN,
+  playerCount?: number,
+): number {
+  const doc = session?.moneyLedgerBaseline ?? {};
+  if (doc.tableStartingTotal != null) {
+    const tableStartingTotal = Math.max(0, Number(doc.tableStartingTotal) || 0);
+    const netCashIn = Math.max(0, Number(doc.netCashIn) || 0);
+    const netBourreMint = Math.max(0, Number(doc.netBourreMint) || 0);
+    const netCashOut = Math.max(0, Number(doc.netCashOut) || 0);
+    return tableStartingTotal + netCashIn + netBourreMint - netCashOut;
+  }
+  const count = playerCount ?? 0;
+  return buyIn * count;
+}
+
+export type CanonicalChipBreakdown = {
+  actual: number;
+  bankrollSum: number;
+  potSum: number;
+  carryPot: number;
+  bankrolls: Record<string, number>;
+};
+
+/** Canonical table chips: bankrolls + posted antes + carry. */
+export function canonicalTableChips(
+  scoreById: Record<string, ScoreRow>,
+  session: SessionSnapshot | null,
+  playerIds: string[],
+): CanonicalChipBreakdown {
+  const bankrolls: Record<string, number> = {};
+  let bankrollSum = 0;
+  for (const pid of playerIds) {
+    const br = Math.max(0, Number(scoreById[pid]?.bankroll) || 0);
+    bankrolls[pid] = br;
+    bankrollSum += br;
+  }
+  const carryPot = Math.max(0, Number(session?.carryOverPot) || 0);
+  const potSum = sumPostedAntes(session?.currentHand?.postedAntes);
+  return {
+    actual: bankrollSum + potSum + carryPot,
+    bankrollSum,
+    potSum,
+    carryPot,
+    bankrolls,
+  };
+}
+
+/** Tracks expected table chip total after mid-session join credits. */
+export class TableEconomyTracker {
+  private expected: number;
+
+  constructor(initialExpected: number) {
+    this.expected = initialExpected;
+  }
+
+  static fromSession(session: SessionSnapshot | null, playerIds: string[], buyIn = BUY_IN) {
+    return new TableEconomyTracker(
+      expectedTotalFromBaselineDoc(session, buyIn, playerIds.length),
+    );
+  }
+
+  creditJoin(amount: number) {
+    this.expected += Math.max(0, amount);
+  }
+
+  getExpected(): number {
+    return this.expected;
+  }
+}
+
+export type EconomyInvariantResult = {
+  ok: boolean;
+  label: string;
+  expectedBaseline: number;
+  actualCanonical: number;
+  delta: number;
+  sessionInvariantOk: boolean;
+  sessionInvariant?: {
+    ok: boolean;
+    actual: number;
+    expected: number;
+    errors: string[];
+  };
+  breakdown: CanonicalChipBreakdown;
+};
+
+export async function assertTableEconomyInvariant(
+  page: Page,
+  state: AuthoritativeState,
+  tracker: TableEconomyTracker,
+  label: string,
+  playerIds: string[],
+): Promise<EconomyInvariantResult> {
+  const breakdown = canonicalTableChips(state.scoreById, state.session, playerIds);
+  const expectedBaseline = tracker.getExpected();
+  const delta = breakdown.actual - expectedBaseline;
+  const tolerance = 0.001;
+
+  const sessionInvariant = await page.evaluate(
+    async ({ session, scoreById, playerIds: ids, buyIn, label: lbl }) => {
+      const { assertTableChipInvariant, buildSessionChipSnapshot, baselineFromSessionDoc } =
+        await import("./money-persistence.js");
+      const baseline = baselineFromSessionDoc(session?.moneyLedgerBaseline ?? null, []);
+      const postedAntes = session?.currentHand?.postedAntes ?? {};
+      const snapshot = buildSessionChipSnapshot(scoreById, {
+        carryOverPot: session?.carryOverPot ?? 0,
+        currentHand: { postedAntes },
+      }, { buyInFallback: buyIn, playerIds: ids });
+      return assertTableChipInvariant(snapshot, baseline, {
+        roomId: "e2e",
+        sessionId: session?.sessionId ?? "e2e",
+        label: lbl,
+        handId: session?.handCount ?? 0,
+      });
+    },
+    {
+      session: { ...state.session, sessionId: state.sessionId },
+      scoreById: state.scoreById,
+      playerIds,
+      buyIn: BUY_IN,
+      label,
+    },
+  );
+
+  const trackedOk = Math.abs(delta) <= tolerance;
+  const sessionOk = sessionInvariant.ok === true;
+  const ok = trackedOk && sessionOk;
+
+  const result: EconomyInvariantResult = {
+    ok,
+    label,
+    expectedBaseline,
+    actualCanonical: breakdown.actual,
+    delta,
+    sessionInvariantOk: sessionOk,
+    sessionInvariant,
+    breakdown,
+  };
+
+  expect(trackedOk, `${label}: tracked economy invariant failed`).toBe(true);
+  expect(sessionOk, `${label}: session ledger invariant failed`).toBe(true);
+
+  return result;
 }
 
 export function bourreIdsFromFunding(

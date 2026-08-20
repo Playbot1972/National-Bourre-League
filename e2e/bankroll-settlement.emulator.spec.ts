@@ -19,9 +19,11 @@ import { fileURLToPath } from "node:url";
 import {
   assertChipConservation,
   assertEmulatorSuiteReady,
+  assertTableEconomyInvariant,
   attachFailureDiagnostics,
   BUY_IN,
   callCallableFromPage,
+  canonicalTableChips,
   emulatorCleanup,
   formatDiagnostics,
   HAND_ANTE,
@@ -33,7 +35,12 @@ import {
   type AuthoritativeState,
   advanceToPlayPhase,
   advancePlayTurnViaCallable,
+  addSessionRobotFromPage,
+  buyInEventsForPlayer,
+  ensureSessionPlayerFromPage,
+  playerIdsFromScores,
   bourreIdsFromFunding,
+  TableEconomyTracker,
   waitForPlayButtonEnabled,
 } from "./helpers/bankrollSettlementEmulator";
 import {
@@ -485,5 +492,103 @@ test.describe("Bankroll settlement — emulator E2E", () => {
     expect(nextDealPreview[expected.foldedPlayerId]).toBe(expected.ante);
     expect(nextDealPreview[ids.HOST]).toBe(expected.ante);
     expect(nextDealPreview[ids.P2]).toBe(expected.ante);
+  });
+
+  test("[emulator] mid-session join credits buy-in once — table economy invariant", async ({
+    page,
+  }, testInfo) => {
+    await page.goto("/");
+    await signUpHost(page, "Join Host");
+    const hostUid = await page.evaluate(async () => {
+      const { currentUser } = await import("./auth.js");
+      return currentUser()?.uid ?? null;
+    });
+    expect(hostUid).toBeTruthy();
+
+    const seed = runWinSeed(hostUid!);
+    const { roomId, sessionId, botId } = seed;
+    let playerIds = [hostUid!, botId];
+
+    await page.goto("/#rooms");
+    await page.getByText("Bankroll Win E2E").click();
+    await waitForPlayButtonEnabled(page);
+
+    let state = await readAuthoritativeState(page, roomId, sessionId, hostUid!);
+    const baselineBefore = Number(state.session?.moneyLedgerBaseline?.tableStartingTotal ?? 0);
+    const moneySequenceBefore = Number(state.session?.moneySequence ?? 0);
+    const tracker = TableEconomyTracker.fromSession(state.session, playerIds);
+    const beforeAdd = canonicalTableChips(state.scoreById, state.session, playerIds);
+
+    await addSessionRobotFromPage(page, roomId, sessionId, "Join Bot");
+    state = await readAuthoritativeState(page, roomId, sessionId, hostUid!);
+    playerIds = playerIdsFromScores(state.scoreById);
+    const joinBotId = playerIds.find((id) => id !== hostUid && id !== botId);
+    expect(joinBotId).toBeTruthy();
+
+    const credited = state.scoreById[joinBotId!]?.bankroll ?? 0;
+    expect(credited).toBe(BUY_IN);
+    tracker.creditJoin(credited);
+
+    const baselineAfter = Number(state.session?.moneyLedgerBaseline?.tableStartingTotal ?? 0);
+    expect(baselineAfter - baselineBefore).toBe(BUY_IN);
+
+    const joinBuyInEvents = buyInEventsForPlayer(state.moneyEvents, joinBotId!);
+    expect(joinBuyInEvents.length).toBe(1);
+    expect(joinBuyInEvents[0]?.amount).toBe(BUY_IN);
+
+    const afterJoin = canonicalTableChips(state.scoreById, state.session, playerIds);
+    expect(afterJoin.actual - beforeAdd.actual).toBe(credited);
+
+    let invResult: Awaited<ReturnType<typeof assertTableEconomyInvariant>> | null = null;
+    await expectWithDiagnostics(page, state, testInfo, async () => {
+      invResult = await assertTableEconomyInvariant(
+        page,
+        state,
+        tracker,
+        "after-mid-session-join",
+        playerIds,
+      );
+      expect(invResult.ok).toBe(true);
+      expect(invResult.sessionInvariantOk).toBe(true);
+    });
+
+    const retryApplied = await ensureSessionPlayerFromPage(
+      page,
+      roomId,
+      sessionId,
+      joinBotId!,
+      "Join Bot",
+      true,
+    );
+    expect(retryApplied).toBe(false);
+
+    const afterRetry = await readAuthoritativeState(page, roomId, sessionId, hostUid!);
+    expect(afterRetry.scoreById[joinBotId!]?.bankroll).toBe(credited);
+    expect(playerIdsFromScores(afterRetry.scoreById).includes(joinBotId!)).toBe(true);
+    expect(Number(afterRetry.session?.moneyLedgerBaseline?.tableStartingTotal ?? 0)).toBe(
+      baselineAfter,
+    );
+    expect(buyInEventsForPlayer(afterRetry.moneyEvents, joinBotId!).length).toBe(1);
+    expect(Number(afterRetry.session?.moneySequence ?? 0)).toBe(
+      moneySequenceBefore + joinBuyInEvents.length,
+    );
+
+    await testInfo.attach("join-economy.json", {
+      body: Buffer.from(
+        JSON.stringify({
+          beforeAddTotal: beforeAdd.actual,
+          credited,
+          afterJoinTotal: afterJoin.actual,
+          joinBotId,
+          baselineBefore,
+          baselineAfter,
+          moneySequenceBefore,
+          moneySequenceAfter: afterRetry.session?.moneySequence,
+          ledgerInvariant: invResult,
+        }),
+        "utf8",
+      ),
+      contentType: "application/json",
+    });
   });
 });

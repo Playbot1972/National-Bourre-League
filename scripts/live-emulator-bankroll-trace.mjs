@@ -242,6 +242,7 @@ async function seedFreshSession(testEnv, hostId, botId) {
       sessionName: "Bankroll Proof",
       status: "in_progress",
       handCount: 0,
+      buyInAmount: BUY_IN,
       handStake: ANTE,
       handStakeLocked: false,
       limEnabled: false,
