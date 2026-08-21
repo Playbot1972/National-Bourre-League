@@ -21,6 +21,7 @@ import {
   buildSessionChipSnapshot,
   applyRebuyToBaseline,
   applyBourreMintToBaseline,
+  mergeLedgerBaseline,
   initialSessionBaseline,
   baselineDocFromBaseline,
   detectBourreMintDelta,
@@ -226,6 +227,29 @@ export function runV1Rebuy(input) {
     existingEvents,
     ledger,
   });
+}
+
+/** Mid-session seat join — one canonical BUY_IN_APPLIED per player (idempotent actionId). */
+export function runV1JoinBuyIn(input) {
+  const {
+    sessionId,
+    playerId,
+    buyInAmount,
+    existingEvents = [],
+    ledger = null,
+  } = input;
+  return processBuyIn({
+    actionId: `session:join:${sessionId}:${playerId}`,
+    playerIds: [playerId],
+    buyInAmount,
+    existingEvents,
+    ledger,
+  });
+}
+
+/** Bump session ledger baseline for a new seat buy-in (tableStartingTotal, not netCashIn). */
+export function applyBuyInToBaseline(baseline, minted) {
+  return mergeLedgerBaseline(baseline, { tableStartingTotal: Math.max(0, minted) });
 }
 
 /**

@@ -85,6 +85,7 @@ async function main() {
       sessionName: "Win E2E Table",
       status: "in_progress",
       handCount: 0,
+      buyInAmount: BUY_IN,
       handStake: ANTE,
       handStakeLocked: false,
       limEnabled: false,
