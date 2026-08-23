@@ -152,3 +152,11 @@ export function gameGrantChipPurchase(payload) {
 export function gameApplyFreeSessionRebuy(payload) {
   return callGame("gameApplyFreeSessionRebuy", payload);
 }
+
+export function gameJoinSessionBuyIn(payload) {
+  return callGame("gameJoinSessionBuyIn", payload);
+}
+
+export function gameRemoveSessionPlayer(payload) {
+  return callGame("gameRemoveSessionPlayer", payload);
+}

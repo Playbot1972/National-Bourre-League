@@ -20,6 +20,8 @@ import {
   handleFoldDraw,
   handleTimeoutEnrollment,
   handleVoteCoWinSettlement,
+  handleJoinSessionBuyIn,
+  handleRemoveSessionPlayer,
 } from "./gameHandlers.js";
 import {
   handleFindOrCreatePublicTable,
@@ -108,6 +110,12 @@ export const gameRecordHand = wrap(handleRecordHand, "gameRecordHand");
 
 /** Co-winner split / decline vote. */
 export const gameVoteCoWinSettlement = wrap(handleVoteCoWinSettlement, "gameVoteCoWinSettlement");
+
+/** Mid-session seat join buy-in (server-owned ledger). */
+export const gameJoinSessionBuyIn = wrap(handleJoinSessionBuyIn, "gameJoinSessionBuyIn");
+
+/** Room owner removes guest/robot with balanced cash-out when bankroll > 0. */
+export const gameRemoveSessionPlayer = wrap(handleRemoveSessionPlayer, "gameRemoveSessionPlayer");
 
 /** Public mixed-table matchmaking (Phase 3). */
 export const gameFindOrCreatePublicTable = wrap(

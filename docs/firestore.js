@@ -136,7 +136,7 @@ import {
   sessionHasRobotScores,
 } from "./bot-rebuy.js";
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
-import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY } from "./firebase-config.js";
+import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY, SERVER_MONEY_AUTHORITY } from "./firebase-config.js";
 import {
   gameEnsureHandEnrollment,
   gameAdvanceHandReveal,
@@ -148,6 +148,9 @@ import {
   gameTimeoutEnrollment,
   gameVoteCoWinSettlement,
   gameAdvanceBots,
+  gameJoinSessionBuyIn,
+  gameRemoveSessionPlayer,
+  gameApplyFreeSessionRebuy,
 } from "./game-functions.js";
 import { isBenignTableActionError } from "./table-action-feedback.js";
 import {
@@ -416,13 +419,14 @@ async function callGameServerOrClient(clientFn, serverFn) {
   return callGameOrClient(clientFn, serverFn);
 }
 
-/** Settlement — Cloud Functions first when enabled; client batch is the fallback. */
+/** Settlement — Cloud Functions first when enabled; no client money fallback in production. */
 async function callSettlementOrClient(clientFn, serverFn) {
-  if (SERVER_HAND_AUTHORITY) {
+  const serverFirst = SERVER_HAND_AUTHORITY || SERVER_MONEY_AUTHORITY;
+  if (serverFirst) {
     try {
       return await serverFn();
     } catch (serverErr) {
-      if (isCloudFunctionUnavailable(serverErr)) {
+      if (isCloudFunctionUnavailable(serverErr) && !SERVER_MONEY_AUTHORITY) {
         console.warn(
           "Settlement Cloud Function unavailable, trying client batch.",
           serverErr?.code || serverErr?.message || serverErr,
@@ -950,6 +954,10 @@ export async function updateRoomBourreSettings(roomId, bourreSettings) {
 export async function rebuySessionPlayer(roomId, sessionId, { playerId, actorId }) {
   if (!playerId || !actorId) throw new Error("Missing player");
   if (playerId !== actorId) throw new Error("You can only rebuy for yourself");
+
+  if (SERVER_MONEY_AUTHORITY) {
+    return gameApplyFreeSessionRebuy({ roomId, sessionId, playerId });
+  }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) throw new Error("Room not found");
@@ -4126,6 +4134,10 @@ export async function removeSessionPlayer(roomId, sessionId, playerId, actor) {
   if (!actor?.uid) throw new Error("Not signed in");
   if (!playerId) throw new Error("Missing player");
 
+  if (SERVER_MONEY_AUTHORITY) {
+    return gameRemoveSessionPlayer({ roomId, sessionId, playerId });
+  }
+
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   if (!roomSnap.exists()) throw new Error("Room not found");
   if (roomSnap.data().ownerId !== actor.uid) {
@@ -4268,6 +4280,18 @@ export async function ensureSessionPlayer(
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
   const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
   const buyIn = resolveSessionBuyIn(sessionData, bourre);
+
+  if (isMoneyEngineV1(sessionData) && SERVER_MONEY_AUTHORITY) {
+    await updateDoc(sessionDoc(roomId, sessionId), sessionPatch);
+    await gameJoinSessionBuyIn({
+      roomId,
+      sessionId,
+      playerId,
+      displayName: resolvedName,
+      isRobot,
+    });
+    return true;
+  }
 
   if (isMoneyEngineV1(sessionData)) {
     const existingEvents = await loadSessionMoneyEvents(roomId, sessionId);
