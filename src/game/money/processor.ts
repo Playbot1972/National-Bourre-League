@@ -8,10 +8,14 @@ import type {
 } from "./types";
 import { MONEY_ENGINE_VERSION } from "./types";
 import { hasActionBeenApplied, makeEventId } from "./idempotency";
-import { emptyLedgerState, ledgerChipTotal, replayEvents } from "./replay";
+import { emptyLedgerState, ledgerChipTotal, replayEvents, ledgerFromScoreById } from "./replay";
 import { recordHandSettlement, startNextHandFunding } from "./pipeline";
 import { computeRebuyContributions } from "./canonical";
-import { scoreBankroll, sessionChipTotal } from "./core";
+import {
+  buildSoloWinSettlement,
+  scoreBankroll,
+  sessionChipTotal,
+} from "./core";
 import { tableChipTotal, validateChipGrowthInvariant } from "./conservation";
 
 function nextSequence(state: MoneyLedgerState, events: MoneyEvent[]): number {
@@ -371,11 +375,8 @@ export function processHandSettlement(
     };
   }
 
-  const beforeTotal = sessionChipTotal(settlementInput.scoreById, {
-    carryOverPot: settlementInput.carryIn ?? 0,
-    postedAntes: settlementInput.postedAntes ?? {},
-    buyInFallback,
-  });
+  const beforeReplayed = replayEvents(existingEvents, replayBase);
+  const beforeTotal = ledgerChipTotal(beforeReplayed);
 
   const settlement = recordHandSettlement(settlementInput);
   let seq = nextSequence(replayBase, existingEvents);
@@ -587,3 +588,275 @@ export const processNextDealFunding = processAnte;
 
 /** Bourré liability is emitted inside processHandSettlement. */
 export const processBourreLiability = processHandSettlement;
+
+export interface ProcessCashOutInput {
+  actionId: string;
+  playerId: string;
+  amount: number;
+  handId?: string | null;
+  reason?: string;
+  existingEvents?: MoneyEvent[];
+  ledger?: MoneyLedgerState;
+}
+
+/** Balanced cash-out — debits bankroll; baseline netCashOut bumped by caller. */
+export function processCashOut(input: ProcessCashOutInput): MoneyEngineResult {
+  const {
+    actionId,
+    playerId,
+    amount,
+    handId = null,
+    reason = "player_removal",
+    existingEvents = [],
+    ledger = emptyLedgerState(100),
+  } = input;
+
+  const cashOutAmount = Math.max(0, Number(amount) || 0);
+  if (cashOutAmount <= 0) {
+    throw new Error("cash-out amount must be positive");
+  }
+
+  if (hasActionBeenApplied(existingEvents, actionId)) {
+    const replayed = replayEvents(existingEvents, ledger);
+    return {
+      delta: {},
+      newEvents: [],
+      newBankrolls: replayed.bankrolls,
+      carryOverPot: replayed.carryOverPot,
+      postedAntes: replayed.postedAntes,
+      invariants: buildInvariantReport(replayed),
+      version: MONEY_ENGINE_VERSION,
+    };
+  }
+
+  const bankroll = ledger.bankrolls[playerId] ?? 0;
+  if (cashOutAmount > bankroll) {
+    throw new Error(
+      `cash-out overdraft: ${playerId} has ${bankroll}, requested ${cashOutAmount}`,
+    );
+  }
+
+  const beforeTotal = ledgerChipTotal(ledger);
+  let seq = nextSequence(ledger, existingEvents);
+  const newEvents: MoneyEvent[] = [
+    {
+      eventId: makeEventId(actionId, "CASH_OUT_APPLIED", playerId),
+      actionId,
+      handId,
+      phase: "session_finalize",
+      sequence: seq,
+      type: "CASH_OUT_APPLIED",
+      playerId,
+      amount: cashOutAmount,
+      metadata: { reason },
+      timestamp: Date.now(),
+    },
+  ];
+
+  const replayed = replayEvents([...existingEvents, ...newEvents], ledger);
+  const expectedTotal = beforeTotal - cashOutAmount;
+  const invariants = buildInvariantReport(replayed, expectedTotal);
+
+  return {
+    delta: { [playerId]: -cashOutAmount },
+    newEvents,
+    newBankrolls: replayed.bankrolls,
+    carryOverPot: replayed.carryOverPot,
+    postedAntes: replayed.postedAntes,
+    invariants,
+    version: MONEY_ENGINE_VERSION,
+  };
+}
+
+export interface ProcessSoloWinSettlementInput {
+  actionId: string;
+  handId: string;
+  sessionId: string;
+  winnerId: string;
+  carryIn?: number;
+  postedAntes?: Record<string, number>;
+  scoreById: ScoreById;
+  buyInFallback?: number;
+  participants: string[];
+  sessionStake?: number;
+  limEnabled?: boolean;
+  stakeForPlayer?: (pid: string) => number;
+  existingEvents?: MoneyEvent[];
+  ledger?: MoneyLedgerState;
+}
+
+/** Ledger-backed solo-win — same settlement events as a contested hand win. */
+export function processSoloWinSettlement(
+  input: ProcessSoloWinSettlementInput,
+): MoneyEngineResult & { settlement: ReturnType<typeof recordHandSettlement> } {
+  const {
+    actionId,
+    handId,
+    winnerId,
+    carryIn = 0,
+    postedAntes = {},
+    scoreById,
+    buyInFallback = 100,
+    participants,
+    sessionStake = 1,
+    limEnabled = false,
+    stakeForPlayer,
+    existingEvents = [],
+    ledger,
+  } = input;
+
+  const settled = buildSoloWinSettlement({
+    winnerId,
+    carryIn,
+    postedAntes,
+    scoreById,
+    buyInFallback,
+    participants,
+    sessionStake,
+    stakeForPlayer,
+  });
+
+  if (!settled.ready && !settled.prefunded) {
+    throw new Error(
+      `solo win not ready: ${(settled as { reason?: string }).reason ?? "unknown"}`,
+    );
+  }
+
+  const settlementPostedAntes = settled.prefunded
+    ? postedAntes
+    : settled.postedAntes ?? {};
+  const settlementParticipants =
+    settled.prefunded
+      ? Object.keys(settlementPostedAntes).filter(
+          (pid) => (settlementPostedAntes[pid] || 0) > 0,
+        )
+      : [winnerId];
+  const trickParticipants =
+    settlementParticipants.length > 0 ? settlementParticipants : [winnerId];
+  const settlementLedger =
+    ledger ??
+    ledgerFromScoreById(scoreById, {
+      buyInFallback,
+      carryOverPot: carryIn,
+      postedAntes: {},
+    });
+
+  return processHandSettlement({
+    actionId,
+    handId,
+    sessionId: input.sessionId,
+    mode: "win",
+    winners: [winnerId],
+    participants: trickParticipants,
+    tricksByPlayer: Object.fromEntries(trickParticipants.map((pid) => [pid, 0])),
+    scoreById,
+    sessionStake,
+    limEnabled,
+    carryIn,
+    postedAntes: settlementPostedAntes,
+    buyInFallback,
+    splitPotEnabled: false,
+    existingEvents,
+    ledger: settlementLedger,
+  });
+}
+
+export interface ProcessSoleSurvivorEndInput {
+  actionId: string;
+  winnerId: string;
+  carryIn?: number;
+  postedAntes?: Record<string, number>;
+  scoreById: ScoreById;
+  buyInFallback?: number;
+  sortedPlayerIds: string[];
+  existingEvents?: MoneyEvent[];
+  ledger?: MoneyLedgerState;
+}
+
+/** Sole survivor — award carry + posted pot via canonical settlement ledger path. */
+export function processSoleSurvivorEnd(
+  input: ProcessSoleSurvivorEndInput,
+): MoneyEngineResult & { potAwarded: number } {
+  const {
+    actionId,
+    winnerId,
+    carryIn = 0,
+    postedAntes = {},
+    scoreById,
+    buyInFallback = 100,
+    sortedPlayerIds,
+    existingEvents = [],
+    ledger = ledgerFromScoreById(scoreById, {
+      buyInFallback,
+      carryOverPot: carryIn,
+      postedAntes,
+    }),
+  } = input;
+
+  const carry = Math.max(0, Number(carryIn) || 0);
+  const postedTotal = Object.values(postedAntes).reduce(
+    (sum, raw) => sum + Math.max(0, Number(raw) || 0),
+    0,
+  );
+  const potAwarded = carry + postedTotal;
+
+  if (hasActionBeenApplied(existingEvents, actionId)) {
+    const replayed = replayEvents(existingEvents, ledger);
+    return {
+      delta: {},
+      newEvents: [],
+      newBankrolls: replayed.bankrolls,
+      carryOverPot: replayed.carryOverPot,
+      postedAntes: replayed.postedAntes,
+      invariants: buildInvariantReport(replayed),
+      version: MONEY_ENGINE_VERSION,
+      potAwarded,
+    };
+  }
+
+  const beforeTotal = ledgerChipTotal(ledger);
+  let seq = nextSequence(ledger, existingEvents);
+  const newEvents: MoneyEvent[] = [];
+
+  if (potAwarded > 0) {
+    newEvents.push({
+      eventId: makeEventId(actionId, "WINNER_CREDITED", winnerId),
+      actionId,
+      handId: null,
+      phase: "session_finalize",
+      sequence: seq++,
+      type: "WINNER_CREDITED",
+      playerId: winnerId,
+      amount: potAwarded,
+      metadata: { reason: "sole_survivor" },
+      timestamp: Date.now(),
+    });
+  }
+
+  newEvents.push({
+    eventId: makeEventId(actionId, "CARRY_OVER_SET", null),
+    actionId,
+    handId: null,
+    phase: "session_finalize",
+    sequence: seq++,
+    type: "CARRY_OVER_SET",
+    playerId: null,
+    amount: 0,
+    metadata: { reason: "sole_survivor" },
+    timestamp: Date.now(),
+  });
+
+  const replayed = replayEvents([...existingEvents, ...newEvents], ledger);
+  const invariants = buildInvariantReport(replayed, beforeTotal);
+
+  return {
+    delta: potAwarded > 0 ? { [winnerId]: potAwarded } : {},
+    newEvents,
+    newBankrolls: replayed.bankrolls,
+    carryOverPot: 0,
+    postedAntes: {},
+    invariants,
+    version: MONEY_ENGINE_VERSION,
+    potAwarded,
+  };
+}

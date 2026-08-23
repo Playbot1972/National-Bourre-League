@@ -9,6 +9,9 @@ import {
   processHandSettlement,
   processAnte,
   processRebuy,
+  processCashOut,
+  processSoloWinSettlement,
+  processSoleSurvivorEnd,
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
@@ -16,11 +19,14 @@ import {
   startNextHandFunding,
   collectFundingForHandStart,
   assertTableChipInvariant,
+  checkTableChipInvariant,
+  assertTableChipInvariantFailClosed,
   computeCarryForAnte,
   baselineFromSessionDoc,
   buildSessionChipSnapshot,
   applyRebuyToBaseline,
   applyBourreMintToBaseline,
+  mergeLedgerBaseline,
   initialSessionBaseline,
   baselineDocFromBaseline,
   detectBourreMintDelta,
@@ -39,12 +45,17 @@ export {
   processHandSettlement,
   processAnte,
   processRebuy,
+  processCashOut,
+  processSoloWinSettlement,
+  processSoleSurvivorEnd,
   computeFinalBankrolls,
   recordHandSettlement,
   mergeNextDealFundingIntoScoreById,
   startNextHandFunding,
   collectFundingForHandStart,
   assertTableChipInvariant,
+  checkTableChipInvariant,
+  assertTableChipInvariantFailClosed,
   computeCarryForAnte,
   baselineFromSessionDoc,
   buildSessionChipSnapshot,
@@ -223,6 +234,112 @@ export function runV1Rebuy(input) {
     playerId,
     buyInAmount,
     handId: handNumber != null ? String(handNumber) : null,
+    existingEvents,
+    ledger,
+  });
+}
+
+/** Mid-session seat join — one canonical BUY_IN_APPLIED per player (idempotent actionId). */
+export function runV1JoinBuyIn(input) {
+  const {
+    sessionId,
+    playerId,
+    buyInAmount,
+    existingEvents = [],
+    ledger = null,
+  } = input;
+  return processBuyIn({
+    actionId: `session:join:${sessionId}:${playerId}`,
+    playerIds: [playerId],
+    buyInAmount,
+    existingEvents,
+    ledger,
+  });
+}
+
+/** Bump session ledger baseline for a new seat buy-in (tableStartingTotal, not netCashIn). */
+export function applyBuyInToBaseline(baseline, minted) {
+  return mergeLedgerBaseline(baseline, { tableStartingTotal: Math.max(0, minted) });
+}
+
+/** Cash-out on player removal — balanced CASH_OUT_APPLIED ledger event. */
+export function runV1CashOut(input) {
+  const {
+    sessionId,
+    playerId,
+    amount,
+    handNumber = null,
+    reason = "player_removal",
+    existingEvents = [],
+    ledger = null,
+  } = input;
+  return processCashOut({
+    actionId: `cash-out:${sessionId}:${playerId}`,
+    playerId,
+    amount,
+    handId: handNumber != null ? String(handNumber) : null,
+    reason,
+    existingEvents,
+    ledger,
+  });
+}
+
+/** Solo-win shortcut — canonical hand_settlement ledger path. */
+export function runV1SoloWinSettlement(input) {
+  const {
+    sessionId,
+    handNumber,
+    winnerId,
+    carryIn = 0,
+    postedAntes = {},
+    scoreById,
+    buyInFallback = 100,
+    participants,
+    sessionStake = 1,
+    limEnabled = false,
+    stakeForPlayer,
+    existingEvents = [],
+    ledger = null,
+  } = input;
+  return processSoloWinSettlement({
+    actionId: `solo-win:${sessionId}:${handNumber}`,
+    handId: String(handNumber),
+    sessionId,
+    winnerId,
+    carryIn,
+    postedAntes,
+    scoreById,
+    buyInFallback,
+    participants,
+    sessionStake,
+    limEnabled,
+    stakeForPlayer,
+    existingEvents,
+    ledger,
+  });
+}
+
+/** Sole survivor session end — award carry/posted via session_finalize ledger events. */
+export function runV1SoleSurvivorEnd(input) {
+  const {
+    sessionId,
+    winnerId,
+    carryIn = 0,
+    postedAntes = {},
+    scoreById,
+    buyInFallback = 100,
+    sortedPlayerIds,
+    existingEvents = [],
+    ledger = null,
+  } = input;
+  return processSoleSurvivorEnd({
+    actionId: `sole-survivor:${sessionId}`,
+    winnerId,
+    carryIn,
+    postedAntes,
+    scoreById,
+    buyInFallback,
+    sortedPlayerIds,
     existingEvents,
     ledger,
   });

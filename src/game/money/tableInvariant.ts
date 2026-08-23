@@ -256,6 +256,31 @@ export function assertTableChipInvariant(
   return result;
 }
 
+/**
+ * Server money authority — always throws on invariant mismatch (Cloud Functions).
+ * Clients use assertTableChipInvariant (log-only unless strict dev flags).
+ */
+export function assertTableChipInvariantFailClosed(
+  snapshot: TableChipSnapshot,
+  baseline: TableLedgerBaseline,
+  ctx: TableInvariantContext,
+  tolerance = 0.001,
+): TableInvariantResult {
+  const result = checkTableChipInvariant(snapshot, baseline, tolerance);
+  logTableChipInvariant(ctx, result);
+  if (!result.ok) {
+    throw new Error(
+      `[fail-closed:${ctx.label}] ${result.errors.join("; ")} ` +
+        JSON.stringify({
+          tableId: ctx.tableId ?? ctx.roomId,
+          sessionId: ctx.sessionId,
+          handId: ctx.handId,
+        }),
+    );
+  }
+  return result;
+}
+
 /** Alias for runtime callers that prefer "log" naming. */
 export function logTableInvariant(
   snapshot: TableChipSnapshot,
