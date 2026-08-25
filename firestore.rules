@@ -53,6 +53,28 @@ service cloud.firestore {
       ]);
     }
 
+    // Nested currentHand authoritative / money fields — Cloud Functions only.
+    // Client enrollment may still touch narrow turn/draw fields (turnPlayerId, foldedIds, drawCompletedIds).
+    function currentHandMoneyFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentHand'])
+        && (
+          request.resource.data.get('currentHand', {}).get('postedAntes', {})
+            != resource.data.get('currentHand', {}).get('postedAntes', {})
+          || request.resource.data.get('currentHand', {}).get('deckSeed', null)
+            != resource.data.get('currentHand', {}).get('deckSeed', null)
+          || request.resource.data.get('currentHand', {}).get('deckNextIndex', null)
+            != resource.data.get('currentHand', {}).get('deckNextIndex', null)
+          || request.resource.data.get('currentHand', {}).get('dealerId', null)
+            != resource.data.get('currentHand', {}).get('dealerId', null)
+          || request.resource.data.get('currentHand', {}).get('actionOrder', [])
+            != resource.data.get('currentHand', {}).get('actionOrder', [])
+          || request.resource.data.get('currentHand', {}).get('participantIds', [])
+            != resource.data.get('currentHand', {}).get('participantIds', [])
+          || request.resource.data.get('currentHand', {}).get('handNumber', null)
+            != resource.data.get('currentHand', {}).get('handNumber', null)
+        );
+    }
+
     function pagatHandRevealActive(data) {
       return data.get('currentHand', {}).get('phase', '') == 'reveal'
         && data.get('currentHand', {}).get('participantIds', []).size() > 0;
@@ -84,6 +106,7 @@ service cloud.firestore {
     function memberEnrollmentSessionUpdate() {
       return sessionEnrollmentActive(resource.data)
         && !sessionMoneyFieldsChanged()
+        && !currentHandMoneyFieldsChanged()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
@@ -92,6 +115,7 @@ service cloud.firestore {
     function memberOpenEnrollmentUpdate() {
       return !sessionEnrollmentActive(resource.data)
         && !sessionMoneyFieldsChanged()
+        && !currentHandMoneyFieldsChanged()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
