@@ -11,11 +11,15 @@ import {
   moneyEventsFromFirestoreDocs,
   nextMoneySequence,
   MONEY_EVENTS_COLLECTION,
-} from "./vendor/money-persistence.js";
-import {
   MONEY_ENGINE_VERSION,
-  processRebuy,
-} from "./vendor/money-engine.js";
+  assertTableChipInvariantFailClosed,
+  baselineFromSessionDoc,
+  baselineDocFromBaseline,
+  buildSessionChipSnapshot,
+  buildLedgerStateFromSession,
+  applyRebuyToBaseline,
+} from "./vendor/money-persistence.js";
+import { processRebuy } from "./vendor/money-engine.js";
 import { normalizeBourreSettings } from "./vendor/bourre-rules.js";
 
 export const CHIP_PURCHASE_GRANTS_COLLECTION = "chipPurchaseGrants";
@@ -62,6 +66,10 @@ function resolveSessionBuyIn(sessionData, bourre) {
   return sessionData.buyInAmount ?? bourre.buyInAmount ?? 0;
 }
 
+function rebuyActionId(sessionId, playerId, handNumber) {
+  return `rebuy:${sessionId}:${playerId}:${handNumber}`;
+}
+
 /**
  * Apply free session rebuy (house rule) — server-owned mirror of legacy client rebuySessionPlayer.
  */
@@ -72,64 +80,142 @@ export async function handleApplyFreeSessionRebuy(db, { actorId, roomId, session
   const roomRef = db.collection("rooms").doc(roomId);
   const sessionRefDoc = sessionRef(db, roomId, sessionId);
   const scoreRef = scoresCol(db, roomId, sessionId).doc(playerId);
+  const scoresCollection = scoresCol(db, roomId, sessionId);
+  const eventsCol = moneyEventsCol(db, roomId, sessionId);
 
-  const [roomSnap, sessionSnap, scoreSnap] = await Promise.all([
-    roomRef.get(),
-    sessionRefDoc.get(),
-    scoreRef.get(),
-  ]);
-
+  const roomSnap = await roomRef.get();
   if (!roomSnap.exists) throw new Error("Room not found");
-  if (!sessionSnap.exists) throw new Error("Session not found");
-  if (sessionSnap.data().status === "final") throw new Error("Session is final");
-  if (!scoreSnap.exists) throw new Error("Player not in session");
-
   const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
-  if (!bourre.rebuyEnabled) throw new Error("Free rebuy is not enabled for this room");
 
-  const sessionData = sessionSnap.data();
-  const buyIn = resolveSessionBuyIn(sessionData, bourre);
-  const handNumber = sessionData.handCount || 0;
-  const scoreData = scoreSnap.data();
-  const bankroll = Math.max(0, Number(scoreData.bankroll) || 0);
-  if (bankroll > 0 && scoreData.out !== true) {
-    throw new Error("Rebuy is only available when you are out of chips");
-  }
+  return db.runTransaction(async (tx) => {
+    const [sessionSnap, scoreSnap, scoresSnap, eventsSnap] = await Promise.all([
+      tx.get(sessionRefDoc),
+      tx.get(scoreRef),
+      tx.get(scoresCollection),
+      tx.get(eventsCol),
+    ]);
 
-  if (isMoneyEngineV1(sessionData)) {
-    const existingEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
+    if (!sessionSnap.exists) throw new Error("Session not found");
+    const sessionData = sessionSnap.data();
+    if (sessionData.status === "final") throw new Error("Session is final");
+    if (!scoreSnap.exists) throw new Error("Player not in session");
+    if (!bourre.rebuyEnabled) throw new Error("Free rebuy is not enabled for this room");
+
+    const buyIn = resolveSessionBuyIn(sessionData, bourre);
+    const handNumber = sessionData.handCount || 0;
+
+    if (isMoneyEngineV1(sessionData)) {
+      const existingEvents = moneyEventsFromFirestoreDocs(eventsSnap.docs);
+      const actionId = rebuyActionId(sessionId, playerId, handNumber);
+      const priorEvent = existingEvents.find(
+        (event) => event.actionId === actionId && event.type === "REBUY_APPLIED",
+      );
+      if (priorEvent) {
+        return {
+          status: "applied",
+          bankroll: priorEvent.amount ?? buyIn,
+          chipsGranted: priorEvent.amount ?? buyIn,
+          idempotent: true,
+        };
+      }
+    }
+
+    const scoreData = scoreSnap.data();
+    const bankroll = Math.max(0, Number(scoreData.bankroll) || 0);
+    if (bankroll > 0 && scoreData.out !== true) {
+      throw new Error("Rebuy is only available when you are out of chips");
+    }
+
+    if (!isMoneyEngineV1(sessionData)) {
+      tx.update(scoreRef, {
+        bankroll: buyIn,
+        out: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return { status: "applied", bankroll: buyIn, chipsGranted: buyIn };
+    }
+
+    const existingEvents = moneyEventsFromFirestoreDocs(eventsSnap.docs);
+    const actionId = rebuyActionId(sessionId, playerId, handNumber);
+    const priorEvent = existingEvents.find(
+      (event) => event.actionId === actionId && event.type === "REBUY_APPLIED",
+    );
+    if (priorEvent) {
+      return {
+        status: "applied",
+        bankroll: priorEvent.amount ?? buyIn,
+        chipsGranted: priorEvent.amount ?? buyIn,
+        idempotent: true,
+      };
+    }
+
+    const scoreById = Object.fromEntries(scoresSnap.docs.map((doc) => [doc.id, doc.data()]));
+    const seatIds = scoresSnap.docs.map((doc) => doc.id);
+    const ledger = buildLedgerStateFromSession(sessionData, scoreById, buyIn);
     const rebuy = runV1Rebuy({
       sessionId,
       playerId,
       buyInAmount: buyIn,
       handNumber,
-      existingEvents,
+      existingEvents: [],
+      ledger,
     });
-    await db.runTransaction(async (tx) => {
-      tx.update(scoreRef, {
-        bankroll: buyIn,
-        net: 0,
-        out: FieldValue.delete(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-      if (rebuy.newEvents.length) {
-        appendMoneyEventsInTransaction(tx, db, {
-          roomId,
-          sessionId,
-          events: rebuy.newEvents,
-          nextSequence: nextMoneySequence(sessionData, rebuy.newEvents.length),
-        });
-      }
-    });
-    return { status: "applied", bankroll: buyIn, chipsGranted: buyIn };
-  }
 
-  await scoreRef.update({
-    bankroll: buyIn,
-    out: FieldValue.delete(),
-    updatedAt: FieldValue.serverTimestamp(),
+    if (rebuy.newEvents.length === 0) {
+      const replayedBankroll = rebuy.newBankrolls[playerId] ?? buyIn;
+      return {
+        status: "applied",
+        bankroll: replayedBankroll,
+        chipsGranted: rebuy.newEvents[0]?.amount ?? buyIn,
+        idempotent: true,
+      };
+    }
+
+    const minted = rebuy.newEvents[0]?.amount ?? buyIn;
+    const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
+    const updatedBaseline = applyRebuyToBaseline(baseline, minted);
+    const projectedScoreById = { ...scoreById };
+    projectedScoreById[playerId] = {
+      ...projectedScoreById[playerId],
+      bankroll: rebuy.newBankrolls[playerId] ?? buyIn,
+      net: 0,
+      out: undefined,
+    };
+
+    const snapshot = buildSessionChipSnapshot(projectedScoreById, sessionData, {
+      buyInFallback: buyIn,
+      playerIds: seatIds,
+    });
+    assertTableChipInvariantFailClosed(snapshot, updatedBaseline, {
+      roomId,
+      sessionId,
+      handId: handNumber,
+      label: "free-rebuy",
+    });
+
+    tx.update(scoreRef, {
+      bankroll: rebuy.newBankrolls[playerId] ?? buyIn,
+      net: 0,
+      out: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    appendMoneyEventsInTransaction(tx, db, {
+      roomId,
+      sessionId,
+      events: rebuy.newEvents,
+      nextSequence: nextMoneySequence(sessionData, rebuy.newEvents.length),
+    });
+    tx.update(sessionRefDoc, {
+      moneyLedgerBaseline: baselineDocFromBaseline(updatedBaseline),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      status: "applied",
+      bankroll: rebuy.newBankrolls[playerId] ?? buyIn,
+      chipsGranted: minted,
+    };
   });
-  return { status: "applied", bankroll: buyIn, chipsGranted: buyIn };
 }
 
 /**
