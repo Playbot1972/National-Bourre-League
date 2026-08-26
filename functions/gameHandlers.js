@@ -881,18 +881,44 @@ function removePlayerFromEnrollment(enrollment, removedId, dealerId, sortedPlaye
   };
 }
 
-function seatPlayerIds(sessionData, scoreDocs) {
+export function sessionRosterPlayerIds(sessionData) {
+  return (sessionData?.players || []).map((p) => p?.playerId).filter(Boolean);
+}
+
+export function seatPlayerIds(sessionData, scoreDocs) {
   const scoreById = Object.fromEntries(
     scoreDocs.map((d) => [d.id, d.data()?.displayName || ""]),
   );
-  const fromSession = (sessionData?.players || [])
-    .map((p) => p?.playerId)
-    .filter((id) => id && id in scoreById);
+  const fromSession = sessionRosterPlayerIds(sessionData).filter((id) => id in scoreById);
   const seen = new Set(fromSession);
   const extras = Object.keys(scoreById)
     .filter((id) => !seen.has(id))
     .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
   return [...fromSession, ...extras];
+}
+
+/** Positive-balance score rows absent from session.players are accounting errors — fail before writes. */
+export function assertScoreRosterReconciled(sessionData, scoreDocs, buyIn) {
+  const rosterIds = new Set(sessionRosterPlayerIds(sessionData));
+  const orphans = [];
+  for (const doc of scoreDocs) {
+    const playerId = doc.id;
+    if (rosterIds.has(playerId)) continue;
+    const bankroll = scoreBankroll(doc.data(), buyIn);
+    if (bankroll > 0) {
+      orphans.push({ playerId, bankroll });
+    }
+  }
+  if (orphans.length === 0) return;
+  throw new HttpsError(
+    "failed-precondition",
+    "Orphan seat reconciliation required: positive-balance score rows absent from session.players",
+    {
+      code: "ORPHAN_SEAT_RECONCILIATION_REQUIRED",
+      orphans,
+      rosterPlayerIds: [...rosterIds],
+    },
+  );
 }
 
 function actionOrderFromHand(currentHand, sortedPlayerIds) {
@@ -2674,6 +2700,8 @@ export async function handleRecordHand(
   const roomBourre = roomSnap.data()?.bourreSettings ?? {};
   const splitPotEnabled = splitPotVoteAllowed(roomBourre);
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
+
+  assertScoreRosterReconciled(sessionData, scoreSnap.docs, buyIn);
 
   let existingMoneyEvents = [];
   let v1MoneyResult = null;

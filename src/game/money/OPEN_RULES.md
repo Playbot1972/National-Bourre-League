@@ -51,3 +51,14 @@ Production guard: `assertTableChipInvariant()` / `logTableChipInvariant()` in `t
 Strict mode (throws on mismatch): `NBL_INVARIANTS=1`, `NODE_ENV=test`, `localStorage nbl-invariants=1`, or `?invariants=1`.
 
 Dev UI reconciliation: with `localStorage.setItem('nbl-invariants','1')`, watch `[nbl-table-invariant]` logs after settlement/rebuy; soak logs `{ tableId, handId, uiMatchesLedger }`.
+
+---
+
+## OPEN_RULE_ORPHAN_SEAT
+
+**Status:** Implemented in `handleRecordHand` — settlement fails before writes.
+
+- A score row with **positive bankroll** that is absent from `session.players` is an **accounting-integrity error**.
+- It cannot be silently ignored, deleted, or excluded from canonical totals.
+- Server must reject settlement with `ORPHAN_SEAT_RECONCILIATION_REQUIRED` until explicit reconciliation (PR2/PR3 scope).
+- `seatPlayerIds()` may still list orphan ids for diagnostics; invariant math must not proceed without reconciliation.

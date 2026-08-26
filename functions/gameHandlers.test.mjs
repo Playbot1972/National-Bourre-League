@@ -10,6 +10,9 @@ import {
   handleAdvanceBots,
   isBenignBotAdvanceRaceError,
   isBenignEnsureEnrollmentFollowUpError,
+  assertScoreRosterReconciled,
+  seatPlayerIds,
+  sessionRosterPlayerIds,
 } from "./gameHandlers.js";
 import { dealInitialHand } from "./vendor/game-engine.js";
 import { collectHandAntes, handAnteContribution } from "./vendor/bourre-rules.js";
@@ -144,5 +147,56 @@ describe("isBenignBotAdvanceRaceError", () => {
     assert.equal(isBenignBotAdvanceRaceError({ code: "invalid-argument" }), false);
     assert.equal(isBenignBotAdvanceRaceError({ code: "internal" }), false);
     assert.equal(isBenignBotAdvanceRaceError(null), false);
+  });
+});
+
+function mockScoreDoc(id, data) {
+  return { id, data: () => data };
+}
+
+describe("session roster reconciliation", () => {
+  it("sessionRosterPlayerIds returns session.players order", () => {
+    const ids = sessionRosterPlayerIds({
+      players: [{ playerId: "host" }, { playerId: "bot_1" }],
+    });
+    assert.deepEqual(ids, ["host", "bot_1"]);
+  });
+
+  it("seatPlayerIds appends orphan score docs after roster order", () => {
+    const session = { players: [{ playerId: "host" }, { playerId: "bot_1" }] };
+    const docs = [
+      mockScoreDoc("host", { displayName: "host", bankroll: 100 }),
+      mockScoreDoc("bot_1", { displayName: "bot", bankroll: 100 }),
+      mockScoreDoc("orphan", { displayName: "orphan", bankroll: 60 }),
+    ];
+    assert.deepEqual(seatPlayerIds(session, docs), ["host", "bot_1", "orphan"]);
+  });
+
+  it("assertScoreRosterReconciled rejects positive-balance orphans", () => {
+    const session = { players: [{ playerId: "host" }, { playerId: "bot_1" }] };
+    const docs = [
+      mockScoreDoc("host", { bankroll: 100 }),
+      mockScoreDoc("bot_1", { bankroll: 100 }),
+      mockScoreDoc("orphan", { bankroll: 60 }),
+    ];
+    assert.throws(
+      () => assertScoreRosterReconciled(session, docs, 100),
+      (err) => {
+        assert.equal(err.code, "failed-precondition");
+        assert.equal(err.details?.code, "ORPHAN_SEAT_RECONCILIATION_REQUIRED");
+        assert.deepEqual(err.details?.orphans, [{ playerId: "orphan", bankroll: 60 }]);
+        return true;
+      },
+    );
+  });
+
+  it("assertScoreRosterReconciled allows zero-balance orphan score rows", () => {
+    const session = { players: [{ playerId: "host" }, { playerId: "bot_1" }] };
+    const docs = [
+      mockScoreDoc("host", { bankroll: 100 }),
+      mockScoreDoc("bot_1", { bankroll: 100 }),
+      mockScoreDoc("orphan", { bankroll: 0, out: true }),
+    ];
+    assertScoreRosterReconciled(session, docs, 100);
   });
 });
