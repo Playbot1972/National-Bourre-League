@@ -31,6 +31,8 @@ import {
   compareUiToLedgerSnapshot,
   computeNextHandFundingMintDelta,
 } from "../docs/money-persistence.js";
+import { expectedChipTotalFromBaseline } from "../docs/money-engine.js";
+import { seatPlayerIds } from "../functions/gameHandlers.js";
 
 const PROJECT = "demo-national-bourre-league";
 const FUNCTIONS_BASE = `http://127.0.0.1:5001/${PROJECT}/us-central1`;
@@ -474,11 +476,73 @@ async function seedPostAntePlayState(hostId, botId) {
   });
 }
 
+async function listSessionSubcollectionIds(subcollection) {
+  const db = await getAdminDb();
+  const snap = await db.collection(`rooms/${ROOM}/sessions/${SESSION}/${subcollection}`).get();
+  return snap.docs.map((d) => d.id).sort();
+}
+
+async function assertScenarioGDataIntegrity(hostId, botPlayerId, label) {
+  const db = await getAdminDb();
+  const sessionRef = db.doc(`rooms/${ROOM}/sessions/${SESSION}`);
+  const sessionSnap = await sessionRef.get();
+  const scoresSnap = await sessionRef.collection("scores").get();
+  const scoreIds = scoresSnap.docs.map((d) => d.id).sort();
+  assert.equal(scoresSnap.size, 2, `${label}: exactly two score rows`);
+  assert.deepEqual(scoreIds, [hostId, botPlayerId].sort(), `${label}: score row ids`);
+
+  const seatIds = seatPlayerIds(sessionSnap.data(), scoresSnap.docs);
+  assert.deepEqual(seatIds, [hostId, botPlayerId], `${label}: seatPlayerIds roster order`);
+
+  const privateHandIds = await listSessionSubcollectionIds("privateHands");
+  assert.equal(privateHandIds.length, 0, `${label}: no private hand docs`);
+
+  console.info(
+    `[bankroll-trace] G integrity ${label}`,
+    JSON.stringify({
+      scoreIds,
+      seatIds,
+      moneyEventIds: await listSessionSubcollectionIds("moneyEvents"),
+      handIds: await listSessionSubcollectionIds("hands"),
+      privateHandIds,
+    }),
+  );
+}
+
+function assertScenarioGChipTotals(label, session, scoreById, hostId, botPlayerId, expectedBaseline) {
+  const playerIds = [hostId, botPlayerId];
+  const baseline = baselineFromSessionDoc(session?.moneyLedgerBaseline, []);
+  const snapshot = buildSessionChipSnapshot(
+    scoreById,
+    {
+      carryOverPot: session?.carryOverPot ?? 0,
+      currentHand: session?.currentHand ?? {},
+    },
+    { buyInFallback: BUY_IN, playerIds },
+  );
+  const expected = expectedChipTotalFromBaseline(expectedBaseline ?? baseline);
+  const bankrollSum = playerIds.reduce(
+    (sum, pid) => sum + Math.max(0, Number(scoreById[pid]?.bankroll) || 0),
+    0,
+  );
+  const posted = session?.currentHand?.postedAntes ?? {};
+  const potSum = Object.values(posted).reduce((sum, raw) => sum + Math.max(0, Number(raw) || 0), 0);
+  const carryPot = Math.max(0, Number(session?.carryOverPot) || 0);
+  const actual = bankrollSum + potSum + carryPot;
+  const delta = actual - expected;
+  console.info(
+    `[bankroll-trace] G totals ${label}`,
+    JSON.stringify({ expected, actual, bankrollSum, potSum, carryPot, delta, baseline }),
+  );
+  assert.equal(actual, expected, `${label}: canonical total`);
+  assert.equal(delta, 0, `${label}: invariant delta`);
+}
+
 async function getAdminDb() {
   if (!globalThis.__adminDb) {
     process.env.FIRESTORE_EMULATOR_HOST =
       process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8088";
-  const require = createRequire(import.meta.url);
+    const require = createRequire(import.meta.url);
     const admin = require("../functions/node_modules/firebase-admin");
     if (!admin.apps.length) {
       admin.initializeApp({ projectId: PROJECT });
@@ -571,11 +635,20 @@ async function runScenarioG(token, hostId, botPlayerId) {
       }),
   );
 
-  await seedScenarioGSession(globalThis.__testEnv, hostId, botPlayerId);
+  await assertScenarioGDataIntegrity(hostId, botPlayerId, "pre-hand");
 
   await seedPostAntePlayState(hostId, botPlayerId);
   let state = await readStateUnified(globalThis.__testEnv);
   traceBankrolls("G hand 1 ante", state.scoreById, hostId, botPlayerId, state.session);
+  await assertScenarioGDataIntegrity(hostId, botPlayerId, "hand-1-ante");
+  assertScenarioGChipTotals(
+    "pre-settlement",
+    state.session,
+    state.scoreById,
+    hostId,
+    botPlayerId,
+    initialSessionBaseline(2, BUY_IN),
+  );
   assertFullBaselineInvariant(
     "G hand 1 ante",
     state.session,
@@ -675,6 +748,25 @@ async function runScenarioG(token, hostId, botPlayerId) {
     botPlayerId,
     { human: state.scoreById[hostId]?.bankroll, bot: BUY_IN },
     state.session,
+  );
+
+  await assertScenarioGDataIntegrity(hostId, botPlayerId, "post-bourre-rebuy");
+  const postBaseline = baselineFromSessionDoc(state.session?.moneyLedgerBaseline, []);
+  assert.equal(postBaseline.tableStartingTotal, 200, "G: post-rebuy tableStartingTotal");
+  assert.equal(postBaseline.netCashIn, 100, "G: post-rebuy netCashIn");
+  assert.equal(postBaseline.netBourreMint ?? 0, 0, "G: post-rebuy netBourreMint");
+  assertScenarioGChipTotals(
+    "post-bourre-rebuy",
+    state.session,
+    state.scoreById,
+    hostId,
+    botPlayerId,
+    postBaseline,
+  );
+  assert.equal(
+    expectedChipTotalFromBaseline(postBaseline),
+    300,
+    "G: post-bourre-rebuy expected baseline total",
   );
 
   console.info("Scenario G: bourré bust mint + bot auto-rebuy — all invariant checks ok:true");
@@ -856,14 +948,17 @@ async function main() {
       if (!fn) {
         throw new Error(`Unknown scenario "${key}". Use: ${Object.keys(SCENARIOS).join(", ")}`);
       }
-      console.info(`\n=== Scenario ${key.toUpperCase()} ===`);
+      ROOM = `room_bankroll_${runId}_${key}`;
+      SESSION = `session_bankroll_${runId}_${key}`;
+      console.info(`\n=== Scenario ${key.toUpperCase()} ===`, { roomId: ROOM, sessionId: SESSION });
       if (key === "g") {
+        await seedScenarioGSession(testEnv, hostId, SCENARIO_G_BOT);
         await runScenarioG(token, hostId, SCENARIO_G_BOT);
       } else {
         await seedFreshSession(testEnv, hostId, botId);
         await fn(token, hostId, botId);
       }
-      results.push({ scenario: key.toUpperCase(), ok: true });
+      results.push({ scenario: key.toUpperCase(), ok: true, roomId: ROOM, sessionId: SESSION });
     }
 
     console.log(

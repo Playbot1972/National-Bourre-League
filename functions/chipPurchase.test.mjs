@@ -19,6 +19,13 @@ const PLAYER_ID = "chip_purchase_player";
 let db;
 let emulatorAvailable = false;
 
+async function probeFirestoreEmulator(docPath) {
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Firestore emulator probe timeout")), 2500),
+  );
+  await Promise.race([db.doc(docPath).set({ ok: true }), timeout]);
+}
+
 before(async () => {
   process.env.CHIP_PURCHASE_ALLOW_DEV_VERIFY = "true";
   process.env.MIXED_PUBLIC_TABLES_SERVER_ENABLED = "true";
@@ -28,7 +35,7 @@ before(async () => {
   try {
     if (!getApps().length) initializeApp({ projectId: PROJECT_ID });
     db = getFirestore();
-    await db.collection("_ping").doc("chip-purchase").set({ ok: true });
+    await probeFirestoreEmulator("_ping/chip-purchase");
     emulatorAvailable = true;
   } catch {
     emulatorAvailable = false;

@@ -298,9 +298,21 @@ export function PotCenter({
             data-testid="pot-display"
             key={potTick > 0 ? `pot-${potTick}` : "pot-static"}
           >
-            <dt>Table pot</dt>
+            <dt>{potMetrics.activePostedPot > 0 ? "Table pot" : "Carry-over"}</dt>
             <dd>{formatRiskStake(potMetrics.currentPot)}</dd>
           </div>
+          {potMetrics.activePostedPot > 0 && potMetrics.carryOverPot > 0 && (
+            <div className="bpot__stat" data-testid="carry-display">
+              <dt>Carry-over</dt>
+              <dd>{formatRiskStake(potMetrics.carryOverPot)}</dd>
+            </div>
+          )}
+          {potMetrics.nextHandPreviewPot > 0 && (
+            <div className="bpot__stat bpot__stat--preview" data-testid="next-hand-preview">
+              <dt>Next hand preview</dt>
+              <dd>{formatRiskStake(potMetrics.nextHandPreviewPot)}</dd>
+            </div>
+          )}
           <div className="bpot__stat" data-testid="ante-display">
             <dt>Ante / hand</dt>
             <dd>{formatAnteStake(potMetrics.anteAmount)}</dd>

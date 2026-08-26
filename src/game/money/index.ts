@@ -19,6 +19,7 @@ export * from "./sessionLedger";
 /** Force production runtime symbols into the money-engine bundle (Vite lib treeshake). */
 export {
   assertTableChipInvariant,
+  assertTableChipInvariantFailClosed,
   logTableChipInvariant,
   checkTableChipInvariant,
   computeCarryForAnte,

@@ -15482,8 +15482,18 @@ function Op({ potMetrics: e, participantCount: t, trumpUpcard: n, trumpSuit: r, 
 						/* @__PURE__ */ (0, g.jsxs)("div", {
 							className: `bpot__stat bpot__stat--pot${A > 0 ? " bpot__stat--tick" : ""}`,
 							"data-testid": "pot-display",
-							children: [/* @__PURE__ */ (0, g.jsx)("dt", { children: "Table pot" }), /* @__PURE__ */ (0, g.jsx)("dd", { children: qf(e.currentPot) })]
+							children: [/* @__PURE__ */ (0, g.jsx)("dt", { children: e.activePostedPot > 0 ? "Table pot" : "Carry-over" }), /* @__PURE__ */ (0, g.jsx)("dd", { children: qf(e.currentPot) })]
 						}, A > 0 ? `pot-${A}` : "pot-static"),
+						e.activePostedPot > 0 && e.carryOverPot > 0 && /* @__PURE__ */ (0, g.jsxs)("div", {
+							className: "bpot__stat",
+							"data-testid": "carry-display",
+							children: [/* @__PURE__ */ (0, g.jsx)("dt", { children: "Carry-over" }), /* @__PURE__ */ (0, g.jsx)("dd", { children: qf(e.carryOverPot) })]
+						}),
+						e.nextHandPreviewPot > 0 && /* @__PURE__ */ (0, g.jsxs)("div", {
+							className: "bpot__stat bpot__stat--preview",
+							"data-testid": "next-hand-preview",
+							children: [/* @__PURE__ */ (0, g.jsx)("dt", { children: "Next hand preview" }), /* @__PURE__ */ (0, g.jsx)("dd", { children: qf(e.nextHandPreviewPot) })]
+						}),
 						/* @__PURE__ */ (0, g.jsxs)("div", {
 							className: "bpot__stat",
 							"data-testid": "ante-display",

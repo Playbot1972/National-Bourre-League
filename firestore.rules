@@ -3,7 +3,8 @@ rules_version = '2';
 // Firestore security rules — National Bourré League social app.
 //
 // Game state (currentHand, handEnrollment, privateHands, hand ledger, score nets)
-// is written only by Cloud Functions (Admin SDK). Room members may read live state.
+// and production money fields are written only by Cloud Functions (Admin SDK).
+// Room members may read live state.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -34,11 +35,44 @@ service cloud.firestore {
         'currentHand',
         'handEnrollment',
         'handCount',
-        'carryOverPot',
         'dealerId',
         'pendingCoWinSettlement',
         'handStakeLocked',
       ]);
+    }
+
+    // Money authority fields — Cloud Functions only (updates).
+    function sessionMoneyFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'carryOverPot',
+        'nextDealFunding',
+        'moneyLedgerBaseline',
+        'moneySequence',
+        'moneyEngineVersion',
+        'totals',
+      ]);
+    }
+
+    // Nested currentHand authoritative / money fields — Cloud Functions only.
+    // Client enrollment may still touch narrow turn/draw fields (turnPlayerId, foldedIds, drawCompletedIds).
+    function currentHandMoneyFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentHand'])
+        && (
+          request.resource.data.get('currentHand', {}).get('postedAntes', {})
+            != resource.data.get('currentHand', {}).get('postedAntes', {})
+          || request.resource.data.get('currentHand', {}).get('deckSeed', null)
+            != resource.data.get('currentHand', {}).get('deckSeed', null)
+          || request.resource.data.get('currentHand', {}).get('deckNextIndex', null)
+            != resource.data.get('currentHand', {}).get('deckNextIndex', null)
+          || request.resource.data.get('currentHand', {}).get('dealerId', null)
+            != resource.data.get('currentHand', {}).get('dealerId', null)
+          || request.resource.data.get('currentHand', {}).get('actionOrder', [])
+            != resource.data.get('currentHand', {}).get('actionOrder', [])
+          || request.resource.data.get('currentHand', {}).get('participantIds', [])
+            != resource.data.get('currentHand', {}).get('participantIds', [])
+          || request.resource.data.get('currentHand', {}).get('handNumber', null)
+            != resource.data.get('currentHand', {}).get('handNumber', null)
+        );
     }
 
     function pagatHandRevealActive(data) {
@@ -71,6 +105,8 @@ service cloud.firestore {
     // Room members may drive I'm-in / timeout while enrollment is active.
     function memberEnrollmentSessionUpdate() {
       return sessionEnrollmentActive(resource.data)
+        && !sessionMoneyFieldsChanged()
+        && !currentHandMoneyFieldsChanged()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
@@ -78,47 +114,38 @@ service cloud.firestore {
     // Room members open the join window from Go to Table (enrollment not active yet).
     function memberOpenEnrollmentUpdate() {
       return !sessionEnrollmentActive(resource.data)
+        && !sessionMoneyFieldsChanged()
+        && !currentHandMoneyFieldsChanged()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['handEnrollment', 'liveEnrollment', 'currentHand', 'updatedAt']);
     }
 
     // Room members add guests/robots to the roster while enrollment is open.
     function memberRosterSessionUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['players', 'liveEnrollment', 'updatedAt']);
+      return !sessionMoneyFieldsChanged()
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['players', 'liveEnrollment', 'updatedAt']);
     }
 
-    // Client settlement after a hand (Cloud Functions optional on prod).
-    // liveEnrollment.deal — nested delete when clearing legacy deal snapshots at settle.
-    function memberSettlementSessionUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly([
-          'handEnrollment',
-          'liveEnrollment',
-          'liveEnrollment.deal',
-          'currentHand',
-          'handCount',
-          'carryOverPot',
-          'dealerId',
-          'pendingCoWinSettlement',
-          'handStakeLocked',
-          'totals',
-          'rounds',
-          'updatedAt',
-        ]);
+    function scoreLedgerFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'net',
+        'bankroll',
+        'out',
+        'skipNextAnte',
+        'perHandStake',
+        'bourreReplacementDue',
+      ]);
     }
 
-    function memberSettlementScoreUpdate() {
+    // Informational scorekeeping only (no money ledger fields).
+    function memberScorekeepingUpdate() {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly([
-          'net',
-          'bankroll',
-          'out',
+          'displayName',
           'tricksWon',
           'handsWon',
           'total',
-          'skipNextAnte',
-          'perHandStake',
           'updatedAt',
         ]);
     }
@@ -134,17 +161,15 @@ service cloud.firestore {
       return exists(sessionRef) && get(sessionRef).data.status == 'final';
     }
 
-    function scoreLedgerFieldsChanged() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'net',
-        'bankroll',
-        'out',
-        'tricksWon',
-        'handsWon',
-        'total',
-        'skipNextAnte',
-        'perHandStake',
-      ]);
+    // Initial session create may stamp v1 ledger + buy-in rows (handCount == 0).
+    function sessionCreateMoneyAllowed() {
+      return request.resource.data.handCount == 0
+        && request.resource.data.moneyEngineVersion is string;
+    }
+
+    function scoreCreateMoneyAllowed() {
+      return request.resource.data.joinedAtHandCount == 0
+        && request.resource.data.bankroll is number;
     }
 
     // --- Public mixed-table fields (Phase 2): CF-only writes; absent === legacy private behavior ---
@@ -225,22 +250,27 @@ service cloud.firestore {
 
       match /sessions/{sessionId} {
         allow read: if isMember(roomId);
-        allow create: if isMember(roomId) && !publicFeatureSessionFieldsOnCreate();
+        allow create: if isMember(roomId)
+          && !publicFeatureSessionFieldsOnCreate()
+          && sessionCreateMoneyAllowed();
         allow update: if isMember(roomId)
           && !publicFeatureSessionFieldsChanged()
+          && !sessionMoneyFieldsChanged()
           && (!sessionGameFieldsChanged()
             || memberEnrollmentSessionUpdate()
             || memberOpenEnrollmentUpdate()
-            || memberRosterSessionUpdate()
-            || memberSettlementSessionUpdate());
+            || memberRosterSessionUpdate());
         allow delete: if isRoomOwner(roomId);
 
         match /scores/{scoreId} {
           allow read: if isMember(roomId);
-          allow create: if isMember(roomId) && !publicScoreFieldsOnCreate();
+          allow create: if isMember(roomId)
+            && !publicScoreFieldsOnCreate()
+            && (!scoreLedgerFieldsChanged() || scoreCreateMoneyAllowed());
           allow update: if isMember(roomId)
             && !publicScoreFieldsChanged()
-            && (!scoreLedgerFieldsChanged() || memberSettlementScoreUpdate());
+            && !scoreLedgerFieldsChanged()
+            && memberScorekeepingUpdate();
           allow delete: if isRoomOwner(roomId);
         }
 
@@ -252,10 +282,7 @@ service cloud.firestore {
 
         match /moneyEvents/{eventId} {
           allow read: if isMember(roomId);
-          allow create: if isMember(roomId)
-            && request.resource.data.eventId == eventId
-            && request.resource.data.keys().hasAll(['actionId', 'type', 'sequence', 'phase']);
-          allow update, delete: if false;
+          allow write: if false;
         }
 
         match /privateHands/{playerId} {

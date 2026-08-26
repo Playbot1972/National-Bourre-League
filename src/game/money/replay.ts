@@ -142,6 +142,15 @@ function applySingleEvent(state: MoneyLedgerState, event: MoneyEvent): MoneyLedg
         }
       }
       break;
+    case "CASH_OUT_APPLIED":
+      if (pid) {
+        const br = next.bankrolls[pid] ?? 0;
+        next.bankrolls[pid] = Math.max(0, br - amt);
+        if (next.bankrolls[pid] <= 0) {
+          next.scoreFlags[pid] = { ...next.scoreFlags[pid], out: true };
+        }
+      }
+      break;
     case "CARRY_OVER_SET":
       next.carryOverPot = Math.max(0, amt);
       next.postedAntes = {};

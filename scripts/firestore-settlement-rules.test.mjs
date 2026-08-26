@@ -205,16 +205,16 @@ describe("hand settlement Firestore rules", () => {
     });
   });
 
-  it("host (room creator) can settle after legacy liveEnrollment.deal play", async (t) => {
+  it("host cannot client-settle after legacy liveEnrollment.deal play (money authority)", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running — use npm run test:rules:firestore");
       return;
     }
     const hostDb = testEnv.authenticatedContext(HOST_UID).firestore();
-    await assertSucceeds(commitSettlementBatch(hostDb, HOST_UID));
+    await assertFails(commitSettlementBatch(hostDb, HOST_UID));
   });
 
-  it("guest who joined by invite code can settle the same hand", async (t) => {
+  it("guest cannot client-settle the same hand (money authority)", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running — use npm run test:rules:firestore");
       return;
@@ -253,7 +253,7 @@ describe("hand settlement Firestore rules", () => {
     });
 
     const guestDb = testEnv.authenticatedContext(GUEST_UID).firestore();
-    await assertSucceeds(commitSettlementBatch(guestDb, GUEST_UID));
+    await assertFails(commitSettlementBatch(guestDb, GUEST_UID));
   });
 
   it("non-member cannot perform settlement writes", async (t) => {
@@ -352,7 +352,7 @@ describe("draw phase Firestore rules", () => {
     });
   });
 
-  it("member can fold out during draw (session + embedded private hand mirror)", async (t) => {
+  it("member can record draw fold fields without protected nested currentHand fields", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running — use npm run test:rules:firestore");
       return;
@@ -367,19 +367,10 @@ describe("draw phase Firestore rules", () => {
         const data = snap.data();
         const hand = data.currentHand;
         tx.update(sessionRef, {
-          "liveEnrollment.deal.privateHandsByPlayer.host_uid_settle.cards": [],
-          "liveEnrollment.deal.publicHand": {
-            ...hand,
-            foldedIds: [HOST_UID],
-            drawCompletedIds: [HOST_UID],
-            participantIds: [GUEST_UID],
-            turnPlayerId: GUEST_UID,
-          },
           currentHand: {
             ...hand,
             foldedIds: [HOST_UID],
             drawCompletedIds: [HOST_UID],
-            participantIds: [GUEST_UID],
             turnPlayerId: GUEST_UID,
           },
           updatedAt: serverTimestamp(),

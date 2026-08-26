@@ -272,6 +272,7 @@ describe("public-table Phase 2 Firestore rules", () => {
         handsWon: 0,
         net: 0,
         total: 0,
+        joinedAtHandCount: 0,
         updatedAt: serverTimestamp(),
       }),
     );

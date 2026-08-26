@@ -143,25 +143,33 @@ export function buildTablePotMetrics({
     carryIn: carryOver,
     antePot,
   });
-  const projectedNextPot = projectNextHandPot(
+  const nextHandPreviewPot = projectNextHandPot(
     carryOver,
     scoreById,
     potFundingPlayerIds,
     handStake,
     postedAntes,
   );
+  const inLiveHand = handParticipantIds.length > 0;
+  const activePostedPot = inLiveHand ? Math.max(0, Number(antePot) || 0) : 0;
+  const carryOverPot = Math.max(0, Number(carryOver) || 0);
+  const activePot = inLiveHand ? potState.currentPot : carryOverPot;
   return {
     potFundingPlayerIds,
     potMetrics: {
       anteAmount: potState.anteAmount,
       potCap: potState.potCap,
-      currentPot: handParticipantIds.length > 0 ? potState.currentPot : projectedNextPot,
-      maxWinThisHand:
-        handParticipantIds.length > 0
-          ? potState.maxWinThisHand
-          : limEnabled
-            ? Math.min(projectedNextPot, potState.potCap)
-            : projectedNextPot,
+      /** Live hand: posted antes + carry in this hand. Between hands: carry-over only. */
+      currentPot: activePot,
+      activePostedPot,
+      carryOverPot,
+      /** Planning metadata only — excluded from canonical table total. */
+      nextHandPreviewPot: inLiveHand ? 0 : nextHandPreviewPot,
+      maxWinThisHand: inLiveHand
+        ? potState.maxWinThisHand
+        : limEnabled
+          ? Math.min(nextHandPreviewPot, potState.potCap)
+          : nextHandPreviewPot,
       limEnabled: potState.limEnabled,
       overflow: potState.overflow,
     },

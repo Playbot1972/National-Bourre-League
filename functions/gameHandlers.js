@@ -36,7 +36,7 @@ import {
   buildHandDecision,
   resolveActionOrder,
 } from "./vendor/game-engine.js";
-import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, buildSoloWinSettlement, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1 } from "./vendor/bourre-rules.js";
+import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, buildSoloWinSettlement, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1, normalizeBourreSettings } from "./vendor/bourre-rules.js";
 import {
   MONEY_EVENTS_COLLECTION,
   moneyEventsFromFirestoreDocs,
@@ -44,12 +44,18 @@ import {
   runV1HandSettlement,
   runV1Rebuy,
   runV1AnteCollection,
+  runV1JoinBuyIn,
+  runV1CashOut,
+  runV1SoloWinSettlement,
+  runV1SoleSurvivorEnd,
   collectFundingForHandStart,
-  assertTableChipInvariant,
+  assertTableChipInvariantFailClosed,
   computeCarryForAnte,
   baselineFromSessionDoc,
   buildSessionChipSnapshot,
   applyRebuyToBaseline,
+  applyBuyInToBaseline,
+  applyCashOutToBaseline,
   initialSessionBaseline,
   baselineDocFromBaseline,
   buildLedgerStateFromSession,
@@ -241,7 +247,7 @@ function logSettlementTableInvariant({
     buyInFallback: buyIn,
     playerIds,
   });
-  return assertTableChipInvariant(snapshot, baseline, {
+  return assertTableChipInvariantFailClosed(snapshot, baseline, {
     roomId,
     sessionId,
     handId,
@@ -653,7 +659,7 @@ function buildDealCompletionPatch(
   };
 }
 
-function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
+function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch, sessionData = null) {
   if (patch.scorePatches) {
     for (const [playerId, scorePatch] of Object.entries(patch.scorePatches)) {
       tx.update(scoresCol(db, roomId, sessionId).doc(playerId), {
@@ -662,7 +668,15 @@ function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
       });
     }
   }
-  tx.update(ref, {
+  if (patch.moneyEvents?.length) {
+    appendMoneyEventsInTransaction(tx, db, {
+      roomId,
+      sessionId,
+      events: patch.moneyEvents,
+      nextSequence: patch.moneyNextSequence,
+    });
+  }
+  const sessionUpdate = {
     handCount: patch.handNumber,
     handStakeLocked: true,
     carryOverPot: patch.carryOverPot ?? 0,
@@ -675,7 +689,11 @@ function applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch) {
       ? { nextDealFunding: patch.nextDealFunding }
       : { nextDealFunding: FieldValue.delete() }),
     updatedAt: FieldValue.serverTimestamp(),
-  });
+  };
+  if (patch.moneyLedgerBaseline) {
+    sessionUpdate.moneyLedgerBaseline = patch.moneyLedgerBaseline;
+  }
+  tx.update(ref, sessionUpdate);
 }
 
 function applySoleSurvivorEndInTransaction(tx, ref, db, roomId, sessionId, endResult) {
@@ -686,6 +704,14 @@ function applySoleSurvivorEndInTransaction(tx, ref, db, roomId, sessionId, endRe
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
+  }
+  if (endResult.moneyEvents?.length) {
+    appendMoneyEventsInTransaction(tx, db, {
+      roomId,
+      sessionId,
+      events: endResult.moneyEvents,
+      nextSequence: endResult.moneyNextSequence,
+    });
   }
   tx.update(ref, {
     status: "final",
@@ -836,18 +862,63 @@ function sortedScorePlayerIds(scoreDocs) {
     .map((r) => r.id);
 }
 
-function seatPlayerIds(sessionData, scoreDocs) {
+function removePlayerFromEnrollment(enrollment, removedId, dealerId, sortedPlayerIds) {
+  if (!enrollment?.active) return enrollment;
+  const orderedPlayerIds = playerOrderFromDealer(dealerId, sortedPlayerIds);
+  const enrolledIds = (enrollment.enrolledIds || []).filter((id) => id !== removedId);
+  const declinedIds = (enrollment.declinedIds || []).filter((id) => id !== removedId);
+  const previousId = enrollment.orderedPlayerIds?.[enrollment.currentIndex];
+  let currentIndex =
+    previousId === removedId ? 0 : orderedPlayerIds.indexOf(previousId ?? "");
+  if (currentIndex < 0) currentIndex = 0;
+  if (currentIndex >= orderedPlayerIds.length) currentIndex = 0;
+  return {
+    ...enrollment,
+    orderedPlayerIds,
+    currentIndex,
+    enrolledIds,
+    declinedIds,
+  };
+}
+
+export function sessionRosterPlayerIds(sessionData) {
+  return (sessionData?.players || []).map((p) => p?.playerId).filter(Boolean);
+}
+
+export function seatPlayerIds(sessionData, scoreDocs) {
   const scoreById = Object.fromEntries(
     scoreDocs.map((d) => [d.id, d.data()?.displayName || ""]),
   );
-  const fromSession = (sessionData?.players || [])
-    .map((p) => p?.playerId)
-    .filter((id) => id && id in scoreById);
+  const fromSession = sessionRosterPlayerIds(sessionData).filter((id) => id in scoreById);
   const seen = new Set(fromSession);
   const extras = Object.keys(scoreById)
     .filter((id) => !seen.has(id))
     .sort((a, b) => scoreById[a].localeCompare(scoreById[b]));
   return [...fromSession, ...extras];
+}
+
+/** Positive-balance score rows absent from session.players are accounting errors — fail before writes. */
+export function assertScoreRosterReconciled(sessionData, scoreDocs, buyIn) {
+  const rosterIds = new Set(sessionRosterPlayerIds(sessionData));
+  const orphans = [];
+  for (const doc of scoreDocs) {
+    const playerId = doc.id;
+    if (rosterIds.has(playerId)) continue;
+    const bankroll = scoreBankroll(doc.data(), buyIn);
+    if (bankroll > 0) {
+      orphans.push({ playerId, bankroll });
+    }
+  }
+  if (orphans.length === 0) return;
+  throw new HttpsError(
+    "failed-precondition",
+    "Orphan seat reconciliation required: positive-balance score rows absent from session.players",
+    {
+      code: "ORPHAN_SEAT_RECONCILIATION_REQUIRED",
+      orphans,
+      rosterPlayerIds: [...rosterIds],
+    },
+  );
 }
 
 function actionOrderFromHand(currentHand, sortedPlayerIds) {
@@ -932,6 +1003,125 @@ function enrichV1DealPatchMoney(patch, sessionData, sessionId, scoreById, existi
           moneyNextSequence: nextMoneySequence(sessionData, anteResult.newEvents.length),
         }
       : {}),
+  };
+}
+
+function enrichV1SoloWinPatchMoney(
+  patch,
+  sessionData,
+  sessionId,
+  scoreById,
+  existingEvents,
+  buyIn,
+  sessionStake,
+  dealContext = {},
+) {
+  if (!isMoneyEngineV1(sessionData) || !patch?.soloWin) return patch;
+  const handNumber = patch.handNumber ?? (sessionData.handCount || 0) + 1;
+  const currentHand = getSessionCurrentHand(sessionData) ?? {};
+  const postedAntes = currentHand.postedAntes ?? {};
+  const postedIds = Object.keys(postedAntes).filter((pid) => (postedAntes[pid] || 0) > 0);
+  const participants =
+    postedIds.length > 0
+      ? postedIds
+      : dealContext.sortedPlayerIds?.length
+        ? dealContext.sortedPlayerIds
+        : [patch.winnerId];
+
+  const soloResult = runV1SoloWinSettlement({
+    sessionId,
+    handNumber,
+    winnerId: patch.winnerId,
+    carryIn: sessionData.carryOverPot || 0,
+    postedAntes,
+    scoreById,
+    buyInFallback: buyIn,
+    participants,
+    sessionStake,
+    existingEvents,
+  });
+
+  const scorePatches = { ...patch.scorePatches };
+  for (const pid of Object.keys(scorePatches)) {
+    const br =
+      soloResult.settlement.bankrolls[pid] ??
+      soloResult.newBankrolls[pid] ??
+      scorePatches[pid]?.bankroll;
+    if (br == null) continue;
+    scorePatches[pid] = {
+      ...scorePatches[pid],
+      bankroll: br,
+      net: deriveScoreNet(br, buyIn),
+    };
+  }
+
+  let settlementBaseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, [
+    ...existingEvents,
+    ...soloResult.newEvents,
+  ]);
+  const fundingParticipantIds = soloResult.settlement.nextDealFunding?.byPlayer
+    ? Object.keys(soloResult.settlement.nextDealFunding.byPlayer)
+    : participants;
+  settlementBaseline = bumpBaselineForNextHandFunding(settlementBaseline, {
+    scoreById: Object.fromEntries(
+      Object.entries(scorePatches).map(([pid, row]) => [
+        pid,
+        { ...scoreById[pid], ...row },
+      ]),
+    ),
+    nextDealFunding: soloResult.settlement.nextDealFunding,
+    carryOverPot: soloResult.carryOverPot ?? 0,
+    participantIds: fundingParticipantIds,
+    sessionStake,
+    buyInFallback: buyIn,
+  });
+
+  return {
+    ...patch,
+    scorePatches,
+    carryOverPot: soloResult.carryOverPot ?? 0,
+    nextDealFunding: soloResult.settlement.nextDealFunding ?? null,
+    moneyEvents: soloResult.newEvents,
+    moneyNextSequence: nextMoneySequence(sessionData, soloResult.newEvents.length),
+    moneyLedgerBaseline: baselineDocFromBaseline(settlementBaseline),
+  };
+}
+
+function enrichSoleSurvivorEndMoney(
+  endResult,
+  sessionData,
+  sessionId,
+  scoreById,
+  existingEvents,
+  buyIn,
+) {
+  if (!isMoneyEngineV1(sessionData)) return endResult;
+  const currentHand = getSessionCurrentHand(sessionData) ?? {};
+  const ledgerResult = runV1SoleSurvivorEnd({
+    sessionId,
+    winnerId: endResult.winnerId,
+    carryIn: sessionData.carryOverPot || 0,
+    postedAntes: currentHand.postedAntes ?? {},
+    scoreById,
+    buyInFallback: buyIn,
+    sortedPlayerIds: Object.keys(scoreById),
+    existingEvents,
+  });
+  const scorePatches = { ...endResult.scorePatches };
+  for (const pid of Object.keys(scorePatches)) {
+    const br = ledgerResult.newBankrolls[pid] ?? scorePatches[pid]?.bankroll;
+    if (br == null) continue;
+    scorePatches[pid] = {
+      ...scorePatches[pid],
+      bankroll: br,
+      net: deriveScoreNet(br, buyIn),
+    };
+  }
+  return {
+    ...endResult,
+    scorePatches,
+    moneyEvents: ledgerResult.newEvents,
+    moneyNextSequence: nextMoneySequence(sessionData, ledgerResult.newEvents.length),
   };
 }
 
@@ -1696,7 +1886,7 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       if (eligibleIds.length === 1) {
         const winnerId = eligibleIds[0];
         const currentHand = getSessionCurrentHand(freshData) ?? {};
-        const endResult = buildSoleSurvivorSessionEnd({
+        let endResult = buildSoleSurvivorSessionEnd({
           winnerId,
           carryIn: freshData.carryOverPot || 0,
           postedAntes: currentHand.postedAntes ?? {},
@@ -1704,6 +1894,14 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
           buyInFallback: dealExtras.buyIn,
           sortedPlayerIds: dealExtras.sortedIds,
         });
+        endResult = enrichSoleSurvivorEndMoney(
+          endResult,
+          freshData,
+          sessionId,
+          freshScoreById,
+          existingMoneyEvents,
+          dealExtras.buyIn,
+        );
         await primePatchScoreReads(tx, db, roomId, sessionId, {
           scorePatches: endResult.scorePatches,
         });
@@ -1728,6 +1926,22 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       },
     );
     if (!autoPatch) return;
+    if (autoPatch?.soloWin) {
+      autoPatch = enrichV1SoloWinPatchMoney(
+        autoPatch,
+        freshData,
+        sessionId,
+        freshScoreById,
+        existingMoneyEvents,
+        dealExtras.buyIn,
+        dealExtras.sessionStake,
+        { sortedPlayerIds: dealExtras.sortedIds },
+      );
+      await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
+      applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch, freshData);
+      dealResult = { status: "solo_win" };
+      return;
+    }
     autoPatch = enrichV1DealPatchMoney(
       autoPatch,
       freshData,
@@ -1737,12 +1951,6 @@ export async function handleEnsureHandEnrollment(db, { roomId, sessionId, actorI
       dealExtras.buyIn,
       dealExtras.sessionStake,
     );
-    if (autoPatch?.soloWin) {
-      await primePatchScoreReads(tx, db, roomId, sessionId, autoPatch);
-      applySoloWinInTransaction(tx, ref, db, roomId, sessionId, autoPatch);
-      dealResult = { status: "solo_win" };
-      return;
-    }
     if (autoPatch?.privateHandsByPlayer) {
       await primeDealPatchReads(tx, db, roomId, sessionId, autoPatch);
       writePrivateHands(tx, db, roomId, sessionId, autoPatch.privateHandsByPlayer);
@@ -1786,6 +1994,7 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
 
   const pagatHand = getSessionCurrentHand(sessionData);
   const pagatDecision = getSessionHandDecision(sessionData);
+  const existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
   if (pagatHand?.phase === HAND_PHASE.DECISION && pagatDecision?.active) {
     if (Date.now() < enrollmentDeadlineMs(pagatDecision)) return { status: "noop" };
     const pagatResult = await db.runTransaction(async (tx) => {
@@ -1798,10 +2007,25 @@ export async function handleTimeoutEnrollment(db, { roomId, sessionId, actorId }
       if (Date.now() < enrollmentDeadlineMs(decision)) return { status: "noop" };
       const step = applyDecisionTimeout(hand, decision, dealContext);
       if (step.kind === "soloWin") {
-        const patch = buildSoloWinPatch(step.winnerId, data, dealContext);
+        let patch = buildSoloWinPatch(step.winnerId, data, dealContext);
         if (!patch) return { status: "noop" };
+        const scoreSnap = await tx.get(scoresCol(db, roomId, sessionId));
+        const freshScoreById = mergeNextDealFundingIntoScoreById(
+          Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()])),
+          data.nextDealFunding,
+        );
+        patch = enrichV1SoloWinPatchMoney(
+          patch,
+          data,
+          sessionId,
+          freshScoreById,
+          existingMoneyEvents,
+          buyIn,
+          sessionStake,
+          dealContext,
+        );
         await primePatchScoreReads(tx, db, roomId, sessionId, patch);
-        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
+        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch, data);
         return { status: "solo_win", winnerId: step.winnerId };
       }
       const patch = decisionStepPatch(step);
@@ -1909,6 +2133,7 @@ export async function handleSetHandParticipation(
   const roomSnap = await getRoomSnap(db, roomId);
   const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
   const sessionStake = sessionData.handStake ?? 1;
+  const existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
 
   const pagatHandBefore = getSessionCurrentHand(sessionData);
   if (pagatHandBefore?.phase === HAND_PHASE.REVEAL && pagatHandBefore?.handDecision) {
@@ -1945,7 +2170,7 @@ export async function handleSetHandParticipation(
         ? applyDecisionPlay(pagatHand, pagatDecision, playerId, discardCount, dealContext)
         : applyDecisionPass(pagatHand, pagatDecision, playerId, dealContext);
       if (step.kind === "soloWin") {
-        const patch = buildSoloWinPatch(step.winnerId, data, {
+        let patch = buildSoloWinPatch(step.winnerId, data, {
           dealerId: data.dealerId,
           sortedPlayerIds,
           dealingRule,
@@ -1954,8 +2179,23 @@ export async function handleSetHandParticipation(
           buyIn,
         });
         if (!patch) throw new HttpsError("failed-precondition", "Could not settle solo win");
+        const scoreSnapTx = await tx.get(scoresCol(db, roomId, sessionId));
+        const freshScoreById = mergeNextDealFundingIntoScoreById(
+          Object.fromEntries(scoreSnapTx.docs.map((d) => [d.id, d.data()])),
+          data.nextDealFunding,
+        );
+        patch = enrichV1SoloWinPatchMoney(
+          patch,
+          data,
+          sessionId,
+          freshScoreById,
+          existingMoneyEvents,
+          buyIn,
+          sessionStake,
+          { sortedPlayerIds, dealerId: data.dealerId },
+        );
         await primePatchScoreReads(tx, db, roomId, sessionId, patch);
-        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
+        applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch, data);
         return { status: "solo_win", winnerId: step.winnerId };
       }
       const patch = decisionStepPatch(step);
@@ -2164,6 +2404,7 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
   const scoreSnap = await scoresCol(db, roomId, sessionId).get();
   const dealingRule = await getDealingRule(db, roomId);
   const roomSnap = await getRoomSnap(db, roomId);
+  const existingMoneyEvents = await loadSessionMoneyEvents(db, roomId, sessionId);
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -2186,7 +2427,7 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
       const scoreById = Object.fromEntries(scoreSnap.docs.map((d) => [d.id, d.data()]));
       const buyIn = resolveSessionBuyIn(sessionData, roomSnap.data()?.bourreSettings ?? {});
       const sessionStake = sessionData.handStake ?? 1;
-      const patch = buildSoloWinPatch(foldResult.winnerId, sessionData, {
+      let patch = buildSoloWinPatch(foldResult.winnerId, sessionData, {
         dealerId: sessionData.dealerId,
         sortedPlayerIds,
         dealingRule,
@@ -2195,6 +2436,16 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
         buyIn,
       });
       if (!patch) throw new HttpsError("failed-precondition", "Could not settle solo win");
+      patch = enrichV1SoloWinPatchMoney(
+        patch,
+        sessionData,
+        sessionId,
+        scoreById,
+        existingMoneyEvents,
+        buyIn,
+        sessionStake,
+        { sortedPlayerIds, dealerId: sessionData.dealerId },
+      );
       await primePatchScoreReads(tx, db, roomId, sessionId, patch);
       writePrivateHandInTransaction(
         tx,
@@ -2206,7 +2457,7 @@ export async function handleFoldDraw(db, { roomId, sessionId, playerId, actorId 
         playerId,
         [],
       );
-      applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch);
+      applySoloWinInTransaction(tx, ref, db, roomId, sessionId, patch, sessionData);
       return { status: "solo_win", winnerId: foldResult.winnerId };
     }
 
@@ -2449,6 +2700,8 @@ export async function handleRecordHand(
   const roomBourre = roomSnap.data()?.bourreSettings ?? {};
   const splitPotEnabled = splitPotVoteAllowed(roomBourre);
   const buyIn = resolveSessionBuyIn(sessionData, roomBourre);
+
+  assertScoreRosterReconciled(sessionData, scoreSnap.docs, buyIn);
 
   let existingMoneyEvents = [];
   let v1MoneyResult = null;
@@ -3068,4 +3321,223 @@ export async function handleVoteCoWinSettlement(
     settlement: "split",
   });
   return { status: "settled", settlement: "split", votes, ...result };
+}
+
+/** Mid-session seat join — server-owned buy-in ledger + score row. */
+export async function handleJoinSessionBuyIn(
+  db,
+  { roomId, sessionId, playerId, displayName, isRobot = false, actorId },
+) {
+  if (!roomId || !sessionId || !playerId) {
+    throw new HttpsError("invalid-argument", "Missing session context");
+  }
+  await assertRoomMember(db, roomId, actorId);
+
+  const sessionRefDoc = sessionRef(db, roomId, sessionId);
+  const scoreRef = scoresCol(db, roomId, sessionId).doc(playerId);
+  const [sessionSnap, scoreSnap, roomSnap] = await Promise.all([
+    sessionRefDoc.get(),
+    scoreRef.get(),
+    db.doc(`rooms/${roomId}`).get(),
+  ]);
+
+  if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") {
+    throw new HttpsError("failed-precondition", "Session is final");
+  }
+  if (scoreSnap.exists) return { status: "already_joined", playerId };
+
+  const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
+  const buyIn = resolveSessionBuyIn(sessionData, bourre);
+  const existingEvents = isMoneyEngineV1(sessionData)
+    ? await loadSessionMoneyEvents(db, roomId, sessionId)
+    : [];
+
+  await db.runTransaction(async (tx) => {
+    const freshSession = await tx.get(sessionRefDoc);
+    if (!freshSession.exists) throw new HttpsError("not-found", "Session not found");
+    const freshData = freshSession.data();
+    const freshScore = await tx.get(scoreRef);
+    if (freshScore.exists) return;
+
+    let newEvents = [];
+    let newBankroll = buyIn;
+    let newBaseline = null;
+
+    if (isMoneyEngineV1(freshData)) {
+      const baseline = baselineFromSessionDoc(freshData.moneyLedgerBaseline, existingEvents);
+      const allScoresSnap = await tx.get(scoresCol(db, roomId, sessionId));
+      const bankrolls = Object.fromEntries(
+        allScoresSnap.docs.map((d) => [d.id, Number(d.data().bankroll) || 0]),
+      );
+      const joinBuyIn = runV1JoinBuyIn({
+        sessionId,
+        playerId,
+        buyInAmount: buyIn,
+        existingEvents,
+        ledger: {
+          version: MONEY_ENGINE_VERSION,
+          buyInFallback: buyIn,
+          bankrolls,
+          nets: {},
+          carryOverPot: freshData.carryOverPot || 0,
+          postedAntes: getSessionCurrentHand(freshData)?.postedAntes ?? {},
+          scoreFlags: {},
+          sequence: freshData.moneySequence || 0,
+        },
+      });
+      if (joinBuyIn.newEvents.length === 0) return;
+      newEvents = joinBuyIn.newEvents;
+      const minted = joinBuyIn.newEvents[0]?.amount ?? buyIn;
+      newBankroll = joinBuyIn.newBankrolls[playerId] ?? minted;
+      newBaseline = baselineDocFromBaseline(applyBuyInToBaseline(baseline, minted));
+    }
+
+    tx.set(scoreRef, {
+      sessionId,
+      roomId,
+      playerId,
+      displayName: displayName || playerId,
+      bankroll: newBankroll,
+      net: deriveScoreNet(newBankroll, buyIn),
+      tricksWon: 0,
+      handsWon: 0,
+      total: 0,
+      joinedAtHandCount: freshData.handCount || 0,
+      ...(isRobot ? { isRobot: true } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    const sessionPatch = {
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (newBaseline) {
+      sessionPatch.moneyLedgerBaseline = newBaseline;
+    }
+    if (newEvents.length) {
+      appendMoneyEventsInTransaction(tx, db, {
+        roomId,
+        sessionId,
+        events: newEvents,
+        nextSequence: nextMoneySequence(freshData, newEvents.length),
+      });
+    }
+    tx.update(sessionRefDoc, sessionPatch);
+  });
+
+  return { status: "joined", playerId, bankroll: buyIn };
+}
+
+/** Room owner removes guest/robot — cash-out ledger when bankroll > 0. */
+export async function handleRemoveSessionPlayer(
+  db,
+  { roomId, sessionId, playerId, actorId },
+) {
+  if (!playerId) throw new HttpsError("invalid-argument", "Missing player");
+  await assertRoomMember(db, roomId, actorId);
+
+  const roomSnap = await db.doc(`rooms/${roomId}`).get();
+  if (!roomSnap.exists) throw new HttpsError("not-found", "Room not found");
+  if (roomSnap.data().ownerId !== actorId) {
+    throw new HttpsError("permission-denied", "Only the room owner can remove a guest or robot.");
+  }
+
+  const sessionRefDoc = sessionRef(db, roomId, sessionId);
+  const sessionSnap = await sessionRefDoc.get();
+  if (!sessionSnap.exists) throw new HttpsError("not-found", "Session not found");
+  const sessionData = sessionSnap.data();
+  if (sessionData.status === "final") {
+    throw new HttpsError("failed-precondition", "Session is final");
+  }
+
+  const currentHand = getSessionCurrentHand(sessionData);
+  const phase = currentHand?.phase;
+  if (phase === "draw" || phase === "play") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Cannot remove a player during draw or play — finish the hand first.",
+    );
+  }
+
+  const scoreSnap = await scoresCol(db, roomId, sessionId).get();
+  if (!scoreSnap.docs.some((d) => d.id === playerId)) {
+    throw new HttpsError("failed-precondition", "Player is not on this session.");
+  }
+  if (scoreSnap.size <= 1) {
+    throw new HttpsError("failed-precondition", "Cannot remove the last player on this session.");
+  }
+
+  const bourre = normalizeBourreSettings(roomSnap.data()?.bourreSettings);
+  const buyIn = resolveSessionBuyIn(sessionData, bourre);
+  const existingEvents = isMoneyEngineV1(sessionData)
+    ? await loadSessionMoneyEvents(db, roomId, sessionId)
+    : [];
+  const scoreRow = scoreSnap.docs.find((d) => d.id === playerId)?.data() ?? {};
+  const bankroll = scoreBankroll(scoreRow, buyIn);
+
+  await db.runTransaction(async (tx) => {
+    const freshSession = await tx.get(sessionRefDoc);
+    if (!freshSession.exists) return;
+    const freshData = freshSession.data();
+    const freshScore = await tx.get(scoresCol(db, roomId, sessionId).doc(playerId));
+    if (!freshScore.exists) return;
+
+    const br = scoreBankroll(freshScore.data(), buyIn);
+    if (br > 0 && isMoneyEngineV1(freshData)) {
+      const baseline = baselineFromSessionDoc(freshData.moneyLedgerBaseline, existingEvents);
+      const cashOut = runV1CashOut({
+        sessionId,
+        playerId,
+        amount: br,
+        handNumber: freshData.handCount || 0,
+        reason: "player_removal",
+        existingEvents,
+      });
+      appendMoneyEventsInTransaction(tx, db, {
+        roomId,
+        sessionId,
+        events: cashOut.newEvents,
+        nextSequence: nextMoneySequence(freshData, cashOut.newEvents.length),
+      });
+      tx.update(sessionRefDoc, {
+        moneyLedgerBaseline: baselineDocFromBaseline(applyCashOutToBaseline(baseline, br)),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    tx.delete(scoresCol(db, roomId, sessionId).doc(playerId));
+    tx.delete(privateHandRef(db, roomId, sessionId, playerId));
+
+    const remainingSorted = scoreSnap.docs
+      .filter((d) => d.id !== playerId)
+      .map((d) => ({ id: d.id, displayName: d.data()?.displayName || "" }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map((r) => r.id);
+
+    const sessionPatch = {
+      players: (freshData.players || []).filter((p) => {
+        const id = typeof p === "string" ? p : p?.playerId;
+        return id !== playerId;
+      }),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+
+    const enrollment = getSessionEnrollment(freshData);
+    if (enrollment?.active) {
+      sessionPatch.liveEnrollment = {
+        ...removePlayerFromEnrollment(
+          enrollment,
+          playerId,
+          freshData.dealerId,
+          remainingSorted,
+        ),
+        active: true,
+      };
+    }
+
+    tx.update(sessionRefDoc, sessionPatch);
+  });
+
+  return { status: "removed", playerId, cashOutAmount: bankroll };
 }

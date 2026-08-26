@@ -104,7 +104,14 @@ export interface TablePlayer {
 export interface PotMetrics {
   anteAmount: number;
   potCap: number;
+  /** Active table pot for this hand (posted + carry), or carry-over between hands. */
   currentPot: number;
+  /** Posted antes in the current live hand (0 between hands). */
+  activePostedPot: number;
+  /** Session carry-over pot — not yet posted to a live hand. */
+  carryOverPot: number;
+  /** Next-hand funding preview — planning only, not canonical live pot. */
+  nextHandPreviewPot: number;
   maxWinThisHand: number;
   limEnabled: boolean;
   overflow: number;
