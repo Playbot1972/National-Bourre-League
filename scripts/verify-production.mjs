@@ -12,6 +12,10 @@ import {
   FetchPathError,
   fetchWithRetry,
 } from "./lib/fetch-with-retry.mjs";
+import {
+  extractFirebaseConfigImportBindings,
+  parseFirebaseConfigNamedExports,
+} from "./lib/firebase-config-export-contract.mjs";
 
 const ORIGIN = process.env.PROD_ORIGIN || "https://booray.win";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -147,6 +151,69 @@ async function checkFirebaseConfig() {
 }
 
 /** @returns {Promise<CheckResult>} */
+async function checkFirebaseConfigExportContract() {
+  const versionFetched = await fetchPath("/social/version.js");
+  if (!versionFetched.ok) {
+    return {
+      ok: false,
+      detail: fetchFailureDetail(
+        "/social/version.js",
+        versionFetched,
+        "Could not fetch /social/version.js for BUILD_ID",
+      ),
+    };
+  }
+  const buildId = versionFetched.body.match(/BUILD_ID\s*=\s*"([^"]+)"/)?.[1];
+  const versionedQuery = buildId ? `?v=${buildId}` : "";
+  const configPath = `/social/firebase-config.js${versionedQuery}`;
+  const firestorePath = `/social/firestore.js${versionedQuery}`;
+
+  const configFetched = await fetchPath(configPath);
+  if (!configFetched.ok) {
+    return {
+      ok: false,
+      detail: fetchFailureDetail(configPath, configFetched, `Could not fetch ${configPath}`),
+    };
+  }
+
+  const exports = parseFirebaseConfigNamedExports(configFetched.body);
+  const required = ["SERVER_HAND_AUTHORITY", "SERVER_MONEY_AUTHORITY"];
+  const missingExports = required.filter((name) => !exports.has(name));
+  if (missingExports.length) {
+    return {
+      ok: false,
+      detail: `${configPath} missing exports: ${missingExports.join(", ")}`,
+    };
+  }
+
+  const firestoreFetched = await fetchPath(firestorePath);
+  if (!firestoreFetched.ok) {
+    return {
+      ok: false,
+      detail: fetchFailureDetail(
+        firestorePath,
+        firestoreFetched,
+        `Could not fetch ${firestorePath}`,
+      ),
+    };
+  }
+
+  const firestoreBindings = extractFirebaseConfigImportBindings(firestoreFetched.body);
+  const missingImports = [...firestoreBindings].filter((binding) => !exports.has(binding));
+  if (missingImports.length) {
+    return {
+      ok: false,
+      detail: `${firestorePath} imports missing from ${configPath}: ${missingImports.join(", ")}`,
+    };
+  }
+
+  return {
+    ok: true,
+    detail: `${configPath} exports SERVER_HAND_AUTHORITY + SERVER_MONEY_AUTHORITY; firestore imports satisfied`,
+  };
+}
+
+/** @returns {Promise<CheckResult>} */
 async function checkSocialApp() {
   const path = "/social/";
   const fetched = await fetchPath(path);
@@ -228,6 +295,9 @@ if (isDirectRun) {
   const firebase = await checkFirebaseConfig();
   print("Firebase config", firebase);
 
+  const firebaseContract = await checkFirebaseConfigExportContract();
+  print("Firebase config export contract", firebaseContract);
+
   const social = await checkSocialApp();
   print("Social app", social);
 
@@ -241,6 +311,7 @@ if (isDirectRun) {
     version.ok &&
     buildMeta.ok &&
     firebase.ok &&
+    firebaseContract.ok &&
     social.ok &&
     tableBundle.ok &&
     legalPages.ok;
@@ -252,6 +323,7 @@ export {
   checkAppStoreLegalPages,
   checkBuildMeta,
   checkFirebaseConfig,
+  checkFirebaseConfigExportContract,
   checkSocialApp,
   checkTableSessionBundle,
   checkVersion,

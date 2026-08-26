@@ -52,6 +52,9 @@ export const FUNCTIONS_EMULATOR = isLocalhost
 
 /** Route deal/draw/play/settlement through Cloud Functions (required with locked Firestore rules). */
 export const SERVER_HAND_AUTHORITY = true;
+
+/** Production money writes (bankrolls, ledger, settlement) are Cloud Functions only. */
+export const SERVER_MONEY_AUTHORITY = true;
 `;
 
 writeFileSync("docs/firebase-config.js", content);

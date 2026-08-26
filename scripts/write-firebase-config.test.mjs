@@ -32,6 +32,7 @@ try {
     "FIRESTORE_EMULATOR",
     "FUNCTIONS_EMULATOR",
     "SERVER_HAND_AUTHORITY",
+    "SERVER_MONEY_AUTHORITY",
   ]) {
     assert.match(generated, new RegExp(`export const ${name}`), `missing ${name}`);
   }

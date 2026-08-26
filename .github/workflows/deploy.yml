@@ -89,6 +89,10 @@ jobs:
           FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
         run: node scripts/write-firebase-config.js
 
+      - name: Validate Firebase config export contract
+        if: steps.cfg.outputs.ready == 'true'
+        run: node --test scripts/firebase-config-export-contract.test.mjs
+
       - name: Build Cloud Functions bundle
         if: steps.cfg.outputs.ready == 'true'
         run: npm run build:functions
