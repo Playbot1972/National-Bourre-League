@@ -6,6 +6,11 @@ import {
   isInternalTableActionError,
   isStaleTableActionError,
   scrubRawInternalMessage,
+  markSettlementLedgerBlocked,
+  isSettlementLedgerBlocked,
+  getSettlementLedgerBlockedCode,
+  clearSettlementLedgerBlocked,
+  ledgerBlockedUserMessage,
 } from "../docs/table-action-feedback.js";
 
 function mockFormatter(err, fallback) {
@@ -175,11 +180,35 @@ describe("table-action-feedback", () => {
     );
   });
 
-  it("detects internal callable errors", () => {
+  it("ledger-blocked errors are not benign and latch stops retry classification", () => {
     assert.equal(
-      isInternalTableActionError({ code: "functions/internal", message: "INTERNAL" }),
-      true,
+      isBenignTableActionError({
+        code: "functions/failed-precondition",
+        message: "Table ledger blocked",
+        details: { code: "TABLE_CHIP_INVARIANT_MISMATCH" },
+      }),
+      false,
     );
-    assert.equal(isInternalTableActionError(new Error("Not your turn")), false);
+    assert.equal(
+      isBenignTableActionError({
+        code: "functions/failed-precondition",
+        message: "accounting review",
+        details: { code: "POST_COMMIT_INVARIANT_DRIFT" },
+      }),
+      false,
+    );
+    markSettlementLedgerBlocked("sess_latch", "TABLE_CHIP_INVARIANT_MISMATCH");
+    assert.equal(isSettlementLedgerBlocked("sess_latch"), true);
+    assert.equal(getSettlementLedgerBlockedCode("sess_latch"), "TABLE_CHIP_INVARIANT_MISMATCH");
+    assert.match(
+      ledgerBlockedUserMessage("TABLE_CHIP_INVARIANT_MISMATCH"),
+      /chip records do not reconcile/,
+    );
+    assert.match(
+      ledgerBlockedUserMessage("POST_COMMIT_INVARIANT_DRIFT"),
+      /Do not retry settlement/,
+    );
+    clearSettlementLedgerBlocked("sess_latch");
+    assert.equal(isSettlementLedgerBlocked("sess_latch"), false);
   });
 });

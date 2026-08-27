@@ -9,6 +9,13 @@
  * @param {unknown} err
  */
 export function isBenignTableActionError(err) {
+  const ledgerDetailCode = extractLedgerBlockedDetailCode(err);
+  if (
+    ledgerDetailCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    ledgerDetailCode === "POST_COMMIT_INVARIANT_DRIFT"
+  ) {
+    return false;
+  }
   const msg = String(err?.message ?? err ?? "").trim();
   if (!msg) return false;
   const lower = msg.toLowerCase();
@@ -34,6 +41,68 @@ export function isBenignTableActionError(err) {
     return true;
   }
   return false;
+}
+
+/** Session-scoped latch — stop settlement retry loops after ledger invariant failure. */
+const settlementLedgerBlocked = new Map();
+
+/**
+ * Mark a session as blocked from further settlement attempts.
+ * @param {string} sessionId
+ * @param {string} code
+ */
+export function markSettlementLedgerBlocked(sessionId, code) {
+  if (!sessionId || !code) return;
+  settlementLedgerBlocked.set(sessionId, code);
+}
+
+/** @param {string} sessionId */
+export function isSettlementLedgerBlocked(sessionId) {
+  return settlementLedgerBlocked.has(sessionId);
+}
+
+/** @param {string} sessionId */
+export function getSettlementLedgerBlockedCode(sessionId) {
+  return settlementLedgerBlocked.get(sessionId) ?? null;
+}
+
+/** @param {string} sessionId */
+export function clearSettlementLedgerBlocked(sessionId) {
+  settlementLedgerBlocked.delete(sessionId);
+}
+
+/**
+ * Structured ledger invariant failures from gameRecordHand (not benign, not INTERNAL).
+ * @param {unknown} err
+ */
+/** Extract structured settlement invariant code from callable / server errors. */
+export function extractLedgerBlockedDetailCode(err) {
+  const detail = err?.details ?? err?.customData ?? null;
+  if (detail && typeof detail === "object" && detail.code) {
+    return detail.code;
+  }
+  return null;
+}
+
+export function isLedgerBlockedTableError(err) {
+  const code = String(err?.code ?? "").toLowerCase();
+  if (code !== "functions/failed-precondition") return false;
+  const detailCode = extractLedgerBlockedDetailCode(err);
+  return (
+    detailCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    detailCode === "POST_COMMIT_INVARIANT_DRIFT"
+  );
+}
+
+/** @param {string | undefined} detailCode */
+export function ledgerBlockedUserMessage(detailCode) {
+  if (detailCode === "TABLE_CHIP_INVARIANT_MISMATCH") {
+    return "Settlement was not applied because this table's chip records do not reconcile.";
+  }
+  if (detailCode === "POST_COMMIT_INVARIANT_DRIFT") {
+    return "The hand was recorded, but this table requires an accounting review. Do not retry settlement.";
+  }
+  return "Settlement is blocked until this table's ledger is reviewed.";
 }
 
 /**

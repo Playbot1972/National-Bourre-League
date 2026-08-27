@@ -160,3 +160,7 @@ export function gameJoinSessionBuyIn(payload) {
 export function gameRemoveSessionPlayer(payload) {
   return callGame("gameRemoveSessionPlayer", payload);
 }
+
+export function gameVerifySessionLedger(roomId, sessionId) {
+  return callGame("gameVerifySessionLedger", { roomId, sessionId });
+}

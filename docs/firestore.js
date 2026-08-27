@@ -152,7 +152,14 @@ import {
   gameRemoveSessionPlayer,
   gameApplyFreeSessionRebuy,
 } from "./game-functions.js";
-import { isBenignTableActionError } from "./table-action-feedback.js";
+import {
+  isBenignTableActionError,
+  isSettlementLedgerBlocked,
+  markSettlementLedgerBlocked,
+  extractLedgerBlockedDetailCode,
+  ledgerBlockedUserMessage,
+  isLedgerBlockedTableError,
+} from "./table-action-feedback.js";
 import {
   logHandTransition,
   markHandCardsDealt,
@@ -508,6 +515,13 @@ export const MAX_TABLE_PLAYERS = 8;
 
 /** Map Firebase / callable errors to player-friendly copy. */
 export function formatClientGameError(err, fallback = "Something went wrong — try again.") {
+  const ledgerDetailCode = extractLedgerBlockedDetailCode(err);
+  if (
+    ledgerDetailCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    ledgerDetailCode === "POST_COMMIT_INVARIANT_DRIFT"
+  ) {
+    return ledgerBlockedUserMessage(ledgerDetailCode);
+  }
   const code = String(err?.code ?? "");
   const msg = String(err?.message ?? err ?? "").trim();
   const lower = msg.toLowerCase();
@@ -2278,6 +2292,14 @@ function sortedPlayerIdsFromSession(sessionData) {
 }
 
 async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
+  if (isSettlementLedgerBlocked(sessionId)) {
+    logHandLifecycleTransition({
+      from: "play",
+      to: "settle",
+      reason: `finalizeHandFromCardPlay blocked: ledger invariant latch (${sessionId})`,
+    });
+    return;
+  }
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
@@ -2675,6 +2697,24 @@ async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
 
 function settlementError(err, source = "client", relatedErr = null) {
   logSettlementFailure(source, err, relatedErr);
+  const primary = err ?? relatedErr;
+  const ledgerCode =
+    extractLedgerBlockedDetailCode(err) ||
+    extractLedgerBlockedDetailCode(relatedErr) ||
+    (isLedgerBlockedTableError(err) ? extractLedgerBlockedDetailCode(err) : null) ||
+    (isLedgerBlockedTableError(relatedErr) ? extractLedgerBlockedDetailCode(relatedErr) : null);
+  if (
+    ledgerCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    ledgerCode === "POST_COMMIT_INVARIANT_DRIFT"
+  ) {
+    const sessionId =
+      primary?.details?.sessionId ?? relatedErr?.details?.sessionId ?? err?.details?.sessionId;
+    if (sessionId) markSettlementLedgerBlocked(sessionId, ledgerCode);
+    const blockedErr = new Error(ledgerBlockedUserMessage(ledgerCode));
+    blockedErr.code = String(primary?.code ?? "functions/failed-precondition");
+    blockedErr.details = primary?.details ?? relatedErr?.details ?? err?.details;
+    return blockedErr;
+  }
   if (isAuthExpiredError(err)) {
     return new Error(
       "Hand settlement was blocked — your sign-in expired. Sign in again and retry.",

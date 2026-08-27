@@ -34,6 +34,7 @@ import {
   handleApplyFreeSessionRebuy,
   handleGrantChipPurchase,
 } from "./chipPurchase.js";
+import { handleVerifySessionLedger } from "./sessionLedgerVerify.js";
 
 initializeApp();
 
@@ -107,6 +108,23 @@ export const gamePlayCard = wrap(handlePlayCard, "gamePlayCard");
 
 /** Record hand settlement (pot, bourré, next-hand reset). */
 export const gameRecordHand = wrap(handleRecordHand, "gameRecordHand");
+
+/** Owner/ops read-only session ledger verification (no writes). */
+export const gameVerifySessionLedger = onCall(
+  { cors: true, invoker: "public", serviceAccount: runtimeServiceAccount },
+  async (request) => {
+    if (!request.auth?.uid) {
+      const { HttpsError } = await import("firebase-functions/v2/https");
+      throw new HttpsError("unauthenticated", "Sign in required");
+    }
+    const data = request.data ?? {};
+    return handleVerifySessionLedger(db, {
+      ...data,
+      actorId: request.auth.uid,
+      authToken: request.auth.token ?? {},
+    });
+  },
+);
 
 /** Co-winner split / decline vote. */
 export const gameVoteCoWinSettlement = wrap(handleVoteCoWinSettlement, "gameVoteCoWinSettlement");

@@ -38,6 +38,11 @@ import {
 } from "./vendor/game-engine.js";
 import { settleHandDeltas, applySolventSettlement, scoreBankroll, deriveScoreNet, resolveSessionBuyIn, collectHandAntes, collectNextHandAntes, anteAlreadyPosted, canEnrollWithBankroll, eligibleIdsForAnteCollection, buildSoloWinSettlement, handAnteContribution, nextDealFundingFlags, buildNextDealFundingSnapshot, mergeNextDealFundingIntoScoreById, bourreRemaindersFromSettlement, logBourreAccounting, sessionChipTotal, splitPotVoteAllowed, recordHandSettlement, MONEY_ENGINE_VERSION, isMoneyEngineV1, normalizeBourreSettings } from "./vendor/bourre-rules.js";
 import {
+  checkSettlementTableInvariant,
+  throwPreCommitInvariantMismatch,
+  throwPostCommitInvariantDrift,
+} from "./settlementInvariant.js";
+import {
   MONEY_EVENTS_COLLECTION,
   moneyEventsFromFirestoreDocs,
   nextMoneySequence,
@@ -49,7 +54,6 @@ import {
   runV1SoloWinSettlement,
   runV1SoleSurvivorEnd,
   collectFundingForHandStart,
-  assertTableChipInvariantFailClosed,
   computeCarryForAnte,
   baselineFromSessionDoc,
   buildSessionChipSnapshot,
@@ -227,31 +231,6 @@ function appendMoneyEventsBatch(batch, db, { roomId, sessionId, events, nextSequ
     moneyEngineVersion: MONEY_ENGINE_VERSION,
     moneySequence: nextSequence,
     updatedAt: FieldValue.serverTimestamp(),
-  });
-}
-
-function logSettlementTableInvariant({
-  roomId,
-  sessionId,
-  sessionData,
-  scoreById,
-  label,
-  handId = null,
-  existingEvents = [],
-  buyIn = 100,
-  playerIds = null,
-}) {
-  if (!isMoneyEngineV1(sessionData)) return { ok: true };
-  const baseline = baselineFromSessionDoc(sessionData.moneyLedgerBaseline, existingEvents);
-  const snapshot = buildSessionChipSnapshot(scoreById, sessionData, {
-    buyInFallback: buyIn,
-    playerIds,
-  });
-  return assertTableChipInvariantFailClosed(snapshot, baseline, {
-    roomId,
-    sessionId,
-    handId,
-    label,
   });
 }
 
@@ -2874,7 +2853,7 @@ export async function handleRecordHand(
       projectedScoreById,
       buyIn,
     );
-    logSettlementTableInvariant({
+    const preCommitInvariant = checkSettlementTableInvariant({
       roomId,
       sessionId,
       sessionData: {
@@ -2890,6 +2869,7 @@ export async function handleRecordHand(
       buyIn,
       playerIds: seatIds,
     });
+    throwPreCommitInvariantMismatch(preCommitInvariant);
   }
 
   const newDealerId = nextDealerId(
@@ -2992,7 +2972,7 @@ export async function handleRecordHand(
   await batch.commit();
 
   if (isMoneyEngineV1(sessionData) && botRebuyPlan && settlementBaseline) {
-    logSettlementTableInvariant({
+    const postCommitInvariant = checkSettlementTableInvariant({
       roomId,
       sessionId,
       sessionData: {
@@ -3009,6 +2989,7 @@ export async function handleRecordHand(
       buyIn,
       playerIds: seatIds,
     });
+    throwPostCommitInvariantDrift(postCommitInvariant);
   }
 
   try {
@@ -3100,7 +3081,7 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
       updatedAt: FieldValue.serverTimestamp(),
     });
     await batch.commit();
-    logSettlementTableInvariant({
+    const deferredInvariant = checkSettlementTableInvariant({
       roomId,
       sessionId,
       sessionData: {
@@ -3113,6 +3094,7 @@ async function applyBotAutoRebuysAfterSettlement(db, roomId, sessionId, { buyIn,
       existingEvents: [...existingEvents, ...rebuyResult.rebuyEvents],
       buyIn,
     });
+    throwPostCommitInvariantDrift(deferredInvariant);
     logBourreAccounting("bot-auto-rebuy", {
       roomId,
       sessionId,
