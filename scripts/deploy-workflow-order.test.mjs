@@ -86,6 +86,19 @@ describe("deploy.yml production order", () => {
     );
   });
 
+  it("validates Firebase config export contract after write and before hosting build", () => {
+    const names = stepNames(deployYaml);
+    const writeConfig = stepIndex(names, "Write production Firebase config");
+    const contract = stepIndex(names, "Validate Firebase config export contract");
+    const buildHosting = stepIndex(names, "Build hosting bundle");
+    const deployHosting = stepIndex(names, "Deploy Hosting");
+    const verifyProd = stepIndex(names, "Verify production hosting");
+    assert.ok(writeConfig < contract);
+    assert.ok(contract < buildHosting);
+    assert.ok(buildHosting < deployHosting);
+    assert.ok(deployHosting < verifyProd);
+  });
+
   it("does not deploy Firestore rules after Hosting", () => {
     assert.doesNotMatch(deployYaml, /- name: Deploy Firestore rules/);
   });
