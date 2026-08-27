@@ -21,6 +21,7 @@ const PROJECT_ID = "demo-national-bourre-league";
 const ROOM_ID = "ledger_verify_room";
 const SESSION_ID = "ledger_verify_session";
 const OWNER = "ledger_verify_owner";
+const NEW_OWNER = "ledger_verify_new_owner";
 const MEMBER = "ledger_verify_member";
 const OUTSIDER = "ledger_verify_outsider";
 const BUY_IN = 100;
@@ -52,7 +53,7 @@ before(async () => {
 
 async function clearFixtures() {
   await db.recursiveDelete(db.collection("rooms").doc(ROOM_ID));
-  for (const uid of [OWNER, MEMBER, OUTSIDER]) {
+  for (const uid of [OWNER, NEW_OWNER, MEMBER, OUTSIDER]) {
     await db.doc(`roomMembers/${ROOM_ID}_${uid}`).delete().catch(() => {});
   }
 }
@@ -183,6 +184,83 @@ describe("sessionLedgerVerify authorization", () => {
     await assertLedgerVerifierAccess(db, ROOM_ID, OWNER, {});
     await assertLedgerVerifierAccess(db, ROOM_ID, OUTSIDER, { ledgerOps: true });
   });
+
+  it("uses canonical rooms/{roomId}.ownerId and denies after ownership transfer", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    await db.collection("rooms").doc(ROOM_ID).update({ ownerId: NEW_OWNER });
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, ROOM_ID, OWNER, {}),
+      (err) => err.code === "permission-denied",
+    );
+    await assertLedgerVerifierAccess(db, ROOM_ID, NEW_OWNER, {});
+    await db.collection("rooms").doc(ROOM_ID).update({ ownerId: OWNER });
+  });
+
+  it("denies when room is missing or ownerId is absent", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, "ledger_verify_missing_room", OWNER, {}),
+      (err) => err.code === "not-found",
+    );
+    await db.collection("rooms").doc(ROOM_ID).set(
+      { name: "Owner field cleared", bourreSettings: { buyInAmount: BUY_IN } },
+      { merge: true },
+    );
+    await db.collection("rooms").doc(ROOM_ID).update({ ownerId: null });
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, ROOM_ID, OWNER, {}),
+      (err) => err.code === "permission-denied",
+    );
+    await db.collection("rooms").doc(ROOM_ID).update({ ownerId: OWNER });
+  });
+
+  it("ignores payload-supplied authToken; ledgerOps must come from verified token only", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+  /** Mirrors functions/index.js gameVerifySessionLedger shim. */
+    function callableShim(data, auth) {
+      return {
+        ...data,
+        actorId: auth.uid,
+        authToken: auth.token ?? {},
+      };
+    }
+    const shimmed = callableShim(
+      {
+        roomId: ROOM_ID,
+        sessionId: SESSION_ID,
+        authToken: { ledgerOps: true },
+        actorId: OWNER,
+      },
+      { uid: MEMBER, token: {} },
+    );
+    assert.equal(shimmed.actorId, MEMBER);
+    assert.equal(shimmed.authToken.ledgerOps, undefined);
+    await assert.rejects(
+      () =>
+        handleVerifySessionLedger(db, {
+          roomId: ROOM_ID,
+          sessionId: SESSION_ID,
+          actorId: shimmed.actorId,
+          authToken: shimmed.authToken,
+        }),
+      (err) => err.code === "permission-denied",
+    );
+    await handleVerifySessionLedger(db, {
+      roomId: ROOM_ID,
+      sessionId: SESSION_ID,
+      actorId: OWNER,
+      authToken: {},
+    });
+  });
 });
 
 describe("sessionLedgerVerify read-only report", () => {
@@ -221,6 +299,53 @@ describe("sessionLedgerVerify read-only report", () => {
     assert.deepEqual(before.scores, after.scores);
     assert.deepEqual(before.moneyEventIds, after.moneyEventIds);
     assert.deepEqual(before.handIds, after.handIds);
+  });
+
+  it("does not expose cards, private hands, deck state, trick totals, or full money-event history", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    const report = await handleVerifySessionLedger(db, {
+      roomId: ROOM_ID,
+      sessionId: SESSION_ID,
+      actorId: OWNER,
+      authToken: {},
+    });
+    const serialized = JSON.stringify(report);
+    const forbidden = [
+      "privateHands",
+      "privateHand",
+      "deckSeed",
+      "deckNextIndex",
+      "actionOrder",
+      "tricksByPlayer",
+      "tricksWon",
+      "moneyEvents",
+      "playedCards",
+      "currentTrick",
+      "cards",
+    ];
+    for (const term of forbidden) {
+      assert.equal(serialized.includes(`"${term}"`), false, `report must not include ${term}`);
+    }
+    assert.equal(report.cardsExposed, false);
+    assert.equal(report.currentHand.participantCount, 2);
+    assert.equal("tricksByPlayer" in report.currentHand, false);
+    for (const row of report.positiveBalanceOrphanRows) {
+      assert.deepEqual(Object.keys(row).sort(), ["bankroll", "playerId"]);
+    }
+    if (report.divergence.firstDivergentEvent) {
+      assert.deepEqual(
+        Object.keys(report.divergence.firstDivergentEvent).sort(),
+        ["actionId", "eventId", "reason", "sequence", "type"],
+      );
+    }
+    assert.equal(Array.isArray(report.invariant.errors), true);
+    for (const err of report.invariant.errors) {
+      assert.equal(typeof err, "string");
+      assert.equal(err.includes("playerId"), false);
+    }
   });
 
   it("requires roomId and sessionId", async (t) => {
