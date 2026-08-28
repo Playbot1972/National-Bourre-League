@@ -8,10 +8,18 @@ import {
   scrubRawInternalMessage,
   markSettlementLedgerBlocked,
   isSettlementLedgerBlocked,
-  getSettlementLedgerBlockedCode,
-  clearSettlementLedgerBlocked,
+  getSettlementLedgerBlockedEntry,
+  settlementLedgerLatchKey,
+  isSettlementLedgerLatchResolved,
+  reconcileSettlementLedgerLatchFromSession,
+  resetSettlementLedgerBlockedForTests,
   ledgerBlockedUserMessage,
 } from "../docs/table-action-feedback.js";
+
+const ROOM_A = "room_a";
+const ROOM_B = "room_b";
+const SESSION_A = "session_a";
+const SESSION_B = "session_b";
 
 function mockFormatter(err, fallback) {
   const code = String(err?.code ?? "");
@@ -180,7 +188,7 @@ describe("table-action-feedback", () => {
     );
   });
 
-  it("ledger-blocked errors are not benign and latch stops retry classification", () => {
+  it("ledger-blocked errors are not benign", () => {
     assert.equal(
       isBenignTableActionError({
         code: "functions/failed-precondition",
@@ -197,9 +205,6 @@ describe("table-action-feedback", () => {
       }),
       false,
     );
-    markSettlementLedgerBlocked("sess_latch", "TABLE_CHIP_INVARIANT_MISMATCH");
-    assert.equal(isSettlementLedgerBlocked("sess_latch"), true);
-    assert.equal(getSettlementLedgerBlockedCode("sess_latch"), "TABLE_CHIP_INVARIANT_MISMATCH");
     assert.match(
       ledgerBlockedUserMessage("TABLE_CHIP_INVARIANT_MISMATCH"),
       /chip records do not reconcile/,
@@ -208,7 +213,109 @@ describe("table-action-feedback", () => {
       ledgerBlockedUserMessage("POST_COMMIT_INVARIANT_DRIFT"),
       /Do not retry settlement/,
     );
-    clearSettlementLedgerBlocked("sess_latch");
-    assert.equal(isSettlementLedgerBlocked("sess_latch"), false);
+  });
+});
+
+describe("settlement ledger latch lifecycle", () => {
+  it("keys latch by roomId, sessionId, handNumber, and error code", () => {
+    resetSettlementLedgerBlockedForTests();
+    markSettlementLedgerBlocked({
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "TABLE_CHIP_INVARIANT_MISMATCH",
+    });
+    assert.equal(
+      settlementLedgerLatchKey({
+        roomId: ROOM_A,
+        sessionId: SESSION_A,
+        handNumber: 1,
+        code: "TABLE_CHIP_INVARIANT_MISMATCH",
+      }),
+      "room_a|session_a|1|TABLE_CHIP_INVARIANT_MISMATCH",
+    );
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 1), true);
+    assert.equal(isSettlementLedgerBlocked(ROOM_B, SESSION_A, 1), false);
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_B, 1), false);
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 2), false);
+    assert.deepEqual(getSettlementLedgerBlockedEntry(ROOM_A, SESSION_A, 1), {
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "TABLE_CHIP_INVARIANT_MISMATCH",
+    });
+    resetSettlementLedgerBlockedForTests();
+  });
+
+  it("blocks repeated settlement for the same hand but not a later valid hand", () => {
+    resetSettlementLedgerBlockedForTests();
+    markSettlementLedgerBlocked({
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "TABLE_CHIP_INVARIANT_MISMATCH",
+    });
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 1), true);
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 2), false);
+    reconcileSettlementLedgerLatchFromSession(ROOM_A, SESSION_A, {
+      handCount: 1,
+      currentHand: { handNumber: 2, phase: "reveal", participantIds: ["p1", "p2"] },
+    });
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 1), false);
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 2), false);
+    resetSettlementLedgerBlockedForTests();
+  });
+
+  it("clears post-commit latch only after authoritative snapshot shows hand advanced", () => {
+    resetSettlementLedgerBlockedForTests();
+    markSettlementLedgerBlocked({
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "POST_COMMIT_INVARIANT_DRIFT",
+    });
+    reconcileSettlementLedgerLatchFromSession(ROOM_A, SESSION_A, {
+      handCount: 0,
+      currentHand: {
+        handNumber: 1,
+        phase: "play",
+        participantIds: ["p1", "p2"],
+        tricksByPlayer: { p1: 3, p2: 2 },
+      },
+    });
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 1), true);
+    reconcileSettlementLedgerLatchFromSession(ROOM_A, SESSION_A, {
+      handCount: 1,
+      currentHand: { tricksByPlayer: {}, participantIds: [] },
+    });
+    assert.equal(isSettlementLedgerBlocked(ROOM_A, SESSION_A, 1), false);
+    resetSettlementLedgerBlockedForTests();
+  });
+
+  it("does not clear pre-commit latch until blocked hand state changes", () => {
+    resetSettlementLedgerBlockedForTests();
+    const entry = {
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "TABLE_CHIP_INVARIANT_MISMATCH",
+    };
+    assert.equal(
+      isSettlementLedgerLatchResolved(entry, {
+        handCount: 0,
+        currentHandNumber: 1,
+        currentHandCleared: false,
+      }),
+      false,
+    );
+    assert.equal(
+      isSettlementLedgerLatchResolved(entry, {
+        handCount: 1,
+        currentHandNumber: null,
+        currentHandCleared: true,
+      }),
+      true,
+    );
+    resetSettlementLedgerBlockedForTests();
   });
 });

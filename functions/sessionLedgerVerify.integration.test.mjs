@@ -217,15 +217,19 @@ describe("sessionLedgerVerify authorization", () => {
       () => assertLedgerVerifierAccess(db, ROOM_ID, OWNER, {}),
       (err) => err.code === "permission-denied",
     );
+    await db.collection("rooms").doc(ROOM_ID).update({ ownerId: "" });
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, ROOM_ID, OWNER, {}),
+      (err) => err.code === "permission-denied",
+    );
     await db.collection("rooms").doc(ROOM_ID).update({ ownerId: OWNER });
   });
 
-  it("ignores payload-supplied authToken; ledgerOps must come from verified token only", async (t) => {
+  it("request payload ledgerOps does not grant access", async (t) => {
     if (!emulatorAvailable) {
       t.skip("Firestore emulator not running");
       return;
     }
-  /** Mirrors functions/index.js gameVerifySessionLedger shim. */
     function callableShim(data, auth) {
       return {
         ...data,
@@ -254,12 +258,28 @@ describe("sessionLedgerVerify authorization", () => {
         }),
       (err) => err.code === "permission-denied",
     );
+  });
+
+  it("only verified request.auth.token.ledgerOps grants ops access", async (t) => {
+    if (!emulatorAvailable) {
+      t.skip("Firestore emulator not running");
+      return;
+    }
+    await assertLedgerVerifierAccess(db, ROOM_ID, OUTSIDER, { ledgerOps: true });
     await handleVerifySessionLedger(db, {
       roomId: ROOM_ID,
       sessionId: SESSION_ID,
-      actorId: OWNER,
-      authToken: {},
+      actorId: OUTSIDER,
+      authToken: { ledgerOps: true },
     });
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, ROOM_ID, OUTSIDER, { ledgerOps: false }),
+      (err) => err.code === "permission-denied",
+    );
+    await assert.rejects(
+      () => assertLedgerVerifierAccess(db, ROOM_ID, OUTSIDER, {}),
+      (err) => err.code === "permission-denied",
+    );
   });
 });
 

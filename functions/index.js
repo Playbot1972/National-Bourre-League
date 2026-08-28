@@ -53,13 +53,17 @@ setGlobalOptions({
 
 const db = getFirestore();
 
+const callableOptions = {
+  cors: true,
+  invoker: "public",
+  serviceAccount: runtimeServiceAccount,
+};
+
 function wrap(handler, callableName) {
   // Gen2 callables run on Cloud Run; invoker must be public so the Firebase
   // client (httpsCallable from booray.win) can reach the handler. Auth is
   // enforced inside the wrapper below — not at the Cloud Run IAM layer.
-  return onCall(
-    { cors: true, invoker: "public", serviceAccount: runtimeServiceAccount },
-    async (request) => {
+  return onCall(callableOptions, async (request) => {
       const origin = request.rawRequest?.headers?.origin ?? null;
       const meta = {
         callable: callableName,
@@ -80,6 +84,33 @@ function wrap(handler, callableName) {
       return handler(db, { ...data, actorId });
     },
   );
+}
+
+/** Same Gen2 onCall shell as wrap(), but passes verified custom claims to the handler. */
+function wrapWithAuthToken(handler, callableName) {
+  return onCall(callableOptions, async (request) => {
+    const origin = request.rawRequest?.headers?.origin ?? null;
+    const meta = {
+      callable: callableName,
+      origin,
+      invocation: "onCall",
+      auth: Boolean(request.auth?.uid),
+    };
+    if (!request.auth?.uid) {
+      console.warn(
+        "[game-callable] rejected",
+        JSON.stringify({ ...meta, reason: "unauthenticated" }),
+      );
+      const { HttpsError } = await import("firebase-functions/v2/https");
+      throw new HttpsError("unauthenticated", "Sign in required");
+    }
+    const data = request.data ?? {};
+    return handler(db, {
+      ...data,
+      actorId: request.auth.uid,
+      authToken: request.auth.token ?? {},
+    });
+  });
 }
 
 /** Nudge bot enrollment / draw / play when the table is waiting on robots. */
@@ -110,20 +141,9 @@ export const gamePlayCard = wrap(handlePlayCard, "gamePlayCard");
 export const gameRecordHand = wrap(handleRecordHand, "gameRecordHand");
 
 /** Owner/ops read-only session ledger verification (no writes). */
-export const gameVerifySessionLedger = onCall(
-  { cors: true, invoker: "public", serviceAccount: runtimeServiceAccount },
-  async (request) => {
-    if (!request.auth?.uid) {
-      const { HttpsError } = await import("firebase-functions/v2/https");
-      throw new HttpsError("unauthenticated", "Sign in required");
-    }
-    const data = request.data ?? {};
-    return handleVerifySessionLedger(db, {
-      ...data,
-      actorId: request.auth.uid,
-      authToken: request.auth.token ?? {},
-    });
-  },
+export const gameVerifySessionLedger = wrapWithAuthToken(
+  handleVerifySessionLedger,
+  "gameVerifySessionLedger",
 );
 
 /** Co-winner split / decline vote. */

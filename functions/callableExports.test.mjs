@@ -13,34 +13,42 @@ import { dirname, join } from "node:path";
 const indexPath = join(dirname(fileURLToPath(import.meta.url)), "index.js");
 const indexSource = readFileSync(indexPath, "utf8");
 
+function callableBlock(exportName, nextExportName) {
+  return indexSource.slice(
+    indexSource.indexOf(`export const ${exportName}`),
+    indexSource.indexOf(`export const ${nextExportName}`),
+  );
+}
+
 describe("callable export registration", () => {
   it("exports gameVerifySessionLedger from index.js", () => {
     assert.match(indexSource, /export const gameVerifySessionLedger\s*=/);
-    assert.match(indexSource, /import\s*\{\s*handleVerifySessionLedger\s*\}\s*from\s*"\.\/sessionLedgerVerify\.js"/);
+    assert.match(
+      indexSource,
+      /import\s*\{\s*handleVerifySessionLedger\s*\}\s*from\s*"\.\/sessionLedgerVerify\.js"/,
+    );
   });
 
-  it("gameVerifySessionLedger uses Gen2 onCall with public invoker and auth token from request.auth", () => {
-    const block = indexSource.slice(
-      indexSource.indexOf("export const gameVerifySessionLedger"),
-      indexSource.indexOf("export const gameVoteCoWinSettlement"),
-    );
-    assert.match(block, /onCall\s*\(/);
-    assert.match(block, /invoker:\s*"public"/);
-    assert.match(block, /cors:\s*true/);
-    assert.match(block, /serviceAccount:\s*runtimeServiceAccount/);
-    assert.match(block, /request\.auth\.token/);
-    assert.match(block, /handleVerifySessionLedger/);
-    assert.doesNotMatch(block, /\.\.\.data,\s*actorId[\s\S]*authToken:\s*data\.authToken/);
+  it("gameVerifySessionLedger uses the same Gen2 onCall shell as gameRecordHand", () => {
+    const recordHandBlock = callableBlock("gameRecordHand", "gameVerifySessionLedger");
+    const verifyBlock = callableBlock("gameVerifySessionLedger", "gameVoteCoWinSettlement");
+    assert.match(recordHandBlock, /wrap\(handleRecordHand,\s*"gameRecordHand"\)/);
+    assert.match(verifyBlock, /wrapWithAuthToken\([\s\S]*handleVerifySessionLedger[\s\S]*"gameVerifySessionLedger"/);
+    assert.match(indexSource, /const callableOptions = \{[\s\S]*invoker:\s*"public"/);
+    assert.match(indexSource, /return onCall\(callableOptions,/);
+    assert.match(indexSource, /function wrapWithAuthToken/);
+    assert.doesNotMatch(verifyBlock, /region:\s*"/);
+    assert.doesNotMatch(recordHandBlock, /region:\s*"/);
   });
 
-  it("gameVerifySessionLedger authToken cannot be overridden by request payload spread", () => {
-    const block = indexSource.slice(
-      indexSource.indexOf("export const gameVerifySessionLedger"),
-      indexSource.indexOf("export const gameVoteCoWinSettlement"),
+  it("gameVerifySessionLedger passes verified auth token after payload spread", () => {
+    const wrapBlock = indexSource.slice(
+      indexSource.indexOf("function wrapWithAuthToken"),
+      indexSource.indexOf("/** Nudge bot enrollment"),
     );
-    assert.match(block, /authToken:\s*request\.auth\.token/);
-    const spreadIdx = block.indexOf("...data");
-    const tokenIdx = block.indexOf("authToken:");
+    assert.match(wrapBlock, /authToken:\s*request\.auth\.token/);
+    const spreadIdx = wrapBlock.indexOf("...data");
+    const tokenIdx = wrapBlock.indexOf("authToken:");
     assert.ok(spreadIdx >= 0 && tokenIdx > spreadIdx, "authToken must follow ...data spread");
   });
 });

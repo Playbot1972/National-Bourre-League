@@ -43,32 +43,145 @@ export function isBenignTableActionError(err) {
   return false;
 }
 
-/** Session-scoped latch — stop settlement retry loops after ledger invariant failure. */
+/** Composite settlement ledger latch — keyed by room, session, hand, and error code. */
 const settlementLedgerBlocked = new Map();
 
 /**
- * Mark a session as blocked from further settlement attempts.
- * @param {string} sessionId
- * @param {string} code
+ * @param {{ roomId: string, sessionId: string, handNumber: number, code: string }} latch
  */
-export function markSettlementLedgerBlocked(sessionId, code) {
-  if (!sessionId || !code) return;
-  settlementLedgerBlocked.set(sessionId, code);
+export function settlementLedgerLatchKey({ roomId, sessionId, handNumber, code }) {
+  return `${roomId}|${sessionId}|${handNumber}|${code}`;
 }
 
-/** @param {string} sessionId */
-export function isSettlementLedgerBlocked(sessionId) {
-  return settlementLedgerBlocked.has(sessionId);
+/**
+ * @param {{ roomId: string, sessionId: string, handNumber: number, code: string }} latch
+ */
+export function markSettlementLedgerBlocked({ roomId, sessionId, handNumber, code }) {
+  if (!roomId || !sessionId || !handNumber || !code) return;
+  const key = settlementLedgerLatchKey({ roomId, sessionId, handNumber, code });
+  settlementLedgerBlocked.set(key, { roomId, sessionId, handNumber, code });
 }
 
-/** @param {string} sessionId */
+/**
+ * @param {string} roomId
+ * @param {string} sessionId
+ * @param {number} handNumber
+ */
+export function isSettlementLedgerBlocked(roomId, sessionId, handNumber) {
+  if (!roomId || !sessionId || !handNumber) return false;
+  for (const entry of settlementLedgerBlocked.values()) {
+    if (
+      entry.roomId === roomId &&
+      entry.sessionId === sessionId &&
+      entry.handNumber === handNumber
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * @param {string} roomId
+ * @param {string} sessionId
+ * @param {number} handNumber
+ */
+export function getSettlementLedgerBlockedEntry(roomId, sessionId, handNumber) {
+  if (!roomId || !sessionId || !handNumber) return null;
+  for (const entry of settlementLedgerBlocked.values()) {
+    if (
+      entry.roomId === roomId &&
+      entry.sessionId === sessionId &&
+      entry.handNumber === handNumber
+    ) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+/** @deprecated use getSettlementLedgerBlockedEntry */
 export function getSettlementLedgerBlockedCode(sessionId) {
-  return settlementLedgerBlocked.get(sessionId) ?? null;
+  for (const entry of settlementLedgerBlocked.values()) {
+    if (entry.sessionId === sessionId) return entry.code;
+  }
+  return null;
 }
 
-/** @param {string} sessionId */
-export function clearSettlementLedgerBlocked(sessionId) {
-  settlementLedgerBlocked.delete(sessionId);
+/**
+ * @param {{ handCount?: number, currentHandNumber?: number | null, currentHandCleared?: boolean }} snapshot
+ * @param {{ roomId: string, sessionId: string, handNumber: number, code: string }} entry
+ */
+export function isSettlementLedgerLatchResolved(entry, snapshot) {
+  if (!entry) return false;
+  const handCount = Math.max(0, Number(snapshot.handCount) || 0);
+  const liveHandNumber =
+    snapshot.currentHandNumber != null ? Number(snapshot.currentHandNumber) : null;
+  const cleared = snapshot.currentHandCleared === true;
+  const { handNumber, code } = entry;
+
+  if (handCount > handNumber) return true;
+  if (liveHandNumber != null && liveHandNumber > handNumber) return true;
+  if (handCount >= handNumber && cleared) return true;
+  return false;
+}
+
+/**
+ * Clear latch entries when an authoritative session snapshot shows the blocked hand moved on.
+ * @param {string} roomId
+ * @param {string} sessionId
+ * @param {object} sessionData
+ * @param {(hand: object | null | undefined) => boolean} [isClearedPreDealHand]
+ */
+export function reconcileSettlementLedgerLatchFromSession(
+  roomId,
+  sessionId,
+  sessionData,
+  isClearedPreDealHand = defaultClearedPreDealHand,
+) {
+  if (!roomId || !sessionId || !sessionData) return;
+  const currentHand = sessionData.currentHand ?? {};
+  const snapshot = {
+    handCount: sessionData.handCount ?? 0,
+    currentHandNumber: currentHand.handNumber ?? null,
+    currentHandCleared: isClearedPreDealHand(currentHand),
+  };
+  for (const [key, entry] of [...settlementLedgerBlocked.entries()]) {
+    if (entry.roomId !== roomId || entry.sessionId !== sessionId) continue;
+    if (isSettlementLedgerLatchResolved(entry, snapshot)) {
+      settlementLedgerBlocked.delete(key);
+    }
+  }
+}
+
+function defaultClearedPreDealHand(hand) {
+  const h = hand ?? {};
+  if (h.phase === "draw" || h.phase === "play") return false;
+  if ((h.participantIds?.length ?? 0) > 0) return false;
+  const tricks = h.tricksByPlayer ?? {};
+  return !Object.values(tricks).some((n) => (n || 0) > 0);
+}
+
+/** @param {string} roomId */
+export function clearSettlementLedgerBlocked(roomId, sessionId, handNumber) {
+  if (!roomId || !sessionId || !handNumber) {
+    settlementLedgerBlocked.clear();
+    return;
+  }
+  for (const [key, entry] of settlementLedgerBlocked.entries()) {
+    if (
+      entry.roomId === roomId &&
+      entry.sessionId === sessionId &&
+      entry.handNumber === handNumber
+    ) {
+      settlementLedgerBlocked.delete(key);
+    }
+  }
+}
+
+/** Test helper — reset all latch state. */
+export function resetSettlementLedgerBlockedForTests() {
+  settlementLedgerBlocked.clear();
 }
 
 /**
