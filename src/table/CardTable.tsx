@@ -482,6 +482,8 @@ export function CardTable({
         handNumber={session.handNumber}
         trickNumber={session.currentTrick?.trickNumber ?? null}
         turnPlayerId={session.turnPlayerId}
+        sessionId={session.sessionId}
+        suppressTurn={Boolean(suppressTurn)}
         tableRootRef={wrapRef}
         pileIndexRef={pileIndexRef}
         onDiscardCommitted={commitDiscardCards}

@@ -14,6 +14,10 @@ import {
   isStaleTableActionError,
 } from "./table-action-feedback.js";
 import { logHandTransition } from "./hand-transition-debug.js";
+import {
+  formatPlayHandCardClientError,
+  PLAY_CARD_NOT_PLAYED_MESSAGE,
+} from "./game-play-routing.js";
 
 const MAX_TRICKS_PER_HAND = 5;
 
@@ -147,7 +151,8 @@ export function createTableIntentHandlers(deps) {
   }
 
   function setActionError(err, fallback, actionKind) {
-    if (isBenignTableActionError(err)) {
+    const serverPlayFailure = actionKind === "play" && err?.serverPlayAuthorityFailure === true;
+    if (!serverPlayFailure && isBenignTableActionError(err)) {
       console.warn("Benign table action error suppressed:", err?.message ?? err);
       clearActionStart();
       return null;
@@ -163,7 +168,9 @@ export function createTableIntentHandlers(deps) {
       deps.setTableActionFeedback(null);
       return null;
     }
-    const message = actionErrorMessage(err, fallback);
+    const message = serverPlayFailure
+      ? formatPlayHandCardClientError(err, (e, fb) => actionErrorMessage(e, fb))
+      : actionErrorMessage(err, fallback);
     deps.setTableActionFeedback({ status: "error", message }, startContext);
     clearActionStart();
     return message;

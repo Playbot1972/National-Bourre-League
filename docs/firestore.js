@@ -138,6 +138,11 @@ import {
 import { DEFAULT_HOUSE_RULES, normalizeHouseRules } from "./house-rules.js";
 import { FIREBASE_SDK_VERSION, FIRESTORE_EMULATOR, SERVER_HAND_AUTHORITY, SERVER_MONEY_AUTHORITY } from "./firebase-config.js";
 import {
+  isCallableTransportUnavailable,
+  routePlayHandCard,
+} from "./game-play-routing.js";
+import { logTablePlayDebug } from "./table-play-debug.js";
+import {
   gameEnsureHandEnrollment,
   gameAdvanceHandReveal,
   gamePlayCard,
@@ -305,21 +310,7 @@ function describeEnrollmentStartError(err) {
 }
 
 function isCloudFunctionUnavailable(err) {
-  const code = err?.code ?? "";
-  if (
-    code === "functions/not-found" ||
-    code === "functions/unavailable" ||
-    code === "functions/deadline-exceeded"
-  ) {
-    return true;
-  }
-  const msg = String(err?.message ?? err).toLowerCase();
-  return (
-    msg.includes("not found") ||
-    msg.includes("404") ||
-    msg.includes("failed to fetch") ||
-    msg.includes("internal")
-  );
+  return isCallableTransportUnavailable(err);
 }
 
 function logBenignTableActionRace(source, serverErr, clientErr = null) {
@@ -394,9 +385,9 @@ async function callGameOrClient(clientFn, serverFn) {
   }
 }
 
-/**
- * Draw/fold — Cloud Functions first when SERVER_HAND_AUTHORITY is on so the server
+/** Draw/fold — Cloud Functions first when SERVER_HAND_AUTHORITY is on so the server
  * chains advanceBotsAfterAction after the human draw (client-only writes skip that).
+ * Play-card routing uses routePlayHandCard (server-only; no client fallback).
  */
 async function callGameServerOrClient(clientFn, serverFn) {
   if (SERVER_HAND_AUTHORITY) {
@@ -2565,10 +2556,18 @@ async function foldHandDrawClient(roomId, sessionId, { playerId, actorId }) {
 
 /** Play one card during trick play — server-validated via Cloud Function. */
 export async function playHandCard(roomId, sessionId, { playerId, cardIndex, actorId }) {
-  return callGameServerOrClient(
-    () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
-    () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
-  );
+  return routePlayHandCard({
+    roomId,
+    sessionId,
+    playerId,
+    cardIndex,
+    actorId,
+    serverHandAuthority: SERVER_HAND_AUTHORITY,
+    firestoreEmulator: FIRESTORE_EMULATOR,
+    serverFn: () => gamePlayCard(roomId, sessionId, { playerId, cardIndex, actorId }),
+    clientFn: () => playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }),
+    logPlayDebug: (payload) => logTablePlayDebug(payload),
+  });
 }
 
 async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, actorId }) {

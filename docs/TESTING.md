@@ -99,6 +99,29 @@ Prefer putting Homebrew shell setup in `~/.zprofile` on macOS zsh if needed — 
 | `npm run build:table` | `src/table/` → `docs/table-session.js` |
 | `npm run check:social` | Syntax-check `docs/*.js` |
 
+### Server-authority play routing (emulator only)
+
+Production uses `SERVER_HAND_AUTHORITY === true`: human card play goes through the `gamePlayCard` callable only. A callable failure **must not** trigger a client Firestore fallback.
+
+**Legacy client play (local emulator debugging only):**
+
+```js
+// Requires Auth + Firestore emulators and http://localhost:8080
+localStorage.setItem("nbl-legacy-client-play", "1");
+```
+
+Only honored when server hand authority is off **and** the Firestore emulator is connected (`FIRESTORE_EMULATOR` in `docs/firebase-config.js`). Production builds never enable this path.
+
+**Opt-in play diagnostics (metadata only — no card values or private hands):**
+
+```js
+localStorage.setItem("nbl-table-play-debug", "1");
+```
+
+Console logs use the `[table-play]` prefix with tap / gate / callable events. Disable with `localStorage.removeItem("nbl-table-play-debug")`.
+
+**Focused tests:** `npm run test:play-routing`
+
 **Release QA map:** see [`docs/QA_RELEASE.md`](./QA_RELEASE.md) for scenario coverage (deal, enrollment, draw, tricks, pot, bots, layout).
 
 ---
