@@ -39,7 +39,11 @@ import { useCardAudio } from "./hooks/useCardAudio";
 import type { HandPresentation } from "./hooks/useHandPresentation";
 import type { TableMicrointeractions } from "./hooks/useTableMicrointeractions";
 import type { TrickPresentation } from "./hooks/useTrickPresentation";
-import { isHeroDrawOrPlayTurn } from "./localAction";
+import {
+  isHeroDrawOrPlayTurn,
+  suppressTurnForPlay,
+  suppressTurnForVisual,
+} from "./localAction";
 import {
   displayLiveBankroll,
   isPlayerAtBourreRisk,
@@ -249,8 +253,10 @@ export function MobileCardTable({
   const displayPlayers = feltPlayers.map((player) => {
     const tricksThisHand = trickPresentation.displayTricksByPlayer[player.playerId] ?? 0;
     const trickWinnerSeat = trickPresentation.trickWinnerSeatId === player.playerId;
-    const suppressTurn =
-      trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+    const suppressTurn = suppressTurnForVisual(
+      trickPresentation.suppressTurnPlayerId,
+      handPresentation.suppressTurnIndicator,
+    );
     const suppressTurnUrgency = suppressTurn || watchOnly;
     const capturingTrick = trickPresentation.phase === "collectTrick" && trickWinnerSeat;
     const enrollmentPulse = handPresentation.enrollmentPulse[player.playerId];
@@ -308,8 +314,13 @@ export function MobileCardTable({
   });
 
   const selfPlayer = feltPlayers.find((p) => p.isSelf);
-  const suppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+  const suppressTurn = suppressTurnForVisual(
+    trickPresentation.suppressTurnPlayerId,
+    handPresentation.suppressTurnIndicator,
+  );
+  const suppressTurnForHeroPlay = suppressTurnForPlay(
+    trickPresentation.suppressTurnPlayerId,
+  );
   const drawCompleted =
     Boolean(
       currentUserId &&
@@ -501,7 +512,7 @@ export function MobileCardTable({
           isMyTurn={isHeroDrawOrPlayTurn({
             currentUserId,
             session,
-            suppressTurn: Boolean(suppressTurn),
+            suppressTurn: suppressTurnForHeroPlay,
             handComplete,
             enrollmentActive,
             selfPlayer,

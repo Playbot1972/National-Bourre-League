@@ -26,7 +26,12 @@ import { BourreResultSting } from "./BourreResultSting";
 import { YourTurnAttention } from "./YourTurnAttention";
 import { TableSceneOverlay } from "./TableSceneOverlay";
 import { ENABLE_HERO_TURN_REMINDER, ENABLE_TURN_LABEL_BANNERS } from "./tableUiConfig";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
+import {
+  isLocalActionRequiredNow,
+  isHeroDrawOrPlayTurn,
+  localActionActivityKey,
+  suppressTurnForVisual,
+} from "./localAction";
 import { useTrumpTrickMotionGate } from "./hooks/useTrumpTrickMotionGate";
 import { useTrickPresentation } from "./hooks/useTrickPresentation";
 import { usePlayNowModeBannerIntro } from "./hooks/usePlayNowModeBannerIntro";
@@ -377,8 +382,10 @@ export function TableSessionView({
     heroHandDisplay.indexMode,
     heroHandDisplay.trumpDisabledIndex,
   ]);
-  const suppressTurn =
-    trickPresentation.suppressTurnPlayerId || handPresentation.suppressTurnIndicator;
+  const suppressTurn = suppressTurnForVisual(
+    trickPresentation.suppressTurnPlayerId,
+    handPresentation.suppressTurnIndicator,
+  );
   const phaseLabel = formatHandPhase(session.phase, enrollmentActive);
   const turnLabel =
     watchOnly || suppressTurn

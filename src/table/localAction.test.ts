@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey } from "./localAction";
+import { isLocalActionRequiredNow, isHeroDrawOrPlayTurn, localActionActivityKey, suppressTurnForPlay, suppressTurnForVisual } from "./localAction";
 import type { TablePlayer } from "./types";
 
 const self: TablePlayer = {
@@ -225,6 +225,33 @@ describe("isLocalActionRequiredNow", () => {
       watchOnly: false,
     };
     assert.equal(isHeroDrawOrPlayTurn(input), true);
+  });
+
+  it("suppressTurnForPlay ignores hand presentation catch-up", () => {
+    assert.equal(suppressTurnForPlay(false), false);
+    assert.equal(suppressTurnForPlay(true), true);
+    assert.equal(
+      isHeroDrawOrPlayTurn({
+        currentUserId: "me",
+        enrollmentActive: false,
+        selfPlayer: self,
+        session: {
+          phase: "play",
+          turnPlayerId: "me",
+          participantIds: ["me", "p2"],
+        },
+        suppressTurn: suppressTurnForPlay(false),
+        handComplete: false,
+      }),
+      true,
+    );
+  });
+
+  it("suppressTurnForVisual combines hand and trick suppress", () => {
+    assert.equal(suppressTurnForVisual(false, false), false);
+    assert.equal(suppressTurnForVisual(false, true), true);
+    assert.equal(suppressTurnForVisual(true, false), true);
+    assert.equal(suppressTurnForVisual(true, true), true);
   });
 });
 

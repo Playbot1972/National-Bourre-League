@@ -19,6 +19,19 @@ export interface LocalActionInput {
   watchOnly?: boolean;
 }
 
+/** Visual turn indicator/timer suppress (draw catch-up + trick lock). */
+export function suppressTurnForVisual(
+  trickSuppressTurnPlayerId: boolean,
+  handSuppressTurnIndicator: boolean,
+): boolean {
+  return Boolean(trickSuppressTurnPlayerId || handSuppressTurnIndicator);
+}
+
+/** Play-card submission suppress — trick lock only; draw animation must not block server play. */
+export function suppressTurnForPlay(trickSuppressTurnPlayerId: boolean): boolean {
+  return Boolean(trickSuppressTurnPlayerId);
+}
+
 /**
  * True when the local human must act for the current Pagat step
  * (pass/play enrollment, draw/stand pat, or trick play).
