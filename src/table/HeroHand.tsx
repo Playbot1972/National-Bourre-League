@@ -30,6 +30,8 @@ import {
   playUiButtonFeedback,
 } from "./feedback";
 import { scrubInternalActionMessage } from "./actionErrorCopy";
+import { resolveHandPlayCardInteraction } from "../components/handPlayInteraction";
+import { logTablePlayDebug } from "./tablePlayDebug";
 import { useTableTheme } from "./theme/useTableTheme";
 import { setHeroPlayMotionActive } from "./stageFitMotionFreeze";
 import type { SerializedCard, TableActionFeedback } from "./types";
@@ -70,6 +72,8 @@ interface HeroHandProps {
   handNumber?: number;
   trickNumber?: number | null;
   turnPlayerId?: string | null;
+  sessionId?: string | null;
+  suppressTurn?: boolean;
   tableRootRef?: RefObject<HTMLElement | null>;
   pileIndexRef?: RefObject<number>;
   onDiscardCommitted?: (entries: { id: string; playerId: string }[]) => void;
@@ -138,6 +142,8 @@ export function HeroHand({
   handNumber = 0,
   trickNumber = null,
   turnPlayerId = null,
+  sessionId = null,
+  suppressTurn = false,
   tableRootRef,
   pileIndexRef,
   onDiscardCommitted,
@@ -437,6 +443,58 @@ export function HeroHand({
     onUserActivity?.();
   }, [onUserActivity]);
 
+  const logPlayGate = useCallback(
+    (
+      event: string,
+      extra: Record<string, string | number | boolean | null | undefined> = {},
+    ) => {
+      logTablePlayDebug({
+        event,
+        sessionId: sessionId ?? undefined,
+        handNumber,
+        trickNumber,
+        currentUserId: currentUserId ?? undefined,
+        turnPlayerId,
+        isMyTurn,
+        suppressTurn,
+        legalPlayIndicesCount: legalPlayIndices?.length ?? null,
+        busy,
+        playLock: playLockRef.current,
+        playingIndex,
+        callable: "gamePlayCard",
+        ...extra,
+      });
+    },
+    [
+      sessionId,
+      handNumber,
+      trickNumber,
+      currentUserId,
+      turnPlayerId,
+      isMyTurn,
+      suppressTurn,
+      legalPlayIndices,
+      busy,
+      playingIndex,
+    ],
+  );
+
+  const playInteractiveForIndex = useCallback(
+    (index: number) => {
+      const legal = isLegalPlayIndex(index, legalPlayIndices);
+      return resolveHandPlayCardInteraction({
+        isPlayMode: phase === "play",
+        isMyTurn,
+        legalPlay: legal,
+        busy,
+        allowPlayPreselect: phase === "play" && isInHand && !isMyTurn,
+        cardState: "default",
+        index,
+      }).playInteractive;
+    },
+    [phase, isMyTurn, legalPlayIndices, busy, isInHand],
+  );
+
   const toggleDrawIndex = useCallback(
     (index: number) => {
       if (busy || trumpDisabledIndex === index) return;
@@ -463,6 +521,16 @@ export function HeroHand({
   const executePlay = useCallback(
     async (index: number, source: "tap" | "tap-autoplay" | "swipe" | "hold" = "tap-autoplay") => {
       if (playLockRef.current || busy || !onPlayCard) {
+        logPlayGate("gate-blocked", {
+          displayIndex: index,
+          effectiveIndex: index,
+          reason: playLockRef.current
+            ? "play-lock"
+            : busy
+              ? "busy"
+              : "no-handler",
+          playInteractive: playInteractiveForIndex(index),
+        });
         logPlayClick({
           event: "submit-rejected",
           reason: "busy-or-locked",
@@ -478,6 +546,12 @@ export function HeroHand({
         return;
       }
       if (!isLegalPlayIndex(index, legalPlayIndices)) {
+        logPlayGate("gate-blocked", {
+          displayIndex: index,
+          effectiveIndex: index,
+          reason: "illegal",
+          playInteractive: playInteractiveForIndex(index),
+        });
         logPlayClick({
           event: "submit-rejected",
           reason: "illegal",
@@ -536,7 +610,9 @@ export function HeroHand({
       handNumber,
       isMyTurn,
       legalPlayIndices,
+      logPlayGate,
       onPlayCard,
+      playInteractiveForIndex,
       trickNumber,
       turnPlayerId,
       typedCards,
@@ -545,7 +621,27 @@ export function HeroHand({
 
   const handleTapPlay = useCallback(
     (index: number) => {
-      if (playLockRef.current || busy || !onPlayCard || phase !== "play") return;
+      logPlayGate("tap", {
+        displayIndex: index,
+        effectiveIndex: index,
+        playInteractive: playInteractiveForIndex(index),
+      });
+      if (playLockRef.current || busy || !onPlayCard || phase !== "play") {
+        logPlayGate("gate-blocked", {
+          displayIndex: index,
+          effectiveIndex: index,
+          reason:
+            phase !== "play"
+              ? "phase"
+              : playLockRef.current
+                ? "play-lock"
+                : busy
+                  ? "busy"
+                  : "no-handler",
+          playInteractive: playInteractiveForIndex(index),
+        });
+        return;
+      }
       const legal = isLegalPlayIndex(index, legalPlayIndices);
       if (!legal) {
         if (isMyTurn) {
@@ -649,6 +745,8 @@ export function HeroHand({
       legalPlayIndices,
       notifyUserActivity,
       onPlayCard,
+      playInteractiveForIndex,
+      logPlayGate,
       phase,
       selectedPlay,
       trickNumber,

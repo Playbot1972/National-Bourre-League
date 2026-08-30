@@ -48,6 +48,7 @@ import {
   mapEffectiveIndicesToDisplay,
   resolveHeroHandDisplay,
 } from "./heroHandDisplay";
+import { logTablePlayDebug } from "./tablePlayDebug";
 import { computeRecommendedDiscardIndices, computeRecommendedPlayIndex } from "./heroHandPlayPreselect";
 import { resolveTrumpHolderPresentation } from "./trumpHolderPresentation";
 import type { Suit } from "../types";
@@ -541,12 +542,24 @@ export function TableSessionView({
           [cardIndex],
           heroHandDisplay.trumpDisabledIndex,
         )[0];
-        if (effective == null) return;
+        if (effective == null) {
+          logTablePlayDebug({
+            event: "index-map-miss",
+            sessionId: session.sessionId,
+            handNumber: session.handNumber,
+            trickNumber: session.currentTrick?.trickNumber ?? null,
+            currentUserId: currentUserId ?? undefined,
+            turnPlayerId: session.turnPlayerId ?? null,
+            displayIndex: cardIndex,
+            effectiveIndex: null,
+          });
+          return;
+        }
         return actions.onPlayCard(effective);
       },
       onReaction: handleReaction,
     }),
-    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex],
+    [actions, handleReaction, players, heroHandDisplay.indexMode, heroHandDisplay.trumpDisabledIndex, session.sessionId, session.handNumber, session.currentTrick?.trickNumber, session.turnPlayerId, currentUserId],
   );
 
   const sharedTableProps = {
