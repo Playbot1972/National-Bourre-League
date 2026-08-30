@@ -152,7 +152,16 @@ import {
   gameRemoveSessionPlayer,
   gameApplyFreeSessionRebuy,
 } from "./game-functions.js";
-import { isBenignTableActionError } from "./table-action-feedback.js";
+import {
+  isBenignTableActionError,
+  isSettlementLedgerBlocked,
+  markSettlementLedgerBlocked,
+  extractLedgerBlockedDetailCode,
+  ledgerBlockedUserMessage,
+  isLedgerBlockedTableError,
+  reconcileSettlementLedgerLatchFromSession,
+  getSettlementLedgerBlockedEntry,
+} from "./table-action-feedback.js";
 import {
   logHandTransition,
   markHandCardsDealt,
@@ -420,7 +429,7 @@ async function callGameServerOrClient(clientFn, serverFn) {
 }
 
 /** Settlement — Cloud Functions first when enabled; no client money fallback in production. */
-async function callSettlementOrClient(clientFn, serverFn) {
+async function callSettlementOrClient(clientFn, serverFn, latchContext = null) {
   const serverFirst = SERVER_HAND_AUTHORITY || SERVER_MONEY_AUTHORITY;
   if (serverFirst) {
     try {
@@ -434,21 +443,42 @@ async function callSettlementOrClient(clientFn, serverFn) {
         try {
           return await clientFn();
         } catch (clientErr) {
-          throw settlementError(clientErr, "client-batch", serverErr);
+          throw settlementError(clientErr, "client-batch", serverErr, latchContext);
         }
       }
       if (isBenignTableActionError(serverErr)) {
         logBenignTableActionRace("settlement", serverErr);
         return undefined;
       }
-      throw settlementError(serverErr, "cloud-function");
+      throw settlementError(serverErr, "cloud-function", null, latchContext);
     }
   }
   try {
     return await clientFn();
   } catch (clientErr) {
-    throw settlementError(clientErr, "client-batch");
+    throw settlementError(clientErr, "client-batch", null, latchContext);
   }
+}
+
+function resolveSettlementHandNumber(sessionData) {
+  const fromHand = sessionData?.currentHand?.handNumber;
+  if (fromHand != null && Number(fromHand) > 0) return Number(fromHand);
+  return (sessionData?.handCount || 0) + 1;
+}
+
+function assertSettlementNotLedgerBlocked(roomId, sessionId, handNumber) {
+  if (!isSettlementLedgerBlocked(roomId, sessionId, handNumber)) return;
+  const entry = getSettlementLedgerBlockedEntry(roomId, sessionId, handNumber);
+  const blockedErr = new Error(ledgerBlockedUserMessage(entry?.code));
+  blockedErr.code = "functions/failed-precondition";
+  blockedErr.details = {
+    code: entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+    roomId,
+    sessionId,
+    handNumber,
+    committed: entry?.code === "POST_COMMIT_INVARIANT_DRIFT",
+  };
+  throw blockedErr;
 }
 
 function isSettlementDevLogging() {
@@ -508,6 +538,13 @@ export const MAX_TABLE_PLAYERS = 8;
 
 /** Map Firebase / callable errors to player-friendly copy. */
 export function formatClientGameError(err, fallback = "Something went wrong — try again.") {
+  const ledgerDetailCode = extractLedgerBlockedDetailCode(err);
+  if (
+    ledgerDetailCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    ledgerDetailCode === "POST_COMMIT_INVARIANT_DRIFT"
+  ) {
+    return ledgerBlockedUserMessage(ledgerDetailCode);
+  }
   const code = String(err?.code ?? "");
   const msg = String(err?.message ?? err ?? "").trim();
   const lower = msg.toLowerCase();
@@ -2281,6 +2318,16 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
   if (!sessionSnap.exists()) return;
   const sessionData = sessionSnap.data();
+  reconcileSettlementLedgerLatchFromSession(roomId, sessionId, sessionData, isClearedPreDealHand);
+  const handNumber = resolveSettlementHandNumber(sessionData);
+  if (isSettlementLedgerBlocked(roomId, sessionId, handNumber)) {
+    logHandLifecycleTransition({
+      from: "play",
+      to: "settle",
+      reason: `finalizeHandFromCardPlay blocked: ledger latch ${roomId}/${sessionId}/hand${handNumber}`,
+    });
+    return;
+  }
   const rawHand = sessionData.currentHand ?? emptyPreDealHand();
   if (isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData)) return;
 
@@ -2673,8 +2720,30 @@ async function clearPrivateHandsAfterSettlement(roomId, sessionId) {
   }
 }
 
-function settlementError(err, source = "client", relatedErr = null) {
+function settlementError(err, source = "client", relatedErr = null, latchContext = null) {
   logSettlementFailure(source, err, relatedErr);
+  const primary = err ?? relatedErr;
+  const ledgerCode =
+    extractLedgerBlockedDetailCode(err) ||
+    extractLedgerBlockedDetailCode(relatedErr) ||
+    (isLedgerBlockedTableError(err) ? extractLedgerBlockedDetailCode(err) : null) ||
+    (isLedgerBlockedTableError(relatedErr) ? extractLedgerBlockedDetailCode(relatedErr) : null);
+  if (
+    ledgerCode === "TABLE_CHIP_INVARIANT_MISMATCH" ||
+    ledgerCode === "POST_COMMIT_INVARIANT_DRIFT"
+  ) {
+    const details = primary?.details ?? relatedErr?.details ?? err?.details ?? {};
+    const roomId = latchContext?.roomId ?? details.roomId;
+    const sessionId = latchContext?.sessionId ?? details.sessionId;
+    const handNumber = latchContext?.handNumber ?? details.handNumber;
+    if (roomId && sessionId && handNumber) {
+      markSettlementLedgerBlocked({ roomId, sessionId, handNumber, code: ledgerCode });
+    }
+    const blockedErr = new Error(ledgerBlockedUserMessage(ledgerCode));
+    blockedErr.code = String(primary?.code ?? "functions/failed-precondition");
+    blockedErr.details = { ...details, code: ledgerCode, roomId, sessionId, handNumber };
+    return blockedErr;
+  }
   if (isAuthExpiredError(err)) {
     return new Error(
       "Hand settlement was blocked — your sign-in expired. Sign in again and retry.",
@@ -3232,6 +3301,13 @@ export async function recordHand(
   sessionId,
   { winnerId, winnerIds, participantIds, settlement, recordedBy, tricksByPlayer },
 ) {
+  const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  const sessionData = sessionSnap.data();
+  reconcileSettlementLedgerLatchFromSession(roomId, sessionId, sessionData, isClearedPreDealHand);
+  const handNumber = resolveSettlementHandNumber(sessionData);
+  assertSettlementNotLedgerBlocked(roomId, sessionId, handNumber);
+  const latchContext = { roomId, sessionId, handNumber };
   return callSettlementOrClient(
     () =>
       recordHandClient(roomId, sessionId, {
@@ -3251,6 +3327,7 @@ export async function recordHand(
         recordedBy,
         tricksByPlayer,
       }),
+    latchContext,
   );
 }
 
