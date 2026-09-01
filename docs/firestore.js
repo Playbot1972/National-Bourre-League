@@ -166,6 +166,8 @@ import {
   isLedgerBlockedTableError,
   reconcileSettlementLedgerLatchFromSession,
   getSettlementLedgerBlockedEntry,
+  logSettlementLifecycleOnce,
+  settlementLedgerLatchKey,
 } from "./table-action-feedback.js";
 import {
   logHandTransition,
@@ -2073,13 +2075,51 @@ export async function recoverHandoffBetweenHands(roomId, sessionId, recordedBy) 
   const tricksByPlayer = authHand.tricksByPlayer ?? {};
 
   if (participantIds.length > 0 && isHandComplete(tricksByPlayer, participantIds)) {
+    const handNumber = resolveSettlementHandNumber(sessionData);
+    if (isSettlementLedgerBlocked(roomId, sessionId, handNumber)) {
+      const entry = getSettlementLedgerBlockedEntry(roomId, sessionId, handNumber);
+      logSettlementLifecycleOnce(
+        `recover-blocked:${settlementLedgerLatchKey({
+          roomId,
+          sessionId,
+          handNumber,
+          code: entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+        })}`,
+        () => {
+          logHandLifecycleTransition({
+            from: "play",
+            to: "settle",
+            reason: `recoverHandoff blocked: ledger latch ${roomId}/${sessionId}/hand${handNumber}`,
+            blockedBy: entry?.code ?? "ledger_latch",
+          });
+        },
+      );
+      return {
+        status: "settlement_blocked",
+        handNumber,
+        code: entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+        committed: entry?.code === "POST_COMMIT_INVARIANT_DRIFT",
+      };
+    }
+
     logHandLifecycleTransition({
       from: "play",
       to: "settle",
       reason: `recoverHandoff: final trick complete (${JSON.stringify(tricksByPlayer)})`,
     });
-    await finalizeHandFromCardPlay(roomId, sessionId, recordedBy);
-    return { status: "settlement_recovered" };
+    const outcome = await finalizeHandFromCardPlay(roomId, sessionId, recordedBy);
+    if (outcome?.status === "blocked_latch") {
+      return {
+        status: "settlement_blocked",
+        handNumber: outcome.handNumber ?? handNumber,
+        code: outcome.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+        committed: outcome.code === "POST_COMMIT_INVARIANT_DRIFT",
+      };
+    }
+    if (outcome?.status === "settled" || outcome?.status === "cowin_pending") {
+      return { status: "settlement_recovered" };
+    }
+    return { status: "settlement_pending", handNumber };
   }
 
   const rawHand = sessionData.currentHand ?? emptyPreDealHand();
@@ -2307,20 +2347,38 @@ function sortedPlayerIdsFromSession(sessionData) {
 
 async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
   const sessionSnap = await getDoc(sessionDoc(roomId, sessionId));
-  if (!sessionSnap.exists()) return;
+  if (!sessionSnap.exists()) return { status: "missing" };
   const sessionData = sessionSnap.data();
   reconcileSettlementLedgerLatchFromSession(roomId, sessionId, sessionData, isClearedPreDealHand);
   const handNumber = resolveSettlementHandNumber(sessionData);
   if (isSettlementLedgerBlocked(roomId, sessionId, handNumber)) {
-    logHandLifecycleTransition({
-      from: "play",
-      to: "settle",
-      reason: `finalizeHandFromCardPlay blocked: ledger latch ${roomId}/${sessionId}/hand${handNumber}`,
-    });
-    return;
+    const entry = getSettlementLedgerBlockedEntry(roomId, sessionId, handNumber);
+    logSettlementLifecycleOnce(
+      `finalize-blocked:${settlementLedgerLatchKey({
+        roomId,
+        sessionId,
+        handNumber,
+        code: entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+      })}`,
+      () => {
+        logHandLifecycleTransition({
+          from: "play",
+          to: "settle",
+          reason: `finalizeHandFromCardPlay blocked: ledger latch ${roomId}/${sessionId}/hand${handNumber}`,
+          blockedBy: entry?.code ?? "ledger_latch",
+        });
+      },
+    );
+    return {
+      status: "blocked_latch",
+      handNumber,
+      code: entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+    };
   }
   const rawHand = sessionData.currentHand ?? emptyPreDealHand();
-  if (isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData)) return;
+  if (isClearedPreDealHand(rawHand) && !isHandAwaitingSettlement(sessionData)) {
+    return { status: "noop" };
+  }
 
   const currentHand =
     (rawHand.participantIds?.length ?? 0) > 0 ? rawHand : getSessionCurrentHand(sessionData);
@@ -2345,7 +2403,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
-    return;
+    return { status: "settled", handNumber };
   }
 
   if (winnerIds.length === 1) {
@@ -2357,7 +2415,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       recordedBy,
       tricksByPlayer,
     });
-    return;
+    return { status: "settled", handNumber };
   }
 
   const roomSnap = await getDoc(doc(db, "rooms", roomId));
@@ -2373,7 +2431,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
       pendingCoWinSettlement: nextPending,
       updatedAt: serverTimestamp(),
     });
-    return;
+    return { status: "cowin_pending", handNumber };
   }
 
   await recordHand(roomId, sessionId, {
@@ -2383,6 +2441,7 @@ async function finalizeHandFromCardPlay(roomId, sessionId, recordedBy) {
     recordedBy,
     tricksByPlayer,
   });
+  return { status: "settled", handNumber };
 }
 
 /** Chip conservation at settlement boundary (bankrolls + carry + posted antes). */
@@ -2612,12 +2671,14 @@ async function playHandCardClient(roomId, sessionId, { playerId, cardIndex, acto
   });
 
   if (handComplete) {
-    await finalizeHandFromCardPlay(roomId, sessionId, actorId);
-    logHandLifecycleTransition({
-      from: "settle",
-      to: "handoffToNextDeal",
-      reason: "playHandCardClient finalized completed hand",
-    });
+    const outcome = await finalizeHandFromCardPlay(roomId, sessionId, actorId);
+    if (outcome?.status === "settled" || outcome?.status === "cowin_pending") {
+      logHandLifecycleTransition({
+        from: "settle",
+        to: "handoffToNextDeal",
+        reason: "playHandCardClient finalized completed hand",
+      });
+    }
   }
 }
 
@@ -4784,7 +4845,10 @@ async function ensureHandEnrollmentClient(roomId, sessionId) {
   if (data.status === "final") return;
 
   if (isHandAwaitingSettlement(data)) {
-    await recoverHandoffBetweenHands(roomId, sessionId, null);
+    const handNumber = resolveSettlementHandNumber(data);
+    if (!isSettlementLedgerBlocked(roomId, sessionId, handNumber)) {
+      await recoverHandoffBetweenHands(roomId, sessionId, null);
+    }
     sessionSnap = await getDoc(sessionRef);
     if (!sessionSnap.exists()) return;
     data = sessionSnap.data();

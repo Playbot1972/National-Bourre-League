@@ -14,6 +14,12 @@ import {
   reconcileSettlementLedgerLatchFromSession,
   resetSettlementLedgerBlockedForTests,
   ledgerBlockedUserMessage,
+  deriveSettlementLifecycleState,
+  settlementBlockedFeedbackPayload,
+  planRecoverHandoffResult,
+  logSettlementLifecycleOnce,
+  clearSettlementLifecycleLogs,
+  SETTLEMENT_LIFECYCLE,
 } from "../docs/table-action-feedback.js";
 
 const ROOM_A = "room_a";
@@ -317,5 +323,50 @@ describe("settlement ledger latch lifecycle", () => {
       true,
     );
     resetSettlementLedgerBlockedForTests();
+  });
+
+  it("deriveSettlementLifecycleState never maps blocked latch to settlement_recovered", () => {
+    resetSettlementLedgerBlockedForTests();
+    markSettlementLedgerBlocked({
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      handNumber: 1,
+      code: "TABLE_CHIP_INVARIANT_MISMATCH",
+    });
+    const state = deriveSettlementLifecycleState({
+      roomId: ROOM_A,
+      sessionId: SESSION_A,
+      sessionData: {
+        handCount: 0,
+        currentHand: {
+          handNumber: 1,
+          phase: "play",
+          participantIds: ["p1", "p2"],
+          tricksByPlayer: { p1: 3, p2: 2 },
+        },
+      },
+      awaitingSettlement: true,
+      clearedHand: false,
+    });
+    assert.equal(state, SETTLEMENT_LIFECYCLE.BLOCKED_PRE_COMMIT);
+    assert.notEqual(state, "settlement_recovered");
+    resetSettlementLedgerBlockedForTests();
+  });
+
+  it("planRecoverHandoffResult blocks retry while latch remains", () => {
+    const blocked = planRecoverHandoffResult({
+      handComplete: true,
+      latchBlocked: true,
+      latchCode: "TABLE_CHIP_INVARIANT_MISMATCH",
+    });
+    assert.equal(blocked.status, "settlement_blocked");
+    assert.equal(
+      planRecoverHandoffResult({
+        handComplete: true,
+        latchBlocked: false,
+        finalizeStatus: "noop",
+      }).status,
+      "settlement_pending",
+    );
   });
 });

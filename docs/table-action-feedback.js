@@ -46,6 +46,120 @@ export function isBenignTableActionError(err) {
 /** Composite settlement ledger latch — keyed by room, session, hand, and error code. */
 const settlementLedgerBlocked = new Map();
 
+/** One-shot lifecycle logs — avoids console spam while a latch remains active. */
+const settlementLifecycleLogged = new Set();
+
+export const SETTLEMENT_LIFECYCLE = {
+  PENDING: "settlement_pending",
+  SUCCEEDED: "settlement_succeeded",
+  BLOCKED_PRE_COMMIT: "settlement_blocked_pre_commit",
+  REVIEW_REQUIRED_POST_COMMIT: "settlement_review_required_post_commit",
+};
+
+/**
+ * @param {object | null | undefined} sessionData
+ */
+export function resolveSettlementHandNumberFromSession(sessionData) {
+  const fromHand = sessionData?.currentHand?.handNumber;
+  if (fromHand != null && Number(fromHand) > 0) return Number(fromHand);
+  return (sessionData?.handCount || 0) + 1;
+}
+
+/**
+ * @param {{ roomId: string, sessionId: string, sessionData: object, awaitingSettlement?: boolean, clearedHand?: boolean }} input
+ */
+export function deriveSettlementLifecycleState(input) {
+  const handNumber = resolveSettlementHandNumberFromSession(input.sessionData);
+  const entry = getSettlementLedgerBlockedEntry(
+    input.roomId,
+    input.sessionId,
+    handNumber,
+  );
+  if (entry) {
+    if (entry.code === "POST_COMMIT_INVARIANT_DRIFT") {
+      return SETTLEMENT_LIFECYCLE.REVIEW_REQUIRED_POST_COMMIT;
+    }
+    return SETTLEMENT_LIFECYCLE.BLOCKED_PRE_COMMIT;
+  }
+  if (input.clearedHand && (input.sessionData?.handCount ?? 0) > 0) {
+    return SETTLEMENT_LIFECYCLE.SUCCEEDED;
+  }
+  if (input.awaitingSettlement) {
+    return SETTLEMENT_LIFECYCLE.PENDING;
+  }
+  return null;
+}
+
+/**
+ * @param {string} key
+ * @param {() => void} logFn
+ */
+export function logSettlementLifecycleOnce(key, logFn) {
+  if (!key || settlementLifecycleLogged.has(key)) return false;
+  settlementLifecycleLogged.add(key);
+  logFn();
+  return true;
+}
+
+/** @param {string} roomId @param {string} sessionId @param {number} handNumber */
+export function clearSettlementLifecycleLogs(roomId, sessionId, handNumber) {
+  if (!roomId || !sessionId || !handNumber) {
+    settlementLifecycleLogged.clear();
+    return;
+  }
+  const marker = `${roomId}|${sessionId}|${handNumber}|`;
+  for (const key of [...settlementLifecycleLogged.keys()]) {
+    if (key.includes(marker)) settlementLifecycleLogged.delete(key);
+  }
+}
+
+/**
+ * @param {{ code?: string | null, handNumber?: number | null }} entry
+ */
+export function settlementBlockedFeedbackPayload(entry) {
+  const code = entry?.code ?? "TABLE_CHIP_INVARIANT_MISMATCH";
+  const lifecycle =
+    code === "POST_COMMIT_INVARIANT_DRIFT"
+      ? SETTLEMENT_LIFECYCLE.REVIEW_REQUIRED_POST_COMMIT
+      : SETTLEMENT_LIFECYCLE.BLOCKED_PRE_COMMIT;
+  return {
+    status: "error",
+    message: ledgerBlockedUserMessage(code),
+    settlementLifecycle: lifecycle,
+    settlementBlockedCode: code,
+    settlementBlockedHandNumber: entry?.handNumber ?? null,
+    committed: code === "POST_COMMIT_INVARIANT_DRIFT",
+  };
+}
+
+/**
+ * Pure recover-handoff planner — keeps blocked settlements terminal.
+ * @param {{ handComplete: boolean, latchBlocked: boolean, latchCode?: string | null, finalizeStatus?: string | null }} input
+ */
+export function planRecoverHandoffResult(input) {
+  if (!input.handComplete) {
+    return { status: "noop" };
+  }
+  if (input.latchBlocked) {
+    return {
+      status: "settlement_blocked",
+      code: input.latchCode ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+      committed: input.latchCode === "POST_COMMIT_INVARIANT_DRIFT",
+    };
+  }
+  if (input.finalizeStatus === "blocked_latch") {
+    return {
+      status: "settlement_blocked",
+      code: input.latchCode ?? "TABLE_CHIP_INVARIANT_MISMATCH",
+      committed: input.latchCode === "POST_COMMIT_INVARIANT_DRIFT",
+    };
+  }
+  if (input.finalizeStatus === "settled" || input.finalizeStatus === "cowin_pending") {
+    return { status: "settlement_recovered" };
+  }
+  return { status: "settlement_pending" };
+}
+
 /**
  * @param {{ roomId: string, sessionId: string, handNumber: number, code: string }} latch
  */
@@ -150,6 +264,7 @@ export function reconcileSettlementLedgerLatchFromSession(
     if (entry.roomId !== roomId || entry.sessionId !== sessionId) continue;
     if (isSettlementLedgerLatchResolved(entry, snapshot)) {
       settlementLedgerBlocked.delete(key);
+      clearSettlementLifecycleLogs(entry.roomId, entry.sessionId, entry.handNumber);
     }
   }
 }
@@ -182,6 +297,7 @@ export function clearSettlementLedgerBlocked(roomId, sessionId, handNumber) {
 /** Test helper — reset all latch state. */
 export function resetSettlementLedgerBlockedForTests() {
   settlementLedgerBlocked.clear();
+  settlementLifecycleLogged.clear();
 }
 
 /**

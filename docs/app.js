@@ -44,6 +44,17 @@ import {
   isBenignTableActionError,
   isStaleTableActionError,
   scrubRawInternalMessage,
+  isSettlementLedgerBlocked,
+  getSettlementLedgerBlockedEntry,
+  markSettlementLedgerBlocked,
+  resetSettlementLedgerBlockedForTests,
+  resolveSettlementHandNumberFromSession,
+  deriveSettlementLifecycleState,
+  settlementBlockedFeedbackPayload,
+  planRecoverHandoffResult,
+  logSettlementLifecycleOnce,
+  clearSettlementLifecycleLogs,
+  SETTLEMENT_LIFECYCLE,
 } from "./table-action-feedback.js";
 import {
   shouldClientDriveBotsDirectly,
@@ -305,6 +316,8 @@ import {
   assertHandFlowConsistent,
   shouldAutoOpenNextHand,
   countEligibleForNextHand,
+  isHandAwaitingSettlement,
+  isClearedPreDealHand,
 } from "./session-startup.js";
 import {
   LOCAL_HAND_ACTION,
@@ -1341,6 +1354,47 @@ let nextHandOpenTimer = null;
 let nextHandOpenStartedAt = 0;
 let nextHandOpenInFlight = false;
 let handoffRecoveryInFlight = false;
+let settlementBlockedFeedbackKey = null;
+
+function getOpenSessionSettlementLatch(sessionObj) {
+  if (!currentRoomId || !openSessionId || !sessionObj) return null;
+  const handNumber = resolveSettlementHandNumberFromSession(sessionObj);
+  if (!isSettlementLedgerBlocked(currentRoomId, openSessionId, handNumber)) return null;
+  return getSettlementLedgerBlockedEntry(currentRoomId, openSessionId, handNumber);
+}
+
+function applySettlementBlockedFeedback(sessionObj, entryOverride = null) {
+  const entry =
+    entryOverride ??
+    getOpenSessionSettlementLatch(sessionObj);
+  if (!entry) return;
+  const payload = settlementBlockedFeedbackPayload(entry);
+  const key = `${entry.roomId}|${entry.sessionId}|${entry.handNumber}|${entry.code}`;
+  if (
+    settlementBlockedFeedbackKey === key &&
+    tableActionFeedback?.settlementLifecycle === payload.settlementLifecycle
+  ) {
+    return;
+  }
+  settlementBlockedFeedbackKey = key;
+  setTableActionFeedback(payload, getActionErrorContext("settlement"));
+}
+
+function clearSettlementBlockedFeedbackIfResolved(sessionObj) {
+  if (!sessionObj || getOpenSessionSettlementLatch(sessionObj)) return;
+  const lifecycle = tableActionFeedback?.settlementLifecycle;
+  if (
+    lifecycle !== SETTLEMENT_LIFECYCLE.BLOCKED_PRE_COMMIT &&
+    lifecycle !== SETTLEMENT_LIFECYCLE.REVIEW_REQUIRED_POST_COMMIT
+  ) {
+    return;
+  }
+  settlementBlockedFeedbackKey = null;
+  if (tableActionFeedbackContext?.actionKind === "settlement") {
+    tableActionFeedback = null;
+    tableActionFeedbackContext = null;
+  }
+}
 
 function sessionNeedsEnrollmentDriver(sessionObj) {
   return (
@@ -1511,12 +1565,30 @@ function maybeRecoverHandLifecycle(sessionObj) {
     return;
   }
 
+  clearSettlementBlockedFeedbackIfResolved(sessionObj);
+  const latchEntry = getOpenSessionSettlementLatch(sessionObj);
+  if (latchEntry) {
+    applySettlementBlockedFeedback(sessionObj, latchEntry);
+    cancelNextHandOpenTimer();
+    return;
+  }
+  settlementBlockedFeedbackKey = null;
+
   const handoffReady = shouldAutoOpenNextHand({ session: sessionObj, tablePlayOpen });
   if (!handoffReady) {
     if (tablePlayOpen && !handoffRecoveryInFlight) {
       handoffRecoveryInFlight = true;
       void recoverHandoffBetweenHands(currentRoomId, openSessionId, session?.uid ?? null)
         .then((result) => {
+          if (result.status === "settlement_blocked") {
+            applySettlementBlockedFeedback(sessionObj, {
+              roomId: currentRoomId,
+              sessionId: openSessionId,
+              handNumber: result.handNumber,
+              code: result.code,
+            });
+            return;
+          }
           if (result.status === "settlement_recovered" || result.status === "artifacts_cleared") {
             logHandLifecycleTransition({
               from: "settle",
@@ -4037,6 +4109,15 @@ function runSessionOrchestration(sessionObj, scores, { reason = "snapshot" } = {
     } catch (err) {
       console.warn("[nbl-invariant]", err?.code ?? "hand_flow", err?.message ?? err);
     }
+  }
+
+  clearSettlementBlockedFeedbackIfResolved(sessionObj);
+  const latchEntry = getOpenSessionSettlementLatch(sessionObj);
+  if (latchEntry) {
+    applySettlementBlockedFeedback(sessionObj, latchEntry);
+    stopEnrollmentTimer();
+    cancelNextHandOpenTimer();
+    return;
   }
 
   maybeRecoverHandLifecycle(sessionObj);
